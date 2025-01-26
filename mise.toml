@@ -1,0 +1,20 @@
+[env]
+_.path = [
+    "test/bats/bin",
+    "target/debug",
+]
+
+[tasks.build]
+alias = "b"
+run = "cargo build"
+
+[tasks.test]
+alias = ["t", "ci"]
+depends = ["build"]
+run = [
+    "cargo test",
+    "bats test",
+]
+
+[tools]
+bun = "latest"

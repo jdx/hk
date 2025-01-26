@@ -5,9 +5,11 @@ mod cache;
 mod init;
 mod install;
 mod run;
+mod config;
+mod generate;
 
 #[derive(Debug, clap::Parser)]
-#[clap(name = "angler", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"))]
+#[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"))]
 struct Cli {
     /// Enables verbose output
     #[clap(short, long, global = true, overrides_with_all = ["quiet", "silent"])]
@@ -25,6 +27,8 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     Cache(cache::Cache),
+    Config(config::Config),
+    Generate(generate::Generate),
     Init(init::Init),
     Install(install::Install),
     Run(run::Run),
@@ -48,6 +52,8 @@ pub async fn run() -> Result<()> {
     logger::init(level);
     match args.command {
         Commands::Cache(cmd) => cmd.run().await,
+        Commands::Config(cmd) => cmd.run().await,
+        Commands::Generate(cmd) => cmd.run().await,
         Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,

@@ -50,8 +50,8 @@ impl log::Log for Logger {
 
 impl Logger {
     fn init(level: Option<LevelFilter>) -> Self {
-        let term_level = level.unwrap_or(*env::ANGLER_LOG);
-        let file_level = *env::ANGLER_LOG_FILE_LEVEL;
+        let term_level = level.unwrap_or(*env::HK_LOG);
+        let file_level = *env::HK_LOG_FILE_LEVEL;
 
         let mut logger = Logger {
             level: std::cmp::max(term_level, file_level),
@@ -60,7 +60,7 @@ impl Logger {
             log_file: None,
         };
 
-        let log_file = &*env::ANGLER_LOG_FILE;
+        let log_file = &*env::HK_LOG_FILE;
         if let Ok(log_file) = init_log_file(log_file) {
             logger.log_file = Some(Mutex::new(log_file));
         } else {
@@ -97,15 +97,15 @@ impl Logger {
                 args = record.args()
             ),
             _ => {
-                let angler = match record.level() {
-                    Level::Error => ui::style::ered("angler"),
-                    Level::Warn => ui::style::eyellow("angler"),
-                    _ => ui::style::edim("angler"),
+                let hk = match record.level() {
+                    Level::Error => ui::style::ered("hk"),
+                    Level::Warn => ui::style::eyellow("hk"),
+                    _ => ui::style::edim("hk"),
                 };
                 match record.level() {
-                    Level::Info => format!("{angler} {args}", args = record.args()),
+                    Level::Info => format!("{hk} {args}", args = record.args()),
                     _ => format!(
-                        "{angler} {level} {args}",
+                        "{hk} {level} {args}",
                         level = self.styled_level(record.level()),
                         args = record.args()
                     ),

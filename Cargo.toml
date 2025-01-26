@@ -1,28 +1,30 @@
 [package]
-name = "angler"
+name = "hk"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 description = "A tool for managing git hooks"
 license = "MIT"
-repository = "https://github.com/jdx/angler"
-documentation = "https://angler.jdx.dev"
-homepage = "https://angler.jdx.dev"
+repository = "https://github.com/jdx/hk"
+documentation = "https://hk.jdx.dev"
+homepage = "https://hk.jdx.dev"
 
 [dependencies]
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 console = "0.15"
 dirs = "6"
+duct = "0.13.7"
 ensembler = "0.1.0"
-extism = "1"
 git2 = "0.20"
 globset = "0.4.15"
-indexmap = "2.7.1"
+indexmap = {version="2", features=["serde"]}
 itertools = "0.14"
 log = "0.4"
 miette = { version = "7", features = ["fancy", "syntect-highlighter"] }
+rpkl = "0.4.0"
 serde = { version = "1", features = ["derive"] }
 serde_with = "3.12.0"
+serde_yaml = "0.9.34"
 tera = "1.20.0"
 thiserror = "2.0.11"
 tokio = { version = "1", features = ["full"] }

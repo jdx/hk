@@ -2,6 +2,12 @@
 # plugin = "https://github.com/extism/plugins/releases/latest/download/count_vowels.wasm"
 
 [[pre-commit]]
+formatters = [
+    "rustfmt",
+    "black",
+    {name = "ruff", args = ["--fix"]}
+]
+
 name = "rustfmt"
 glob = ["*.rs"]
 # run = "rustfmt --check --edition 2021 -- {{staged_files}}"

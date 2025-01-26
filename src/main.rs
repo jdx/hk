@@ -11,6 +11,8 @@ mod logger;
 mod plugins;
 mod tera;
 mod ui;
+mod lsp_types;
+mod core;
 
 pub use error::Result;
 use tokio::signal;

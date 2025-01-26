@@ -1,0 +1,23 @@
+{
+  "name": "hk",
+  "version": "1.0.0",
+  "description": "A tool for running hooks on files in a git repository.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jdx/hk.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jdx/hk/issues"
+  },
+  "homepage": "https://github.com/jdx/hk#readme"
+}

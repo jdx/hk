@@ -1,0 +1,16 @@
+typealias FileType = "bzl"
+    |"rust"
+    |"go"
+    |"javascript"
+    |"typescript"
+    |"python"
+    |"yaml"
+    |"json"
+
+class Hook {
+    glob: Listing<String>?
+    file_types: Listing<FileType>?
+    run: String?
+}
+
+pre_commit: Listing<Mapping<String, Hook>> = new {}

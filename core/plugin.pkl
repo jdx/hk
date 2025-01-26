@@ -1,0 +1,28 @@
+// Base formatter configuration that other formatters can extend
+
+// Default name that should be overridden by specific formatters
+name = "formatter"
+
+class Meta {
+    url: String
+    description: String
+    notes: Listing<String> = new {}
+}
+// Base metadata structure that formatters should populate
+meta: Meta
+
+// Available formatting methods
+methods: Listing<String> = new {}
+
+// // List of filetypes the formatter supports
+file_types: Listing<String> = new {}
+
+class Format {
+    command: String
+    args: Listing<String>? = new {}
+    to_stdin: Boolean?
+    dynamic_command: String?
+}
+
+// Generator configuration for the formatting process
+format: Format
