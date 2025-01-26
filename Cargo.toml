@@ -1,0 +1,33 @@
+[package]
+name = "ensembler"
+version = "0.1.0"
+edition = "2024"
+repository = "https://github.com/jdx/ensembler"
+homepage = "https://github.com/jdx/ensembler"
+documentation = "https://docs.rs/ensembler"
+license = "MIT"
+description = "A library for running commands and reporting progress"
+
+[lib]
+name = "ensembler"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ensembler"
+path = "src/main.rs"
+
+[dependencies]
+console = "0.15"
+indexmap = "2"
+indicatif = "0.17"
+itertools = "0.14"
+log = "0.4"
+signal-hook = "0.3"
+terminal_size = "0.4"
+thiserror = "2"
+
+[dev-dependencies]
+test-log = "0.2"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal", "user"] }
