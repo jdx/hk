@@ -1,0 +1,21 @@
+# [[pre-commit]]
+# plugin = "https://github.com/extism/plugins/releases/latest/download/count_vowels.wasm"
+
+[[pre-commit]]
+formatters = [
+    "rustfmt",
+    "black",
+    {name = "ruff", args = ["--fix"]}
+]
+
+name = "rustfmt"
+glob = ["*.rs"]
+# run = "rustfmt --check --edition 2021 -- {{staged_files}}"
+list-files-with-errors = "rustfmt --files-with-diff --edition 2021 -- {{staged_files}}"
+fix = "rustfmt --edition 2021 -- {{files}}"
+
+[[pre-commit]]
+name = "cargo-check"
+glob = ["*.rs"]
+# run = "cargo check"
+render-error-json = "cargo check --message-format=json"

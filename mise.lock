@@ -1,0 +1,10 @@
+[tools."npm:prettier"]
+version = "3.4.2"
+backend = "npm:prettier"
+
+[tools.pkl]
+version = "0.27.2"
+backend = "aqua:apple/pkl"
+
+[tools.pkl.checksums]
+pkl-macos-aarch64 = "sha256:e5d3ceaa776cbd43423c564e7ee1997a39ac219608ed86250c5be6298674fa9a"

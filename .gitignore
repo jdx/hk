@@ -1,0 +1,5 @@
+/target
+/.cargo
+node_modules
+.aider*
+.pkl-lsp

@@ -1,0 +1,8 @@
+import "formatters.pkl"
+import "file_types.pkl"
+import "step.pkl"
+
+typealias Hook = Mapping<String, step.Step>
+
+pre_commit: Hook?
+pre_push: Hook?

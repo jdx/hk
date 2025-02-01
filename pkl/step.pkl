@@ -1,0 +1,33 @@
+import "file_locks.pkl"
+import "file_types.pkl"
+
+open class Step {
+    /// Which file patterns to run the step on
+    glob: Listing<String>?
+    /// Which file types to run the step on
+    file_types: Listing<file_types.FileType>?
+
+    /// If set, the step will wait for the files to be unlocked before starting, then it grabs rw locks for the files
+    file_locks: file_locks.FileLocks?
+    /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
+    exclusive = false
+    /// If set, the step will wait for the steps in the list to finish before starting
+    depends: Listing<String>?
+
+    /// a shell command to run
+    run: String?
+
+    /// the command to run (alternative to run)
+    command: String?
+    /// arguments to pass to command
+    args: Listing<String>?
+
+    // linter+formatter options
+    single_file = false
+    to_stdin = false
+    from_stderr = false
+    to_temp_file = false
+
+    /// glob of files to git stage after running the step
+    stage: String?
+}

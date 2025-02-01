@@ -1,0 +1,32 @@
+[env]
+_.path = [
+    "test/bats/bin",
+    "target/debug",
+]
+
+[tools]
+"npm:prettier" = "latest"
+pkl = "latest"
+
+[tasks.init]
+run = '''
+if [ ! -d test/bats ]; then
+    git submodule update --init --recursive
+fi
+'''
+
+[tasks.build]
+depends = ["init"]
+alias = "b"
+run = "cargo build"
+
+[tasks.test]
+alias = ["t", "ci"]
+depends = ["build"]
+run = [
+    "cargo test",
+    "bats test",
+]
+
+[tasks.dist]
+run = "pkl project package pkl --output-path docs/public/pkl"

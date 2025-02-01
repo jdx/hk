@@ -1,0 +1,8 @@
+typealias FileType = "bzl"
+    |"rust"
+    |"go"
+    |"javascript"
+    |"typescript"
+    |"python"
+    |"yaml"
+    |"json"

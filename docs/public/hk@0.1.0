@@ -1,0 +1,18 @@
+{
+  "name": "hk",
+  "packageUri": "package://hk.jdx.dev/hk@0.1.0",
+  "version": "0.1.0",
+  "packageZipUrl": "https://hk.jdx.dev/hk@0.1.0.zip",
+  "packageZipChecksums": {
+    "sha256": "d9d787b1120c65b39a0c981552fc9817ee8ad35e0a1ac3d0153e0809b27e8e21"
+  },
+  "dependencies": {},
+  "sourceCodeUrlScheme": "https://github.com/jdx/hk/blob/0.1.0/pkl/%{path}#L%{line}-L%{endLine}",
+  "sourceCode": "https://github.com/jdx/hk",
+  "documentation": "https://hk.jdx.dev/pkl-docs",
+  "license": "MIT",
+  "authors": [
+    "jdx <216188+jdx@users.noreply.github.com>"
+  ],
+  "description": "pkl code for interacting with the hk project"
+}

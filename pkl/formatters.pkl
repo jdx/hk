@@ -1,0 +1,13 @@
+import "file_types.pkl"
+import "step.pkl"
+
+open class Formatter extends step.Step {
+    type = "formatter"
+    single_file = true
+}
+
+class Prettier extends Formatter {
+    command = "prettier"
+    args = new { "--stdin-filepath"; "{{ filename }}" }
+    to_stdin = true
+}

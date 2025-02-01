@@ -1,0 +1,61 @@
+// amends "package://hk.jdx.dev/hk@0.1.0#/config.pkl"
+amends "pkl/config.pkl"
+import "pkl/formatters.pkl"
+
+// defines what happens during git pre-commit hook
+pre_commit {
+    // "prelint" here is simply a name to define the step
+    ["prelint"] {
+        // if a step has a "run" script it will execute that
+        run = "mise run prelint"
+        exclusive = true // ensures that the step runs in isolation
+    }
+    ["render-config"] {
+        glob = new { "js/config.js" }
+        file_locks = new { `read` = "{{staged_files}}"; write = "docs/config.js" }
+        run = "./scripts/render-config.sh {{staged_files}} >docs/config.js"
+        stage = "docs/config.js"
+    }
+    ["render-docs"] {
+        depends = new { "render-config" }
+        glob = new { "docs/**/*.md" }
+        file_locks = new { `read` = "{{staged_files}}"; write = "docs/index.md" }
+        run = "./scripts/render-docs.sh {{staged_files}} >docs/index.md"
+        stage = "docs/index.md"
+    }
+    // as mentioned above, format+lint will run in parallel (with some logic to handle read/writes to the same file)
+    // "format" and "lint" are special names that run formatters/linters and don't require a "run" field
+    ["prettier"] = new formatters.Prettier {}
+    ["postlint"] {
+        run = "mise run postlint"
+        exclusive = true // ensures that the step runs in isolation
+    }
+}
+
+pre_push {
+    // ["format"] {
+    //     check = true // ensures the files have no changes and fails otherwise
+    //     formatter = formatters.prettier
+    // }
+    // ["lint"] {
+    //     linters = new {
+    //         ["eslint"] {
+    //             glob = new { "*.ts" }
+    //         }
+    //         ["clippy"] {}
+    //         ["golangci-lint"] {}
+    //     }
+    // }
+}
+
+// TODO
+// commit_msg {
+// }
+
+// TODO
+// prepare_commit_msg {
+// }
+
+// TODO
+// update {
+// }

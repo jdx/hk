@@ -1,0 +1,15 @@
+amends "pkl:Project"
+
+package {
+  name = "hk"
+  baseUri = "package://hk.jdx.dev/hk"
+  version = "0.1.0"
+  packageZipUrl = "https://hk.jdx.dev/\(name)@\(version).zip"
+  authors = new {"jdx <216188+jdx@users.noreply.github.com>"}
+  description = "pkl code for interacting with the hk project"
+  license = "MIT"
+  sourceCode = "https://github.com/jdx/hk"
+  documentation = "https://hk.jdx.dev/pkl-docs"
+  website = "https://hk.jdx.dev"
+  sourceCodeUrlScheme = "\(sourceCode)/blob/\(version)/pkl/%{path}#L%{line}-L%{endLine}"
+}
