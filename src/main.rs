@@ -1,11 +1,12 @@
 use ensembler::CmdLineRunner;
 
-fn main() -> ensembler::Result<()> {
+#[tokio::main]
+async fn main() -> ensembler::Result<()> {
     let mpr = ensembler::MultiProgressReport::get();
-    CmdLineRunner::new("sleep")
+    let result = CmdLineRunner::new("sleep")
         .arg("1")
         .with_pr(mpr.add("sleeping").into())
-        .execute()?;
+        .execute().await?;
 
     Ok(())
 }
