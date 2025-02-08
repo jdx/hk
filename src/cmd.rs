@@ -1,21 +1,14 @@
 use crate::Result;
-use std::{collections::HashSet, ops::Deref};
+use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
-use std::io::{BufRead, Write};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::{io::BufReader, process::Command, sync::Mutex};
 use std::process::{ExitStatus, Stdio};
-use std::sync::mpsc::channel;
-use std::sync::{Arc, RwLock};
-use std::thread;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+use std::sync::Arc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
 use indexmap::IndexSet;
-#[cfg(not(any(test, target_os = "windows")))]
-use signal_hook::consts::{SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGUSR1, SIGUSR2};
-#[cfg(not(any(test, target_os = "windows")))]
-use signal_hook::iterator::Signals;
 use std::sync::LazyLock as Lazy;
 
 use crate::Error::ScriptFailed;
@@ -30,8 +23,6 @@ pub struct CmdLineRunner {
     redactions: IndexSet<String>,
     pass_signals: bool,
 }
-
-static OUTPUT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 static RUNNING_PIDS: Lazy<std::sync::Mutex<HashSet<u32>>> = Lazy::new(Default::default);
 
@@ -184,7 +175,6 @@ impl CmdLineRunner {
         let id = cp.id().unwrap();
         RUNNING_PIDS.lock().unwrap().insert(id);
         trace!("Started process: {id} for {}", self.program);
-        let (tx, rx) = channel();
         let result = Arc::new(Mutex::new(CmdResult::default()));
         let combined_output = Arc::new(Mutex::new(Vec::new()));
         if let Some(stdout) = cp.stdout.take() {
@@ -230,25 +220,7 @@ impl CmdLineRunner {
                 stdin.write_all(text.as_bytes()).await.unwrap();
             });
         }
-        #[cfg(not(any(test, target_os = "windows")))]
-        let mut sighandle = None;
-        #[cfg(not(any(test, target_os = "windows")))]
-        if self.pass_signals {
-            let mut signals =
-                Signals::new([SIGINT, SIGTERM, SIGTERM, SIGHUP, SIGQUIT, SIGUSR1, SIGUSR2])?;
-            sighandle = Some(signals.handle());
-            let tx = tx.clone();
-            thread::spawn(move || {
-                for sig in &mut signals {
-                    tx.send(ChildProcessOutput::Signal(sig)).unwrap();
-                }
-            });
-        }
         let status = cp.wait().await.unwrap();
-        #[cfg(not(any(test, target_os = "windows")))]
-        if let Some(sighandle) = sighandle {
-            sighandle.close();
-        }
         RUNNING_PIDS.lock().unwrap().remove(&id);
         result.lock().await.status = status;
 
@@ -269,14 +241,6 @@ impl CmdLineRunner {
         }
         Err(ScriptFailed(self.program.clone(), Some(status)))?
     }
-
-    fn get_args(&self) -> Vec<String> {
-        self
-            .args
-            .iter()
-            .map(|s| s.clone())
-            .collect::<Vec<_>>()
-    }
 }
 
 impl Display for CmdLineRunner {
@@ -291,14 +255,6 @@ impl Debug for CmdLineRunner {
         let args = self.args.join(" ");
         write!(f, "{} {args}", self.program)
     }
-}
-
-enum ChildProcessOutput {
-    Stdout(String),
-    Stderr(String),
-    ExitStatus(ExitStatus),
-    #[cfg(not(any(test, target_os = "windows")))]
-    Signal(i32),
 }
 
 #[derive(Debug, Default, Clone)]
