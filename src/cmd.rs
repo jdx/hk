@@ -233,20 +233,25 @@ impl CmdLineRunner {
     }
 
     fn on_error(&self, output: String, status: ExitStatus) -> Result<()> {
-        error!("{} failed", &self.program);
-        if let Some(pr) = &self.pr {
-            if !output.trim().is_empty() {
-                pr.println(output);
-            }
-        }
-        Err(ScriptFailed(self.program.clone(), Some(status)))?
+        error!("failed to run: {}", self);
+        let output = output.trim().to_string();
+        // if let Some(pr) = &self.pr {
+        //     if !output.trim().is_empty() {
+        //         pr.println(output);
+        //     }
+        // }
+        Err(ScriptFailed(self.program.clone(), Some(status), output))?
     }
 }
 
 impl Display for CmdLineRunner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let args = self.args.join(" ");
-        write!(f, "{} {args}", self.program)
+        let mut cmd = format!("{} {}", &self.program, args);
+        if cmd.starts_with("sh -c ") {
+            cmd = cmd[6..].to_string();
+        }
+        write!(f, "{}", cmd)
     }
 }
 

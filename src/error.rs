@@ -10,8 +10,8 @@ pub enum Error {
     #[error(transparent)]
     Nix(#[from] nix::errno::Errno),
 
-    #[error("{} exited with non-zero status: {}", .0, render_exit_status(.1))]
-    ScriptFailed(String, Option<ExitStatus>),
+    #[error("{} exited with non-zero status: {}\n{}", .0, render_exit_status(.1), .2)]
+    ScriptFailed(String, Option<ExitStatus>, String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
