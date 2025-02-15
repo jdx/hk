@@ -12,7 +12,7 @@ use indexmap::IndexSet;
 use std::sync::LazyLock as Lazy;
 
 use crate::Error::ScriptFailed;
-use crate::progress_report::SingleReport;
+use clx::SingleReport;
 
 pub struct CmdLineRunner {
     cmd: Command,

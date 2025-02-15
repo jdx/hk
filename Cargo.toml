@@ -13,6 +13,7 @@ name = "ensembler"
 path = "src/lib.rs"
 
 [dependencies]
+clx = "0.1.0"
 console = "0.15"
 indexmap = "2"
 indicatif = "0.17"
