@@ -1,0 +1,21 @@
+[package]
+name = "clx"
+version = "0.1.0"
+edition = "2024"
+authors = ["jdx"]
+description = "Components for CLI applications"
+license = "MIT"
+repository = "https://github.com/jdx/clx"
+readme = "README.md"
+include = ["examples/**/*.rs", "src/**/*.rs"]
+
+[dependencies]
+console = "0.15"
+indicatif = "0.17"
+log = "0.4"
+terminal_size = "0.4"
+thiserror = "2.0.11"
+tokio = { version = "1", features = ["full"] }
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal", "user"] }
