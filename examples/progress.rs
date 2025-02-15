@@ -1,4 +1,4 @@
-use clx::{MultiProgressReport};
+use clx::MultiProgressReport;
 
 #[tokio::main]
 async fn main() {

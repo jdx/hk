@@ -1,5 +1,5 @@
 use crate::Result;
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 use indicatif::MultiProgress;
 
@@ -18,26 +18,21 @@ pub struct MultiProgressReport {
     output_type: OutputType,
 }
 
-static INSTANCE: Mutex<Option<Weak<MultiProgressReport>>> = Mutex::new(None);
+static INSTANCE: Mutex<Option<Arc<MultiProgressReport>>> = Mutex::new(None);
 
 impl MultiProgressReport {
     fn try_get() -> Option<Arc<Self>> {
-        match &*INSTANCE.lock().unwrap() {
-            Some(w) => w.upgrade(),
-            None => None,
-        }
+        INSTANCE.lock().unwrap().clone()
     }
     pub fn set_output_type(output_type: OutputType) {
         let mut mutex = INSTANCE.lock().unwrap();
         let mpr = Arc::new(Self::new(output_type));
-        *mutex = Some(Arc::downgrade(&mpr));
+        *mutex = Some(mpr);
     }
     pub fn get() -> Arc<Self> {
         let mut mutex = INSTANCE.lock().unwrap();
-        if let Some(w) = &*mutex {
-            if let Some(mpr) = w.upgrade() {
-                return mpr;
-            }
+        if let Some(mpr) = &*mutex {
+            return mpr.clone();
         }
         let output_type = if !console::user_attended_stderr() {
             OutputType::Quiet
@@ -45,7 +40,7 @@ impl MultiProgressReport {
             OutputType::ProgressBar
         };
         let mpr = Arc::new(Self::new(output_type));
-        *mutex = Some(Arc::downgrade(&mpr));
+        *mutex = Some(mpr.clone());
         mpr
     }
     fn new(output_type: OutputType) -> Self {
@@ -55,17 +50,17 @@ impl MultiProgressReport {
         };
         MultiProgressReport { mp, output_type }
     }
-    pub fn add(&self, prefix: &str) -> Box<dyn SingleReport> {
+    pub fn add(&self, prefix: &str) -> Arc<Box<dyn SingleReport>> {
         match self.output_type {
             OutputType::ProgressBar => {
                 let mut pr = ProgressReport::new(prefix.into());
                 if let Some(mp) = &self.mp {
                     pr.pb = mp.add(pr.pb);
                 }
-                Box::new(pr)
+                Arc::new(Box::new(pr))
             }
-            OutputType::Quiet => Box::new(QuietReport::new()),
-            OutputType::Verbose => Box::new(VerboseReport::new(prefix.to_string())),
+            OutputType::Quiet => Arc::new(Box::new(QuietReport::new())),
+            OutputType::Verbose => Arc::new(Box::new(VerboseReport::new(prefix.to_string()))),
         }
     }
     pub fn suspend_if_active<F: FnOnce() -> R, R>(f: F) -> R {
