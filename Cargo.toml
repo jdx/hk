@@ -1,7 +1,7 @@
 [package]
 name = "clx"
 version = "0.1.1"
-edition = "2024"
+edition = "2021"
 authors = ["jdx"]
 description = "Components for CLI applications"
 license = "MIT"
