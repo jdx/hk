@@ -7,6 +7,7 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     JoinPaths(#[from] std::env::JoinPathsError),
+    #[cfg(unix)]
     #[error(transparent)]
     Nix(#[from] nix::errno::Errno),
 
