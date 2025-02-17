@@ -181,6 +181,7 @@ impl CmdLineRunner {
             let result = result.clone();
             let combined_output = combined_output.clone();
             let redactions = self.redactions.clone();
+            let pr = self.pr.clone();
             tokio::spawn(async move {
                 let stdout = BufReader::new(stdout);
                 let mut lines = stdout.lines();
@@ -191,6 +192,9 @@ impl CmdLineRunner {
                     let mut result = result.lock().await;
                     result.stdout += &line;
                     result.stdout += "\n";
+                    if let Some(pr) = &pr {
+                        pr.set_message(line.clone());
+                    }
                     combined_output.lock().await.push(line);
                 }
             });
@@ -199,6 +203,7 @@ impl CmdLineRunner {
             let result = result.clone();
             let combined_output = combined_output.clone();
             let redactions = self.redactions.clone();
+            let pr = self.pr.clone();
             tokio::spawn(async move {
                 let stderr = BufReader::new(stderr);
                 let mut lines = stderr.lines();
@@ -210,6 +215,9 @@ impl CmdLineRunner {
                         let mut result = result.lock().await;
                     result.stderr += &line;
                     result.stderr += "\n";
+                    if let Some(pr) = &pr {
+                        pr.println(line.clone());
+                    }
                     combined_output.lock().await.push(line);
                 }
             });
@@ -233,7 +241,6 @@ impl CmdLineRunner {
     }
 
     fn on_error(&self, output: String, status: ExitStatus) -> Result<()> {
-        error!("failed to run: {}", self);
         let output = output.trim().to_string();
         // if let Some(pr) = &self.pr {
         //     if !output.trim().is_empty() {
