@@ -1,0 +1,46 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: local
+    hooks:
+      - id: mise-prelint
+        name: mise-prelint
+        entry: mise run prelint
+        language: system
+        types: [file]
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        types: [file]
+        files: \.github/workflows/.*(yml|yaml)
+      - id: pkl-eval
+        name: pkl-eval
+        entry: pkl eval
+        language: system
+        types: [file]
+        files: \.pkl$
+      - id: cargo-fmt
+        name: cargo-fmt
+        entry: cargo fmt
+        language: system
+        types: [file]
+        files: \.rs$
+        pass_filenames: false
+      - id: dbg
+        name: dbg
+        entry: bash -c '! rg -e "dbg!" src/main.rs' # TODO: fix this
+        language: system
+        types: [file]
+        files: \.rs$
+      - id: prettier
+        name: prettier
+        entry: prettier --write
+        language: system
+        types: [file]
+        files: \.(js|jsx|ts|tsx|css|scss|less|html|json|jsonc|yaml|markdown|markdown\.mdx|graphql|handlebars|svelte|astro|htmlangular)$
+      - id: mise-postlint
+        name: mise-postlint
+        entry: mise run postlint
+        language: system
+        types: [file]

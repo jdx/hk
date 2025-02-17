@@ -1,5 +1,6 @@
 /target
 /.cargo
+/tmp
 node_modules
 .aider*
 .pkl-lsp

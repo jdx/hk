@@ -50,6 +50,10 @@ which allows sharing of common pre-commit logic. As I see it, here are the drawb
 - I read that pre-commit has some parallel execution capabilities, but the docs don't explain anything about it. A proper git hook manager
   should have advanced configuration around parallel execution to be able to group steps that can run in parallel and segment out those that can't.
 
+## Benchmarks
+
+![benchmarks](./public/benchmark.png)
+
 ## Roadmap
 
 There isn't one yet. This project will hit 1.0 when I feel it has good enough parity that almost anyone would be able to switch from lefthook or pre-commit to hk.
