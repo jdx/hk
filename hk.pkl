@@ -9,12 +9,6 @@ min_hk_version = "0.1.0"
 
 // defines what happens during git pre-commit hook
 `pre-commit` {
-    // "prelint" here is simply a name to define the step
-    ["prelint"] {
-        // if a step has a "check" script it will execute that
-        check = "mise run prelint"
-        exclusive = true // ensures that the step runs in isolation
-    }
     ["actionlint"] = new actionlint.Actionlint {}
     ["pkl"] {
         glob = new { "*.pkl" }
@@ -34,10 +28,6 @@ min_hk_version = "0.1.0"
     }
     ["prettier"] = new prettier.Prettier {
         glob = new { "*.js"; "*.ts" } // override the default globs
-    }
-    ["postlint"] {
-        check = "mise run postlint"
-        exclusive = true
     }
 }
 

@@ -5,23 +5,23 @@ set -euxo pipefail
 # cargo build --profile serious
 export PATH="$PWD/target/serious:$PATH"
 
-# git stash || true
+git stash || true
 
-# echo "with no changes"
-# hyperfine --warmup 1 "hk run pre-commit" "lefthook run pre-commit" "pre-commit run" --export-json tmp/benchmark-no-changes.json
+echo "with no changes"
+hyperfine -N --warmup 1 "hk run pre-commit" "lefthook run pre-commit" "pre-commit run" --export-json tmp/benchmark-no-changes.json
 
-# echo "with unstaged changed"
-# echo "// foo" >> src/main.rs
-# hyperfine --warmup 1 "hk run pre-commit" "lefthook run pre-commit" "pre-commit run" --export-json tmp/benchmark-unstaged.json
+echo "with unstaged changed"
+echo "// foo" >> src/main.rs
+hyperfine -N --warmup 1 "hk run pre-commit" "lefthook run pre-commit" "pre-commit run" --export-json tmp/benchmark-unstaged.json
 
-# echo "with staged changed"
-# git add src/main.rs
-# hyperfine --warmup 1 "hk run pre-commit" "lefthook run pre-commit" "pre-commit run" --export-json tmp/benchmark-staged.json
+echo "with staged changed"
+git add src/main.rs
+hyperfine -N --warmup 1 "hk run pre-commit" "lefthook run pre-commit" "pre-commit run" --export-json tmp/benchmark-staged.json
 
-# echo "on all files"
-# hyperfine --warmup 1 "hk run pre-commit --all" "lefthook run pre-commit -f --all-files" "pre-commit run --all-files" --export-json tmp/benchmark-all.json
-# git reset src/main.rs
-# git checkout -- src/main.rs
+echo "on all files"
+hyperfine -N --warmup 1 "hk run pre-commit --all" "lefthook run pre-commit -f --all-files" "pre-commit run --all-files" --export-json tmp/benchmark-all.json
+git reset src/main.rs
+git checkout -- src/main.rs
 
 cat << 'EOF' | uv run --with matplotlib --with numpy -
 import json

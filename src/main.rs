@@ -34,5 +34,3 @@ fn handle_epipe() {
         debug!("received SIGPIPE");
     });
 }
-// foo
-// foo
