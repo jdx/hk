@@ -2,6 +2,6 @@ import "../hk.pkl"
 
 class CargoClippy extends hk.Step {
     glob = new { "**/*.rs" }
-    check_all = "cargo clippy --all-features --allow-dirty --allow-staged"
+    check_all = "cargo clippy --all-features"
     fix_all = "cargo clippy --all-features --fix --allow-dirty --allow-staged"
 } 

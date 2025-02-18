@@ -15,6 +15,7 @@ setup() {
 
     # Initialize a git repository
     export GIT_CONFIG_NOSYSTEM=1
+    export HK_JOBS=2
     export HOME="$TEST_TEMP_DIR"
     git config --global init.defaultBranch main
     git config --global user.email "test@example.com"
@@ -224,4 +225,34 @@ EOF
     run hk run pre-commit -v
     assert_success
     assert_output --partial "pre-commit: skipping hook due to HK_SKIP_HOOK"
+}
+
+@test "check_first waits" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/hk.pkl"
+
+\`pre-commit\` {
+    ["a"] {
+        glob = new {"*.sh"}
+        check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"
+        fix = "echo 'start a' && sleep 0.1 && echo 'end a'"
+    }
+    ["b"] {
+        glob = new {"*.sh"}
+        check = "echo 'start b' && echo 'exit b' && exit 1"
+        fix = "echo 'start b' && echo 'end b'"
+    }
+}
+EOF
+    touch test.sh
+    git add test.sh
+    run hk run pre-commit -v
+    assert_success
+
+    # runs b to completion without a
+    assert_output --partial "INFO  b               echo 'start b' && echo 'end b'
+DEBUG $ echo 'start b' && echo 'end b'
+INFO  b               start b
+INFO  b               end b
+INFO  b             ✓ 1 file"
 }

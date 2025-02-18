@@ -7,6 +7,7 @@ use clap::Parser;
 mod cache;
 mod completion;
 mod config;
+mod fix;
 mod generate;
 mod install;
 mod run;
@@ -42,6 +43,7 @@ enum Commands {
     Cache(cache::Cache),
     Completion(completion::Completion),
     Config(config::Config),
+    Fix(fix::Fix),
     Generate(generate::Generate),
     Install(install::Install),
     Run(run::Run),
@@ -80,6 +82,7 @@ pub async fn run() -> Result<()> {
         Commands::Cache(cmd) => cmd.run().await,
         Commands::Completion(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
+        Commands::Fix(cmd) => cmd.run().await,
         Commands::Generate(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,

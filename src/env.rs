@@ -33,7 +33,7 @@ pub static HK_LOG_FILE_LEVEL: LazyLock<log::LevelFilter> =
 pub static HK_LOG_FILE: LazyLock<PathBuf> =
     LazyLock::new(|| var_path("HK_LOG_FILE").unwrap_or(HK_STATE_DIR.join("hk.log")));
 
-pub static HK_CHECK_FIRST: LazyLock<bool> = LazyLock::new(|| var_true("HK_CHECK_FIRST"));
+pub static HK_CHECK_FIRST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_CHECK_FIRST"));
 pub static HK_STASH: LazyLock<bool> = LazyLock::new(|| !var_false("HK_STASH"));
 pub static HK_FIX: LazyLock<bool> = LazyLock::new(|| !var_false("HK_FIX"));
 pub static HK_MISE: LazyLock<bool> = LazyLock::new(|| var_true("HK_MISE"));

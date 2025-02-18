@@ -14,6 +14,7 @@ concurrency:
 env:
   MISE_EXPERIMENTAL: true
   CARGO_TERM_COLOR: always
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   ci:
@@ -23,15 +24,22 @@ jobs:
         os:
           - macos-latest
           - ubuntu-24.04
-          - ubuntu-24.04-arm
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 10
+          #- ubuntu-24.04-arm
+          #- windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.os }}
       - uses: jdx/mise-action@v2
       - run: mise run ci
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: jdx/mise-action@v2
+      - run: mise run msrv

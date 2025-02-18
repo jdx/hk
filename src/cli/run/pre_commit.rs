@@ -23,6 +23,10 @@ pub struct PreCommit {
 impl PreCommit {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
+        if env::HK_SKIP_HOOK.contains("pre-commit") {
+            warn!("pre-commit: skipping hook due to HK_SKIP_HOOK");
+            return Ok(());
+        }
         let mut repo = Git::new()?;
         let run_type = if self.all {
             if !self.check && (self.fix || *env::HK_FIX) {

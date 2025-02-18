@@ -20,7 +20,7 @@ open class Step {
 
     /// fetches a read lock instead of a write lock when running fix/fix_all. Use if the tool has its own locking mechanism or you simply don't care if files may be written to
     /// by multiple steps.
-    stomp = true
+    stomp = false
 
     /// a shell command to check. Any edits will be ignored.
     check: String?

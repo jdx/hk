@@ -102,21 +102,12 @@ impl Config {
         run_type: RunType,
         repo: &Git,
     ) -> Result<()> {
-        let hook_name = match run_type {
-            RunType::Check | RunType::Fix => "pre-commit",
-            RunType::CheckAll | RunType::FixAll => "pre-commit",
-        };
-        if env::HK_SKIP_HOOK.contains(hook_name) {
-            warn!("{}: skipping hook due to HK_SKIP_HOOK", hook_name);
-            return Ok(());
-        }
         let files = if matches!(run_type, RunType::CheckAll | RunType::FixAll) {
             repo.all_files()?
         } else {
             repo.staged_files()?
         };
-        StepScheduler::new(hook, run_type)
-            .with_all_files(matches!(run_type, RunType::CheckAll | RunType::FixAll))
+        StepScheduler::new(hook, run_type, repo)
             .with_files(files)
             .run()
             .await

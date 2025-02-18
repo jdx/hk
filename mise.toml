@@ -1,12 +1,13 @@
 [env]
 _.path = [
-    "bin",
     "test/bats/bin",
     "target/debug",
 ]
 
 [tools]
 actionlint = "latest"
+cargo-binstall = "latest"
+"cargo:cargo-msrv" = "latest"
 hadolint = "latest"
 ktlint = "latest"
 "npm:prettier" = "latest"
@@ -27,6 +28,9 @@ fi
 depends = ["init"]
 alias = "b"
 run = "cargo build"
+
+[tasks.msrv]
+run = "cargo msrv verify"
 
 [tasks.ci]
 depends = ["test", "lint"]

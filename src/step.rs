@@ -1,6 +1,6 @@
+use crate::glob;
 use crate::tera;
 use crate::Result;
-use crate::{git::Git, glob};
 use ensembler::CmdLineRunner;
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
@@ -67,7 +67,7 @@ pub enum RunType {
 }
 
 impl Step {
-    pub async fn run(&self, ctx: StepContext) -> Result<()> {
+    pub async fn run(&self, mut ctx: StepContext) -> Result<StepContext> {
         let mut tctx = tera::Context::default();
         tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
         tctx.with_files(&ctx.files);
@@ -79,7 +79,7 @@ impl Step {
             RunType::FixAll => self.fix_all.as_ref(),
         }) else {
             warn!("{}: no run command", self);
-            return Ok(());
+            return Ok(ctx);
         };
         let run = tera::render(run, &tctx).unwrap();
         pr.set_message(run.clone());
@@ -90,8 +90,8 @@ impl Step {
             .execute()
             .await
             .into_diagnostic()?;
-        let pathspecs_to_add = if matches!(ctx.run_type, RunType::Fix | RunType::FixAll) {
-            let pathspecs_to_add = if let Some(stage) = &self.stage {
+        if matches!(ctx.run_type, RunType::Fix | RunType::FixAll) {
+            ctx.files_to_add = if let Some(stage) = &self.stage {
                 let stage = stage
                     .iter()
                     .map(|s| tera::render(s, &tctx).unwrap())
@@ -102,38 +102,17 @@ impl Step {
             } else {
                 vec![]
             }
-            .iter()
-            .map(|f| f.to_string_lossy().to_string())
-            .collect_vec();
-            if !pathspecs_to_add.is_empty() {
-                pr.set_message(format!("staging {}", pathspecs_to_add.join(" ")));
-                let mut repo = Git::new()?;
-                if !pathspecs_to_add.is_empty() {
-                    if let Err(err) =
-                        repo.add(&pathspecs_to_add.iter().map(|f| f.as_str()).collect_vec())
-                    {
-                        warn!("{self}: failed to add files to index: {err}");
-                    }
-                }
-            }
-            pathspecs_to_add
-        } else {
-            vec![]
-        };
-
-        if ctx.run_type == RunType::CheckAll
-            || ctx.run_type == RunType::FixAll
-            || pathspecs_to_add.is_empty()
-        {
+        }
+        if ctx.files_to_add.is_empty() {
             pr.finish_with_message("done".to_string());
         } else {
             pr.finish_with_message(format!(
                 "{} file{}",
-                pathspecs_to_add.len(),
-                if pathspecs_to_add.len() == 1 { "" } else { "s" }
+                ctx.files_to_add.len(),
+                if ctx.files_to_add.len() == 1 { "" } else { "s" }
             ));
         }
-        Ok(())
+        Ok(ctx)
     }
 
     fn build_pr(&self) -> Arc<Box<dyn clx::SingleReport>> {
@@ -192,4 +171,5 @@ pub struct StepContext {
     pub run_type: RunType,
     pub files: Vec<PathBuf>,
     pub file_locks: IndexMap<PathBuf, Arc<RwLock<()>>>,
+    pub files_to_add: Vec<PathBuf>,
 }

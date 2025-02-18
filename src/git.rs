@@ -204,7 +204,7 @@ impl Git {
         Ok(())
     }
 
-    pub fn add(&mut self, pathspecs: &[&str]) -> Result<()> {
+    pub fn add(&self, pathspecs: &[&str]) -> Result<()> {
         let pathspecs = pathspecs
             .iter()
             .map(|p| p.replace(self.root.to_str().unwrap(), ""))

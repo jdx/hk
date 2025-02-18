@@ -32,6 +32,10 @@ impl PrePush {
             "pre-push is not yet implemented. We need support for --from-ref and --to-ref"
         );
         let config = Config::get()?;
+        if env::HK_SKIP_HOOK.contains("pre-push") {
+            warn!("pre-push: skipping hook due to HK_SKIP_HOOK");
+            return Ok(());
+        }
         let mut repo = Git::new()?;
         let run_type = if self.all {
             if !self.check && (self.fix || *env::HK_FIX) {
