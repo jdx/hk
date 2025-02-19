@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class StyleLint extends Config.Step {
+class StyleLint extends Config.Linter {
     glob = new { "**/*.{css,scss,sass,less}" }
     check = "stylelint {{ files }}"
     fix = "stylelint --fix {{ files }}"
-    check_all = "stylelint \"**/*.{css,scss,sass,less}\""
-    fix_all = "stylelint --fix \"**/*.{css,scss,sass,less}\""
 } 

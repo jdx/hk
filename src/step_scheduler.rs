@@ -6,11 +6,7 @@ use tokio::sync::{Mutex, OwnedSemaphorePermit, RwLock, Semaphore};
 use tokio::task::JoinSet;
 
 use crate::{
-    env,
-    git::Git,
-    glob,
-    settings::Settings,
-    step::{RunType, Step},
+    config::Config, env, git::Git, glob, settings::Settings, step::{RunType, Step}
 };
 use crate::{step::StepContext, Result};
 
@@ -27,10 +23,16 @@ pub struct StepScheduler<'a> {
 impl<'a> StepScheduler<'a> {
     pub fn new(hook: &IndexMap<String, Step>, run_type: RunType, repo: &'a Git) -> Self {
         let settings = Settings::get();
+        let config = Config::get().unwrap();
         Self {
             run_type,
             repo,
-            steps: hook.values().cloned().collect(),
+            steps: hook.values().flat_map(|s| match &s.r#type {
+                Some(r#type) if r#type == "check" || r#type == "fix" => {
+                    config.linters.values().cloned().map(|linter| linter.into()).collect()
+                }
+                _ => vec![s.clone()],
+            }).collect(),
             files: vec![],
             failed: Arc::new(Mutex::new(false)),
             semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
@@ -160,7 +162,7 @@ impl<'a> StepScheduler<'a> {
         steps: &[&Step],
         files: &[PathBuf],
     ) -> Result<HashSet<String>> {
-        if matches!(self.run_type, RunType::CheckAll | RunType::Check) {
+        if matches!(self.run_type, RunType::Check) {
             return Ok(Default::default());
         }
         let files_per_step: IndexMap<&Step, HashSet<PathBuf>> = steps
@@ -176,7 +178,7 @@ impl<'a> StepScheduler<'a> {
             .filter(|step| {
                 matches!(
                     step.available_run_type(self.run_type),
-                    Some(RunType::Fix) | Some(RunType::FixAll)
+                    Some(RunType::Fix)
                 )
             })
             .filter(|step| {
@@ -250,12 +252,11 @@ impl<'a> StepScheduler<'a> {
             let depends = depends;
             if *env::HK_CHECK_FIRST
                 && step.check_first
-                && matches!(ctx.run_type, RunType::FixAll | RunType::Fix)
+                && matches!(ctx.run_type, RunType::Fix)
                 && fix_steps_in_contention.contains(&step.name)
             {
                 let mut ctx = ctx.clone();
                 ctx.run_type = match ctx.run_type {
-                    RunType::FixAll => RunType::CheckAll,
                     RunType::Fix => RunType::Check,
                     _ => unreachable!(),
                 };
@@ -298,7 +299,8 @@ async fn run(
     for (path, lock) in ctx.file_locks.iter() {
         let lock = lock.clone();
         match (step.stomp, ctx.run_type) {
-            (true, _) | (_, RunType::CheckAll | RunType::Check) => {
+            (_, RunType::Run) => {},
+            (true, _) | (_, RunType::Check) => {
                 match lock.clone().try_read_owned() {
                     Ok(lock) => read_flocks.push(lock),
                     Err(_) => {
@@ -308,7 +310,7 @@ async fn run(
                     }
                 }
             }
-            (_, RunType::FixAll | RunType::Fix) => match lock.clone().try_write_owned() {
+            (_, RunType::Fix) => match lock.clone().try_write_owned() {
                 Ok(lock) => write_flocks.push(lock),
                 Err(_) => {
                     trace!("{step}: waiting for {} to finish", path.display());

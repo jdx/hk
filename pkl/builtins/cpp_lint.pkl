@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class CppLint extends Config.Step {
+class CppLint extends Config.Linter {
     glob = new { "**/*.{c,h,cpp,hpp,cc,hh,cxx,hxx}" }
     check = "cpplint {{ files }}"
-    check_all = "cpplint --recursive ."
 } 

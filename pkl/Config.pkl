@@ -2,7 +2,7 @@
 module hk.Config
 min_hk_version = "0.3.3"
 
-open class Step {
+open class Linter {
     /// Which profiles (HK_PROFILES) need to be active for the step to run
     profiles: Listing<String>?
 
@@ -26,23 +26,45 @@ open class Step {
 
     /// a shell command to check. Any edits will be ignored.
     check: String?
+    check_extra_args: String?
 
     /// a shell command that checks and edits files. Edits will be automatically added to the index.
     fix: String?
+    fix_extra_args: String?
 
-    /// a shell command to check on all files
-    /// if check_all is not set, this will just use the check command and pass all files in the repo as {{files}}
-    check_all: String?
-
-    /// a shell command that checks and edits files. Edits will be automatically added to the index.
-    fix_all: String?
-
-    /// globs of files to add to git index after running a fix/fix_all step
     /// if not set, all files will be added
     stage: Listing<String>?
 }
 
+open class Step {
+    /// Which profiles (HK_PROFILES) need to be active for the step to run
+    profiles: Listing<String>?
+
+    /// Which file patterns to run the step on
+    glob: Listing<String>?
+
+    /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
+    exclusive = false
+
+    /// Wait for sibling steps to finish before starting this step.
+    depends = new Listing<String>{}
+
+    /// a shell command to run
+    run: String
+}
+
+class Fix extends Step {
+    type = "fix"
+    run = "fix"
+}
+
+class Lint extends Step {
+    type = "lint"
+    run = "lint"
+}
+
 typealias Hook = Mapping<String, Step>
 
-`pre-commit`: Hook?
-`pre-push`: Hook?
+linters: Mapping<String, Linter>?
+
+hooks: Mapping<String, Hook>?

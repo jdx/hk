@@ -29,8 +29,7 @@ write your own hooks in. lefthook is less "batteries included" than hk.
   Because git hook managers are often limited not by their own logic but the speed of the commands they run, this should make hk signficantly faster
   in real-world usage.
 - Using pkl instead of yaml/toml/etc means that a lot of features in lefthook we simply don't need to build like `extends` and `templates`. We get these for free with pkl.
-- lefthook just has "run" commands but hk separates out the concepts of "check" vs "fix" steps which gives control over when steps modify files and when they do not.
-  This enables some of the advanced parallelism functionality in hk and also control to the user.
+- lefthook just has "run" commands but hk separates out the concepts of "check" vs "fix" commands which gives control over when linters modify files and when they do not.
 
 ### Comparison to pre-commit
 
@@ -43,9 +42,9 @@ which allows sharing of common pre-commit logic. As I see it, here are the drawb
   Specifically, I don't like that I need to look up the rev for each plugin before I'm able to install it.
 - hk gets around needing plugins (for now) by putting the entire configuration in pkl. pkl files can be loaded via
   http without any extra work in hk so we basically get plugins "for free" this way.
-- because hk uses pkl, loading the steps is much faster because pkl doesn't have any runtime logic that needs to be computed.
+- because hk uses pkl, loading the configuration is much faster because pkl doesn't have any runtime logic that needs to be computed.
 - I read that pre-commit has some parallel execution capabilities, but the docs don't explain anything about it. A proper git hook manager
-  should have advanced configuration around parallel execution to be able to group steps that can run in parallel and segment out those that can't.
+  should have advanced configuration around parallel execution to be able to group linters that can run in parallel and segment out those that can't.
 
 ## Benchmarks
 

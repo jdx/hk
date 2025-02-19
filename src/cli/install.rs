@@ -39,10 +39,10 @@ fi
             println!("Installed hk hook: .git/hooks/{hook}");
             Result::<(), miette::Report>::Ok(())
         };
-        if config.pre_commit.is_some() {
+        if config.hooks.contains_key("pre-commit") {
             add_hook("pre-commit")?;
         }
-        if config.pre_push.is_some() {
+        if config.hooks.contains_key("pre-push") {
             add_hook("pre-push")?;
         }
         Ok(())

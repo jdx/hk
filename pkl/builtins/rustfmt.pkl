@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Rustfmt extends Config.Step {
+class Rustfmt extends Config.Linter {
     glob = new { "**/*.rs" }
     check = "rustfmt --check --edition 2024 {{ files }}"
     fix = "rustfmt --edition 2024 {{ files }}"

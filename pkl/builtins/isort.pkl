@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Isort extends Config.Step {
+class Isort extends Config.Linter {
     glob = new { "**/*.py" }
     check = "isort --check-only {{ files }}"
     fix = "isort {{ files }}"
-    check_all = "isort --check-only ."
-    fix_all = "isort ."
 } 

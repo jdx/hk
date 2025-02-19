@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Erb extends Config.Step {
+class Erb extends Config.Linter {
     glob = new { "**/*.erb" }
     check = "erb -P -x -T - {{ files }} | ruby -c"
 } 

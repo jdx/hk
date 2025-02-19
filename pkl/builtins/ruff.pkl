@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Ruff extends Config.Step {
+class Ruff extends Config.Linter {
     glob = new { "**/*.py" }
     check = "ruff check {{ files }}"
     fix = "ruff check --fix {{ files }}"
-    check_all = "ruff check ."
-    fix_all = "ruff check --fix ."
 } 

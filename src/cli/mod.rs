@@ -5,6 +5,7 @@ use crate::{logger, settings::Settings, Result};
 use clap::Parser;
 
 mod cache;
+mod check;
 mod completion;
 mod config;
 mod fix;
@@ -41,6 +42,7 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     Cache(cache::Cache),
+    Check(check::Check),
     Completion(completion::Completion),
     Config(config::Config),
     Fix(fix::Fix),
@@ -80,6 +82,7 @@ pub async fn run() -> Result<()> {
     }
     match args.command {
         Commands::Cache(cmd) => cmd.run().await,
+        Commands::Check(cmd) => cmd.run().await,
         Commands::Completion(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
         Commands::Fix(cmd) => cmd.run().await,

@@ -1,8 +1,7 @@
 import "../Config.pkl"
 
-class BundleAudit extends Config.Step {
+class BundleAudit extends Config.Linter {
     glob = new { "**/Gemfile.lock" }
     check = "bundle-audit check {{ files }}"
     fix = "bundle-audit update"
-    check_all = "bundle-audit check"
 } 

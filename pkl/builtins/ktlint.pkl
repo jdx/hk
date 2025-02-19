@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Ktlint extends Config.Step {
+class Ktlint extends Config.Linter {
     glob = new { "**/*.kt" }
     check = "ktlint {{ files }}"
     fix = "ktlint -F {{ files }}"
-    check_all = "ktlint"
-    fix_all = "ktlint -F"
 } 

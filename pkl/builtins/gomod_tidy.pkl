@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class GomodTidy extends Config.Step {
+class GomodTidy extends Config.Linter {
     glob = new { "**/go.mod" }
     check = "go mod tidy -check"
     fix = "go mod tidy"

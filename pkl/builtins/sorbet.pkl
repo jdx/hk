@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Sorbet extends Config.Step {
+class Sorbet extends Config.Linter {
     glob = new { "**/*.rb" }
     check = "srb tc {{ files }}"
-    check_all = "srb tc"
 } 

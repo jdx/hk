@@ -14,50 +14,89 @@ Here's a basic `hk.pkl` file:
 amends "package://github.com/jdx/hk/releases/download/v0.3.3/hk@0.3.3#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v0.3.3/hk@0.3.3#/builtins/prettier.pkl"
 
-`pre-commit` {
-    // hooks can be manually defined
+linters {
+    // linters can be manually defined
     ["eslint"] {
-        // the files to run the hook on, if no files are matched, the hook will be skipped
+        // the files to run the linter on, if no files are matched, the linter will be skipped
         // this will filter the staged files and return the subset matching these globs
         glob = new { "*.js"; "*.ts" }
-        // the command to run the hook on the files that makes no changes
+        // the command to run that makes no changes
         check = "eslint {{files}}"
-        // the command to run the hook on the files that fixes them (used by default)
+        // the command to run that fixes the files (used by default)
         fix = "eslint --fix {{files}}"
     }
-    // hooks can also be specified with the builtins pkl library
+    // linters can also be specified with the builtins pkl library
     ["prettier"] = new prettier.Prettier {}
+}
+
+hooks {
+    ["pre-commit"] {
+        ["fix"] = new Fix {}
+    }
+    ["pre-push"] {
+        ["check"] = new Check {}
+    }
 }
 ```
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
-### `min_hk_version: String`
+### `linters`
 
-The minimum version of hk that is required to run hk. hk will fail to start if its version is below the specified version.
+Linters define the tools that will check and fix your code. Each linter can be configured with various options:
+
+### `linters.<LINTER>.glob: Listing<String>`
+
+Files the linter should run on. By default this will only run this linter if at least 1 staged file matches the glob patterns. If no patterns are provided, the linter will always run.
+
+### `linters.<LINTER>.check: String`
+
+A command to run that does not modify files. This typically is a "check" command like `eslint` or `prettier --check` that returns a non-zero exit code if there are errors.
+Parallelization works better with check commands than fix commands as no files are being modified.
 
 ```pkl
-min_hk_version = "0.1.0"
+linters {
+    ["prettier"] {
+        check = "prettier --check {{files}}"
+    }
+}
 ```
 
-### `<HOOK>`
+Template variables:
+- <code v-pre>{{files}}</code>: A list of files to run the linter on.
 
-Hooks are made up of steps. The hook themselves can be one of the following:
+### `linters.<LINTER>.fix: String`
 
-- `pre-commit`
-- `pre-push`
-- TODO: add more
-
-### `<HOOK>.<STEP>`
-
-Steps are the individual commands that make up a hook. They are executed in the order they are defined in parallel up to [`HK_JOBS`](/configuration#hk-jobs) at a time.
-
-### `<HOOK>.<STEP>.profiles: Listing<String>`
-
-Profiles are a way to enable/disable steps based on the current profile. The step will only be run the step's profile is in [`HK_PROFILE`](/configuration#hk-profile).
+A command to run that modifies files. This typically is a "fix" command like `eslint --fix` or `prettier --write`. Templates variables are the same as for `check`.
 
 ```pkl
-`pre-commit` {
+linters {
+    ["prettier"] {
+        fix = "prettier --write {{files}}"
+    }
+}
+```
+
+By default, hk will use `fix` commands but this can be overridden by setting [`HK_FIX=0`](/configuration#hk-fix) or running `hk run <HOOK> --run`.
+
+### `linters.<LINTER>.check_first: bool`
+
+Default: `true`
+
+If true, hk will run the check step first and only run the fix step if the check step fails.
+
+### `linters.<LINTER>.stomp: bool`
+
+Default: `false`
+
+If true, hk will get a write lock when running the fix step. Use this if the tool has its own locking mechanism or you simply don't care if files may be written to by multiple linters simultaneously.
+
+### `linters.<LINTER>.profiles: Listing<String>`
+
+Profiles are a way to enable/disable linters based on the current profile. The linter will only run if its profile is in [`HK_PROFILE`](/configuration#hk-profile).
+
+```pkl
+linters {
     ["prettier"] {
         profiles = new { "slow" }
     }
@@ -67,129 +106,76 @@ Profiles are a way to enable/disable steps based on the current profile. The ste
 Profiles can be prefixed with `!` to disable them.
 
 ```pkl
-`pre-commit` {
+linters {
     ["prettier"] {
         profiles = new { "!slow" }
     }
 }
 ```
 
-### `<HOOK>.<STEP>.glob: Listing<String>`
+### `hooks`
 
-Files the step should run on. By default this will only run this step if at least 1 staged file matches the glob patterns. If no patterns are provided, the step will always run.
+Hooks define when and how linters are run. The available hooks are:
 
-### `<HOOK>.<STEP>.depends: Listing<String>`
+- `pre-commit`
+- `pre-push`
+- TODO: add more
+
+### `hooks.<HOOK>.<STEP>`
+
+Steps are the individual commands that make up a hook. They are executed in the order they are defined in parallel up to [`HK_JOBS`](/configuration#hk-jobs) at a time.
+
+### `hooks.<HOOK>.<STEP>.depends: Listing<String>`
 
 A list of steps that must finish before this step can run.
 
 ```pkl
-`pre-commit` {
-    ["prettier"] {
-        depends = new { "eslint" }
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            depends = new { "eslint" }
+        }
     }
 }
 ```
 
-### `<HOOK>.<STEP>.stage: Listing<String>`
+### `hooks.<HOOK>.<STEP>.stage: Listing<String>`
 
-A list of globs of files to add to the git index after running a fix/fix_all step.
+A list of globs of files to add to the git index after running a fix step.
 
 ```pkl
-`pre-commit` {
-    ["prettier"] {
-        stage = new { "*.js"; "*.ts" }
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            stage = new { "*.js"; "*.ts" }
+        }
     }
 }
 ```
 
 By default, all modified files will be added to the git index.
 
-### `<HOOK>.<STEP>.exclusive: bool`
+### `hooks.<HOOK>.<STEP>.exclusive: bool`
 
 Default: `false`
 
 If true, this step will wait for any previous steps to finish before running. No other steps will start until this one finishes.
 
 ```pkl
-`pre-commit` {
-    ["prelint"] {
-        exclusive = true // blocks other steps from starting until this one finishes
-        check = "mise run prelint"
-    }
-    // ... other steps will run in parallel ...
-    ["postlint"] {
-        exclusive = true // wait for all previous steps to finish before starting
-        check = "mise run postlint"
-    }
-}
-```
-
-### `<HOOK>.<STEP>.check: String`
-
-A command to run for the hook that does not modify files. This typically is a "check" command like `eslint` or `prettier --check` that returns a non-zero exit code if there are errors.
-Parallelization works better with run commands than fix commands as no files are being modified.
-
-```pkl
-`pre-commit` {
-    ["prettier"] {
-        check = "prettier --check {{files}}"
+hooks {
+    ["pre-commit"] {
+        ["prelint"] {
+            exclusive = true // blocks other steps from starting until this one finishes
+            check = "mise run prelint"
+        }
+        // ... other steps will run in parallel ...
+        ["postlint"] {
+            exclusive = true // wait for all previous steps to finish before starting
+            check = "mise run postlint"
+        }
     }
 }
 ```
-
-Template variables:
-
-- <code v-pre>{{files}}</code>: A list of files to run the hook on.
-
-### `<HOOK>.<STEP>.fix: String`
-
-A command to run for the hook that modifies files. This typically is a "fix" command like `eslint --fix` or `prettier --write`. Templates variables are the same as for `run`.
-
-```pkl
-`pre-commit` {
-    ["prettier"] {
-        fix = "prettier --write {{files}}"
-    }
-}
-```
-
-By default, hk will use `fix` commands but this can be overridden by setting [`HK_FIX=0`](/configuration#hk-fix) or running `hk run <HOOK> --run`.
-
-### `<HOOK>.<STEP>.check_all: String`
-
-A command to run for the hook that runs on all files. This is optional but if not specified hk will need to pass every file to the `check` command.
-
-```pkl
-`pre-commit` {
-    ["prettier"] {
-        check_all = "prettier --check ."
-    }
-}
-```
-
-### `<HOOK>.<STEP>.fix_all: String`
-
-A command to run for the hook that runs on all files. This is optional but if not specified hk will need to pass every file to the `fix` command.
-
-```pkl
-`pre-commit` {
-    ["prettier"] {
-        fix_all = "prettier --write ."
-    }
-}
-```
-
-### `<HOOK>.<STEP>.check_first: bool`
-
-Default: `true`
-
-If true, hk will run the check step first and only run the fix step if the check step fails.
-
-### `<HOOK>.<STEP>.stomp: bool`
-
-Default: `false`
-
-If true, hk will get a write lock when running the fix/fix_all step. Use this if the tool has its own locking mechanism or you simply don't care if files may be written to by multiple steps simultaneously.
 
 ### Alternative Syntax
 
@@ -212,12 +198,12 @@ The cache directory to use.
 Type: `bool`
 Default: `true`
 
-If true, hk will run check on files first then run fix steps if check fails iff there are multiple fix steps with the same file in a matching glob pattern.
+If true, hk will run check commands first then run fix commands if check fails iff there are multiple linters with the same file in a matching glob pattern.
 
-The reason for this is to make hk able to parallelize as much as possible. We can have as many check steps running in parallel against
-the same file as we want without them interfering with each other—however we can't have 2 fix steps potentially writing to the same file. So we optimistically run the check steps in parallel, then if any fail we run their fix command potentially in series.
+The reason for this is to make hk able to parallelize as much as possible. We can have as many check commands running in parallel against
+the same file as we want without them interfering with each other—however we can't have 2 fix commands potentially writing to the same file. So we optimistically run the check commands in parallel, then if any fail we run their fix commands potentially in series.
 
-If this is disabled hk will have simpler logic that just uses fix steps in series in this situation.
+If this is disabled hk will have simpler logic that just uses fix commands in series in this situation.
 
 ### `HK_PROFILE`
 

@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Shfmt extends Config.Step {
+class Shfmt extends Config.Linter {
     glob = new { "**/*.{sh,bash}" }
     check = "shfmt -d {{ files }}"
     fix = "shfmt -w {{ files }}"
-    check_all = "shfmt -d ."
-    fix_all = "shfmt -w ."
 } 

@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Actionlint extends Config.Step {
+class Actionlint extends Config.Linter {
     glob = new { ".github/workflows/*.{yml,yaml}" }
     check = "actionlint {{ files }}"
-    check_all = "actionlint"
 } 

@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Reek extends Config.Step {
+class Reek extends Config.Linter {
     glob = new { "**/*.rb" }
     check = "reek {{ files }}"
-    check_all = "reek"
 } 

@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class NixFmt extends Config.Step {
+class NixFmt extends Config.Linter {
     glob = new { "**/*.nix" }
     check = "nixfmt --check {{ files }}"
     fix = "nixfmt {{ files }}"
-    check_all = "nixfmt --check ."
-    fix_all = "nixfmt ."
 } 

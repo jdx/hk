@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Eslint extends Config.Step {
+class Eslint extends Config.Linter {
     glob = new { "**/*.{js,jsx,ts,tsx}" }
     check = "eslint {{ files }}"
     fix = "eslint --fix {{ files }}"
-    check_all = "eslint ."
-    fix_all = "eslint --fix ."
 } 

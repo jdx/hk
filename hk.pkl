@@ -8,7 +8,7 @@ import "pkl/builtins/prettier.pkl"
 min_hk_version = "0.1.0"
 
 // defines what happens during git pre-commit hook
-`pre-commit` {
+linters = new {
     ["actionlint"] = new actionlint.Actionlint {}
     // TODO: fails on releases with hk-example.pkl
     //["pkl"] {
@@ -18,6 +18,7 @@ min_hk_version = "0.1.0"
     // predefined formatters+linters
     ["cargo-clippy"] = new cargo_clippy.CargoClippy {
         profiles = new { "slow" }
+        check_extra_args = "-- -D warnings"
     }
     ["cargo-fmt"] = new cargo_fmt.CargoFmt {
         profiles = new { "!slow" }
@@ -29,6 +30,16 @@ min_hk_version = "0.1.0"
     }
     ["prettier"] = new prettier.Prettier {
         glob = new { "*.js"; "*.ts" } // override the default globs
+    }
+}
+
+hooks = new {
+    ["pre-commit"] {
+        ["prelint"] {
+            run = "mise run prelint"
+            exclusive = true
+        }
+        ["fix"] = new Fix {}
     }
 }
 

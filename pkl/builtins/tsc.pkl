@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Tsc extends Config.Step {
+class Tsc extends Config.Linter {
     glob = new { "**/*.{ts,tsx}" }
     check = "tsc --noEmit {{ files }}"
-    check_all = "tsc --noEmit"
 } 

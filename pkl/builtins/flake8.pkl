@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Flake8 extends Config.Step {
+class Flake8 extends Config.Linter {
     glob = new { "**/*.py" }
     check = "flake8 {{ files }}"
-    check_all = "flake8 ."
 } 

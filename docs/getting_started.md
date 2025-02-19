@@ -36,23 +36,29 @@ hk generate
 
 ## `hk.pkl`
 
-This will generate a `hk.pkl` file in the root of the repository, here's an example `hk.pkl` with eslint and prettier hooks:
+This will generate a `hk.pkl` file in the root of the repository, here's an example `hk.pkl` with eslint and prettier linters:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v0.3.3/hk@0.3.3#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v0.3.3/hk@0.3.3#/builtins/prettier.pkl"
 
-`pre-commit` {
-    // hooks can be manually defined
+linters {
+    // linters can be manually defined
     ["eslint"] {
-        // the files to run the hook on, if no files are matched, the hook will be skipped
+        // the files to run the linter on, if no files are matched, the linter will be skipped
         // this will filter the staged files and return the subset matching these globs
         glob = new { "*.js"; "*.ts" }
-        // a command that returns non-zero to fail the step
+        // a command that returns non-zero to fail the check
         check = "eslint {{files}}"
     }
-    // hooks can also be specified with the builtins pkl library
+    // linters can also be specified with the builtins pkl library
     ["prettier"] = new prettier.Prettier {}
+}
+
+hooks {
+    ["pre-commit"] {
+        ["fix"] = new Fix {}
+    }
 }
 ```
 
@@ -66,7 +72,7 @@ Inside a git repository with a `hk.pkl` file, run:
 hk install
 ```
 
-This will install the hooks for the repository like `pre-commit` and `pre-push` if they are defined in `hk.pkl`. Running `git commit` would now run the `pre-commit` steps defined above in our example.
+This will install the hooks for the repository like `pre-commit` and `pre-push` if they are defined in `hk.pkl`. Running `git commit` would now run the linters defined above in our example through the pre-commit hook.
 
 ### `core.hooksPath`
 
@@ -85,14 +91,14 @@ To explicitly run the hooks without going through git, use the `hk run` command.
 hk run pre-commit
 ```
 
-This will run the `pre-commit` hooks for the repository. This will run against all files that are staged for commit. To run against all files in the repository, use the `--all` flag.
+This will run the `pre-commit` hook for the repository. This will run against all files that are staged for commit. To run against all files in the repository, use the `--all` flag.
 
 ```sh
 hk run pre-commit --all
 ```
 
-To run a specific step, use the `--step` flag.
+To run a specific linter, use the `--linter` flag.
 
 ```sh
-hk run pre-commit --step eslint
+hk run pre-commit --linter eslint
 ```

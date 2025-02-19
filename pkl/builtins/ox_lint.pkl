@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class OxLint extends Config.Step {
+class OxLint extends Config.Linter {
     glob = new { "**/*.{js,jsx,ts,tsx}" }
     check = "oxlint {{ files }}"
     fix = "oxlint --fix {{ files }}"
-    check_all = "oxlint ."
-    fix_all = "oxlint --fix ."
 } 

@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 use serde_with::{serde_as, OneOrMany};
 
 #[serde_as]
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 #[serde(deny_unknown_fields)]
 pub struct Step {
@@ -30,12 +30,13 @@ pub struct Step {
     pub check_first: bool,
     #[serde(default)]
     pub stomp: bool,
+    pub run: Option<String>,
     #[serde_as(as = "Option<OneOrMany<_>>")]
     pub glob: Option<Vec<String>>,
     pub check: Option<String>,
+    pub check_extra_args: Option<String>,
     pub fix: Option<String>,
-    pub check_all: Option<String>,
-    pub fix_all: Option<String>,
+    pub fix_extra_args: Option<String>,
     pub root: Option<PathBuf>,
     #[serde_as(as = "Option<OneOrMany<_>>")]
     pub stage: Option<Vec<String>>,
@@ -62,26 +63,39 @@ pub enum FileKind {
 pub enum RunType {
     Check,
     Fix,
-    CheckAll,
-    FixAll,
+    Run,
 }
 
 impl Step {
+    pub fn fix() -> Self {
+        Self {
+            r#type: Some("fix".to_string()),
+            ..Default::default()
+        }
+    }
+    pub fn check() -> Self {
+        Self {
+            r#type: Some("check".to_string()),
+            ..Default::default()
+        }
+    }
     pub async fn run(&self, mut ctx: StepContext) -> Result<StepContext> {
         let mut tctx = tera::Context::default();
         tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
         tctx.with_files(&ctx.files);
         let pr = self.build_pr();
-        let Some(run) = (match ctx.run_type {
-            RunType::Check => self.check.as_ref(),
-            RunType::Fix => self.fix.as_ref(),
-            RunType::CheckAll => self.check_all.as_ref(),
-            RunType::FixAll => self.fix_all.as_ref(),
+        let (Some(mut run), extra) = (match ctx.run_type {
+            RunType::Check => (self.check.clone(), self.check_extra_args.as_ref()),
+            RunType::Fix => (self.fix.clone(), self.fix_extra_args.as_ref()),
+            RunType::Run => (self.run.clone(), None),
         }) else {
             warn!("{}: no run command", self);
             return Ok(ctx);
         };
-        let files_to_add = if matches!(ctx.run_type, RunType::Fix | RunType::FixAll) {
+        if let Some(extra) = extra {
+            run = format!("{} {}", run, extra);
+        }
+        let files_to_add = if matches!(ctx.run_type, RunType::Fix) {
             if let Some(stage) = &self.stage {
                 let stage = stage
                     .iter()
@@ -106,7 +120,7 @@ impl Step {
         } else {
             vec![]
         };
-        let run = tera::render(run, &tctx).unwrap();
+        let run = tera::render(&run, &tctx).unwrap();
         pr.set_message(run.clone());
         CmdLineRunner::new("sh")
             .arg("-c")
@@ -146,27 +160,13 @@ impl Step {
     }
 
     pub fn available_run_type(&self, run_type: RunType) -> Option<RunType> {
-        match run_type {
-            RunType::CheckAll => match self.check_all.is_some() {
-                true => Some(RunType::CheckAll),
-                false => self.available_run_type(RunType::Check),
-            },
-            RunType::FixAll => match self.fix_all.is_some() {
-                true => Some(RunType::FixAll),
-                false => self
-                    .available_run_type(RunType::Fix)
-                    .or(self.available_run_type(RunType::CheckAll)),
-            },
-            RunType::Check => match (self.check.is_some(), self.check_all.is_some()) {
-                (true, _) => Some(RunType::Check),
-                (_, true) => Some(RunType::CheckAll),
-                _ => None,
-            },
-            RunType::Fix => match (self.fix.is_some(), self.fix_all.is_some()) {
-                (true, _) => Some(RunType::Fix),
-                (_, true) => Some(RunType::FixAll),
-                _ => self.available_run_type(RunType::Check),
-            },
+        match (run_type, self.check.is_some(), self.fix.is_some(), self.run.is_some()) {
+            (RunType::Check, true, _, _) => Some(RunType::Check),
+            (RunType::Fix, _, true, _) => Some(RunType::Fix),
+            (_, _, _, true) => Some(RunType::Run),
+            (_, false, true, _) => Some(RunType::Fix),
+            (_, true, false, _) => Some(RunType::Check),
+            _ => None,
         }
     }
 

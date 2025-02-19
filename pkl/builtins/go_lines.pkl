@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class GoLines extends Config.Step {
+class GoLines extends Config.Linter {
     glob = new { "**/*.go" }
     check = "golines --dry-run {{ files }}"
     fix = "golines -w {{ files }}"
-    check_all = "golines --dry-run ."
-    fix_all = "golines -w ."
 } 

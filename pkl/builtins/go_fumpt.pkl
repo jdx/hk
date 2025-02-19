@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class GoFumpt extends Config.Step {
+class GoFumpt extends Config.Linter {
     glob = new { "**/*.go" }
     check = "gofumpt -l {{ files }}"
     fix = "gofumpt -w {{ files }}"
-    check_all = "gofumpt -l ."
-    fix_all = "gofumpt -w ."
 } 

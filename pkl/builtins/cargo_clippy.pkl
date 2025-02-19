@@ -1,7 +1,7 @@
 import "../Config.pkl"
 
-class CargoClippy extends Config.Step {
+class CargoClippy extends Config.Linter {
     glob = new { "**/*.rs" }
-    check_all = "cargo clippy --all-features"
-    fix_all = "cargo clippy --all-features --fix --allow-dirty --allow-staged"
+    check = "cargo clippy"
+    fix = "cargo clippy --fix --allow-dirty --allow-staged"
 } 

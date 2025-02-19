@@ -1,7 +1,5 @@
 import "../Config.pkl"
 
-class CargoFmt extends Config.Step {
+class CargoFmt extends Config.Linter {
     glob = new { "**/*.rs" }
-    check_all = "cargo fmt --check"
-    fix_all = "cargo fmt"
 } 

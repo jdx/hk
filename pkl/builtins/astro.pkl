@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Astro extends Config.Step {
+class Astro extends Config.Linter {
     glob = new { "**/*.astro" }
     check = "astro check {{ files }}"
-    check_all = "astro check"
 } 

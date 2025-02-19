@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Luacheck extends Config.Step {
+class Luacheck extends Config.Linter {
     glob = new { "**/*.lua" }
     check = "luacheck {{ files }}"
-    check_all = "luacheck ."
 } 

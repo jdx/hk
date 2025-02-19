@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Black extends Config.Step {
+class Black extends Config.Linter {
     glob = new { "**/*.py" }
     check = "black --check {{ files }}"
     fix = "black {{ files }}"
-    check_all = "black --check ."
-    fix_all = "black ."
 } 

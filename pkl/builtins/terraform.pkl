@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Terraform extends Config.Step {
+class Terraform extends Config.Linter {
     glob = new { "**/*.tf" }
     check = "terraform fmt -check {{ files }}"
     fix = "terraform fmt {{ files }}"
-    check_all = "terraform fmt -check"
-    fix_all = "terraform fmt"
 } 

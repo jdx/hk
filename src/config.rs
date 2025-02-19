@@ -69,10 +69,13 @@ impl Config {
         if let Some(min_hk_version) = &config.min_hk_version {
             version::version_cmp_or_bail(min_hk_version)?;
         }
-        if let Some(pre_commit) = &mut config.pre_commit {
-            for (name, step) in pre_commit.iter_mut() {
+        for steps in config.hooks.values_mut() {
+            for (name, step) in steps.iter_mut() {
                 step.name = name.clone();
             }
+        }
+        for (name, linter) in config.linters.iter_mut() {
+            linter.name = name.clone();
         }
         Ok(config)
     }
@@ -83,10 +86,51 @@ impl Config {
 #[serde(deny_unknown_fields)]
 pub struct Config {
     pub min_hk_version: Option<String>,
-    #[serde(rename = "pre-commit")]
-    pub pre_commit: Option<IndexMap<String, Step>>,
-    #[serde(rename = "pre-push")]
-    pub pre_push: Option<IndexMap<String, Step>>,
+    #[serde(default)]
+    pub linters: IndexMap<String, Linter>,
+    #[serde(default)]
+    pub hooks: IndexMap<String, IndexMap<String, Step>>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, Hash, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub struct Linter {
+    #[serde(default)]
+    pub name: String,
+    pub glob: Option<Vec<String>>,
+    pub profiles: Option<Vec<String>>,
+    pub exclusive: bool,
+    pub stomp: bool,
+    pub check: Option<String>,
+    pub check_extra_args: Option<String>,
+    pub fix: Option<String>,
+    pub fix_extra_args: Option<String>,
+    pub stage: Option<Vec<String>>,
+    pub depends: Vec<String>,
+    pub check_first: bool,
+}
+
+impl From<Linter> for Step {
+    fn from(linter: Linter) -> Self {
+        Step {
+            r#type: Some("linter".to_string()),
+            glob: linter.glob,
+            profiles: linter.profiles,
+            exclusive: linter.exclusive,
+            stomp: linter.stomp,
+            check: linter.check,
+            check_extra_args: linter.check_extra_args,
+            fix: linter.fix,
+            fix_extra_args: linter.fix_extra_args,
+            stage: linter.stage,
+            name: linter.name,
+            depends: linter.depends,
+            check_first: linter.check_first,
+            run: None,
+            root: None,
+        }
+    }
 }
 
 impl std::fmt::Display for Config {
@@ -98,11 +142,12 @@ impl std::fmt::Display for Config {
 impl Config {
     pub async fn run_hook(
         &self,
+        all: bool,
         hook: &IndexMap<String, Step>,
         run_type: RunType,
         repo: &Git,
     ) -> Result<()> {
-        let files = if matches!(run_type, RunType::CheckAll | RunType::FixAll) {
+        let files = if all {
             repo.all_files()?
         } else {
             repo.staged_files()?

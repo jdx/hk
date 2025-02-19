@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Pylint extends Config.Step {
+class Pylint extends Config.Linter {
     glob = new { "**/*.py" }
     check = "pylint {{ files }}"
-    check_all = "pylint ."
 } 

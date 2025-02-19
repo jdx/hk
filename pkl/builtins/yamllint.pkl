@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Yamllint extends Config.Step {
+class Yamllint extends Config.Linter {
     glob = new { "**/*.{yml,yaml}" }
     check = "yamllint {{ files }}"
-    check_all = "yamllint ."
 } 

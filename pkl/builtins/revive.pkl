@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Revive extends Config.Step {
+class Revive extends Config.Linter {
     glob = new { "**/*.go" }
     check = "revive {{ files }}"
-    check_all = "revive ./..."
 } 

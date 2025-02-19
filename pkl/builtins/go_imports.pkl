@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class GoImports extends Config.Step {
+class GoImports extends Config.Linter {
     glob = new { "**/*.go" }
     check = "goimports -l {{ files }}"
     fix = "goimports -w {{ files }}"
-    check_all = "goimports -l ."
-    fix_all = "goimports -w ."
 } 

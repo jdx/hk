@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class Mypy extends Config.Step {
+class Mypy extends Config.Linter {
     glob = new { "**/*.py" }
     check = "mypy {{ files }}"
-    check_all = "mypy ."
 } 

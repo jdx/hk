@@ -1,7 +1,6 @@
 import "../Config.pkl"
 
-class GoVulnCheck extends Config.Step {
+class GoVulnCheck extends Config.Linter {
     glob = new { "**/*.go" }
     check = "govulncheck {{ files }}"
-    check_all = "govulncheck ./..."
 } 

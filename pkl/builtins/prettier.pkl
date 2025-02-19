@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Prettier extends Config.Step {
+class Prettier extends Config.Linter {
     glob = new { "**/*.{js,jsx,ts,tsx,css,scss,less,html,json,jsonc,yaml,markdown,markdown.mdx,graphql,handlebars,svelte,astro,htmlangular}" }
     check = "prettier --check {{ files }}"
     fix = "prettier --write {{ files }}"
-    // check_all = "prettier --check ."
-    // fix_all = "prettier --write ."
 } 

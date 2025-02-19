@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class PrettierPackageJson extends Config.Step {
+class PrettierPackageJson extends Config.Linter {
     glob = new { "**/package.json" }
     check = "prettier-package-json --list-different {{ files }}"
     fix = "prettier-package-json --write {{ files }}"
-    check_all = "prettier-package-json --list-different"
-    fix_all = "prettier-package-json --write"
 } 

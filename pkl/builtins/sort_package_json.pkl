@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class SortPackageJson extends Config.Step {
+class SortPackageJson extends Config.Linter {
     glob = new { "**/package.json" }
     check = "sort-package-json --check {{ files }}"
     fix = "sort-package-json {{ files }}"
-    check_all = "sort-package-json --check"
-    fix_all = "sort-package-json"
 } 

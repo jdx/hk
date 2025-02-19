@@ -45,10 +45,8 @@ teardown() {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/prettier.pkl"
-
-\`pre-commit\` {
-    ["prettier"] = new prettier.Prettier {}
-}
+linters { ["prettier"] = new prettier.Prettier {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     hk install
     assert_file_exists ".git/hooks/pre-commit"
@@ -62,10 +60,8 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/prettier.pkl"
-
-\`pre-commit\` {
-    ["prettier"] = new prettier.Prettier {}
-}
+linters { ["prettier"] = new prettier.Prettier {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     hk install
     run cat test.js
@@ -84,10 +80,8 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/prettier.pkl"
-
-\`pre-commit\` {
-    ["prettier"] = new prettier.Prettier {}
-}
+linters { ["prettier"] = new prettier.Prettier {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     hk run pre-commit -a
     run cat test.js
@@ -98,10 +92,8 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/jq.pkl"
-
-\`pre-commit\` {
-    ["json"] = new jq.Jq {}
-}
+linters { ["jq"] = new jq.Jq {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     cat <<EOF > test.json
 { "invalid": 
@@ -116,10 +108,8 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/jq.pkl"
-
-\`pre-commit\` {
-    ["jq"] = new jq.Jq {}
-}
+linters { ["jq"] = new jq.Jq {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     cat <<EOF > test.json
 {"test": 123}
@@ -135,10 +125,8 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/yq.pkl"
-
-\`pre-commit\` {
-    ["yq"] = new yq.Yq {}
-}
+linters { ["yq"] = new yq.Yq {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     cat <<EOF > test.yaml
 test: :
@@ -153,10 +141,8 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/yq.pkl"
-
-\`pre-commit\` {
-    ["yq"] = new yq.Yq {}
-}
+linters { ["yq"] = new yq.Yq {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     cat <<EOF > test.yaml
     test: 123
@@ -171,10 +157,8 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/shellcheck.pkl"
-
-\`pre-commit\` {
-    ["shellcheck"] = new shellcheck.Shellcheck {}
-}
+linters { ["shellcheck"] = new shellcheck.Shellcheck {} }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     cat <<EOF > test.sh
 #!/bin/bash
@@ -191,11 +175,11 @@ EOF
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/prettier.pkl"
 import "$PKL_PATH/builtins/shellcheck.pkl"
-
-\`pre-commit\` {
+linters {
     ["prettier"] = new prettier.Prettier {}
     ["shellcheck"] = new shellcheck.Shellcheck {}
 }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     touch test.sh
     touch test.js
@@ -212,11 +196,11 @@ EOF
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/prettier.pkl"
 import "$PKL_PATH/builtins/shellcheck.pkl"
-
-\`pre-commit\` {
+linters {
     ["prettier"] = new prettier.Prettier {}
     ["shellcheck"] = new shellcheck.Shellcheck {}
 }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     touch test.sh
     touch test.js
@@ -230,8 +214,7 @@ EOF
 @test "check_first waits" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-
-\`pre-commit\` {
+linters {
     ["a"] {
         glob = new {"*.sh"}
         check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"
@@ -243,6 +226,7 @@ amends "$PKL_PATH/Config.pkl"
         fix = "echo 'start b' && echo 'end b' && touch test.sh"
     }
 }
+hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     touch test.sh
     git add test.sh

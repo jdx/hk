@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class Alejandra extends Config.Step {
+class Alejandra extends Config.Linter {
     glob = new { "**/*.nix" }
     check = "alejandra --check {{ files }}"
     fix = "alejandra {{ files }}"
-    check_all = "alejandra --check ."
-    fix_all = "alejandra ."
 } 

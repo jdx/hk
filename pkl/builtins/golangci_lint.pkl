@@ -1,9 +1,7 @@
 import "../Config.pkl"
 
-class GolangciLint extends Config.Step {
+class GolangciLint extends Config.Linter {
     glob = new { "**/*.go" }
     check = "golangci-lint run {{ files }}"
     fix = "golangci-lint run --fix {{ files }}"
-    check_all = "golangci-lint run"
-    fix_all = "golangci-lint run --fix"
 } 
