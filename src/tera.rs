@@ -53,4 +53,11 @@ impl Context {
         self.insert("files", &files);
         self
     }
+
+    pub fn with_workspace_file<P: AsRef<Path>>(&mut self, workspace_file: &P) -> &mut Self {
+        let workspace_file = workspace_file.as_ref();
+        self.insert("workspace", &workspace_file.parent().unwrap_or(Path::new(".")).display().to_string());
+        self.insert("workspace_file", &workspace_file.display().to_string());
+        self
+    }
 }

@@ -35,8 +35,8 @@ linters {
         // this linter works on directories instead of individual files.
         // This tells hk what filename to look for to know if a directory is a workspace.
         workspace_indicator = "Cargo.toml"
-        check = "cargo clippy --manifest-path {{workspace_indicator}}"
-        fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged"
+        check = "cargo clippy --manifest-path {{workspace_file}}"
+        fix = "cargo clippy --manifest-path {{workspace_file}} --fix --allow-dirty --allow-staged"
     }
     ["gomod_tidy"] {
         workspace_indicator = "go.mod"

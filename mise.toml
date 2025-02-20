@@ -59,11 +59,15 @@ run = [
 [tasks.lint]
 depends = ["build"]
 run = [
-  "hk r co -a",
-  "cargo clippy --all-targets --all-features",
+  "hk check --all",
+  "hk check --all --profile slow",
 ]
 [tasks.lint-fix]
-run = "cargo clippy --fix --allow-dirty --allow-staged --all-targets --all-features"
+depends = ["build"]
+run = [
+  "hk fix --all",
+  "hk fix --all --profile slow",
+]
 [tasks.docs]
 dir = "docs"
 run = "bun i && bun run docs:dev"

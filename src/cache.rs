@@ -108,7 +108,7 @@ where
     {
         let val = self.cache.get_or_try_init(|| {
             let path = &self.cache_file_path;
-            if self.is_fresh() {
+            if self.is_fresh() && !cfg!(debug_assertions) {
                 match self.parse() {
                     Ok(val) => return Ok::<_, miette::Report>(val),
                     Err(err) => {

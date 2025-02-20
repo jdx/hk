@@ -1,11 +1,12 @@
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use miette::{miette, IntoDiagnostic};
-use std::{collections::{HashMap, HashSet}, iter::once, path::{Path, PathBuf}, sync::Arc};
+use std::{collections::{HashMap, HashSet}, path::{Path, PathBuf}, sync::Arc};
 use tokio::sync::{
     Mutex, OwnedRwLockReadGuard, OwnedRwLockWriteGuard, OwnedSemaphorePermit, RwLock, Semaphore,
 };
 use tokio::task::JoinSet;
+use crate::{step::StepResponse, tera};
 
 use crate::{
     config::Config,
@@ -100,7 +101,6 @@ impl<'a> StepScheduler<'a> {
                 };
                 let ctx = StepContext {
                     run_type,
-                    files_to_add: vec![],
                     file_locks: self
                         .file_locks
                         .lock()
@@ -110,16 +110,16 @@ impl<'a> StepScheduler<'a> {
                         .map(|(k, v)| (k.clone(), v.clone()))
                         .collect(),
                     files,
+                    depend_self: Some(depend_locks.get(&step.name).unwrap().clone().write_owned().await),
                 };
 
                 let depends = step
                     .depends
                     .iter()
-                    .chain(once(&step.name))
                     .map(|dep| {
                         depend_locks
                             .iter()
-                            .find(|(name, _)| *name == dep || **name == step.name)
+                            .find(|(name, _)| *name == dep)
                             .map(|(name, lock)| (name.to_string(), lock.clone()))
                             .ok_or_else(|| miette!("No step named {dep} found in group"))
                     })
@@ -128,15 +128,54 @@ impl<'a> StepScheduler<'a> {
                 if !step.is_profile_enabled() {
                     continue;
                 }
-                
-                self.run_step(
-                    depends,
-                    step,
-                    &mut set,
-                    ctx,
-                    files_in_contention.clone(),
-                )
-                .await?;
+
+                let tctx = tera::Context::default();
+                if let Some(workspaces) = step.workspaces_for_files(&ctx.files)? {
+                    let step = (*step).clone();
+                    let semaphore = self.semaphore.clone();
+                    let failed = self.failed.clone();
+                    let files_in_contention = files_in_contention.clone();
+                    set.spawn(async move {
+                        let mut rsp = StepResponse::default();
+                        let mut set = JoinSet::new();
+                        for workspace_file in workspaces {
+                            let mut tctx = tctx.clone();
+                            tctx.with_workspace_file(&workspace_file);
+                            StepScheduler::run_step(
+                                semaphore.clone(),
+                                failed.clone(),
+                                ctx.clone(),
+                                tctx,
+                                depends.clone(),
+                                &step,
+                                &mut set,
+                                files_in_contention.clone(),
+                            )
+                            .await?;
+                        }
+                        // TODO: abort on first error
+                        while let Some(result) = set.join_next().await {
+                            match result {
+                                Ok(Ok(r)) => rsp.extend(r),
+                                Ok(Err(e)) => return Err(e),
+                                Err(e) => return Err(e).into_diagnostic(),
+                            }
+                        }
+                        Ok(rsp)
+                    });
+                } else {
+                    StepScheduler::run_step(
+                        self.semaphore.clone(),
+                        self.failed.clone(),
+                        ctx,
+                        tctx,
+                        depends,
+                        step,
+                        &mut set,
+                        files_in_contention.clone(),
+                    )
+                    .await?;
+                }
             }
 
             // Wait for tasks and abort on first error
@@ -202,28 +241,22 @@ impl<'a> StepScheduler<'a> {
         Ok(files_in_contention)
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn run_step(
-        &self,
-        mut depends: IndexMap<String, Arc<RwLock<()>>>,
-        step: &Step,
-        set: &mut JoinSet<Result<StepContext>>,
+        semaphore: Arc<Semaphore>,
+        failed: Arc<Mutex<bool>>,
         ctx: StepContext,
+        tctx: tera::Context,
+        depends: IndexMap<String, Arc<RwLock<()>>>,
+        step: &Step,
+        set: &mut JoinSet<Result<StepResponse>>,
         files_in_contention: Arc<HashSet<PathBuf>>,
     ) -> Result<()> {
-        let semaphore = self.semaphore.clone();
         let permit = semaphore.clone().acquire_owned().await.into_diagnostic()?;
-        let failed = self.failed.clone();
-        if *failed.lock().await {
-            trace!("{step}: skipping step due to previous failure");
-            return Ok(());
-        }
-        let depend_self = depends.shift_remove(&step.name).unwrap();
-        let self_depend_write_lock = depend_self.write_owned().await;
 
         trace!("{step}: spawning step");
         let step = step.clone();
         set.spawn(async move {
-            let _self_depend_write_lock = self_depend_write_lock;
             let depends = depends;
             if *env::HK_CHECK_FIRST
                 && step.check_first
@@ -240,6 +273,7 @@ impl<'a> StepScheduler<'a> {
                 debug!("{step}: running check step first due to fix step contention");
                 match run(
                     check_ctx,
+                    tctx.clone(),
                     semaphore.clone(),
                     &step,
                     failed.clone(),
@@ -250,16 +284,21 @@ impl<'a> StepScheduler<'a> {
                 {
                     Ok(ctx) => {
                         debug!("{step}: successfully ran check step first");
-                        Ok(ctx)
+                        return Ok(ctx);
                     }
                     Err(e) => {
                         warn!("{step}: failed check step first: {e}");
-                        let permit = semaphore.clone().acquire_owned().await.into_diagnostic()?;
-                        run(ctx, semaphore, &step, failed, permit, &depends).await
                     }
                 }
-            } else {
-                run(ctx, semaphore, &step, failed, permit, &depends).await
+            }
+            let permit = semaphore.clone().acquire_owned().await.into_diagnostic()?;
+            match run(ctx, tctx, semaphore, &step, failed.clone(), permit, &depends).await {
+                Ok(rsp) => Ok(rsp),
+                Err(err) => {
+                    // Mark as failed to prevent new steps from starting
+                    *failed.lock().await = true;
+                    Err(err)
+                }
             }
         });
         Ok(())
@@ -268,18 +307,21 @@ impl<'a> StepScheduler<'a> {
 
 async fn run(
     ctx: StepContext,
+    tctx: tera::Context,
     semaphore: Arc<Semaphore>,
     step: &Step,
     failed: Arc<Mutex<bool>>,
     permit: OwnedSemaphorePermit,
     depends: &IndexMap<String, Arc<RwLock<()>>>,
-) -> Result<StepContext> {
+) -> Result<StepResponse> {
     let _locks = StepLocks::lock(step, &ctx, semaphore, permit, depends).await?;
-    match step.run(ctx).await {
-        Ok(ctx) => Ok(ctx),
+    if *failed.lock().await {
+        trace!("{step}: skipping step due to previous failure");
+        return Ok(Default::default());
+    }
+    match step.run(ctx, tctx).await {
+        Ok(rsp) => Ok(rsp),
         Err(err) => {
-            // Mark as failed to prevent new steps from starting
-            *failed.lock().await = true;
             Err(err.wrap_err(step.name.clone()))
         }
     }

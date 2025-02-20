@@ -3,6 +3,6 @@ import "../Config.pkl"
 class CargoClippy extends Config.Linter {
     glob = new { "**/*.rs" }
     workspace_indicator = "Cargo.toml"
-    check = "cargo clippy"
-    fix = "cargo clippy --fix --allow-dirty --allow-staged"
+    check = "cargo clippy --manifest-path {{workspace_file}}"
+    fix = "cargo clippy --manifest-path {{workspace_file}} --fix --allow-dirty --allow-staged"
 } 

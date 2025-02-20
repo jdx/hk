@@ -8,7 +8,7 @@ use miette::IntoDiagnostic;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::{fmt, sync::Arc};
-use tokio::sync::RwLock;
+use tokio::sync::{OwnedRwLockWriteGuard, RwLock};
 
 use serde_with::{serde_as, OneOrMany};
 
@@ -93,8 +93,8 @@ impl Step {
             ..Default::default()
         }
     }
-    pub async fn run(&self, mut ctx: StepContext) -> Result<StepContext> {
-        let mut tctx = tera::Context::default();
+    pub(crate) async fn run(&self, ctx: StepContext, mut tctx: tera::Context) -> Result<StepResponse> {
+        let mut rsp = StepResponse::default();
         tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
         tctx.with_files(&ctx.files);
         let file_msg = |files: &[PathBuf]| format!(
@@ -111,7 +111,7 @@ impl Step {
             RunType::Run => (self.run.clone(), None),
         }) else {
             warn!("{}: no run command", self);
-            return Ok(ctx);
+            return Ok(rsp);
         };
         if let Some(extra) = extra {
             run = format!("{} {}", run, extra);
@@ -150,7 +150,7 @@ impl Step {
             .execute()
             .await
             .into_diagnostic()?;
-        ctx.files_to_add = files_to_add
+        rsp.files_to_add = files_to_add
             .into_iter()
             .filter(|(prev_mod, p)| {
                 if !p.exists() {
@@ -163,12 +163,12 @@ impl Step {
             })
             .map(|(_, p)| p)
             .collect_vec();
-        if ctx.files_to_add.is_empty() {
+        if rsp.files_to_add.is_empty() {
             pr.finish_with_message("done".to_string());
         } else {
-            pr.finish_with_message(format!("{} modified", file_msg(&ctx.files_to_add)));
+            pr.finish_with_message(format!("{} modified", file_msg(&rsp.files_to_add)));
         }
-        Ok(ctx)
+        Ok(rsp)
     }
 
     fn build_pr(&self) -> Arc<Box<dyn clx::SingleReport>> {
@@ -239,12 +239,56 @@ impl Step {
         }
         true
     }
+
+    /// For a list of files like this:
+    /// src/crate-1/src/lib.rs
+    /// src/crate-1/src/subdir/mod.rs
+    /// src/crate-2/src/lib.rs
+    /// src/crate-2/src/subdir/mod.rs
+    /// If the workspace indicator is "Cargo.toml", and there are Cargo.toml files in the root of crate-1 and crate-2,
+    /// this will return: ["src/crate-1", "src/crate-2"]
+    pub fn workspaces_for_files(&self, files: &[PathBuf]) -> Result<Option<IndexSet<PathBuf>>> {
+        let Some(workspace_indicator) = &self.workspace_indicator else {
+            return Ok(None);
+        };
+        let mut dirs = files.iter().filter_map(|f| f.parent()).collect_vec();
+        let mut workspaces: IndexSet<PathBuf> = Default::default();
+        while let Some(dir) = dirs.pop() {
+            if let Some(workspace) = xx::file::find_up(dir, &[workspace_indicator]) {
+                dirs.retain(|d| !d.starts_with(&workspace));
+                workspaces.insert(workspace);
+            }
+        }
+        Ok(Some(workspaces))
+    }
 }
 
-#[derive(Clone)]
 pub struct StepContext {
     pub run_type: RunType,
     pub files: Vec<PathBuf>,
     pub file_locks: IndexMap<PathBuf, Arc<RwLock<()>>>,
+    #[allow(unused)]
+    pub depend_self: Option<OwnedRwLockWriteGuard<()>>,
+}
+
+impl Clone for StepContext {
+    fn clone(&self) -> Self {
+        Self {
+            run_type: self.run_type,
+            files: self.files.clone(),
+            file_locks: self.file_locks.clone(),
+            depend_self: None,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct StepResponse {
     pub files_to_add: Vec<PathBuf>,
+}
+
+impl StepResponse {
+    pub fn extend(&mut self, other: StepResponse) {
+        self.files_to_add.extend(other.files_to_add);
+    }
 }
