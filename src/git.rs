@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use git2::{Commit, Repository, StatusOptions, StatusShow, Tree};
-use itertools::Itertools;
+use git2::{Commit, Oid, Repository, StatusOptions, StatusShow, Tree};
+use itertools::{Either, Itertools};
 use miette::Result;
 use miette::{miette, Context, IntoDiagnostic};
 
@@ -9,7 +9,7 @@ use crate::env;
 
 pub struct Git {
     repo: Repository,
-    stash_diff: Option<String>,
+    stash: Option<Either<String, Oid>>,
     root: PathBuf,
 }
 
@@ -21,7 +21,7 @@ impl Git {
         Ok(Self {
             root: repo.workdir().unwrap().to_path_buf(),
             repo,
-            stash_diff: None,
+            stash: None,
         })
     }
 
@@ -137,8 +137,12 @@ impl Git {
                 return Ok(());
             }
         }
-        self.stash_diff = self.build_diff()?;
-        if self.stash_diff.is_none() {
+        self.stash = if *env::HK_STASH_NO_GIT {
+            self.build_diff()?.map(Either::Left)
+        } else {
+            self.push_stash()?.map(Either::Right)
+        };
+        if self.stash.is_none() {
             return Ok(());
         }
 
@@ -189,18 +193,41 @@ impl Git {
         }
     }
 
+    pub fn push_stash(&mut self) -> Result<Option<Oid>> {
+        let sig = self.repo.signature().into_diagnostic()?;
+        let mut flags = git2::StashFlags::default();
+        flags.set(git2::StashFlags::INCLUDE_UNTRACKED, true);
+        flags.set(git2::StashFlags::KEEP_INDEX, false);
+        let oid = self
+            .repo
+            .stash_save2(&sig, None, Some(flags))
+            .into_diagnostic()?;
+        Ok(Some(oid))
+    }
+
     pub fn pop_stash(&mut self) -> Result<()> {
-        let Some(diff) = self.stash_diff.take() else {
+        let Some(diff) = self.stash.take() else {
             return Ok(());
         };
 
-        let diff = git2::Diff::from_buffer(diff.as_bytes()).into_diagnostic()?;
-        let mut apply_opts = git2::ApplyOptions::new();
-        self.repo
-            .apply(&diff, git2::ApplyLocation::WorkDir, Some(&mut apply_opts))
-            .into_diagnostic()
-            .wrap_err("failed to apply diff")?;
-
+        match diff {
+            Either::Left(diff) => {
+                let diff = git2::Diff::from_buffer(diff.as_bytes()).into_diagnostic()?;
+                let mut apply_opts = git2::ApplyOptions::new();
+                self.repo
+                    .apply(&diff, git2::ApplyLocation::WorkDir, Some(&mut apply_opts))
+                    .into_diagnostic()
+                    .wrap_err("failed to apply diff")?;
+            }
+            Either::Right(_oid) => {
+                let mut opts = git2::StashApplyOptions::new();
+                opts.reinstantiate_index();
+                self.repo
+                    .stash_pop(0, Some(&mut opts))
+                    .into_diagnostic()
+                    .wrap_err("failed to reset to stash")?;
+            }
+        }
         Ok(())
     }
 
