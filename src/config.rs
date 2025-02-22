@@ -123,8 +123,10 @@ pub struct Linter {
     pub check_diff: Option<String>,
     pub check_list_files: Option<String>,
     pub check_extra_args: Option<String>,
+    pub check_lock_globs: Option<Vec<String>>,
     pub fix: Option<String>,
     pub fix_extra_args: Option<String>,
+    pub fix_lock_globs: Option<Vec<String>>,
     pub workspace_indicator: Option<String>,
     pub prefix: Option<String>,
     pub dir: Option<String>,
@@ -150,8 +152,10 @@ impl From<Linter> for Step {
             check_diff: linter.check_diff,
             check_list_files: linter.check_list_files,
             check_extra_args: linter.check_extra_args,
+            check_lock_globs: linter.check_lock_globs,
             fix: linter.fix,
             fix_extra_args: linter.fix_extra_args,
+            fix_lock_globs: linter.fix_lock_globs,
             workspace_indicator: linter.workspace_indicator,
             prefix: linter.prefix,
             dir: linter.dir,
@@ -186,7 +190,7 @@ impl Config {
             repo.staged_files()?
         };
         StepScheduler::new(hook, run_type, repo)
-            .with_files(files)
+            .with_files(files.into_iter().collect())
             .run()
             .await
     }

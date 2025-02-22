@@ -38,8 +38,10 @@ pub struct Step {
     pub check_diff: Option<String>,
     pub check_list_files: Option<String>,
     pub check_extra_args: Option<String>,
+    pub check_lock_globs: Option<Vec<String>>,
     pub fix: Option<String>,
     pub fix_extra_args: Option<String>,
+    pub fix_lock_globs: Option<Vec<String>>,
     pub workspace_indicator: Option<String>,
     pub prefix: Option<String>,
     pub dir: Option<String>,
@@ -298,7 +300,8 @@ impl Step {
 pub struct StepContext {
     pub run_type: RunType,
     pub files: Vec<PathBuf>,
-    pub file_locks: IndexMap<PathBuf, Arc<RwLock<()>>>,
+    pub check_locks: IndexMap<PathBuf, Arc<RwLock<()>>>,
+    pub fix_locks: IndexMap<PathBuf, Arc<RwLock<()>>>,
     #[allow(unused)]
     pub depend_self: Option<OwnedRwLockWriteGuard<()>>,
 }
@@ -308,7 +311,8 @@ impl Clone for StepContext {
         Self {
             run_type: self.run_type,
             files: self.files.clone(),
-            file_locks: self.file_locks.clone(),
+            check_locks: self.check_locks.clone(),
+            fix_locks: self.fix_locks.clone(),
             depend_self: None,
         }
     }
