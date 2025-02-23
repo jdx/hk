@@ -24,7 +24,7 @@ open class Linter {
     /// This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
     batch = false
 
-    /// fetches a read lock instead of a write lock when running fix/fix_all. Use if the tool has its own locking mechanism or you simply don't care if files may be written to
+    /// fetches a read lock instead of a write lock when running fix. Use if the tool has its own locking mechanism or you simply don't care if files may be written to
     /// by multiple steps.
     stomp = false
 
@@ -49,6 +49,14 @@ open class Linter {
 
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}
+
+    /// a list of globs to get read locks on when running check
+    /// defaults to glob field
+    check_lock_globs: List<String>?
+
+    /// a list of globs to get write locks on when running fix
+    /// defaults to glob field
+    fix_lock_globs: List<String>?
 
     /// if not set, all files will be added
     stage: List<String>?

@@ -5,7 +5,7 @@ use itertools::{Either, Itertools};
 use miette::Result;
 use miette::{Context, IntoDiagnostic, miette};
 
-use crate::env;
+use crate::{env, glob};
 
 pub struct Git {
     repo: Repository,
@@ -73,6 +73,33 @@ impl Git {
                     files.push(path);
                 }
             }
+            git2::TreeWalkResult::Ok
+        })
+        .into_diagnostic()
+        .wrap_err("failed to walk tree")?;
+        Ok(files)
+    }
+
+    pub fn all_files_matching_globs(&self, globs: &[&str]) -> Result<Vec<PathBuf>> {
+        let mut gb = globset::GlobSetBuilder::new();
+        for g in globs {
+            gb.add(globset::GlobBuilder::new(g).empty_alternates(true).build().into_diagnostic()?);
+        }
+        let gs = gb.build().into_diagnostic()?;
+        let mut files = vec![];
+        let head = self.head_tree()?;
+        head.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
+            if let Some(name) = entry.name() {
+                let path = if root.is_empty() {
+                    PathBuf::from(name)
+                } else {
+                    PathBuf::from(root).join(name)
+                };
+                if path.exists() && gs.is_match(&path) {
+                    files.push(path);
+                }
+            }
+            // TODO: is there a way to prevent walking through everything and just paths that _could_ match a glob?
             git2::TreeWalkResult::Ok
         })
         .into_diagnostic()

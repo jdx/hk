@@ -26,7 +26,7 @@ pub struct StepScheduler<'a> {
     run_type: RunType,
     repo: &'a Git,
     steps: Vec<Step>,
-    files: Vec<PathBuf>,
+    files: IndexSet<PathBuf>,
     failed: Arc<Mutex<bool>>,
     semaphore: Arc<Semaphore>,
     file_locks: Mutex<IndexMap<PathBuf, Arc<RwLock<()>>>>,
@@ -51,23 +51,27 @@ impl<'a> StepScheduler<'a> {
                     _ => vec![s.clone()],
                 })
                 .collect(),
-            files: vec![],
+            files: Default::default(),
             failed: Arc::new(Mutex::new(false)),
             semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
             file_locks: Default::default(),
         }
     }
 
-    pub fn with_files(mut self, files: Vec<PathBuf>) -> Self {
+    pub fn with_files(mut self, files: IndexSet<PathBuf>) -> Self {
         self.files = files;
         self
     }
 
     pub async fn run(self) -> Result<()> {
+        let check_files_globs = self.steps.iter().flat_map(|s| &s.check_lock_globs).flatten().collect_vec();
+        let fix_files_globs = self.steps.iter().flat_map(|s| &s.fix_lock_globs).flatten().collect_vec();
         *self.file_locks.lock().await = self
             .files
             .iter()
-            .map(|file| (file.clone(), Arc::new(RwLock::new(()))))
+            .cloned()
+            .chain(self.repo.all_files_matching_globs(&check_files_globs.iter().chain(fix_files_globs.iter()).map(|g| g.as_str()).collect_vec())?)
+            .map(|file| (file, Arc::new(RwLock::new(()))))
             .collect();
         // groups is a list of list of steps which are separated by exclusive steps
         // any exclusive step will be in a group by itself
@@ -78,6 +82,7 @@ impl<'a> StepScheduler<'a> {
             groups.last_mut().unwrap().push(step);
             groups
         });
+        let files_vec = self.files.iter().collect_vec();
 
         for group in groups {
             let mut set = JoinSet::new();
@@ -85,7 +90,8 @@ impl<'a> StepScheduler<'a> {
                 .iter()
                 .map(|s| (s.name.clone(), Arc::new(RwLock::new(()))))
                 .collect();
-            let files_in_contention = Arc::new(self.files_in_contention(&group, &self.files)?);
+            // TODO: add check_lock_globs and fix_lock_globs to files_in_contention
+            let files_in_contention = Arc::new(self.files_in_contention(&group, &files_vec)?);
 
             // Spawn all tasks
             for step in &group {
@@ -94,14 +100,14 @@ impl<'a> StepScheduler<'a> {
                     continue;
                 };
                 let mut files = if let Some(glob) = &step.glob {
-                    let matches = glob::get_matches(glob, &self.files)?;
+                    let matches = glob::get_matches(glob, &files_vec)?;
                     if matches.is_empty() {
                         debug!("{step}: no matches for step");
                         continue;
                     }
                     matches
                 } else {
-                    self.files.clone()
+                    files_vec.iter().map(|f| f.to_path_buf()).collect_vec()
                 };
                 if let Some(dir) = &step.dir {
                     files.retain(|f| f.starts_with(dir));
@@ -112,7 +118,7 @@ impl<'a> StepScheduler<'a> {
                 }
                 let ctx = StepContext {
                     run_type,
-                    file_locks: self
+                    check_locks: self
                         .file_locks
                         .lock()
                         .await
@@ -229,7 +235,8 @@ impl<'a> StepScheduler<'a> {
         Ok(())
     }
 
-    fn files_in_contention(&self, steps: &[&Step], files: &[PathBuf]) -> Result<HashSet<PathBuf>> {
+    fn files_in_contention<P: AsRef<Path>>(&self, steps: &[&Step], files: &[P]) -> Result<HashSet<PathBuf>> {
+        // TODO: add check_lock_globs and fix_lock_globs to files_in_contention
         let step_map: IndexMap<String, &Step> = steps
             .iter()
             .map(|step| (step.name.clone(), *step))
