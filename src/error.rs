@@ -1,5 +1,6 @@
 use thiserror::Error;
-use std::process::ExitStatus;
+
+use crate::cmd::CmdResult;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -11,14 +12,14 @@ pub enum Error {
     #[error(transparent)]
     Nix(#[from] nix::errno::Errno),
 
-    #[error("{} exited with non-zero status: {}\n{}", .0, render_exit_status(.1), .2)]
-    ScriptFailed(String, Option<ExitStatus>, String),
+    #[error("{} exited with non-zero status: {}\n{}", .0, render_exit_status(.2), .1)]
+    ScriptFailed(String, String, CmdResult),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn render_exit_status(exit_status: &Option<ExitStatus>) -> String {
-    match exit_status.and_then(|s| s.code()) {
+fn render_exit_status(result: &CmdResult) -> String {
+    match result.status.code() {
         Some(exit_status) => format!("exit code {exit_status}"),
         None => "no exit status".into(),
     }

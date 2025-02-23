@@ -233,21 +233,22 @@ impl CmdLineRunner {
         result.lock().await.status = status;
 
         if !status.success() {
-            self.on_error(combined_output.lock().await.join("\n"), status)?;
+            let result = result.lock().await.to_owned();
+            self.on_error(combined_output.lock().await.join("\n"), result)?;
         }
 
-        let result = result.lock().await.clone();
+        let result = result.lock().await.to_owned();
         Ok(result)
     }
 
-    fn on_error(&self, output: String, status: ExitStatus) -> Result<()> {
+    fn on_error(&self, output: String, result: CmdResult) -> Result<()> {
         let output = output.trim().to_string();
         // if let Some(pr) = &self.pr {
         //     if !output.trim().is_empty() {
         //         pr.println(output);
         //     }
         // }
-        Err(ScriptFailed(self.program.clone(), Some(status), output))?
+        Err(ScriptFailed(self.program.clone(), output, result))?
     }
 }
 
