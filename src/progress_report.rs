@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use indicatif::{ProgressBar, ProgressStyle};
 use std::sync::LazyLock as Lazy;
+use crate::multi_progress_report::CLI_NAME;
 
 use crate::style;
 
@@ -55,13 +56,21 @@ fn pad_prefix(w: usize, s: &str) -> String {
 }
 
 fn normal_prefix(pad: usize, prefix: &str) -> String {
-    let prefix = format!("{} {prefix}", style::edim("mise"));
-    pad_prefix(pad, &prefix)
+    if let Some(cli_name) = CLI_NAME.lock().unwrap().as_ref() {
+        let prefix = format!("{} {prefix}", style::edim(cli_name));
+        pad_prefix(pad, &prefix)
+    } else {
+        pad_prefix(pad, prefix)
+    }
 }
 
 fn success_prefix(pad: usize, prefix: &str) -> String {
-    let prefix = format!("{} {prefix}", style::egreen("mise"));
-    pad_prefix(pad, &prefix)
+    if let Some(cli_name) = CLI_NAME.lock().unwrap().as_ref() {
+        let prefix = format!("{} {prefix}", style::egreen(cli_name));
+        pad_prefix(pad, &prefix)
+    } else {
+        pad_prefix(pad, prefix)
+    }
 }
 
 const PAD: usize = 15; // TODO: make this customizable

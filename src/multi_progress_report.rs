@@ -19,6 +19,7 @@ pub struct MultiProgressReport {
 }
 
 static INSTANCE: Mutex<Option<Arc<MultiProgressReport>>> = Mutex::new(None);
+pub(crate) static CLI_NAME: Mutex<Option<String>> = Mutex::new(None);
 
 impl MultiProgressReport {
     fn try_get() -> Option<Arc<Self>> {
@@ -28,6 +29,10 @@ impl MultiProgressReport {
         let mut mutex = INSTANCE.lock().unwrap();
         let mpr = Arc::new(Self::new(output_type));
         *mutex = Some(mpr);
+    }
+    pub fn set_cli_name(cli_name: &str) {
+        let mut mutex = CLI_NAME.lock().unwrap();
+        *mutex = Some(cli_name.to_string());
     }
     pub fn get() -> Arc<Self> {
         let mut mutex = INSTANCE.lock().unwrap();
