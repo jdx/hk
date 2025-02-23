@@ -40,7 +40,7 @@ static PROG_TEMPLATE: Lazy<ProgressStyle> = Lazy::new(|| {
 });
 
 static SUCCESS_TEMPLATE: Lazy<ProgressStyle> = Lazy::new(|| {
-    let tmpl = format!("{{prefix}} {} {{wide_msg}}", style::egreen("✓").bright());
+    let tmpl = format!("{{prefix}} {} {{wide_msg}} {{elapsed:>3.dim.italic}}", style::egreen("✓").bright());
     ProgressStyle::with_template(tmpl.as_str()).unwrap()
 });
 
