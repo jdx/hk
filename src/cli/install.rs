@@ -31,7 +31,7 @@ impl Install {
 if [ "$HK" = "0" ] || [ "$HK" = "false" ]; then
     exit 0
 fi
-{command} "$@"
+exec {command} "$@"
 "#
             );
             xx::file::write(&hook_file, &hook_content)?;

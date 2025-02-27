@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::BTreeSet, path::PathBuf};
 
 use crate::Result;
 use eyre::{WrapErr, eyre};
@@ -21,6 +21,12 @@ impl Git {
             repo,
             stash: None,
         })
+    }
+
+    pub fn current_branch(&self) -> Result<Option<String>> {
+        let head = self.repo.head().wrap_err("failed to get head")?;
+        let branch_name = head.shorthand().map(|s| s.to_string());
+        Ok(branch_name)
     }
 
     fn head_tree(&self) -> Result<Tree<'_>> {
@@ -254,7 +260,7 @@ impl Git {
             .diff_tree_to_tree(Some(&from_tree), Some(&to_tree), None)
             .wrap_err("Failed to get diff between references")?;
 
-        let mut files = Vec::new();
+        let mut files = BTreeSet::new();
         diff.foreach(
             &mut |_, _| true,
             None,
@@ -263,7 +269,7 @@ impl Git {
                 if let Some(path) = diff_delta.new_file().path() {
                     let path_buf = PathBuf::from(path);
                     if path_buf.exists() {
-                        files.push(path_buf);
+                        files.insert(path_buf);
                     }
                 }
                 true
@@ -271,6 +277,6 @@ impl Git {
         )
         .wrap_err("Failed to process diff")?;
 
-        Ok(files)
+        Ok(files.into_iter().collect())
     }
 }

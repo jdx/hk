@@ -44,33 +44,12 @@ hooks = new {
         }
         ["fix"] = new Fix {}
     }
+    ["pre-push"] {
+        ["check"] = new Check {}
+    }
+
+    // TODO
+    // ["commit-msg"] {}
+    // ["prepare-commit-msg"] {}
+    // ["update"] {}
 }
-
-// TODO
-//`pre-push` {
-    // ["format"] {
-    //     check = true // ensures the files have no changes and fails otherwise
-    //     formatter = formatters.prettier
-    // }
-    // ["lint"] {
-    //     linters = new {
-    //         ["eslint"] {
-    //             glob = new { "*.ts" }
-    //         }
-    //         ["clippy"] {}
-    //         ["golangci-lint"] {}
-    //     }
-    // }
-//}
-
-// TODO
-// commit_msg {
-// }
-
-// TODO
-// prepare_commit_msg {
-// }
-
-// TODO
-// update {
-// }
