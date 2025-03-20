@@ -75,8 +75,14 @@ impl PrePush {
                 .lines()
                 .filter(|line| !line.is_empty())
                 .map(PrePushRefs::from)
+                .filter(|refs| {
+                    // git uses this if the remote ref does not exist, we can just ignore it in that case and default to origin/HEAD
+                    refs.to.1 == "0000000000000000000000000000000000000000"
+                        && refs.from.1 != "0000000000000000000000000000000000000000"
+                })
                 .collect::<Vec<_>>()
         };
+        trace!("to_be_updated_refs: {:?}", to_be_updated_refs);
         let mut repo = Git::new()?;
         let run_type = RunType::Check(CheckType::Check);
 
@@ -85,7 +91,9 @@ impl PrePush {
             None if !to_be_updated_refs.is_empty() => to_be_updated_refs[0].from.1.clone(),
             None => {
                 let remote = self.remote.as_deref().unwrap_or("origin");
-                let branch = repo.current_branch()?.unwrap_or("HEAD".to_string());
+                // TODO: should this use repo.current_branch()?
+                // let branch = repo.current_branch()?.unwrap_or("HEAD".to_string());
+                let branch = "HEAD";
                 format!("refs/remotes/{remote}/{branch}")
             }
         };

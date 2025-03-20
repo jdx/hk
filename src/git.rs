@@ -23,6 +23,8 @@ impl Git {
         })
     }
 
+    // TODO: do we need this?
+    #[allow(dead_code)]
     pub fn current_branch(&self) -> Result<Option<String>> {
         let head = self.repo.head().wrap_err("failed to get head")?;
         let branch_name = head.shorthand().map(|s| s.to_string());

@@ -29,7 +29,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - run: rustup up
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -40,7 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - run: rustup up
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v2

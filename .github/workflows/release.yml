@@ -46,7 +46,6 @@ jobs:
         uses: taiki-e/setup-cross-toolchain-action@v1
         with:
           target: ${{ matrix.target }}
-      - run: rustup up
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: rust-${{ matrix.target }}
