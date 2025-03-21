@@ -39,11 +39,10 @@ exec {command} "$@"
             println!("Installed hk hook: .git/hooks/{hook}");
             Result::<(), eyre::Report>::Ok(())
         };
-        if config.hooks.contains_key("pre-commit") {
-            add_hook("pre-commit")?;
-        }
-        if config.hooks.contains_key("pre-push") {
-            add_hook("pre-push")?;
+        for hook in ["pre-commit", "pre-push", "prepare-commit-msg", "commit-msg"] {
+            if config.hooks.contains_key(hook) {
+                add_hook(hook)?;
+            }
         }
         Ok(())
     }

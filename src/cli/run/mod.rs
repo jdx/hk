@@ -2,6 +2,7 @@ use crate::Result;
 
 mod pre_commit;
 mod pre_push;
+mod prepare_commit_msg;
 
 /// Run a hook
 #[derive(Debug, clap::Args)]
@@ -15,6 +16,7 @@ pub struct Run {
 enum Commands {
     PreCommit(pre_commit::PreCommit),
     PrePush(pre_push::PrePush),
+    PrepareCommitMsg(prepare_commit_msg::PrepareCommitMsg),
 }
 
 impl Run {
@@ -22,6 +24,7 @@ impl Run {
         match self.command {
             Commands::PreCommit(cmd) => cmd.run().await,
             Commands::PrePush(cmd) => cmd.run().await,
+            Commands::PrepareCommitMsg(cmd) => cmd.run().await,
         }
     }
 }
