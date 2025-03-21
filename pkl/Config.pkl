@@ -88,6 +88,6 @@ class Check extends Step {
 
 typealias Hook = Mapping<String, Step>
 
-linters: Mapping<String, Linter>?
+linters: Mapping<String, Linter> = new Mapping<String, Linter>{}
 
-hooks: Mapping<String, Hook>?
+hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}

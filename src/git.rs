@@ -23,8 +23,18 @@ impl Git {
         })
     }
 
-    // TODO: do we need this?
-    #[allow(dead_code)]
+    pub fn matching_remote_branch(&self, remote: &str) -> Result<Option<String>> {
+        if let Some(branch) = self.current_branch()? {
+            if let Ok(_ref) = self
+                .repo
+                .find_reference(&format!("refs/remotes/{remote}/{branch}"))
+            {
+                return Ok(_ref.name().map(|s| s.to_string()));
+            }
+        }
+        Ok(None)
+    }
+
     pub fn current_branch(&self) -> Result<Option<String>> {
         let head = self.repo.head().wrap_err("failed to get head")?;
         let branch_name = head.shorthand().map(|s| s.to_string());

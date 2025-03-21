@@ -3,6 +3,6 @@
     "node_modules": true,
     "target": true,
     "test/bats": true,
-    "test/test_helper/**": true
+    "test/test_helper/bats-*": true
   }
 }

@@ -47,11 +47,11 @@ hooks = new {
     ["pre-push"] {
         ["check"] = new Check {}
     }
-    ["prepare-commit-msg"] {
-        ["render"] {
-            run = "echo foo > {{commit_msg_file}}"
-        }
-    }
+    //["prepare-commit-msg"] {
+    //    ["render-commit-msg"] {
+    //        run = "echo 'default commit message' > {{commit_msg_file}}"
+    //    }
+    //}
 
     // TODO
     // ["commit-msg"] {}

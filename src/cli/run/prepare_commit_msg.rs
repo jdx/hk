@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 
 use indexmap::IndexMap;
 
-use crate::{Result, git::Git};
+use crate::{Result, git::Git, tera::Context};
 use crate::{config::Config, step::CheckType};
 use crate::{
     env,
@@ -16,7 +16,7 @@ pub struct PrepareCommitMsg {
     /// The path to the file that contains the commit message so far
     commit_msg_file: PathBuf,
     /// The source of the commit message (e.g., "message", "template", "merge")
-    source: String,
+    source: Option<String>,
     /// The SHA of the commit being amended (if applicable)
     sha: Option<String>,
 }
@@ -31,6 +31,10 @@ impl PrepareCommitMsg {
         let repo = Git::new()?;
         static HOOK: LazyLock<IndexMap<String, Step>> = LazyLock::new(Default::default);
         let hook = config.hooks.get("prepare-commit-msg").unwrap_or(&HOOK);
+        let mut tctx = Context::default();
+        tctx.insert("commit_msg_file", &self.commit_msg_file.to_string_lossy());
+        tctx.insert("source", &self.source);
+        tctx.insert("sha", &self.sha.as_ref());
         config
             .run_hook(
                 false,
@@ -38,6 +42,7 @@ impl PrepareCommitMsg {
                 RunType::Check(CheckType::Check),
                 &repo,
                 &[],
+                tctx,
                 None,
                 None,
             )

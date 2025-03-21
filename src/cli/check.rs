@@ -51,6 +51,7 @@ impl Check {
                 RunType::Check(CheckType::Check),
                 &repo,
                 &self.linter,
+                Default::default(),
                 self.from_ref.as_deref(),
                 self.to_ref.as_deref(),
             )

@@ -91,10 +91,8 @@ impl PrePush {
             None if !to_be_updated_refs.is_empty() => to_be_updated_refs[0].from.1.clone(),
             None => {
                 let remote = self.remote.as_deref().unwrap_or("origin");
-                // TODO: should this use repo.current_branch()?
-                // let branch = repo.current_branch()?.unwrap_or("HEAD".to_string());
-                let branch = "HEAD";
-                format!("refs/remotes/{remote}/{branch}")
+                repo.matching_remote_branch(remote)?
+                    .unwrap_or(format!("refs/remotes/{remote}/HEAD"))
             }
         };
         let to_ref = self
@@ -120,6 +118,7 @@ impl PrePush {
                 run_type,
                 &repo,
                 &self.linter,
+                Default::default(),
                 Some(&from_ref),
                 Some(&to_ref),
             )

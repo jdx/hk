@@ -11,6 +11,7 @@ use crate::{
     hash,
     step::{RunType, Step},
     step_scheduler::StepScheduler,
+    tera::Context,
     version,
 };
 use eyre::{WrapErr, bail};
@@ -181,6 +182,7 @@ impl Config {
         run_type: RunType,
         repo: &Git,
         linters: &[String],
+        tctx: Context,
         from_ref: Option<&str>,
         to_ref: Option<&str>,
     ) -> Result<()> {
@@ -194,6 +196,7 @@ impl Config {
         StepScheduler::new(hook, run_type, repo)
             .with_files(files)
             .with_linters(linters)
+            .with_tctx(tctx)
             .run()
             .await
     }

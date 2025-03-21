@@ -1,4 +1,8 @@
-use crate::{error::Error, step::StepResponse, tera};
+use crate::{
+    error::Error,
+    step::StepResponse,
+    tera::{self, Context},
+};
 use eyre::{WrapErr, eyre};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
@@ -27,6 +31,7 @@ pub struct StepScheduler<'a> {
     repo: &'a Git,
     steps: Vec<Step>,
     files: Vec<PathBuf>,
+    tctx: Context,
     failed: Arc<Mutex<bool>>,
     semaphore: Arc<Semaphore>,
     file_locks: Mutex<IndexMap<PathBuf, Arc<RwLock<()>>>>,
@@ -52,6 +57,7 @@ impl<'a> StepScheduler<'a> {
                 })
                 .collect(),
             files: vec![],
+            tctx: Default::default(),
             failed: Arc::new(Mutex::new(false)),
             semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
             file_locks: Default::default(),
@@ -73,6 +79,11 @@ impl<'a> StepScheduler<'a> {
             .filter(|s| linters.contains(&s.name))
             .cloned()
             .collect();
+        self
+    }
+
+    pub fn with_tctx(mut self, tctx: Context) -> Self {
+        self.tctx = tctx;
         self
     }
 
@@ -161,7 +172,7 @@ impl<'a> StepScheduler<'a> {
                     continue;
                 }
 
-                let tctx = tera::Context::default();
+                let tctx = self.tctx.clone();
                 if let Some(workspaces) = step.workspaces_for_files(&ctx.files)? {
                     let step = (*step).clone();
                     let semaphore = self.semaphore.clone();
