@@ -49,7 +49,7 @@ hooks = new {
     }
     ["prepare-commit-msg"] {
         ["render"] {
-            run = "echo foo"
+            run = "echo foo > {{commit_msg_file}}"
         }
     }
 
