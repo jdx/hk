@@ -1,6 +1,7 @@
 import "../Config.pkl"
 
 class Tsc extends Config.Linter {
+    workspace_indicator = "tsconfig.json"
     glob = List("**/*.{ts,tsx}")
-    check = "tsc --noEmit {{ files }}"
+    check = "tsc --noEmit -p {{workspace_indicator}}"
 } 

@@ -2,6 +2,10 @@
 version = "1.7.7"
 backend = "aqua:rhysd/actionlint"
 
+[tools.bun]
+version = "1.2.2"
+backend = "core:bun"
+
 [tools.cargo-binstall]
 version = "1.11.0"
 backend = "aqua:cargo-bins/cargo-binstall"

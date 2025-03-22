@@ -34,6 +34,7 @@ jobs:
           submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v2
+      - run: mise x -- bun i
       - run: mise run ci
   msrv:
     runs-on: ubuntu-latest

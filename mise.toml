@@ -2,6 +2,7 @@
 _.path = [
     "test/bats/bin",
     "target/debug",
+    "node_modules/.bin",
 ]
 
 [tools]
@@ -18,6 +19,7 @@ shellcheck = "latest"
 swiftlint = "latest"
 yq = "latest"
 "cargo:cargo-release" = "latest"
+bun = "latest"
 
 [tasks.init]
 run = '''
