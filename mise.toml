@@ -2,6 +2,7 @@
 _.path = [
     "test/bats/bin",
     "target/debug",
+    "node_modules/.bin",
 ]
 
 [tools]
