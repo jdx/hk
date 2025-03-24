@@ -1,21 +1,22 @@
-use crate::{error::Error, step_locks::StepLocks, step_response::StepResponse, tera::Context};
-use eyre::{WrapErr, eyre};
+use crate::{
+    error::Error,
+    step_depends::StepDepends,
+    step_job::{StepJob, StepJobStatus},
+    step_locks::StepLocks,
+    step_queue::StepQueueBuilder,
+    step_response::StepResponse,
+    tera::Context,
+};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
-use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-    sync::Arc,
-};
-use tokio::sync::{Mutex, OwnedSemaphorePermit, RwLock, Semaphore};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use tokio::sync::{Mutex, RwLock, Semaphore};
 use tokio::task::JoinSet;
 
 use crate::{Result, step_context::StepContext};
 use crate::{
     config::Config,
-    env,
     git::Git,
-    glob,
     settings::Settings,
     step::{CheckType, RunType, Step},
 };
@@ -23,7 +24,7 @@ use crate::{
 pub struct StepScheduler<'a> {
     run_type: RunType,
     repo: &'a Git,
-    steps: Vec<Step>,
+    steps: Vec<Arc<Step>>,
     files: Vec<PathBuf>,
     tctx: Context,
     failed: Arc<Mutex<bool>>,
@@ -48,6 +49,7 @@ impl<'a> StepScheduler<'a> {
                         .collect(),
                     _ => vec![s.clone()],
                 })
+                .map(Arc::new)
                 .collect(),
             files: vec![],
             tctx: Default::default(),
@@ -80,148 +82,24 @@ impl<'a> StepScheduler<'a> {
     }
 
     pub async fn run(self) -> Result<()> {
-        let settings = Settings::get();
         let file_locks = self
             .files
             .iter()
             .map(|file| (file.clone(), Arc::new(RwLock::new(()))))
             .collect::<IndexMap<PathBuf, _>>();
-        // groups is a list of list of steps which are separated by exclusive steps
-        // any exclusive step will be in a group by itself
-        let groups = self.steps.iter().fold(vec![], |mut groups, step| {
-            if step.exclusive || groups.is_empty() {
-                groups.push(vec![]);
-            }
-            groups.last_mut().unwrap().push(step);
-            groups
-        });
+        let queue = StepQueueBuilder::new(self.steps, self.files, self.run_type).build()?;
 
-        for group in groups {
+        for group in queue.groups {
             let mut set = JoinSet::new();
-            let depend_locks: IndexMap<String, _> = group
-                .iter()
-                .map(|s| (s.name.clone(), Arc::new(RwLock::new(()))))
-                .collect();
-            let files_in_contention = self.files_in_contention(&group, &self.files)?;
-
-            // Spawn all tasks
-            for step in &group {
-                let Some(run_type) = step.available_run_type(self.run_type) else {
-                    debug!("{step}: skipping step due to no available run type");
-                    continue;
-                };
-                let mut files = self.files.clone();
-                if let Some(dir) = &step.dir {
-                    files.retain(|f| f.starts_with(dir));
-                    if files.is_empty() {
-                        debug!("{step}: no matches for step in {dir}");
-                        continue;
-                    }
-                    for f in files.iter_mut() {
-                        // strip the dir prefix from the file path
-                        *f = f.strip_prefix(dir).unwrap_or(f).to_path_buf();
-                    }
-                }
-                if let Some(glob) = &step.glob {
-                    files = glob::get_matches(glob, &files)?;
-                    if files.is_empty() {
-                        debug!("{step}: no matches for step");
-                        continue;
-                    }
-                }
-                let ctx = StepContext {
-                    step: (*step).clone(),
-                    semaphore: self.semaphore.clone(),
-                    run_type,
-                    failed: self.failed.clone(),
-                    file_locks: file_locks
-                        .iter()
-                        .filter(|(k, _)| files.contains(k))
-                        .map(|(k, v)| (k.clone(), v.clone()))
-                        .collect(),
-                    files,
-                    tctx: self.tctx.clone(),
-                    has_files_in_contention: false,
-                    depend_self: Some(
-                        depend_locks
-                            .get(&step.name)
-                            .unwrap()
-                            .clone()
-                            .write_owned()
-                            .await,
-                    ),
-                };
-
-                let depends = step
-                    .depends
-                    .iter()
-                    .map(|dep| {
-                        depend_locks
-                            .iter()
-                            .find(|(name, _)| *name == dep)
-                            .map(|(name, lock)| (name.to_string(), lock.clone()))
-                            .ok_or_else(|| eyre!("No step named {dep} found in group"))
-                    })
-                    .collect::<Result<IndexMap<String, _>>>()?;
-
-                if !step.is_profile_enabled() {
-                    continue;
-                }
-
-                if let Some(workspaces) = step.workspaces_for_files(&ctx.files)? {
-                    let step = (*step).clone();
-                    let files_in_contention = files_in_contention.clone(); // TODO: no clone
-                    set.spawn(async move {
-                        let mut rsp = StepResponse::default();
-                        let mut set = JoinSet::new();
-                        for workspace_indicator in workspaces {
-                            let mut ctx = ctx.clone();
-                            ctx.has_files_in_contention =
-                                ctx.files.iter().any(|f| files_in_contention.contains(f));
-                            ctx.tctx.with_workspace_indicator(&workspace_indicator);
-                            StepScheduler::run_step(ctx, depends.clone(), &mut set).await?;
-                        }
-                        // TODO: abort on first error
-                        while let Some(result) = set.join_next().await {
-                            match result {
-                                Ok(Ok(r)) => rsp.extend(r),
-                                Ok(Err(e)) => return Err(e),
-                                Err(e) => return Err(e).wrap_err(step.name.clone()),
-                            }
-                        }
-                        Ok(rsp)
-                    });
-                } else if step.batch {
-                    let step = (*step).clone();
-                    let jobs = settings.jobs().get();
-                    let files_in_contention = files_in_contention.clone(); // TODO: no clone
-                    set.spawn(async move {
-                        let mut rsp = StepResponse::default();
-                        // split files into jobs count chunks
-                        let chunks = ctx.files.chunks(jobs);
-                        let mut set = JoinSet::new();
-                        for chunk in chunks {
-                            let mut ctx = ctx.clone();
-                            ctx.files = chunk.to_vec();
-                            ctx.has_files_in_contention =
-                                ctx.files.iter().any(|f| files_in_contention.contains(f));
-                            StepScheduler::run_step(ctx.clone(), depends.clone(), &mut set).await?;
-                        }
-                        while let Some(result) = set.join_next().await {
-                            match result {
-                                Ok(Ok(r)) => rsp.extend(r),
-                                Ok(Err(e)) => return Err(e),
-                                Err(e) => return Err(e).wrap_err(step.name.clone()),
-                            }
-                        }
-                        Ok(rsp)
-                    });
-                } else {
-                    let mut ctx = ctx.clone();
-                    ctx.has_files_in_contention =
-                        ctx.files.iter().any(|f| files_in_contention.contains(f));
-                    StepScheduler::run_step(ctx, depends, &mut set).await?;
-                }
+            let ctx = Arc::new(StepContext {
+                semaphore: self.semaphore.clone(),
+                failed: self.failed.clone(),
+                file_locks: file_locks.clone(),
+                tctx: self.tctx.clone(),
+                depends: StepDepends::new(&group),
+            });
+            for job in group {
+                StepScheduler::run_step(ctx.clone(), job, &mut set).await?;
             }
 
             // Wait for tasks and abort on first error
@@ -239,7 +117,7 @@ impl<'a> StepScheduler<'a> {
                     Err(e) => {
                         // JoinError occurred
                         set.abort_all();
-                        return Err(eyre!("{}", e));
+                        return Err(e.into());
                     }
                 }
             }
@@ -257,57 +135,18 @@ impl<'a> StepScheduler<'a> {
         Ok(())
     }
 
-    fn files_in_contention(&self, steps: &[&Step], files: &[PathBuf]) -> Result<HashSet<PathBuf>> {
-        let step_map: IndexMap<String, &Step> = steps
-            .iter()
-            .map(|step| (step.name.clone(), *step))
-            .collect();
-        let files_by_step: HashMap<String, Vec<PathBuf>> = steps
-            .iter()
-            .map(|step| {
-                let files = glob::get_matches(step.glob.as_ref().unwrap_or(&vec![]), files)?;
-                Ok((step.name.clone(), files))
-            })
-            .collect::<Result<_>>()?;
-        let mut steps_per_file: HashMap<&Path, Vec<&Step>> = Default::default();
-        for (step_name, files) in files_by_step.iter() {
-            for file in files {
-                let step = step_map.get(step_name).unwrap();
-                steps_per_file.entry(file.as_path()).or_default().push(step);
-            }
-        }
-
-        let mut files_in_contention = HashSet::new();
-        for (file, steps) in steps_per_file.iter() {
-            if steps
-                .iter()
-                .any(|step| step.available_run_type(self.run_type) == Some(RunType::Fix))
-            {
-                files_in_contention.insert(file.to_path_buf());
-            }
-        }
-
-        Ok(files_in_contention)
-    }
-
     async fn run_step(
-        mut ctx: StepContext,
-        depends: IndexMap<String, Arc<RwLock<()>>>,
+        ctx: Arc<StepContext>,
+        mut job: StepJob,
         set: &mut JoinSet<Result<StepResponse>>,
     ) -> Result<()> {
-        let permit = ctx.semaphore.clone().acquire_owned().await?;
-        let step = ctx.step.clone();
+        let step = job.step.clone();
 
         trace!("{step}: spawning step");
         set.spawn(async move {
-            let depends = depends;
-            if *env::HK_CHECK_FIRST
-                && step.check_first
-                && matches!(ctx.run_type, RunType::Fix)
-                && ctx.has_files_in_contention
-            {
-                let mut check_ctx = ctx.clone();
-                check_ctx.run_type = match ctx.run_type {
+            if job.check_first {
+                let mut check_job = job.clone();
+                check_job.run_type = match job.run_type {
                     RunType::Fix if step.check_diff.is_some() => RunType::Check(CheckType::Diff),
                     RunType::Fix if step.check_list_files.is_some() => {
                         RunType::Check(CheckType::ListFiles)
@@ -317,15 +156,15 @@ impl<'a> StepScheduler<'a> {
                 };
                 debug!("{step}: running check step first due to fix step contention");
                 match run(
-                    check_ctx,
-                    permit,
-                    &depends,
+                    &ctx,
+                    check_job,
                 )
                 .await
                 {
-                    Ok(ctx) => {
+                    Ok(rsp) => {
                         debug!("{step}: successfully ran check step first");
-                        return Ok(ctx);
+                        ctx.depends.job_done(&step.name);
+                        return Ok(rsp);
                     }
                     Err(e) => {
                         if let Some(Error::CheckListFailed { source, stdout }) =
@@ -334,22 +173,20 @@ impl<'a> StepScheduler<'a> {
                             warn!("{step}: failed check step first: {source}");
                             let filtered_files: HashSet<PathBuf> =
                                 stdout.lines().map(PathBuf::from).collect();
-                            let files: IndexSet<PathBuf> = ctx.files.into_iter().filter(|f| filtered_files.contains(f)).collect();
+                            let files: IndexSet<PathBuf> = job.files.into_iter().filter(|f| filtered_files.contains(f)).collect();
                             for f in filtered_files.into_iter().filter(|f| !files.contains(f)) {
                                 warn!("{step}: file in check_list_files not found in original files: {}", f.display());
                             }
-                            ctx.files = files.into_iter().collect();
+                            job.files = files.into_iter().collect();
                         }
                         warn!("{step}: failed check step first: {e}");
                     }
                 }
             }
-            let permit = ctx.semaphore.clone().acquire_owned().await?;
             let failed = ctx.failed.clone();
-            match run(
-                ctx,
-                permit,
-                &depends,
+            let result = match run(
+                &ctx,
+                job,
             )
             .await
             {
@@ -359,24 +196,31 @@ impl<'a> StepScheduler<'a> {
                     *failed.lock().await = true;
                     Err(err)
                 }
-            }
+            };
+            ctx.depends.job_done(&step.name);
+            result
         });
         Ok(())
     }
 }
 
-async fn run(
-    ctx: StepContext,
-    permit: OwnedSemaphorePermit,
-    depends: &IndexMap<String, Arc<RwLock<()>>>,
-) -> Result<StepResponse> {
-    let _locks = StepLocks::lock(&ctx, permit, depends).await?;
-    let step = ctx.step.clone(); // TODO: remove this clone somehow
+async fn run(ctx: &StepContext, mut job: StepJob) -> Result<StepResponse> {
+    let step = job.step.clone();
+    match job.status {
+        StepJobStatus::Pending => {
+            let locks = StepLocks::lock(ctx, &job).await?;
+            job.status = StepJobStatus::Started(locks);
+        }
+        // StepJobStatus::Ready(locks) => {
+        //     job.status = StepJobStatus::Started(locks);
+        // }
+        status => unreachable!("invalid status: {}", status),
+    }
     if *ctx.failed.lock().await {
         trace!("{step}: skipping step due to previous failure");
         return Ok(Default::default());
     }
-    match step.run(ctx).await {
+    match step.run(ctx, &job).await {
         Ok(rsp) => {
             trace!("{step}: successfully ran step");
             Ok(rsp)

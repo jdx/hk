@@ -1,4 +1,4 @@
-use crate::{Result, error::Error, step_response::StepResponse};
+use crate::{Result, error::Error, step_job::StepJob, step_response::StepResponse};
 use crate::{glob, settings::Settings};
 use crate::{step_context::StepContext, tera};
 use ensembler::CmdLineRunner;
@@ -94,10 +94,11 @@ impl Step {
             ..Default::default()
         }
     }
-    pub(crate) async fn run(&self, mut ctx: StepContext) -> Result<StepResponse> {
+    pub(crate) async fn run(&self, ctx: &StepContext, job: &StepJob) -> Result<StepResponse> {
         let mut rsp = StepResponse::default();
-        ctx.tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
-        ctx.tctx.with_files(&ctx.files);
+        let mut tctx = job.tctx(&ctx.tctx);
+        tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
+        tctx.with_files(&job.files);
         let file_msg = |files: &[PathBuf]| {
             format!(
                 "{} file{}",
@@ -106,7 +107,7 @@ impl Step {
             )
         };
         let pr = self.build_pr();
-        let (Some(mut run), extra) = (match ctx.run_type {
+        let (Some(mut run), extra) = (match job.run_type {
             RunType::Check(CheckType::Check) => {
                 (self.check.clone(), self.check_extra_args.as_ref())
             }
@@ -129,15 +130,15 @@ impl Step {
         if let Some(extra) = extra {
             run = format!("{} {}", run, extra);
         }
-        let files_to_add = if matches!(ctx.run_type, RunType::Fix) {
+        let files_to_add = if matches!(job.run_type, RunType::Fix) {
             if let Some(stage) = &self.stage {
                 let stage = stage
                     .iter()
-                    .map(|s| tera::render(s, &ctx.tctx).unwrap())
+                    .map(|s| tera::render(s, &tctx).unwrap())
                     .collect_vec();
-                glob::get_matches(&stage, &ctx.files)?
+                glob::get_matches(&stage, &job.files)?
             } else if self.glob.is_some() {
-                ctx.files.clone()
+                job.files.clone()
             } else {
                 vec![]
             }
@@ -154,15 +155,15 @@ impl Step {
         } else {
             vec![]
         };
-        let run = tera::render(&run, &ctx.tctx).unwrap();
+        let run = tera::render(&run, &tctx).unwrap();
         pr.set_message(format!(
             "{} – {} – {}",
-            file_msg(&ctx.files),
+            file_msg(&job.files),
             self.glob.as_ref().unwrap_or(&vec![]).join(" "),
             run
         ));
         if log::log_enabled!(log::Level::Trace) {
-            for file in &ctx.files {
+            for file in &job.files {
                 trace!("{self}: {}", file.display());
             }
         }
@@ -180,7 +181,7 @@ impl Step {
             Ok(_) => {}
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(_, _, result) = &err {
-                    if let RunType::Check(CheckType::ListFiles) = ctx.run_type {
+                    if let RunType::Check(CheckType::ListFiles) = job.run_type {
                         let stdout = result.stdout.clone();
                         return Err(Error::CheckListFailed {
                             source: eyre!("{}", err),
