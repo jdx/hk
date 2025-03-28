@@ -1,11 +1,11 @@
 use std::{thread, time::Duration};
 
-use clx::Job;
+use clx::ProgressJob;
 
 #[tokio::main]
 async fn main() {
-    let root = Job::root();
-    Job::display();
+    let root = ProgressJob::root();
+    ProgressJob::display();
     for i in 0..3 {
         thread::sleep(Duration::from_millis(100));
         root.add(format!("test {}", i));

@@ -12,12 +12,12 @@ use console::Term;
 use indicatif::TermLike;
 use tera::{Context, Tera};
 
-pub struct Job {
+pub struct ProgressJob {
     // id: String,
     name: String,
     body: Mutex<String>,
     done: AtomicBool,
-    children: Mutex<Vec<Arc<Job>>>,
+    children: Mutex<Vec<Arc<ProgressJob>>>,
     tera_ctx: Mutex<Context>,
 }
 
@@ -27,6 +27,7 @@ const SPINNER: &str = "⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦
 static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100));
 static LINES: Mutex<usize> = Mutex::new(0);
 static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
+static PAUSED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Default)]
 struct RenderContext {
@@ -35,9 +36,10 @@ struct RenderContext {
     indent: usize,
 }
 
-impl Job {
+impl ProgressJob {
     pub fn new(name: String) -> Self {
-        Job {
+        Self::start();
+        ProgressJob {
             // id: format!("{name}-{inc}"),
             name,
             body: Mutex::new(DEFAULT_BODY.to_string()),
@@ -48,7 +50,7 @@ impl Job {
     }
 
     pub fn root() -> &'static Self {
-        static ROOT: LazyLock<Job> = LazyLock::new(|| Job::new("root".to_string()));
+        static ROOT: LazyLock<ProgressJob> = LazyLock::new(|| ProgressJob::new("root".to_string()));
         &ROOT
     }
 
@@ -60,7 +62,12 @@ impl Job {
         *INTERVAL.lock().unwrap() = interval;
     }
 
-    pub fn display() {
+    pub fn start() {
+        static STARTED: Mutex<bool> = Mutex::new(false);
+        let mut started = STARTED.lock().unwrap();
+        if *started {
+            return;
+        }
         thread::spawn(move || {
             let mut tera = Tera::default();
             let mut ctx = RenderContext::default();
@@ -73,25 +80,52 @@ impl Job {
                     *LINES.lock().unwrap() = 0;
                 }
                 if root.is_done() {
+                    *STARTED.lock().unwrap() = false;
                     return;
                 }
                 notify_wait(Self::interval());
             }
         });
+        *started = true;
     }
 
-    fn refresh(root: &Job, tera: &mut Tera, mut ctx: RenderContext) -> Result<()> {
+    pub fn clear() -> Result<()> {
         let term = Self::term();
-        let lines = *LINES.lock().unwrap();
+        let mut lines = LINES.lock().unwrap();
+        term.move_cursor_up(*lines)?;
+        term.clear_to_end_of_screen()?;
+        *lines = 0;
+        Ok(())
+    }
+
+    pub fn is_paused() -> bool {
+        PAUSED.load(Ordering::Relaxed)
+    }
+
+    pub fn pause() {
+        PAUSED.store(true, Ordering::Relaxed);
+        let _ = Self::clear();
+    }
+
+    pub fn resume() {
+        PAUSED.store(false, Ordering::Relaxed);
+        notify();
+    }
+
+    fn refresh(root: &ProgressJob, tera: &mut Tera, mut ctx: RenderContext) -> Result<()> {
+        if Self::is_paused() {
+            return Ok(());
+        }
+        let term = Self::term();
+        let mut lines = LINES.lock().unwrap();
         ctx.tera_ctx.insert("spinner", &root.spinner());
         let output = root.render(tera, &ctx)?;
-        term.move_cursor_up(lines)?;
+        term.move_cursor_up(*lines)?;
         term.clear_to_end_of_screen()?;
         term.write_line(&output)?;
-        let lines = output.split("\n").fold(0, |acc, line| {
+        *lines = output.split("\n").fold(0, |acc, line| {
             acc + 1 + console::measure_text_width(line) / ctx.width
         });
-        *LINES.lock().unwrap() = lines;
         Ok(())
     }
 
@@ -121,7 +155,7 @@ impl Job {
     }
 
     pub fn add(&self, name: String) -> Arc<Self> {
-        let job = Arc::new(Job::new(name));
+        let job = Arc::new(ProgressJob::new(name));
         self.children.lock().unwrap().push(job.clone());
         job
     }
@@ -143,7 +177,7 @@ impl Job {
         notify();
     }
 
-    pub fn add_prop<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
+    pub fn add_prop<T: Serialize + ?Sized, S: Into<String>>(&self, key: S, val: &T) {
         let mut ctx = self.tera_ctx.lock().unwrap();
         ctx.insert(key, val);
     }

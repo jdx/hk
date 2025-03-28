@@ -11,4 +11,4 @@ mod progress_report;
 
 pub use multi_progress_report::{MultiProgressReport, OutputType};
 pub use progress_report::{QuietReport, SingleReport, VerboseReport};
-pub use progress::Job;
+pub use progress::ProgressJob;
