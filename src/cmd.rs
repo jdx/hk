@@ -12,13 +12,13 @@ use indexmap::IndexSet;
 use std::sync::LazyLock as Lazy;
 
 use crate::Error::ScriptFailed;
-use clx::SingleReport;
+use clx::ProgressJob;
 
 pub struct CmdLineRunner {
     cmd: Command,
     program: String,
     args: Vec<String>,
-    pr: Option<Arc<Box<dyn SingleReport>>>,
+    pr: Option<Arc<ProgressJob>>,
     stdin: Option<String>,
     redactions: IndexSet<String>,
     pass_signals: bool,
@@ -101,7 +101,7 @@ impl CmdLineRunner {
         self
     }
 
-    pub fn with_pr(mut self, pr: Arc<Box<dyn SingleReport>>) -> Self {
+    pub fn with_pr(mut self, pr: Arc<ProgressJob>) -> Self {
         self.pr = Some(pr);
         self
     }
@@ -193,7 +193,7 @@ impl CmdLineRunner {
                     result.stdout += &line;
                     result.stdout += "\n";
                     if let Some(pr) = &pr {
-                        pr.set_message(line.clone());
+                        pr.add_prop("message", &line);
                     }
                     combined_output.lock().await.push(line);
                 }
@@ -215,8 +215,10 @@ impl CmdLineRunner {
                         let mut result = result.lock().await;
                     result.stderr += &line;
                     result.stderr += "\n";
-                    if let Some(pr) = &pr {
-                        pr.println(line.clone());
+                    if pr.is_some() {
+                        ProgressJob::pause();
+                        eprintln!("{}", &line);
+                        ProgressJob::resume();
                     }
                     combined_output.lock().await.push(line);
                 }
