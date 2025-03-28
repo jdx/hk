@@ -1,4 +1,5 @@
 use crate::Result;
+use serde::ser::Serialize;
 use std::{
     sync::{
         Arc, LazyLock, Mutex,
@@ -17,9 +18,10 @@ pub struct Job {
     body: Mutex<String>,
     done: AtomicBool,
     children: Mutex<Vec<Arc<Job>>>,
+    tera_ctx: Mutex<Context>,
 }
 
-const DEFAULT_BODY: &str = "{{ spinner }} {{ name }}";
+const DEFAULT_BODY: &str = "{{ spinner }} {{ name }}\n{{ body }}";
 const SPINNER: &str = "⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈";
 
 #[derive(Clone, Default)]
@@ -38,6 +40,7 @@ impl Job {
             body: Mutex::new(DEFAULT_BODY.to_string()),
             done: Default::default(),
             children: Default::default(),
+            tera_ctx: Default::default(),
         }
     }
 
@@ -57,7 +60,8 @@ impl Job {
     pub fn display() {
         thread::spawn(move || {
             let mut tera = Tera::default();
-            let ctx = RenderContext::default();
+            let mut ctx = RenderContext::default();
+            ctx.tera_ctx.insert("body", "");
             loop {
                 let root = Self::root();
                 if let Err(err) = Self::refresh(&root, &mut tera, ctx.clone()) {
@@ -92,11 +96,13 @@ impl Job {
     fn render(&self, tera: &mut Tera, ctx: &RenderContext) -> Result<Vec<String>> {
         let mut s = vec![];
         let mut ctx = ctx.clone();
+        ctx.tera_ctx.extend(self.tera_ctx.lock().unwrap().clone());
         ctx.tera_ctx.insert("name", &self.name);
         if self.is_done() {
             ctx.tera_ctx.insert("spinner", &"✔");
         }
-        s.push(tera.render_str(&self.body(), &ctx.tera_ctx)?);
+        let body = tera.render_str(&self.body(), &ctx.tera_ctx)?;
+        s.push(body.trim_end().to_string());
         ctx.indent += 2;
         let children = self.children.lock().unwrap();
         for child in children.iter() {
@@ -134,6 +140,11 @@ impl Job {
 
     pub fn done(&self) {
         self.done.store(true, Ordering::Relaxed);
+    }
+
+    pub fn add_prop<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
+        let mut ctx = self.tera_ctx.lock().unwrap();
+        ctx.insert(key, val);
     }
 
     fn spinner(&self) -> char {
