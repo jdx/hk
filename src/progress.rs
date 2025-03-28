@@ -5,13 +5,12 @@ use std::{
         atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, LazyLock, Mutex
     },
     thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use console::{Term};
+use console::Term;
 use indicatif::TermLike;
 use tera::{Context, Tera};
-use std::sync::mpsc::channel;
 
 pub struct Job {
     // id: String,
@@ -24,6 +23,10 @@ pub struct Job {
 
 const DEFAULT_BODY: &str = "{{ spinner }} {{ name }}\n{{ body }}";
 const SPINNER: &str = "⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈";
+
+static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100));
+static LINES: Mutex<usize> = Mutex::new(0);
+static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 
 #[derive(Clone, Default)]
 struct RenderContext {
@@ -72,7 +75,7 @@ impl Job {
                 if root.is_done() {
                     return;
                 }
-                notify_wait();
+                notify_wait(Self::interval());
             }
         });
     }
@@ -188,18 +191,14 @@ fn indent(s: String, width: usize, indent: usize) -> String {
     result.join("\n")
 }
 
-static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100));
-static LINES: Mutex<usize> = Mutex::new(0);
-static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
-
 fn notify() {
     if let Some(tx) = NOTIFY.lock().unwrap().clone() {
         let _ = tx.send(());
     }
 }
 
-fn notify_wait() {
+fn notify_wait(timeout: Duration) {
     let (tx, rx) = mpsc::channel();
     NOTIFY.lock().unwrap().replace(tx);
-    let _ = rx.recv_timeout(Job::interval());
+    let _ = rx.recv_timeout(timeout);
 }
