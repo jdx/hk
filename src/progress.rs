@@ -2,16 +2,16 @@ use crate::Result;
 use serde::ser::Serialize;
 use std::{
     sync::{
-        Arc, LazyLock, Mutex,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, LazyLock, Mutex
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use console::{Term};
 use indicatif::TermLike;
 use tera::{Context, Tera};
+use std::sync::mpsc::channel;
 
 pub struct Job {
     // id: String,
@@ -72,7 +72,7 @@ impl Job {
                 if root.is_done() {
                     return;
                 }
-                thread::sleep(Self::interval());
+                notify_wait();
             }
         });
     }
@@ -81,9 +81,9 @@ impl Job {
         let term = Self::term();
         let lines = *LINES.lock().unwrap();
         ctx.tera_ctx.insert("spinner", &root.spinner());
+        let output = root.render(tera, &ctx)?;
         term.move_cursor_up(lines)?;
         term.clear_to_end_of_screen()?;
-        let output = root.render(tera, &ctx)?;
         term.write_line(&output)?;
         let lines = output.split("\n").fold(0, |acc, line| {
             acc + 1 + console::measure_text_width(line) / ctx.width
@@ -137,6 +137,7 @@ impl Job {
 
     pub fn done(&self) {
         self.done.store(true, Ordering::Relaxed);
+        notify();
     }
 
     pub fn add_prop<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
@@ -189,3 +190,16 @@ fn indent(s: String, width: usize, indent: usize) -> String {
 
 static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100));
 static LINES: Mutex<usize> = Mutex::new(0);
+static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
+
+fn notify() {
+    if let Some(tx) = NOTIFY.lock().unwrap().clone() {
+        let _ = tx.send(());
+    }
+}
+
+fn notify_wait() {
+    let (tx, rx) = mpsc::channel();
+    NOTIFY.lock().unwrap().replace(tx);
+    let _ = rx.recv_timeout(Job::interval());
+}
