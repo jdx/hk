@@ -86,7 +86,7 @@ impl Job {
         let output = root.render(tera, &ctx)?;
         term.write_line(&output)?;
         let lines = output.split("\n").fold(0, |acc, line| {
-            acc + 1 + line.len() / ctx.width
+            acc + 1 + console::measure_text_width(line) / ctx.width
         });
         *LINES.lock().unwrap() = lines;
         Ok(())
