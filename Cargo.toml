@@ -16,7 +16,7 @@ clap = { version = "4", features = ["derive"] }
 console = "0.15"
 dirs = "6"
 duct = "0.13"
-ensembler = "0.1"
+ensembler = "0.2"
 git2 = "0.20"
 globset = "0.4"
 indexmap = { version = "2", features = ["serde"] }
@@ -33,7 +33,7 @@ tokio = { version = "1", features = ["full", "rt-multi-thread"] }
 toml = "0.8"
 xx = { version = "2", features = ["http", "hash", "rustls"] }
 strum = { version = "0.27", features = ["derive"] }
-clx = "0.1.0"
+clx = "0.2"
 semver = "1.0.25"
 clap_usage = "2.0.3"
 which = "7.0.2"

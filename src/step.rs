@@ -106,7 +106,7 @@ impl Step {
                 if files.len() == 1 { "" } else { "s" }
             )
         };
-        let pr = self.build_pr();
+        let pr = self.build_pj();
         let (Some(mut run), extra) = (match job.run_type {
             RunType::Check(CheckType::Check) => {
                 (self.check.clone(), self.check_extra_args.as_ref())
@@ -156,12 +156,15 @@ impl Step {
             vec![]
         };
         let run = tera::render(&run, &tctx).unwrap();
-        pr.set_message(format!(
-            "{} – {} – {}",
-            file_msg(&job.files),
-            self.glob.as_ref().unwrap_or(&vec![]).join(" "),
-            run
-        ));
+        pr.add_prop(
+            "message",
+            &format!(
+                "{} – {} – {}",
+                file_msg(&job.files),
+                self.glob.as_ref().unwrap_or(&vec![]).join(" "),
+                run
+            ),
+        );
         if log::log_enabled!(log::Level::Trace) {
             for file in &job.files {
                 trace!("{self}: {}", file.display());
@@ -206,16 +209,21 @@ impl Step {
             .map(|(_, p)| p)
             .collect_vec();
         if rsp.files_to_add.is_empty() {
-            pr.finish_with_message("".to_string());
+            // TODO: make this a single action somehow
+            pr.add_prop("message", "");
+            pr.done();
         } else {
-            pr.finish_with_message(format!("{} modified", file_msg(&rsp.files_to_add)));
+            pr.add_prop(
+                "message",
+                &format!("{} modified", file_msg(&rsp.files_to_add)),
+            );
+            pr.done();
         }
         Ok(rsp)
     }
 
-    fn build_pr(&self) -> Arc<Box<dyn clx::SingleReport>> {
-        let mpr = clx::MultiProgressReport::get();
-        mpr.add(&self.name)
+    fn build_pj(&self) -> Arc<clx::ProgressJob> {
+        clx::ProgressJob::root().add(self.name.clone())
     }
 
     pub fn available_run_type(&self, run_type: RunType) -> Option<RunType> {
