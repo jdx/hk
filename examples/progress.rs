@@ -1,11 +1,16 @@
-use clx::MultiProgressReport;
+use std::{thread, time::Duration};
+
+use clx::Job;
 
 #[tokio::main]
 async fn main() {
-    let mpr = MultiProgressReport::get();
-    let pr = mpr.add("test");
-    for i in 0..100 {
-        pr.set_message(format!("{}", i));
-        std::thread::sleep(std::time::Duration::from_millis(10));
+    let root = Job::root();
+    Job::display();
+    for i in 0..3 {
+        thread::sleep(Duration::from_millis(100));
+        root.add(format!("test {}", i));
     }
+    thread::sleep(Duration::from_secs(1));
+    root.done();
+    thread::sleep(Duration::from_millis(100));
 }

@@ -10,6 +10,8 @@ pub enum Error {
     #[cfg(unix)]
     #[error(transparent)]
     Nix(#[from] nix::errno::Errno),
+    #[error(transparent)]
+    Tera(#[from] tera::Error),
 
     #[error("{} exited with non-zero status: {}", .0, render_exit_status(.1))]
     ScriptFailed(String, Option<ExitStatus>),
