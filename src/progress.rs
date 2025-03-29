@@ -88,7 +88,8 @@ impl RenderContext {
 }
 
 pub struct ProgressJobBuilder {
-    pub body: Vec<String>,
+    body: Vec<String>,
+    body_text: Option<Vec<String>>,
     status: ProgressStatus,
     ctx: Context,
     on_done: ProgressJobDoneBehavior,
@@ -104,6 +105,7 @@ impl ProgressJobBuilder {
     pub fn new() -> Self {
         Self {
             body: DEFAULT_BODY.clone(),
+            body_text: None,
             status: Default::default(),
             ctx: Default::default(),
             on_done: Default::default(),
@@ -112,6 +114,11 @@ impl ProgressJobBuilder {
 
     pub fn body(mut self, body: Vec<String>) -> Self {
         self.body = body;
+        self
+    }
+
+    pub fn body_text(mut self, body: Option<Vec<String>>) -> Self {
+        self.body_text = body;
         self
     }
 
@@ -135,6 +142,7 @@ impl ProgressJobBuilder {
         ProgressJob {
             id: ID.fetch_add(1, Ordering::Relaxed),
             body: self.body,
+            body_text: self.body_text,
             status: Mutex::new(self.status),
             on_done: self.on_done,
             parent: Weak::new(),
@@ -178,6 +186,7 @@ pub enum ProgressJobDoneBehavior {
 pub struct ProgressJob {
     id: usize,
     body: Vec<String>,
+    body_text: Option<Vec<String>>,
     status: Mutex<ProgressStatus>,
     parent: Weak<ProgressJob>,
     children: Mutex<Vec<Arc<ProgressJob>>>,
@@ -193,7 +202,12 @@ impl ProgressJob {
         if !self.should_display() {
             return Ok(String::new());
         }
-        for (body_id, body) in self.body.iter().enumerate() {
+        let body = if output() == ProgressOutput::Text {
+            self.body_text.as_ref().unwrap_or(&self.body)
+        } else {
+            &self.body
+        };
+        for (body_id, body) in body.iter().enumerate() {
             let name = format!("progress_{}_{}", self.id, body_id);
             add_tera_template(tera, &name, body)?;
             let body = tera.render(&name, &ctx.tera_ctx)?;
@@ -236,8 +250,12 @@ impl ProgressJob {
     }
 
     pub fn set_status(&self, status: ProgressStatus) {
-        *self.status.lock().unwrap() = status;
-        self.update();
+        let mut s = self.status.lock().unwrap();
+        if *s != status {
+            *s = status;
+            drop(s);
+            self.update();
+        }
     }
 
     pub fn prop<T: Serialize + ?Sized, S: Into<String>>(&self, key: S, val: &T) {
