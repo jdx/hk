@@ -10,9 +10,3 @@
 [submodule "test/test_helper/bats-file"]
 	path = test/test_helper/bats-file
 	url = https://github.com/bats-core/bats-file.git
-[submodule "pkg/ensembler"]
-	path = pkg/ensembler
-	url = https://github.com/jdx/ensembler
-[submodule "pkg/clx"]
-	path = pkg/clx
-	url = https://github.com/jdx/clx
