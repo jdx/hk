@@ -154,7 +154,7 @@ impl ProgressJobBuilder {
     }
 }
 
-#[derive(Default, Clone, PartialEq, strum::EnumIs)]
+#[derive(Debug, Default, Clone, PartialEq, strum::EnumIs)]
 pub enum ProgressStatus {
     Pending,
     #[default]
@@ -262,10 +262,18 @@ impl ProgressJob {
                 Result::Ok(())
             };
             if let Err(e) = update() {
-                eprintln!("clx: {}", e);
+                eprintln!("clx: {e:?}");
             }
         } else {
             notify();
+        }
+    }
+
+    pub fn println(&self, s: &str) {
+        if !s.is_empty() {
+            pause();
+            let _ = term().write_line(s);
+            resume();
         }
     }
 }
@@ -333,13 +341,15 @@ fn start() {
             ctx.now = Instant::now();
             ctx.width = term().width() as usize;
             let jobs = JOBS.lock().unwrap().clone();
+            let any_running_check= || jobs.iter().any(|job| job.is_running());
+            let any_running = any_running_check();
             if let Err(err) = refresh(&jobs, &mut tera, ctx.clone()) {
-                eprintln!("clx: {:?}", err);
+                eprintln!("clx: {err:?}");
                 *LINES.lock().unwrap() = 0;
             }
-            if !jobs.iter().any(|job| job.is_running()) {
+            if !any_running && !any_running_check() {
                 *STARTED.lock().unwrap() = false;
-                return; // stop looping if no active progress jobs are running
+                return; // stop looping if no active progress jobs are running before or after the refresh
             }
             notify_wait(interval());
         }
