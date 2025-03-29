@@ -436,7 +436,9 @@ fn refresh(jobs: &[Arc<ProgressJob>], tera: &mut Tera, ctx: RenderContext) -> Re
         .collect::<Vec<_>>()
         .join("\n");
     term.clear_last_lines(*lines)?;
-    term.write_line(&output)?;
+    if !output.is_empty() {
+        term.write_line(&output)?;
+    }
     *lines = output.split("\n").count();
     Ok(())
 }
