@@ -178,7 +178,7 @@ impl CmdLineRunner {
         if let Some(pr) = &self.pr {
             pr.prop("bin", &self.program);
             pr.prop("args", &self.args);
-            pr.prop("stdout", &"".to_string());
+            pr.prop("message", &"".to_string());
             pr.set_status(progress::ProgressStatus::Running);
         }
         let result = Arc::new(Mutex::new(CmdResult::default()));
@@ -199,7 +199,7 @@ impl CmdLineRunner {
                     result.stdout += &line;
                     result.stdout += "\n";
                     if let Some(pr) = &pr {
-                        pr.prop("stdout", &line);
+                        pr.prop("message", &line);
                     }
                     combined_output.lock().await.push(line);
                 }
