@@ -183,9 +183,10 @@ impl CmdLineRunner {
         RUNNING_PIDS.lock().unwrap().insert(id);
         trace!("Started process: {id} for {}", self.program);
         if let Some(pr) = &self.pr {
-            pr.prop("bin", &self.program);
-            pr.prop("args", &self.args);
-            pr.prop("message", &self.to_string());
+            // pr.prop("bin", &self.program);
+            // pr.prop("args", &self.args);
+            pr.prop("ensembler_cmd", &self.to_string());
+            pr.prop("ensembler_stdout", &"".to_string());
             pr.set_status(progress::ProgressStatus::Running);
         }
         let result = Arc::new(Mutex::new(CmdResult::default()));
@@ -208,7 +209,7 @@ impl CmdLineRunner {
                     result.combined_output += &line;
                     result.combined_output += "\n";
                     if let Some(pr) = &pr {
-                        pr.prop("message", &line);
+                        pr.prop("ensembler_stdout", &line);
                         pr.update();
                     }
                     combined_output.lock().await.push(line);
