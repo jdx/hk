@@ -1,14 +1,9 @@
 use crate::Result;
 use serde::ser::Serialize;
 use std::{
-    collections::HashMap,
-    sync::{
-        Arc, LazyLock, Mutex, Weak,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        mpsc,
-    },
-    thread,
-    time::{Duration, Instant},
+    collections::HashMap, fmt, sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, Condvar, LazyLock, Mutex, Weak
+    }, thread, time::{Duration, Instant}
 };
 
 use console::Term;
@@ -57,6 +52,8 @@ static SPINNERS: LazyLock<HashMap<String, Spinner>> = LazyLock::new(|| {
 static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100)); // TODO: use fps from a spinner
 static LINES: Mutex<usize> = Mutex::new(0);
 static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
+static STARTED: Mutex<bool> = Mutex::new(false);
+static FLUSH: LazyLock<Condvar> = LazyLock::new(|| Condvar::new());
 static PAUSED: AtomicBool = AtomicBool::new(false);
 static JOBS: Mutex<Vec<Arc<ProgressJob>>> = Mutex::new(vec![]);
 static TERA: LazyLock<Tera> = LazyLock::new(Default::default);
@@ -170,7 +167,7 @@ impl ProgressStatus {
     }
 }
 
-#[derive(Default, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub enum ProgressJobDoneBehavior {
     #[default]
     Keep,
@@ -278,6 +275,20 @@ impl ProgressJob {
     }
 }
 
+impl fmt::Debug for ProgressJob {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ProgressJob {{ id: {}, status: {:?} }}", self.id, self.status.lock().unwrap())
+    }
+}
+
+impl PartialEq for ProgressJob {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for ProgressJob {}
+
 fn indent(s: String, width: usize, indent: usize) -> String {
     use unicode_width::UnicodeWidthChar;
     let mut result = Vec::new();
@@ -327,8 +338,13 @@ fn notify_wait(timeout: Duration) -> bool {
     rx.recv_timeout(timeout).is_ok()
 }
 
+pub fn flush() {
+    let _guard = FLUSH.wait_while(STARTED.lock().unwrap(), |started| {
+        *started
+    }).unwrap();
+}
+
 fn start() {
-    static STARTED: Mutex<bool> = Mutex::new(false);
     let mut started = STARTED.lock().unwrap();
     if *started || output() == ProgressOutput::Text {
         return; // prevent multiple loops running at a time
@@ -349,6 +365,7 @@ fn start() {
             }
             if !any_running && !any_running_check() {
                 *STARTED.lock().unwrap() = false;
+                FLUSH.notify_all();
                 return; // stop looping if no active progress jobs are running before or after the refresh
             }
             notify_wait(interval());
@@ -371,12 +388,9 @@ fn refresh(jobs: &[Arc<ProgressJob>], tera: &mut Tera, ctx: RenderContext) -> Re
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("\n");
-    term.move_cursor_up(*lines)?;
-    term.clear_to_end_of_screen()?;
+    term.clear_last_lines(*lines)?;
     term.write_line(&output)?;
-    *lines = output.split("\n").fold(0, |acc, line| {
-        acc + 1 + console::measure_text_width(line) / ctx.width
-    });
+    *lines = output.split("\n").count();
     Ok(())
 }
 
