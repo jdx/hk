@@ -12,7 +12,7 @@ use indexmap::IndexSet;
 use std::sync::LazyLock as Lazy;
 
 use crate::Error::ScriptFailed;
-use clx::ProgressJob;
+use clx::progress::{self, ProgressJob};
 
 pub struct CmdLineRunner {
     cmd: Command,
@@ -175,6 +175,12 @@ impl CmdLineRunner {
         let id = cp.id().unwrap();
         RUNNING_PIDS.lock().unwrap().insert(id);
         trace!("Started process: {id} for {}", self.program);
+        if let Some(pr) = &self.pr {
+            pr.prop("bin", &self.program);
+            pr.prop("args", &self.args);
+            pr.prop("stdout", &"".to_string());
+            pr.set_status(progress::ProgressStatus::Running);
+        }
         let result = Arc::new(Mutex::new(CmdResult::default()));
         let combined_output = Arc::new(Mutex::new(Vec::new()));
         if let Some(stdout) = cp.stdout.take() {
@@ -193,7 +199,7 @@ impl CmdLineRunner {
                     result.stdout += &line;
                     result.stdout += "\n";
                     if let Some(pr) = &pr {
-                        pr.add_prop("message", &line);
+                        pr.prop("stdout", &line);
                     }
                     combined_output.lock().await.push(line);
                 }
@@ -215,10 +221,8 @@ impl CmdLineRunner {
                         let mut result = result.lock().await;
                     result.stderr += &line;
                     result.stderr += "\n";
-                    if pr.is_some() {
-                        ProgressJob::pause();
-                        eprintln!("{}", &line);
-                        ProgressJob::resume();
+                    if let Some(pr) = &pr {
+                        pr.println(&line);
                     }
                     combined_output.lock().await.push(line);
                 }
@@ -234,7 +238,11 @@ impl CmdLineRunner {
         RUNNING_PIDS.lock().unwrap().remove(&id);
         result.lock().await.status = status;
 
-        if !status.success() {
+        if status.success() {
+            if let Some(pr) = &self.pr {
+                pr.set_status(progress::ProgressStatus::Done);
+            }
+        } else {
             let result = result.lock().await.to_owned();
             self.on_error(combined_output.lock().await.join("\n"), result)?;
         }
@@ -245,11 +253,12 @@ impl CmdLineRunner {
 
     fn on_error(&self, output: String, result: CmdResult) -> Result<()> {
         let output = output.trim().to_string();
-        // if let Some(pr) = &self.pr {
-        //     if !output.trim().is_empty() {
-        //         pr.println(output);
-        //     }
-        // }
+        if let Some(pr) = &self.pr {
+            pr.set_status(progress::ProgressStatus::Failed);
+            if !output.trim().is_empty() {
+                pr.println(&output);
+            }
+        }
         Err(ScriptFailed(self.program.clone(), output, result))?
     }
 }
