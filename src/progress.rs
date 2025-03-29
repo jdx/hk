@@ -381,6 +381,7 @@ pub fn flush() {
             thread::sleep(Duration::from_secs(1));
             if still_waiting.load(Ordering::Relaxed) {
                 *STARTED.lock().unwrap() = false;
+                FLUSH.notify_all();
             }
         }
     });
