@@ -204,7 +204,7 @@ impl<'a> StepScheduler<'a> {
                         if let Some(Error::CheckListFailed { source, stdout }) =
                             e.downcast_ref::<Error>()
                         {
-                            warn!("{step}: failed check step first: {source}");
+                            debug!("{step}: failed check step first: {source}");
                             let filtered_files: HashSet<PathBuf> =
                                 stdout.lines().map(PathBuf::from).collect();
                             let files: IndexSet<PathBuf> = job.files.into_iter().filter(|f| filtered_files.contains(f)).collect();
@@ -213,7 +213,7 @@ impl<'a> StepScheduler<'a> {
                             }
                             job.files = files.into_iter().collect();
                         }
-                        warn!("{step}: failed check step first: {e}");
+                        debug!("{step}: failed check step first: {e}");
                     }
                 }
             }
