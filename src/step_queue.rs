@@ -99,7 +99,7 @@ impl StepQueueBuilder {
                     .collect()
             } else if step.batch {
                 files
-                    .chunks(*jobs)
+                    .chunks((files.len() / *jobs).max(1))
                     .map(|chunk| StepJob::new(step.clone(), chunk.to_vec(), run_type))
                     .collect()
             } else {

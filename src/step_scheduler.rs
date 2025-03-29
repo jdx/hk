@@ -7,9 +7,14 @@ use crate::{
     step_response::StepResponse,
     tera::Context,
 };
+use clx::progress::ProgressJobBuilder;
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
-use std::{collections::HashSet, path::PathBuf, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+};
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use tokio::task::JoinSet;
 
@@ -91,15 +96,44 @@ impl<'a> StepScheduler<'a> {
 
         for group in queue.groups {
             let mut set = JoinSet::new();
-            let ctx = Arc::new(StepContext {
-                semaphore: self.semaphore.clone(),
-                failed: self.failed.clone(),
-                file_locks: file_locks.clone(),
-                tctx: self.tctx.clone(),
-                depends: StepDepends::new(&group),
-            });
+            let step_contexts: HashMap<String, Arc<StepContext>> = group
+                .iter()
+                .map(|job| job.step.clone())
+                .unique_by(|step| step.name.clone())
+                .map(|step| {
+                    let jobs_total = group
+                        .iter()
+                        .filter(|job| job.step.name == step.name)
+                        .count();
+                    (
+                        step.name.clone(),
+                        Arc::new(StepContext {
+                            semaphore: self.semaphore.clone(),
+                            failed: self.failed.clone(),
+                            file_locks: file_locks.clone(),
+                            tctx: self.tctx.clone(),
+                            depends: Arc::new(StepDepends::new(&group)),
+                            progress: ProgressJobBuilder::new()
+                                .body(vec!["{{spinner()}} {{name}} {{message}}".to_string()])
+                                .body_text(Some(vec![
+                                    "{{spinner()}} {{name}} – {{message}}".to_string(),
+                                ]))
+                                .prop("name", &step.name)
+                                .start(),
+                            files_added: Arc::new(std::sync::Mutex::new(0)),
+                            jobs_total,
+                            jobs_remaining: Arc::new(std::sync::Mutex::new(jobs_total)),
+                        }),
+                    )
+                })
+                .collect();
             for job in group {
-                StepScheduler::run_step(ctx.clone(), job, &mut set).await?;
+                StepScheduler::run_step(
+                    step_contexts.get(&job.step.name).unwrap().clone(),
+                    job,
+                    &mut set,
+                )
+                .await?;
             }
 
             // Wait for tasks and abort on first error

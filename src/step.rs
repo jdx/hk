@@ -1,6 +1,7 @@
 use crate::{Result, error::Error, step_job::StepJob, step_response::StepResponse};
 use crate::{glob, settings::Settings};
 use crate::{step_context::StepContext, tera};
+use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
 use eyre::{WrapErr, eyre};
 use indexmap::{IndexMap, IndexSet};
@@ -95,6 +96,7 @@ impl Step {
         }
     }
     pub(crate) async fn run(&self, ctx: &StepContext, job: &StepJob) -> Result<StepResponse> {
+        ctx.progress.set_status(ProgressStatus::Running);
         let mut rsp = StepResponse::default();
         let mut tctx = job.tctx(&ctx.tctx);
         tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
@@ -106,7 +108,7 @@ impl Step {
                 if files.len() == 1 { "" } else { "s" }
             )
         };
-        let pr = self.build_pj();
+        let pr = self.build_pj(ctx, job);
         let (Some(mut run), extra) = (match job.run_type {
             RunType::Check(CheckType::Check) => {
                 (self.check.clone(), self.check_extra_args.as_ref())
@@ -156,7 +158,7 @@ impl Step {
             vec![]
         };
         let run = tera::render(&run, &tctx).unwrap();
-        pr.add_prop(
+        pr.prop(
             "message",
             &format!(
                 "{} – {} – {}",
@@ -165,6 +167,7 @@ impl Step {
                 run
             ),
         );
+        pr.update();
         if log::log_enabled!(log::Level::Trace) {
             for file in &job.files {
                 trace!("{self}: {}", file.display());
@@ -192,6 +195,7 @@ impl Step {
                         })?;
                     }
                 }
+                ctx.progress.set_status(ProgressStatus::Failed);
                 return Err(err).wrap_err(run);
             }
         }
@@ -208,22 +212,27 @@ impl Step {
             })
             .map(|(_, p)| p)
             .collect_vec();
-        if rsp.files_to_add.is_empty() {
-            // TODO: make this a single action somehow
-            pr.add_prop("message", "");
-            pr.done();
-        } else {
-            pr.add_prop(
-                "message",
-                &format!("{} modified", file_msg(&rsp.files_to_add)),
-            );
-            pr.done();
-        }
+        ctx.inc_files_added(rsp.files_to_add.len());
+        ctx.decrement_job_count();
+        ctx.update_progress();
+        pr.set_status(ProgressStatus::Done);
         Ok(rsp)
     }
 
-    fn build_pj(&self) -> Arc<clx::ProgressJob> {
-        clx::ProgressJob::root().add(self.name.clone())
+    fn build_pj(&self, ctx: &StepContext, job: &StepJob) -> Arc<ProgressJob> {
+        let job = ProgressJobBuilder::new()
+            .prop("name", &self.name)
+            .prop("files", &job.files.iter().map(|f| f.display()).join(" "))
+            .body(vec![
+                // TODO: truncate properly
+                "{{spinner()}} {{name}} {{files | truncate(length=30)}} {{message}}".to_string(),
+            ])
+            .body_text(Some(vec![
+                "{{spinner()}} {{name}} – {{message}}".to_string(),
+            ]))
+            .on_done(ProgressJobDoneBehavior::Hide)
+            .build();
+        ctx.progress.add(job)
     }
 
     pub fn available_run_type(&self, run_type: RunType) -> Option<RunType> {

@@ -33,7 +33,15 @@ use tokio::signal::unix::SignalKind;
 async fn main() -> Result<()> {
     #[cfg(unix)]
     handle_epipe();
-    cli::run().await
+    match cli::run().await {
+        Ok(()) => {
+            clx::progress::flush();
+            Ok(())
+        }
+        Err(e) => {
+            return Err(e);
+        }
+    }
 }
 
 #[cfg(unix)]

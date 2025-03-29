@@ -6,6 +6,7 @@ use std::thread;
 use std::{io::Write, sync::OnceLock};
 
 use crate::{env, ui};
+use clx::progress;
 use log::{Level, LevelFilter, Metadata, Record};
 
 #[derive(Debug)]
@@ -22,7 +23,6 @@ impl log::Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        let mpr = clx::MultiProgressReport::get();
         if record.level() <= self.file_level {
             if let Some(log_file) = &self.log_file {
                 let mut log_file = log_file.lock().unwrap();
@@ -32,17 +32,17 @@ impl log::Log for Logger {
                     level = self.styled_level(record.level()),
                     args = record.args()
                 );
-                mpr.suspend(|| {
-                    let _ = writeln!(log_file, "{}", console::strip_ansi_codes(&out));
-                });
+                progress::pause();
+                let _ = writeln!(log_file, "{}", console::strip_ansi_codes(&out));
+                progress::resume();
             }
         }
         if record.level() <= self.term_level {
             let out = self.render(record, self.term_level);
             if !out.is_empty() {
-                mpr.suspend(|| {
-                    eprintln!("{}", out);
-                });
+                progress::pause();
+                eprintln!("{}", out);
+                progress::resume();
             }
         }
     }

@@ -2,5 +2,6 @@ import "../Config.pkl"
 
 class Actionlint extends Config.Linter {
     glob = List(".github/workflows/*.{yml,yaml}")
-    check = "actionlint {{ files }}"
+    batch = true
+    check = "sleep 1; actionlint {{ files }}"
 } 

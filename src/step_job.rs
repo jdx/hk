@@ -1,3 +1,5 @@
+use clx::progress::{ProgressJob, ProgressJobBuilder};
+
 use crate::{env, step_locks::StepLocks, tera};
 use std::{path::PathBuf, sync::Arc};
 
@@ -14,6 +16,7 @@ pub struct StepJob {
     pub files: Vec<PathBuf>,
     pub run_type: RunType,
     pub check_first: bool,
+    pub progress: Arc<ProgressJob>,
     workspace_indicator: Option<PathBuf>,
 
     pub status: StepJobStatus,
@@ -39,6 +42,7 @@ impl StepJob {
                 && matches!(run_type, RunType::Fix),
             step,
             status: StepJobStatus::Pending,
+            progress: Arc::new(ProgressJobBuilder::new().build()),
         }
     }
 
@@ -73,6 +77,7 @@ impl Clone for StepJob {
             check_first: self.check_first,
             workspace_indicator: self.workspace_indicator.clone(),
             status: StepJobStatus::Pending,
+            progress: self.progress.clone(),
         }
     }
 }

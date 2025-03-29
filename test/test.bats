@@ -212,11 +212,9 @@ EOF
     assert_success
 
     # runs b to completion without a
-    assert_output --partial "INFO  b               1 file – *.sh – echo 'start b' && echo 'end b' && touch test.sh
-DEBUG $ echo 'start b' && echo 'end b' && touch test.sh
-INFO  b               start b
-INFO  b               end b
-INFO  b             ✓ 1 file modified"
+    assert_output --partial "  b – start b
+  b – end b
+✔ b – 1 file modified"
 }
 
 @test "hk fix --from-ref and --to-ref fixes files between refs" {

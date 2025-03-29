@@ -3,6 +3,7 @@ use std::num::NonZero;
 
 use crate::{Result, logger, settings::Settings};
 use clap::Parser;
+use clx::progress::ProgressOutput;
 
 mod cache;
 mod check;
@@ -59,21 +60,23 @@ enum Commands {
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
     let mut level = None;
-    clx::MultiProgressReport::set_cli_name("hk");
+    if !console::user_attended_stderr() {
+        clx::progress::set_output(ProgressOutput::Text);
+    }
     if args.verbose > 1 || log::log_enabled!(log::Level::Trace) {
-        clx::MultiProgressReport::set_output_type(clx::OutputType::Verbose);
+        clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Trace);
     }
     if args.verbose == 1 || log::log_enabled!(log::Level::Debug) {
-        clx::MultiProgressReport::set_output_type(clx::OutputType::Verbose);
+        clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Debug);
     }
     if args.quiet {
-        clx::MultiProgressReport::set_output_type(clx::OutputType::Quiet);
+        clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Warn);
     }
     if args.silent {
-        clx::MultiProgressReport::set_output_type(clx::OutputType::Quiet);
+        clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Error);
     }
     logger::init(level);
