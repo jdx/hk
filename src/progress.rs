@@ -1,4 +1,4 @@
-use crate::Result;
+use crate::{style, Result};
 use serde::ser::Serialize;
 use std::{
     collections::HashMap, fmt, sync::{
@@ -467,10 +467,10 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
                 let spinner = SPINNERS.get(name).expect("spinner not found");
                 let frame_index = (elapsed / spinner.fps) % spinner.frames.len();
                 let frame = spinner.frames[frame_index].clone();
-                Ok(console::style(frame).blue().to_string().into())
+                Ok(style::eblue(frame).to_string().into())
             }
-            ProgressStatus::Done => Ok(console::style("✔").bright().green().to_string().into()),
-            ProgressStatus::Failed => Ok(console::style("✗").red().to_string().into()),
+            ProgressStatus::Done => Ok(style::egreen("✔").bright().to_string().into()),
+            ProgressStatus::Failed => Ok(style::ered("✗").to_string().into()),
             ProgressStatus::Custom(ref s) => Ok(s.clone().into()),
         },
     );
