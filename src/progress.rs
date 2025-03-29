@@ -167,6 +167,7 @@ impl ProgressJobBuilder {
 
 #[derive(Debug, Default, Clone, PartialEq, strum::EnumIs)]
 pub enum ProgressStatus {
+    Hide,
     Pending,
     #[default]
     Running,
@@ -236,7 +237,7 @@ impl ProgressJob {
 
     fn should_display(&self) -> bool {
         let status = self.status.lock().unwrap();
-        !status.is_pending()
+        !status.is_hide()
             && (status.is_active() || self.on_done != ProgressJobDoneBehavior::Hide)
     }
 
@@ -250,6 +251,14 @@ impl ProgressJob {
         self.children.lock().unwrap().push(job.clone());
         job.update();
         job
+    }
+
+    pub fn remove(&self) {
+        if let Some(parent) = self.parent.upgrade() {
+            parent.children.lock().unwrap().retain(|child| child.id != self.id);
+        } else {
+            JOBS.lock().unwrap().retain(|job| job.id != self.id);
+        }
     }
 
     pub fn children(&self) -> Vec<Arc<Self>> {
@@ -399,8 +408,13 @@ fn start() {
     thread::spawn(move || {
         let mut tera = TERA.clone();
         let mut ctx = RenderContext::default();
+        let mut refresh_after = ctx.now;
         ctx.tera_ctx.insert("message", "");
         loop {
+            if refresh_after > Instant::now() {
+                thread::sleep(refresh_after - Instant::now());
+            }
+            refresh_after = Instant::now() + Duration::from_millis(50);
             ctx.now = Instant::now();
             ctx.width = term().width() as usize;
             let jobs = JOBS.lock().unwrap().clone();
@@ -490,7 +504,8 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
             ProgressStatus::Running if output() == ProgressOutput::Text => {
                 Ok(" ".to_string().into())
             }
-            ProgressStatus::Pending => Ok(" ".to_string().into()),
+            ProgressStatus::Hide => Ok(" ".to_string().into()),
+            ProgressStatus::Pending => Ok(style::eyellow("⏸").dim().to_string().into()),
             ProgressStatus::Running => {
                 let name = props
                     .get("name")
