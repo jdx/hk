@@ -22,6 +22,7 @@ pub struct CmdLineRunner {
     stdin: Option<String>,
     redactions: IndexSet<String>,
     pass_signals: bool,
+    show_stderr_on_error: bool,
 }
 
 static RUNNING_PIDS: Lazy<std::sync::Mutex<HashSet<u32>>> = Lazy::new(Default::default);
@@ -48,6 +49,7 @@ impl CmdLineRunner {
             stdin: None,
             redactions: Default::default(),
             pass_signals: false,
+            show_stderr_on_error: true,
         }
     }
 
@@ -103,6 +105,11 @@ impl CmdLineRunner {
 
     pub fn with_pr(mut self, pr: Arc<ProgressJob>) -> Self {
         self.pr = Some(pr);
+        self
+    }
+
+    pub fn show_stderr_on_error(mut self, show: bool) -> Self {
+        self.show_stderr_on_error = show;
         self
     }
 
@@ -256,11 +263,11 @@ impl CmdLineRunner {
         let output = output.trim().to_string();
         if let Some(pr) = &self.pr {
             pr.set_status(progress::ProgressStatus::Failed);
-            if !output.trim().is_empty() {
+            if self.show_stderr_on_error {
                 pr.println(&output);
             }
         }
-        Err(ScriptFailed(self.program.clone(), output, result))?
+        Err(ScriptFailed(self.program.clone(), self.args.clone(), output, result))?
     }
 }
 

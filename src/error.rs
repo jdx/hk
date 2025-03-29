@@ -12,8 +12,8 @@ pub enum Error {
     #[error(transparent)]
     Nix(#[from] nix::errno::Errno),
 
-    #[error("{} exited with non-zero status: {}\n{}", .0, render_exit_status(.2), .1)]
-    ScriptFailed(String, String, CmdResult),
+    #[error("{} exited with non-zero status: {}\n{}", .0, render_exit_status(.3), .2)]
+    ScriptFailed(String, Vec<String>, String, CmdResult),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
