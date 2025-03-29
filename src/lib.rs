@@ -4,6 +4,7 @@ pub use error::{Error, Result};
 
 mod env;
 mod error;
+mod progress_bar;
 mod style;
 pub mod progress;
 mod multi_progress_report;

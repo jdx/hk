@@ -1,4 +1,4 @@
-use crate::{Result, style};
+use crate::{progress_bar, style, Result};
 use serde::ser::Serialize;
 use std::{
     collections::HashMap,
@@ -72,6 +72,7 @@ struct RenderContext {
     tera_ctx: Context,
     indent: usize,
     include_children: bool,
+    progress: Option<(usize, usize)>,
 }
 
 impl Default for RenderContext {
@@ -83,6 +84,7 @@ impl Default for RenderContext {
             tera_ctx: Context::new(),
             indent: 0,
             include_children: true,
+            progress: None,
         }
     }
 }
@@ -99,6 +101,8 @@ pub struct ProgressJobBuilder {
     status: ProgressStatus,
     ctx: Context,
     on_done: ProgressJobDoneBehavior,
+    progress_current: Option<usize>,
+    progress_total: Option<usize>,
 }
 
 impl Default for ProgressJobBuilder {
@@ -115,6 +119,8 @@ impl ProgressJobBuilder {
             status: Default::default(),
             ctx: Default::default(),
             on_done: Default::default(),
+            progress_current: None,
+            progress_total: None,
         }
     }
 
@@ -138,6 +144,16 @@ impl ProgressJobBuilder {
         self
     }
 
+    pub fn progress_current(mut self, progress_current: usize) -> Self {
+        self.progress_current = Some(progress_current);
+        self
+    }
+
+    pub fn progress_total(mut self, progress_total: usize) -> Self {
+        self.progress_total = Some(progress_total);
+        self
+    }
+
     pub fn prop<T: Serialize + ?Sized, S: Into<String>>(mut self, key: S, val: &T) -> Self {
         self.ctx.insert(key, val);
         self
@@ -154,6 +170,8 @@ impl ProgressJobBuilder {
             parent: Weak::new(),
             children: Mutex::new(vec![]),
             tera_ctx: Mutex::new(self.ctx),
+            progress_current: Mutex::new(self.progress_current),
+            progress_total: Mutex::new(self.progress_total),
         }
     }
 
@@ -200,12 +218,21 @@ pub struct ProgressJob {
     children: Mutex<Vec<Arc<ProgressJob>>>,
     tera_ctx: Mutex<Context>,
     on_done: ProgressJobDoneBehavior,
+    progress_current: Mutex<Option<usize>>,
+    progress_total: Mutex<Option<usize>>,
 }
 
 impl ProgressJob {
     fn render(&self, tera: &mut Tera, mut ctx: RenderContext) -> Result<String> {
         let mut s = vec![];
         ctx.tera_ctx.extend(self.tera_ctx.lock().unwrap().clone());
+        ctx.progress = if let (Some(progress_current), Some(progress_total)) =
+            (self.progress_current.lock().unwrap().clone(), self.progress_total.lock().unwrap().clone())
+        {
+            Some((progress_current, progress_total))
+        } else {
+            None
+        };
         add_tera_functions(tera, &mut ctx, self);
         if !self.should_display() {
             return Ok(String::new());
@@ -281,6 +308,16 @@ impl ProgressJob {
     pub fn prop<T: Serialize + ?Sized, S: Into<String>>(&self, key: S, val: &T) {
         let mut ctx = self.tera_ctx.lock().unwrap();
         ctx.insert(key, val);
+    }
+
+    pub fn progress_current(&self, progress_current: usize) {
+        self.progress_current.lock().unwrap().replace(progress_current);
+        self.update();
+    }
+
+    pub fn progress_total(&self, progress_total: usize) {
+        self.progress_total.lock().unwrap().replace(progress_total);
+        self.update();
     }
 
     pub fn update(&self) {
@@ -498,6 +535,8 @@ fn clear() -> Result<()> {
 fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
     let elapsed = ctx.elapsed().as_millis() as usize;
     let status = job.status.lock().unwrap().clone();
+    let progress = ctx.progress.clone();
+    let width = ctx.width;
     tera.register_function(
         "spinner",
         move |props: &HashMap<String, tera::Value>| match status {
@@ -521,6 +560,17 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
             ProgressStatus::Failed => Ok(style::ered("✗").to_string().into()),
             ProgressStatus::RunningCustom(ref s) => Ok(s.clone().into()),
             ProgressStatus::DoneCustom(ref s) => Ok(s.clone().into()),
+        },
+    );
+    tera.register_function(
+        "progress_bar",
+        move |_props: &HashMap<String, tera::Value>| {
+            if let Some((progress_current, progress_total)) = progress {
+                let progress_bar = progress_bar::progress_bar(progress_current, progress_total, width);
+                Ok(progress_bar.into())
+            } else {
+                Ok("".to_string().into())
+            }
         },
     );
 }
