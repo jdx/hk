@@ -1,53 +1,110 @@
 use crate::Result;
 use serde::ser::Serialize;
 use std::{
+    collections::{HashMap, HashSet},
     sync::{
         Arc, LazyLock, Mutex, Weak,
         atomic::{AtomicBool, AtomicUsize, Ordering},
         mpsc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use console::Term;
 use indicatif::TermLike;
 use tera::{Context, Tera};
 
-const DEFAULT_BODY: &str = "{{ spinner }} {{ name }}\n{{ body }}";
-const SPINNER: &str = "⠁⠁⠉⠙⠚⠒⠂⠂⠒⠲⠴⠤⠄⠄⠤⠠⠠⠤⠦⠖⠒⠐⠐⠒⠓⠋⠉⠈";
+const DEFAULT_BODY: LazyLock<Vec<String>> =
+    LazyLock::new(|| vec!["{{ spinner() }} {{ message }}".to_string()]);
 
-static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100));
+struct Spinner {
+    frames: Vec<String>,
+    fps: Duration,
+}
+
+macro_rules! spinner {
+    ($name:ident, $frames:expr, $fps:expr) => {
+        Spinner {
+            frames: $frames.iter().map(|s| s.to_string()).collect(),
+            fps: Duration::from_millis($fps),
+        }
+    };
+}
+
+#[rustfmt::skip]
+static SPINNERS: LazyLock<HashMap<String, Spinner>> = LazyLock::new(|| {
+    vec![
+        // from https://github.com/charmbracelet/bubbles/blob/ea344ab907bddf5e8f71cd73b9583b070e8f1b2f/spinner/spinner.go
+        ("line".to_string(), spinner!(line, &["|", "/", "-", "\\"], 100)),
+        ("dot".to_string(), spinner!(dot, &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], 100)),
+        ("mini_dot".to_string(), spinner!(mini_dot, &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 80)),
+        ("jump".to_string(), spinner!(jump, &["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"], 100)),
+        ("pulse".to_string(), spinner!(pulse, &["█", "▓", "▒", "░"], 120)),
+        ("points".to_string(), spinner!(points, &["∙∙∙", "●∙∙", "∙●∙", "∙∙●"], 150)),
+        ("globe".to_string(), spinner!(globe, &["🌍", "🌎", "🌏"], 250)),
+        ("moon".to_string(), spinner!(moon, &["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], 120)),
+        ("monkey".to_string(), spinner!(monkey, &["🙈", "🙉", "🙊"], 300)),
+        ("meter".to_string(), spinner!(meter, &["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"], 120)),
+        ("hamburger".to_string(), spinner!(hamburger, &["☱", "☲", "☴", "☲"], 120)),
+        ("ellipsis".to_string(), spinner!(ellipsis, &["", ".", "..", "..."], 120)),
+    ]
+    .into_iter()
+    .collect()
+});
+
+static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100)); // TODO: use fps from a spinner
 static LINES: Mutex<usize> = Mutex::new(0);
 static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 static PAUSED: AtomicBool = AtomicBool::new(false);
 static JOBS: Mutex<Vec<Arc<ProgressJob>>> = Mutex::new(vec![]);
+static TERA: LazyLock<Tera> = LazyLock::new(tera);
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct RenderContext {
+    start: Instant,
+    now: Instant,
     width: usize,
     tera_ctx: Context,
     indent: usize,
 }
 
-pub struct ProgressBuilder {
-    name: String,
-    body: String,
-    status: ProgressStatus,
-    ctx: Context,
+impl Default for RenderContext {
+    fn default() -> Self {
+        Self {
+            start: Instant::now(),
+            now: Instant::now(),
+            width: 0,
+            tera_ctx: Context::new(),
+            indent: 0,
+        }
+    }
 }
 
-impl ProgressBuilder {
-    pub fn new(name: String) -> Self {
+impl RenderContext {
+    pub fn elapsed(&self) -> Duration {
+        self.now - self.start
+    }
+}
+
+pub struct ProgressJobBuilder {
+    pub body: Vec<String>,
+    status: ProgressStatus,
+    ctx: Context,
+    on_done: ProgressJobDoneBehavior,
+}
+
+impl ProgressJobBuilder {
+    pub fn new() -> Self {
         Self {
-            name,
-            body: DEFAULT_BODY.to_string(),
+            body: DEFAULT_BODY.clone(),
             status: Default::default(),
             ctx: Default::default(),
+            on_done: Default::default(),
         }
     }
 
-    pub fn body(mut self, body: String) -> Self {
+    pub fn body(mut self, body: Vec<String>) -> Self {
         self.body = body;
         self
     }
@@ -57,89 +114,109 @@ impl ProgressBuilder {
         self
     }
 
+    pub fn on_done(mut self, on_done: ProgressJobDoneBehavior) -> Self {
+        self.on_done = on_done;
+        self
+    }
+
     pub fn prop<T: Serialize + ?Sized, S: Into<String>>(mut self, key: S, val: &T) -> Self {
         self.ctx.insert(key, val);
         self
     }
 
-    fn build_(self) -> ProgressJob {
+    pub fn build(self) -> ProgressJob {
+        static ID: AtomicUsize = AtomicUsize::new(0);
         ProgressJob {
-            name: self.name,
-            body: Mutex::new(self.body),
+            id: ID.fetch_add(1, Ordering::Relaxed),
+            body: self.body,
             status: Mutex::new(self.status),
+            on_done: self.on_done,
             parent: Weak::new(),
             children: Mutex::new(vec![]),
             tera_ctx: Mutex::new(self.ctx),
         }
     }
 
-    pub fn build(self) -> Arc<ProgressJob> {
-        let job = Arc::new(self.build_());
+    pub fn start(self) -> Arc<ProgressJob> {
+        let job = Arc::new(self.build());
         JOBS.lock().unwrap().push(job.clone());
         start();
         job
     }
 }
 
-#[derive(Default, PartialEq)]
+#[derive(Default, Clone, PartialEq, strum::EnumIs)]
 pub enum ProgressStatus {
     Pending,
     #[default]
     Running,
+    Custom(String),
     Done,
     Failed,
-    Custom(String),
+}
+
+impl ProgressStatus {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Running | Self::Custom(_))
+    }
+}
+
+#[derive(Default, PartialEq)]
+pub enum ProgressJobDoneBehavior {
+    #[default]
+    Keep,
+    Collapse,
+    Hide,
 }
 
 pub struct ProgressJob {
-    // id: String,
-    name: String,
-    body: Mutex<String>,
+    id: usize,
+    body: Vec<String>,
     status: Mutex<ProgressStatus>,
     parent: Weak<ProgressJob>,
     children: Mutex<Vec<Arc<ProgressJob>>>,
     tera_ctx: Mutex<Context>,
+    on_done: ProgressJobDoneBehavior,
 }
 
 impl ProgressJob {
-    fn render(&self, tera: &mut Tera, ctx: &RenderContext) -> Result<String> {
+    fn render(self: &Arc<Self>, tera: &mut Tera, mut ctx: RenderContext) -> Result<String> {
         let mut s = vec![];
-        let mut ctx = ctx.clone();
         ctx.tera_ctx.extend(self.tera_ctx.lock().unwrap().clone());
-        ctx.tera_ctx.insert("name", &self.name);
-        match *self.status.lock().unwrap() {
-            ProgressStatus::Pending => {
-                return Ok(String::new());
-            }
-            ProgressStatus::Running => {
-                // ctx.tera_ctx.insert("spinner", &spinner());
-            }
-            ProgressStatus::Done => {
-                ctx.tera_ctx.insert("spinner", &"✔");
-            }
-            ProgressStatus::Failed => {
-                ctx.tera_ctx.insert("spinner", &"✗");
-            }
-            ProgressStatus::Custom(ref s) => {
-                ctx.tera_ctx.insert("spinner", &s);
-            }
+        add_tera_functions(tera, &mut ctx, self.clone());
+        if !self.should_display() {
+            return Ok(String::new());
         }
-        let body = tera.render_str(&self.body(), &ctx.tera_ctx)?;
-        s.push(body.trim_end().to_string());
-        ctx.indent += 2;
-        let children = self.children.lock().unwrap();
-        for child in children.iter() {
-            let child_output = child.render(tera, &ctx)?;
-            if !child_output.is_empty() {
-                let child_output = indent(child_output, ctx.width, ctx.indent);
-                s.push(child_output);
+        for (body_id, body) in self.body.iter().enumerate() {
+            let name = format!("progress_{}_{}", self.id, body_id);
+            add_tera_template(tera, &name, &body)?;
+            let body = tera.render(&name, &ctx.tera_ctx)?;
+            s.push(body.trim_end().to_string());
+        }
+        if self.should_display_children() {
+            ctx.indent += 1;
+            let children = self.children.lock().unwrap();
+            for child in children.iter() {
+                let child_output = child.render(tera, ctx.clone())?;
+                if !child_output.is_empty() {
+                    let child_output = indent(child_output, ctx.width, ctx.indent);
+                    s.push(child_output);
+                }
             }
         }
         Ok(s.join("\n"))
     }
 
-    pub fn add(self: &Arc<Self>, pb: ProgressBuilder) -> Arc<Self> {
-        let mut job = pb.build_();
+    fn should_display(&self) -> bool {
+        let status = self.status.lock().unwrap();
+        !status.is_pending() && (status.is_active() || self.on_done != ProgressJobDoneBehavior::Hide)
+    }
+
+    fn should_display_children(&self) -> bool {
+        self.status.lock().unwrap().is_active() || self.on_done == ProgressJobDoneBehavior::Keep
+    }
+
+    pub fn add(self: &Arc<Self>, mut job: ProgressJob) -> Arc<Self> {
         job.parent = Arc::downgrade(&self);
         let job = Arc::new(job);
         self.children.lock().unwrap().push(job.clone());
@@ -147,16 +224,8 @@ impl ProgressJob {
         job
     }
 
-    pub fn set_body(&self, body: String) {
-        *self.body.lock().unwrap() = body;
-    }
-
-    pub fn body(&self) -> String {
-        self.body.lock().unwrap().clone()
-    }
-
     pub fn is_running(&self) -> bool {
-        *self.status.lock().unwrap() == ProgressStatus::Running
+        self.status.lock().unwrap().is_active()
     }
 
     pub fn set_status(&self, status: ProgressStatus) {
@@ -222,14 +291,14 @@ fn start() {
     static STARTED: Mutex<bool> = Mutex::new(false);
     let mut started = STARTED.lock().unwrap();
     if *started {
-        return;
+        return; // prevent multiple loops running at a time
     }
     thread::spawn(move || {
-        let mut tera = Tera::default();
+        let mut tera = TERA.clone();
         let mut ctx = RenderContext::default();
-        ctx.tera_ctx.insert("body", "");
-        ctx.tera_ctx.insert("spinner", &spinner());
+        ctx.tera_ctx.insert("message", "");
         loop {
+            ctx.now = Instant::now();
             ctx.width = term().width() as usize;
             let jobs = JOBS.lock().unwrap().clone();
             if let Err(err) = refresh(&jobs, &mut tera, ctx.clone()) {
@@ -238,12 +307,9 @@ fn start() {
             }
             if !jobs.iter().any(|job| job.is_running()) {
                 *STARTED.lock().unwrap() = false;
-                return;
+                return; // stop looping if no active progress jobs are running
             }
-            if !notify_wait(interval()) {
-                // only update spinner if timed out
-                ctx.tera_ctx.insert("spinner", &spinner());
-            }
+            notify_wait(interval());
         }
     });
     *started = true;
@@ -257,7 +323,7 @@ fn refresh(jobs: &[Arc<ProgressJob>], tera: &mut Tera, ctx: RenderContext) -> Re
     let mut lines = LINES.lock().unwrap();
     let output = jobs
         .iter()
-        .map(|job| job.render(tera, &ctx))
+        .map(|job| job.render(tera, ctx.clone()))
         .collect::<Result<Vec<_>>>()?
         .into_iter()
         .filter(|s| !s.is_empty())
@@ -308,8 +374,44 @@ fn clear() -> Result<()> {
     Ok(())
 }
 
-fn spinner() -> char {
-    static INC: AtomicUsize = AtomicUsize::new(0);
-    let inc = INC.fetch_add(1, Ordering::Relaxed);
-    SPINNER.chars().nth(inc % SPINNER.len()).unwrap()
+fn get_all_jobs(jobs: &[Arc<ProgressJob>]) -> Vec<Arc<ProgressJob>> {
+    let mut all_jobs = jobs.to_vec();
+    for job in jobs {
+        let children = job.children.lock().unwrap().clone();
+        all_jobs.extend(get_all_jobs(&children));
+    }
+    all_jobs
+}
+
+fn tera() -> Tera {
+    Tera::default()
+}
+
+fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: Arc<ProgressJob>) {
+    let elapsed = ctx.elapsed().as_millis() as usize;
+    tera.register_function(
+        "spinner",
+        move |props: &HashMap<String, tera::Value>| match *job.status.lock().unwrap() {
+            ProgressStatus::Running => {
+                let name = props
+                    .get("name")
+                    .as_ref()
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("dot");
+                let frame = SPINNERS.get(name).unwrap().frames[elapsed % SPINNERS.get(name).unwrap().frames.len()].clone();
+                Ok(console::style(frame).blue().to_string().into())
+            }
+            ProgressStatus::Pending => Ok(" ".to_string().into()),
+            ProgressStatus::Done => Ok(console::style("✔").bright().green().to_string().into()),
+            ProgressStatus::Failed => Ok(console::style("✗").red().to_string().into()),
+            ProgressStatus::Custom(ref s) => Ok(s.clone().into()),
+        },
+    );
+}
+
+fn add_tera_template(tera: &mut Tera, name: &str, body: &str) -> Result<()> {
+    if !tera.get_template_names().any(|n| n == name) {
+        tera.add_raw_template(name, body)?;
+    }
+    Ok(())
 }

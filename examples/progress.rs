@@ -1,21 +1,26 @@
 use std::{thread, time::Duration};
 
-use clx::progress::{ProgressBuilder, ProgressStatus};
+use clx::progress::{ProgressJobBuilder, ProgressStatus};
 
 #[tokio::main]
 async fn main() {
-    let root = ProgressBuilder::new("root".to_string()).build();
-    ProgressBuilder::new("root-pending".to_string())
+    let root = ProgressJobBuilder::new().prop("message", "root")
+    .on_done(clx::progress::ProgressJobDoneBehavior::Collapse)
+    .start();
+    ProgressJobBuilder::new()
+        .prop("message", "pending")
         .status(ProgressStatus::Pending)
-        .build();
-    let root2 = ProgressBuilder::new("root-2".to_string()).build();
+        .start();
+    let root2 = ProgressJobBuilder::new().prop("message", "root2").start();
+    let root3 = ProgressJobBuilder::new().prop("message", "root3").start();
     for i in 0..3 {
         thread::sleep(Duration::from_millis(100));
-        let pb = ProgressBuilder::new(format!("test {}", i));
+        let pb = ProgressJobBuilder::new().prop("message", &format!("running {}", i)).build();
         root.add(pb);
     }
     thread::sleep(Duration::from_secs(1));
     root.set_status(ProgressStatus::Done);
+    root3.set_status(ProgressStatus::Failed);
     thread::sleep(Duration::from_millis(300));
     root2.set_status(ProgressStatus::Done);
     thread::sleep(Duration::from_millis(100));
