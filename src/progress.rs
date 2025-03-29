@@ -1,9 +1,15 @@
-use crate::{style, Result};
+use crate::{Result, style};
 use serde::ser::Serialize;
 use std::{
-    collections::HashMap, fmt, sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, Condvar, LazyLock, Mutex, Weak
-    }, thread, time::{Duration, Instant}
+    collections::HashMap,
+    fmt,
+    sync::{
+        Arc, Condvar, LazyLock, Mutex, Weak,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        mpsc,
+    },
+    thread,
+    time::{Duration, Instant},
 };
 
 use console::Term;
@@ -164,14 +170,15 @@ pub enum ProgressStatus {
     Pending,
     #[default]
     Running,
-    Custom(String),
+    RunningCustom(String),
+    DoneCustom(String),
     Done,
     Failed,
 }
 
 impl ProgressStatus {
     pub fn is_active(&self) -> bool {
-        matches!(self, Self::Running | Self::Custom(_))
+        matches!(self, Self::Running | Self::RunningCustom(_))
     }
 }
 
@@ -245,6 +252,10 @@ impl ProgressJob {
         job
     }
 
+    pub fn children(&self) -> Vec<Arc<Self>> {
+        self.children.lock().unwrap().clone()
+    }
+
     pub fn is_running(&self) -> bool {
         self.status.lock().unwrap().is_active()
     }
@@ -295,7 +306,12 @@ impl ProgressJob {
 
 impl fmt::Debug for ProgressJob {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ProgressJob {{ id: {}, status: {:?} }}", self.id, self.status.lock().unwrap())
+        write!(
+            f,
+            "ProgressJob {{ id: {}, status: {:?} }}",
+            self.id,
+            self.status.lock().unwrap()
+        )
     }
 }
 
@@ -357,9 +373,21 @@ fn notify_wait(timeout: Duration) -> bool {
 }
 
 pub fn flush() {
-    let _guard = FLUSH.wait_while(STARTED.lock().unwrap(), |started| {
-        *started
-    }).unwrap();
+    let still_waiting = Arc::new(AtomicBool::new(true));
+    thread::spawn({
+        // prevent waiting endlessly
+        let still_waiting = still_waiting.clone();
+        move || {
+            thread::sleep(Duration::from_secs(1));
+            if still_waiting.load(Ordering::Relaxed) {
+                *STARTED.lock().unwrap() = false;
+            }
+        }
+    });
+    let _guard = FLUSH
+        .wait_while(STARTED.lock().unwrap(), |started| *started)
+        .unwrap();
+    still_waiting.store(false, Ordering::Relaxed);
 }
 
 fn start() {
@@ -375,7 +403,7 @@ fn start() {
             ctx.now = Instant::now();
             ctx.width = term().width() as usize;
             let jobs = JOBS.lock().unwrap().clone();
-            let any_running_check= || jobs.iter().any(|job| job.is_running());
+            let any_running_check = || jobs.iter().any(|job| job.is_running());
             let any_running = any_running_check();
             if let Err(err) = refresh(&jobs, &mut tera, ctx.clone()) {
                 eprintln!("clx: {err:?}");
@@ -456,7 +484,9 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
     tera.register_function(
         "spinner",
         move |props: &HashMap<String, tera::Value>| match status {
-            ProgressStatus::Running if output() == ProgressOutput::Text => Ok(" ".to_string().into()),
+            ProgressStatus::Running if output() == ProgressOutput::Text => {
+                Ok(" ".to_string().into())
+            }
             ProgressStatus::Pending => Ok(" ".to_string().into()),
             ProgressStatus::Running => {
                 let name = props
@@ -471,7 +501,8 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
             }
             ProgressStatus::Done => Ok(style::egreen("✔").bright().to_string().into()),
             ProgressStatus::Failed => Ok(style::ered("✗").to_string().into()),
-            ProgressStatus::Custom(ref s) => Ok(s.clone().into()),
+            ProgressStatus::RunningCustom(ref s) => Ok(s.clone().into()),
+            ProgressStatus::DoneCustom(ref s) => Ok(s.clone().into()),
         },
     );
 }
@@ -482,7 +513,6 @@ fn add_tera_template(tera: &mut Tera, name: &str, body: &str) -> Result<()> {
     }
     Ok(())
 }
-
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ProgressOutput {
