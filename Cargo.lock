@@ -279,9 +279,9 @@ dependencies = [
 
 [[package]]
 name = "clx"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd018850530418cca9b4be52195b6c009111fb69a3e8637e35fbb24ca58365f5"
+checksum = "7cd1ca0bf5747e58db86aacc91bae61ee47ae9313dce72b5b56d08eeac185540"
 dependencies = [
  "console",
  "indicatif",
@@ -536,9 +536,9 @@ dependencies = [
 
 [[package]]
 name = "ensembler"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38980531bbe6a289a8e0d6586eb367384e40e4dbc0ef2637c37fd6530e723c23"
+checksum = "2a56451bd64c95fe409fa2b81686d572e6e1a09664be061e53fba7847cc9f63a"
 dependencies = [
  "clx",
  "console",
