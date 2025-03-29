@@ -4,6 +4,7 @@ use clx::progress::{ProgressJobBuilder, ProgressStatus};
 
 #[tokio::main]
 async fn main() {
+    // clx::progress::set_output(clx::progress::ProgressOutput::Text);
     let root = ProgressJobBuilder::new().prop("message", "root")
     .on_done(clx::progress::ProgressJobDoneBehavior::Collapse)
     .start();
