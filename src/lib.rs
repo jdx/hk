@@ -4,4 +4,4 @@ mod cmd;
 mod error;
 
 pub use error::{Error, Result};
-pub use cmd::CmdLineRunner;
+pub use cmd::{CmdLineRunner, CmdResult};

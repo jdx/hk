@@ -205,6 +205,8 @@ impl CmdLineRunner {
                     let mut result = result.lock().await;
                     result.stdout += &line;
                     result.stdout += "\n";
+                    result.combined_output += &line;
+                    result.combined_output += "\n";
                     if let Some(pr) = &pr {
                         pr.prop("message", &line);
                         pr.update();
@@ -229,6 +231,8 @@ impl CmdLineRunner {
                         let mut result = result.lock().await;
                     result.stderr += &line;
                     result.stderr += "\n";
+                    result.combined_output += &line;
+                    result.combined_output += "\n";
                     if let Some(pr) = &pr {
                         pr.println(&line);
                     }
@@ -293,5 +297,6 @@ impl Debug for CmdLineRunner {
 pub struct CmdResult {
     pub stdout: String,
     pub stderr: String,
+    pub combined_output: String,
     pub status: ExitStatus,
 }
