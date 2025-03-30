@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class GoFmt extends Config.Linter {
+go_fmt = new Config.Step {
     glob = List("**/*.go")
     check = "gofmt -l {{ files }}"
     fix = "gofmt -w {{ files }}"

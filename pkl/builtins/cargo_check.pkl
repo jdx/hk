@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class CargoCheck extends Config.Linter {
+cargo_check = new Config.Step {
     glob = List("**/*.rs")
     check = "cargo check"
     fix = "cargo check --fix --allow-dirty"

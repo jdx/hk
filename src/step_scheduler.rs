@@ -1,4 +1,5 @@
 use crate::{
+    config::{Hook, Steps},
     env,
     error::Error,
     step_depends::StepDepends,
@@ -31,7 +32,7 @@ use crate::{
 pub struct StepScheduler<'a> {
     run_type: RunType,
     repo: &'a Git,
-    steps: Vec<Arc<Step>>,
+    hook: Hook,
     files: Vec<PathBuf>,
     tctx: Context,
     failed: Arc<Mutex<bool>>,
@@ -39,25 +40,12 @@ pub struct StepScheduler<'a> {
 }
 
 impl<'a> StepScheduler<'a> {
-    pub fn new(hook: &IndexMap<String, Step>, run_type: RunType, repo: &'a Git) -> Self {
+    pub fn new(hook: &Hook, run_type: RunType, repo: &'a Git) -> Self {
         let settings = Settings::get();
-        let config = Config::get().unwrap();
         Self {
             run_type,
             repo,
-            steps: hook
-                .values()
-                .flat_map(|s| match &s.r#type {
-                    Some(r#type) if r#type == "check" || r#type == "fix" => config
-                        .linters
-                        .values()
-                        .cloned()
-                        .map(|linter| linter.into())
-                        .collect(),
-                    _ => vec![s.clone()],
-                })
-                .map(Arc::new)
-                .collect(),
+            hook: hook.clone(),
             files: vec![],
             tctx: Default::default(),
             failed: Arc::new(Mutex::new(false)),
@@ -74,12 +62,7 @@ impl<'a> StepScheduler<'a> {
         if linters.is_empty() {
             return self;
         }
-        self.steps = self
-            .steps
-            .iter()
-            .filter(|s| linters.contains(&s.name))
-            .cloned()
-            .collect();
+        self.hook.steps.retain(|name, _| linters.contains(name));
         self
     }
 
@@ -96,7 +79,13 @@ impl<'a> StepScheduler<'a> {
             .iter()
             .map(|file| (file.clone(), Arc::new(RwLock::new(()))))
             .collect::<IndexMap<PathBuf, _>>();
-        let queue = StepQueueBuilder::new(self.steps, self.files, self.run_type).build()?;
+        let steps = self
+            .hook
+            .steps
+            .into_iter()
+            .map(|(_, step)| Arc::new(step))
+            .collect::<Vec<_>>();
+        let queue = StepQueueBuilder::new(steps, self.files, self.run_type).build()?;
         let total_jobs = queue.groups.iter().flatten().count();
         let mut remaining_jobs = total_jobs;
 

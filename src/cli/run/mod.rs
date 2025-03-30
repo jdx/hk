@@ -4,7 +4,7 @@ use indexmap::IndexMap;
 
 use crate::{
     Result,
-    config::Config,
+    config::{Config, Hook},
     env,
     git::Git,
     step::{CheckType, RunType, Step},
@@ -48,35 +48,8 @@ impl Run {
 
     async fn other(&self, hook: &str) -> Result<()> {
         let config = Config::get()?;
-        if env::HK_SKIP_HOOK.contains(hook) {
-            warn!("{hook}: skipping hook due to HK_SKIP_HOOK");
-            return Ok(());
-        }
-        let mut repo = Git::new()?;
-        let run_type = RunType::Check(CheckType::Check);
-
-        static HOOK: LazyLock<IndexMap<String, Step>> = LazyLock::new(Default::default);
-        let hook = config.hooks.get(hook).unwrap_or(&HOOK);
-        let mut result = config
-            .run_hook(
-                true,
-                hook,
-                run_type,
-                &repo,
-                &[],
-                Default::default(),
-                None,
-                None,
-            )
-            .await;
-
-        if let Err(err) = repo.pop_stash() {
-            if result.is_ok() {
-                result = Err(err);
-            } else {
-                warn!("Failed to pop stash: {}", err);
-            }
-        }
-        result
+        config
+            .run_hook(true, hook, &[], Default::default(), None, None)
+            .await
     }
 }

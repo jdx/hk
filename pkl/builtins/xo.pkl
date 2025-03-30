@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Xo extends Config.Linter {
+xo = new Config.Step {
     glob = List("**/*.{js,jsx,ts,tsx}")
     check = "xo {{ files }}"
     fix = "xo --fix {{ files }}"

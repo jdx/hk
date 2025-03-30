@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class GoSec extends Config.Linter {
+go_sec = new Config.Step {
     glob = List("**/*.go")
     check = "gosec {{ files }}"
 } 

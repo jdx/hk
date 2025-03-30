@@ -1,3 +1,4 @@
+use crate::config::Steps;
 use crate::step_job::StepJob;
 
 use crate::{Result, settings::Settings};
@@ -23,13 +24,13 @@ pub struct StepQueue {
 }
 
 pub struct StepQueueBuilder {
-    steps: Vec<Arc<Step>>,
+    steps: Vec<Arc<Steps>>,
     files: Vec<PathBuf>,
     run_type: RunType,
 }
 
 impl StepQueueBuilder {
-    pub fn new(steps: Vec<Arc<Step>>, files: Vec<PathBuf>, run_type: RunType) -> Self {
+    pub fn new(steps: Vec<Arc<Steps>>, files: Vec<PathBuf>, run_type: RunType) -> Self {
         Self {
             steps,
             files,
@@ -44,12 +45,20 @@ impl StepQueueBuilder {
             .steps
             .iter()
             .fold(vec![], |mut groups, step| {
-                if step.exclusive || groups.is_empty() {
-                    groups.push(vec![]);
-                }
-                groups.last_mut().unwrap().push(step);
-                if step.exclusive {
-                    groups.push(vec![]);
+                match step.as_ref() {
+                    Steps::Step(s) => {
+                        if s.exclusive || groups.is_empty() {
+                            groups.push(vec![]);
+                        }
+                        groups.last_mut().unwrap().push(step);
+                        if s.exclusive {
+                            groups.push(vec![]);
+                        }
+                    }
+                    Steps::Stash(_stash) => {
+                        groups.push(vec![]);
+                        groups.last_mut().unwrap().push(step);
+                    }
                 }
                 groups
             })
@@ -61,10 +70,17 @@ impl StepQueueBuilder {
         Ok(StepQueue { groups })
     }
 
-    fn build_queue_for_group(&self, steps: &[&Arc<Step>]) -> Result<Vec<StepJob>> {
+    fn build_queue_for_group(&self, steps: &[&Arc<Steps>]) -> Result<Vec<StepJob>> {
         let jobs = LazyCell::new(|| Settings::get().jobs().get());
         let mut queue = vec![];
         for step in steps {
+            let step = match step.as_ref() {
+                Steps::Step(s) => Arc::new((**s).clone()),
+                Steps::Stash(_stash) => {
+                    // TODO: implement stash
+                    continue;
+                }
+            };
             let Some(run_type) = step.available_run_type(self.run_type) else {
                 debug!("{step}: skipping step due to no available run type");
                 continue;
@@ -92,7 +108,6 @@ impl StepQueueBuilder {
                     continue;
                 }
             }
-            let step = (*step).clone();
             let jobs = if let Some(workspace_indicators) = step.workspaces_for_files(&files)? {
                 let job = StepJob::new(step.clone(), files.clone(), run_type);
                 workspace_indicators
@@ -134,9 +149,16 @@ impl StepQueueBuilder {
 
     fn files_in_contention(
         &self,
-        steps: &[&Arc<Step>],
+        steps: &[&Arc<Steps>],
         files: &[PathBuf],
     ) -> Result<HashSet<PathBuf>> {
+        let steps = steps
+            .iter()
+            .filter_map(|s| match s.as_ref() {
+                Steps::Step(s) => Some(s),
+                Steps::Stash(_) => None,
+            })
+            .collect::<Vec<_>>();
         let step_map: HashMap<String, &Step> = steps
             .iter()
             .map(|step| (step.name.clone(), step.as_ref()))

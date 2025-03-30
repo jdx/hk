@@ -2,7 +2,8 @@
 module hk.Config
 min_hk_version = "{{version | truncate(length=1)}}.0.0"
 
-open class Linter {
+class Step {
+    fixed type = "step"
     /// Which profiles (HK_PROFILES) need to be active for the step to run
     profiles: List<String>?
 
@@ -27,6 +28,9 @@ open class Linter {
     /// fetches a read lock instead of a write lock when running fix/fix_all. Use if the tool has its own locking mechanism or you simply don't care if files may be written to
     /// by multiple steps.
     stomp = false
+
+    /// a shell command to run
+    run: String?
 
     /// a shell command to check. Any edits will be ignored.
     check: String?
@@ -54,40 +58,13 @@ open class Linter {
     stage: List<String>?
 }
 
-open class Step {
-    /// Which profiles (HK_PROFILES) need to be active for the step to run
-    profiles: List<String>?
-
-    /// Which file patterns to run the step on
-    glob: List<String>?
-
-    /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
-    exclusive = false
-
-    /// Wait for sibling steps to finish before starting this step.
-    depends: List<String> = List()
-
-    /// run the linter scripts with these environment variables
-    env = new Mapping<String, String>{}
-
-    /// a shell command to run
-    run: String
+class Stash {
+    fixed type = "stash"
+    method: "git-diff" | "git-stash" = "git-diff"
 }
 
-class Fix extends Step {
-    type = "fix"
-    run = "fix"
-    linter_dependencies = new Mapping<String, List<String>>{}
+class Hook {
+    steps: Mapping<String, Step | Stash> = new Mapping<String, Step>{}
 }
-
-class Check extends Step {
-    type = "check"
-    run = "check"
-    linter_dependencies = new Mapping<String, List<String>>{}
-}
-
-typealias Hook = Mapping<String, Step>
-
-linters: Mapping<String, Linter> = new Mapping<String, Linter>{}
 
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}

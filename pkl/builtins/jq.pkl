@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Jq extends Config.Linter {
+jq = new Config.Step {
     glob = List("**/*.json")
     check = "jq . {{ files }}"
     fix = "jq -S . {{ files }}"

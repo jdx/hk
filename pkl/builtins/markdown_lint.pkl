@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class MarkdownLint extends Config.Linter {
+markdown_lint = new Config.Step {
     glob = List("**/*.{md,markdown}")
     check = "markdownlint {{ files }}"
     fix = "markdownlint --fix {{ files }}"

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Hadolint extends Config.Linter {
+hadolint = new Config.Step {
     glob = List("**/Dockerfile*")
     check = "hadolint {{ files }}"
 } 

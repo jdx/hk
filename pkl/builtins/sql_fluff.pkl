@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class SqlFluff extends Config.Linter {
+sql_fluff = new Config.Step {
     glob = List("**/*.sql")
     check = "sqlfluff lint {{ files }}"
     fix = "sqlfluff fix {{ files }}"

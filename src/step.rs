@@ -85,18 +85,6 @@ pub enum CheckType {
 }
 
 impl Step {
-    pub fn fix() -> Self {
-        Self {
-            r#type: Some("fix".to_string()),
-            ..Default::default()
-        }
-    }
-    pub fn check() -> Self {
-        Self {
-            r#type: Some("check".to_string()),
-            ..Default::default()
-        }
-    }
     pub(crate) async fn run(&self, ctx: &StepContext, job: &StepJob) -> Result<StepResponse> {
         let mut rsp = StepResponse::default();
         let mut tctx = job.tctx(&ctx.tctx);

@@ -1,7 +1,8 @@
-use std::iter::once;
+use std::{iter::once, sync::LazyLock};
 
 use crate::{
     Result,
+    config::Hook,
     git::Git,
     step::{CheckType, RunType, Step},
 };
@@ -32,24 +33,10 @@ pub struct Check {
 impl Check {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
-        let repo = Git::new()?; // TODO: remove repo
-        let hook = once(("check".to_string(), Step::check())).collect();
-
-        // Check if both from_ref and to_ref are provided or neither
-        if (self.from_ref.is_some() && self.to_ref.is_none())
-            || (self.from_ref.is_none() && self.to_ref.is_some())
-        {
-            return Err(eyre::eyre!(
-                "Both --from-ref and --to-ref must be provided together"
-            ));
-        }
-
         config
             .run_hook(
                 self.all,
-                &hook,
-                RunType::Check(CheckType::Check),
-                &repo,
+                "check",
                 &self.linter,
                 Default::default(),
                 self.from_ref.as_deref(),

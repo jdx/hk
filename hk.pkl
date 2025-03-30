@@ -1,53 +1,58 @@
 // amends "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/Config.pkl"
 amends "pkl/Config.pkl"
-import "pkl/builtins/actionlint.pkl"
-import "pkl/builtins/cargo_clippy.pkl"
-import "pkl/builtins/cargo_fmt.pkl"
-import "pkl/builtins/prettier.pkl"
-import "pkl/builtins/eslint.pkl"
+import "pkl/builtins.pkl"
 
 // defines what happens during git pre-commit hook
-linters = new {
-    ["actionlint"] = new actionlint.Actionlint {}
+local linters = new Mapping<String, Step> {
+    ["actionlint"] = builtins.actionlint
     // TODO: fails on releases with hk-example.pkl
     //["pkl"] {
         //glob = new { "*.pkl" }
         //check = "pkl eval {{files}} >/dev/null"
     //}
     // predefined formatters+linters
-    ["cargo-clippy"] = new cargo_clippy.CargoClippy {
+    ["cargo-clippy"] = (builtins.cargo_clippy) {
         profiles = List("slow")
         check_extra_args = "-- -D warnings"
     }
-    ["cargo-fmt"] = new cargo_fmt.CargoFmt {}
+    ["cargo-fmt"] = builtins.cargo_fmt
     ["dbg"] {
         // ensure no dbg! macros are used
         glob = List("**/*.rs")
         check = "sleep 1.5; ! rg -e 'dbg!' {{files}}"
     }
-    ["eslint"] = new eslint.Eslint {
+    ["eslint"] = (builtins.eslint) {
         dir = "docs"
         prefix = "bun run"
     }
-    ["prettier"] = new prettier.Prettier {
+    ["prettier"] = (builtins.prettier) {
         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
     }
 }
 
 hooks = new {
     ["pre-commit"] {
-        ["prelint"] {
-            run = "mise run prelint && sleep 1"
-            exclusive = true
-        }
-        ["fix"] = new Fix {}
-        ["postlint"] {
-            run = "echo postlint && sleep 1"
-            exclusive = true
+        steps = new {
+            ["stash"] = new Stash {}
+            ["prelint"] {
+                run = "mise run prelint && sleep 1"
+                exclusive = true
+            }
+            ...linters
+            ["postlint"] {
+                run = "echo postlint && sleep 1"
+                exclusive = true
+            }
         }
     }
     ["pre-push"] {
-        ["check"] = new Check {}
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
+    }
+    ["fix"] {
+        steps = linters
     }
     //["prepare-commit-msg"] {
     //    ["render-commit-msg"] {

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class TfLint extends Config.Linter {
+tf_lint = new Config.Step {
     glob = List("**/*.tf")
     check = "tflint {{ files }}"
 } 

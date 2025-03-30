@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class StandardJs extends Config.Linter {
+standard_js = new Config.Step {
     glob = List("**/*.{js,jsx,ts,tsx}")
     check = "standard {{ files }}"
     fix = "standard --fix {{ files }}"

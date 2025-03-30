@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Stylua extends Config.Linter {
+stylua = new Config.Step {
     glob = List("**/*.lua")
     check = "stylua --check {{ files }}"
     fix = "stylua {{ files }}"

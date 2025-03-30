@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class SwiftLint extends Config.Linter {
+swift_lint = new Config.Step {
     glob = List("**/*.swift")
     check = "swiftlint lint {{ files }}"
     fix = "swiftlint --fix {{ files }}"

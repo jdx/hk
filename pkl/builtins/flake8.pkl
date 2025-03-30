@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Flake8 extends Config.Linter {
+flake8 = new Config.Step {
     glob = List("**/*.py")
     check = "flake8 {{ files }}"
 } 

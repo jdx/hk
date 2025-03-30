@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, LazyLock},
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     env,
     git::Git,
     hash,
-    step::{RunType, Step},
+    step::{CheckType, RunType, Step},
     step_scheduler::StepScheduler,
     tera::Context,
     version,
@@ -86,9 +86,13 @@ impl Config {
         if let Some(min_hk_version) = &config.min_hk_version {
             version::version_cmp_or_bail(min_hk_version)?;
         }
-        for steps in config.hooks.values_mut() {
-            for (name, step) in steps.iter_mut() {
-                step.name = name.clone();
+        for (name, hook) in config.hooks.iter_mut() {
+            hook.name = name.clone();
+            for (name, step) in hook.steps.iter_mut() {
+                match step {
+                    Steps::Step(step) => step.name = name.clone(),
+                    Steps::Stash(_) => {}
+                }
             }
         }
         for (name, linter) in config.linters.iter_mut() {
@@ -106,7 +110,43 @@ pub struct Config {
     #[serde(default)]
     pub linters: IndexMap<String, Linter>,
     #[serde(default)]
-    pub hooks: IndexMap<String, IndexMap<String, Step>>,
+    pub hooks: IndexMap<String, Hook>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+#[serde(deny_unknown_fields)]
+pub struct Hook {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub steps: IndexMap<String, Steps>,
+    #[serde(default)]
+    pub fix: bool,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case", tag = "type")]
+pub enum Steps {
+    Step(Box<Step>),
+    Stash(Box<Stash>),
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub struct Stash {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub method: StashMethod,
+}
+
+#[derive(Debug, Clone, Eq, Default, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+pub enum StashMethod {
+    #[default]
+    GitDiff,
+    GitStash,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
@@ -178,18 +218,37 @@ impl std::fmt::Display for Config {
 }
 
 impl Config {
-    #[allow(clippy::too_many_arguments)]
     pub async fn run_hook(
         &self,
         all: bool,
-        hook: &IndexMap<String, Step>,
-        run_type: RunType,
-        repo: &Git,
+        hook: &str,
         linters: &[String],
         tctx: Context,
         from_ref: Option<&str>,
         to_ref: Option<&str>,
     ) -> Result<()> {
+        if env::HK_SKIP_HOOK.contains(hook) {
+            warn!("{}: skipping hook due to HK_SKIP_HOOK", hook);
+            return Ok(());
+        }
+        static HOOK: LazyLock<Hook> = LazyLock::new(Default::default);
+        let hook = self.hooks.get(hook).unwrap_or(&HOOK);
+        let run_type = if *env::HK_FIX && hook.fix {
+            RunType::Fix
+        } else {
+            RunType::Check(CheckType::Check)
+        };
+        // Check if both from_ref and to_ref are provided or neither
+        if from_ref.is_some() != to_ref.is_some() {
+            return Err(eyre::eyre!(
+                "Both --from-ref and --to-ref must be provided together"
+            ));
+        }
+
+        let mut repo = Git::new()?;
+        if !all {
+            repo.stash_unstaged(false)?;
+        }
         let file_progress_builder = ProgressJobBuilder::new().body(vec![
             "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}".to_string(),
         ]);
@@ -215,11 +274,21 @@ impl Config {
         };
         file_progress.prop("files", &files.len());
         file_progress.set_status(ProgressStatus::Done);
-        StepScheduler::new(hook, run_type, repo)
+
+        let mut result = StepScheduler::new(&hook, run_type, &repo)
             .with_files(files)
             .with_linters(linters)
             .with_tctx(tctx)
             .run()
-            .await
+            .await;
+
+        if let Err(err) = repo.pop_stash() {
+            if result.is_ok() {
+                result = Err(err);
+            } else {
+                warn!("Failed to pop stash: {}", err);
+            }
+        }
+        result
     }
 }

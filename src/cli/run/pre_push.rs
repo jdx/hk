@@ -4,6 +4,7 @@ use std::sync::LazyLock;
 
 use indexmap::IndexMap;
 
+use crate::config::Hook;
 use crate::{Result, git::Git};
 use crate::{config::Config, step::CheckType};
 use crate::{
@@ -32,9 +33,6 @@ pub struct PrePush {
     /// Run on specific linter(s)
     #[clap(long)]
     linter: Vec<String>,
-    /// Force stashing even if it's disabled via HK_STASH
-    #[clap(long)]
-    stash: bool,
     /// Start reference for checking files (requires --to-ref)
     #[clap(long)]
     from_ref: Option<String>,
@@ -62,10 +60,6 @@ impl From<&str> for PrePushRefs {
 impl PrePush {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
-        if env::HK_SKIP_HOOK.contains("pre-push") {
-            warn!("pre-push: skipping hook due to HK_SKIP_HOOK");
-            return Ok(());
-        }
         let to_be_updated_refs = if std::io::stdin().is_terminal() {
             vec![]
         } else {
@@ -83,20 +77,19 @@ impl PrePush {
                 .collect::<Vec<_>>()
         };
         trace!("to_be_updated_refs: {:?}", to_be_updated_refs);
-        let mut repo = Git::new()?;
-        let run_type = RunType::Check(CheckType::Check);
 
-        let from_ref = match &self.to_ref {
+        let from_ref = match &self.from_ref {
             Some(to_ref) => to_ref.clone(),
             None if !to_be_updated_refs.is_empty() => to_be_updated_refs[0].from.1.clone(),
             None => {
                 let remote = self.remote.as_deref().unwrap_or("origin");
+                let repo = Git::new()?; // TODO: remove this extra repo creation
                 repo.matching_remote_branch(remote)?
                     .unwrap_or(format!("refs/remotes/{remote}/HEAD"))
             }
         };
         let to_ref = self
-            .from_ref
+            .to_ref
             .clone()
             .or(if !to_be_updated_refs.is_empty() {
                 Some(to_be_updated_refs[0].to.1.clone())
@@ -106,31 +99,15 @@ impl PrePush {
             .unwrap_or("HEAD".to_string());
         debug!("from_ref: {}, to_ref: {}", from_ref, to_ref);
 
-        if !self.all {
-            repo.stash_unstaged(self.stash)?;
-        }
-        static HOOK: LazyLock<IndexMap<String, Step>> = LazyLock::new(Default::default);
-        let hook = config.hooks.get("pre-push").unwrap_or(&HOOK);
-        let mut result = config
+        config
             .run_hook(
                 self.all,
-                hook,
-                run_type,
-                &repo,
+                "pre-push",
                 &self.linter,
                 Default::default(),
                 Some(&from_ref),
                 Some(&to_ref),
             )
-            .await;
-
-        if let Err(err) = repo.pop_stash() {
-            if result.is_ok() {
-                result = Err(err);
-            } else {
-                warn!("Failed to pop stash: {}", err);
-            }
-        }
-        result
+            .await
     }
 }

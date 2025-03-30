@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Rubocop extends Config.Linter {
+rubocop = new Config.Step {
     glob = List("**/*.rb")
     check = "rubocop {{ files }}"
     fix = "rubocop --fix {{ files }}"

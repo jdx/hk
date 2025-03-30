@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class Tsc extends Config.Linter {
+tsc = new Config.Step {
     workspace_indicator = "tsconfig.json"
     glob = List("**/*.{ts,tsx}")
     check = "tsc --noEmit -p {{workspace_indicator}}"

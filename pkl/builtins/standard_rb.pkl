@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-class StandardRb extends Config.Linter {
+standard_rb = new Config.Step {
     glob = List("**/*.rb")
     check = "standardrb {{ files }}"
     fix = "standardrb --fix {{ files }}"
