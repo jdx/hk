@@ -52,7 +52,7 @@ static SPINNERS: LazyLock<HashMap<String, Spinner>> = LazyLock::new(|| {
         spinner!("monkey", &["🙈", "🙉", "🙊"], 300),
         spinner!("meter", &["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"], 120),
         spinner!("hamburger", &["☱", "☲", "☴", "☲"], 120),
-        spinner!("ellipsis", &["  ", ".  ", ".. ", "..."], 120),
+        spinner!("ellipsis", &["   ", ".  ", ".. ", "..."], 120),
     ]
     .into_iter()
     .collect()
