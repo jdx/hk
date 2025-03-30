@@ -1,5 +1,5 @@
-use thiserror::Error;
 use std::process::ExitStatus;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {

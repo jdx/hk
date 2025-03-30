@@ -5,9 +5,9 @@ use crate::env;
 use std::sync::Mutex;
 use std::time::Duration;
 
+use crate::multi_progress_report::CLI_NAME;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::sync::LazyLock as Lazy;
-use crate::multi_progress_report::CLI_NAME;
 
 use crate::style;
 
@@ -40,7 +40,10 @@ static PROG_TEMPLATE: Lazy<ProgressStyle> = Lazy::new(|| {
 });
 
 static SUCCESS_TEMPLATE: Lazy<ProgressStyle> = Lazy::new(|| {
-    let tmpl = format!("{{prefix}} {} {{wide_msg}} {{elapsed:>3.dim.italic}}", style::egreen("✓").bright());
+    let tmpl = format!(
+        "{{prefix}} {} {{wide_msg}} {{elapsed:>3.dim.italic}}",
+        style::egreen("✓").bright()
+    );
     ProgressStyle::with_template(tmpl.as_str()).unwrap()
 });
 

@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use console::{style, StyledObject};
+use console::{StyledObject, style};
 
 pub fn ereset() -> String {
     if console::colors_enabled_stderr() {

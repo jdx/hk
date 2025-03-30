@@ -1,4 +1,4 @@
-use crate::{progress_bar, style, Result};
+use crate::{Result, progress_bar, style};
 use serde::ser::Serialize;
 use std::{
     collections::HashMap,
@@ -59,7 +59,7 @@ static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100)); // TO
 static LINES: Mutex<usize> = Mutex::new(0);
 static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 static STARTED: Mutex<bool> = Mutex::new(false);
-static FLUSH: LazyLock<Condvar> = LazyLock::new(|| Condvar::new());
+static FLUSH: LazyLock<Condvar> = LazyLock::new(Condvar::new);
 static PAUSED: AtomicBool = AtomicBool::new(false);
 static JOBS: Mutex<Vec<Arc<ProgressJob>>> = Mutex::new(vec![]);
 static TERA: LazyLock<Tera> = LazyLock::new(Default::default);
@@ -226,9 +226,10 @@ impl ProgressJob {
     fn render(&self, tera: &mut Tera, mut ctx: RenderContext) -> Result<String> {
         let mut s = vec![];
         ctx.tera_ctx.extend(self.tera_ctx.lock().unwrap().clone());
-        ctx.progress = if let (Some(progress_current), Some(progress_total)) =
-            (self.progress_current.lock().unwrap().clone(), self.progress_total.lock().unwrap().clone())
-        {
+        ctx.progress = if let (Some(progress_current), Some(progress_total)) = (
+            *self.progress_current.lock().unwrap(),
+            *self.progress_total.lock().unwrap(),
+        ) {
             Some((progress_current, progress_total))
         } else {
             None
@@ -246,6 +247,7 @@ impl ProgressJob {
             let name = format!("progress_{}_{}", self.id, body_id);
             add_tera_template(tera, &name, body)?;
             let body = tera.render(&name, &ctx.tera_ctx)?;
+            let body = flex(&body, ctx.width - ctx.indent);
             s.push(body.trim_end().to_string());
         }
         if ctx.include_children && self.should_display_children() {
@@ -264,8 +266,7 @@ impl ProgressJob {
 
     fn should_display(&self) -> bool {
         let status = self.status.lock().unwrap();
-        !status.is_hide()
-            && (status.is_active() || self.on_done != ProgressJobDoneBehavior::Hide)
+        !status.is_hide() && (status.is_active() || self.on_done != ProgressJobDoneBehavior::Hide)
     }
 
     fn should_display_children(&self) -> bool {
@@ -282,7 +283,11 @@ impl ProgressJob {
 
     pub fn remove(&self) {
         if let Some(parent) = self.parent.upgrade() {
-            parent.children.lock().unwrap().retain(|child| child.id != self.id);
+            parent
+                .children
+                .lock()
+                .unwrap()
+                .retain(|child| child.id != self.id);
         } else {
             JOBS.lock().unwrap().retain(|job| job.id != self.id);
         }
@@ -311,7 +316,10 @@ impl ProgressJob {
     }
 
     pub fn progress_current(&self, progress_current: usize) {
-        self.progress_current.lock().unwrap().replace(progress_current);
+        self.progress_current
+            .lock()
+            .unwrap()
+            .replace(progress_current);
         self.update();
     }
 
@@ -370,13 +378,14 @@ impl PartialEq for ProgressJob {
 impl Eq for ProgressJob {}
 
 fn indent(s: String, width: usize, indent: usize) -> String {
-    use unicode_width::UnicodeWidthChar;
     let mut result = Vec::new();
     let indent_str = " ".repeat(indent);
 
     for line in s.lines() {
         let mut current = String::new();
         let mut current_width = 0;
+        let mut chars = line.chars().peekable();
+        let mut ansi_code = String::new();
 
         // Add initial indentation
         if current.is_empty() {
@@ -384,11 +393,28 @@ fn indent(s: String, width: usize, indent: usize) -> String {
             current_width = indent;
         }
 
-        for c in line.chars() {
-            let char_width = c.width().unwrap_or(1);
-            if current_width + char_width > width && !current.trim().is_empty() {
+        while let Some(c) = chars.next() {
+            // Handle ANSI escape codes
+            if c == '\x1b' {
+                ansi_code = String::from(c);
+                while let Some(&next) = chars.peek() {
+                    ansi_code.push(next);
+                    chars.next();
+                    if next == 'm' {
+                        break;
+                    }
+                }
+                current.push_str(&ansi_code);
+                continue;
+            }
+
+            let char_width = console::measure_text_width(&c.to_string());
+            let next_width = current_width + char_width;
+
+            // Only wrap if we're not at the end of the input and the next character would exceed width
+            if next_width > width && !current.trim().is_empty() && chars.peek().is_some() {
                 result.push(current);
-                current = indent_str.clone();
+                current = format!("{}{}", indent_str, ansi_code);
                 current_width = indent;
             }
             current.push(c);
@@ -397,7 +423,40 @@ fn indent(s: String, width: usize, indent: usize) -> String {
             }
         }
 
+        // For the last line, if it's too long, we need to wrap it
         if !current.is_empty() {
+            if current_width > width {
+                // Find the last space before the width limit
+                let mut last_space = 0;
+                let mut width_so_far = indent;
+                let mut last_valid_pos = indent_str.len();
+                let mut chars = current[indent_str.len()..].chars();
+
+                while let Some(c) = chars.next() {
+                    if !c.is_control() {
+                        width_so_far += console::measure_text_width(&c.to_string());
+                        if width_so_far > width {
+                            break;
+                        }
+                    }
+                    if c == ' ' {
+                        last_space = current.len() - chars.as_str().len() - 1;
+                    }
+                    last_valid_pos = current.len() - chars.as_str().len() - 1;
+                }
+
+                if last_space > indent_str.len() {
+                    // Split at the last space
+                    let (first, second) = current.split_at(last_space + 1);
+                    result.push(first.to_string());
+                    current = format!("{}{}{}", indent_str, ansi_code, second);
+                } else {
+                    // If no space found, split at the last valid position
+                    let (first, second) = current.split_at(last_valid_pos + 1);
+                    result.push(first.to_string());
+                    current = format!("{}{}{}", indent_str, ansi_code, second);
+                }
+            }
             result.push(current);
         }
     }
@@ -535,7 +594,7 @@ fn clear() -> Result<()> {
 fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
     let elapsed = ctx.elapsed().as_millis() as usize;
     let status = job.status.lock().unwrap().clone();
-    let progress = ctx.progress.clone();
+    let progress = ctx.progress;
     let width = ctx.width;
     tera.register_function(
         "spinner",
@@ -566,11 +625,25 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
         "progress_bar",
         move |_props: &HashMap<String, tera::Value>| {
             if let Some((progress_current, progress_total)) = progress {
-                let progress_bar = progress_bar::progress_bar(progress_current, progress_total, width);
+                let progress_bar =
+                    progress_bar::progress_bar(progress_current, progress_total, width);
                 Ok(progress_bar.into())
             } else {
                 Ok("".to_string().into())
             }
+        },
+    );
+    tera.register_filter(
+        "flex",
+        |value: &tera::Value, _: &HashMap<String, tera::Value>| {
+            Ok(format!(
+                "<clx:flex>{}<clx:flex>",
+                value
+                    .as_str()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| value.to_string())
+            )
+            .into())
         },
     );
 }
@@ -596,4 +669,44 @@ pub fn set_output(output: ProgressOutput) {
 
 pub fn output() -> ProgressOutput {
     *OUTPUT.lock().unwrap()
+}
+
+fn flex(s: &str, width: usize) -> String {
+    let flex = |s: &str| {
+        let mut result = String::new();
+        let parts = s.splitn(3, "<clx:flex>").collect::<Vec<_>>();
+        if parts.len() != 3 {
+            return s.to_string();
+        }
+        let width =
+            width - console::measure_text_width(parts[0]) - console::measure_text_width(parts[2]);
+        result.push_str(parts[0]);
+        // TODO: why +1?
+        result.push_str(&console::truncate_str(parts[1], width + 1, "…"));
+        result.push_str(parts[2]);
+        result
+    };
+    s.lines().map(flex).collect::<Vec<_>>().join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_indent() {
+        let s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let result = indent(s.to_string(), 10, 2);
+        assert_eq!(
+            result,
+            "  aaaaaaaa\n  aaaaaaaa\n  aaaaaaaa\n  aaaaaaaa\n  aa"
+        );
+
+        let s = "\x1b[0;31maaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let result = indent(s.to_string(), 10, 2);
+        assert_eq!(
+            result,
+            "  \x1b[0;31maaaaaaaa\n  \x1b[0;31maaaaaaaa\n  \x1b[0;31maaaaaaaa\n  \x1b[0;31maaaaaaaa\n  \x1b[0;31maa"
+        );
+    }
 }
