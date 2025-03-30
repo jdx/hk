@@ -256,7 +256,7 @@ impl ProgressJob {
             for child in children.iter() {
                 let child_output = child.render(tera, ctx.clone())?;
                 if !child_output.is_empty() {
-                    let child_output = indent(child_output, ctx.width, ctx.indent);
+                    let child_output = indent(child_output, ctx.width - ctx.indent + 1, ctx.indent);
                     s.push(child_output);
                 }
             }
@@ -426,8 +426,6 @@ fn indent(s: String, width: usize, indent: usize) -> String {
         // For the last line, if it's too long, we need to wrap it
         if !current.is_empty() {
             if current_width > width {
-                // Find the last space before the width limit
-                let mut last_space = 0;
                 let mut width_so_far = indent;
                 let mut last_valid_pos = indent_str.len();
                 let mut chars = current[indent_str.len()..].chars();
@@ -439,23 +437,12 @@ fn indent(s: String, width: usize, indent: usize) -> String {
                             break;
                         }
                     }
-                    if c == ' ' {
-                        last_space = current.len() - chars.as_str().len() - 1;
-                    }
                     last_valid_pos = current.len() - chars.as_str().len() - 1;
                 }
 
-                if last_space > indent_str.len() {
-                    // Split at the last space
-                    let (first, second) = current.split_at(last_space + 1);
-                    result.push(first.to_string());
-                    current = format!("{}{}{}", indent_str, ansi_code, second);
-                } else {
-                    // If no space found, split at the last valid position
-                    let (first, second) = current.split_at(last_valid_pos + 1);
-                    result.push(first.to_string());
-                    current = format!("{}{}{}", indent_str, ansi_code, second);
-                }
+                let (first, second) = current.split_at(last_valid_pos + 1);
+                result.push(first.to_string());
+                current = format!("{}{}{}", indent_str, ansi_code, second);
             }
             result.push(current);
         }
@@ -682,7 +669,7 @@ fn flex(s: &str, width: usize) -> String {
             width - console::measure_text_width(parts[0]) - console::measure_text_width(parts[2]);
         result.push_str(parts[0]);
         // TODO: why +1?
-        result.push_str(&console::truncate_str(parts[1], width + 1, "…"));
+        result.push_str(&console::truncate_str(parts[1], width, "…"));
         result.push_str(parts[2]);
         result
     };
