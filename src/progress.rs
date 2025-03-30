@@ -25,11 +25,14 @@ struct Spinner {
 }
 
 macro_rules! spinner {
-    ($name:ident, $frames:expr, $fps:expr) => {
-        Spinner {
-            frames: $frames.iter().map(|s| s.to_string()).collect(),
-            fps: $fps,
-        }
+    ($name:expr, $frames:expr, $fps:expr) => {
+        (
+            $name.to_string(),
+            Spinner {
+                frames: $frames.iter().map(|s| s.to_string()).collect(),
+                fps: $fps,
+            }
+        )
     };
 }
 
@@ -38,18 +41,18 @@ const DEFAULT_SPINNER: &str = "mini_dot";
 static SPINNERS: LazyLock<HashMap<String, Spinner>> = LazyLock::new(|| {
     vec![
         // from https://github.com/charmbracelet/bubbles/blob/ea344ab907bddf5e8f71cd73b9583b070e8f1b2f/spinner/spinner.go
-        ("line".to_string(), spinner!(line, &["|", "/", "-", "\\"], 100)),
-        ("dot".to_string(), spinner!(dot, &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], 100)),
-        ("mini_dot".to_string(), spinner!(mini_dot, &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 100)),
-        ("jump".to_string(), spinner!(jump, &["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"], 100)),
-        ("pulse".to_string(), spinner!(pulse, &["█", "▓", "▒", "░"], 120)),
-        ("points".to_string(), spinner!(points, &["∙∙∙", "●∙∙", "∙●∙", "∙∙●"], 150)),
-        ("globe".to_string(), spinner!(globe, &["🌍", "🌎", "🌏"], 250)),
-        ("moon".to_string(), spinner!(moon, &["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], 120)),
-        ("monkey".to_string(), spinner!(monkey, &["🙈", "🙉", "🙊"], 300)),
-        ("meter".to_string(), spinner!(meter, &["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"], 120)),
-        ("hamburger".to_string(), spinner!(hamburger, &["☱", "☲", "☴", "☲"], 120)),
-        ("ellipsis".to_string(), spinner!(ellipsis, &["  ", ".  ", ".. ", "..."], 120)),
+        spinner!("line", &["|", "/", "-", "\\"], 100),
+        spinner!("dot", &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], 100),
+        spinner!("mini_dot", &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 100),
+        spinner!("jump", &["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"], 100),
+        spinner!("pulse", &["█", "▓", "▒", "░"], 120),
+        spinner!("points", &["∙∙∙", "●∙∙", "∙●∙", "∙∙●"], 150),
+        spinner!("globe", &["🌍", "🌎", "🌏"], 250),
+        spinner!("moon", &["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], 120),
+        spinner!("monkey", &["🙈", "🙉", "🙊"], 300),
+        spinner!("meter", &["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"], 120),
+        spinner!("hamburger", &["☱", "☲", "☴", "☲"], 120),
+        spinner!("ellipsis", &["  ", ".  ", ".. ", "..."], 120),
     ]
     .into_iter()
     .collect()
