@@ -1,6 +1,6 @@
 [package]
 name = "ensembler"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2021"
 repository = "https://github.com/jdx/ensembler"
 homepage = "https://github.com/jdx/ensembler"
