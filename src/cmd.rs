@@ -280,8 +280,8 @@ impl Display for CmdLineRunner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let args = self.args.join(" ");
         let mut cmd = format!("{} {}", &self.program, args);
-        if cmd.starts_with("sh -c ") {
-            cmd = cmd[6..].to_string();
+        if cmd.starts_with("sh -o errexit -c ") {
+            cmd = cmd[17..].to_string();
         }
         write!(f, "{}", cmd)
     }
