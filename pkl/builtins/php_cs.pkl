@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-php_cs = new Config.Step {
+php_cs = new Config.LinterStep {
     glob = List("**/*.php")
     check = "phpcs {{ files }}"
     fix = "phpcbf {{ files }}"

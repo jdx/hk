@@ -1,15 +1,7 @@
 use std::path::PathBuf;
-use std::sync::LazyLock;
 
-use indexmap::IndexMap;
-
-use crate::config::Hook;
-use crate::{Result, git::Git, tera::Context};
-use crate::{config::Config, step::CheckType};
-use crate::{
-    env,
-    step::{RunType, Step},
-};
+use crate::config::Config;
+use crate::{Result, tera::Context};
 
 #[derive(Debug, clap::Args)]
 #[clap(visible_alias = "pcm")]

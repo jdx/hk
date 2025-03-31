@@ -1,4 +1,4 @@
-use crate::{step_depends::StepDepends, tera, ui::style};
+use crate::{git::Git, step_depends::StepDepends, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressStatus};
 use indexmap::IndexMap;
 use std::path::PathBuf;
@@ -7,6 +7,7 @@ use tokio::sync::{Mutex, RwLock, Semaphore};
 
 /// Stores all the information/mutexes needed to run a StepJob
 pub struct StepContext {
+    pub git: Arc<Mutex<Git>>,
     pub file_locks: IndexMap<PathBuf, Arc<RwLock<()>>>,
     pub semaphore: Arc<Semaphore>,
     pub failed: Arc<Mutex<bool>>,

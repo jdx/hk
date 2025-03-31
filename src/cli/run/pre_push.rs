@@ -1,16 +1,8 @@
 use std::io::IsTerminal;
 use std::io::Read;
-use std::sync::LazyLock;
 
-use indexmap::IndexMap;
-
-use crate::config::Hook;
+use crate::config::Config;
 use crate::{Result, git::Git};
-use crate::{config::Config, step::CheckType};
-use crate::{
-    env,
-    step::{RunType, Step},
-};
 
 /// Sets up git hooks to run hk
 #[derive(Debug, clap::Args)]

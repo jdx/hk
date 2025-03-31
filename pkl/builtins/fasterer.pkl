@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-fasterer = new Config.Step {
+fasterer = new Config.LinterStep {
     glob = List("**/*.rb")
     check = "fasterer {{ files }}"
 } 

@@ -128,6 +128,32 @@ impl Git {
     //     Ok(vec![])
     // }
 
+    pub fn modified_files(&self) -> Result<Vec<PathBuf>> {
+        let mut opts = git2::DiffOptions::new();
+        opts.include_untracked(true);
+        let diff = self
+            .repo
+            .diff_tree_to_workdir_with_index(None, Some(&mut opts))
+            .wrap_err("failed to get diff")?;
+        let mut files = BTreeSet::new();
+        diff.foreach(
+            &mut |delta, _| {
+                if delta.status() == git2::Delta::Deleted {
+                    return true;
+                }
+                if let Some(path) = delta.new_file().path() {
+                    files.insert(PathBuf::from(path));
+                }
+                true
+            },
+            None,
+            None,
+            None,
+        )
+        .wrap_err("failed to process diff")?;
+        Ok(files.into_iter().collect())
+    }
+
     pub fn staged_files(&self) -> Result<Vec<PathBuf>> {
         let mut status_options = StatusOptions::new();
         status_options.show(StatusShow::Index);
@@ -165,14 +191,17 @@ impl Git {
             return Ok(());
         }
         let job = ProgressJobBuilder::new()
-            .prop("message", "stash – Fetching unstaged files")
+            .body(vec!["{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}".to_string()])
+            .prop("message", "Fetching unstaged files")
             .start();
 
+        let unstaged_files = self.unstaged_files()?;
+        job.prop("files", &unstaged_files.len());
         // TODO: if any intent_to_add files exist, run `git rm --cached -- <file>...` then `git add --intent-to-add -- <file>...` when unstashing
         // let intent_to_add = self.intent_to_add_files()?;
         // see https://github.com/pre-commit/pre-commit/blob/main/pre_commit/staged_files_only.py
-        if self.unstaged_files()?.is_empty() {
-            job.prop("message", "stash – No unstaged changes to stash");
+        if unstaged_files.is_empty() {
+            job.prop("message", "No unstaged changes to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
         }
@@ -183,14 +212,14 @@ impl Git {
         //     }
         // }
         self.stash = if *env::HK_STASH_USE_GIT {
-            job.prop("message", "stash – Running git stash");
+            job.prop("message", "Running git stash");
             job.update();
             self.push_stash()?.map(Either::Right)
         } else {
             job.prop(
                 "message",
                 &format!(
-                    "stash – Creating git diff patch – {}",
+                    "Creating git diff patch – {}",
                     display_path(self.patch_file())
                 ),
             );
@@ -198,12 +227,12 @@ impl Git {
             self.build_diff()?.map(Either::Left)
         };
         if self.stash.is_none() {
-            job.prop("message", "stash – No unstaged files to stash");
+            job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
         }
 
-        job.prop("message", "stash – Removing unstaged changes");
+        job.prop("message", "Removing unstaged changes");
         job.update();
 
         let mut checkout_opts = git2::build::CheckoutBuilder::new();
@@ -215,7 +244,7 @@ impl Git {
             .checkout_index(None, Some(&mut checkout_opts))
             .wrap_err("failed to reset to head")?;
 
-        job.prop("message", "stash – Stashed unstaged changes");
+        job.prop("message", "Stashed unstaged changes");
         job.set_status(ProgressStatus::Done);
         // return Err(eyre!("failed to reset to head"));
         Ok(())

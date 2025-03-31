@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-ox_lint = new Config.Step {
+ox_lint = new Config.LinterStep {
     glob = List("**/*.{js,jsx,ts,tsx}")
     check = "oxlint {{ files }}"
     fix = "oxlint --fix {{ files }}"

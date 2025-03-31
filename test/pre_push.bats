@@ -16,9 +16,8 @@ teardown() {
 @test "pre-push hook" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
-linters { ["prettier"] = new prettier.Prettier {} }
-hooks { ["pre-push"] = new { ["check"] = new Check {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks { ["pre-push"] { steps { ["prettier"] = builtins.prettier } } }
 EOF
     git add hk.pkl
     git commit -m "install hk"

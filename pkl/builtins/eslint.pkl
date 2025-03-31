@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-eslint = new Config.Step {
+eslint = new Config.LinterStep {
     glob = List("**/*.{js,jsx,ts,tsx}")
     batch = true
     check = "eslint {{ files }}"

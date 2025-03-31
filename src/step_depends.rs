@@ -11,10 +11,7 @@ pub struct StepDepends {
 
 impl StepDepends {
     pub fn new(jobs: &[StepJob]) -> Self {
-        let names = jobs
-            .iter()
-            .map(|s| s.step.name.as_str())
-            .collect::<Vec<_>>();
+        let names = jobs.iter().map(|s| s.step.name()).collect::<Vec<_>>();
         let counts = names.iter().counts();
         StepDepends {
             depends: names

@@ -11,8 +11,10 @@ teardown() {
 amends "$PKL_PATH/Config.pkl"
 hooks = new {
     ["prepare-commit-msg"] {
-        ["render-commit-msg"] {
-            run = "echo default_commit_msg > {{commit_msg_file}}"
+        steps {
+            ["render-commit-msg"] {
+                run = "echo default_commit_msg > {{commit_msg_file}}"
+            }
         }
     }
 }

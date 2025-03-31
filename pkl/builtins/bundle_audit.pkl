@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-bundle_audit = new Config.Step {
+bundle_audit = new Config.LinterStep {
     glob = List("**/Gemfile.lock")
     check = "bundle-audit check {{ files }}"
     fix = "bundle-audit update"

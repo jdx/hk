@@ -10,7 +10,7 @@ mod check;
 mod completion;
 mod config;
 mod fix;
-mod generate;
+mod init;
 mod install;
 mod run;
 mod usage;
@@ -50,7 +50,7 @@ enum Commands {
     Completion(completion::Completion),
     Config(config::Config),
     Fix(fix::Fix),
-    Generate(generate::Generate),
+    Init(init::Init),
     Install(install::Install),
     Run(run::Run),
     Usage(usage::Usage),
@@ -96,7 +96,7 @@ pub async fn run() -> Result<()> {
         Commands::Completion(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
         Commands::Fix(cmd) => cmd.run().await,
-        Commands::Generate(cmd) => cmd.run().await,
+        Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,
         Commands::Usage(cmd) => cmd.run().await,

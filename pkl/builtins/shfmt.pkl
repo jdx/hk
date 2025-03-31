@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-shfmt = new Config.Step {
+shfmt = new Config.LinterStep {
     glob = List("**/*.{sh,bash}")
     check = "shfmt -d {{ files }}"
     fix = "shfmt -w {{ files }}"

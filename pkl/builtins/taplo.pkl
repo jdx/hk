@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-taplo = new Config.Step {
+taplo = new Config.LinterStep {
     glob = List("**/*.toml")
     check = "taplo check {{ files }}"
     fix = "taplo format {{ files }}"

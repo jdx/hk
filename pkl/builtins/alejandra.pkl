@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-alejandra = new Config.Step {
+alejandra = new Config.LinterStep {
     glob = List("**/*.nix")
     check = "alejandra --check {{ files }}"
     fix = "alejandra {{ files }}"

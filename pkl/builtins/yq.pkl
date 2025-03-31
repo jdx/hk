@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-yq = new Config.Step {
+yq = new Config.LinterStep {
     glob = List("**/*.yaml")
     check = "yq {{ files }}"
     fix = "yq -iP {{ files }}"

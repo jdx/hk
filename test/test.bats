@@ -14,17 +14,16 @@ teardown() {
     assert_output --regexp "^hk\ [0-9]+\.[0-9]+\.[0-9]+$"
 }
 
-@test "hk generate creates hk.pkl" {
-    hk g
+@test "hk init creates hk.pkl" {
+    hk init
     assert_file_contains hk.pkl "linters ="
 }
 
 @test "hk install creates git hooks" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
-linters { ["prettier"] = new prettier.Prettier {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks { ["pre-commit"] { steps { ["prettier"] = builtins.prettier } } }
 EOF
     hk install
     assert_file_exists ".git/hooks/pre-commit"
@@ -37,9 +36,16 @@ EOF
     run git add test.js
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
-linters { ["prettier"] = new prettier.Prettier {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["prettier"] = builtins.prettier
+        }
+    }
+}
 EOF
     hk install
     run cat test.js
@@ -57,9 +63,16 @@ EOF
     git commit -m init
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
-linters { ["prettier"] = new prettier.Prettier {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["prettier"] = builtins.prettier
+        }
+    }
+}
 EOF
     hk run pre-commit -a
     run cat test.js
@@ -69,9 +82,16 @@ EOF
 @test "builtin: json" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/jq.pkl"
-linters { ["jq"] = new jq.Jq {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["jq"] = builtins.jq
+        }
+    }
+}
 EOF
     cat <<EOF > test.json
 { "invalid": 
@@ -85,9 +105,16 @@ EOF
 @test "builtin: json format" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/jq.pkl"
-linters { ["jq"] = new jq.Jq {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["jq"] = builtins.jq
+        }
+    }
+}
 EOF
     cat <<EOF > test.json
 {"test": 123}
@@ -102,9 +129,16 @@ EOF
 @test "builtin: yaml" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/yq.pkl"
-linters { ["yq"] = new yq.Yq {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["yq"] = builtins.yq
+        }
+    }
+}
 EOF
     cat <<EOF > test.yaml
 test: :
@@ -118,9 +152,16 @@ EOF
 @test "builtin: yaml format" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/yq.pkl"
-linters { ["yq"] = new yq.Yq {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["yq"] = builtins.yq
+        }
+    }
+}
 EOF
     cat <<EOF > test.yaml
     test: 123
@@ -134,9 +175,16 @@ EOF
 @test "builtin: shellcheck" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/shellcheck.pkl"
-linters { ["shellcheck"] = new shellcheck.Shellcheck {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["shellcheck"] = builtins.shellcheck
+        }
+    }
+}
 EOF
     cat <<EOF > test.sh
 #!/bin/bash
@@ -151,13 +199,17 @@ EOF
 @test "HK_SKIP_STEPS skips specified steps" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
-import "$PKL_PATH/builtins/shellcheck.pkl"
-linters {
-    ["prettier"] = new prettier.Prettier {}
-    ["shellcheck"] = new shellcheck.Shellcheck {}
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["prettier"] = builtins.prettier
+            ["shellcheck"] = builtins.shellcheck
+        }
+    }
 }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     touch test.sh
     touch test.js
@@ -172,13 +224,17 @@ EOF
 @test "HK_SKIP_HOOK skips entire hooks" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
-import "$PKL_PATH/builtins/shellcheck.pkl"
-linters {
-    ["prettier"] = new prettier.Prettier {}
-    ["shellcheck"] = new shellcheck.Shellcheck {}
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["prettier"] = builtins.prettier
+            ["shellcheck"] = builtins.shellcheck
+        }
+    }
 }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     touch test.sh
     touch test.js
@@ -192,19 +248,25 @@ EOF
 @test "check_first waits" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-linters {
-    ["a"] {
-        glob = List("*.sh")
-        check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"
-        fix = "echo 'start a' && sleep 0.1 && echo 'end a'"
-    }
-    ["b"] {
-        glob = List("*.sh")
-        check = "echo 'start b' && echo 'exit b' && exit 1"
-        fix = "echo 'start b' && echo 'end b' && touch test.sh"
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["a"] = new LinterStep {
+                glob = List("*.sh")
+                check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"
+                fix = "echo 'start a' && sleep 0.1 && echo 'end a'"
+            }
+            ["b"] = new LinterStep {
+                glob = List("*.sh")
+                check = "echo 'start b' && echo 'exit b' && exit 1"
+                fix = "echo 'start b' && echo 'end b' && touch test.sh"
+            }
+        }
     }
 }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
 EOF
     touch test.sh
     git add test.sh
@@ -248,9 +310,16 @@ EOF
     # Create the hk.pkl file with prettier
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
-linters { ["prettier"] = new prettier.Prettier {} }
-hooks { ["pre-commit"] = new { ["fix"] = new Fix {} } }
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["stash"] = new StashStep {}
+            ["prettier"] = builtins.prettier
+        }
+    }
+}
 EOF
     
     hk fix --from-ref=$FIRST_COMMIT --to-ref=$LAST_COMMIT

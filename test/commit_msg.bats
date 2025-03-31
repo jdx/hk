@@ -11,8 +11,10 @@ teardown() {
 amends "$PKL_PATH/Config.pkl"
 hooks = new {
     ["commit-msg"] {
-        ["validate-commit-msg"] {
-            run = "grep -q '^feat: ' {{commit_msg_file}} || (echo 'Commit message must start with feat:' >&2 && exit 1)"
+        steps {
+            ["validate-commit-msg"] {
+                run = "grep -q '^feat: ' {{commit_msg_file}} || (echo 'Commit message must start with feat:' >&2 && exit 1)"
+            }
         }
     }
 }

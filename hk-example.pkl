@@ -1,8 +1,7 @@
 amends "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/builtins/actionlint.pkl"
-import "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/builtins/prettier.pkl"
+import "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/builtins.pkl"
 
-linters {
+local linters = {
     // some linters are built into hk
     ["actionlint"] = new actionlint.Actionlint {}
     // linters can be manually defined
@@ -47,26 +46,34 @@ linters {
 }
 
 hooks {
-    ["pre-commit"] = new {
-        // custom step can be defined to run a shell command
-        ["prelint"] {
-            run = "mise run prelint"
-            exclusive = true // prevent other steps from running before this one or starting before this one finishes
-        }
-        ["fix"] = new Fix {
-            linter_dependencies {
-                // prettier has to run after eslint
-                // this will be done by batch, so a single batch of files
-                // may be formatted by prettier after eslint even if eslint hasn't processed all the files yet
-                ["prettier"] = List("eslint")
+    ["pre-commit"] {
+        fix = true // automatically modify files with available linter fixes
+        steps {
+            ["stash"] = new StashStep {}
+            // custom step can be defined to run a shell command
+            ["prelint"] {
+                run = "mise run prelint"
+                exclusive = true // prevent other steps from running before this one or starting before this one finishes
             }
-        }
-        ["postlint"] {
-            run = "mise run postlint"
-            exclusive = true // prevent other steps from running before this one or starting before this one finishes
+            ...linters
+            ["postlint"] {
+                run = "mise run postlint"
+                exclusive = true // prevent other steps from running before this one or starting before this one finishes
+            }
         }
     }
     // in this case, pre-push only checks files but doesn't run the fixes
     // this will be faster since no write locking will be required
-    ["pre-push"] = new { ["check"] = new Check {} }
+    ["pre-push"] {
+        steps = linters
+    }
+
+    // "fix" and "check" are special "hooks" for `hk fix` and `hk check` commands
+    ["fix"] {
+        fix = true // automatically modify files with available linter fixes
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
+    }
 }

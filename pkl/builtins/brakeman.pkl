@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-brakeman = new Config.Step {
+brakeman = new Config.LinterStep {
     glob = List("**/*.rb")
     check = "brakeman -q -w2 {{ files }}"
 } 

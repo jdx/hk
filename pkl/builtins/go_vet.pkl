@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-go_vet = new Config.Step {
+go_vet = new Config.LinterStep {
     glob = List("**/*.go")
     check = "go vet {{ files }}"
 } 

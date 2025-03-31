@@ -10,11 +10,15 @@ teardown() {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins/prettier.pkl"
-linters {
-    ["prettier"] {
-        dir = "ui"
-        glob = List("*.html", "*.ts")
-        check = "prettier --check {{files}}"
+hooks {
+    ["check"] {
+        steps {
+            ["prettier"] = new LinterStep {
+                dir = "ui"
+                glob = List("*.html", "*.ts")
+                check = "prettier --check {{files}}"
+            }
+        }
     }
 }
 EOF

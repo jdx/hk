@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-biome = new Config.Step {
+biome = new Config.LinterStep {
     glob = List("**/*.{js,jsx,ts,tsx,json}")
     check = "biome check {{ files }}"
     fix = "biome check --apply {{ files }}"

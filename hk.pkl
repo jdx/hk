@@ -3,7 +3,7 @@ amends "pkl/Config.pkl"
 import "pkl/builtins.pkl"
 
 // defines what happens during git pre-commit hook
-local linters = new Mapping<String, Step> {
+local linters = new Mapping<String, LinterStep> {
     ["actionlint"] = builtins.actionlint
     // TODO: fails on releases with hk-example.pkl
     //["pkl"] {
@@ -11,29 +11,30 @@ local linters = new Mapping<String, Step> {
         //check = "pkl eval {{files}} >/dev/null"
     //}
     // predefined formatters+linters
-    ["cargo-clippy"] = (builtins.cargo_clippy) {
-        profiles = List("slow")
-        check_extra_args = "-- -D warnings"
-    }
-    ["cargo-fmt"] = builtins.cargo_fmt
-    ["dbg"] {
-        // ensure no dbg! macros are used
-        glob = List("**/*.rs")
-        check = "sleep 1.5; ! rg -e 'dbg!' {{files}}"
-    }
-    ["eslint"] = (builtins.eslint) {
-        dir = "docs"
-        prefix = "bun run"
-    }
-    ["prettier"] = (builtins.prettier) {
-        glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
-    }
+     ["cargo-clippy"] = (builtins.cargo_clippy) {
+         profiles = List("slow")
+         check = "cargo clippy --manifest-path {{workspace_indicator}} -- -D warnings"
+     }
+     ["cargo-fmt"] = builtins.cargo_fmt
+     ["dbg"] {
+         // ensure no dbg! macros are used
+         glob = List("**/*.rs")
+         check = "sleep 1.5; ! rg -e 'dbg!' {{files}}"
+     }
+     ["eslint"] = (builtins.eslint) {
+         dir = "docs"
+         prefix = "bun run"
+     }
+     ["prettier"] = (builtins.prettier) {
+         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
+     }
 }
 
 hooks = new {
     ["pre-commit"] {
+        fix = true
         steps = new {
-            ["stash"] = new Stash {}
+            ["stash"] = new StashStep {}
             ["prelint"] {
                 run = "mise run prelint && sleep 1"
                 exclusive = true
@@ -52,6 +53,7 @@ hooks = new {
         steps = linters
     }
     ["fix"] {
+        fix = true
         steps = linters
     }
     //["prepare-commit-msg"] {

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-go_fmt = new Config.Step {
+go_fmt = new Config.LinterStep {
     glob = List("**/*.go")
     check = "gofmt -l {{ files }}"
     fix = "gofmt -w {{ files }}"

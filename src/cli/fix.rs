@@ -1,10 +1,5 @@
-use std::iter::once;
-use std::sync::LazyLock;
-
-use crate::config::Hook;
-use crate::step::RunType;
-use crate::{Result, git::Git};
-use crate::{config::Config, step::Step};
+use crate::Result;
+use crate::config::Config;
 
 /// Fixes code
 #[derive(Debug, clap::Args)]
@@ -27,6 +22,9 @@ pub struct Fix {
 impl Fix {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
+        if config.hooks.get("fix").is_none() {
+            eyre::bail!("fix hook not found in hk.pkl");
+        }
         config
             .run_hook(
                 self.all,

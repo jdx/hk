@@ -1,12 +1,4 @@
-use std::{iter::once, sync::LazyLock};
-
-use crate::{
-    Result,
-    config::Hook,
-    git::Git,
-    step::{CheckType, RunType, Step},
-};
-
+use crate::Result;
 use crate::config::Config;
 
 /// Fixes code
@@ -33,6 +25,9 @@ pub struct Check {
 impl Check {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
+        if config.hooks.get("check").is_none() {
+            eyre::bail!("check hook not found in hk.pkl");
+        }
         config
             .run_hook(
                 self.all,

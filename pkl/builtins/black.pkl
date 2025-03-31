@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-black = new Config.Step {
+black = new Config.LinterStep {
     glob = List("**/*.py")
     check = "black --check {{ files }}"
     fix = "black {{ files }}"

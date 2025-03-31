@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-actionlint = new Config.Step {
+actionlint = new Config.LinterStep {
     glob = List(".github/workflows/*.{yml,yaml}")
     batch = true
     check = "actionlint {{ files }}"

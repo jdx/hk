@@ -15,6 +15,7 @@ use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
+    panic,
     path::PathBuf,
     sync::Arc,
 };
@@ -23,15 +24,14 @@ use tokio::task::JoinSet;
 
 use crate::{Result, step_context::StepContext};
 use crate::{
-    config::Config,
     git::Git,
     settings::Settings,
-    step::{CheckType, RunType, Step},
+    step::{CheckType, RunType},
 };
 
-pub struct StepScheduler<'a> {
+pub struct StepScheduler {
     run_type: RunType,
-    repo: &'a Git,
+    repo: Arc<Mutex<Git>>,
     hook: Hook,
     files: Vec<PathBuf>,
     tctx: Context,
@@ -39,8 +39,8 @@ pub struct StepScheduler<'a> {
     semaphore: Arc<Semaphore>,
 }
 
-impl<'a> StepScheduler<'a> {
-    pub fn new(hook: &Hook, run_type: RunType, repo: &'a Git) -> Self {
+impl StepScheduler {
+    pub fn new(hook: &Hook, run_type: RunType, repo: Arc<Mutex<Git>>) -> Self {
         let settings = Settings::get();
         Self {
             run_type,
@@ -94,15 +94,16 @@ impl<'a> StepScheduler<'a> {
             let step_contexts: HashMap<String, Arc<StepContext>> = group
                 .iter()
                 .map(|job| job.step.clone())
-                .unique_by(|step| step.name.clone())
+                .unique_by(|step| step.name().to_string())
                 .map(|step| {
                     let jobs_total = group
                         .iter()
-                        .filter(|job| job.step.name == step.name)
+                        .filter(|job| job.step.name() == step.name())
                         .count();
                     (
-                        step.name.clone(),
+                        step.name().to_string(),
                         Arc::new(StepContext {
+                            git: self.repo.clone(),
                             semaphore: self.semaphore.clone(),
                             failed: self.failed.clone(),
                             file_locks: file_locks.clone(),
@@ -131,11 +132,7 @@ impl<'a> StepScheduler<'a> {
                             ))
                             .prop(
                                 "message",
-                                &group
-                                    .iter()
-                                    .map(|j| j.step.name.clone())
-                                    .unique()
-                                    .join(", "),
+                                &group.iter().map(|j| j.step.name()).unique().join(", "),
                             )
                             .start()
                     })
@@ -157,7 +154,7 @@ impl<'a> StepScheduler<'a> {
 
             for job in group {
                 StepScheduler::run_step(
-                    step_contexts.get(&job.step.name).unwrap().clone(),
+                    step_contexts.get(job.step.name()).unwrap().clone(),
                     job.clone(),
                     &mut set,
                 )
@@ -233,7 +230,7 @@ impl<'a> StepScheduler<'a> {
 
             if !files_to_stage.is_empty() {
                 trace!("staging files: {:?}", &files_to_stage);
-                self.repo.add(
+                self.repo.lock().await.add(
                     &files_to_stage
                         .iter()
                         .map(|f| f.to_str().unwrap())
@@ -253,14 +250,17 @@ impl<'a> StepScheduler<'a> {
 
         trace!("{step}: spawning step");
         set.spawn(async move {
+            panic::set_hook(Box::new(|info| {
+                error!("panic: {info}");
+            }));
             if job.check_first {
                 let mut check_job = job.clone();
-                check_job.run_type = match job.run_type {
-                    RunType::Fix if step.check_diff.is_some() => RunType::Check(CheckType::Diff),
-                    RunType::Fix if step.check_list_files.is_some() => {
+                check_job.run_type = match (&*step, job.run_type) {
+                    (Steps::Linter(step), RunType::Fix) if step.check_diff.is_some() => RunType::Check(CheckType::Diff),
+                    (Steps::Linter(step), RunType::Fix) if step.check_list_files.is_some() => {
                         RunType::Check(CheckType::ListFiles)
                     }
-                    RunType::Fix => RunType::Check(CheckType::Check),
+                    (Steps::Linter(_step), RunType::Fix) => RunType::Check(CheckType::Check),
                     _ => unreachable!(),
                 };
                 debug!("{step}: running check step first due to fix step contention");
@@ -272,7 +272,7 @@ impl<'a> StepScheduler<'a> {
                 {
                     Ok(rsp) => {
                         debug!("{step}: successfully ran check step first");
-                        ctx.depends.job_done(&step.name);
+                        ctx.depends.job_done(step.name());
                         return Ok(rsp);
                     }
                     Err(e) => {
@@ -306,7 +306,7 @@ impl<'a> StepScheduler<'a> {
                     Err(err)
                 }
             };
-            ctx.depends.job_done(&step.name);
+            ctx.depends.job_done(step.name());
             result
         });
         Ok(())
@@ -345,7 +345,7 @@ async fn run(ctx: &StepContext, mut job: StepJob) -> Result<StepResponse> {
         }
         Err(err) => {
             trace!("{step}: failed to run step: {err}");
-            Err(err.wrap_err(step.name.clone()))
+            Err(err.wrap_err(step.name().to_string()))
         }
     }
 }

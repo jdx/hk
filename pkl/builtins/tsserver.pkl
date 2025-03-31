@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-tsserver = new Config.Step {
+tsserver = new Config.LinterStep {
     glob = List("**/*.{ts,tsx}")
     check = "tsc-files --noEmit {{ files }}"
 } 

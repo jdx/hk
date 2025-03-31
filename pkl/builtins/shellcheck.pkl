@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-shellcheck = new Config.Step {
+shellcheck = new Config.LinterStep {
     glob = List("**/*.{sh,bash}")
     check = "shellcheck {{ files }}"
 } 

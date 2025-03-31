@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-ktlint = new Config.Step {
+ktlint = new Config.LinterStep {
     glob = List("**/*.kt")
     check = "ktlint {{ files }}"
     fix = "ktlint -F {{ files }}"

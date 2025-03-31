@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-ruff = new Config.Step {
+ruff = new Config.LinterStep {
     glob = List("**/*.py")
     check = "ruff check {{ files }}"
     fix = "ruff check --fix {{ files }}"

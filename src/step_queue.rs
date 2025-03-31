@@ -11,7 +11,7 @@ use std::{
 
 use crate::{
     glob,
-    step::{RunType, Step},
+    step::{LinterStep, RunType},
 };
 
 /// Takes a list of steps and files as input and builds a queue of jobs that would need to be
@@ -46,7 +46,16 @@ impl StepQueueBuilder {
             .iter()
             .fold(vec![], |mut groups, step| {
                 match step.as_ref() {
-                    Steps::Step(s) => {
+                    Steps::Run(s) => {
+                        if s.exclusive || groups.is_empty() {
+                            groups.push(vec![]);
+                        }
+                        groups.last_mut().unwrap().push(step);
+                        if s.exclusive {
+                            groups.push(vec![]);
+                        }
+                    }
+                    Steps::Linter(s) => {
                         if s.exclusive || groups.is_empty() {
                             groups.push(vec![]);
                         }
@@ -74,23 +83,27 @@ impl StepQueueBuilder {
         let jobs = LazyCell::new(|| Settings::get().jobs().get());
         let mut queue = vec![];
         for step in steps {
+            // TODO: remove this clone
             let step = match step.as_ref() {
-                Steps::Step(s) => Arc::new((**s).clone()),
-                Steps::Stash(_stash) => {
-                    // TODO: implement stash
-                    continue;
-                }
+                Steps::Run(s) => Arc::new(Steps::Run((*s).clone())),
+                Steps::Linter(s) => Arc::new(Steps::Linter((*s).clone())),
+                Steps::Stash(s) => Arc::new(Steps::Stash((*s).clone())),
             };
             let Some(run_type) = step.available_run_type(self.run_type) else {
                 debug!("{step}: skipping step due to no available run type");
                 continue;
             };
+            // Check if step should be skipped based on HK_SKIP_STEPS
+            if crate::env::HK_SKIP_STEPS.contains(step.name()) {
+                debug!("{step}: skipping step due to HK_SKIP_STEPS");
+                continue;
+            }
             if !step.is_profile_enabled() {
                 debug!("{step}: skipping step due to profile not being enabled");
                 continue;
             }
             let mut files = self.files.clone();
-            if let Some(dir) = &step.dir {
+            if let Some(dir) = step.dir() {
                 files.retain(|f| f.starts_with(dir));
                 if files.is_empty() {
                     debug!("{step}: no matches for step in {dir}");
@@ -101,28 +114,33 @@ impl StepQueueBuilder {
                     *f = f.strip_prefix(dir).unwrap_or(f).to_path_buf();
                 }
             }
-            if let Some(glob) = &step.glob {
+            if let Some(glob) = step.glob() {
                 files = glob::get_matches(glob, &files)?;
                 if files.is_empty() {
                     debug!("{step}: no matches for step");
                     continue;
                 }
             }
-            let jobs = if let Some(workspace_indicators) = step.workspaces_for_files(&files)? {
-                let job = StepJob::new(step.clone(), files.clone(), run_type);
-                workspace_indicators
-                    .into_iter()
-                    .map(|workspace_indicator| {
-                        job.clone().with_workspace_indicator(workspace_indicator)
-                    })
-                    .collect()
-            } else if step.batch {
-                files
-                    .chunks((files.len() / *jobs).max(1))
-                    .map(|chunk| StepJob::new(step.clone(), chunk.to_vec(), run_type))
-                    .collect()
-            } else {
-                vec![StepJob::new(step, files.clone(), run_type)]
+            let jobs = match &*step {
+                Steps::Linter(s) => {
+                    if let Some(workspace_indicators) = s.workspaces_for_files(&files)? {
+                        let job = StepJob::new(step.clone(), files.clone(), run_type);
+                        workspace_indicators
+                            .into_iter()
+                            .map(|workspace_indicator| {
+                                job.clone().with_workspace_indicator(workspace_indicator)
+                            })
+                            .collect()
+                    } else if s.batch {
+                        files
+                            .chunks((files.len() / *jobs).max(1))
+                            .map(|chunk| StepJob::new(step.clone(), chunk.to_vec(), run_type))
+                            .collect()
+                    } else {
+                        vec![StepJob::new(step, files.clone(), run_type)]
+                    }
+                }
+                _ => vec![StepJob::new(step, files.clone(), run_type)],
             };
             queue.push(jobs);
         }
@@ -155,11 +173,12 @@ impl StepQueueBuilder {
         let steps = steps
             .iter()
             .filter_map(|s| match s.as_ref() {
-                Steps::Step(s) => Some(s),
+                Steps::Run(_) => unimplemented!("run steps are not supported in step queue"),
+                Steps::Linter(s) => Some(s),
                 Steps::Stash(_) => None,
             })
             .collect::<Vec<_>>();
-        let step_map: HashMap<String, &Step> = steps
+        let step_map: HashMap<String, &LinterStep> = steps
             .iter()
             .map(|step| (step.name.clone(), step.as_ref()))
             .collect();
@@ -170,7 +189,7 @@ impl StepQueueBuilder {
                 Ok((step.name.clone(), files))
             })
             .collect::<Result<_>>()?;
-        let mut steps_per_file: HashMap<&Path, Vec<&Step>> = Default::default();
+        let mut steps_per_file: HashMap<&Path, Vec<&LinterStep>> = Default::default();
         for (step_name, files) in files_by_step.iter() {
             for file in files {
                 let step = step_map.get(step_name).unwrap();

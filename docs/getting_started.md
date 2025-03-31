@@ -46,9 +46,9 @@ This will generate a `hk.pkl` file in the root of the repository, here's an exam
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/builtins/prettier.pkl"
+import "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/builtins.pkl"
 
-linters {
+local linters = new Mapping<String, Step> {
     // linters can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
@@ -58,7 +58,11 @@ linters {
         check = "eslint {{files}}"
     }
     // linters can also be specified with the builtins pkl library
-    ["prettier"] = new prettier.Prettier {}
+    ["prettier"] = builtins.prettier
+    // with pkl, builtins can also be extended:
+    ["prettier-yaml"] = (builtins.prettier) {
+        glob = List("*.yaml"; "*.yml")
+    }
 }
 
 hooks {

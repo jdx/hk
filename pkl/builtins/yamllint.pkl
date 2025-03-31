@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-yamllint = new Config.Step {
+yamllint = new Config.LinterStep {
     glob = List("**/*.{yml,yaml}")
     check = "yamllint {{ files }}"
 } 

@@ -1,9 +1,10 @@
-use clx::progress::{ProgressJob, ProgressJobBuilder};
+use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior};
+use itertools::Itertools;
 
-use crate::{env, step_locks::StepLocks, tera};
+use crate::{config::Steps, env, step_context::StepContext, step_locks::StepLocks, tera};
 use std::{path::PathBuf, sync::Arc};
 
-use crate::step::{RunType, Step};
+use crate::step::RunType;
 
 /// Represents a single work item for the scheduler
 ///
@@ -13,7 +14,7 @@ use crate::step::{RunType, Step};
 /// * Batch step that needs to run multiple batches of different files
 #[derive(Debug)]
 pub struct StepJob {
-    pub step: Arc<Step>,
+    pub step: Arc<Steps>,
     pub files: Vec<PathBuf>,
     pub run_type: RunType,
     pub check_first: bool,
@@ -39,13 +40,13 @@ pub enum StepJobStatus {
 // }
 
 impl StepJob {
-    pub fn new(step: Arc<Step>, files: Vec<PathBuf>, run_type: RunType) -> Self {
+    pub fn new(step: Arc<Steps>, files: Vec<PathBuf>, run_type: RunType) -> Self {
         Self {
             files,
             run_type,
             workspace_indicator: None,
             check_first: *env::HK_CHECK_FIRST
-                && step.check_first
+                && matches!(step.as_ref(), Steps::Linter(s) if s.check_first)
                 && matches!(run_type, RunType::Fix),
             step,
             status: StepJobStatus::Pending,
@@ -72,6 +73,23 @@ impl StepJob {
             tctx.with_workspace_indicator(workspace_indicator);
         }
         tctx
+    }
+
+    pub fn build_progress(&self, ctx: &StepContext) -> Arc<ProgressJob> {
+        let job = ProgressJobBuilder::new()
+            .prop("name", &self.step.name())
+            .prop("files", &self.files.iter().map(|f| f.display()).join(" "))
+            .body(vec![
+                // TODO: truncate properly
+                "{{spinner()}} {% if ensembler_cmd %}{{ensembler_cmd | flex}}\n{{ensembler_stdout | flex}}{% else %}{{message | flex}}{% endif %}"
+                    .to_string(),
+            ])
+            .body_text(Some(vec![
+                "{% if ensembler_stdout %}  {{name}} – {{ensembler_stdout}}{% elif message %}{{spinner()}} {{name}} – {{message}}{% endif %}".to_string(),
+            ]))
+            .on_done(ProgressJobDoneBehavior::Hide)
+            .build();
+        ctx.progress.add(job)
     }
 }
 

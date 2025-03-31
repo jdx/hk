@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-cargo_clippy = new Config.Step {
+cargo_clippy = new Config.LinterStep {
     glob = List("**/*.rs")
     workspace_indicator = "Cargo.toml"
     check = "cargo clippy --manifest-path {{workspace_indicator}}"

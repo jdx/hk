@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-go_fumpt = new Config.Step {
+go_fumpt = new Config.LinterStep {
     glob = List("**/*.go")
     check = "gofumpt -l {{ files }}"
     fix = "gofumpt -w {{ files }}"

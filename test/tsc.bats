@@ -9,9 +9,13 @@ teardown() {
 @test "tsc" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/tsc.pkl"
-linters {
-    ["tsc"] = new tsc.Tsc {}
+import "$PKL_PATH/builtins.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["tsc"] = builtins.tsc
+        }
+    }
 }
 EOF
     mkdir -p {a,b}/src

@@ -1,14 +1,4 @@
-use std::sync::LazyLock;
-
-use indexmap::IndexMap;
-
-use crate::{
-    Result,
-    config::{Config, Hook},
-    env,
-    git::Git,
-    step::{CheckType, RunType, Step},
-};
+use crate::{Result, config::Config};
 
 mod commit_msg;
 mod pre_commit;

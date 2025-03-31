@@ -12,9 +12,9 @@ Here's a basic `hk.pkl` file:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/builtins/prettier.pkl"
+import "package://github.com/jdx/hk/releases/download/v0.6.5/hk@0.6.5#/builtins.pkl"
 
-linters {
+local linters = new {
     // linters can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
@@ -26,38 +26,49 @@ linters {
         fix = "eslint --fix {{files}}"
     }
     // linters can also be specified with the builtins pkl library
-    ["prettier"] = new prettier.Prettier {}
+    ["prettier"] = builtins.prettier
 }
 
 hooks {
     ["pre-commit"] {
-        ["fix"] = new Fix {}
+        fix = true
+        steps = linters
     }
     ["pre-push"] {
-        ["check"] = new Check {}
+        steps = linters
+    }
+    // "fix" and "check" are special steps for `hk fix` and `hk check` commands
+    ["fix"] {
+        fix = true
+        steps = linters
+    }
+    ["check"] {
+        steps = linters
     }
 }
 ```
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
-### `linters`
+### `hooks.<HOOK>.steps`
 
-Linters define the tools that will check and fix your code. Each linter can be configured with various options:
+Steps are the individual commands that make up a hook. They are executed in the order they are defined in parallel up to [`HK_JOBS`](/configuration#hk-jobs) at a time.
 
-### `linters.<LINTER>.glob: List<String>`
+### `hooks.<HOOK>.steps.<STEP>.glob: List<String>`
 
-Files the linter should run on. By default this will only run this linter if at least 1 staged file matches the glob patterns. If no patterns are provided, the linter will always run.
+Files the step should run on. By default this will only run this step if at least 1 staged file matches the glob patterns. If no patterns are provided, the step will always run.
 
-### `linters.<LINTER>.check: String`
+### `hooks.<HOOK>.steps.<STEP>.check: String`
 
 A command to run that does not modify files. This typically is a "check" command like `eslint` or `prettier --check` that returns a non-zero exit code if there are errors.
 Parallelization works better with check commands than fix commands as no files are being modified.
 
 ```pkl
-linters {
-    ["prettier"] {
-        check = "prettier --check {{files}}"
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            check = "prettier --check {{files}}"
+        }
     }
 }
 ```
@@ -65,40 +76,30 @@ linters {
 Template variables:
 - <code v-pre>{{files}}</code>: A list of files to run the linter on.
 
-### `linters.<LINTER>.check_list_files: String`
+### `hooks.<HOOK>.steps.<STEP>.check_list_files: String`
 
 A command that returns a list of files that need fixing. This is used to optimize the fix step when `check_first` is enabled. Instead of running the fix command on all files, it will only run on files that need fixing.
 
 ```pkl
-linters {
-    ["prettier"] {
-        check_list_files = "prettier --list-different {{files}}"
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            check_list_files = "prettier --list-different {{files}}"
+        }
     }
 }
 ```
 
-### `linters.<LINTER>.check_diff: String`
+### `hooks.<HOOK>.steps.<STEP>.check_diff: String`
 
 A command that shows the diff of what would be changed. This is an alternative to `check` that can provide more detailed information about what would be changed.
 
-### `linters.<LINTER>.check_extra_args: String`
-
-Additional arguments to pass to the check command.
-
-```pkl
-linters {
-    ["cargo-clippy"] {
-        check_extra_args = "-- -D warnings"
-    }
-}
-```
-
-### `linters.<LINTER>.fix: String`
+### `hooks.<HOOK>.steps.<STEP>.fix: String`
 
 A command to run that modifies files. This typically is a "fix" command like `eslint --fix` or `prettier --write`. Templates variables are the same as for `check`.
 
 ```pkl
-linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] {
         fix = "prettier --write {{files}}"
     }
@@ -107,79 +108,75 @@ linters {
 
 By default, hk will use `fix` commands but this can be overridden by setting [`HK_FIX=0`](/configuration#hk-fix) or running `hk run <HOOK> --run`.
 
-### `linters.<LINTER>.fix_extra_args: String`
-
-Additional arguments to pass to the fix command.
-
-### `linters.<LINTER>.check_first: bool`
+### `hooks.<HOOK>.steps.<STEP>.check_first: bool`
 
 Default: `true`
 
 If true, hk will run the check step first and only run the fix step if the check step fails.
 
-### `linters.<LINTER>.batch: bool`
+### `hooks.<HOOK>.steps.<STEP>.batch: bool`
 
 Default: `false`
 
 If true, hk will run the linter on batches of files instead of all files at once. This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
 
 ```pkl
-linters {
+local linters = new Mapping<String, Step> {
     ["eslint"] {
         batch = true
     }
 }
 ```
 
-### `linters.<LINTER>.stomp: bool`
+### `hooks.<HOOK>.steps.<STEP>.stomp: bool`
 
 Default: `false`
 
 If true, hk will get a write lock instead of a read lock when running fix/fix_all. Use this if the tool has its own locking mechanism or you simply don't care if files may be written to by multiple linters simultaneously.
 
-### `linters.<LINTER>.workspace_indicator: String`
+### `hooks.<HOOK>.steps.<STEP>.workspace_indicator: String`
 
 If set, run the linter on workspaces only which are parent directories containing this filename. This is useful for tools that need to be run from a specific directory, like a project root.
 
 ```pkl
-linters {
+local linters = new Mapping<String, Step> {
     ["cargo-clippy"] {
         workspace_indicator = "Cargo.toml"
     }
 }
 ```
 
-### `linters.<LINTER>.prefix: String`
+### `hooks.<HOOK>.steps.<STEP>.prefix: String`
 
 If set, run the linter scripts with this prefix, e.g.: "mise exec --" or "npm run".
 
 ```pkl
-linters {
+local linters = new Mapping<String, Step> {
     ["eslint"] {
         prefix = "npm run"
     }
 }
 ```
 
-### `linters.<LINTER>.dir: String`
+### `hooks.<HOOK>.steps.<STEP>.dir: String`
 
 If set, run the linter scripts in this directory.
 
 ```pkl
-linters {
-    ["eslint"] {
+local linters = new Mapping<String, Step> {
+    ["eslint"] (builtins.eslint) {
         dir = "frontend"
     }
 }
 ```
 
-### `linters.<LINTER>.profiles: List<String>`
+### `hooks.<HOOK>.steps.<STEP>.profiles: List<String>`
 
 Profiles are a way to enable/disable linters based on the current profile. The linter will only run if its profile is in [`HK_PROFILE`](/configuration#hk-profile).
 
 ```pkl
-linters {
-    ["prettier"] {
+local linters = new Mapping<String, Step> {
+    ["prettier"] (builtins.prettier) {
         profiles = List("slow")
     }
 }
@@ -188,26 +185,28 @@ linters {
 Profiles can be prefixed with `!` to disable them.
 
 ```pkl
-linters {
-    ["prettier"] {
+local linters = new Mapping<String, Step> {
+    ["prettier"] (builtins.prettier) {
         profiles = List("!slow")
     }
 }
 ```
 
-### `linters.<LINTER>.depends: List<String>`
+### `hooks.<HOOK>.steps.<STEP>.depends: List<String>`
 
-A list of steps that must finish before this linter can run.
+A list of steps that must finish before this step can run.
 
 ```pkl
-linters {
-    ["prettier"] {
-        depends = List("eslint")
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            depends = List("eslint")
+        }
     }
 }
 ```
 
-### `hooks`
+### `hooks.<HOOK>`
 
 Hooks define when and how linters are run. The available hooks are:
 
@@ -215,11 +214,11 @@ Hooks define when and how linters are run. The available hooks are:
 - `pre-push`
 - TODO: add more
 
-### `hooks.<HOOK>.<STEP>`
+### `hooks.<HOOK>.steps`
 
 Steps are the individual commands that make up a hook. They are executed in the order they are defined in parallel up to [`HK_JOBS`](/configuration#hk-jobs) at a time.
 
-### `hooks.<HOOK>.<STEP>.depends: List<String>`
+### `hooks.<HOOK>.steps.<STEP>.depends: List<String>`
 
 A list of steps that must finish before this step can run.
 
@@ -249,7 +248,7 @@ hooks {
 
 By default, all modified files will be added to the git index.
 
-### `hooks.<HOOK>.<STEP>.exclusive: bool`
+### `hooks.<HOOK>.steps.<STEP>.exclusive: bool`
 
 Default: `false`
 
@@ -266,22 +265,6 @@ hooks {
         ["postlint"] {
             exclusive = true // wait for all previous steps to finish before starting
             run = "mise run postlint"
-        }
-    }
-}
-```
-
-### `hooks.<HOOK>.<STEP>.linter_dependencies: Mapping<String, List<String>>`
-
-A mapping of linter names to lists of linter names that they depend on. This is used to specify dependencies between linters within a step.
-
-```pkl
-hooks {
-    ["pre-commit"] {
-        ["fix"] = new Fix {
-            linter_dependencies = new {
-                ["prettier"] = List("eslint")
-            }
         }
     }
 }

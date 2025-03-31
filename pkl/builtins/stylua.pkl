@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-stylua = new Config.Step {
+stylua = new Config.LinterStep {
     glob = List("**/*.lua")
     check = "stylua --check {{ files }}"
     fix = "stylua {{ files }}"
