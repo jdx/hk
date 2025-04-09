@@ -22,6 +22,8 @@ hooks {
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "initial commit"
     # Create files that should be checked
     echo "console.log('test1')" > test1.js
     echo "console.log('test2')" > test2.ts
@@ -58,6 +60,8 @@ hooks {
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "initial commit"
     mkdir -p src
     # Create files that should be checked
     echo "console.log('test1')" > src/test1.js

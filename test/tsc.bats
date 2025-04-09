@@ -18,6 +18,8 @@ hooks {
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "initial commit"
     mkdir -p {a,b}/src
     echo '{"compilerOptions": {"outDir": "dist"}, "include": ["src/**/*.ts"]}' > a/tsconfig.json
     echo '{"compilerOptions": {"outDir": "dist"}, "include": ["src/**/*.ts"]}' > b/tsconfig.json

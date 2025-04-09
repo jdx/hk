@@ -22,6 +22,8 @@ hooks {
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "initial commit"
     mkdir -p ui/subdir
     echo "<html><body>test</body></html>" > ui/subdir/test.html
     echo "console.log('test')" > ui/test.ts

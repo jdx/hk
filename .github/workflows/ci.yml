@@ -36,6 +36,7 @@ jobs:
       - uses: jdx/mise-action@v2
       - run: mise x -- bun i
       - run: mise run ci
+      - run: HK_LIBGIT2=0 mise run test
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10

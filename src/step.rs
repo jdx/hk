@@ -16,7 +16,6 @@ use serde_with::serde_as;
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[serde_as]
 pub struct RunStep {
-    pub r#type: Option<String>,
     #[serde(default)]
     pub name: String,
     #[serde_as(as = "Option<OneOrMany<_>>")]
@@ -84,7 +83,6 @@ impl fmt::Display for RunStep {
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 #[serde_as]
 pub struct LinterStep {
-    pub r#type: Option<String>,
     #[serde(default)]
     pub name: String,
     #[serde_as(as = "Option<OneOrMany<_>>")]

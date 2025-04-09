@@ -14,6 +14,9 @@ teardown() {
 }
 
 @test "pre-push hook" {
+    if [ "$HK_LIBGIT2" = "0" ]; then
+        skip "libgit2 is not installed"
+    fi
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins.pkl"
