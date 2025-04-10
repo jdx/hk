@@ -31,7 +31,7 @@ macro_rules! spinner {
             Spinner {
                 frames: $frames.iter().map(|s| s.to_string()).collect(),
                 fps: $fps,
-            }
+            },
         )
     };
 }
@@ -242,7 +242,9 @@ impl ProgressJob {
             return Ok(String::new());
         }
         let body = if output() == ProgressOutput::Text {
-            self.body_text.clone().unwrap_or(self.body.lock().unwrap().clone())
+            self.body_text
+                .clone()
+                .unwrap_or(self.body.lock().unwrap().clone())
         } else {
             self.body.lock().unwrap().clone()
         };
@@ -339,7 +341,7 @@ impl ProgressJob {
     pub fn update(&self) {
         if output() == ProgressOutput::Text {
             let update = || {
-                let mut ctx = RenderContext{
+                let mut ctx = RenderContext {
                     include_children: false,
                     ..Default::default()
                 };
