@@ -16,7 +16,7 @@ use console::Term;
 use indicatif::TermLike;
 use tera::{Context, Tera};
 
-const DEFAULT_BODY: LazyLock<Vec<String>> =
+static DEFAULT_BODY: LazyLock<Vec<String>> =
     LazyLock::new(|| vec!["{{ spinner() }} {{ message }}".to_string()]);
 
 struct Spinner {
@@ -41,24 +41,24 @@ const DEFAULT_SPINNER: &str = "mini_dot";
 static SPINNERS: LazyLock<HashMap<String, Spinner>> = LazyLock::new(|| {
     vec![
         // from https://github.com/charmbracelet/bubbles/blob/ea344ab907bddf5e8f71cd73b9583b070e8f1b2f/spinner/spinner.go
-        spinner!("line", &["|", "/", "-", "\\"], 100),
-        spinner!("dot", &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], 100),
-        spinner!("mini_dot", &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 100),
-        spinner!("jump", &["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"], 100),
-        spinner!("pulse", &["█", "▓", "▒", "░"], 120),
-        spinner!("points", &["∙∙∙", "●∙∙", "∙●∙", "∙∙●"], 150),
-        spinner!("globe", &["🌍", "🌎", "🌏"], 250),
-        spinner!("moon", &["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], 120),
-        spinner!("monkey", &["🙈", "🙉", "🙊"], 300),
-        spinner!("meter", &["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"], 120),
-        spinner!("hamburger", &["☱", "☲", "☴", "☲"], 120),
-        spinner!("ellipsis", &["   ", ".  ", ".. ", "..."], 120),
+        spinner!("line", &["|", "/", "-", "\\"], 200),
+        spinner!("dot", &["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"], 200),
+        spinner!("mini_dot", &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"], 200),
+        spinner!("jump", &["⢄", "⢂", "⢁", "⡁", "⡈", "⡐", "⡠"], 200),
+        spinner!("pulse", &["█", "▓", "▒", "░"], 200),
+        spinner!("points", &["∙∙∙", "●∙∙", "∙●∙", "∙∙●"], 200),
+        spinner!("globe", &["🌍", "🌎", "🌏"], 400),
+        spinner!("moon", &["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"], 400),
+        spinner!("monkey", &["🙈", "🙉", "🙊"], 400),
+        spinner!("meter", &["▱▱▱", "▰▱▱", "▰▰▱", "▰▰▰", "▰▰▱", "▰▱▱", "▱▱▱"], 400),
+        spinner!("hamburger", &["☱", "☲", "☴", "☲"], 200),
+        spinner!("ellipsis", &["   ", ".  ", ".. ", "..."], 200),
     ]
     .into_iter()
     .collect()
 });
 
-static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(100)); // TODO: use fps from a spinner
+static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(200)); // TODO: use fps from a spinner
 static LINES: Mutex<usize> = Mutex::new(0);
 static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 static STARTED: Mutex<bool> = Mutex::new(false);
@@ -166,7 +166,7 @@ impl ProgressJobBuilder {
         static ID: AtomicUsize = AtomicUsize::new(0);
         ProgressJob {
             id: ID.fetch_add(1, Ordering::Relaxed),
-            body: self.body,
+            body: Mutex::new(self.body),
             body_text: self.body_text,
             status: Mutex::new(self.status),
             on_done: self.on_done,
@@ -214,7 +214,7 @@ pub enum ProgressJobDoneBehavior {
 
 pub struct ProgressJob {
     id: usize,
-    body: Vec<String>,
+    body: Mutex<Vec<String>>,
     body_text: Option<Vec<String>>,
     status: Mutex<ProgressStatus>,
     parent: Weak<ProgressJob>,
@@ -237,14 +237,14 @@ impl ProgressJob {
         } else {
             None
         };
-        add_tera_functions(tera, &mut ctx, self);
+        add_tera_functions(tera, &ctx, self);
         if !self.should_display() {
             return Ok(String::new());
         }
         let body = if output() == ProgressOutput::Text {
-            self.body_text.as_ref().unwrap_or(&self.body)
+            self.body_text.clone().unwrap_or(self.body.lock().unwrap().clone())
         } else {
-            &self.body
+            self.body.lock().unwrap().clone()
         };
         for (body_id, body) in body.iter().enumerate() {
             let name = format!("progress_{}_{}", self.id, body_id);
@@ -304,6 +304,11 @@ impl ProgressJob {
         self.status.lock().unwrap().is_active()
     }
 
+    pub fn set_body(&self, body: Vec<String>) {
+        *self.body.lock().unwrap() = body;
+        self.update();
+    }
+
     pub fn set_status(&self, status: ProgressStatus) {
         let mut s = self.status.lock().unwrap();
         if *s != status {
@@ -334,8 +339,10 @@ impl ProgressJob {
     pub fn update(&self) {
         if output() == ProgressOutput::Text {
             let update = || {
-                let mut ctx = RenderContext::default();
-                ctx.include_children = false;
+                let mut ctx = RenderContext{
+                    include_children: false,
+                    ..Default::default()
+                };
                 ctx.tera_ctx.insert("message", "");
                 let mut tera = TERA.clone();
                 let output = self.render(&mut tera, ctx)?;
