@@ -195,6 +195,7 @@ pub enum ProgressStatus {
     RunningCustom(String),
     DoneCustom(String),
     Done,
+    Warn,
     Failed,
 }
 
@@ -618,6 +619,7 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
             ProgressStatus::Failed => Ok(style::ered("✗").to_string().into()),
             ProgressStatus::RunningCustom(ref s) => Ok(s.clone().into()),
             ProgressStatus::DoneCustom(ref s) => Ok(s.clone().into()),
+            ProgressStatus::Warn => Ok(style::eyellow("⚠").to_string().into()),
         },
     );
     tera.register_function(
