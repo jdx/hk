@@ -2,52 +2,7 @@
 module hk.Config
 min_hk_version = "{{version | truncate(length=1)}}.0.0"
 
-class RunStep {
-    fixed type = "run"
-    
-    /// Which profiles (HK_PROFILES) need to be active for the step to run
-    profiles: List<String>?
-
-    /// Which file patterns to run the step on
-    glob: List<String>?
-
-    /// Which file patterns to exclude from the step
-    exclude: List<String>?
-
-    /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
-    exclusive = false
-
-    /// Connects stdin/stdout/stderr to the hk's execution. Implies `exclusive`.
-    interactive = false
-
-    /// Wait for sibling steps to finish before starting this step.
-    depends: List<String> = List()
-    
-    /// if set, run the linter scripts in this directory
-    dir: String?
-
-    /// a shell command to run
-    run: String
-
-    /// fetches a read lock instead of a write lock when running fix/fix_all. Use if the tool has its own locking mechanism or you simply don't care if files may be written to
-    /// by multiple steps.
-    stomp = false
-
-    /// run the linter scripts with these environment variables
-    env = new Mapping<String, String>{}
-
-    /// if not set, all files will be added
-    stage: List<String>?
-}
-
-class StashStep {
-    fixed type = "stash"
-    method: "git" | "patch-file" = "patch-file"
-}
-
-class LinterStep {
-    fixed type = "linter"
-    
+class Step {
     /// Which profiles (HK_PROFILES) need to be active for the step to run
     profiles: List<String>?
     
@@ -103,11 +58,12 @@ class LinterStep {
     stage: List<String>?
 }
 
-typealias Step = RunStep | StashStep | LinterStep
+typealias StashMethod = "git" | "patch-file"
 
 class Hook {
     fix = false
-    steps: Mapping<String, Step> = new Mapping<String, RunStep>{}
+    stash: StashMethod?
+    steps: Mapping<String, Step> = new Mapping<String, Step>{}
 }
 
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}

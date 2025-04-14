@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-sort_package_json = new Config.LinterStep {
+sort_package_json = new Config.Step {
     glob = List("**/package.json")
     check = "sort-package-json --check {{ files }}"
     fix = "sort-package-json {{ files }}"

@@ -40,8 +40,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "git"
         steps {
-            ["stash"] = new StashStep {}
             ["prettier"] = builtins.prettier
         }
     }
@@ -67,8 +67,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "git"
         steps {
-            ["stash"] = new StashStep {}
             ["prettier"] = builtins.prettier
         }
     }
@@ -86,8 +86,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "patch-file"
         steps {
-            ["stash"] = new StashStep {}
             ["jq"] = builtins.jq
         }
     }
@@ -109,8 +109,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "git"
         steps {
-            ["stash"] = new StashStep {}
             ["jq"] = builtins.jq
         }
     }
@@ -133,8 +133,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "git"
         steps {
-            ["stash"] = new StashStep {}
             ["yq"] = builtins.yq
         }
     }
@@ -156,8 +156,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "patch-file"
         steps {
-            ["stash"] = new StashStep {}
             ["yq"] = builtins.yq
         }
     }
@@ -179,8 +179,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "git"
         steps {
-            ["stash"] = new StashStep {}
             ["shellcheck"] = builtins.shellcheck
         }
     }
@@ -203,8 +203,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "git"
         steps {
-            ["stash"] = new StashStep {}
             ["prettier"] = builtins.prettier
             ["shellcheck"] = builtins.shellcheck
         }
@@ -228,8 +228,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "patch-file"
         steps {
-            ["stash"] = new StashStep {}
             ["prettier"] = builtins.prettier
             ["shellcheck"] = builtins.shellcheck
         }
@@ -251,15 +251,15 @@ amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/builtins.pkl"
 hooks {
     ["pre-commit"] {
+        stash = "git"
         fix = true
         steps {
-            ["stash"] = new StashStep {}
-            ["a"] = new LinterStep {
+            ["a"] {
                 glob = List("*.sh")
                 check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"
                 fix = "echo 'start a' && sleep 0.1 && echo 'end a'"
             }
-            ["b"] = new LinterStep {
+            ["b"] {
                 glob = List("*.sh")
                 check = "echo 'start b' && echo 'exit b' && exit 1"
                 fix = "echo 'start b' && echo 'end b' && touch test.sh"
@@ -314,8 +314,8 @@ import "$PKL_PATH/builtins.pkl"
 hooks {
     ["fix"] {
         fix = true
+        stash = "patch-file"
         steps {
-            ["stash"] = new StashStep {}
             ["prettier"] = builtins.prettier
         }
     }

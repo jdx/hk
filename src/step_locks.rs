@@ -61,7 +61,7 @@ impl StepLocks {
     pub async fn lock(ctx: &StepContext, job: &StepJob) -> Result<Self> {
         let step = &job.step;
         let file_locks = ctx.file_locks.clone();
-        for dep in step.depends() {
+        for dep in &step.depends {
             if !ctx.depends.is_done(dep) {
                 debug!("{step}: waiting for {dep} to finish");
                 ctx.depends.wait_for(dep).await?;
@@ -69,18 +69,14 @@ impl StepLocks {
         }
         let mut read_flocks = vec![];
         let mut write_flocks = vec![];
-        let files = if job.step.stomp() {
-            &job.files
-        } else {
-            &vec![]
-        };
+        let files = if step.stomp { &job.files } else { &vec![] };
         for path in files {
-            let path = if let Some(dir) = job.step.dir() {
+            let path = if let Some(dir) = &step.dir {
                 PathBuf::from(dir).join(path)
             } else {
                 path.to_path_buf()
             };
-            match (step.stomp(), job.run_type) {
+            match (step.stomp, job.run_type) {
                 (true, _) | (_, RunType::Check(_)) => {
                     let lock = file_locks
                         .get(&path)

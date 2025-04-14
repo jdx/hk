@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-rustfmt = new Config.LinterStep {
+rustfmt = new Config.Step {
     glob = List("**/*.rs")
     check = "rustfmt --check --edition 2024 {{ files }}"
     check_list_files = "rustfmt --check --edition 2024 --files-with-diff {{ files }}"

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-go_vuln_check = new Config.LinterStep {
+go_vuln_check = new Config.Step {
     glob = List("**/*.go")
     check = "govulncheck {{ files }}"
 } 

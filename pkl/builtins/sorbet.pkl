@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-sorbet = new Config.LinterStep {
+sorbet = new Config.Step {
     glob = List("**/*.rb")
     check = "srb tc {{ files }}"
 } 

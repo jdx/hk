@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-static_check = new Config.LinterStep {
+static_check = new Config.Step {
     glob = List("**/*.go")
     check = "staticcheck {{ files }}"
 } 

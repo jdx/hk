@@ -13,7 +13,7 @@ hooks = new {
     ["prepare-commit-msg"] {
         steps {
             ["render-commit-msg"] {
-                run = "echo default_commit_msg > {{commit_msg_file}}"
+                check = "echo default_commit_msg > {{commit_msg_file}}"
             }
         }
     }

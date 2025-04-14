@@ -13,7 +13,7 @@ import "$PKL_PATH/builtins/prettier.pkl"
 hooks {
     ["check"] {
         steps {
-            ["prettier"] = new LinterStep {
+            ["prettier"] {
                 dir = "ui"
                 glob = List("*.html", "*.ts")
                 check = "prettier --check {{files}}"

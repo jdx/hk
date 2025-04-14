@@ -1,13 +1,12 @@
-use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
+use clx::progress::{ProgressJobBuilder, ProgressStatus};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::{
-    fmt,
     path::{Path, PathBuf},
     sync::{Arc, LazyLock},
 };
-use tokio::signal;
 use tokio::sync::Mutex;
+use tokio::{signal, sync::OnceCell};
 
 use crate::{
     Result,
@@ -15,10 +14,7 @@ use crate::{
     env,
     git::Git,
     hash,
-    step::{CheckType, LinterStep, RunStep, RunType, exec_step},
-    step_context::StepContext,
-    step_job::StepJob,
-    step_response::StepResponse,
+    step::{CheckType, LinterStep, RunType},
     step_scheduler::StepScheduler,
     tera::Context,
     ui::style,
@@ -115,9 +111,10 @@ pub struct Hook {
     #[serde(default)]
     pub name: String,
     #[serde(default)]
-    pub steps: IndexMap<String, Steps>,
+    pub steps: IndexMap<String, LinterStep>,
     #[serde(default)]
     pub fix: bool,
+    pub stash: Option<StashMethod>,
 }
 
 impl Hook {
@@ -129,198 +126,10 @@ impl Hook {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", tag = "type")]
-pub enum Steps {
-    Run(Box<RunStep>),
-    Linter(Box<LinterStep>),
-    Stash(Box<Stash>),
-}
-
-impl Steps {
-    fn init(&mut self, name: &str) {
-        match self {
-            Steps::Linter(step) => step.init(name),
-            Steps::Run(step) => step.init(name),
-            Steps::Stash(step) => step.init(name),
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        match self {
-            Steps::Linter(step) => &step.name,
-            Steps::Run(step) => &step.name,
-            Steps::Stash(step) => &step.name,
-        }
-    }
-
-    pub fn dir(&self) -> Option<&str> {
-        match self {
-            Steps::Linter(step) => step.dir.as_deref(),
-            Steps::Run(step) => step.dir.as_deref(),
-            Steps::Stash(_) => None,
-        }
-    }
-
-    pub fn env(&self) -> &IndexMap<String, String> {
-        static EMPTY: LazyLock<IndexMap<String, String>> = LazyLock::new(Default::default);
-        match self {
-            Steps::Linter(step) => &step.env,
-            Steps::Run(step) => &step.env,
-            Steps::Stash(_) => &EMPTY,
-        }
-    }
-
-    pub fn glob(&self) -> Option<&Vec<String>> {
-        match self {
-            Steps::Linter(step) => step.glob.as_ref(),
-            Steps::Run(step) => step.glob.as_ref(),
-            Steps::Stash(_) => None,
-        }
-    }
-
-    pub fn exclude(&self) -> Option<&Vec<String>> {
-        match self {
-            Steps::Linter(step) => step.exclude.as_ref(),
-            Steps::Run(step) => step.exclude.as_ref(),
-            Steps::Stash(_) => None,
-        }
-    }
-
-    pub fn prefix(&self) -> Option<&str> {
-        match self {
-            Steps::Linter(step) => step.prefix.as_deref(),
-            Steps::Run(_step) => None,
-            Steps::Stash(_) => None,
-        }
-    }
-
-    pub fn stage(&self) -> Option<&Vec<String>> {
-        match self {
-            Steps::Linter(step) => step.stage.as_ref(),
-            Steps::Run(step) => step.stage.as_ref(),
-            Steps::Stash(_) => None,
-        }
-    }
-
-    pub fn interactive(&self) -> bool {
-        match self {
-            Steps::Linter(step) => step.interactive,
-            Steps::Run(step) => step.interactive,
-            Steps::Stash(_) => false,
-        }
-    }
-
-    pub fn run_cmd(&self, run_type: RunType) -> Option<&str> {
-        match self {
-            Steps::Linter(step) => step.run_cmd(run_type),
-            Steps::Run(step) => Some(&step.run),
-            Steps::Stash(_) => None,
-        }
-    }
-
-    pub fn stomp(&self) -> bool {
-        match self {
-            Steps::Linter(step) => step.stomp,
-            Steps::Run(step) => step.stomp,
-            _ => false,
-        }
-    }
-
-    pub fn depends(&self) -> &Vec<String> {
-        static EMPTY: Vec<String> = vec![];
-        match self {
-            Steps::Linter(step) => &step.depends,
-            Steps::Run(step) => &step.depends,
-            _ => &EMPTY,
-        }
-    }
-
-    pub fn available_run_type(&self, run_type: RunType) -> Option<RunType> {
-        match self {
-            Steps::Linter(step) => step.available_run_type(run_type),
-            _ => Some(run_type),
-        }
-    }
-
-    pub fn is_profile_enabled(&self) -> bool {
-        match self {
-            Steps::Linter(step) => step.is_profile_enabled(),
-            Steps::Run(step) => step.is_profile_enabled(),
-            _ => true,
-        }
-    }
-
-    pub async fn run(&self, ctx: &StepContext, job: &StepJob) -> Result<StepResponse> {
-        match self {
-            Steps::Linter(_step) => exec_step(self, ctx, job).await,
-            Steps::Run(_step) => exec_step(self, ctx, job).await,
-            Steps::Stash(step) => step.run(ctx, job).await,
-        }
-    }
-
-    pub(crate) fn build_step_progress(&self) -> Arc<ProgressJob> {
-        ProgressJobBuilder::new()
-            .body(vec![
-                "{{spinner()}} {{name}} {% if message %}– {{message | flex}}{% endif %}"
-                    .to_string(),
-            ])
-            .body_text(Some(vec![
-                "{% if message %}{{spinner()}} {{name}} – {{message}}{% endif %}".to_string(),
-            ]))
-            .prop("name", self.name())
-            .status(ProgressStatus::RunningCustom(style::edim("❯").to_string()))
-            .on_done(if *env::HK_HIDE_WHEN_DONE {
-                ProgressJobDoneBehavior::Hide
-            } else {
-                ProgressJobDoneBehavior::Keep
-            })
-            .start()
-    }
-}
-
-impl fmt::Display for Steps {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Steps::Linter(step) => write!(f, "{}", step),
-            Steps::Run(step) => write!(f, "{}", step),
-            Steps::Stash(step) => write!(f, "{}", step),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, Eq, PartialEq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-pub struct Stash {
-    #[serde(default)]
-    pub name: String,
-    #[serde(default)]
-    pub method: StashMethod,
-}
-
-impl Stash {
-    fn init(&mut self, name: &str) {
-        self.name = name.to_string();
-    }
-
-    pub async fn run(&self, ctx: &StepContext, _job: &StepJob) -> Result<StepResponse> {
-        let mut repo = ctx.git.lock().await;
-        repo.stash_unstaged(&ctx.progress, &ctx.git_status)?;
-        Ok(Default::default())
-    }
-}
-
-impl fmt::Display for Stash {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
-    }
-}
-
-#[derive(Debug, Clone, Eq, Default, PartialEq, Deserialize, Serialize, strum::EnumString)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 pub enum StashMethod {
     Git,
-    #[default]
     PatchFile,
     None,
 }
@@ -384,38 +193,54 @@ impl Config {
             ));
         }
         let hk_progress = hk_progress.start();
-        let repo = Git::new()?;
+        let repo = Arc::new(Mutex::new(Git::new()?));
 
         let file_progress = ProgressJobBuilder::new().body(vec![
             "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}".to_string(),
         ])
         .prop("message", "Fetching git status")
         .start();
-        let git_status = Arc::new(repo.status()?);
+        // TODO: this doesn't necessarily need to be fetched right now, or at least blocking
+        let git_status = OnceCell::new();
         let files = if let (Some(from), Some(to)) = (from_ref, to_ref) {
             file_progress.prop(
                 "message",
                 &format!("Fetching files between {} and {}", from, to),
             );
-            repo.files_between_refs(from, to)?
+            repo.lock().await.files_between_refs(from, to)?
         } else if all {
             file_progress.prop("message", "Fetching all files in repo");
-            repo.all_files()?
+            repo.lock().await.all_files()?
         } else if hook.name == "check" || hook.name == "fix" {
             // TODO: this should probably be customizable on the hook like `fix = true` is
             file_progress.prop("message", "Fetching modified files");
-            repo.modified_files()?
+            repo.lock().await.modified_files()?
         } else {
             file_progress.prop("message", "Fetching staged files");
+            let git_status = git_status
+                .get_or_try_init(async || repo.lock().await.status())
+                .await?;
             git_status.staged_files.iter().cloned().collect()
         };
         file_progress.prop("files", &files.len());
         file_progress.set_status(ProgressStatus::Done);
-        let repo = Arc::new(Mutex::new(repo));
 
         watch_for_ctrl_c(repo.clone());
 
-        let mut result = StepScheduler::new(hook, run_type, repo.clone(), git_status)
+        let stash_method = env::HK_STASH
+            .as_ref()
+            .or(hook.stash.as_ref())
+            .unwrap_or(&StashMethod::None);
+        if stash_method != &StashMethod::None {
+            let git_status = git_status
+                .get_or_try_init(async || repo.lock().await.status())
+                .await?;
+            repo.lock()
+                .await
+                .stash_unstaged(&file_progress, stash_method, git_status)?;
+        }
+
+        let mut result = StepScheduler::new(hook, run_type, repo.clone())
             .with_files(files)
             .with_linters(linters)
             .with_tctx(tctx)

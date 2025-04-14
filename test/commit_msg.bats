@@ -13,7 +13,7 @@ hooks = new {
     ["commit-msg"] {
         steps {
             ["validate-commit-msg"] {
-                run = "grep -q '^feat: ' {{commit_msg_file}} || (echo 'Commit message must start with feat:' >&2 && exit 1)"
+                check = "grep -q '^feat: ' {{commit_msg_file}} || (echo 'Commit message must start with feat:' >&2 && exit 1)"
             }
         }
     }

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-clang_format = new Config.LinterStep {
+clang_format = new Config.Step {
     glob = List("**/*.{c,h,cpp,hpp,cc,hh,cxx,hxx}")
     check = "clang-format --dry-run -Werror {{ files }}"
     fix = "clang-format -i {{ files }}"

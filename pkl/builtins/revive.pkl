@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-revive = new Config.LinterStep {
+revive = new Config.Step {
     glob = List("**/*.go")
     check = "revive {{ files }}"
 } 

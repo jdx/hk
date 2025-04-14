@@ -1,8 +1,7 @@
 use crate::{
-    config::{Hook, Steps},
+    config::Hook,
     env,
     error::Error,
-    git::GitStatus,
     step_depends::StepDepends,
     step_job::{StepJob, StepJobStatus},
     step_locks::StepLocks,
@@ -33,7 +32,6 @@ use crate::{
 pub struct StepScheduler {
     run_type: RunType,
     repo: Arc<Mutex<Git>>,
-    git_status: Arc<GitStatus>,
     hook: Hook,
     files: Vec<PathBuf>,
     tctx: Context,
@@ -42,17 +40,11 @@ pub struct StepScheduler {
 }
 
 impl StepScheduler {
-    pub fn new(
-        hook: &Hook,
-        run_type: RunType,
-        repo: Arc<Mutex<Git>>,
-        git_status: Arc<GitStatus>,
-    ) -> Self {
+    pub fn new(hook: &Hook, run_type: RunType, repo: Arc<Mutex<Git>>) -> Self {
         let settings = Settings::get();
         Self {
             run_type,
             repo,
-            git_status,
             hook: hook.clone(),
             files: vec![],
             tctx: Default::default(),
@@ -102,17 +94,15 @@ impl StepScheduler {
             let step_contexts: HashMap<String, Arc<StepContext>> = group
                 .iter()
                 .map(|job| job.step.clone())
-                .unique_by(|step| step.name().to_string())
+                .unique_by(|step| step.name.clone())
                 .map(|step| {
                     let jobs_total = group
                         .iter()
-                        .filter(|job| job.step.name() == step.name())
+                        .filter(|job| job.step.name == step.name)
                         .count();
                     (
-                        step.name().to_string(),
+                        step.name.clone(),
                         Arc::new(StepContext {
-                            git: self.repo.clone(),
-                            git_status: self.git_status.clone(),
                             semaphore: self.semaphore.clone(),
                             failed: self.failed.clone(),
                             file_locks: file_locks.clone(),
@@ -142,7 +132,7 @@ impl StepScheduler {
 
             for job in group {
                 StepScheduler::run_step(
-                    step_contexts.get(job.step.name()).unwrap().clone(),
+                    step_contexts.get(&job.step.name).unwrap().clone(),
                     job.clone(),
                     &mut set,
                 )
@@ -240,11 +230,11 @@ impl StepScheduler {
             if job.check_first {
                 let mut check_job = job.clone();
                 check_job.run_type = match (&*step, job.run_type) {
-                    (Steps::Linter(step), RunType::Fix) if step.check_diff.is_some() => RunType::Check(CheckType::Diff),
-                    (Steps::Linter(step), RunType::Fix) if step.check_list_files.is_some() => {
+                    (step, RunType::Fix) if step.check_diff.is_some() => RunType::Check(CheckType::Diff),
+                    (step, RunType::Fix) if step.check_list_files.is_some() => {
                         RunType::Check(CheckType::ListFiles)
                     }
-                    (Steps::Linter(_step), RunType::Fix) => RunType::Check(CheckType::Check),
+                    (_step, RunType::Fix) => RunType::Check(CheckType::Check),
                     _ => unreachable!(),
                 };
                 debug!("{step}: running check step first due to fix step contention");
@@ -256,7 +246,7 @@ impl StepScheduler {
                 {
                     Ok(rsp) => {
                         debug!("{step}: successfully ran check step first");
-                        ctx.depends.job_done(step.name());
+                        ctx.depends.job_done(&step.name);
                         return Ok(rsp);
                     }
                     Err(e) => {
@@ -305,7 +295,7 @@ impl StepScheduler {
                     Err(err)
                 }
             };
-            ctx.depends.job_done(step.name());
+            ctx.depends.job_done(&step.name);
             result
         });
         Ok(())
@@ -344,7 +334,7 @@ async fn run(ctx: &StepContext, mut job: StepJob) -> Result<StepResponse> {
         }
         Err(err) => {
             trace!("{step}: failed to run step: {err}");
-            Err(err.wrap_err(step.name().to_string()))
+            Err(err.wrap_err(step.name.clone()))
         }
     }
 }

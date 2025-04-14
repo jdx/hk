@@ -48,12 +48,12 @@ This will generate a `hk.pkl` file in the root of the repository, here's an exam
 amends "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters {
     // linters can be manually defined
-    ["eslint"] = new LinterStep {
+    ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
         // this will filter the staged files and return the subset matching these globs
-        glob = new { "*.js"; "*.ts" }
+        glob = List("*.js"; "*.ts")
         // a command that returns non-zero to fail the check
         check = "eslint {{files}}"
     }
@@ -67,8 +67,18 @@ local linters = new Mapping<String, Step> {
 
 hooks {
     ["pre-commit"] {
-        steps = new Mapping<String, Step> {
-            ["fix"] = new Fix {}
+        fix = true           // runs the "fix" step of linters to modify files
+        stash = "patch-file" // stashes unstaged changes when running fix steps
+        steps {
+            ["prelint"] {
+                check = "mise run prelint"
+                exclusive = true // blocks other steps from starting until this one finishes
+            }
+            ...linters
+            ["postlint"] {
+                check = "mise run postlint"
+                exclusive = true
+            }
         }
     }
 }

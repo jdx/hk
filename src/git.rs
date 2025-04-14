@@ -232,9 +232,14 @@ impl Git {
         }
     }
 
-    pub fn stash_unstaged(&mut self, job: &ProgressJob, status: &GitStatus) -> Result<()> {
+    pub fn stash_unstaged(
+        &mut self,
+        job: &ProgressJob,
+        method: &StashMethod,
+        status: &GitStatus,
+    ) -> Result<()> {
         // Skip stashing if there's no initial commit yet or auto-stash is disabled
-        if *env::HK_STASH == StashMethod::None {
+        if method == &StashMethod::None {
             return Ok(());
         }
         if let Some(repo) = &self.repo {

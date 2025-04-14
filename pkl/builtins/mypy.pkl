@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-mypy = new Config.LinterStep {
+mypy = new Config.Step {
     glob = List("**/*.py")
     check = "mypy {{ files }}"
 } 

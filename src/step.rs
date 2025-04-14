@@ -1,85 +1,19 @@
-use crate::{Result, config::Steps, error::Error, step_job::StepJob, step_response::StepResponse};
+use crate::env;
+use crate::ui::style;
+use crate::{Result, error::Error, step_job::StepJob, step_response::StepResponse};
 use crate::{glob, settings::Settings};
 use crate::{step_context::StepContext, tera};
-use clx::progress::ProgressStatus;
+use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
 use eyre::{WrapErr, eyre};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::{fmt, process::Stdio};
 
 use serde_with::serde_as;
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
-#[serde_as]
-pub struct RunStep {
-    #[serde(default)]
-    pub name: String,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
-    pub profiles: Option<Vec<String>>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
-    pub glob: Option<Vec<String>>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
-    pub exclude: Option<Vec<String>>,
-    pub dir: Option<String>,
-    pub run: String,
-    #[serde(default)]
-    pub exclusive: bool,
-    #[serde(default)]
-    pub interactive: bool,
-    pub depends: Vec<String>,
-    pub env: IndexMap<String, String>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
-    pub stage: Option<Vec<String>>,
-    #[serde(default)]
-    pub stomp: bool,
-}
-
-impl RunStep {
-    pub(crate) fn init(&mut self, name: &str) {
-        self.name = name.to_string();
-        if self.interactive {
-            self.exclusive = true;
-        }
-    }
-
-    pub fn is_profile_enabled(&self) -> bool {
-        is_profile_enabled(
-            &self.name,
-            self.enabled_profiles(),
-            self.disabled_profiles(),
-        )
-    }
-
-    pub fn enabled_profiles(&self) -> Option<IndexSet<String>> {
-        self.profiles.as_ref().map(|profiles| {
-            profiles
-                .iter()
-                .filter(|s| !s.starts_with('!'))
-                .map(|s| s.to_string())
-                .collect()
-        })
-    }
-
-    pub fn disabled_profiles(&self) -> Option<IndexSet<String>> {
-        self.profiles.as_ref().map(|profiles| {
-            profiles
-                .iter()
-                .filter(|s| s.starts_with('!'))
-                .map(|s| s.strip_prefix('!').unwrap().to_string())
-                .collect()
-        })
-    }
-}
-
-impl fmt::Display for RunStep {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)
-    }
-}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
@@ -89,34 +23,32 @@ pub struct LinterStep {
     pub name: String,
     #[serde_as(as = "Option<OneOrMany<_>>")]
     pub profiles: Option<Vec<String>>,
-    #[serde(default)]
-    pub exclusive: bool,
+    #[serde_as(as = "Option<OneOrMany<_>>")]
+    pub glob: Option<Vec<String>>,
+    #[serde_as(as = "Option<OneOrMany<_>>")]
     #[serde(default)]
     pub interactive: bool,
     pub depends: Vec<String>,
+    pub check: Option<String>,
+    pub check_list_files: Option<String>,
+    pub check_diff: Option<String>,
+    pub fix: Option<String>,
+    pub workspace_indicator: Option<String>,
+    pub prefix: Option<String>,
+    pub dir: Option<String>,
     #[serde(default)]
     pub check_first: bool,
     #[serde(default)]
     pub batch: bool,
     #[serde(default)]
     pub stomp: bool,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
-    pub glob: Option<Vec<String>>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
-    pub exclude: Option<Vec<String>>,
-    pub check: Option<String>,
-    pub check_diff: Option<String>,
-    pub check_list_files: Option<String>,
-    pub fix: Option<String>,
-    pub workspace_indicator: Option<String>,
-    pub prefix: Option<String>,
-    pub dir: Option<String>,
     pub env: IndexMap<String, String>,
-    pub root: Option<PathBuf>,
     #[serde_as(as = "Option<OneOrMany<_>>")]
     pub stage: Option<Vec<String>>,
+    pub exclude: Option<Vec<String>>,
     #[serde(default)]
-    pub linter_dependencies: IndexMap<String, Vec<String>>,
+    pub exclusive: bool,
+    pub root: Option<PathBuf>,
 }
 
 impl fmt::Display for LinterStep {
@@ -210,6 +142,25 @@ impl LinterStep {
         )
     }
 
+    pub(crate) fn build_step_progress(&self) -> Arc<ProgressJob> {
+        ProgressJobBuilder::new()
+            .body(vec![
+                "{{spinner()}} {{name}} {% if message %}– {{message | flex}}{% endif %}"
+                    .to_string(),
+            ])
+            .body_text(Some(vec![
+                "{% if message %}{{spinner()}} {{name}} – {{message}}{% endif %}".to_string(),
+            ]))
+            .prop("name", &self.name)
+            .status(ProgressStatus::RunningCustom(style::edim("❯").to_string()))
+            .on_done(if *env::HK_HIDE_WHEN_DONE {
+                ProgressJobDoneBehavior::Hide
+            } else {
+                ProgressJobDoneBehavior::Keep
+            })
+            .start()
+    }
+
     /// For a list of files like this:
     /// src/crate-1/src/lib.rs
     /// src/crate-1/src/subdir/mod.rs
@@ -232,6 +183,133 @@ impl LinterStep {
             }
         }
         Ok(Some(workspaces))
+    }
+
+    pub(crate) async fn run(&self, ctx: &StepContext, job: &StepJob) -> Result<StepResponse> {
+        let mut rsp = StepResponse::default();
+        let mut tctx = job.tctx(&ctx.tctx);
+        tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
+        tctx.with_files(&job.files);
+        let file_msg = |files: &[PathBuf]| {
+            format!(
+                "{} file{}",
+                files.len(),
+                if files.len() == 1 { "" } else { "s" }
+            )
+        };
+        let pr = job.build_progress(ctx);
+        let Some(mut run) = self.run_cmd(job.run_type).map(|s| s.to_string()) else {
+            warn!("{}: no run command", self);
+            return Ok(rsp);
+        };
+        if let Some(prefix) = &self.prefix {
+            run = format!("{} {}", prefix, run);
+        }
+        let files_to_add = if matches!(job.run_type, RunType::Fix) {
+            if let Some(stage) = &self.stage {
+                let stage = stage
+                    .iter()
+                    .map(|s| tera::render(s, &tctx).unwrap())
+                    .collect_vec();
+                glob::get_matches(&stage, &job.files)?
+            } else if self.glob.is_some() {
+                job.files.clone()
+            } else {
+                vec![]
+            }
+            .into_iter()
+            .map(|p| {
+                (
+                    p.metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+                    p,
+                )
+            })
+            .collect_vec()
+        } else {
+            vec![]
+        };
+        let run = tera::render(&run, &tctx).unwrap();
+        pr.prop(
+            "message",
+            &format!(
+                "{} – {} – {}",
+                file_msg(&job.files),
+                self.glob.as_ref().unwrap_or(&vec![]).join(" "),
+                run
+            ),
+        );
+        pr.update();
+        if log::log_enabled!(log::Level::Trace) {
+            for file in &job.files {
+                trace!("{self}: {}", file.display());
+            }
+        }
+        let mut cmd = CmdLineRunner::new("sh")
+            .arg("-o")
+            .arg("errexit")
+            .arg("-c")
+            .arg(&run)
+            .with_pr(pr.clone())
+            .show_stderr_on_error(false);
+        if self.interactive {
+            clx::progress::pause();
+            cmd = cmd
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit());
+        }
+        if let Some(dir) = &self.dir {
+            cmd = cmd.current_dir(dir);
+        }
+        for (key, value) in &self.env {
+            cmd = cmd.env(key, value);
+        }
+        match cmd.execute().await {
+            Ok(_) => {}
+            Err(err) => {
+                if self.interactive {
+                    clx::progress::resume();
+                }
+                if let ensembler::Error::ScriptFailed(_bin, _args, _output, result) = &err {
+                    if let RunType::Check(CheckType::ListFiles) = job.run_type {
+                        let stdout = result.stdout.clone();
+                        return Err(Error::CheckListFailed {
+                            source: eyre!("{}", err),
+                            stdout,
+                        })?;
+                    }
+                }
+                if job.check_first && matches!(job.run_type, RunType::Check(_)) {
+                    ctx.progress.set_status(ProgressStatus::Warn);
+                } else {
+                    ctx.progress.set_status(ProgressStatus::Failed);
+                }
+                return Err(err).wrap_err(run);
+            }
+        }
+        if self.interactive {
+            clx::progress::resume();
+        }
+        rsp.files_to_add = files_to_add
+            .into_iter()
+            .filter(|(prev_mod, p)| {
+                if !p.exists() {
+                    return false;
+                }
+                let Ok(metadata) = p.metadata().and_then(|m| m.modified()) else {
+                    return false;
+                };
+                metadata > *prev_mod
+            })
+            .map(|(_, p)| p)
+            .collect_vec();
+        ctx.inc_files_added(rsp.files_to_add.len());
+        ctx.decrement_job_count();
+        ctx.update_progress();
+        pr.set_status(ProgressStatus::Done);
+        Ok(rsp)
     }
 }
 
@@ -260,135 +338,4 @@ fn is_profile_enabled(
         }
     }
     true
-}
-
-pub(crate) async fn exec_step(
-    step: &Steps,
-    ctx: &StepContext,
-    job: &StepJob,
-) -> Result<StepResponse> {
-    let mut rsp = StepResponse::default();
-    let mut tctx = job.tctx(&ctx.tctx);
-    tctx.with_globs(step.glob().unwrap_or(&vec![]));
-    tctx.with_files(&job.files);
-    let file_msg = |files: &[PathBuf]| {
-        format!(
-            "{} file{}",
-            files.len(),
-            if files.len() == 1 { "" } else { "s" }
-        )
-    };
-    let pr = job.build_progress(ctx);
-    let Some(mut run) = step.run_cmd(job.run_type).map(|s| s.to_string()) else {
-        warn!("{}: no run command", step);
-        return Ok(rsp);
-    };
-    if let Some(prefix) = step.prefix() {
-        run = format!("{} {}", prefix, run);
-    }
-    let files_to_add = if matches!(job.run_type, RunType::Fix) {
-        if let Some(stage) = step.stage() {
-            let stage = stage
-                .iter()
-                .map(|s| tera::render(s, &tctx).unwrap())
-                .collect_vec();
-            glob::get_matches(&stage, &job.files)?
-        } else if step.glob().is_some() {
-            job.files.clone()
-        } else {
-            vec![]
-        }
-        .into_iter()
-        .map(|p| {
-            (
-                p.metadata()
-                    .and_then(|m| m.modified())
-                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-                p,
-            )
-        })
-        .collect_vec()
-    } else {
-        vec![]
-    };
-    let run = tera::render(&run, &tctx).unwrap();
-    pr.prop(
-        "message",
-        &format!(
-            "{} – {} – {}",
-            file_msg(&job.files),
-            step.glob().unwrap_or(&vec![]).join(" "),
-            run
-        ),
-    );
-    pr.update();
-    if log::log_enabled!(log::Level::Trace) {
-        for file in &job.files {
-            trace!("{step}: {}", file.display());
-        }
-    }
-    let mut cmd = CmdLineRunner::new("sh")
-        .arg("-o")
-        .arg("errexit")
-        .arg("-c")
-        .arg(&run)
-        .with_pr(pr.clone())
-        .show_stderr_on_error(false);
-    if step.interactive() {
-        clx::progress::pause();
-        cmd = cmd
-            .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
-    }
-    if let Some(dir) = step.dir() {
-        cmd = cmd.current_dir(dir);
-    }
-    for (key, value) in step.env() {
-        cmd = cmd.env(key, value);
-    }
-    match cmd.execute().await {
-        Ok(_) => {}
-        Err(err) => {
-            if step.interactive() {
-                clx::progress::resume();
-            }
-            if let ensembler::Error::ScriptFailed(_bin, _args, _output, result) = &err {
-                if let RunType::Check(CheckType::ListFiles) = job.run_type {
-                    let stdout = result.stdout.clone();
-                    return Err(Error::CheckListFailed {
-                        source: eyre!("{}", err),
-                        stdout,
-                    })?;
-                }
-            }
-            if job.check_first && matches!(job.run_type, RunType::Check(_)) {
-                ctx.progress.set_status(ProgressStatus::Warn);
-            } else {
-                ctx.progress.set_status(ProgressStatus::Failed);
-            }
-            return Err(err).wrap_err(run);
-        }
-    }
-    if step.interactive() {
-        clx::progress::resume();
-    }
-    rsp.files_to_add = files_to_add
-        .into_iter()
-        .filter(|(prev_mod, p)| {
-            if !p.exists() {
-                return false;
-            }
-            let Ok(metadata) = p.metadata().and_then(|m| m.modified()) else {
-                return false;
-            };
-            metadata > *prev_mod
-        })
-        .map(|(_, p)| p)
-        .collect_vec();
-    ctx.inc_files_added(rsp.files_to_add.len());
-    ctx.decrement_job_count();
-    ctx.update_progress();
-    pr.set_status(ProgressStatus::Done);
-    Ok(rsp)
 }

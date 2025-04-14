@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-go_imports = new Config.LinterStep {
+go_imports = new Config.Step {
     glob = List("**/*.go")
     check = "goimports -l {{ files }}"
     fix = "goimports -w {{ files }}"

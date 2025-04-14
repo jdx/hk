@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-go_fmt = new Config.LinterStep {
+go_fmt = new Config.Step {
     glob = List("*.go")
     check_list_files = """
 FILES=$(gofmt -s -l {{files}})

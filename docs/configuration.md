@@ -14,9 +14,9 @@ Here's a basic `hk.pkl` file:
 amends "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters {
     // linters can be manually defined
-    ["eslint"] = new LinterStep {
+    ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
         // this will filter the staged files and return the subset matching these globs
         glob = List("*.js", "*.ts")
@@ -74,6 +74,7 @@ hooks {
 ```
 
 Template variables:
+
 - <code v-pre>{{files}}</code>: A list of files to run the linter on.
 
 ### `hooks.<HOOK>.steps.<STEP>.check_list_files: String`
@@ -99,8 +100,8 @@ A command that shows the diff of what would be changed. This is an alternative t
 A command to run that modifies files. This typically is a "fix" command like `eslint --fix` or `prettier --write`. Templates variables are the same as for `check`.
 
 ```pkl
-local linters = new Mapping<String, Step> {
-    ["prettier"] = new LinterStep {
+local linters {
+    ["prettier"] {
         fix = "prettier --write {{files}}"
     }
 }
@@ -121,8 +122,8 @@ Default: `false`
 If true, hk will run the linter on batches of files instead of all files at once. This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
 
 ```pkl
-local linters = new Mapping<String, Step> {
-    ["eslint"] = new LinterStep {
+local linters {
+    ["eslint"] {
         batch = true
     }
 }
@@ -139,8 +140,8 @@ If true, hk will get a write lock instead of a read lock when running fix/fix_al
 If set, run the linter on workspaces only which are parent directories containing this filename. This is useful for tools that need to be run from a specific directory, like a project root.
 
 ```pkl
-local linters = new Mapping<String, Step> {
-    ["cargo-clippy"] = new LinterStep {
+local linters {
+    ["cargo-clippy"] {
         workspace_indicator = "Cargo.toml"
     }
 }
@@ -151,8 +152,8 @@ local linters = new Mapping<String, Step> {
 If set, run the linter scripts with this prefix, e.g.: "mise exec --" or "npm run".
 
 ```pkl
-local linters = new Mapping<String, Step> {
-    ["eslint"] = new LinterStep {
+local linters {
+    ["eslint"] {
         prefix = "npm run"
     }
 }
@@ -163,7 +164,7 @@ local linters = new Mapping<String, Step> {
 If set, run the linter scripts in this directory.
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters {
     ["eslint"] (builtins.eslint) {
         dir = "frontend"
     }
@@ -175,7 +176,7 @@ local linters = new Mapping<String, Step> {
 Profiles are a way to enable/disable linters based on the current profile. The linter will only run if its profile is in [`HK_PROFILE`](/configuration#hk-profile).
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters {
     ["prettier"] (builtins.prettier) {
         profiles = List("slow")
     }
@@ -185,7 +186,7 @@ local linters = new Mapping<String, Step> {
 Profiles can be prefixed with `!` to disable them.
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters {
     ["prettier"] (builtins.prettier) {
         profiles = List("!slow")
     }
@@ -199,8 +200,8 @@ A list of steps that must finish before this step can run.
 ```pkl
 hooks {
     ["pre-commit"] {
-        steps = new Mapping<String, Step> {
-            ["prettier"] = new LinterStep {
+        steps {
+            ["prettier"] {
                 depends = List("eslint")
             }
         }
@@ -227,8 +228,8 @@ A list of steps that must finish before this step can run.
 ```pkl
 hooks {
     ["pre-commit"] {
-        steps = new Mapping<String, Step> {
-            ["prettier"] = new LinterStep {
+        steps {
+            ["prettier"] {
                 depends = List("eslint")
             }
         }
@@ -243,7 +244,7 @@ A list of globs of files to add to the git index after running a fix step.
 ```pkl
 hooks {
     ["pre-commit"] {
-        steps = new Mapping<String, Step> {
+        steps {
             ["prettier"] {
                 stage = List("*.js", "*.ts")
             }
@@ -263,7 +264,7 @@ If true, this step will wait for any previous steps to finish before running. No
 ```pkl
 hooks {
     ["pre-commit"] {
-        steps = new Mapping<String, Step> {
+        steps {
             ["prelint"] {
                 exclusive = true // blocks other steps from starting until this one finishes
                 run = "mise run prelint"

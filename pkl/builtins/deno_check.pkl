@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-deno_check = new Config.LinterStep {
+deno_check = new Config.Step {
     glob = List("**/*.{js,jsx,ts,tsx}")
     check = "deno check {{ files }}"
 } 

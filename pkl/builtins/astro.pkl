@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-astro = new Config.LinterStep {
+astro = new Config.Step {
     glob = List("**/*.astro")
     check = "astro check {{ files }}"
 } 

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-isort = new Config.LinterStep {
+isort = new Config.Step {
     glob = List("**/*.py")
     check = "isort --check-only {{ files }}"
     fix = "isort {{ files }}"

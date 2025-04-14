@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-reek = new Config.LinterStep {
+reek = new Config.Step {
     glob = List("**/*.rb")
     check = "reek {{ files }}"
 } 

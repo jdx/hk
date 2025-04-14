@@ -38,13 +38,13 @@ pub static HK_LOG_FILE: LazyLock<PathBuf> =
 pub static HK_LIBGIT2: LazyLock<bool> = LazyLock::new(|| !var_false("HK_LIBGIT2"));
 pub static HK_HIDE_WHEN_DONE: LazyLock<bool> = LazyLock::new(|| var_true("HK_HIDE_WHEN_DONE"));
 pub static HK_CHECK_FIRST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_CHECK_FIRST"));
-pub static HK_STASH: LazyLock<StashMethod> = LazyLock::new(|| {
+pub static HK_STASH: LazyLock<Option<StashMethod>> = LazyLock::new(|| {
     if var_false("HK_STASH") {
-        StashMethod::None
+        Some(StashMethod::None)
     } else {
         var("HK_STASH")
-            .map(|v| v.parse().expect("invalid HK_STASH value"))
-            .unwrap_or(StashMethod::PatchFile)
+            .map(|v| Some(v.parse().expect("invalid HK_STASH value")))
+            .unwrap_or(None)
     }
 });
 pub static HK_FIX: LazyLock<bool> = LazyLock::new(|| !var_false("HK_FIX"));

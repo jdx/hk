@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-luacheck = new Config.LinterStep {
+luacheck = new Config.Step {
     glob = List("**/*.lua")
     check = "luacheck {{ files }}"
 } 

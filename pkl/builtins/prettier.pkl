@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-prettier = new Config.LinterStep {
+prettier = new Config.Step {
     glob = List("**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts,css,scss,less,html,json,jsonc,yaml,markdown,markdown.mdx,graphql,handlebars,svelte,astro,htmlangular}")
     batch = true
     check = "prettier --check {{ files }}"

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-terraform = new Config.LinterStep {
+terraform = new Config.Step {
     glob = List("**/*.tf")
     check_list_files = "terraform fmt -check {{ files }}"
     fix = "terraform fmt {{ files }}"

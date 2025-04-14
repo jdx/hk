@@ -28,7 +28,7 @@ local linters = new Mapping<String, Step> {
     ["prettier"] = builtins.prettier
 
     // uses custom pkl linter config
-    ["pkl"] = new LinterStep {
+    ["pkl"] {
         glob = List("*.pkl")
         check = "pkl eval {{files}} >/dev/null"
     }
@@ -36,9 +36,9 @@ local linters = new Mapping<String, Step> {
 
 hooks {
     ["pre-commit"] {
-        fix = true // automatically modify files with available linter fixes
-        steps = new {
-            ["stash"] = new StashStep {} // stashes any unstaged changes during the hook
+        fix = true           // automatically modify files with available linter fixes
+        stash = "patch-file" // stashes unstaged changes while running fix steps
+        steps {
             // "prelint" here is simply a name to define the step
             ["prelint"] {
                 // if a step has a "check" script it will execute that

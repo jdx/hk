@@ -5,7 +5,7 @@ local linters = new Mapping<String, Step> {
     // some linters are built into hk
     ["actionlint"] = builtins.actionlint
     // linters can be manually defined
-    ["eslint"] = new LinterStep {
+    ["eslint"] = new Step {
         // the files to run the hook on, if no files are matched, the hook will be skipped
         // this will filter the staged files and return the subset matching these globs
         glob = List("*.js", "*.ts")
@@ -30,14 +30,14 @@ local linters = new Mapping<String, Step> {
         // rather than running fix against all the files that were checked, it only runs fix against the files returned by this command
         check_list_files = "prettier --list-different {{files}}"
     }
-    ["clippy"] = new LinterStep {
+    ["clippy"] = new Step {
         // this linter works on directories instead of individual files.
         // This tells hk what filename to look for to know if a directory is a workspace.
         workspace_indicator = "Cargo.toml"
         check = "cargo clippy --manifest-path {{workspace_indicator}}"
         fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged"
     }
-    ["gomod_tidy"] = new LinterStep {
+    ["gomod_tidy"] = new Step {
         workspace_indicator = "go.mod"
         // assists "check_first" method because this will return a patch to stdout that hk can simply apply
         // without needing to actually run a "fix" step
@@ -48,16 +48,16 @@ local linters = new Mapping<String, Step> {
 hooks {
     ["pre-commit"] {
         fix = true // automatically modify files with available linter fixes
+        stash = "git" // or "patch-file" or "none"
         steps {
-            ["stash"] = new StashStep {}
             // custom step can be defined to run a shell command
             ["prelint"] {
-                run = "mise run prelint"
+                check = "mise run prelint"
                 exclusive = true // prevent other steps from running before this one or starting before this one finishes
             }
             ...linters
             ["postlint"] {
-                run = "mise run postlint"
+                check = "mise run postlint"
                 exclusive = true // prevent other steps from running before this one or starting before this one finishes
             }
         }

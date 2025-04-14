@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-go_lines = new Config.LinterStep {
+go_lines = new Config.Step {
     glob = List("**/*.go")
     check = "golines --dry-run {{ files }}"
     fix = "golines -w {{ files }}"

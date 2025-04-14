@@ -13,7 +13,7 @@ import "$PKL_PATH/builtins/prettier.pkl"
 hooks {
     ["check"] {
         steps {
-            ["prettier"] = new LinterStep {
+            ["prettier"] {
                 glob = List("*.js", "*.ts")
                 exclude = List("*.test.js", "*.test.ts")
                 check = "prettier --check {{files}}"
@@ -50,7 +50,7 @@ import "$PKL_PATH/builtins/prettier.pkl"
 hooks {
     ["check"] {
         steps {
-            ["prettier"] = new LinterStep {
+            ["prettier"] {
                 dir = "src"
                 glob = List("*.js", "*.ts")
                 exclude = List("*.test.js", "*.test.ts")

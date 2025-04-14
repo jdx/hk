@@ -1,7 +1,7 @@
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior};
 use itertools::Itertools;
 
-use crate::{config::Steps, env, step_context::StepContext, step_locks::StepLocks, tera};
+use crate::{env, step::LinterStep, step_context::StepContext, step_locks::StepLocks, tera};
 use std::{path::PathBuf, sync::Arc};
 
 use crate::step::RunType;
@@ -14,7 +14,7 @@ use crate::step::RunType;
 /// * Batch step that needs to run multiple batches of different files
 #[derive(Debug)]
 pub struct StepJob {
-    pub step: Arc<Steps>,
+    pub step: Arc<LinterStep>,
     pub files: Vec<PathBuf>,
     pub run_type: RunType,
     pub check_first: bool,
@@ -40,13 +40,17 @@ pub enum StepJobStatus {
 // }
 
 impl StepJob {
-    pub fn new(step: Arc<Steps>, files: Vec<PathBuf>, run_type: RunType) -> Self {
+    pub fn new(step: Arc<LinterStep>, files: Vec<PathBuf>, run_type: RunType) -> Self {
         Self {
             files,
             run_type,
             workspace_indicator: None,
             check_first: *env::HK_CHECK_FIRST
-                && matches!(step.as_ref(), Steps::Linter(s) if s.check_first && s.fix.is_some() && (s.check.is_some() || s.check_diff.is_some() || s.check_list_files.is_some()))
+                && step.check_first
+                && step.fix.is_some()
+                && (step.check.is_some()
+                    || step.check_diff.is_some()
+                    || step.check_list_files.is_some())
                 && matches!(run_type, RunType::Fix),
             step,
             status: StepJobStatus::Pending,
@@ -77,7 +81,7 @@ impl StepJob {
 
     pub fn build_progress(&self, ctx: &StepContext) -> Arc<ProgressJob> {
         let job = ProgressJobBuilder::new()
-            .prop("name", &self.step.name())
+            .prop("name", &self.step.name)
             .prop("files", &self.files.iter().map(|f| f.display()).join(" "))
             .body(vec![
                 // TODO: truncate properly
