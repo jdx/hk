@@ -6,6 +6,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // progress::set_output(progress::ProgressOutput::Text);
     let pr = progress::ProgressJobBuilder::new()
         .body(vec!["{{ spinner() }} {{ bin }} {{ message }}".to_string()])
+        .prop("bin", "echo")
         .status(progress::ProgressStatus::Hide)
         .start();
     CmdLineRunner::new("bash")
@@ -14,5 +15,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_pr(pr.clone())
         .execute()
         .await?;
+    clx::progress::flush();
     Ok(())
 }
