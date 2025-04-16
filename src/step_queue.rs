@@ -1,4 +1,4 @@
-use crate::step::LinterStep;
+use crate::step::Step;
 use crate::step_job::StepJob;
 
 use crate::{Result, settings::Settings};
@@ -21,13 +21,13 @@ pub struct StepQueue {
 }
 
 pub struct StepQueueBuilder {
-    steps: Vec<Arc<LinterStep>>,
+    steps: Vec<Arc<Step>>,
     files: Vec<PathBuf>,
     run_type: RunType,
 }
 
 impl StepQueueBuilder {
-    pub fn new(steps: Vec<Arc<LinterStep>>, files: Vec<PathBuf>, run_type: RunType) -> Self {
+    pub fn new(steps: Vec<Arc<Step>>, files: Vec<PathBuf>, run_type: RunType) -> Self {
         Self {
             steps,
             files,
@@ -59,7 +59,7 @@ impl StepQueueBuilder {
         Ok(StepQueue { groups })
     }
 
-    fn build_queue_for_group(&self, steps: &[&Arc<LinterStep>]) -> Result<Vec<StepJob>> {
+    fn build_queue_for_group(&self, steps: &[&Arc<Step>]) -> Result<Vec<StepJob>> {
         let jobs = LazyCell::new(|| Settings::get().jobs().get());
         let mut queue = vec![];
         for step in steps {
@@ -142,10 +142,10 @@ impl StepQueueBuilder {
 
     fn files_in_contention(
         &self,
-        steps: &[&Arc<LinterStep>],
+        steps: &[&Arc<Step>],
         files: &[PathBuf],
     ) -> Result<HashSet<PathBuf>> {
-        let step_map: HashMap<&str, &LinterStep> = steps
+        let step_map: HashMap<&str, &Step> = steps
             .iter()
             .map(|step| (step.name.as_str(), &***step))
             .collect();
@@ -156,7 +156,7 @@ impl StepQueueBuilder {
                 Ok((step.name.as_str(), files))
             })
             .collect::<Result<_>>()?;
-        let mut steps_per_file: HashMap<&Path, Vec<&LinterStep>> = Default::default();
+        let mut steps_per_file: HashMap<&Path, Vec<&Step>> = Default::default();
         for (step_name, files) in files_by_step.iter() {
             for file in files {
                 let step = step_map.get(step_name).unwrap();

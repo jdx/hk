@@ -1,7 +1,7 @@
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior};
 use itertools::Itertools;
 
-use crate::{env, step::LinterStep, step_context::StepContext, step_locks::StepLocks, tera};
+use crate::{env, step::Step, step_context::StepContext, step_locks::StepLocks, tera};
 use std::{path::PathBuf, sync::Arc};
 
 use crate::step::RunType;
@@ -14,7 +14,7 @@ use crate::step::RunType;
 /// * Batch step that needs to run multiple batches of different files
 #[derive(Debug)]
 pub struct StepJob {
-    pub step: Arc<LinterStep>,
+    pub step: Arc<Step>,
     pub files: Vec<PathBuf>,
     pub run_type: RunType,
     pub check_first: bool,
@@ -40,7 +40,7 @@ pub enum StepJobStatus {
 // }
 
 impl StepJob {
-    pub fn new(step: Arc<LinterStep>, files: Vec<PathBuf>, run_type: RunType) -> Self {
+    pub fn new(step: Arc<Step>, files: Vec<PathBuf>, run_type: RunType) -> Self {
         Self {
             files,
             run_type,

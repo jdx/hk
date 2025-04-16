@@ -17,7 +17,7 @@ use crate::{
     git::Git,
     glob, hash,
     hook_options::HookOptions,
-    step::{CheckType, LinterStep, RunType},
+    step::{CheckType, RunType, Step},
     step_scheduler::StepScheduler,
     ui::style,
     version,
@@ -132,7 +132,7 @@ pub struct Hook {
     #[serde(default)]
     pub name: String,
     #[serde(default)]
-    pub steps: IndexMap<String, LinterStep>,
+    pub steps: IndexMap<String, Step>,
     #[serde(default)]
     pub fix: bool,
     pub stash: Option<StashMethod>,

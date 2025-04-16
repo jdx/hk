@@ -18,7 +18,7 @@ use std::{fmt, process::Stdio};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 #[serde_as]
-pub struct LinterStep {
+pub struct Step {
     #[serde(default)]
     pub name: String,
     pub profiles: Option<Vec<String>>,
@@ -49,7 +49,7 @@ pub struct LinterStep {
     pub root: Option<PathBuf>,
 }
 
-impl fmt::Display for LinterStep {
+impl fmt::Display for Step {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
@@ -79,7 +79,7 @@ pub enum CheckType {
     Diff,
 }
 
-impl LinterStep {
+impl Step {
     pub(crate) fn init(&mut self, name: &str) {
         self.name = name.to_string();
         if self.interactive {
