@@ -1,36 +1,18 @@
 use std::io::IsTerminal;
 use std::io::Read;
 
-use crate::config::Config;
+use crate::hook_options::HookOptions;
 use crate::{Result, git::Git};
 
-/// Sets up git hooks to run hk
-#[derive(Debug, clap::Args)]
-#[clap(visible_alias = "ph")]
+#[derive(clap::Args)]
+#[clap(visible_alias = "pp")]
 pub struct PrePush {
     /// Remote name
     remote: Option<String>,
     /// Remote URL
     url: Option<String>,
-    /// Run on all files instead of just staged files
-    #[clap(short, long)]
-    all: bool,
-    /// Run fix command instead of run command
-    /// This is the default behavior unless HK_FIX=0
-    #[clap(short, long, overrides_with = "check")]
-    fix: bool,
-    /// Run check command instead of fix command
-    #[clap(short, long, overrides_with = "fix")]
-    check: bool,
-    /// Run on specific linter(s)
-    #[clap(long)]
-    linter: Vec<String>,
-    /// Start reference for checking files (requires --to-ref)
-    #[clap(long)]
-    from_ref: Option<String>,
-    /// End reference for checking files (requires --from-ref)
-    #[clap(long)]
-    to_ref: Option<String>,
+    #[clap(flatten)]
+    hook: HookOptions,
 }
 
 #[derive(Debug)]
@@ -50,8 +32,7 @@ impl From<&str> for PrePushRefs {
 }
 
 impl PrePush {
-    pub async fn run(&self) -> Result<()> {
-        let config = Config::get()?;
+    pub async fn run(mut self) -> Result<()> {
         let to_be_updated_refs = if std::io::stdin().is_terminal() {
             vec![]
         } else {
@@ -70,7 +51,7 @@ impl PrePush {
         };
         trace!("to_be_updated_refs: {:?}", to_be_updated_refs);
 
-        let from_ref = match &self.from_ref {
+        self.hook.from_ref = Some(match &self.hook.from_ref {
             Some(to_ref) => to_ref.clone(),
             None if !to_be_updated_refs.is_empty() => to_be_updated_refs[0].from.1.clone(),
             None => {
@@ -79,27 +60,24 @@ impl PrePush {
                 repo.matching_remote_branch(remote)?
                     .unwrap_or(format!("refs/remotes/{remote}/HEAD"))
             }
-        };
-        let to_ref = self
-            .to_ref
-            .clone()
-            .or(if !to_be_updated_refs.is_empty() {
-                Some(to_be_updated_refs[0].to.1.clone())
-            } else {
-                None
-            })
-            .unwrap_or("HEAD".to_string());
-        debug!("from_ref: {}, to_ref: {}", from_ref, to_ref);
+        });
+        self.hook.to_ref = Some(
+            self.hook
+                .to_ref
+                .clone()
+                .or(if !to_be_updated_refs.is_empty() {
+                    Some(to_be_updated_refs[0].to.1.clone())
+                } else {
+                    None
+                })
+                .unwrap_or("HEAD".to_string()),
+        );
+        debug!(
+            "from_ref: {}, to_ref: {}",
+            self.hook.from_ref.as_ref().unwrap(),
+            self.hook.to_ref.as_ref().unwrap()
+        );
 
-        config
-            .run_hook(
-                self.all,
-                "pre-push",
-                &self.linter,
-                Default::default(),
-                Some(&from_ref),
-                Some(&to_ref),
-            )
-            .await
+        self.hook.run("pre-push").await
     }
 }

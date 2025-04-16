@@ -13,10 +13,12 @@ mod fix;
 mod init;
 mod install;
 mod run;
+mod uninstall;
 mod usage;
+mod validate;
 mod version;
 
-#[derive(Debug, clap::Parser)]
+#[derive(clap::Parser)]
 #[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
     /// Number of jobs to run in parallel
@@ -43,7 +45,7 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(clap::Subcommand)]
 enum Commands {
     Cache(cache::Cache),
     Check(check::Check),
@@ -54,6 +56,8 @@ enum Commands {
     Install(install::Install),
     Run(run::Run),
     Usage(usage::Usage),
+    Uninstall(uninstall::Uninstall),
+    Validate(validate::Validate),
     Version(version::Version),
 }
 
@@ -92,14 +96,16 @@ pub async fn run() -> Result<()> {
     }
     match args.command {
         Commands::Cache(cmd) => cmd.run().await,
-        Commands::Check(cmd) => cmd.run().await,
+        Commands::Check(cmd) => cmd.hook.run("check").await,
         Commands::Completion(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
-        Commands::Fix(cmd) => cmd.run().await,
+        Commands::Fix(cmd) => cmd.hook.run("fix").await,
         Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,
+        Commands::Uninstall(cmd) => cmd.run().await,
         Commands::Usage(cmd) => cmd.run().await,
+        Commands::Validate(cmd) => cmd.run().await,
         Commands::Version(cmd) => cmd.run().await,
     }
 }

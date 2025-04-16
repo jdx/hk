@@ -22,31 +22,33 @@ teardown() {
 @test "hk install creates git hooks" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
-hooks { ["pre-commit"] { steps { ["prettier"] = builtins.prettier } } }
+import "$PKL_PATH/Builtins.pkl"
+hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     hk install
     assert_file_exists ".git/hooks/pre-commit"
 }
 
 @test "git runs pre-commit on staged files" {
-    cat <<EOF > test.js
-console.log("test")
-EOF
-    run git add test.js
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "git"
         steps {
-            ["prettier"] = builtins.prettier
+            ["prettier"] = Builtins.prettier
         }
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
+    cat <<EOF > test.js
+console.log("test")
+EOF
+    run git add test.js
     hk install
     run cat test.js
     assert_output 'console.log("test")'
@@ -63,18 +65,19 @@ EOF
     git commit -m init
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "git"
         steps {
-            ["prettier"] = builtins.prettier
+            ["prettier"] = Builtins.prettier
         }
     }
 }
 EOF
-    hk run pre-commit -a
+    hk run pre-commit --all
+    assert_file_exists hk.pkl
     run cat test.js
     assert_output 'console.log("test");'
 }
@@ -82,17 +85,19 @@ EOF
 @test "builtin: json" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "patch-file"
         steps {
-            ["jq"] = builtins.jq
+            ["jq"] = Builtins.jq
         }
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
     cat <<EOF > test.json
 { "invalid": 
 EOF
@@ -105,17 +110,19 @@ EOF
 @test "builtin: json format" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "git"
         steps {
-            ["jq"] = builtins.jq
+            ["jq"] = Builtins.jq
         }
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
     cat <<EOF > test.json
 {"test": 123}
 EOF
@@ -129,17 +136,19 @@ EOF
 @test "builtin: yaml" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "git"
         steps {
-            ["yq"] = builtins.yq
+            ["yq"] = Builtins.yq
         }
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
     cat <<EOF > test.yaml
 test: :
 EOF
@@ -152,17 +161,19 @@ EOF
 @test "builtin: yaml format" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "patch-file"
         steps {
-            ["yq"] = builtins.yq
+            ["yq"] = Builtins.yq
         }
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
     cat <<EOF > test.yaml
     test: 123
 EOF
@@ -175,13 +186,13 @@ EOF
 @test "builtin: shellcheck" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "git"
         steps {
-            ["shellcheck"] = builtins.shellcheck
+            ["shellcheck"] = Builtins.shellcheck
         }
     }
 }
@@ -190,6 +201,8 @@ EOF
 #!/bin/bash
 cat \$1
 EOF
+    git add hk.pkl
+    git commit -m "init"
     git add test.sh
     run hk run pre-commit
     assert_failure
@@ -199,18 +212,20 @@ EOF
 @test "HK_SKIP_STEPS skips specified steps" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "git"
         steps {
-            ["prettier"] = builtins.prettier
-            ["shellcheck"] = builtins.shellcheck
+            ["prettier"] = Builtins.prettier
+            ["shellcheck"] = Builtins.shellcheck
         }
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
     touch test.sh
     touch test.js
     git add test.sh test.js
@@ -224,18 +239,20 @@ EOF
 @test "HK_SKIP_HOOK skips entire hooks" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
         stash = "patch-file"
         steps {
-            ["prettier"] = builtins.prettier
-            ["shellcheck"] = builtins.shellcheck
+            ["prettier"] = Builtins.prettier
+            ["shellcheck"] = Builtins.shellcheck
         }
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
     touch test.sh
     touch test.js
     git add test.sh test.js
@@ -248,7 +265,7 @@ EOF
 @test "check_first waits" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         stash = "git"
@@ -268,6 +285,8 @@ hooks {
     }
 }
 EOF
+    git add hk.pkl
+    git commit -m "init"
     touch test.sh
     git add test.sh
     run hk run pre-commit -v
@@ -310,13 +329,13 @@ EOF
     # Create the hk.pkl file with prettier
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         fix = true
         stash = "patch-file"
         steps {
-            ["prettier"] = builtins.prettier
+            ["prettier"] = Builtins.prettier
         }
     }
 }

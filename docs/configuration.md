@@ -12,7 +12,7 @@ Here's a basic `hk.pkl` file:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/builtins.pkl"
+import "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/Builtins.pkl"
 
 local linters {
     // linters can be manually defined
@@ -25,8 +25,8 @@ local linters {
         // the command to run that fixes the files (used by default)
         fix = "eslint --fix {{files}}"
     }
-    // linters can also be specified with the builtins pkl library
-    ["prettier"] = builtins.prettier
+    // linters can also be specified with the Builtins pkl library
+    ["prettier"] = Builtins.prettier
 }
 
 hooks {
@@ -165,7 +165,7 @@ If set, run the linter scripts in this directory.
 
 ```pkl
 local linters {
-    ["eslint"] (builtins.eslint) {
+    ["eslint"] (Builtins.eslint) {
         dir = "frontend"
     }
 }
@@ -177,7 +177,7 @@ Profiles are a way to enable/disable linters based on the current profile. The l
 
 ```pkl
 local linters {
-    ["prettier"] (builtins.prettier) {
+    ["prettier"] (Builtins.prettier) {
         profiles = List("slow")
     }
 }
@@ -187,7 +187,7 @@ Profiles can be prefixed with `!` to disable them.
 
 ```pkl
 local linters {
-    ["prettier"] (builtins.prettier) {
+    ["prettier"] (Builtins.prettier) {
         profiles = List("!slow")
     }
 }

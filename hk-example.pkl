@@ -1,11 +1,11 @@
 amends "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/builtins.pkl"
+import "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // some linters are built into hk
-    ["actionlint"] = builtins.actionlint
+    ["actionlint"] = Builtins.actionlint
     // linters can be manually defined
-    ["eslint"] = new Step {
+    ["eslint"] {
         // the files to run the hook on, if no files are matched, the hook will be skipped
         // this will filter the staged files and return the subset matching these globs
         glob = List("*.js", "*.ts")
@@ -25,19 +25,19 @@ local linters = new Mapping<String, Step> {
         batch = true
     }
     // linters can start from a builtin linter and be customized
-    ["prettier"] = (builtins.prettier) {
+    ["prettier"] = (Builtins.prettier) {
         // providing a "check_list_files" command will be used to help the "check_first" method work more efficiently
         // rather than running fix against all the files that were checked, it only runs fix against the files returned by this command
         check_list_files = "prettier --list-different {{files}}"
     }
-    ["clippy"] = new Step {
+    ["clippy"] {
         // this linter works on directories instead of individual files.
         // This tells hk what filename to look for to know if a directory is a workspace.
         workspace_indicator = "Cargo.toml"
         check = "cargo clippy --manifest-path {{workspace_indicator}}"
         fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged"
     }
-    ["gomod_tidy"] = new Step {
+    ["gomod_tidy"] {
         workspace_indicator = "go.mod"
         // assists "check_first" method because this will return a patch to stdout that hk can simply apply
         // without needing to actually run a "fix" step

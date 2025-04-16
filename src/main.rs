@@ -13,6 +13,7 @@ mod error;
 mod git;
 mod glob;
 mod hash;
+mod hook_options;
 mod logger;
 mod settings;
 mod step;

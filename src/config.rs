@@ -1,9 +1,11 @@
-use clx::progress::{ProgressJobBuilder, ProgressStatus};
+use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize};
+use itertools::Itertools;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{
+    collections::{BTreeSet, HashSet},
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock},
+    sync::Arc,
 };
 use tokio::sync::Mutex;
 use tokio::{signal, sync::OnceCell};
@@ -13,10 +15,10 @@ use crate::{
     cache::CacheManagerBuilder,
     env,
     git::Git,
-    hash,
+    glob, hash,
+    hook_options::HookOptions,
     step::{CheckType, LinterStep, RunType},
     step_scheduler::StepScheduler,
-    tera::Context,
     ui::style,
     version,
 };
@@ -24,11 +26,11 @@ use eyre::{WrapErr, bail};
 
 impl Config {
     pub fn get() -> Result<Self> {
-        let paths = if let Some(file) = env::HK_FILE.as_ref() {
-            vec![file.as_str()]
-        } else {
-            vec!["hk.pkl", "hk.toml", "hk.yaml", "hk.yml", "hk.json"]
-        };
+        let default_path = env::HK_FILE
+            .as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or("hk.pkl");
+        let paths = vec![default_path, "hk.toml", "hk.yaml", "hk.yml", "hk.json"];
         let mut cwd = std::env::current_dir()?;
         while cwd != Path::new("/") {
             for path in &paths {
@@ -50,10 +52,12 @@ impl Config {
             cwd = cwd.parent().map(PathBuf::from).unwrap_or_default();
         }
         debug!("No config file found, using default");
-        Ok(Self::default())
+        let mut config = Config::default();
+        config.init(Path::new(default_path))?;
+        Ok(config)
     }
 
-    pub fn read(path: &Path) -> Result<Self> {
+    fn read(path: &Path) -> Result<Self> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
         let mut config: Config = match ext {
             "toml" => {
@@ -69,11 +73,14 @@ impl Config {
                 serde_json::from_str(&raw)?
             }
             "pkl" => {
-                match rpkl::from_config(path) {
-                    Ok(config) => config,
+                match parse_pkl("pkl", path) {
+                    Ok(raw) => raw,
                     Err(err) => {
                         // if pkl bin is not installed
                         if which::which("pkl").is_err() {
+                            if let Ok(out) = parse_pkl("mise x -- pkl", path) {
+                                return Ok(out);
+                            };
                             bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
                         } else {
                             return Err(err).wrap_err("failed to read pkl config file");
@@ -85,28 +92,42 @@ impl Config {
                 bail!("Unsupported file extension: {}", ext);
             }
         };
-        if let Some(min_hk_version) = &config.min_hk_version {
-            version::version_cmp_or_bail(min_hk_version)?;
-        }
-        for (name, hook) in config.hooks.iter_mut() {
-            hook.init(name);
-        }
+        config.init(path)?;
         Ok(config)
     }
+
+    fn init(&mut self, path: &Path) -> Result<()> {
+        self.path = path.to_path_buf();
+        if let Some(min_hk_version) = &self.min_hk_version {
+            version::version_cmp_or_bail(min_hk_version)?;
+        }
+        for (name, hook) in self.hooks.iter_mut() {
+            hook.init(name);
+        }
+        Ok(())
+    }
+}
+
+fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
+    let json = xx::process::sh(&format!("{bin} eval -f json {}", path.display()))?;
+    serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct Config {
     pub min_hk_version: Option<String>,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
+    #[serde(skip)]
+    #[serde(default)]
+    pub path: PathBuf,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
-#[serde(deny_unknown_fields)]
+#[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct Hook {
     #[serde(default)]
     pub name: String,
@@ -124,75 +145,21 @@ impl Hook {
             step.init(name);
         }
     }
-}
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub enum StashMethod {
-    Git,
-    PatchFile,
-    None,
-}
-
-impl std::fmt::Display for Config {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", toml::to_string(self).unwrap())
-    }
-}
-
-impl Config {
-    pub async fn run_hook(
-        &self,
-        all: bool,
-        hook: &str,
-        linters: &[String],
-        tctx: Context,
-        from_ref: Option<&str>,
-        to_ref: Option<&str>,
-    ) -> Result<()> {
-        if env::HK_SKIP_HOOK.contains(hook) {
-            warn!("{}: skipping hook due to HK_SKIP_HOOK", hook);
+    pub async fn run(&self, opts: HookOptions) -> Result<()> {
+        if env::HK_SKIP_HOOK.contains(&self.name) {
+            warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
             return Ok(());
         }
-        static HOOK: LazyLock<Hook> = LazyLock::new(Default::default);
-        let hook = self.hooks.get(hook).unwrap_or(&HOOK);
-
-        let mut hk_progress = ProgressJobBuilder::new()
-            .body(vec!["{{hk}}{{hook}}{{message}}".to_string()])
-            .prop(
-                "hk",
-                &format!(
-                    "{} {} {}",
-                    style::emagenta("hk").bold(),
-                    style::edim(version::version()),
-                    style::edim("by @jdx")
-                )
-                .to_string(),
-            );
-
-        if hook.name == "check" || hook.name == "fix" {
-            hk_progress = hk_progress.prop("hook", "");
-        } else {
-            hk_progress = hk_progress.prop(
-                "hook",
-                &style::edim(format!(" – {}", hook.name)).to_string(),
-            );
-        }
-
-        let run_type = if *env::HK_FIX && hook.fix {
-            hk_progress = hk_progress.prop("message", &style::edim(" – fix").to_string());
+        let run_type = if *env::HK_FIX && self.fix {
             RunType::Fix
         } else {
-            hk_progress = hk_progress.prop("message", &style::edim(" – check").to_string());
             RunType::Check(CheckType::Check)
         };
-        // Check if both from_ref and to_ref are provided or neither
-        if from_ref.is_some() != to_ref.is_some() {
-            return Err(eyre::eyre!(
-                "Both --from-ref and --to-ref must be provided together"
-            ));
+        let hk_progress = self.start_hk_progress(run_type);
+        if opts.to_ref.is_some() {
+            // TODO: implement to_ref
         }
-        let hk_progress = hk_progress.start();
         let repo = Arc::new(Mutex::new(Git::new()?));
 
         let file_progress = ProgressJobBuilder::new().body(vec![
@@ -202,36 +169,73 @@ impl Config {
         .start();
         // TODO: this doesn't necessarily need to be fetched right now, or at least blocking
         let git_status = OnceCell::new();
-        let files = if let (Some(from), Some(to)) = (from_ref, to_ref) {
+        let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
+        let mut files = if let Some(files) = &opts.files {
+            files
+                .iter()
+                .map(|f| {
+                    let p = PathBuf::from(f);
+                    if p.is_dir() {
+                        all_files_in_dir(&p)
+                    } else {
+                        Ok(vec![p])
+                    }
+                })
+                .flatten_ok()
+                .collect::<Result<BTreeSet<_>>>()?
+        } else if let Some(glob) = &opts.glob {
+            file_progress.prop("message", "Fetching files matching glob");
+            // TODO: should fetch just the files that match the glob
+            let all_files = repo.lock().await.all_files()?;
+            glob::get_matches(glob, &all_files)?.into_iter().collect()
+        } else if let (Some(from), Some(to)) = (&opts.from_ref, &opts.to_ref) {
             file_progress.prop(
                 "message",
                 &format!("Fetching files between {} and {}", from, to),
             );
-            repo.lock().await.files_between_refs(from, to)?
-        } else if all {
+            repo.lock()
+                .await
+                .files_between_refs(from, to)?
+                .into_iter()
+                .collect()
+        } else if opts.all {
             file_progress.prop("message", "Fetching all files in repo");
-            repo.lock().await.all_files()?
-        } else if hook.name == "check" || hook.name == "fix" {
-            // TODO: this should probably be customizable on the hook like `fix = true` is
-            file_progress.prop("message", "Fetching modified files");
-            repo.lock().await.modified_files()?
-        } else {
+            repo.lock().await.all_files()?.into_iter().collect()
+        } else if stash_method != StashMethod::None {
             file_progress.prop("message", "Fetching staged files");
             let git_status = git_status
                 .get_or_try_init(async || repo.lock().await.status())
                 .await?;
             git_status.staged_files.iter().cloned().collect()
+        } else {
+            file_progress.prop("message", "Fetching modified files");
+            let git_status = git_status
+                .get_or_try_init(async || repo.lock().await.status())
+                .await?;
+            git_status
+                .staged_files
+                .iter()
+                .chain(git_status.unstaged_files.iter())
+                .cloned()
+                .collect()
         };
+        for exclude in opts.exclude.unwrap_or_default() {
+            let exclude = Path::new(&exclude);
+            files.retain(|f| !f.starts_with(exclude));
+        }
+        if let Some(exclude_glob) = &opts.exclude_glob {
+            let f = files.iter().collect::<Vec<_>>();
+            let exclude_files = glob::get_matches(exclude_glob, &f)?
+                .into_iter()
+                .collect::<HashSet<_>>();
+            files.retain(|f| !exclude_files.contains(f));
+        }
         file_progress.prop("files", &files.len());
         file_progress.set_status(ProgressStatus::Done);
 
         watch_for_ctrl_c(repo.clone());
 
-        let stash_method = env::HK_STASH
-            .as_ref()
-            .or(hook.stash.as_ref())
-            .unwrap_or(&StashMethod::None);
-        if stash_method != &StashMethod::None {
+        if stash_method != StashMethod::None {
             let git_status = git_status
                 .get_or_try_init(async || repo.lock().await.status())
                 .await?;
@@ -240,10 +244,10 @@ impl Config {
                 .stash_unstaged(&file_progress, stash_method, git_status)?;
         }
 
-        let mut result = StepScheduler::new(hook, run_type, repo.clone())
-            .with_files(files)
-            .with_linters(linters)
-            .with_tctx(tctx)
+        let mut result = StepScheduler::new(self, run_type, repo.clone())
+            .with_files(files.into_iter().collect())
+            .with_linters(&opts.step)
+            .with_tctx(opts.tctx)
             .run()
             .await;
         hk_progress.set_status(ProgressStatus::Done);
@@ -256,6 +260,50 @@ impl Config {
             }
         }
         result
+    }
+
+    fn start_hk_progress(&self, run_type: RunType) -> Arc<ProgressJob> {
+        let mut hk_progress = ProgressJobBuilder::new()
+            .body(vec!["{{hk}}{{hook}}{{message}}".to_string()])
+            .prop(
+                "hk",
+                &format!(
+                    "{} {} {}",
+                    style::emagenta("hk").bold(),
+                    style::edim(version::version()),
+                    style::edim("by @jdx")
+                )
+                .to_string(),
+            );
+        if self.name == "check" || self.name == "fix" {
+            hk_progress = hk_progress.prop("hook", "");
+        } else {
+            hk_progress = hk_progress.prop(
+                "hook",
+                &style::edim(format!(" – {}", self.name)).to_string(),
+            );
+        }
+        if run_type == RunType::Fix {
+            hk_progress = hk_progress.prop("message", &style::edim(" – fix").to_string());
+        } else {
+            hk_progress = hk_progress.prop("message", &style::edim(" – check").to_string());
+        }
+        hk_progress.start()
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+pub enum StashMethod {
+    Git,
+    PatchFile,
+    None,
+}
+
+impl std::fmt::Display for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", toml::to_string(self).unwrap())
     }
 }
 
@@ -271,4 +319,23 @@ fn watch_for_ctrl_c(repo: Arc<Mutex<Git>>) {
         // TODO: gracefully stop child processes
         std::process::exit(1);
     });
+}
+
+impl Config {
+    pub fn validate(&self) -> Result<()> {
+        // TODO: validate config
+        Ok(())
+    }
+}
+
+fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = vec![];
+    for entry in xx::file::ls(dir)? {
+        if entry.is_dir() {
+            files.extend(all_files_in_dir(&entry)?);
+        } else {
+            files.push(entry);
+        }
+    }
+    Ok(files)
 }

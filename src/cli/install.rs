@@ -22,19 +22,11 @@ impl Install {
         let add_hook = |hook: &str| {
             let hook_file = hooks.join(hook);
             let command = if *env::HK_MISE || self.mise {
-                format!("mise x -- hk run {hook}")
+                "mise x -- hk".to_string()
             } else {
-                format!("hk run {hook}")
+                "hk".to_string()
             };
-            let hook_content = format!(
-                r#"#!/bin/sh
-if [ "$HK" = "0" ] || [ "$HK" = "false" ]; then
-    exit 0
-fi
-exec {command} "$@"
-"#
-            );
-            xx::file::write(&hook_file, &hook_content)?;
+            xx::file::write(&hook_file, git_hook_content(&command, hook))?;
             xx::file::make_executable(&hook_file)?;
             println!("Installed hk hook: .git/hooks/{hook}");
             Result::<(), eyre::Report>::Ok(())
@@ -47,4 +39,15 @@ exec {command} "$@"
         }
         Ok(())
     }
+}
+
+fn git_hook_content(hk: &str, hook: &str) -> String {
+    format!(
+        r#"#!/bin/sh
+if [ "$HK" = "0" ] || [ "$HK" = "false" ]; then
+    exit 0
+fi
+exec {hk} run {hook} "$@"
+"#
+    )
 }

@@ -3,8 +3,11 @@ version = "1.7.7"
 backend = "aqua:rhysd/actionlint"
 
 [tools.bun]
-version = "1.2.2"
+version = "1.2.9"
 backend = "core:bun"
+
+[tools.bun.checksums]
+"bun-darwin-aarch64.zip" = "sha256:bda96ffb68f8e5fd16d2b3443225ae5e26c8dbe790cbb35ddba261b7be280618"
 
 [tools.cargo-binstall]
 version = "1.11.0"
@@ -51,11 +54,11 @@ version = "16.14.1"
 backend = "npm:stylelint"
 
 [tools.pkl]
-version = "0.27.2"
+version = "0.28.1"
 backend = "aqua:apple/pkl"
 
 [tools.pkl.checksums]
-pkl-macos-aarch64 = "sha256:e5d3ceaa776cbd43423c564e7ee1997a39ac219608ed86250c5be6298674fa9a"
+pkl-macos-aarch64 = "sha256:d393dedaa7067eb5c96ff99c89e73f463a96f64b4e231bfeee42b98547b10fe0"
 
 [tools.ripgrep]
 version = "14.1.1"

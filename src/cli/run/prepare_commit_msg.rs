@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
-use crate::config::Config;
-use crate::{Result, tera::Context};
+use crate::Result;
+use crate::hook_options::HookOptions;
 
-#[derive(Debug, clap::Args)]
+#[derive(clap::Args)]
 #[clap(visible_alias = "pcm")]
 pub struct PrepareCommitMsg {
     /// The path to the file that contains the commit message so far
@@ -12,17 +12,17 @@ pub struct PrepareCommitMsg {
     source: Option<String>,
     /// The SHA of the commit being amended (if applicable)
     sha: Option<String>,
+    #[clap(flatten)]
+    hook: HookOptions,
 }
 
 impl PrepareCommitMsg {
-    pub async fn run(&self) -> Result<()> {
-        let config = Config::get()?;
-        let mut tctx = Context::default();
-        tctx.insert("commit_msg_file", &self.commit_msg_file.to_string_lossy());
-        tctx.insert("source", &self.source);
-        tctx.insert("sha", &self.sha.as_ref());
-        config
-            .run_hook(false, "prepare-commit-msg", &[], tctx, None, None)
-            .await
+    pub async fn run(mut self) -> Result<()> {
+        self.hook
+            .tctx
+            .insert("commit_msg_file", &self.commit_msg_file.to_string_lossy());
+        self.hook.tctx.insert("source", &self.source);
+        self.hook.tctx.insert("sha", &self.sha.as_ref());
+        self.hook.run("prepare-commit-msg").await
     }
 }

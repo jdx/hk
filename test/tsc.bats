@@ -9,11 +9,11 @@ teardown() {
 @test "tsc" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["tsc"] = builtins.tsc
+            ["tsc"] = Builtins.tsc
         }
     }
 }

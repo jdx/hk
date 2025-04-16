@@ -1,31 +1,31 @@
 // amends "package://github.com/jdx/hk/releases/download/v0.7.5/hk@0.7.5#/Config.pkl"
 amends "pkl/Config.pkl"
-import "pkl/builtins.pkl"
+import "pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
 local linters = new Mapping<String, Step> {
-    ["actionlint"] = builtins.actionlint
+    ["actionlint"] = Builtins.actionlint
     // TODO: fails on releases with hk-example.pkl
-    //["pkl"] {
-        //glob = new { "*.pkl" }
-        //check = "pkl eval {{files}} >/dev/null"
-    //}
+    // ["pkl"] {
+    //     glob = new { "*.pkl" }
+    //     check = "pkl eval {{files}} >/dev/null"
+    // }
     // predefined formatters+linters
-     ["cargo-clippy"] = (builtins.cargo_clippy) {
+     ["cargo-clippy"] = (Builtins.cargo_clippy) {
          profiles = List("slow")
          check = "cargo clippy --manifest-path {{workspace_indicator}} -- -D warnings"
      }
-     ["cargo-fmt"] = builtins.cargo_fmt
-     ["dbg"] = new Step {
+     ["cargo-fmt"] = Builtins.cargo_fmt
+     ["dbg"] {
          // ensure no dbg! macros are used
-         glob = List("**/*.rs")
-         check = "sleep 1.5; ! rg -e 'dbg!' {{files}}"
+         glob = "**/*.rs"
+         check = "! rg -e 'dbg!' {{files}}"
      }
-     ["eslint"] = (builtins.eslint) {
+     ["eslint"] = (Builtins.eslint) {
          dir = "docs"
          prefix = "bun run"
      }
-     ["prettier"] = (builtins.prettier) {
+     ["prettier"] = (Builtins.prettier) {
          glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
      }
 }
@@ -36,12 +36,12 @@ hooks = new {
         stash = "patch-file"
         steps = new {
             ["prelint"] {
-                check = "mise run prelint && sleep 1"
+                check = "mise run prelint"
                 exclusive = true
             }
             ...linters
             ["postlint"] {
-                check = "echo postlint && sleep 1"
+                check = "echo postlint"
                 exclusive = true
             }
         }

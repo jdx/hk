@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-
 set -euxo pipefail
 
-if [ "$BUILD" != "0" ]; then
+if [ "${BUILD:-0}" != "0" ]; then
     cargo build --profile serious
 fi
 export PATH="$PWD/target/serious:$PATH"
 
 git stash || true
+
+cp benchmark/lefthook.yml benchmark/.pre-commit-config.yaml .
+export HK_FILE=benchmark/hk.pkl
 
 echo "with no changes"
 hyperfine -N --warmup 1 "hk run pre-commit" "lefthook run pre-commit" "pre-commit run" --export-json tmp/benchmark-no-changes.json
@@ -112,3 +114,5 @@ print("Chart saved as docs/public/benchmark.png")
 EOF
 
 git stash pop || true
+
+rm lefthook.yml .pre-commit-config.yaml

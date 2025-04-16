@@ -9,12 +9,6 @@ repos:
         language: system
         types: [file]
         files: \.github/workflows/.*(yml|yaml)
-      # - id: pkl-eval
-      #   name: pkl-eval
-      #   entry: pkl eval
-      #   language: system
-      #   types: [file]
-      #   files: \.pkl$
       - id: cargo-fmt
         name: cargo-fmt
         entry: cargo fmt

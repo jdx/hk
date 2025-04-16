@@ -7,10 +7,10 @@ class Step {
     profiles: List<String>?
     
     /// Which file patterns to run the step on
-    glob: List<String>?
+    glob: (String | List<String>)?
 
     /// Which file patterns to exclude from the step
-    exclude: List<String>?
+    exclude: (String | List<String>)?
     
     /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
     exclusive = false
@@ -19,7 +19,7 @@ class Step {
     interactive = false
     
     /// Wait for sibling steps to finish before starting this step.
-    depends: List<String> = List()
+    depends: (String | List<String>) = List()
     
     /// a shell command to check. Any edits will be ignored.
     check: String?
@@ -58,7 +58,7 @@ class Step {
     stage: List<String>?
 }
 
-typealias StashMethod = "git" | "patch-file"
+typealias StashMethod = Boolean | "git" | "patch-file" | "none"
 
 class Hook {
     fix = false
@@ -67,3 +67,23 @@ class Hook {
 }
 
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
+
+output {
+  renderer {
+    converters {
+      [Step] = (s) -> new Step {
+            ...s
+            .toMap()
+            .mapValues((k, v) ->
+                if ((k == "glob" || k == "exclude" || k == "depends") && v is String)
+                    List(v) // permits "s" instead of List("s")
+                else if (k == "stash" && v is Boolean)
+                    if (v) "patch-file" else "none"
+                else
+                    v
+            )
+            .toDynamic()
+        }
+    }
+  }
+}

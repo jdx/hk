@@ -3,8 +3,6 @@ pre-commit:
   jobs:
     - run: actionlint {staged_files}
       glob: ".github/workflows/*.{yml,yaml}"
-    # - run: pkl eval {staged_files} >/dev/null
-    #   glob: "*.pkl"
     - run: cargo fmt
       glob: "*.rs"
     - run: '! rg -e "dbg!" {staged_files}'

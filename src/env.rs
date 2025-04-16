@@ -54,7 +54,6 @@ pub static HK_PROFILE: LazyLock<IndexSet<String>> = LazyLock::new(|| {
         .or(var_csv("HK_PROFILES"))
         .unwrap_or_default()
 });
-pub static HK_STASH_USE_GIT: LazyLock<bool> = LazyLock::new(|| var_true("HK_STASH_USE_GIT"));
 pub static HK_SKIP_STEPS: LazyLock<IndexSet<String>> = LazyLock::new(|| {
     var_csv("HK_SKIP_STEPS")
         .or(var_csv("HK_SKIP_STEP"))

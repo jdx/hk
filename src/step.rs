@@ -9,23 +9,22 @@ use eyre::{WrapErr, eyre};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::{fmt, process::Stdio};
 
-use serde_with::serde_as;
-
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 #[serde_as]
 pub struct LinterStep {
     #[serde(default)]
     pub name: String,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
     pub profiles: Option<Vec<String>>,
     #[serde_as(as = "Option<OneOrMany<_>>")]
+    #[serde(default)]
     pub glob: Option<Vec<String>>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
     #[serde(default)]
     pub interactive: bool,
     pub depends: Vec<String>,
@@ -43,7 +42,6 @@ pub struct LinterStep {
     #[serde(default)]
     pub stomp: bool,
     pub env: IndexMap<String, String>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
     pub stage: Option<Vec<String>>,
     pub exclude: Option<Vec<String>>,
     #[serde(default)]

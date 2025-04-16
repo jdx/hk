@@ -4,3 +4,5 @@
 node_modules
 .aider*
 .pkl-lsp
+/.pre-commit-config.yaml
+/lefthook.yml

@@ -37,6 +37,10 @@ run = "cargo build"
 [tasks.msrv]
 run = "cargo msrv verify"
 
+[tasks.benchmark]
+run = "./benchmark/benchmark.sh"
+tools = {lefthook = "latest", "pre-commit" = "latest"}
+
 [tasks.ci]
 depends = ["test", "lint"]
 

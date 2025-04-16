@@ -8,17 +8,23 @@ use std::{
 use crate::{Result, config::StashMethod};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
-use git2::{Oid, Repository, StatusOptions, StatusShow, Tree};
-use itertools::{Either, Itertools};
+use git2::{Repository, StatusOptions, StatusShow, Tree};
+use itertools::Itertools;
 use xx::file::display_path;
 
 use crate::env;
 
 pub struct Git {
     repo: Option<Repository>,
-    stash: Option<Either<String, Oid>>,
+    stash: Option<StashType>,
     root: PathBuf,
     patch_file: OnceCell<PathBuf>,
+}
+
+enum StashType {
+    PatchFile(String, PathBuf),
+    LibGit,
+    Git,
 }
 
 impl Git {
@@ -129,6 +135,7 @@ impl Git {
     // }
 
     pub fn all_files(&self) -> Result<Vec<PathBuf>> {
+        // TODO: should this also show untracked files?
         if let Some(_repo) = &self.repo {
             let head = self.head_tree()?;
             let mut files = Vec::new();
@@ -149,43 +156,6 @@ impl Git {
             Ok(files)
         } else {
             let output = xx::process::sh("git ls-files")?;
-            Ok(output.lines().map(PathBuf::from).collect())
-        }
-    }
-
-    // pub fn intent_to_add_files(&self) -> Result<Vec<PathBuf>> {
-    //     // let added_files = self.added_files()?;
-    //     // TODO: get this to work, should be the equivalent of `git diff --name-only --diff-filter=A`
-    //     Ok(vec![])
-    // }
-
-    pub fn modified_files(&self) -> Result<Vec<PathBuf>> {
-        if let Some(repo) = &self.repo {
-            let mut opts = git2::DiffOptions::new();
-            opts.include_untracked(true);
-            let diff = repo
-                .diff_tree_to_workdir_with_index(None, Some(&mut opts))
-                .wrap_err("failed to get diff")?;
-            let mut files = BTreeSet::new();
-            diff.foreach(
-                &mut |delta, _| {
-                    if delta.status() == git2::Delta::Deleted {
-                        return true;
-                    }
-                    if let Some(path) = delta.new_file().path() {
-                        files.insert(PathBuf::from(path));
-                    }
-                    true
-                },
-                None,
-                None,
-                None,
-            )
-            .wrap_err("failed to process diff")?;
-            Ok(files.into_iter().collect())
-        } else {
-            let output = xx::process::sh("git diff --name-only --diff-filter=ACRMT HEAD")
-                .or_else(|_| xx::process::sh("git diff --name-only --diff-filter=ACRMT"))?;
             Ok(output.lines().map(PathBuf::from).collect())
         }
     }
@@ -216,24 +186,58 @@ impl Git {
                 .filter_map(|s| s.path().map(PathBuf::from))
                 .filter(|p| p.exists())
                 .collect();
+            let untracked_files = unstaged_statuses
+                .iter()
+                .filter(|s| s.status() == git2::Status::WT_NEW)
+                .filter_map(|s| s.path().map(PathBuf::from))
+                .collect();
+            let modified_files = unstaged_statuses
+                .iter()
+                .filter(|s| {
+                    s.status() == git2::Status::WT_MODIFIED
+                        || s.status() == git2::Status::WT_TYPECHANGE
+                })
+                .filter_map(|s| s.path().map(PathBuf::from))
+                .collect();
 
             Ok(GitStatus {
                 staged_files,
                 unstaged_files,
+                untracked_files,
+                modified_files,
             })
         } else {
-            // Get staged files
-            let staged_output =
-                xx::process::sh("git diff --name-only --diff-filter=ACRMT --cached")?;
-            let staged_files = staged_output.lines().map(PathBuf::from).collect();
-
-            // Get unstaged files
-            let unstaged_output = xx::process::sh("git diff --name-only --diff-filter=ACRMT")?;
-            let unstaged_files = unstaged_output.lines().map(PathBuf::from).collect();
+            let output = xx::process::sh("git status --porcelain --no-renames")?;
+            let mut staged_files = BTreeSet::new();
+            let mut unstaged_files = BTreeSet::new();
+            let mut untracked_files = BTreeSet::new();
+            let mut modified_files = BTreeSet::new();
+            for line in output.lines() {
+                let mut chars = line.chars();
+                let index_status = chars.next().unwrap_or_default();
+                let workdir_status = chars.next().unwrap_or_default();
+                let path = PathBuf::from(chars.skip(1).collect::<String>());
+                let is_modified =
+                    |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
+                if is_modified(index_status) {
+                    staged_files.insert(path.clone());
+                }
+                if is_modified(workdir_status) || workdir_status == '?' {
+                    unstaged_files.insert(path.clone());
+                }
+                if workdir_status == '?' {
+                    untracked_files.insert(path.clone());
+                }
+                if is_modified(index_status) || is_modified(workdir_status) {
+                    modified_files.insert(path);
+                }
+            }
 
             Ok(GitStatus {
                 staged_files,
                 unstaged_files,
+                untracked_files,
+                modified_files,
             })
         }
     }
@@ -241,11 +245,11 @@ impl Git {
     pub fn stash_unstaged(
         &mut self,
         job: &ProgressJob,
-        method: &StashMethod,
+        method: StashMethod,
         status: &GitStatus,
     ) -> Result<()> {
         // Skip stashing if there's no initial commit yet or auto-stash is disabled
-        if method == &StashMethod::None {
+        if method == StashMethod::None {
             return Ok(());
         }
         if let Some(repo) = &self.repo {
@@ -272,11 +276,7 @@ impl Git {
         //         return Ok(());
         //     }
         // }
-        self.stash = if *env::HK_STASH_USE_GIT {
-            job.prop("message", "Running git stash");
-            job.update();
-            self.push_stash(status)?.map(Either::Right)
-        } else {
+        self.stash = if method == StashMethod::PatchFile {
             job.prop(
                 "message",
                 &format!(
@@ -285,44 +285,57 @@ impl Git {
                 ),
             );
             job.update();
-            self.build_diff()?.map(Either::Left)
+            self.build_diff(status)?
+        } else {
+            job.prop("message", "Running git stash");
+            job.update();
+            self.push_stash(status)?
         };
         if self.stash.is_none() {
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
-        }
+        };
 
         job.prop("message", "Removing unstaged changes");
         job.update();
 
-        if let Some(repo) = &self.repo {
-            let mut checkout_opts = git2::build::CheckoutBuilder::new();
-            checkout_opts.allow_conflicts(true);
-            checkout_opts.remove_untracked(true);
-            checkout_opts.force();
-            checkout_opts.update_index(false);
-            repo.checkout_index(None, Some(&mut checkout_opts))
-                .wrap_err("failed to reset to head")?;
-        } else {
-            xx::process::sh("git restore --staged .")?;
-        }
-
-        if self.stash.as_ref().is_some_and(|s| s.is_left()) {
+        if method == StashMethod::PatchFile {
             let patch_file = display_path(self.patch_file());
             job.prop(
                 "message",
                 &format!("Stashed unstaged changes in {patch_file}"),
             );
+            if let Some(repo) = &self.repo {
+                let mut checkout_opts = git2::build::CheckoutBuilder::new();
+                checkout_opts.allow_conflicts(true);
+                checkout_opts.remove_untracked(true);
+                checkout_opts.force();
+                checkout_opts.update_index(true);
+                repo.checkout_index(None, Some(&mut checkout_opts))
+                    .wrap_err("failed to reset to head")?;
+            } else {
+                if !status.modified_files.is_empty() {
+                    let args = vec!["restore", "--staged", "--worktree", "--"]
+                        .into_iter()
+                        .chain(status.modified_files.iter().map(|p| p.to_str().unwrap()))
+                        .collect::<Vec<_>>();
+                    duct::cmd("git", &args).run()?;
+                }
+                for file in status.untracked_files.iter() {
+                    if let Err(err) = xx::file::remove_file(file) {
+                        warn!("failed to remove untracked file: {:?}", err);
+                    }
+                }
+            }
         } else {
             job.prop("message", "Stashed unstaged changes with git stash");
         }
         job.set_status(ProgressStatus::Done);
-        // return Err(eyre!("failed to reset to head"));
         Ok(())
     }
 
-    fn build_diff(&self) -> Result<Option<String>> {
+    fn build_diff(&self, status: &GitStatus) -> Result<Option<StashType>> {
         debug!("building diff for stash");
         let patch = if let Some(repo) = &self.repo {
             // essentially: git diff-index --ignore-submodules --binary --exit-code --no-color --no-ext-diff (git write-tree)
@@ -351,18 +364,32 @@ impl Git {
                 String::from_utf8_lossy(&diff_bytes).to_string()
             }
         } else {
-            xx::process::sh(
-                "git diff --no-color --no-ext-diff --binary --exit-code --ignore-submodules",
-            )?
+            if !status.untracked_files.is_empty() {
+                let args = vec!["add", "--intent-to-add", "--"]
+                    .into_iter()
+                    .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
+                    .collect::<Vec<_>>();
+                duct::cmd("git", &args).run()?;
+            }
+            let output =
+                xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
+            if !status.untracked_files.is_empty() {
+                let args = vec!["reset", "--"]
+                    .into_iter()
+                    .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
+                    .collect::<Vec<_>>();
+                duct::cmd("git", &args).run()?;
+            }
+            output
         };
         let patch_file = self.patch_file();
         if let Err(err) = xx::file::write(patch_file, &patch) {
             warn!("failed to write patch file: {:?}", err);
         }
-        Ok(Some(patch))
+        Ok(Some(StashType::PatchFile(patch, patch_file.to_path_buf())))
     }
 
-    pub fn push_stash(&mut self, status: &GitStatus) -> Result<Option<Oid>> {
+    fn push_stash(&mut self, status: &GitStatus) -> Result<Option<StashType>> {
         if status.unstaged_files.is_empty() {
             return Ok(None);
         }
@@ -370,14 +397,13 @@ impl Git {
             let sig = repo.signature()?;
             let mut flags = git2::StashFlags::default();
             flags.set(git2::StashFlags::INCLUDE_UNTRACKED, true);
-            flags.set(git2::StashFlags::KEEP_INDEX, false);
-            let oid = repo
-                .stash_save2(&sig, None, Some(flags))
+            flags.set(git2::StashFlags::KEEP_INDEX, true);
+            repo.stash_save(&sig, "hk", Some(flags))
                 .wrap_err("failed to stash")?;
-            Ok(Some(oid))
+            Ok(Some(StashType::LibGit))
         } else {
-            xx::process::sh("git stash")?;
-            Ok(None)
+            xx::process::sh("git stash push --keep-index --include-untracked -m hk")?;
+            Ok(Some(StashType::Git))
         }
     }
 
@@ -388,8 +414,7 @@ impl Git {
         let job: Arc<ProgressJob>;
 
         match diff {
-            Either::Left(diff) => {
-                let patch_file = self.patch_file().to_path_buf();
+            StashType::PatchFile(diff, patch_file) => {
                 job = ProgressJobBuilder::new()
                     .prop(
                         "message",
@@ -413,22 +438,27 @@ impl Git {
                     debug!("failed to remove patch file: {:?}", err);
                 }
             }
-            Either::Right(_oid) => {
+            // TODO: this does not work with untracked files
+            // StashType::LibGit(_oid) => {
+            //     job = ProgressJobBuilder::new()
+            //         .prop("message", "stash – Applying git stash")
+            //         .start();
+            //         let repo =  self.repo.as_mut().unwrap();
+            //         let mut opts = git2::StashApplyOptions::new();
+            //         let mut checkout_opts = git2::build::CheckoutBuilder::new();
+            //         checkout_opts.allow_conflicts(true);
+            //         checkout_opts.update_index(true);
+            //         checkout_opts.force();
+            //         opts.checkout_options(checkout_opts);
+            //         opts.reinstantiate_index();
+            //         repo.stash_pop(0, Some(&mut opts))
+            //         .wrap_err("failed to pop stash")?;
+            // }
+            StashType::LibGit | StashType::Git => {
                 job = ProgressJobBuilder::new()
                     .prop("message", "stash – Applying git stash")
                     .start();
-                if let Some(repo) = &mut self.repo {
-                    let mut opts = git2::StashApplyOptions::new();
-                    let mut checkout_opts = git2::build::CheckoutBuilder::new();
-                    checkout_opts.allow_conflicts(true);
-                    checkout_opts.force();
-                    opts.checkout_options(checkout_opts);
-                    opts.reinstantiate_index();
-                    repo.stash_pop(0, Some(&mut opts))
-                        .wrap_err("failed to reset to stash")?;
-                } else {
-                    xx::process::sh("git stash pop")?;
-                }
+                xx::process::sh("git stash pop")?;
             }
         }
         job.set_status(ProgressStatus::Done);
@@ -502,7 +532,10 @@ impl Git {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct GitStatus {
     pub unstaged_files: BTreeSet<PathBuf>,
     pub staged_files: BTreeSet<PathBuf>,
+    pub untracked_files: BTreeSet<PathBuf>,
+    pub modified_files: BTreeSet<PathBuf>,
 }
