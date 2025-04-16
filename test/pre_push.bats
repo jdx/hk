@@ -19,8 +19,8 @@ teardown() {
     fi
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins.pkl"
-hooks { ["pre-push"] { steps { ["prettier"] = builtins.prettier } } }
+import "$PKL_PATH/Builtins.pkl"
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     git add hk.pkl
     git commit -m "install hk"
