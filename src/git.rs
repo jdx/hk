@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{Result, config::StashMethod};
+use crate::{Result, hook::StashMethod};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
 use git2::{Repository, StatusOptions, StatusShow, Tree};

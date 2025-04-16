@@ -1,7 +1,7 @@
 use crate::{
-    config::Hook,
     env,
     error::Error,
+    hook::Hook,
     step_depends::StepDepends,
     step_job::{StepJob, StepJobStatus},
     step_locks::StepLocks,

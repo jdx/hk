@@ -3,7 +3,7 @@ use std::{num::NonZero, path::PathBuf, sync::LazyLock, thread};
 
 use indexmap::IndexSet;
 
-use crate::config::StashMethod;
+use crate::hook::StashMethod;
 
 // pub static HK_BIN: LazyLock<PathBuf> =
 //     LazyLock::new(|| current_exe().unwrap().canonicalize().unwrap());
