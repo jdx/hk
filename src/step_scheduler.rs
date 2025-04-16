@@ -5,7 +5,7 @@ use crate::{
     step_depends::StepDepends,
     step_job::{StepJob, StepJobStatus},
     step_locks::StepLocks,
-    step_queue::StepQueueBuilder,
+    step_queue::StepQueue,
     step_response::StepResponse,
     tera::Context,
     ui::style,
@@ -85,37 +85,39 @@ impl StepScheduler {
             .into_iter()
             .map(|(_, step)| Arc::new(step))
             .collect::<Vec<_>>();
-        let queue = StepQueueBuilder::new(steps, self.files, self.run_type).build()?;
-        let total_jobs = queue.groups.iter().flatten().count();
+        let ctx = Arc::new(StepContext {
+            run_type: self.run_type.clone(),
+            semaphore: self.semaphore.clone(),
+            failed: self.failed.clone(),
+            file_locks: file_locks.clone(),
+            tctx: self.tctx.clone(),
+            depends: Arc::new(StepDepends::new(&[])), // TODO
+            progresses: steps.iter().map(|step| (step.name.clone(), step.build_step_progress())).collect(),
+            files_added: Arc::new(std::sync::Mutex::new(0)),
+            jobs_total: steps.len(), // TODO
+            jobs_remaining: Arc::new(std::sync::Mutex::new(steps.len())),
+        });
+        let groups = StepQueue::group_steps(&steps);
+        let total_jobs = groups.iter().flatten().count(); // TODO: show job count
         let mut remaining_jobs = total_jobs;
 
-        for group in queue.groups.iter() {
+        for group in groups {
+            let queue = Arc::new(Mutex::new(StepQueue::new(&group)));
             let mut set = JoinSet::new();
-            let step_contexts: HashMap<String, Arc<StepContext>> = group
-                .iter()
-                .map(|job| job.step.clone())
-                .unique_by(|step| step.name.clone())
-                .map(|step| {
-                    let jobs_total = group
-                        .iter()
-                        .filter(|job| job.step.name == step.name)
-                        .count();
-                    (
-                        step.name.clone(),
-                        Arc::new(StepContext {
-                            semaphore: self.semaphore.clone(),
-                            failed: self.failed.clone(),
-                            file_locks: file_locks.clone(),
-                            tctx: self.tctx.clone(),
-                            depends: Arc::new(StepDepends::new(group)),
-                            progress: step.build_step_progress(),
-                            files_added: Arc::new(std::sync::Mutex::new(0)),
-                            jobs_total,
-                            jobs_remaining: Arc::new(std::sync::Mutex::new(jobs_total)),
-                        }),
-                    )
-                })
-                .collect();
+            for _ in 0..jobs {
+                let queue = queue.clone();
+                let ctx = ctx.clone();
+                set.spawn(async move {
+                    loop {
+                        if let Some(job) = queue.lock().await.next_job(&ctx)? {
+                            StepScheduler::run_step(ctx.clone(), job, &mut set).await?;
+                        }
+                        if queue.lock().await.is_done() {
+                            return Ok(());
+                        }
+                    }
+                });
+            }
 
             let total_progress = if progress::output() == ProgressOutput::Text || total_jobs <= jobs
             {

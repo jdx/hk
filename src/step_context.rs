@@ -1,7 +1,7 @@
-use crate::{step_depends::StepDepends, tera, ui::style};
+use crate::{step::RunType, step_depends::StepDepends, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressStatus};
 use indexmap::IndexMap;
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock, Semaphore};
 
@@ -12,7 +12,8 @@ pub struct StepContext {
     pub failed: Arc<Mutex<bool>>,
     pub depends: Arc<StepDepends>,
     pub tctx: tera::Context,
-    pub progress: Arc<ProgressJob>,
+    pub progresses: HashMap<String, Arc<ProgressJob>>,
+    pub run_type: RunType,
     pub files_added: Arc<std::sync::Mutex<usize>>,
     pub jobs_total: usize,
     pub jobs_remaining: Arc<std::sync::Mutex<usize>>,
@@ -51,5 +52,9 @@ impl StepContext {
         } else {
             ProgressStatus::RunningCustom(style::edim("❯").to_string())
         });
+    }
+
+    pub fn files(&self) -> Vec<PathBuf> {
+        self.file_locks.keys().cloned().collect()
     }
 }

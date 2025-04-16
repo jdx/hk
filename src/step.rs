@@ -10,7 +10,7 @@ use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::path::PathBuf;
+use std::{collections::{HashSet, VecDeque}, path::PathBuf};
 use std::sync::Arc;
 use std::{fmt, process::Stdio};
 
@@ -132,12 +132,81 @@ impl LinterStep {
         })
     }
 
+    pub fn is_enabled(&self, run_type: RunType) -> bool {
+        if env::HK_SKIP_STEPS.contains(&self.name) {
+            debug!("{self}: skipping step due to HK_SKIP_STEPS");
+            return false;
+        }
+        if !self.is_profile_enabled() {
+            debug!("{self}: skipping step due to profile not being enabled");
+            return false;
+        }
+        if self.available_run_type(run_type).is_none() {
+            debug!("{self}: skipping step due to no available run type");
+            return false;
+        }
+        true
+    }
+
     pub fn is_profile_enabled(&self) -> bool {
         is_profile_enabled(
             &self.name,
             self.enabled_profiles(),
             self.disabled_profiles(),
         )
+    }
+
+    pub fn build_jobs(self: &Arc<Self>, mut files: Vec<PathBuf>, run_type: RunType) -> Result<VecDeque<StepJob>> {
+        let Some(run_type) = self.available_run_type(run_type) else {
+            debug!("{self}: skipping step due to no available run type");
+            return Ok(Default::default());
+        };
+        if !self.is_enabled(run_type) {
+            debug!("{self}: skipping step due to not being enabled");
+            return Ok(Default::default());
+        }
+        let settings = Settings::get();
+        if let Some(dir) = &self.dir {
+            files.retain(|f| f.starts_with(dir));
+            if files.is_empty() {
+                debug!("{self}: no matches for step in {dir}");
+                return Ok(Default::default())
+            }
+            for f in files.iter_mut() {
+                // strip the dir prefix from the file path
+                *f = f.strip_prefix(dir).unwrap_or(f).to_path_buf();
+            }
+        }
+        if let Some(glob) = &self.glob {
+            files = glob::get_matches(glob, &files)?;
+            if files.is_empty() {
+                debug!("{self}: no matches for step");
+                return Ok(Default::default());
+            }
+        }
+        if let Some(exclude) = &self.exclude {
+            let excluded = glob::get_matches(exclude, &files)?
+                .into_iter()
+                .collect::<HashSet<_>>();
+            files.retain(|f| !excluded.contains(f));
+        }
+        let jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
+            let job = StepJob::new(self.clone(), files.clone(), run_type);
+            workspace_indicators
+                .into_iter()
+                .map(|workspace_indicator| {
+                    job.clone().with_workspace_indicator(workspace_indicator)
+                })
+                .collect()
+        } else if self.batch {
+            files
+                .chunks((files.len() / settings.jobs().get()).max(1))
+                .map(|chunk| StepJob::new(self.clone(), chunk.to_vec(), run_type))
+                .collect()
+        } else {
+            VecDeque::from([StepJob::new(self.clone(), files.clone(), run_type)])
+        };
+        Ok(jobs)
     }
 
     pub(crate) fn build_step_progress(&self) -> Arc<ProgressJob> {
@@ -181,6 +250,15 @@ impl LinterStep {
             }
         }
         Ok(Some(workspaces))
+    }
+
+    pub(crate) fn can_run(&self, ctx: &StepContext) -> bool {
+        for dep in &self.depends {
+            if !ctx.depends.is_done(dep) {
+                return false;
+            }
+        }
+        true
     }
 
     pub(crate) async fn run(&self, ctx: &StepContext, job: &StepJob) -> Result<StepResponse> {
