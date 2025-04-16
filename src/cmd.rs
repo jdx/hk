@@ -272,7 +272,7 @@ impl CmdLineRunner {
                 pr.println(&output);
             }
         }
-        Err(ScriptFailed(self.program.clone(), self.args.clone(), output, result))?
+        Err(ScriptFailed(Box::new((self.program.clone(), self.args.clone(), output, result))))?
     }
 }
 
