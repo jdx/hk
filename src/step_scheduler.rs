@@ -159,13 +159,17 @@ impl StepScheduler {
                 }
                 progress::flush();
                 if !log::log_enabled!(log::Level::Debug) {
-                    if let Some(ensembler::Error::ScriptFailed(bin, args, output, result)) =
+                    if let Some(ensembler::Error::ScriptFailed(err)) =
                         e.chain().find_map(|e| e.downcast_ref::<ensembler::Error>())
                     {
                         if let Err(err) = self.repo.lock().await.pop_stash() {
                             warn!("Failed to pop stash: {:?}", err);
                         }
                         clx::progress::flush();
+                        let bin = &err.0;
+                        let args = &err.1;
+                        let output = &err.2;
+                        let result = &err.3;
                         let mut cmd = format!("{} {}", bin, args.join(" "));
                         if cmd.starts_with("sh -o errexit -c ") {
                             cmd = cmd[17..].to_string();

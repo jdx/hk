@@ -272,8 +272,9 @@ impl LinterStep {
                 if self.interactive {
                     clx::progress::resume();
                 }
-                if let ensembler::Error::ScriptFailed(_bin, _args, _output, result) = &err {
+                if let ensembler::Error::ScriptFailed(e) = &err {
                     if let RunType::Check(CheckType::ListFiles) = job.run_type {
+                        let result = &e.3;
                         let stdout = result.stdout.clone();
                         return Err(Error::CheckListFailed {
                             source: eyre!("{}", err),

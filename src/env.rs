@@ -74,6 +74,8 @@ pub static HK_JOBS: LazyLock<NonZero<usize>> = LazyLock::new(|| {
         .unwrap_or(NonZero::new(4).unwrap())
 });
 
+pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));
+
 fn var_path(name: &str) -> Option<PathBuf> {
     var(name).map(PathBuf::from).ok()
 }

@@ -40,6 +40,9 @@ exec {command} "$@"
             Result::<(), eyre::Report>::Ok(())
         };
         for hook in config.hooks.keys() {
+            if hook == "check" || hook == "fix" {
+                continue;
+            }
             add_hook(hook)?;
         }
         Ok(())

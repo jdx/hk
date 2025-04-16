@@ -29,7 +29,13 @@ impl Git {
             .ok_or(eyre!("failed to find git repository"))?;
         std::env::set_current_dir(&root)?;
         let repo = if *env::HK_LIBGIT2 {
-            Some(Repository::open(".").wrap_err("failed to open repository")?)
+            let repo = Repository::open(".").wrap_err("failed to open repository")?;
+            if let Some(index_file) = &*env::GIT_INDEX_FILE {
+                // sets index to .git/index.lock which is used in the case of `git commit -a`
+                let mut index = git2::Index::open(index_file).wrap_err("failed to get index")?;
+                repo.set_index(&mut index)?;
+            }
+            Some(repo)
         } else {
             None
         };

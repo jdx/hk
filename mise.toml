@@ -42,11 +42,16 @@ depends = ["test", "lint"]
 
 [tasks.test]
 alias = ["t"]
+depends = ["test-cargo", "test-bats"]
+
+[tasks.test-cargo]
+alias = "tc"
+run = "cargo test"
+
+[tasks.test-bats]
+alias = "tb"
 depends = ["build"]
-run = [
-    "cargo test",
-    "bats test",
-]
+run = "bats test"
 
 [tasks.dist]
 run = "pkl project package pkl --output-path docs/public/pkl"
