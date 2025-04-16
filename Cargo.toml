@@ -8,6 +8,7 @@ license = "MIT"
 repository = "https://github.com/jdx/clx"
 readme = "README.md"
 include = ["examples/**/*.rs", "src/**/*.rs"]
+rust-version = "1.85"
 
 [dependencies]
 console = "0.15"
