@@ -565,6 +565,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "expr-lang"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ecf48d3d55edfb3a2960f8cd3d13412af146b912446a9e04812af69761e3b56"
+dependencies = [
+ "indexmap 2.9.0",
+ "log",
+ "once_cell",
+ "pest",
+ "pest_derive",
+ "regex",
+ "serde",
+ "strum",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -799,6 +816,7 @@ dependencies = [
  "dirs",
  "duct",
  "ensembler",
+ "expr-lang",
  "eyre",
  "getrandom 0.3.2",
  "git2",

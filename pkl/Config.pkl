@@ -37,7 +37,10 @@ class Step {
 
     /// if set, run the linter scripts in this directory
     dir: String?
-    
+
+    /// if set, run the step only if this condition is true 
+    condition: String?
+
     /// If true, when intending to run the fix command for this step, if any other steps in the same group need to read to the same files, this step will run the check command instead
     /// if it fails, the fix command will be run after
     /// Note that this behavior is only used if multiple steps would be in contention. If all fix steps edit disjoint files, the fix step will be chosen first despite this config.

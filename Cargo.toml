@@ -20,6 +20,7 @@ console = "0.15"
 dirs = "6"
 duct = "0.13"
 ensembler = "0.2"
+expr-lang = { version = "0.3.0", features = ["serde"] }
 eyre = "0.6"
 getrandom = "0.3.2"
 git2 = "0.20"

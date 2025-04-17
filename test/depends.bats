@@ -19,7 +19,7 @@ hooks {
             ["d"] { fix = "cat c.txt > d.txt"; depends = List("c") }
             ["e"] { depends = List("d")
                     check = """
-if [[ \$(cat d.txt) = "ITWORKS" ]]; then
+if [ \$(cat d.txt) = "ITWORKS" ]; then
     exit 0
 fi
 echo "d.txt does not contain ITWORKS"

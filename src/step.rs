@@ -9,7 +9,7 @@ use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::{collections::HashSet, path::PathBuf};
 use std::{fmt, process::Stdio};
 use tokio::sync::OwnedSemaphorePermit;
@@ -35,6 +35,7 @@ pub struct Step {
     pub workspace_indicator: Option<String>,
     pub prefix: Option<String>,
     pub dir: Option<String>,
+    pub condition: Option<String>,
     #[serde(default)]
     pub check_first: bool,
     #[serde(default)]
@@ -274,6 +275,11 @@ impl Step {
             let step = self.clone();
             let mut job = job;
             set.spawn(async move {
+                if let Some(condition) = &step.condition {
+                    if EXPR_ENV.eval(condition, &EXPR_CTX).unwrap() == expr::Value::Bool(false) {
+                        return Ok(());
+                    }
+                }
                 if job.check_first {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check(step.check_type());
@@ -543,3 +549,14 @@ fn is_profile_enabled(
     }
     true
 }
+
+static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::default);
+
+static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
+    let mut env = expr::Environment::default();
+    env.add_function("exec", |c| {
+        let out = xx::process::sh(c.args[0].as_string().unwrap()).unwrap();
+        Ok(expr::Value::String(out))
+    });
+    env
+});
