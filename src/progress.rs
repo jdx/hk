@@ -1,23 +1,17 @@
 use crate::{Result, progress_bar, style};
 use serde::ser::Serialize;
 use std::{
-    collections::HashMap,
-    fmt,
-    sync::{
-        Arc, Condvar, LazyLock, Mutex, Weak,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        mpsc,
-    },
-    thread,
-    time::{Duration, Instant},
+    collections::HashMap, fmt, sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, LazyLock, Mutex, OnceLock, Weak
+    }, thread, time::{Duration, Instant}
 };
 
 use console::Term;
 use indicatif::TermLike;
 use tera::{Context, Tera};
 
-static DEFAULT_BODY: LazyLock<Vec<String>> =
-    LazyLock::new(|| vec!["{{ spinner() }} {{ message }}".to_string()]);
+static DEFAULT_BODY: LazyLock<String> =
+    LazyLock::new(|| "{{ spinner() }} {{ message }}".to_string());
 
 struct Spinner {
     frames: Vec<String>,
@@ -62,10 +56,9 @@ static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(200)); // TO
 static LINES: Mutex<usize> = Mutex::new(0);
 static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 static STARTED: Mutex<bool> = Mutex::new(false);
-static FLUSH: LazyLock<Condvar> = LazyLock::new(Condvar::new);
 static PAUSED: AtomicBool = AtomicBool::new(false);
 static JOBS: Mutex<Vec<Arc<ProgressJob>>> = Mutex::new(vec![]);
-static TERA: LazyLock<Tera> = LazyLock::new(Default::default);
+static TERA: Mutex<Option<Tera>> = Mutex::new(None);
 
 #[derive(Clone)]
 struct RenderContext {
@@ -80,11 +73,13 @@ struct RenderContext {
 
 impl Default for RenderContext {
     fn default() -> Self {
+        let mut tera_ctx = Context::new();
+        tera_ctx.insert("message", "");
         Self {
             start: Instant::now(),
             now: Instant::now(),
-            width: 0,
-            tera_ctx: Context::new(),
+            width: term().width() as usize,
+            tera_ctx,
             indent: 0,
             include_children: true,
             progress: None,
@@ -99,8 +94,8 @@ impl RenderContext {
 }
 
 pub struct ProgressJobBuilder {
-    body: Vec<String>,
-    body_text: Option<Vec<String>>,
+    body: String,
+    body_text: Option<String>,
     status: ProgressStatus,
     ctx: Context,
     on_done: ProgressJobDoneBehavior,
@@ -127,13 +122,13 @@ impl ProgressJobBuilder {
         }
     }
 
-    pub fn body(mut self, body: Vec<String>) -> Self {
-        self.body = body;
+    pub fn body<S: Into<String>>(mut self, body: S) -> Self {
+        self.body = body.into();
         self
     }
 
-    pub fn body_text(mut self, body: Option<Vec<String>>) -> Self {
-        self.body_text = body;
+    pub fn body_text(mut self, body: Option<impl Into<String>>) -> Self {
+        self.body_text = body.map(|s| s.into());
         self
     }
 
@@ -215,8 +210,8 @@ pub enum ProgressJobDoneBehavior {
 
 pub struct ProgressJob {
     id: usize,
-    body: Mutex<Vec<String>>,
-    body_text: Option<Vec<String>>,
+    body: Mutex<String>,
+    body_text: Option<String>,
     status: Mutex<ProgressStatus>,
     parent: Weak<ProgressJob>,
     children: Mutex<Vec<Arc<ProgressJob>>>,
@@ -249,13 +244,11 @@ impl ProgressJob {
         } else {
             self.body.lock().unwrap().clone()
         };
-        for (body_id, body) in body.iter().enumerate() {
-            let name = format!("progress_{}_{}", self.id, body_id);
-            add_tera_template(tera, &name, body)?;
-            let body = tera.render(&name, &ctx.tera_ctx)?;
-            let body = flex(&body, ctx.width - ctx.indent);
-            s.push(body.trim_end().to_string());
-        }
+        let name = format!("progress_{}", self.id);
+        add_tera_template(tera, &name, &body)?;
+        let body = tera.render(&name, &ctx.tera_ctx)?;
+        let body = flex(&body, ctx.width - ctx.indent);
+        s.push(body.trim_end().to_string());
         if ctx.include_children && self.should_display_children() {
             ctx.indent += 1;
             let children = self.children.lock().unwrap();
@@ -307,8 +300,8 @@ impl ProgressJob {
         self.status.lock().unwrap().is_active()
     }
 
-    pub fn set_body(&self, body: Vec<String>) {
-        *self.body.lock().unwrap() = body;
+    pub fn set_body<S: Into<String>>(&self, body: S) {
+        *self.body.lock().unwrap() = body.into();
         self.update();
     }
 
@@ -347,8 +340,12 @@ impl ProgressJob {
                     ..Default::default()
                 };
                 ctx.tera_ctx.insert("message", "");
-                let mut tera = TERA.clone();
-                let output = self.render(&mut tera, ctx)?;
+                let mut tera = TERA.lock().unwrap();
+                if tera.is_none() {
+                    *tera = Some(Tera::default());
+                }
+                let tera = tera.as_mut().unwrap();
+                let output = self.render(tera, ctx)?;
                 if !output.is_empty() {
                     term().write_line(&output)?;
                 }
@@ -478,22 +475,9 @@ fn notify_wait(timeout: Duration) -> bool {
 }
 
 pub fn flush() {
-    let still_waiting = Arc::new(AtomicBool::new(true));
-    thread::spawn({
-        // prevent waiting endlessly
-        let still_waiting = still_waiting.clone();
-        move || {
-            thread::sleep(Duration::from_secs(1));
-            if still_waiting.load(Ordering::Relaxed) {
-                *STARTED.lock().unwrap() = false;
-                FLUSH.notify_all();
-            }
-        }
-    });
-    let _guard = FLUSH
-        .wait_while(STARTED.lock().unwrap(), |started| *started)
-        .unwrap();
-    still_waiting.store(false, Ordering::Relaxed);
+    if let Err(err) = refresh() {
+        eprintln!("clx: {err:?}");
+    }
 }
 
 fn start() {
@@ -502,28 +486,21 @@ fn start() {
         return; // prevent multiple loops running at a time
     }
     thread::spawn(move || {
-        let mut tera = TERA.clone();
-        let mut ctx = RenderContext::default();
-        let mut refresh_after = ctx.now;
-        ctx.tera_ctx.insert("message", "");
+        let mut refresh_after = Instant::now();
         loop {
             if refresh_after > Instant::now() {
                 thread::sleep(refresh_after - Instant::now());
             }
-            refresh_after = Instant::now() + Duration::from_millis(50);
-            ctx.now = Instant::now();
-            ctx.width = term().width() as usize;
-            let jobs = JOBS.lock().unwrap().clone();
-            let any_running_check = || jobs.iter().any(|job| job.is_running());
-            let any_running = any_running_check();
-            if let Err(err) = refresh(&jobs, &mut tera, ctx.clone()) {
-                eprintln!("clx: {err:?}");
-                *LINES.lock().unwrap() = 0;
-            }
-            if !any_running && !any_running_check() {
-                *STARTED.lock().unwrap() = false;
-                FLUSH.notify_all();
-                return; // stop looping if no active progress jobs are running before or after the refresh
+            refresh_after = Instant::now() + interval() / 2;
+            match refresh() {
+                Ok(true) => {}
+                Ok(false) => {
+                    break;
+                }
+                Err(err) => {
+                    eprintln!("clx: {err:?}");
+                    *LINES.lock().unwrap() = 0;
+                }
             }
             notify_wait(interval());
         }
@@ -531,10 +508,22 @@ fn start() {
     *started = true;
 }
 
-fn refresh(jobs: &[Arc<ProgressJob>], tera: &mut Tera, ctx: RenderContext) -> Result<()> {
+fn refresh() -> Result<bool> {
     if is_paused() {
-        return Ok(());
+        return Ok(true);
     }
+    static RENDER_CTX: OnceLock<Mutex<RenderContext>> = OnceLock::new();
+    let ctx = RENDER_CTX.get_or_init(|| Mutex::new(RenderContext::default()));
+    ctx.lock().unwrap().now = Instant::now();
+    let ctx = ctx.lock().unwrap().clone();
+    let mut tera = TERA.lock().unwrap();
+    if tera.is_none() {
+        *tera = Some(Tera::default());
+    }
+    let tera = tera.as_mut().unwrap();
+    let jobs = JOBS.lock().unwrap().clone();
+    let any_running_check = || jobs.iter().any(|job| job.is_running());
+    let any_running = any_running_check();
     let term = term();
     let mut lines = LINES.lock().unwrap();
     let output = jobs
@@ -550,7 +539,11 @@ fn refresh(jobs: &[Arc<ProgressJob>], tera: &mut Tera, ctx: RenderContext) -> Re
         term.write_line(&output)?;
     }
     *lines = output.split("\n").count();
-    Ok(())
+    if !any_running && !any_running_check() {
+        *STARTED.lock().unwrap() = false;
+        return Ok(false); // stop looping if no active progress jobs are running before or after the refresh
+    }
+    Ok(true)
 }
 
 fn term() -> &'static Term {
@@ -624,8 +617,14 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
     );
     tera.register_function(
         "progress_bar",
-        move |_props: &HashMap<String, tera::Value>| {
+        move |props: &HashMap<String, tera::Value>| {
             if let Some((progress_current, progress_total)) = progress {
+                let width = props
+                    .get("width")
+                    .as_ref()
+                    .and_then(|v| v.as_i64())
+                    .map(|v| if v < 0 { width - (-v as usize) } else { v as usize })
+                    .unwrap_or(width);
                 let progress_bar =
                     progress_bar::progress_bar(progress_current, progress_total, width);
                 Ok(progress_bar.into())
