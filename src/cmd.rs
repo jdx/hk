@@ -3,7 +3,8 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
-use tokio::{io::BufReader, process::Command, sync::Mutex};
+use tokio::{io::BufReader, process::Command, select, sync::Mutex};
+use tokio_util::sync::CancellationToken;
 use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
@@ -23,6 +24,7 @@ pub struct CmdLineRunner {
     redactions: IndexSet<String>,
     pass_signals: bool,
     show_stderr_on_error: bool,
+    cancel: CancellationToken,
 }
 
 static RUNNING_PIDS: Lazy<std::sync::Mutex<HashSet<u32>>> = Lazy::new(Default::default);
@@ -50,6 +52,7 @@ impl CmdLineRunner {
             redactions: Default::default(),
             pass_signals: false,
             show_stderr_on_error: true,
+            cancel: CancellationToken::new(),
         }
     }
 
@@ -105,6 +108,11 @@ impl CmdLineRunner {
 
     pub fn with_pr(mut self, pr: Arc<ProgressJob>) -> Self {
         self.pr = Some(pr);
+        self
+    }
+
+    pub fn with_cancel_token(mut self, cancel: CancellationToken) -> Self {
+        self.cancel = cancel;
         self
     }
 
@@ -247,7 +255,16 @@ impl CmdLineRunner {
                 stdin.write_all(text.as_bytes()).await.unwrap();
             });
         }
-        let status = cp.wait().await.unwrap();
+        let status = loop {
+            select! {
+                _ = self.cancel.cancelled() => {
+                    cp.kill().await?;
+                }
+                status = cp.wait() => {
+                    break status?;
+                }
+            }
+        };
         RUNNING_PIDS.lock().unwrap().remove(&id);
         result.lock().await.status = status;
 

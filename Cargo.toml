@@ -24,6 +24,7 @@ signal-hook = "0.3"
 terminal_size = "0.4"
 thiserror = "2"
 tokio = { version = "1", features = ["io-util", "process", "rt", "sync"] }
+tokio-util = "0.7"
 
 [dev-dependencies]
 test-log = "0.2"
