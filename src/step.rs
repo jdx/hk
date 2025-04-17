@@ -9,8 +9,11 @@ use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::sync::{Arc, LazyLock};
 use std::{collections::HashSet, path::PathBuf};
+use std::{
+    ffi::OsString,
+    sync::{Arc, LazyLock},
+};
 use std::{fmt, process::Stdio};
 use tokio::sync::OwnedSemaphorePermit;
 
@@ -258,7 +261,7 @@ impl Step {
         let mut jobs = self.build_step_jobs(
             &files,
             ctx.hook_ctx.run_type,
-            &*ctx.hook_ctx.files_in_contention.lock().await,
+            &ctx.hook_ctx.files_in_contention.lock().unwrap(),
         )?;
         if jobs.is_empty() {
             ctx.hook_ctx.dec_total_jobs(1);
@@ -275,11 +278,6 @@ impl Step {
             let step = self.clone();
             let mut job = job;
             set.spawn(async move {
-                if let Some(condition) = &step.condition {
-                    if EXPR_ENV.eval(condition, &EXPR_CTX).unwrap() == expr::Value::Bool(false) {
-                        return Ok(());
-                    }
-                }
                 if job.check_first {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check(step.check_type());
@@ -329,15 +327,12 @@ impl Step {
                 result
             });
         }
-        let mut result = Ok(());
         while let Some(res) = set.join_next().await {
             match res {
-                Ok(Ok(rsp)) => {
-                    result = result.and(Ok(rsp));
-                }
+                Ok(Ok(())) => {}
                 Ok(Err(err)) => {
-                    ctx.hook_ctx.failed.cancel();
-                    result = result.and(Err(err));
+                    ctx.status_errored(&format!("{err}"));
+                    return Err(err);
                     // TODO: abort all jobs after a timeout
                     // tokio::spawn(async move {
                     //     tokio::time::sleep(Duration::from_secs(5)).await;
@@ -356,11 +351,29 @@ impl Step {
         }
         if ctx.hook_ctx.failed.is_cancelled() {
             ctx.status_aborted();
-        } else if result.is_ok() {
-            ctx.status_finished();
+            return Ok(());
         }
+        if matches!(ctx.hook_ctx.run_type, RunType::Fix) {
+            let stage = &self
+                .stage
+                .as_ref()
+                .unwrap_or(&vec![])
+                .iter()
+                .map(|s| tera::render(s, &ctx.hook_ctx.tctx).unwrap())
+                .map(OsString::from)
+                .collect_vec();
+            if !stage.is_empty() {
+                let status = ctx.hook_ctx.git.lock().await.status(Some(stage))?;
+                let files = status.unstaged_files.into_iter().collect_vec();
+                if !files.is_empty() {
+                    ctx.hook_ctx.git.lock().await.add(&files)?;
+                    ctx.add_files(&files);
+                }
+            }
+        }
+        ctx.status_finished();
         ctx.depends.mark_done(&self.name)?;
-        result
+        Ok(())
     }
 
     async fn wait_for_depends(
@@ -370,7 +383,7 @@ impl Step {
     ) -> Result<OwnedSemaphorePermit> {
         for dep in &self.depends {
             if !ctx.depends.is_done(dep) {
-                warn!("WAITING FOR {}", dep);
+                debug!("{self}: waiting for {dep}");
                 semaphore.take(); // release semaphore for another step
             }
             ctx.depends.wait_for(dep).await?;
@@ -385,6 +398,11 @@ impl Step {
         if ctx.hook_ctx.failed.is_cancelled() {
             trace!("{self}: skipping step due to previous failure");
             return Ok(());
+        }
+        if let Some(condition) = &self.condition {
+            if EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())? == expr::Value::Bool(false) {
+                return Ok(());
+            }
         }
         job.progress = Some(job.build_progress(ctx));
         if job.status.is_pending() {
@@ -407,31 +425,6 @@ impl Step {
         if let Some(prefix) = &self.prefix {
             run = format!("{} {}", prefix, run);
         }
-        let files_to_add = if matches!(job.run_type, RunType::Fix) {
-            if let Some(stage) = &self.stage {
-                let stage = stage
-                    .iter()
-                    .map(|s| tera::render(s, &tctx).unwrap())
-                    .collect_vec();
-                glob::get_matches(&stage, &job.files)?
-            } else if self.glob.is_some() {
-                job.files.clone()
-            } else {
-                vec![]
-            }
-            .into_iter()
-            .map(|p| {
-                (
-                    p.metadata()
-                        .and_then(|m| m.modified())
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
-                    p,
-                )
-            })
-            .collect_vec()
-        } else {
-            vec![]
-        };
         let run = tera::render(&run, &tctx).unwrap();
         job.progress.as_ref().unwrap().prop(
             "message",
@@ -497,28 +490,9 @@ impl Step {
         if self.interactive {
             clx::progress::resume();
         }
-        let files_to_add = files_to_add
-            .into_iter()
-            .filter(|(prev_mod, p)| {
-                if !p.exists() {
-                    return false;
-                }
-                let Ok(metadata) = p.metadata().and_then(|m| m.modified()) else {
-                    return false;
-                };
-                metadata > *prev_mod
-            })
-            .map(|(_, p)| p.to_string_lossy().to_string())
-            .collect_vec();
-
-        if !files_to_add.is_empty() {
-            ctx.hook_ctx.git.lock().await.add(&files_to_add)?;
-        }
-
-        ctx.inc_files_added(files_to_add.len());
         ctx.decrement_job_count();
         ctx.hook_ctx.inc_completed_jobs(1);
-        job.status_finished().await?;
+        job.status_finished()?;
         Ok(())
     }
 }
@@ -550,13 +524,16 @@ fn is_profile_enabled(
     true
 }
 
-static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::default);
+pub static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::default);
 
-static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
+pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::default();
+
     env.add_function("exec", |c| {
-        let out = xx::process::sh(c.args[0].as_string().unwrap()).unwrap();
+        let out = xx::process::sh(c.args[0].as_string().unwrap())
+            .map_err(|e| expr::Error::ExprError(e.to_string()))?;
         Ok(expr::Value::String(out))
     });
+
     env
 });

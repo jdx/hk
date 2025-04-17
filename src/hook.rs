@@ -20,7 +20,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
-    step::{CheckType, RunType, Step},
+    step::{CheckType, EXPR_CTX, RunType, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     ui::style,
@@ -49,10 +49,11 @@ pub struct HookContext {
     semaphore: Arc<Semaphore>,
     pub failed: CancellationToken,
     pub hk_progress: Option<Arc<ProgressJob>>,
-    pub step_contexts: Mutex<IndexMap<String, Arc<StepContext>>>,
-    pub files_in_contention: Mutex<HashSet<PathBuf>>,
+    pub step_contexts: std::sync::Mutex<IndexMap<String, Arc<StepContext>>>,
+    pub files_in_contention: std::sync::Mutex<HashSet<PathBuf>>,
     total_jobs: std::sync::Mutex<usize>,
     completed_jobs: std::sync::Mutex<usize>,
+    expr_ctx: std::sync::Mutex<expr::Context>,
 }
 
 impl HookContext {
@@ -65,6 +66,7 @@ impl HookContext {
         hk_progress: Option<Arc<ProgressJob>>,
     ) -> Self {
         let settings = Settings::get();
+        let expr_ctx = EXPR_CTX.clone();
         Self {
             file_locks: FileRwLocks::new(files),
             git,
@@ -74,10 +76,11 @@ impl HookContext {
             steps,
             tctx,
             run_type,
-            step_contexts: Default::default(),
-            files_in_contention: Default::default(),
+            step_contexts: std::sync::Mutex::new(Default::default()),
+            files_in_contention: std::sync::Mutex::new(Default::default()),
             semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
             failed: CancellationToken::new(),
+            expr_ctx: std::sync::Mutex::new(expr_ctx),
         }
     }
 
@@ -91,6 +94,10 @@ impl HookContext {
         } else {
             self.semaphore.clone().acquire_owned().await.unwrap()
         }
+    }
+
+    pub fn expr_ctx(&self) -> expr::Context {
+        self.expr_ctx.lock().unwrap().clone()
     }
 
     pub fn try_semaphore(&self) -> Option<OwnedSemaphorePermit> {
@@ -153,9 +160,12 @@ impl Hook {
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = OnceCell::new();
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
-        let steps = self
-            .steps
-            .values()
+        let mut steps = self.steps.values().collect_vec();
+        if !opts.step.is_empty() {
+            steps.retain(|s| opts.step.contains(&s.name));
+        }
+        let steps = steps
+            .into_iter()
             .filter(|step| {
                 if step.run_cmd(run_type).is_none() {
                     debug!("{step}: skipping step due to no available run type");
@@ -205,7 +215,7 @@ impl Hook {
 
         if stash_method != StashMethod::None {
             let git_status = git_status
-                .get_or_try_init(async || repo.lock().await.status())
+                .get_or_try_init(async || repo.lock().await.status(None))
                 .await?;
             repo.lock()
                 .await
@@ -288,13 +298,13 @@ impl Hook {
         } else if stash_method != StashMethod::None {
             file_progress.prop("message", "Fetching staged files");
             let git_status = git_status
-                .get_or_try_init(async || repo.lock().await.status())
+                .get_or_try_init(async || repo.lock().await.status(None))
                 .await?;
             git_status.staged_files.iter().cloned().collect()
         } else {
             file_progress.prop("message", "Fetching modified files");
             let git_status = git_status
-                .get_or_try_init(async || repo.lock().await.status())
+                .get_or_try_init(async || repo.lock().await.status(None))
                 .await?;
             git_status
                 .staged_files

@@ -110,7 +110,7 @@ impl StepJob {
         Ok(())
     }
 
-    pub async fn status_finished(&mut self) -> Result<()> {
+    pub fn status_finished(&mut self) -> Result<()> {
         match &mut self.status {
             StepJobStatus::Started(_) => {}
             _ => unreachable!("invalid status: {:?}", self.status),

@@ -1,6 +1,7 @@
 use std::{
     cell::OnceCell,
     collections::BTreeSet,
+    ffi::OsString,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -170,11 +171,16 @@ impl Git {
         }
     }
 
-    pub fn status(&self) -> Result<GitStatus> {
+    pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         if let Some(repo) = &self.repo {
             let mut status_options = StatusOptions::new();
             status_options.include_untracked(true);
 
+            if let Some(pathspec) = pathspec {
+                for path in pathspec {
+                    status_options.pathspec(path);
+                }
+            }
             // Get staged files
             status_options.show(StatusShow::Index);
             let staged_statuses = repo
@@ -217,7 +223,15 @@ impl Git {
                 modified_files,
             })
         } else {
-            let output = xx::process::sh("git status --porcelain --no-renames")?;
+            let mut args = vec!["status", "--porcelain", "--no-renames"]
+                .into_iter()
+                .map(OsString::from)
+                .collect_vec();
+            if let Some(pathspec) = pathspec {
+                args.push("--".into());
+                args.extend(pathspec.iter().map(|p| p.into()))
+            }
+            let output = duct::cmd("git", args).read()?;
             let mut staged_files = BTreeSet::new();
             let mut unstaged_files = BTreeSet::new();
             let mut untracked_files = BTreeSet::new();
@@ -475,11 +489,8 @@ impl Git {
         Ok(())
     }
 
-    pub fn add(&self, pathspecs: &[String]) -> Result<()> {
-        let pathspecs = pathspecs
-            .iter()
-            .map(|p| p.replace(self.root.to_str().unwrap(), ""))
-            .collect_vec();
+    pub fn add(&self, pathspecs: &[PathBuf]) -> Result<()> {
+        let pathspecs = pathspecs.iter().collect_vec();
         trace!("adding files: {:?}", &pathspecs);
         if let Some(repo) = &self.repo {
             let mut index = repo.index().wrap_err("failed to get index")?;
@@ -489,7 +500,12 @@ impl Git {
             index.write().wrap_err("failed to write index")?;
             Ok(())
         } else {
-            xx::process::sh(&format!("git add {}", pathspecs.join(" ")))?;
+            let args = vec!["add", "--"]
+                .into_iter()
+                .map(OsString::from)
+                .chain(pathspecs.iter().map(|p| p.into()))
+                .collect::<Vec<_>>();
+            duct::cmd("git", &args).stdout_capture().run()?;
             Ok(())
         }
     }
@@ -542,7 +558,7 @@ impl Git {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct GitStatus {
     pub unstaged_files: BTreeSet<PathBuf>,
     pub staged_files: BTreeSet<PathBuf>,

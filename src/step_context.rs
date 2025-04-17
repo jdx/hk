@@ -1,6 +1,6 @@
 use crate::{hook::HookContext, step_depends::StepDepends, ui::style};
 use clx::progress::{ProgressJob, ProgressStatus};
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 /// Stores all the information/mutexes needed to run a StepJob
 pub struct StepContext {
@@ -30,8 +30,11 @@ impl StepContext {
         *self.jobs_remaining.lock().unwrap() = count;
     }
 
-    pub fn inc_files_added(&self, count: usize) {
-        *self.files_added.lock().unwrap() += count;
+    pub fn add_files(&self, files: &[PathBuf]) {
+        *self.files_added.lock().unwrap() += files.len();
+        self.hook_ctx
+            .file_locks
+            .add_files(files.iter().map(|p| p.to_path_buf()));
     }
 
     pub fn decrement_job_count(&self) {
@@ -39,34 +42,56 @@ impl StepContext {
     }
 
     pub fn status_started(&self) {
-        if !self.status.lock().unwrap().is_started() {
-            *self.status.lock().unwrap() = StepStatus::Started;
-            self.update_progress();
+        let mut status = self.status.lock().unwrap();
+        match &*status {
+            StepStatus::Pending => {
+                *status = StepStatus::Started;
+                drop(status);
+                self.update_progress();
+            }
+            StepStatus::Started
+            | StepStatus::Aborted
+            | StepStatus::Finished
+            | StepStatus::Errored(_) => {}
         }
     }
 
     pub fn status_aborted(&self) {
-        if !self.status.lock().unwrap().is_aborted() {
-            *self.status.lock().unwrap() = StepStatus::Aborted;
-            self.update_progress();
+        let mut status = self.status.lock().unwrap();
+        match &*status {
+            StepStatus::Pending | StepStatus::Started => {
+                *status = StepStatus::Aborted;
+                self.update_progress();
+            }
+            StepStatus::Aborted | StepStatus::Finished | StepStatus::Errored(_) => {}
         }
     }
 
     pub fn status_errored(&self, err: &str) {
-        if !self.status.lock().unwrap().is_errored() {
-            *self.status.lock().unwrap() = StepStatus::Errored(err.to_string());
-            self.update_progress();
+        let mut status = self.status.lock().unwrap();
+        match &*status {
+            StepStatus::Pending | StepStatus::Started => {
+                *status = StepStatus::Errored(err.to_string());
+                drop(status);
+                self.update_progress();
+            }
+            StepStatus::Aborted | StepStatus::Finished | StepStatus::Errored(_) => {}
         }
     }
 
     pub fn status_finished(&self) {
-        if !self.status.lock().unwrap().is_finished() {
-            *self.status.lock().unwrap() = StepStatus::Finished;
-            self.update_progress();
+        let mut status = self.status.lock().unwrap();
+        match &*status {
+            StepStatus::Pending | StepStatus::Started => {
+                *status = StepStatus::Finished;
+                drop(status);
+                self.update_progress();
+            }
+            StepStatus::Aborted | StepStatus::Finished | StepStatus::Errored(_) => {}
         }
     }
 
-    pub fn update_progress(&self) {
+    fn update_progress(&self) {
         let files_added = *self.files_added.lock().unwrap();
         let jobs_remaining = *self.jobs_remaining.lock().unwrap();
         let jobs_total = *self.jobs_total.lock().unwrap();

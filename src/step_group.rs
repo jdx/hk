@@ -60,7 +60,6 @@ impl StepGroup {
     }
 
     pub async fn run(self, ctx: StepGroupContext) -> Result<()> {
-        let mut result = Ok(());
         let depends = Arc::new(StepDepends::new(
             &self
                 .steps
@@ -69,7 +68,7 @@ impl StepGroup {
                 .collect::<Vec<_>>(),
         ));
         let mut set = tokio::task::JoinSet::new();
-        *ctx.hook_ctx.step_contexts.lock().await = self
+        *ctx.hook_ctx.step_contexts.lock().unwrap() = self
             .steps
             .iter()
             .map(|s| {
@@ -87,10 +86,10 @@ impl StepGroup {
                 )
             })
             .collect();
-        *ctx.hook_ctx.files_in_contention.lock().await = self.files_in_contention(&ctx)?;
+        *ctx.hook_ctx.files_in_contention.lock().unwrap() = self.files_in_contention(&ctx)?;
         if self.steps.iter().any(|j| j.check_first) {
         } else {
-            *ctx.hook_ctx.files_in_contention.lock().await = Default::default();
+            *ctx.hook_ctx.files_in_contention.lock().unwrap() = Default::default();
         }
         for step in self.steps {
             let semaphore = ctx.hook_ctx.try_semaphore();
@@ -98,7 +97,7 @@ impl StepGroup {
                 .hook_ctx
                 .step_contexts
                 .lock()
-                .await
+                .unwrap()
                 .get(&step.name)
                 .unwrap()
                 .clone();
@@ -110,19 +109,21 @@ impl StepGroup {
                     if let Err(err) = &result {
                         step_ctx.status_errored(&err.to_string());
                     }
-                    hook_ctx.step_contexts.lock().await.shift_remove(&step.name);
+                    hook_ctx
+                        .step_contexts
+                        .lock()
+                        .unwrap()
+                        .shift_remove(&step.name);
                     result
                 }
             });
         }
         while let Some(res) = set.join_next().await {
             match res {
-                Ok(Ok(rsp)) => {
-                    result = result.and(Ok(rsp));
-                }
+                Ok(Ok(())) => {}
                 Ok(Err(err)) => {
                     ctx.hook_ctx.failed.cancel();
-                    result = result.and(Err(err));
+                    return Err(err);
                 }
                 Err(e) => {
                     std::panic::resume_unwind(e.into_panic());
@@ -132,7 +133,7 @@ impl StepGroup {
         if let Some(progress) = ctx.progress {
             progress.set_status(ProgressStatus::Done);
         }
-        result
+        Ok(())
     }
 
     fn files_in_contention(&self, ctx: &StepGroupContext) -> Result<HashSet<PathBuf>> {

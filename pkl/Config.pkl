@@ -11,6 +11,9 @@ class Step {
 
     /// Which file patterns to exclude from the step
     exclude: (String | List<String>)?
+
+    /// files to stage after running the fix step
+    stage: (String | List<String>)?
     
     /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
     exclusive = false
@@ -56,9 +59,6 @@ class Step {
     
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}
-
-    /// if not set, all files will be added
-    stage: List<String>?
 }
 
 typealias StashMethod = Boolean | "git" | "patch-file" | "none"
@@ -78,7 +78,7 @@ output {
             ...s
             .toMap()
             .mapValues((k, v) ->
-                if ((k == "glob" || k == "exclude" || k == "depends") && v is String)
+                if ((k == "glob" || k == "exclude" || k == "depends" || k == "stage") && v is String)
                     List(v) // permits "s" instead of List("s")
                 else if (k == "stash" && v is Boolean)
                     if (v) "patch-file" else "none"

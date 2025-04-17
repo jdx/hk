@@ -32,6 +32,15 @@ impl FileRwLocks {
         self.locks.lock().unwrap().keys().cloned().collect()
     }
 
+    pub fn add_files(&self, files: impl IntoIterator<Item = PathBuf>) {
+        let mut locks = self.locks.lock().unwrap();
+        for file in files {
+            locks
+                .entry(file)
+                .or_insert_with(|| Arc::new(RwLock::new(())));
+        }
+    }
+
     fn try_read_locks(&self, files: &[PathBuf]) -> Result<Flocks> {
         let mut locks = self.locks.lock().unwrap();
         let mut read_locks = Vec::new();
