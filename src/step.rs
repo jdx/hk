@@ -1,6 +1,5 @@
 use crate::env;
-use crate::ui::style;
-use crate::{Result, error::Error, step_job::StepJob, step_response::StepResponse};
+use crate::{Result, error::Error, step_job::StepJob};
 use crate::{glob, settings::Settings};
 use crate::{step_context::StepContext, tera};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
@@ -13,6 +12,7 @@ use serde_with::serde_as;
 use std::sync::Arc;
 use std::{collections::HashSet, path::PathBuf};
 use std::{fmt, process::Stdio};
+use tokio::sync::OwnedSemaphorePermit;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -95,7 +95,8 @@ impl Step {
                 CheckType::ListFiles => self.check_list_files.as_deref(),
             }
             .or(self.check.as_deref())
-            .or(self.fix.as_deref()),
+            .or(self.check_list_files.as_deref())
+            .or(self.check_diff.as_deref()),
             RunType::Fix => self
                 .fix
                 .as_deref()
@@ -103,12 +104,13 @@ impl Step {
         }
     }
 
-    pub fn available_run_type(&self, run_type: RunType) -> Option<RunType> {
-        match (run_type, self.check.is_some(), self.fix.is_some()) {
-            (RunType::Check(_), true, _) => Some(RunType::Check(CheckType::Check)),
-            (RunType::Fix, _, _) => Some(RunType::Fix),
-            (_, false, true) => Some(RunType::Fix),
-            _ => None,
+    pub fn check_type(&self) -> CheckType {
+        if self.check_diff.is_some() {
+            CheckType::Diff
+        } else if self.check_list_files.is_some() {
+            CheckType::ListFiles
+        } else {
+            CheckType::Check
         }
     }
 
@@ -142,15 +144,13 @@ impl Step {
 
     pub(crate) fn build_step_progress(&self) -> Arc<ProgressJob> {
         ProgressJobBuilder::new()
-            .body(vec![
-                "{{spinner()}} {{name}} {% if message %}– {{message | flex}}{% endif %}"
-                    .to_string(),
-            ])
-            .body_text(Some(vec![
-                "{% if message %}{{spinner()}} {{name}} – {{message}}{% endif %}".to_string(),
-            ]))
+            .body("{{spinner()}} {{name}} {% if message %}– {{message | flex}}{% elif files %}– {{files}}{% endif %}")
+            .body_text(Some(
+                "{% if message %}{{spinner()}} {{name}} – {{message}}{% elif files %}{{spinner()}} {{name}} – {{files}}{% endif %}",
+            ))
             .prop("name", &self.name)
-            .status(ProgressStatus::RunningCustom(style::edim("❯").to_string()))
+            .prop("files", &0)
+            .status(ProgressStatus::Hide)
             .on_done(if *env::HK_HIDE_WHEN_DONE {
                 ProgressJobDoneBehavior::Hide
             } else {
@@ -211,13 +211,14 @@ impl Step {
         &self,
         files: &[PathBuf],
         run_type: RunType,
-    ) -> Result<Option<Vec<StepJob>>> {
+        files_in_contention: &HashSet<PathBuf>,
+    ) -> Result<Vec<StepJob>> {
         let files = self.filter_files(files)?;
         if files.is_empty() {
             debug!("{self}: no matches for step");
-            return Ok(None);
+            return Ok(Default::default());
         }
-        let jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
+        let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
             let job = StepJob::new(Arc::new((*self).clone()), files.clone(), run_type);
             workspace_indicators
                 .into_iter()
@@ -237,11 +238,152 @@ impl Step {
                 run_type,
             )]
         };
-        Ok(Some(jobs))
+        for job in jobs.iter_mut().filter(|j| j.check_first) {
+            // only set check_first if there are any files in contention
+            job.check_first = job.files.iter().any(|f| files_in_contention.contains(f));
+        }
+        Ok(jobs)
     }
 
-    pub(crate) async fn run(&self, ctx: &StepContext, job: &StepJob) -> Result<StepResponse> {
-        let mut rsp = StepResponse::default();
+    pub(crate) async fn run_all_jobs(
+        &self,
+        ctx: Arc<StepContext>,
+        semaphore: Option<OwnedSemaphorePermit>,
+    ) -> Result<()> {
+        let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
+        let files = ctx.hook_ctx.files();
+        let ctx = Arc::new(ctx);
+        let mut jobs = self.build_step_jobs(
+            &files,
+            ctx.hook_ctx.run_type,
+            &*ctx.hook_ctx.files_in_contention.lock().await,
+        )?;
+        if jobs.is_empty() {
+            ctx.hook_ctx.dec_total_jobs(1);
+            debug!("{self}: no matches for step");
+            return Ok(());
+        }
+        ctx.status_started();
+        ctx.set_jobs_total(jobs.len());
+        ctx.hook_ctx.inc_total_jobs(jobs.len() - 1);
+        jobs[0].status_start(&ctx, semaphore).await?;
+        let mut set = tokio::task::JoinSet::new();
+        for job in jobs {
+            let ctx = ctx.clone();
+            let step = self.clone();
+            let mut job = job;
+            set.spawn(async move {
+                if job.check_first {
+                    let prev_run_type = job.run_type;
+                    job.run_type = RunType::Check(step.check_type());
+                    debug!("{step}: running check step first due to fix step contention");
+                    match step.run(&ctx, &mut job).await {
+                        Ok(()) => {
+                            debug!("{step}: successfully ran check step first");
+                            return Ok(());
+                        }
+                        Err(e) => {
+                            if let Some(Error::CheckListFailed { source, stdout }) =
+                                e.downcast_ref::<Error>()
+                            {
+                                debug!("{step}: failed check step first: {source}");
+                                let filtered_files: HashSet<PathBuf> =
+                                    stdout.lines().map(|p| match PathBuf::from(p).canonicalize() {
+                                        Ok(p) => p,
+                                        Err(e) => {
+                                            warn!("{step}: failed to canonicalize file: {e}");
+                                            PathBuf::from(p)
+                                        }
+                                    }).collect();
+                                let files: IndexSet<PathBuf> = job.files.into_iter().filter(|f| {
+                                    let f = match f.canonicalize() {
+                                        Ok(p) => p,
+                                        Err(e) => {
+                                            warn!("{step}: failed to canonicalize file: {e}");
+                                            f.to_path_buf()
+                                        }
+                                    };
+                                    filtered_files.contains(&f)
+                                }).collect();
+                                for f in filtered_files.into_iter().filter(|f| !files.contains(f)) {
+                                    warn!("{step}: file in check_list_files not found in original files: {}", f.display());
+                                }
+                                job.files = files.into_iter().collect();
+                            }
+                            debug!("{step}: failed check step first: {e}");
+                        }
+                    }
+                    job.run_type = prev_run_type;
+                }
+                let result = step.run(&ctx, &mut job).await;
+                if let Err(err) = &result {
+                    job.status_errored(&ctx, format!("{err}")).await?;
+                }
+                result
+            });
+        }
+        let mut result = Ok(());
+        while let Some(res) = set.join_next().await {
+            match res {
+                Ok(Ok(rsp)) => {
+                    result = result.and(Ok(rsp));
+                }
+                Ok(Err(err)) => {
+                    ctx.hook_ctx.failed.cancel();
+                    result = result.and(Err(err));
+                    // TODO: abort all jobs after a timeout
+                    // tokio::spawn(async move {
+                    //     tokio::time::sleep(Duration::from_secs(5)).await;
+                    //     set.abort_all();
+                    // });
+                    // if child.is_running() {
+                    //     child.set_status(clx::progress::ProgressStatus::DoneCustom(
+                    //         style::eyellow("▲").to_string(),
+                    //     ));
+                    // }
+                }
+                Err(e) => {
+                    std::panic::resume_unwind(e.into_panic());
+                }
+            }
+        }
+        if ctx.hook_ctx.failed.is_cancelled() {
+            ctx.status_aborted();
+        } else if result.is_ok() {
+            ctx.status_finished();
+        }
+        ctx.depends.mark_done(&self.name)?;
+        result
+    }
+
+    async fn wait_for_depends(
+        &self,
+        ctx: &StepContext,
+        mut semaphore: Option<OwnedSemaphorePermit>,
+    ) -> Result<OwnedSemaphorePermit> {
+        for dep in &self.depends {
+            if !ctx.depends.is_done(dep) {
+                warn!("WAITING FOR {}", dep);
+                semaphore.take(); // release semaphore for another step
+            }
+            ctx.depends.wait_for(dep).await?;
+        }
+        match semaphore {
+            Some(semaphore) => Ok(semaphore),
+            None => Ok(ctx.hook_ctx.semaphore().await),
+        }
+    }
+
+    pub(crate) async fn run(&self, ctx: &StepContext, job: &mut StepJob) -> Result<()> {
+        if ctx.hook_ctx.failed.is_cancelled() {
+            trace!("{self}: skipping step due to previous failure");
+            return Ok(());
+        }
+        job.progress = Some(job.build_progress(ctx));
+        if job.status.is_pending() {
+            let semaphore = ctx.hook_ctx.semaphore().await;
+            job.status_start(ctx, semaphore).await?;
+        }
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
         tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
         tctx.with_files(&job.files);
@@ -252,10 +394,8 @@ impl Step {
                 if files.len() == 1 { "" } else { "s" }
             )
         };
-        let pr = job.build_progress(ctx);
         let Some(mut run) = self.run_cmd(job.run_type).map(|s| s.to_string()) else {
-            warn!("{}: no run command", self);
-            return Ok(rsp);
+            eyre::bail!("{}: no run command", self);
         };
         if let Some(prefix) = &self.prefix {
             run = format!("{} {}", prefix, run);
@@ -286,7 +426,7 @@ impl Step {
             vec![]
         };
         let run = tera::render(&run, &tctx).unwrap();
-        pr.prop(
+        job.progress.as_ref().unwrap().prop(
             "message",
             &format!(
                 "{} – {} – {}",
@@ -295,7 +435,7 @@ impl Step {
                 run
             ),
         );
-        pr.update();
+        job.progress.as_ref().unwrap().update();
         if log::log_enabled!(log::Level::Trace) {
             for file in &job.files {
                 trace!("{self}: {}", file.display());
@@ -306,7 +446,8 @@ impl Step {
             .arg("errexit")
             .arg("-c")
             .arg(&run)
-            .with_pr(pr.clone())
+            .with_pr(job.progress.as_ref().unwrap().clone())
+            .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false);
         if self.interactive {
             clx::progress::pause();
@@ -319,6 +460,7 @@ impl Step {
             cmd = cmd.current_dir(dir);
         }
         for (key, value) in &self.env {
+            let value = tera::render(value, &tctx)?;
             cmd = cmd.env(key, value);
         }
         match cmd.execute().await {
@@ -348,7 +490,7 @@ impl Step {
         if self.interactive {
             clx::progress::resume();
         }
-        rsp.files_to_add = files_to_add
+        let files_to_add = files_to_add
             .into_iter()
             .filter(|(prev_mod, p)| {
                 if !p.exists() {
@@ -359,13 +501,18 @@ impl Step {
                 };
                 metadata > *prev_mod
             })
-            .map(|(_, p)| p)
+            .map(|(_, p)| p.to_string_lossy().to_string())
             .collect_vec();
-        ctx.inc_files_added(rsp.files_to_add.len());
+
+        if !files_to_add.is_empty() {
+            ctx.hook_ctx.git.lock().await.add(&files_to_add)?;
+        }
+
+        ctx.inc_files_added(files_to_add.len());
         ctx.decrement_job_count();
-        ctx.update_progress();
-        pr.set_status(ProgressStatus::Done);
-        Ok(rsp)
+        ctx.hook_ctx.inc_completed_jobs(1);
+        job.status_finished().await?;
+        Ok(())
     }
 }
 

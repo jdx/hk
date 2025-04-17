@@ -15,6 +15,9 @@ local linters = new Mapping<String, Step> {
          profiles = List("slow")
          check = "cargo clippy --manifest-path {{workspace_indicator}} -- -D warnings"
      }
+     ["cargo-check"] = (Builtins.cargo_check) {
+         profiles = List("!slow")
+     }
      ["cargo-fmt"] = Builtins.cargo_fmt
      ["dbg"] {
          // ensure no dbg! macros are used

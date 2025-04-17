@@ -1,49 +1,39 @@
+use std::collections::HashMap;
+
 use crate::Result;
-use crate::step_job::StepJob;
-use indexmap::IndexMap;
-use itertools::Itertools;
 use tokio::sync::watch;
 
 pub struct StepDepends {
-    depends: IndexMap<String, (watch::Sender<usize>, watch::Receiver<usize>)>,
-    remaining_counts: IndexMap<String, std::sync::Mutex<usize>>,
+    depends: HashMap<String, (watch::Sender<bool>, watch::Receiver<bool>)>,
 }
 
 impl StepDepends {
-    pub fn new(jobs: &[StepJob]) -> Self {
-        let names = jobs.iter().map(|s| s.step.name.clone()).collect::<Vec<_>>();
-        let counts = names.iter().counts();
+    pub fn new(names: &[&str]) -> Self {
         StepDepends {
             depends: names
                 .iter()
-                .map(|name| (name.to_string(), watch::channel(counts[name])))
-                .collect(),
-            remaining_counts: names
-                .iter()
-                .map(|name| (name.to_string(), std::sync::Mutex::new(counts[name])))
+                .map(|name| (name.to_string(), watch::channel(false)))
                 .collect(),
         }
     }
 
     pub fn is_done(&self, step: &str) -> bool {
-        if let Some(remaining) = self.remaining_counts.get(step) {
-            *remaining.lock().unwrap() == 0
-        } else {
-            true
-        }
+        let (_tx, rx) = self.depends.get(step).expect("step not found");
+        *rx.clone().borrow_and_update()
     }
 
     pub async fn wait_for(&self, step: &str) -> Result<()> {
         let (_tx, rx) = self.depends.get(step).expect("step not found");
         let mut rx = rx.clone();
-        while *rx.borrow_and_update() > 0 {
+        while !*rx.borrow_and_update() {
             rx.changed().await?;
         }
         Ok(())
     }
 
-    pub fn job_done(&self, step: &str) {
-        let remaining = self.remaining_counts.get(step).unwrap();
-        *remaining.lock().unwrap() -= 1;
+    pub fn mark_done(&self, step: &str) -> Result<()> {
+        let (tx, _rx) = self.depends.get(step).unwrap();
+        tx.send(true)?;
+        Ok(())
     }
 }

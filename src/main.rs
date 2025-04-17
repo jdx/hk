@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use std::time::Duration;
+use std::{panic, time::Duration};
 
 pub use eyre::Result;
 
@@ -10,6 +10,7 @@ mod cli;
 mod config;
 mod env;
 mod error;
+mod file_rw_locks;
 mod git;
 mod glob;
 mod hash;
@@ -20,11 +21,9 @@ mod settings;
 mod step;
 mod step_context;
 mod step_depends;
+mod step_group;
 mod step_job;
 mod step_locks;
-mod step_queue;
-mod step_response;
-mod step_scheduler;
 mod tera;
 mod ui;
 mod version;
@@ -33,22 +32,53 @@ mod version;
 use tokio::signal;
 #[cfg(unix)]
 use tokio::signal::unix::SignalKind;
+use ui::style;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     #[cfg(unix)]
     handle_epipe();
     clx::progress::set_interval(Duration::from_millis(200));
-    match cli::run().await {
-        Ok(()) => {
-            clx::progress::flush();
-            Ok(())
-        }
-        Err(e) => {
-            clx::progress::flush();
-            return Err(e);
+    handle_panic();
+    let result = cli::run().await;
+    clx::progress::flush();
+    if let Err(e) = &result {
+        if !log::log_enabled!(log::Level::Debug) {
+            return friendly_error(e);
         }
     }
+    result
+}
+
+fn friendly_error(e: &eyre::Report) -> Result<()> {
+    if let Some(ensembler::Error::ScriptFailed(err)) =
+        e.chain().find_map(|e| e.downcast_ref::<ensembler::Error>())
+    {
+        handle_script_failed(&err.0, &err.1, &err.2, &err.3);
+    }
+    Ok(())
+}
+
+fn handle_script_failed(bin: &str, args: &[String], output: &str, result: &ensembler::CmdResult) {
+    clx::progress::flush();
+    let mut cmd = format!("{} {}", bin, args.join(" "));
+    if cmd.starts_with("sh -o errexit -c ") {
+        cmd = cmd[17..].to_string();
+    }
+    eprintln!("{}\n{output}", style::ered(format!("Error running {cmd}")));
+    if let Err(e) = write_output_file(result) {
+        eprintln!("Error writing output file: {e:?}");
+    }
+    std::process::exit(result.status.code().unwrap_or(1));
+}
+
+fn write_output_file(result: &ensembler::CmdResult) -> Result<()> {
+    let path = env::HK_STATE_DIR.join("output.log");
+    std::fs::create_dir_all(path.parent().unwrap())?;
+    let output = console::strip_ansi_codes(&result.combined_output);
+    std::fs::write(&path, output.to_string())?;
+    eprintln!("\nSee {} for full command output", path.display());
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -58,4 +88,12 @@ fn handle_epipe() {
         pipe_stream.recv().await;
         debug!("received SIGPIPE");
     });
+}
+
+fn handle_panic() {
+    let default_panic = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        clx::progress::flush();
+        default_panic(panic_info);
+    }));
 }

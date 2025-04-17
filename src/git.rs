@@ -267,7 +267,7 @@ impl Git {
                 return Ok(());
             }
         }
-        job.set_body(vec!["{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}".to_string()]);
+        job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
         job.prop("message", "Fetching unstaged files");
         job.set_status(ProgressStatus::Running);
 
@@ -475,7 +475,7 @@ impl Git {
         Ok(())
     }
 
-    pub fn add(&self, pathspecs: &[&str]) -> Result<()> {
+    pub fn add(&self, pathspecs: &[String]) -> Result<()> {
         let pathspecs = pathspecs
             .iter()
             .map(|p| p.replace(self.root.to_str().unwrap(), ""))

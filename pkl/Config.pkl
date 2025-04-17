@@ -61,7 +61,7 @@ class Step {
 typealias StashMethod = Boolean | "git" | "patch-file" | "none"
 
 class Hook {
-    fix = false
+    fix: Boolean?
     stash: StashMethod?
     steps: Mapping<String, Step> = new Mapping<String, Step>{}
 }

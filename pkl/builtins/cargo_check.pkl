@@ -1,8 +1,9 @@
 import "../Config.pkl"
 
 cargo_check = new Config.Step {
-    glob = List("**/*.rs")
+    glob = "**/*.rs"
     check = "cargo check"
-    fix = "cargo check --fix --allow-dirty"
-    check_first = false
+    env {
+        ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
+    }
 } 

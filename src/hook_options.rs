@@ -45,7 +45,10 @@ impl HookOptions {
     pub(crate) async fn run(self, name: &str) -> Result<()> {
         let config = Config::get()?;
         match config.hooks.get(name) {
-            Some(hook) => hook.run(self).await,
+            Some(hook) => {
+                hook.run(self).await?;
+                Ok(())
+            }
             None => Err(eyre::eyre!("Hook {} not found", name)),
         }
     }

@@ -1,26 +1,28 @@
-use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
+use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressOutput, ProgressStatus};
 use indexmap::IndexMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeSet, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
 use tokio::{
     signal,
-    sync::{Mutex, OnceCell, RwLock, Semaphore},
+    sync::{Mutex, OnceCell, OwnedSemaphorePermit, Semaphore},
 };
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     Result, env,
+    file_rw_locks::FileRwLocks,
     git::{Git, GitStatus, StashMethod},
     glob,
     hook_options::HookOptions,
     settings::Settings,
     step::{CheckType, RunType, Step},
-    step_scheduler::StepScheduler,
+    step_context::StepContext,
+    step_group::{StepGroup, StepGroupContext},
     ui::style,
     version,
 };
@@ -33,38 +35,95 @@ pub struct Hook {
     pub name: String,
     #[serde(default)]
     pub steps: IndexMap<String, Step>,
-    #[serde(default)]
-    pub fix: bool,
+    pub fix: Option<bool>,
     pub stash: Option<StashMethod>,
 }
 
 pub struct HookContext {
-    pub file_locks: Mutex<BTreeMap<PathBuf, Arc<RwLock<()>>>>,
+    pub file_locks: FileRwLocks,
+    pub git: Arc<Mutex<Git>>,
+    pub steps: Vec<Arc<Step>>,
     pub tctx: crate::tera::Context,
     // pub files_added: Mutex<usize>,
     pub run_type: RunType,
-    pub semaphore: Arc<Semaphore>,
+    semaphore: Arc<Semaphore>,
     pub failed: CancellationToken,
+    pub hk_progress: Option<Arc<ProgressJob>>,
+    pub step_contexts: Mutex<IndexMap<String, Arc<StepContext>>>,
+    pub files_in_contention: Mutex<HashSet<PathBuf>>,
+    total_jobs: std::sync::Mutex<usize>,
+    completed_jobs: std::sync::Mutex<usize>,
 }
 
 impl HookContext {
-    pub fn new<P: AsRef<Path>>(
-        files: impl IntoIterator<Item = P>,
+    pub fn new(
+        files: impl IntoIterator<Item = PathBuf>,
+        git: Arc<Mutex<Git>>,
+        steps: Vec<Arc<Step>>,
         tctx: crate::tera::Context,
         run_type: RunType,
+        hk_progress: Option<Arc<ProgressJob>>,
     ) -> Self {
+        let settings = Settings::get();
         Self {
-            file_locks: Mutex::new(
-                files
-                    .into_iter()
-                    .map(|f| (f.as_ref().to_path_buf(), Arc::new(RwLock::new(()))))
-                    .collect(),
-            ),
+            file_locks: FileRwLocks::new(files),
+            git,
+            hk_progress,
+            total_jobs: std::sync::Mutex::new(steps.len()),
+            completed_jobs: std::sync::Mutex::new(0),
+            steps,
             tctx,
-            // files_added: Mutex::new(0),
             run_type,
-            semaphore: Arc::new(Semaphore::new(Settings::get().jobs().get())),
+            step_contexts: Default::default(),
+            files_in_contention: Default::default(),
+            semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
             failed: CancellationToken::new(),
+        }
+    }
+
+    pub fn files(&self) -> Vec<PathBuf> {
+        self.file_locks.files()
+    }
+
+    pub async fn semaphore(&self) -> OwnedSemaphorePermit {
+        if let Some(permit) = self.try_semaphore() {
+            permit
+        } else {
+            self.semaphore.clone().acquire_owned().await.unwrap()
+        }
+    }
+
+    pub fn try_semaphore(&self) -> Option<OwnedSemaphorePermit> {
+        self.semaphore.clone().try_acquire_owned().ok()
+    }
+
+    pub fn dec_total_jobs(&self, n: usize) {
+        if n > 0 {
+            let mut total_jobs = self.total_jobs.lock().unwrap();
+            *total_jobs -= n;
+            if let Some(hk_progress) = &self.hk_progress {
+                hk_progress.progress_total(*total_jobs);
+            }
+        }
+    }
+
+    pub fn inc_total_jobs(&self, n: usize) {
+        if n > 0 {
+            let mut total_jobs = self.total_jobs.lock().unwrap();
+            *total_jobs += n;
+            if let Some(hk_progress) = &self.hk_progress {
+                hk_progress.progress_total(*total_jobs);
+            }
+        }
+    }
+
+    pub fn inc_completed_jobs(&self, n: usize) {
+        if n > 0 {
+            let mut completed_jobs = self.completed_jobs.lock().unwrap();
+            *completed_jobs += n;
+            if let Some(hk_progress) = &self.hk_progress {
+                hk_progress.progress_current(*completed_jobs);
+            }
         }
     }
 }
@@ -82,22 +141,38 @@ impl Hook {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
             return Ok(());
         }
-        let run_type = if *env::HK_FIX && self.fix {
+        let fix = self.fix.unwrap_or(self.name == "fix");
+        let run_type = if (*env::HK_FIX && fix) || opts.fix {
             RunType::Fix
         } else {
             RunType::Check(CheckType::Check)
         };
-        let hk_progress = self.start_hk_progress(run_type);
         if opts.to_ref.is_some() {
             // TODO: implement to_ref
         }
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = OnceCell::new();
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
-        watch_for_ctrl_c(repo.clone());
-        let file_progress = ProgressJobBuilder::new().body(vec![
-            "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}".to_string(),
-        ])
+        let steps = self
+            .steps
+            .values()
+            .filter(|step| {
+                if step.run_cmd(run_type).is_none() {
+                    debug!("{step}: skipping step due to no available run type");
+                    false
+                } else if env::HK_SKIP_STEPS.contains(&step.name) {
+                    debug!("{step}: skipping step due to HK_SKIP_STEPS");
+                    false
+                } else {
+                    step.is_profile_enabled()
+                }
+            })
+            .map(|s| Arc::new(s.clone()))
+            .collect_vec();
+        let hk_progress = self.start_hk_progress(run_type, steps.len());
+        let file_progress = ProgressJobBuilder::new().body(
+            "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}"
+        )
         .prop("message", "Fetching git status")
         .start();
         let files = self
@@ -110,6 +185,24 @@ impl Hook {
             )
             .await?;
 
+        if files.is_empty() && can_exit_early(&steps, &files, run_type) {
+            info!("no files to run");
+            if let Some(hk_progress) = &hk_progress {
+                hk_progress.set_status(ProgressStatus::Hide);
+            }
+            return Ok(());
+        }
+        let hook_ctx = Arc::new(HookContext::new(
+            files,
+            repo.clone(),
+            steps,
+            opts.tctx,
+            run_type,
+            hk_progress,
+        ));
+
+        watch_for_ctrl_c(hook_ctx.failed.clone());
+
         if stash_method != StashMethod::None {
             let git_status = git_status
                 .get_or_try_init(async || repo.lock().await.status())
@@ -119,12 +212,27 @@ impl Hook {
                 .stash_unstaged(&file_progress, stash_method, git_status)?;
         }
 
-        let hook_ctx = Arc::new(HookContext::new(files.iter(), opts.tctx, run_type));
-        let mut result = StepScheduler::new(self, hook_ctx, repo.clone())
-            .with_linters(&opts.step)
-            .run()
-            .await;
-        hk_progress.set_status(ProgressStatus::Done);
+        let groups = StepGroup::build_all(&hook_ctx.steps);
+        if groups.is_empty() {
+            info!("no steps to run");
+            return Ok(());
+        }
+        let mut result = Ok(());
+        let multiple_groups = groups.len() > 1;
+        for (i, group) in groups.into_iter().enumerate() {
+            debug!("running group: {i}");
+            let mut ctx = StepGroupContext::new(hook_ctx.clone());
+            if multiple_groups {
+                ctx = ctx.with_progress(group.build_group_progress());
+            }
+            result = result.and(group.run(ctx).await);
+            if result.is_err() {
+                break;
+            }
+        }
+        if let Some(hk_progress) = hook_ctx.hk_progress.as_ref() {
+            hk_progress.set_status(ProgressStatus::Done);
+        }
 
         if let Err(err) = repo.lock().await.pop_stash() {
             if result.is_ok() {
@@ -209,9 +317,13 @@ impl Hook {
         Ok(files)
     }
 
-    fn start_hk_progress(&self, run_type: RunType) -> Arc<ProgressJob> {
+    fn start_hk_progress(&self, run_type: RunType, total_jobs: usize) -> Option<Arc<ProgressJob>> {
+        if clx::progress::output() == ProgressOutput::Text {
+            return None;
+        }
         let mut hk_progress = ProgressJobBuilder::new()
-            .body(vec!["{{hk}}{{hook}}{{message}}".to_string()])
+            .body("{{hk}}{{hook}}{{message}}  {{progress_bar(width=40)}}")
+            .body_text(Some("{{hk}}{{hook}}{{message}}"))
             .prop(
                 "hk",
                 &format!(
@@ -221,7 +333,9 @@ impl Hook {
                     style::edim("by @jdx")
                 )
                 .to_string(),
-            );
+            )
+            .progress_current(0)
+            .progress_total(total_jobs);
         if self.name == "check" || self.name == "fix" {
             hk_progress = hk_progress.prop("hook", "");
         } else {
@@ -235,21 +349,21 @@ impl Hook {
         } else {
             hk_progress = hk_progress.prop("message", &style::edim(" – check").to_string());
         }
-        hk_progress.start()
+        Some(hk_progress.start())
     }
 }
 
-fn watch_for_ctrl_c(repo: Arc<Mutex<Git>>) {
+fn watch_for_ctrl_c(cancel: CancellationToken) {
     tokio::spawn(async move {
         if let Err(err) = signal::ctrl_c().await {
             warn!("Failed to watch for ctrl-c: {}", err);
         }
-        if let Err(err) = repo.lock().await.pop_stash() {
-            warn!("Failed to pop stash: {}", err);
-        }
-        clx::progress::flush();
-        // TODO: gracefully stop child processes
-        std::process::exit(1);
+        tokio::spawn(async move {
+            // exit immediately on second ctrl-c
+            signal::ctrl_c().await.unwrap();
+            std::process::exit(1);
+        });
+        cancel.cancel();
     });
 }
 
@@ -263,4 +377,12 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(files)
+}
+
+fn can_exit_early(steps: &[Arc<Step>], files: &BTreeSet<PathBuf>, run_type: RunType) -> bool {
+    let files = files.iter().cloned().collect::<Vec<_>>();
+    steps.iter().all(|s| {
+        s.build_step_jobs(&files, run_type, &Default::default())
+            .is_ok_and(|jobs| jobs.is_empty())
+    })
 }
