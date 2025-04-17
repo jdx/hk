@@ -5,7 +5,7 @@ use ensembler::CmdLineRunner;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // progress::set_output(progress::ProgressOutput::Text);
     let pr = progress::ProgressJobBuilder::new()
-        .body(vec!["{{ spinner() }} {{ bin }} {{ message }}".to_string()])
+        .body("{{ spinner() }} {{ bin }} {{ message }}")
         .prop("bin", "echo")
         .status(progress::ProgressStatus::Hide)
         .start();
