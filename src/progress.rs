@@ -319,16 +319,19 @@ impl ProgressJob {
         ctx.insert(key, val);
     }
 
-    pub fn progress_current(&self, progress_current: usize) {
-        self.progress_current
-            .lock()
-            .unwrap()
-            .replace(progress_current);
+    pub fn progress_current(&self, mut current: usize) {
+        if let Some(total) = *self.progress_total.lock().unwrap() {
+            current = current.min(total);
+        }
+        *self.progress_current.lock().unwrap() = Some(current);
         self.update();
     }
 
-    pub fn progress_total(&self, progress_total: usize) {
-        self.progress_total.lock().unwrap().replace(progress_total);
+    pub fn progress_total(&self, mut total: usize) {
+        if let Some(current) = *self.progress_current.lock().unwrap() {
+            total = total.min(current);
+        }
+        *self.progress_total.lock().unwrap() = Some(total);
         self.update();
     }
 
