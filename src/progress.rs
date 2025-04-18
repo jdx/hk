@@ -329,7 +329,7 @@ impl ProgressJob {
 
     pub fn progress_total(&self, mut total: usize) {
         if let Some(current) = *self.progress_current.lock().unwrap() {
-            total = total.min(current);
+            total = total.max(current);
         }
         *self.progress_total.lock().unwrap() = Some(total);
         self.update();
