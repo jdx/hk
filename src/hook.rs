@@ -286,24 +286,18 @@ impl Hook {
             // TODO: should fetch just the files that match the glob
             let all_files = repo.lock().await.all_files()?;
             glob::get_matches(glob, &all_files)?.into_iter().collect()
-        } else if let (Some(from), Some(to)) = (&opts.from_ref, &opts.to_ref) {
-            file_progress.prop(
-                "message",
-                &format!("Fetching files between {} and {}", from, to),
-            );
-            repo.lock()
-                .await
-                .files_between_refs(from, Some(to))?
-                .into_iter()
-                .collect()
         } else if let Some(from) = &opts.from_ref {
             file_progress.prop(
                 "message",
-                &format!("Fetching files from {}", from),
+                &if let Some(to) = &opts.to_ref {
+                    format!("Fetching files between {} and {}", from, to)
+                } else {
+                    format!("Fetching files from {}", from)
+                },
             );
             repo.lock()
                 .await
-                .files_between_refs(from, None)?
+                .files_between_refs(from, opts.to_ref.as_deref())?
                 .into_iter()
                 .collect()
         } else if opts.all {
