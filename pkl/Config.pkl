@@ -41,6 +41,9 @@ class Step {
     /// if set, run the linter scripts in this directory
     dir: String?
 
+    /// if set, run the linter scripts with these git attributes
+    attributes: List<String>?
+
     /// if set, run the step only if this condition is true 
     condition: String?
 

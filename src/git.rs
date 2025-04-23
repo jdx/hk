@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::Result;
+use crate::{step::GitAttributes, Result};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
 use git2::{Repository, StatusOptions, StatusShow, Tree};
@@ -266,6 +266,22 @@ impl Git {
         }
     }
 
+    pub fn file_attributes(&self, files: &[PathBuf]) -> Result<BTreeSet<GitAttributes>> {
+        let mut attributes = BTreeSet::new();
+        if let Some(repo) = &self.repo {
+            let mut index = repo.index()?;
+            for file in files {
+                let entry = index.get_path(file, 0).unwrap();
+                if entry.is_binary() {
+                    attributes.insert(GitAttributes::Binary);
+                } else {
+                    attributes.insert(GitAttributes::Text);
+                }
+            }
+        }
+        Ok(attributes)
+    }
+
     pub fn stash_unstaged(
         &mut self,
         job: &ProgressJob,
@@ -510,7 +526,8 @@ impl Git {
         }
     }
 
-    pub fn files_between_refs(&self, from_ref: &str, to_ref: &str) -> Result<Vec<PathBuf>> {
+    pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {
+        let to_ref = to_ref.unwrap_or("HEAD");
         if let Some(repo) = &self.repo {
             let from_obj = repo
                 .revparse_single(from_ref)

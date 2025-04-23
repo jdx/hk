@@ -195,7 +195,7 @@ impl Hook {
             )
             .await?;
 
-        if files.is_empty() && can_exit_early(&steps, &files, run_type) {
+        if files.is_empty() && can_exit_early(&repo, &steps, &files, run_type).await {
             info!("no files to run");
             if let Some(hk_progress) = &hk_progress {
                 hk_progress.set_status(ProgressStatus::Hide);
@@ -293,7 +293,17 @@ impl Hook {
             );
             repo.lock()
                 .await
-                .files_between_refs(from, to)?
+                .files_between_refs(from, Some(to))?
+                .into_iter()
+                .collect()
+        } else if let Some(from) = &opts.from_ref {
+            file_progress.prop(
+                "message",
+                &format!("Fetching files from {}", from),
+            );
+            repo.lock()
+                .await
+                .files_between_refs(from, None)?
                 .into_iter()
                 .collect()
         } else if opts.all {
@@ -395,10 +405,14 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn can_exit_early(steps: &[Arc<Step>], files: &BTreeSet<PathBuf>, run_type: RunType) -> bool {
+async fn can_exit_early(git: &Mutex<Git>, steps: &[Arc<Step>], files: &BTreeSet<PathBuf>, run_type: RunType) -> bool {
     let files = files.iter().cloned().collect::<Vec<_>>();
-    steps.iter().all(|s| {
-        s.build_step_jobs(&files, run_type, &Default::default())
-            .is_ok_and(|jobs| jobs.is_empty())
-    })
+    for step in steps {
+        if let Ok(jobs) = step.build_step_jobs(git, &files, run_type, Default::default()).await {
+            if !jobs.is_empty() {
+                return false;
+            }
+        }
+    }
+    true
 }

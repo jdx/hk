@@ -1,4 +1,4 @@
-use crate::env;
+use crate::{env, git::Git};
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{glob, settings::Settings};
 use crate::{step_context::StepContext, tera};
@@ -15,7 +15,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 use std::{fmt, process::Stdio};
-use tokio::sync::OwnedSemaphorePermit;
+use tokio::sync::{Mutex, OwnedSemaphorePermit};
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -38,6 +38,7 @@ pub struct Step {
     pub workspace_indicator: Option<String>,
     pub prefix: Option<String>,
     pub dir: Option<String>,
+    pub attributes: Option<IndexSet<GitAttributes>>,
     pub condition: Option<String>,
     #[serde(default)]
     pub check_first: bool,
@@ -83,6 +84,13 @@ pub enum CheckType {
     Check,
     ListFiles,
     Diff,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GitAttributes {
+    Binary,
+    Text,
 }
 
 impl Step {
@@ -189,7 +197,7 @@ impl Step {
         Ok(Some(workspaces))
     }
 
-    fn filter_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    async fn filter_files(&self, git: &Mutex<Git>, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
         let mut files = files.to_vec();
         if let Some(dir) = &self.dir {
             files.retain(|f| f.starts_with(dir));
@@ -210,16 +218,25 @@ impl Step {
                 .collect::<HashSet<_>>();
             files.retain(|f| !excluded.contains(f));
         }
+        if let Some(attributes) = &self.attributes {
+            let status = git.lock().await.status(None)?;
+            for file in files.iter_mut() {
+                if attributes.contains(&GitAttributes::Binary) {
+                    file.set_extension("bin");
+                }
+            }
+        }
         Ok(files)
     }
 
-    pub(crate) fn build_step_jobs(
+    pub(crate) async fn build_step_jobs(
         &self,
+        git: &Mutex<Git>,
         files: &[PathBuf],
         run_type: RunType,
-        files_in_contention: &HashSet<PathBuf>,
+        files_in_contention: HashSet<PathBuf>,
     ) -> Result<Vec<StepJob>> {
-        let files = self.filter_files(files)?;
+        let files = self.filter_files(git, files).await?;
         if files.is_empty() && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
         {
             debug!("{self}: no file matches for step");
@@ -260,11 +277,13 @@ impl Step {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
         let files = ctx.hook_ctx.files();
         let ctx = Arc::new(ctx);
+        let files_in_contention = ctx.hook_ctx.files_in_contention.lock().unwrap().clone();
         let mut jobs = self.build_step_jobs(
+            &ctx.hook_ctx.git,
             &files,
             ctx.hook_ctx.run_type,
-            &ctx.hook_ctx.files_in_contention.lock().unwrap(),
-        )?;
+            files_in_contention,
+        ).await?;
         if let Some(job) = jobs.first_mut() {
             job.semaphore = Some(semaphore);
         } else {

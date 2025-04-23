@@ -61,3 +61,33 @@ unstaged"
     assert_output --partial "staged
 +unstaged"
 }
+
+@test "binary files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["binary"] { check = "echo 'binary: {{files}}'"; attributes = List("binary") }
+            ["text"] { check = "echo 'text: {{files}}'"; attributes = List("text") }
+            ["all"] { check = "echo 'all: {{files}}'" }
+        }
+    }
+}
+EOF
+    cat <<EOF >.gitattributes
+binary.txt binary
+text.txt text
+EOF
+    echo "binary" > binary.txt
+    echo "text" > text.txt
+    git add hk.pkl .gitattributes
+    git commit -m "initial commit"
+    git add binary.txt text.txt
+    git commit -m "add binary and text"
+    run hk check --from-ref HEAD^
+    assert_success
+    assert_output --partial "binary: binary.txt"
+    assert_output --partial "text: text.txt"
+    assert_output --partial "all: binary.txt text.txt"
+}
