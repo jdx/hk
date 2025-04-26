@@ -478,6 +478,9 @@ fn notify_wait(timeout: Duration) -> bool {
 }
 
 pub fn flush() {
+    if !*STARTED.lock().unwrap() {
+        return;
+    }
     if let Err(err) = refresh() {
         eprintln!("clx: {err:?}");
     }
