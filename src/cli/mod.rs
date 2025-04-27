@@ -5,6 +5,7 @@ use crate::{Result, logger, settings::Settings};
 use clap::Parser;
 use clx::progress::ProgressOutput;
 
+mod builtins;
 mod cache;
 mod check;
 mod completion;
@@ -47,6 +48,7 @@ struct Cli {
 
 #[derive(clap::Subcommand)]
 enum Commands {
+    Builtins(builtins::Builtins),
     Cache(cache::Cache),
     Check(check::Check),
     Completion(completion::Completion),
@@ -94,6 +96,7 @@ pub async fn run() -> Result<()> {
         Settings::with_profiles(&["slow".to_string()]);
     }
     match args.command {
+        Commands::Builtins(cmd) => cmd.run().await,
         Commands::Cache(cmd) => cmd.run().await,
         Commands::Check(cmd) => cmd.hook.run("check").await,
         Commands::Completion(cmd) => cmd.run().await,
