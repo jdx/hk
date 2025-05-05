@@ -35,6 +35,8 @@ pub struct Step {
     pub interactive: bool,
     pub depends: Vec<String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
+    pub shell: Option<Script>,
+    #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub check: Option<Script>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub check_list_files: Option<Script>,
@@ -449,10 +451,18 @@ impl Step {
                 trace!("{self}: {}", file.display());
             }
         }
-        let mut cmd = CmdLineRunner::new("sh")
-            .arg("-o")
-            .arg("errexit")
-            .arg("-c")
+        let mut cmd = if let Some(shell) = &self.shell {
+            let shell = shell.to_string();
+            let shell = shell.split_whitespace().collect_vec();
+            let mut cmd = CmdLineRunner::new(shell[0]);
+            for arg in shell[1..].iter() {
+                cmd = cmd.arg(arg);
+            }
+            cmd
+        } else {
+            CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+        };
+        cmd = cmd
             .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())

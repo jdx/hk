@@ -282,6 +282,21 @@ hooks {
 }
 ```
 
+### `<STEP>.shell: (String | Script)`
+
+If set, use this shell instead of the default `sh -o errexit -c`.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["prettier"] {
+                shell = "bash -o errexit -c"
+            }
+        }
+    }
+}
+
 ### `<STEP>.stage: List<String>`
 
 A list of globs of files to add to the git index after running a fix step.

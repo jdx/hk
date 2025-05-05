@@ -31,6 +31,9 @@ class Step {
     
     /// Wait for sibling steps to finish before starting this step.
     depends: (String | List<String>) = List()
+
+    /// Which shell to use for running commands
+    shell: (String | Script)?
     
     /// a shell command to check. Any edits will be ignored.
     check: (String | Script)?

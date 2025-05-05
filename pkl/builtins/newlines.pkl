@@ -4,6 +4,7 @@ newlines = new Config.Step {
     glob = "*"
     stage = "*"
     check_first = true
+    shell = "bash -o errexit -c"
     check_list_files = """
 status=0
 for file in {{files}}; do
