@@ -457,6 +457,7 @@ impl Git {
                     )
                     .start();
                 if let Some(repo) = &mut self.repo {
+                    // TODO: somehow force using changes from patch in case of conflicts
                     let diff = git2::Diff::from_buffer(diff.as_bytes())?;
                     let mut apply_opts = git2::ApplyOptions::new();
                     repo.apply(&diff, git2::ApplyLocation::WorkDir, Some(&mut apply_opts))
@@ -464,6 +465,7 @@ impl Git {
                             format!("failed to apply diff {}", display_path(&patch_file))
                         })?;
                 } else {
+                    // TODO: somehow force using changes from patch in case of conflicts
                     xx::process::cmd("git", ["apply", "--reject"])
                         .arg(&patch_file)
                         .run()?;
@@ -492,7 +494,12 @@ impl Git {
                 job = ProgressJobBuilder::new()
                     .prop("message", "stash – Applying git stash")
                     .start();
-                xx::process::sh("git stash pop")?;
+                // let merge = xx::process::sh("git stash show -up | git apply --reject");
+                let merge = xx::process::sh(
+                    "git stash show -up --no-color --no-ext-diff | git apply --reject",
+                );
+                let drop = xx::process::cmd("git", ["stash", "drop"]);
+                merge.and(drop.run())?;
             }
         }
         job.set_status(ProgressStatus::Done);
