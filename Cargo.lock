@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "clx"
-version = "0.2.13"
+version = "0.2.14"
 dependencies = [
  "console",
  "indicatif",
