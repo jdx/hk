@@ -1,9 +1,5 @@
 [env]
-_.path = [
-    "test/bats/bin",
-    "target/debug",
-    "node_modules/.bin",
-]
+_.path = ["test/bats/bin", "target/debug", "node_modules/.bin"]
 
 [tools]
 actionlint = "latest"
@@ -39,7 +35,7 @@ run = "cargo msrv verify"
 
 [tasks.benchmark]
 run = "./benchmark/benchmark.sh"
-tools = {lefthook = "latest", "pre-commit" = "latest"}
+tools = { lefthook = "latest", "pre-commit" = "latest" }
 
 [tasks.ci]
 depends = ["test", "lint"]
@@ -55,7 +51,10 @@ run = "cargo test"
 [tasks.test-bats]
 alias = "tb"
 depends = ["build"]
-run = "bats test && HK_LIBGIT2=0 bats test"
+run = [
+  "HK_LIBGIT2=0 bats {{arg(name='test', var=true, default='test')}}",
+  "HK_LIBGIT2=1 bats {{arg(name='test', var=true, default='test')}}",
+]
 
 [tasks.dist]
 run = "pkl project package pkl --output-path docs/public/pkl"
@@ -74,17 +73,11 @@ run = [
 run = "cargo release"
 [tasks.lint]
 depends = ["build"]
-run = [
-  "hk check --all",
-  "hk check --all --slow",
-]
+run = ["hk check --all", "hk check --all --slow"]
 [tasks.lint-fix]
 alias = ["fix", "format"]
 depends = ["build"]
-run = [
-  "hk fix --all",
-  "hk fix --all --slow",
-]
+run = ["hk fix --all", "hk fix --all --slow"]
 [tasks.docs]
 dir = "docs"
 run = "bun i && bun run docs:dev"

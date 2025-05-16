@@ -1,7 +1,7 @@
 use std::{
     cell::OnceCell,
     collections::BTreeSet,
-    ffi::OsString,
+    ffi::{CString, OsString},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -9,9 +9,11 @@ use std::{
 use crate::Result;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
-use git2::{Repository, StatusOptions, StatusShow, Tree};
+use git2::{Repository, StatusOptions, StatusShow};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
+use std::os::unix::ffi::OsStringExt;
 use xx::file::display_path;
 
 use crate::env;
@@ -116,58 +118,32 @@ impl Git {
         }
     }
 
-    fn head_tree(&self) -> Result<Tree<'_>> {
-        let head = self
-            .repo
-            .as_ref()
-            .unwrap()
-            .head()
-            .wrap_err("failed to get head")?;
-        let head = head
-            .peel_to_tree()
-            .wrap_err("failed to peel head to tree")?;
-        Ok(head)
-    }
-
-    // fn head_commit(&self) -> Result<Commit<'_>> {
-    //     let head = self.repo.head().wrap_err("failed to get head")?;
-    //     let commit = head
-    //         .peel_to_commit()
-    //         .wrap_err("failed to peel head to commit")?;
-    //     Ok(commit)
-    // }
-
-    // fn head_commit_message(&self) -> Result<String> {
-    //     let commit = self.head_commit()?;
-    //     let message = commit
-    //         .message()
-    //         .ok_or(eyre!("failed to get commit message"))?;
-    //     Ok(message.to_string())
-    // }
-
-    pub fn all_files(&self) -> Result<Vec<PathBuf>> {
-        // TODO: should this also show untracked files?
-        if let Some(_repo) = &self.repo {
-            let head = self.head_tree()?;
-            let mut files = Vec::new();
-            head.walk(git2::TreeWalkMode::PreOrder, |root, entry| {
-                if let Some(name) = entry.name() {
-                    let path = if root.is_empty() {
-                        PathBuf::from(name)
-                    } else {
-                        PathBuf::from(root).join(name)
-                    };
-                    if path.exists() {
-                        files.push(path);
+    pub fn all_files(&self, pathspec: Option<&[OsString]>) -> Result<BTreeSet<PathBuf>> {
+        // TODO: handle pathspec to improve globbing
+        if let Some(repo) = &self.repo {
+            let idx = repo.index()?;
+            Ok(idx
+                .iter()
+                .map(|i| {
+                    let cstr = CString::new(&i.path[..]).unwrap();
+                    #[cfg(unix)]
+                    {
+                        PathBuf::from(OsString::from_vec(cstr.as_bytes().to_vec()))
                     }
-                }
-                git2::TreeWalkResult::Ok
-            })
-            .wrap_err("failed to walk tree")?;
-            Ok(files)
+                    #[cfg(windows)]
+                    {
+                        PathBuf::from(cstr.into_string().unwrap())
+                    }
+                })
+                .collect())
         } else {
-            let output = xx::process::sh("git ls-files")?;
-            Ok(output.lines().map(PathBuf::from).collect())
+            let mut cmd = xx::process::cmd("git", ["ls-files", "-z"]);
+            if let Some(pathspec) = pathspec {
+                cmd = cmd.arg("--");
+                cmd = cmd.args(pathspec.iter().map(|p| p.to_str().unwrap()));
+            }
+            let output = cmd.read()?;
+            Ok(output.split('\0').map(PathBuf::from).collect())
         }
     }
 
@@ -175,6 +151,7 @@ impl Git {
         if let Some(repo) = &self.repo {
             let mut status_options = StatusOptions::new();
             status_options.include_untracked(true);
+            status_options.recurse_untracked_dirs(true);
 
             if let Some(pathspec) = pathspec {
                 for path in pathspec {
@@ -223,10 +200,16 @@ impl Git {
                 modified_files,
             })
         } else {
-            let mut args = vec!["status", "--porcelain", "--no-renames"]
-                .into_iter()
-                .map(OsString::from)
-                .collect_vec();
+            let mut args = vec![
+                "status",
+                "--porcelain",
+                "--no-renames",
+                "--untracked-files=all",
+                "-z",
+            ]
+            .into_iter()
+            .map(OsString::from)
+            .collect_vec();
             if let Some(pathspec) = pathspec {
                 args.push("--".into());
                 args.extend(pathspec.iter().map(|p| p.into()))
@@ -236,8 +219,8 @@ impl Git {
             let mut unstaged_files = BTreeSet::new();
             let mut untracked_files = BTreeSet::new();
             let mut modified_files = BTreeSet::new();
-            for line in output.lines() {
-                let mut chars = line.chars();
+            for file in output.split('\0') {
+                let mut chars = file.chars();
                 let index_status = chars.next().unwrap_or_default();
                 let workdir_status = chars.next().unwrap_or_default();
                 let path = PathBuf::from(chars.skip(1).collect::<String>());

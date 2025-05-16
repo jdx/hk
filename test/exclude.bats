@@ -35,12 +35,9 @@ EOF
     git add test1.js test2.ts test3.test.js test4.test.ts
     run hk check -v
     assert_failure
-    assert_output --partial '[warn] test1.js'
-    assert_output --partial '[warn] test2.ts'
+    assert_output --partial 'DEBUG $ prettier --check test1.js test2.ts
+'
     assert_output --partial '[warn] Code style issues found in 2 files. Run Prettier with --write to fix.'
-    # Verify that excluded files are not in the output
-    refute_output --partial 'test3.test.js'
-    refute_output --partial 'test4.test.ts'
 }
 
 @test "exclude with dir" {
@@ -78,13 +75,7 @@ EOF
     git add src/test1.js src/test2.ts src/test3.test.js src/test4.test.ts test5.js test6.ts
     run hk check -v
     assert_failure
-    assert_output --partial '[warn] test1.js'
-    assert_output --partial '[warn] test2.ts'
+    assert_output --partial 'DEBUG $ prettier --check test1.js test2.ts
+'
     assert_output --partial '[warn] Code style issues found in 2 files. Run Prettier with --write to fix.'
-    # Verify that excluded files are not in the output
-    refute_output --partial 'test3.test.js'
-    refute_output --partial 'test4.test.ts'
-    # Verify that files outside the dir are not in the output
-    refute_output --partial 'test5.js'
-    refute_output --partial 'test6.ts'
 } 

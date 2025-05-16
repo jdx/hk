@@ -4,6 +4,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeSet, HashSet},
+    ffi::OsString,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -328,6 +329,7 @@ impl Hook {
         stash_method: StashMethod,
         file_progress: &ProgressJob,
     ) -> Result<BTreeSet<PathBuf>> {
+        let stash = stash_method != StashMethod::None;
         let mut files = if let Some(files) = &opts.files {
             files
                 .iter()
@@ -343,8 +345,15 @@ impl Hook {
                 .collect::<Result<BTreeSet<_>>>()?
         } else if let Some(glob) = &opts.glob {
             file_progress.prop("message", "Fetching files matching glob");
-            // TODO: should fetch just the files that match the glob
-            let all_files = repo.lock().await.all_files()?;
+            let pathspec = glob.iter().map(OsString::from).collect::<Vec<_>>();
+            let mut all_files = repo.lock().await.all_files(Some(&pathspec))?;
+            if !stash {
+                let git_status = git_status
+                    .get_or_try_init(async || repo.lock().await.status(None))
+                    .await?;
+                all_files.extend(git_status.untracked_files.iter().cloned());
+            }
+            let all_files = all_files.into_iter().collect_vec();
             glob::get_matches(glob, &all_files)?.into_iter().collect()
         } else if let Some(from) = &opts.from_ref {
             file_progress.prop(
@@ -362,8 +371,15 @@ impl Hook {
                 .collect()
         } else if opts.all {
             file_progress.prop("message", "Fetching all files in repo");
-            repo.lock().await.all_files()?.into_iter().collect()
-        } else if stash_method != StashMethod::None {
+            let mut all_files = repo.lock().await.all_files(None)?;
+            if !stash {
+                let git_status = git_status
+                    .get_or_try_init(async || repo.lock().await.status(None))
+                    .await?;
+                all_files.extend(git_status.untracked_files.iter().cloned());
+            }
+            all_files
+        } else if stash {
             file_progress.prop("message", "Fetching staged files");
             let git_status = git_status
                 .get_or_try_init(async || repo.lock().await.status(None))
@@ -394,6 +410,7 @@ impl Hook {
         }
         file_progress.prop("files", &files.len());
         file_progress.set_status(ProgressStatus::Done);
+        debug!("files: {files:?}");
         Ok(files)
     }
 

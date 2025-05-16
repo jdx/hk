@@ -1,5 +1,5 @@
-use crate::env;
 use crate::{Result, error::Error, step_job::StepJob};
+use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
 use crate::{step_context::StepContext, tera};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
@@ -409,14 +409,13 @@ impl Step {
             }
         }
         job.progress = Some(job.build_progress(ctx));
-        if job.status.is_pending() {
-            let semaphore = if let Some(semaphore) = job.semaphore.take() {
-                semaphore
-            } else {
-                ctx.hook_ctx.semaphore().await
-            };
-            job.status_start(ctx, semaphore).await?;
-        }
+        job.status = StepJobStatus::Pending;
+        let semaphore = if let Some(semaphore) = job.semaphore.take() {
+            semaphore
+        } else {
+            ctx.hook_ctx.semaphore().await
+        };
+        job.status_start(ctx, semaphore).await?;
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
         tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
         tctx.with_files(&job.files);

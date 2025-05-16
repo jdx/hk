@@ -274,12 +274,14 @@ hooks {
             ["a"] {
                 glob = List("*.sh")
                 stage = "*"
+                check_first = true
                 check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"
                 fix = "echo 'start a' && sleep 0.1 && echo 'end a'"
             }
             ["b"] {
                 glob = List("*.sh")
                 stage = "*"
+                check_first = true
                 check = "echo 'start b' && echo 'exit b' && exit 1"
                 fix = "echo 'start b' && echo 'end b' > test.sh && echo 'end b'"
             }
@@ -296,8 +298,7 @@ EOF
 
     # runs b to completion without a
     assert_output --partial "  b – start b
-  b – end b
-✔ b – 1 file modified"
+  b – end b"
 }
 
 @test "hk fix --from-ref and --to-ref fixes files between refs" {
