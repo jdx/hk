@@ -23,8 +23,6 @@ use xx::file::display_path;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct Step {
-    #[serde(default = "default_step_type")]
-    pub _type: String,
     #[serde(default)]
     pub name: String,
     pub profiles: Option<Vec<String>>,
@@ -430,7 +428,7 @@ impl Step {
             )
         };
         let Some(mut run) = self.run_cmd(job.run_type).map(|s| s.to_string()) else {
-            eyre::bail!("{}: no run command", self);
+            eyre::bail!("{self}: no run command");
         };
         if let Some(prefix) = &self.prefix {
             run = format!("{prefix} {run}");
@@ -574,10 +572,6 @@ fn try_canonicalize(path: &PathBuf) -> PathBuf {
             path.to_path_buf()
         }
     }
-}
-
-fn default_step_type() -> String {
-    "step".to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

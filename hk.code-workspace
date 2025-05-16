@@ -2,15 +2,6 @@
 	"folders": [
 		{
 			"path": "."
-		},
-		{
-			"path": "../ensembler"
-		},
-		{
-			"path": "../clx"
-		},
-		{
-			"path": "../xx"
 		}
 	],
 	"settings": {}

@@ -274,12 +274,14 @@ hooks {
             ["a"] {
                 glob = List("*.sh")
                 stage = "*"
+                check_first = true
                 check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"
                 fix = "echo 'start a' && sleep 0.1 && echo 'end a'"
             }
             ["b"] {
                 glob = List("*.sh")
                 stage = "*"
+                check_first = true
                 check = "echo 'start b' && echo 'exit b' && exit 1"
                 fix = "echo 'start b' && echo 'end b' > test.sh && echo 'end b'"
             }
