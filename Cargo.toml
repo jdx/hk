@@ -8,6 +8,7 @@ documentation = "https://docs.rs/ensembler"
 license = "MIT"
 description = "A library for running commands and reporting progress"
 rust-version = "1.85"
+include = ["/LICENSE", "/README.md", "/src/**", "/examples/**"]
 
 [lib]
 name = "ensembler"
