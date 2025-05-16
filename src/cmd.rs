@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
-use tokio::{io::BufReader, process::Command, select, sync::Mutex};
+use tokio::{io::BufReader, process::Command, select, sync::{oneshot, Mutex}};
 use tokio_util::sync::CancellationToken;
 use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
@@ -199,6 +199,7 @@ impl CmdLineRunner {
         }
         let result = Arc::new(Mutex::new(CmdResult::default()));
         let combined_output = Arc::new(Mutex::new(Vec::new()));
+        let (stdout_flush, stdout_ready) = oneshot::channel();
         if let Some(stdout) = cp.stdout.take() {
             let result = result.clone();
             let combined_output = combined_output.clone();
@@ -222,8 +223,12 @@ impl CmdLineRunner {
                     }
                     combined_output.lock().await.push(line);
                 }
+                let _ = stdout_flush.send(());
             });
+        } else {
+            drop(stdout_flush);
         }
+        let (stderr_flush, stderr_ready) = oneshot::channel();
         if let Some(stderr) = cp.stderr.take() {
             let result = result.clone();
             let combined_output = combined_output.clone();
@@ -247,13 +252,20 @@ impl CmdLineRunner {
                     }
                     combined_output.lock().await.push(line);
                 }
+                let _ = stderr_flush.send(());
             });
+        } else {
+            drop(stderr_flush);
         }
+        let (stdin_flush, stdin_ready) = oneshot::channel();
         if let Some(text) = self.stdin.take() {
             let mut stdin = cp.stdin.take().unwrap();
             tokio::spawn(async move {
                 stdin.write_all(text.as_bytes()).await.unwrap();
+                let _ = stdin_flush.send(());
             });
+        } else {
+            drop(stdin_flush);
         }
         let status = loop {
             select! {
@@ -267,6 +279,11 @@ impl CmdLineRunner {
         };
         RUNNING_PIDS.lock().unwrap().remove(&id);
         result.lock().await.status = status;
+
+        // these are sent when the process has flushed IO
+        let _ = stdout_ready.await;
+        let _ = stderr_ready.await;
+        let _ = stdin_ready.await;
 
         if status.success() {
             if let Some(pr) = &self.pr {
@@ -300,7 +317,7 @@ impl Display for CmdLineRunner {
         if cmd.starts_with("sh -o errexit -c ") {
             cmd = cmd[17..].to_string();
         }
-        write!(f, "{}", cmd)
+        write!(f, "{cmd}")
     }
 }
 
