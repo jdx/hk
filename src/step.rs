@@ -9,6 +9,8 @@ use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, OneOrMany, PickFirst, serde_as};
+use shell_quote::QuoteInto;
+use shell_quote::QuoteRefExt;
 use std::{collections::HashSet, fmt::Display, path::PathBuf, str::FromStr};
 use std::{
     ffi::OsString,
@@ -418,7 +420,6 @@ impl Step {
         job.status_start(ctx, semaphore).await?;
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
         tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
-        tctx.with_files(&job.files);
         let file_msg = |files: &[PathBuf]| {
             format!(
                 "{} file{}",
@@ -509,8 +510,49 @@ impl Step {
         job.status_finished()?;
         Ok(())
     }
+
+    pub fn shell_type(&self) -> ShellType {
+        let shell = self
+            .shell
+            .as_ref()
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        let shell = shell.split_whitespace().next().unwrap_or_default();
+        let shell = shell.split("/").last().unwrap_or_default();
+        match shell {
+            "bash" => ShellType::Bash,
+            "dash" => ShellType::Dash,
+            "fish" => ShellType::Fish,
+            "sh" => ShellType::Sh,
+            "zsh" => ShellType::Zsh,
+            _ => ShellType::Other(shell.to_string()),
+        }
+    }
 }
 
+pub enum ShellType {
+    Bash,
+    Dash,
+    Fish,
+    Sh,
+    Zsh,
+    #[allow(unused)]
+    Other(String),
+}
+
+impl ShellType {
+    pub fn quote(&self, s: &str) -> String {
+        match self {
+            ShellType::Bash | ShellType::Zsh => s.quoted(shell_quote::Bash),
+            ShellType::Fish => s.quoted(shell_quote::Fish),
+            ShellType::Dash | ShellType::Sh | ShellType::Other(_) => {
+                let mut o = vec![];
+                shell_quote::Sh::quote_into(s, &mut o);
+                String::from_utf8(o).unwrap_or_default()
+            }
+        }
+    }
+}
 fn is_profile_enabled(
     name: &str,
     enabled: Option<IndexSet<String>>,

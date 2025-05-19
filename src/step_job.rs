@@ -69,7 +69,7 @@ impl StepJob {
 
     pub fn tctx(&self, base: &tera::Context) -> tera::Context {
         let mut tctx = base.clone();
-        tctx.with_files(&self.files);
+        tctx.with_files(self.step.shell_type(), &self.files);
         if let Some(workspace_indicator) = &self.workspace_indicator {
             tctx.with_workspace_indicator(workspace_indicator);
         }

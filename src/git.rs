@@ -143,7 +143,11 @@ impl Git {
                 cmd = cmd.args(pathspec.iter().map(|p| p.to_str().unwrap()));
             }
             let output = cmd.read()?;
-            Ok(output.split('\0').map(PathBuf::from).collect())
+            Ok(output
+                .split('\0')
+                .filter(|p| !p.is_empty())
+                .map(PathBuf::from)
+                .collect())
         }
     }
 
@@ -208,6 +212,7 @@ impl Git {
                 "-z",
             ]
             .into_iter()
+            .filter(|&arg| !arg.is_empty())
             .map(OsString::from)
             .collect_vec();
             if let Some(pathspec) = pathspec {
@@ -552,7 +557,11 @@ impl Git {
                 ],
             )
             .read()?;
-            Ok(output.split('\0').map(PathBuf::from).collect())
+            Ok(output
+                .split('\0')
+                .filter(|p| !p.is_empty())
+                .map(PathBuf::from)
+                .collect())
         }
     }
 }

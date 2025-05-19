@@ -146,6 +146,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "234113d19d0d7d613b40e86fb654acf958910802bcceab913a4f9e7cda03b1a4"
 dependencies = [
  "memchr",
+ "regex-automata",
  "serde",
 ]
 
@@ -829,6 +830,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "shell-quote",
  "siphasher",
  "strum",
  "tera",
@@ -2286,6 +2288,15 @@ name = "shared_thread"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7a6f98357c6bb0ebace19b22220e5543801d9de90ffe77f8abb27c056bac064"
+
+[[package]]
+name = "shell-quote"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb502615975ae2365825521fa1529ca7648fd03ce0b0746604e0683856ecd7e4"
+dependencies = [
+ "bstr",
+]
 
 [[package]]
 name = "shell-words"

@@ -1,6 +1,6 @@
 use std::{path::Path, sync::LazyLock};
 
-use crate::Result;
+use crate::{Result, step::ShellType};
 use itertools::Itertools;
 use serde::Serialize;
 use tera::Tera;
@@ -46,17 +46,10 @@ impl Context {
         self
     }
 
-    pub fn with_files<P: AsRef<Path>>(&mut self, files: &[P]) -> &mut Self {
+    pub fn with_files<P: AsRef<Path>>(&mut self, shell_type: ShellType, files: &[P]) -> &mut Self {
         let files = files
             .iter()
-            .map(|m| {
-                let s = m.as_ref().to_str().unwrap();
-                if s.contains(" ") {
-                    format!("'{s}'")
-                } else {
-                    s.to_string()
-                }
-            })
+            .map(|m| shell_type.quote(m.as_ref().to_str().unwrap()))
             .join(" ");
         self.insert("files", &files);
         self

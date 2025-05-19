@@ -34,6 +34,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 serde_with = "3"
 serde_yaml = "0.9"
+shell-quote = "0.7"
 siphasher = "1"
 strum = { version = "0.27", features = ["derive"] }
 tera = "1"
