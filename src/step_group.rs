@@ -17,8 +17,6 @@ use std::{
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct StepGroup {
-    #[serde(default = "default_step_group_type")]
-    pub _type: String,
     pub name: Option<String>,
     pub steps: IndexMap<String, Step>,
 }
@@ -73,7 +71,6 @@ impl StepGroup {
             .into_iter()
             .filter(|steps| !steps.is_empty())
             .map(|steps| Self {
-                _type: "group".to_string(),
                 name: None,
                 steps,
             })
@@ -221,8 +218,4 @@ impl StepGroup {
 
         Ok(files_in_contention)
     }
-}
-
-fn default_step_group_type() -> String {
-    "group".to_string()
 }
