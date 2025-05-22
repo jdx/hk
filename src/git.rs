@@ -516,15 +516,23 @@ impl Git {
                 .revparse_single(to_ref)
                 .wrap_err(format!("Failed to parse reference: {to_ref}"))?;
 
-            let from_tree = from_obj
+            // Find the merge base between the two references
+            let merge_base = repo
+                .merge_base(from_obj.id(), to_obj.id())
+                .wrap_err("Failed to find merge base")?;
+            let merge_base_obj = repo
+                .find_object(merge_base, None)
+                .wrap_err("Failed to find merge base object")?;
+            let merge_base_tree = merge_base_obj
                 .peel_to_tree()
-                .wrap_err(format!("Failed to get tree for reference: {from_ref}"))?;
+                .wrap_err("Failed to get tree for merge base")?;
+
             let to_tree = to_obj
                 .peel_to_tree()
                 .wrap_err(format!("Failed to get tree for reference: {to_ref}"))?;
 
             let diff = repo
-                .diff_tree_to_tree(Some(&from_tree), Some(&to_tree), None)
+                .diff_tree_to_tree(Some(&merge_base_tree), Some(&to_tree), None)
                 .wrap_err("Failed to get diff between references")?;
 
             let mut files = BTreeSet::new();
@@ -546,6 +554,10 @@ impl Git {
 
             Ok(files.into_iter().collect())
         } else {
+            // Use git merge-base to find the common ancestor
+            let merge_base = xx::process::sh(&format!("git merge-base {from_ref} {to_ref}"))?;
+            let merge_base = merge_base.trim();
+
             let output = xx::process::cmd(
                 "git",
                 &[
@@ -553,7 +565,7 @@ impl Git {
                     "-z",
                     "--name-only",
                     "--diff-filter=ACMRTUXB",
-                    format!("{from_ref}..{to_ref}").as_str(),
+                    format!("{merge_base}..{to_ref}").as_str(),
                 ],
             )
             .read()?;
