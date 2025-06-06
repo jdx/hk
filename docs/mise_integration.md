@@ -5,7 +5,7 @@ to use any of the features described below.
 
 To default hk to enable these mise features, set [`HK_MISE=1`](/configuration#hk-mise).
 
-## `hk generate --mise`
+## `hk init --mise`
 
 Use the `--mise` flag on generate to have hk create a new `mise.toml`
 file in the root of the repository that installs hk and defines a `pre-commit` task so users can run `mise run pre-commit` as a "shortcut" for `hk run pre-commit`. Of course, that's actually longer, but the advantage here is that tasks can be used consistently for all the project actions, not just git hooks.

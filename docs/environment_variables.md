@@ -81,7 +81,7 @@ Default: `false`
 If set to `true`:
 
 - When installing hooks with `hk install`, hk will use `mise x` to execute hooks which won't require activating mise to use mise tools
-- When generating files with `hk generate`, hk will create a `mise.toml` file with hk configured
+- When generating files with `hk init`, hk will create a `mise.toml` file with hk configured
 
 ## `HK_SKIP_STEPS`
 
