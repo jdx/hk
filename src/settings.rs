@@ -1,6 +1,7 @@
 use std::{
     num::NonZero,
     sync::{LazyLock, Mutex},
+    path::PathBuf,
 };
 
 use indexmap::IndexSet;
@@ -20,11 +21,15 @@ static ENABLED_PROFILES: LazyLock<Mutex<Option<IndexSet<String>>>> =
     LazyLock::new(Default::default);
 static DISABLED_PROFILES: LazyLock<Mutex<Option<IndexSet<String>>>> =
     LazyLock::new(Default::default);
+static USER_CONFIG_PATH: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(Default::default);
+static FAIL_FAST: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
+static ALL: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
+static FIX: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
+static CHECK: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 
 impl Settings {
-    pub fn get() -> &'static Self {
-        static SETTINGS: LazyLock<Settings> = LazyLock::new(Default::default);
-        &SETTINGS
+    pub fn get() -> Settings {
+        Settings::default()
     }
 
     pub fn with_profiles(profiles: &[String]) {
@@ -48,8 +53,32 @@ impl Settings {
         }
     }
 
+    pub fn get_user_config_path() -> Option<PathBuf> {
+        USER_CONFIG_PATH.lock().unwrap().clone()
+    }
+
     pub fn set_jobs(jobs: NonZero<usize>) {
         *JOBS.lock().unwrap() = Some(jobs);
+    }
+
+    pub fn set_user_config_path(path: PathBuf) {
+        *USER_CONFIG_PATH.lock().unwrap() = Some(path);
+    }
+
+    pub fn set_fail_fast(fail_fast: bool) {
+        *FAIL_FAST.lock().unwrap() = Some(fail_fast);
+    }
+
+    pub fn set_all(all: bool) {
+        *ALL.lock().unwrap() = Some(all);
+    }
+
+    pub fn set_fix(fix: bool) {
+        *FIX.lock().unwrap() = Some(fix);
+    }
+
+    pub fn set_check(check: bool) {
+        *CHECK.lock().unwrap() = Some(check);
     }
 }
 
@@ -79,7 +108,7 @@ impl Default for Settings {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
             disabled_profiles,
-            fail_fast: *env::HK_FAIL_FAST,
+            fail_fast: FAIL_FAST.lock().unwrap().unwrap_or(*env::HK_FAIL_FAST),
         }
     }
 }
