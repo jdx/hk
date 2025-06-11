@@ -44,7 +44,7 @@ This will generate a `hk.pkl` file in the root of the repository, here's an exam
 amends "package://github.com/jdx/hk/releases/download/v1.1.2/hk@1.1.2#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.1.2/hk@1.1.2#/Builtins.pkl"
 
-local linters {
+local linters = new Mapping<String, Step> {
     // linters can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped

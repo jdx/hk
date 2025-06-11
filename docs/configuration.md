@@ -14,7 +14,7 @@ Here's a basic `hk.pkl` file:
 amends "package://github.com/jdx/hk/releases/download/v1.1.2/hk@1.1.2#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.1.2/hk@1.1.2#/Builtins.pkl"
 
-local linters {
+local linters = new Mapping<String, Step> {
     // linters can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
@@ -149,7 +149,7 @@ A command that shows the diff of what would be changed. This is an alternative t
 A command to run that modifies files. This typically is a "fix" command like `eslint --fix` or `prettier --write`. Templates variables are the same as for `check`.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] {
         fix = "prettier --write {{files}}"
     }
@@ -171,7 +171,7 @@ Default: `false`
 If true, hk will run the linter on batches of files instead of all files at once. This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["eslint"] {
         batch = true
     }
@@ -189,7 +189,7 @@ If true, hk will get a write lock instead of a read lock when running fix/fix_al
 If set, run the linter on workspaces only which are parent directories containing this filename. This is useful for tools that need to be run from a specific directory, like a project root.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["cargo-clippy"] {
         workspace_indicator = "Cargo.toml"
             glob = "*.rs"
@@ -225,7 +225,7 @@ hk will run 1 step for each workspace even though multiple rs files are in each 
 If set, run the linter scripts with this prefix, e.g.: "mise exec --" or "npm run".
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["eslint"] {
         prefix = "npm run"
     }
@@ -237,7 +237,7 @@ local linters {
 If set, run the linter scripts in this directory.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["eslint"] (Builtins.eslint) {
         dir = "frontend"
     }
@@ -249,7 +249,7 @@ local linters {
 Profiles are a way to enable/disable linters based on the current profile. The linter will only run if its profile is in [`HK_PROFILE`](/configuration#hk-profile).
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] (Builtins.prettier) {
         profiles = List("slow")
     }
@@ -259,7 +259,7 @@ local linters {
 Profiles can be prefixed with `!` to disable them.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] (Builtins.prettier) {
         profiles = List("!slow")
     }
@@ -343,7 +343,7 @@ hooks {
 A list of glob patterns to exclude from the step. Files matching these patterns will be skipped.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] {
         exclude = List("*.js", "*.ts")
     }
@@ -357,7 +357,7 @@ Default: `false`
 If true, connects stdin/stdout/stderr to hk's execution. This implies `exclusive = true`.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["show-warning"] {
         interactive = true
         check = "echo warning && read -p 'Press Enter to continue'"
@@ -370,7 +370,7 @@ local linters {
 If set, the step will only run if this condition evaluates to true. Evaluated with [`expr`](https://github.com/jdx/expr-rs).
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] {
         condition = "eval('test -f check.js')"
     }
@@ -384,7 +384,7 @@ Default: `false`
 If true, the step will be hidden from output.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] {
         hide = true
     }
@@ -396,7 +396,7 @@ local linters {
 Environment variables specific to this step. These are merged with the global environment variables.
 
 ```pkl
-local linters {
+local linters = new Mapping<String, Step> {
     ["prettier"] {
         env {
             ["NODE_ENV"] = "production"
