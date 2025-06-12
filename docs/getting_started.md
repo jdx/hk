@@ -36,6 +36,12 @@ Use [`hk init`](/cli/init) to generate a `hk.pkl` file:
 hk init
 ```
 
+## Global Configuration
+
+You can create a global configuration file that will be applied to all projects. This is useful for setting up consistent linting rules across multiple repositories. By default, hk will look for this file in your home directory.
+
+The global configuration file follows the same format as `hk.pkl` and can be used to define global hooks and linters. Project-specific settings in `hk.pkl` can override or extend the global configuration.
+
 ## `hk.pkl`
 
 This will generate a `hk.pkl` file in the root of the repository, here's an example `hk.pkl` with eslint and prettier linters:

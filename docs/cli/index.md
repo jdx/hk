@@ -8,6 +8,10 @@
 
 ## Global Flags
 
+### `--hkrc <PATH>`
+
+Override the default path for the global configuration file.
+
 ### `-j --jobs <JOBS>`
 
 Number of jobs to run in parallel

@@ -438,3 +438,36 @@ hooks {
     }
 }
 ```
+
+## `hkrc`
+
+The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. By default, hk will look for this file in your home directory. You can override its location using the `--hkrc` flag.
+
+The hkrc file follows the same format as `hk.pkl` and can be used to define global hooks and linters that will be applied to all projects. This is useful for setting up consistent linting rules across multiple repositories.
+
+Example hkrc file:
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v1.1.2/hk@1.1.2#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.1.2/hk@1.1.2#/Builtins.pkl"
+
+local linters {
+    ["prettier"] = Builtins.prettier
+    ["eslint"] {
+        glob = List("*.js", "*.ts")
+        check = "eslint {{files}}"
+        fix = "eslint --fix {{files}}"
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps = linters
+    }
+}
+```
+
+The hkrc configuration is applied after loading the project configuration (`hk.pkl`), which means:
+- User configuration takes precedence over project configuration
+- Project-specific settings in `hk.pkl` can override or extend the global configuration
