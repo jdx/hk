@@ -105,45 +105,53 @@ impl Config {
                 self.env.insert(key.clone(), value.clone());
                 unsafe { std::env::set_var(key, value) };
             }
-            
+
             if let Some(jobs) = user_config.defaults.jobs {
                 if let Some(jobs) = std::num::NonZero::new(jobs as usize) {
                     crate::settings::Settings::set_jobs(jobs);
                 }
             }
-            
+
             if let Some(profiles) = &user_config.defaults.profiles {
                 crate::settings::Settings::with_profiles(profiles);
             }
-            
+
             if let Some(fail_fast) = user_config.defaults.fail_fast {
                 crate::settings::Settings::set_fail_fast(fail_fast);
             }
-            
+
             if let Some(all) = user_config.defaults.all {
                 crate::settings::Settings::set_all(all);
             }
-            
+
             if let Some(fix) = user_config.defaults.fix {
                 crate::settings::Settings::set_fix(fix);
             }
-            
+
             if let Some(check) = user_config.defaults.check {
                 crate::settings::Settings::set_check(check);
             }
-            
+
             for (hook_name, user_hook_config) in &user_config.hooks {
                 if let Some(hook) = self.hooks.get_mut(hook_name) {
                     for (step_or_group_name, step_or_group) in hook.steps.iter_mut() {
                         match step_or_group {
                             crate::hook::StepOrGroup::Step(step) => {
                                 let step_config = user_hook_config.steps.get(step_or_group_name);
-                                Self::apply_user_config_to_step(step, user_hook_config, step_config)?;
+                                Self::apply_user_config_to_step(
+                                    step,
+                                    user_hook_config,
+                                    step_config,
+                                )?;
                             }
                             crate::hook::StepOrGroup::Group(group) => {
                                 for (step_name, step) in group.steps.iter_mut() {
                                     let step_config = user_hook_config.steps.get(step_name);
-                                    Self::apply_user_config_to_step(step, user_hook_config, step_config)?;
+                                    Self::apply_user_config_to_step(
+                                        step,
+                                        user_hook_config,
+                                        step_config,
+                                    )?;
                                 }
                             }
                         }
@@ -153,7 +161,7 @@ impl Config {
         }
         Ok(())
     }
-    
+
     fn apply_user_config_to_step(
         step: &mut crate::step::Step,
         hook_config: &UserHookConfig,
@@ -162,31 +170,31 @@ impl Config {
         for (key, value) in &hook_config.environment {
             step.env.entry(key.clone()).or_insert_with(|| value.clone());
         }
-        
+
         if let Some(step_config) = step_config {
             for (key, value) in &step_config.environment {
                 step.env.entry(key.clone()).or_insert_with(|| value.clone());
             }
-            
+
             if let Some(glob) = &step_config.glob {
                 step.glob = Some(match glob {
                     StringOrList::String(s) => vec![s.clone()],
                     StringOrList::List(list) => list.clone(),
                 });
             }
-            
+
             if let Some(exclude) = &step_config.exclude {
                 step.exclude = Some(match exclude {
                     StringOrList::String(s) => vec![s.clone()],
                     StringOrList::List(list) => list.clone(),
                 });
             }
-            
+
             if let Some(profiles) = &step_config.profiles {
                 step.profiles = Some(profiles.clone());
             }
         }
-        
+
         Ok(())
     }
 }
@@ -195,7 +203,7 @@ impl UserConfig {
     fn load() -> Result<Option<Self>> {
         let user_config_path = crate::settings::Settings::get_user_config_path()
             .expect("Config path should always be set by CLI");
-        
+
         if user_config_path.exists() {
             let user_config: UserConfig = parse_pkl("pkl", &user_config_path)?;
             Ok(Some(user_config))

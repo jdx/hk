@@ -1,7 +1,7 @@
 use std::{
     num::NonZero,
-    sync::{LazyLock, Mutex},
     path::PathBuf,
+    sync::{LazyLock, Mutex},
 };
 
 use indexmap::IndexSet;
