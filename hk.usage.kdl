@@ -1,8 +1,11 @@
 name hk
 bin hk
-version "1.1.2"
+version "1.2.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
+flag --hkrc help="Path to user configuration file" global=#true {
+    arg <PATH>
+}
 flag "-j --jobs" help="Number of jobs to run in parallel" global=#true {
     arg <JOBS>
 }
@@ -11,6 +14,7 @@ flag "-p --profile" help="Profiles to enable/disable prefix with ! to disable e.
 }
 flag "-s --slow" help="Shorthand for --profile=slow" global=#true
 flag "-v --verbose" help="Enables verbose output" var=#true global=#true count=#true
+flag "-n --no-progress" help="Disables progress output" global=#true
 flag "-q --quiet" help="Suppresses output" global=#true
 flag --silent help="Suppresses all output" global=#true
 cmd builtins help="Lists all available builtin linters"

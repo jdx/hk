@@ -1,6 +1,32 @@
 # Changelog
 
-## [1.1.2](https://github.com/jdx/hk/compare/v1.1.1..1.1.2) - 2025-05-25
+## [1.2.0](https://github.com/jdx/hk/compare/v1.1.2..1.2.0) - 2025-06-13
+
+### 🚀 Features
+
+- added --no-progress flag by [@jdx](https://github.com/jdx) in [ffef92f](https://github.com/jdx/hk/commit/ffef92f27afac702bf37423286ad9a75b4cc0fc7)
+- Add support for .hkrc.pkl user configuration file by [@ckilpatrick-stay-hydrated-call-your-mom](https://github.com/ckilpatrick-stay-hydrated-call-your-mom) in [#117](https://github.com/jdx/hk/pull/117)
+
+### 🐛 Bug Fixes
+
+- disable clippy progress bar by [@jdx](https://github.com/jdx) in [bc10730](https://github.com/jdx/hk/commit/bc1073049de367d8d2cd94af107c0ea33e7ce508)
+- skip file enumeration in pre-push when deleting remote branches by [@markjaquith](https://github.com/markjaquith) in [#110](https://github.com/jdx/hk/pull/110)
+
+### 📚 Documentation
+
+- replace references to deprecated `hk generate` with `hk init` by [@betaboon](https://github.com/betaboon) in [#116](https://github.com/jdx/hk/pull/116)
+
+### 🔍 Other Changes
+
+- only build and deploy docs on the main jdx/hk repo by [@markjaquith](https://github.com/markjaquith) in [#111](https://github.com/jdx/hk/pull/111)
+- Update pkl_introduction.md by [@jdx](https://github.com/jdx) in [7dbdeda](https://github.com/jdx/hk/commit/7dbdedad36fd5ae0b32f083758335247b172ee05)
+
+### New Contributors
+
+- @ckilpatrick-stay-hydrated-call-your-mom made their first contribution in [#117](https://github.com/jdx/hk/pull/117)
+- @betaboon made their first contribution in [#116](https://github.com/jdx/hk/pull/116)
+
+## [1.1.2](https://github.com/jdx/hk/compare/v1.1.1..v1.1.2) - 2025-05-25
 
 ### 🐛 Bug Fixes
 

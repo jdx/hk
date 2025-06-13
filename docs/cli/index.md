@@ -2,7 +2,7 @@
 
 **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
-**Version**: 1.1.2
+**Version**: 1.2.0
 
 - **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
@@ -10,7 +10,7 @@
 
 ### `--hkrc <PATH>`
 
-Override the default path for the global configuration file.
+Path to user configuration file
 
 ### `-j --jobs <JOBS>`
 
@@ -27,6 +27,10 @@ Shorthand for --profile=slow
 ### `-v --verbose…`
 
 Enables verbose output
+
+### `-n --no-progress`
+
+Disables progress output
 
 ### `-q --quiet`
 

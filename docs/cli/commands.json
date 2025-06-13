@@ -1473,6 +1473,23 @@
     "args": [],
     "flags": [
       {
+        "name": "hkrc",
+        "usage": "--hkrc <PATH>",
+        "help": "Path to user configuration file",
+        "help_first_line": "Path to user configuration file",
+        "short": [],
+        "long": ["hkrc"],
+        "hide": false,
+        "global": true,
+        "arg": {
+          "name": "PATH",
+          "usage": "<PATH>",
+          "required": true,
+          "double_dash": "Optional",
+          "hide": false
+        }
+      },
+      {
         "name": "jobs",
         "usage": "-j --jobs <JOBS>",
         "help": "Number of jobs to run in parallel",
@@ -1530,6 +1547,16 @@
         "count": true
       },
       {
+        "name": "no-progress",
+        "usage": "-n --no-progress",
+        "help": "Disables progress output",
+        "help_first_line": "Disables progress output",
+        "short": ["n"],
+        "long": ["no-progress"],
+        "hide": false,
+        "global": true
+      },
+      {
         "name": "quiet",
         "usage": "-q --quiet",
         "help": "Suppresses output",
@@ -1560,7 +1587,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.1.2",
+  "version": "1.2.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

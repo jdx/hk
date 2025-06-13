@@ -1,6 +1,6 @@
 [package]
 name = "hk"
-version = "1.1.2"
+version = "1.2.0"
 edition = "2024"
 description = "A tool for managing git hooks"
 license = "MIT"
