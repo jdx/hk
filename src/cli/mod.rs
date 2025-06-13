@@ -1,5 +1,6 @@
 use crate::version as version_lib;
 use std::num::NonZero;
+use std::path::PathBuf;
 
 use crate::{Result, logger, settings::Settings};
 use clap::Parser;
@@ -22,6 +23,9 @@ mod version;
 #[derive(clap::Parser)]
 #[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
+    /// Path to user configuration file
+    #[clap(long, global = true, value_name = "PATH")]
+    hkrc: Option<PathBuf>,
     /// Number of jobs to run in parallel
     #[clap(short, long, global = true)]
     jobs: Option<NonZero<usize>>,
@@ -69,6 +73,13 @@ enum Commands {
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
     let mut level = None;
+    let config_path = if let Some(custom_path) = args.hkrc {
+        custom_path
+    } else {
+        PathBuf::from(".hkrc.pkl")
+    };
+    Settings::set_user_config_path(config_path);
+
     if !console::user_attended_stderr() || args.no_progress {
         clx::progress::set_output(ProgressOutput::Text);
     }

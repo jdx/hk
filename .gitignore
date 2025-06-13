@@ -6,3 +6,4 @@ node_modules
 .pkl-lsp
 /.pre-commit-config.yaml
 /lefthook.yml
+.hkrc.pkl

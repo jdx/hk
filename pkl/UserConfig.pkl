@@ -1,0 +1,38 @@
+@ModuleInfo { minPklVersion = "0.27.2" }
+module hk.UserConfig
+
+import "Config.pkl"
+
+class Defaults {
+    jobs: UInt16?
+    fail_fast: Boolean?
+    profiles: List<String>?
+    all: Boolean?
+    fix: Boolean?
+    check: Boolean?
+}
+
+class HookConfig {
+    /// Overrides
+    environment: Mapping<String, String> = new Mapping<String, String>{}
+    jobs: UInt16?
+    fail_fast: Boolean?
+    profiles: List<String>?
+    all: Boolean?
+    fix: Boolean?
+    check: Boolean?
+    
+    /// Per-step overrides within this hook
+    steps: Mapping<String, StepConfig> = new Mapping<String, StepConfig>{}
+}
+
+class StepConfig {
+    environment: Mapping<String, String> = new Mapping<String, String>{}
+    profiles: List<String>?
+    glob: (String | List<String>)?
+    exclude: (String | List<String>)?
+}
+
+environment: Mapping<String, String> = new Mapping<String, String>{}
+defaults: Defaults = new Defaults {}
+hooks: Mapping<String, HookConfig> = new Mapping<String, HookConfig>{}
