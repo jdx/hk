@@ -105,6 +105,7 @@ impl HookContext {
 
     pub fn add_files(&self, files: &[PathBuf]) {
         self.file_locks.add_files(files);
+        dbg!("add_files", self.files());
         // self.expr_ctx
         //     .lock()
         //     .unwrap()
