@@ -238,7 +238,7 @@ If set, run the linter scripts in this directory.
 
 ```pkl
 local linters = new Mapping<String, Step> {
-    ["eslint"] (Builtins.eslint) {
+    ["eslint"] = (Builtins.eslint) {
         dir = "frontend"
     }
 }
@@ -250,7 +250,7 @@ Profiles are a way to enable/disable linters based on the current profile. The l
 
 ```pkl
 local linters = new Mapping<String, Step> {
-    ["prettier"] (Builtins.prettier) {
+    ["prettier"] = (Builtins.prettier) {
         profiles = List("slow")
     }
 }
@@ -260,7 +260,7 @@ Profiles can be prefixed with `!` to disable them.
 
 ```pkl
 local linters = new Mapping<String, Step> {
-    ["prettier"] (Builtins.prettier) {
+    ["prettier"] = (Builtins.prettier) {
         profiles = List("!slow")
     }
 }
