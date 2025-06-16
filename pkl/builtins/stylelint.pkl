@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-style_lint = new Config.Step {
+stylelint = new Config.Step {
     glob = "*.{css,scss,sass,less}"
     stage = "*.{css,scss,sass,less}"
     check = "stylelint {{ files }}"
