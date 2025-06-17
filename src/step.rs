@@ -189,9 +189,6 @@ impl Step {
         let mut workspaces: IndexSet<PathBuf> = Default::default();
         while let Some(dir) = dirs.pop() {
             if let Some(workspace) = xx::file::find_up(dir, &[workspace_indicator]) {
-                if let Some(dir) = dir.parent() {
-                    dirs.retain(|d| !d.starts_with(dir));
-                }
                 workspaces.insert(workspace);
             }
         }
@@ -235,11 +232,31 @@ impl Step {
             return Ok(Default::default());
         }
         let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
-            let job = StepJob::new(Arc::new((*self).clone()), files.clone(), run_type);
+            let mut files = files.clone();
+
             workspace_indicators
-                .into_iter()
+                // Sort the files in reverse so the longest directory can take files in their directories
+                // and then the shortest path will take the rest of them.
+                .sorted_by(|a, b| b.as_os_str().len().cmp(&a.as_os_str().len()))
                 .map(|workspace_indicator| {
-                    job.clone().with_workspace_indicator(workspace_indicator)
+                    let workspace_dir = workspace_indicator.parent();
+                    let mut workspace_files = Vec::new();
+                    let mut i = 0;
+
+                    while i < files.len() {
+                        if workspace_dir
+                            .map(|dir| files[i].starts_with(dir))
+                            .unwrap_or(true)
+                        {
+                            let val = files.remove(i);
+                            workspace_files.push(val);
+                        } else {
+                            i += 1;
+                        }
+                    }
+
+                    StepJob::new(Arc::new((*self).clone()), workspace_files, run_type)
+                        .with_workspace_indicator(workspace_indicator)
                 })
                 .collect()
         } else if self.batch {
