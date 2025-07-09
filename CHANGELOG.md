@@ -1,6 +1,28 @@
 # Changelog
 
-## [1.2.0](https://github.com/jdx/hk/compare/v1.1.2..1.2.0) - 2025-06-13
+## [1.2.1](https://github.com/jdx/hk/compare/v1.2.0..v1.2.1) - 2025-07-09
+
+### 🐛 Bug Fixes
+
+- Mismatched stylelint pkl export #121 by [@bashandbone](https://github.com/bashandbone) in [#122](https://github.com/jdx/hk/pull/122)
+- lint issues by [@jdx](https://github.com/jdx) in [92117b7](https://github.com/jdx/hk/commit/92117b7c52b36ac3fd42334389dea55d497355fb)
+
+### 📚 Documentation
+
+- fix pkl syntax in configuration.md by [@smasato](https://github.com/smasato) in [#119](https://github.com/jdx/hk/pull/119)
+- added CONTRIBUTING.md by [@jdx](https://github.com/jdx) in [4b43c1e](https://github.com/jdx/hk/commit/4b43c1ea7319d63fd7f0c73d579ca9bba27e3522)
+
+### 🔍 Other Changes
+
+- added release-plz action by [@jdx](https://github.com/jdx) in [761f8ad](https://github.com/jdx/hk/commit/761f8ad46b66690017da64744ab07e20433cb209)
+- added cargo-edit by [@jdx](https://github.com/jdx) in [05aca24](https://github.com/jdx/hk/commit/05aca2440e70d9435dfa18f9c233ece899a41c6d)
+
+### New Contributors
+
+- @smasato made their first contribution in [#119](https://github.com/jdx/hk/pull/119)
+- @bashandbone made their first contribution in [#122](https://github.com/jdx/hk/pull/122)
+
+## [1.2.0](https://github.com/jdx/hk/compare/v1.1.2..v1.2.0) - 2025-06-13
 
 ### 🚀 Features
 
