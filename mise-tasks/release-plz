@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+set -euxo pipefail
+
+released_versions="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$')"
+cur_version="$(cargo pkgid hk | cut -d# -f2 | cut -d@ -f2)"
+if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
+  echo "Releasing $cur_version"
+  if [ "${DRY_RUN:-}" == 0 ]; then
+    cargo publish -p hk
+    changelog="$(git cliff --tag "v$cur_version" --strip all --unreleased)"
+    git tag "v$cur_version"
+    git push --tags
+    gh release create "v$cur_version" --title "v$cur_version" --notes "$changelog"
+  fi
+  exit 0
+fi
+
+version="$(git cliff --bumped-version)"
+changelog="$(git cliff --bump --unreleased --strip all)"
+
+if [ "${DRY_RUN:-}" != 0 ]; then
+  echo "version: $version"
+  echo "changelog: $changelog"
+  exit 0
+fi
+
+git cliff --bump -o CHANGELOG.md
+cargo set-version "${version#v}"
+
+git config user.name mise-en-dev
+git config user.email 123107610+mise-en-dev@users.noreply.github.com
+cargo update
+git add \
+  Cargo.* \
+  CHANGELOG.md
+git checkout -B release
+git commit -m "chore: release $version"
+git push origin release --force
+gh pr create --title "chore: release $version" --body "$changelog" --label "release" ||
+  gh pr edit --title "chore: release $version" --body "$changelog" 

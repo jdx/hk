@@ -1,0 +1,39 @@
+name: release-plz
+
+permissions:
+  pull-requests: write
+  contents: write
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - release-plz
+
+concurrency:
+  group: release-plz
+
+env:
+  DRY_RUN: 0
+
+jobs:
+  release-plz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test
+          save-if: false
+      - uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      - run: mise trust --all
+      - run: mise run release-plz
+        env:
+          GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
