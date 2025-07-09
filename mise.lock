@@ -16,6 +16,10 @@ backend = "aqua:cargo-bins/cargo-binstall"
 [tools.cargo-binstall.checksums]
 "cargo-binstall-aarch64-apple-darwin.zip" = "sha256:bd746c656e5cc9820fb277b442f438127bc461c52f20500452b845a767d15322"
 
+[tools."cargo:cargo-edit"]
+version = "0.13.4"
+backend = "cargo:cargo-edit"
+
 [tools."cargo:cargo-msrv"]
 version = "0.18.1"
 backend = "cargo:cargo-msrv"
