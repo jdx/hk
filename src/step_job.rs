@@ -56,13 +56,6 @@ impl StepJob {
     }
 
     pub fn with_workspace_indicator(mut self, workspace_indicator: PathBuf) -> Self {
-        let workspace_dir = workspace_indicator.parent().unwrap();
-        self.files = self
-            .files
-            .iter()
-            .filter(|f| f.starts_with(workspace_dir))
-            .cloned()
-            .collect();
         self.workspace_indicator = Some(workspace_indicator);
         self
     }
