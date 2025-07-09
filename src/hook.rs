@@ -364,9 +364,9 @@ impl Hook {
                 file_progress.prop(
                     "message",
                     &if let Some(to) = &opts.to_ref {
-                        format!("Fetching files between {} and {}", from, to)
+                        format!("Fetching files between {from} and {to}")
                     } else {
-                        format!("Fetching files changed since {}", from)
+                        format!("Fetching files changed since {from}")
                     },
                 );
                 repo.lock()
