@@ -202,10 +202,8 @@ impl Step {
             if files.is_empty() {
                 debug!("{self}: no files in {dir}");
             }
-            for f in files.iter_mut() {
-                // strip the dir prefix from the file path
-                *f = f.strip_prefix(dir).unwrap_or(f).to_path_buf();
-            }
+            // Don't strip the dir prefix here - it causes issues when steps have different working directories
+            // The path stripping should only happen in the command execution context via tera templates
         }
         if let Some(glob) = &self.glob {
             files = glob::get_matches(glob, &files)?;
