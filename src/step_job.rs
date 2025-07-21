@@ -62,7 +62,18 @@ impl StepJob {
 
     pub fn tctx(&self, base: &tera::Context) -> tera::Context {
         let mut tctx = base.clone();
-        tctx.with_files(self.step.shell_type(), &self.files);
+
+        // Handle directory stripping for command execution context
+        let command_files = if let Some(dir) = &self.step.dir {
+            self.files
+                .iter()
+                .map(|f| f.strip_prefix(dir).unwrap_or(f).to_path_buf())
+                .collect::<Vec<_>>()
+        } else {
+            self.files.clone()
+        };
+
+        tctx.with_files(self.step.shell_type(), &command_files);
         if let Some(workspace_indicator) = &self.workspace_indicator {
             tctx.with_workspace_indicator(workspace_indicator);
         }
