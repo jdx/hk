@@ -1,11 +1,22 @@
 # Changelog
 
+## [1.2.2](https://github.com/jdx/hk/compare/v1.2.1..v1.2.2) - 2025-07-21
+
+### 🐛 Bug Fixes
+
+- resolve file path issues when steps have different dir settings by [@jdx](https://github.com/jdx) in [#126](https://github.com/jdx/hk/pull/126)
+
+### 🧪 Testing
+
+- refactored tests into individual files by [@jdx](https://github.com/jdx) in [666c921](https://github.com/jdx/hk/commit/666c9217e957723264238ac60f86fd8cb2384727)
+
 ## [1.2.1](https://github.com/jdx/hk/compare/v1.2.0..v1.2.1) - 2025-07-09
 
 ### 🐛 Bug Fixes
 
 - Mismatched stylelint pkl export #121 by [@bashandbone](https://github.com/bashandbone) in [#122](https://github.com/jdx/hk/pull/122)
 - lint issues by [@jdx](https://github.com/jdx) in [92117b7](https://github.com/jdx/hk/commit/92117b7c52b36ac3fd42334389dea55d497355fb)
+- scope files by `workspace_indicator` by [@babariviere](https://github.com/babariviere) in [#123](https://github.com/jdx/hk/pull/123)
 
 ### 📚 Documentation
 
@@ -19,6 +30,7 @@
 
 ### New Contributors
 
+- @babariviere made their first contribution in [#123](https://github.com/jdx/hk/pull/123)
 - @smasato made their first contribution in [#119](https://github.com/jdx/hk/pull/119)
 - @bashandbone made their first contribution in [#122](https://github.com/jdx/hk/pull/122)
 
