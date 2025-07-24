@@ -1,0 +1,8 @@
+import "../Config.pkl"
+
+mix_fmt = new Config.Step {
+    glob = "*.ex"
+    stage = glob
+    exclude = List("deps/**/*")
+    check = "mix compile --warnings-as-errors --strict-errors {{files}}"
+}
