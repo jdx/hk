@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0](https://github.com/jdx/hk/compare/v1.2.2..v1.3.0) - 2025-07-24
+
+### 🚀 Features
+
+- Pkl Builtin by [@paradox460](https://github.com/paradox460) in [#127](https://github.com/jdx/hk/pull/127)
+- Elixir builtins by [@paradox460](https://github.com/paradox460) in [#128](https://github.com/jdx/hk/pull/128)
+
+### New Contributors
+
+- @paradox460 made their first contribution in [#128](https://github.com/jdx/hk/pull/128)
+
 ## [1.2.2](https://github.com/jdx/hk/compare/v1.2.1..v1.2.2) - 2025-07-21
 
 ### 🐛 Bug Fixes
