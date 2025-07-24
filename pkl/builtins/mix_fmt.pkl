@@ -1,0 +1,9 @@
+import "../Config.pkl"
+
+mix_fmt = new Config.Step {
+    glob = List("*.ex", "*.exs")
+    stage = glob
+    exclude = List("deps/**/*")
+    check = "mix format --check-formatted {{files}}"
+    fix = "mix format {{files}}"
+}
