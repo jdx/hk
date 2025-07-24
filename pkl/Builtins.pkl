@@ -39,6 +39,7 @@ nix_fmt = Builtins["builtins/nix_fmt.pkl"].nix_fmt
 nixpkgs_format = Builtins["builtins/nixpkgs_format.pkl"].nixpkgs_format
 ox_lint = Builtins["builtins/ox_lint.pkl"].ox_lint
 php_cs = Builtins["builtins/php_cs.pkl"].php_cs
+pkl = Builtins["builtins/pkl.pkl"].pkl
 prettier = Builtins["builtins/prettier.pkl"].prettier
 pylint = Builtins["builtins/pylint.pkl"].pylint
 reek = Builtins["builtins/reek.pkl"].reek
