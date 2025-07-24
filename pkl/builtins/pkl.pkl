@@ -1,0 +1,7 @@
+import "../Config.pkl"
+
+mix_fmt = new Config.Step {
+    glob = "pkl"
+    stage = glob
+    check = "pkl eval {{files}} >/dev/null"
+}
