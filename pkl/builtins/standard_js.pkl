@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 standard_js = new Config.Step {
-    glob = "*.{js,jsx,ts,tsx}"
-    stage = "*.{js,jsx,ts,tsx}"
+    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
+    stage = glob
     check = "standard {{ files }}"
     fix = "standard --fix {{ files }}"
 } 
