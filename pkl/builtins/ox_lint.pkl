@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 ox_lint = new Config.Step {
-    glob = "*.{js,jsx,ts,tsx}"
-    stage = "*.{js,jsx,ts,tsx}"
+    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
+    stage = glob
     check = "oxlint {{ files }}"
     fix = "oxlint --fix {{ files }}"
 } 

@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 biome = new Config.Step {
-    glob = List("*.{js,jsx,ts,tsx,json}")
-    stage = List("*.{js,jsx,ts,tsx,json}")
+    glob = List("*.js", "*.jsx", "*.ts", "*.tsx", "*.json")
+    stage = glob
     check = "biome check {{ files }}"
     fix = "biome check --apply {{ files }}"
 } 

@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 markdown_lint = new Config.Step {
-    glob = "*.{md,markdown}"
-    stage = "*.{md,markdown}"
+    glob = List("*.md", "*.markdown")
+    stage = glob
     check = "markdownlint {{ files }}"
     fix = "markdownlint --fix {{ files }}"
 } 

@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 clang_format = new Config.Step {
-    glob = "*.{c,h,cpp,hpp,cc,hh,cxx,hxx}"
-    stage = "*.{c,h,cpp,hpp,cc,hh,cxx,hxx}"
+    glob = List("*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh", "*.cxx", "*.hxx")
+    stage = glob
     check = "clang-format --dry-run -Werror {{ files }}"
     fix = "clang-format -i {{ files }}"
 } 
