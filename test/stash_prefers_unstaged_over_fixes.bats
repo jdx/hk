@@ -64,5 +64,8 @@ assert_unstaged_preferred() {
 }
 
 @test "stash=patch-file: prefer unstaged over fixer changes on same lines" {
-    skip "patch-file reapply semantics are different; TODO revisit with snapshot-based restore"
+    create_config_with_stash_method patch-file
+    prepare_conflict_state
+    hk fix -v
+    assert_unstaged_preferred
 }

@@ -57,6 +57,69 @@ fn conflicted_files_from_porcelain(status_z: &str) -> Vec<PathBuf> {
     files.into_iter().collect()
 }
 
+fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
+    let content = xx::file::read_to_string(path).unwrap_or_default();
+    if !content.contains("<<<<<<<") || !content.contains(">>>>>>>") {
+        return Ok(());
+    }
+    let mut output = String::with_capacity(content.len());
+    let mut i = 0usize;
+    let bytes = content.as_bytes();
+    while i < bytes.len() {
+        if i + 7 <= bytes.len() && &bytes[i..i + 7] == b"<<<<<<<" {
+            // Skip to separator '=======', optionally through '|||||||'
+            // Find end of first line
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            if i < bytes.len() {
+                i += 1;
+            }
+            // Optionally skip base section starting with '|||||||' if present
+            if i + 7 <= bytes.len() && &bytes[i..i + 7] == b"|||||||" {
+                // Skip until separator line
+                while i + 7 <= bytes.len() && &bytes[i..i + 7] != b"=======" {
+                    i += 1;
+                }
+            }
+            // Expect '======='
+            while i + 7 <= bytes.len() && &bytes[i..i + 7] != b"=======" {
+                i += 1;
+            }
+            // Move past '=======' line
+            if i + 7 <= bytes.len() {
+                i += 7;
+            }
+            if i < bytes.len() && bytes[i] == b'\n' {
+                i += 1;
+            }
+            // Capture 'theirs' until '>>>>>>>'
+            let start_theirs = i;
+            while i + 7 <= bytes.len() && &bytes[i..i + 7] != b">>>>>>>" {
+                i += 1;
+            }
+            let theirs = &content[start_theirs..i];
+            // Skip closing marker line
+            if i + 7 <= bytes.len() {
+                i += 7;
+            }
+            // Skip rest of line
+            while i < bytes.len() && bytes[i] != b'\n' {
+                i += 1;
+            }
+            if i < bytes.len() {
+                i += 1;
+            }
+            output.push_str(theirs);
+        } else {
+            output.push(bytes[i] as char);
+            i += 1;
+        }
+    }
+    xx::file::write(path, output)?;
+    Ok(())
+}
+
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
@@ -485,27 +548,19 @@ impl Git {
                         ),
                     )
                     .start();
-                // Prefer original unstaged stash contents when conflicts arise: reset
-                // affected files to HEAD before applying the patch so we drop any
-                // fixer modifications that may conflict.
+                // Try a 3-way apply so non-conflicting hunks from the patch merge with
+                // any fixer changes. Conflict markers will be written for conflicting hunks.
                 let affected_files = parse_paths_from_patch(&diff);
-                if !affected_files.is_empty() {
-                    let mut cmd = xx::process::cmd("git", ["restore", "--worktree", "--"]);
-                    cmd = cmd.args(affected_files.iter().map(|p| p.to_str().unwrap()));
-                    // Ignore restore errors; best-effort before applying the patch
-                    let _ = cmd.run();
+                let apply_res = xx::process::cmd("git", ["apply", "--3way"])
+                    .arg(&patch_file)
+                    .run();
+                if apply_res.is_err() {
+                    // Fall back to a normal apply which may still work for some files
+                    let _ = xx::process::cmd("git", ["apply"]).arg(&patch_file).run();
                 }
-                if let Some(repo) = &mut self.repo {
-                    let diff = git2::Diff::from_buffer(diff.as_bytes())?;
-                    let mut apply_opts = git2::ApplyOptions::new();
-                    repo.apply(&diff, git2::ApplyLocation::WorkDir, Some(&mut apply_opts))
-                        .wrap_err_with(|| {
-                            format!("failed to apply diff {}", display_path(&patch_file))
-                        })?;
-                } else {
-                    // Apply without attempting to keep fixer changes; the restore above
-                    // ensures we apply cleanly on top of HEAD contents
-                    xx::process::cmd("git", ["apply"]).arg(&patch_file).run()?;
+                // Resolve any conflict markers by preferring the patch (stash) side
+                for f in affected_files {
+                    let _ = resolve_conflict_markers_preferring_theirs(&f);
                 }
                 if let Err(err) = xx::file::remove_file(patch_file) {
                     debug!("failed to remove patch file: {err:?}");
@@ -549,13 +604,11 @@ impl Git {
                 .unwrap_or_default();
                 let conflicted = conflicted_files_from_porcelain(&status);
                 if !conflicted.is_empty() {
-                    // Prefer stash side for conflicted files
-                    let mut co = xx::process::cmd("git", ["checkout", "--theirs", "--"]);
-                    co = co.args(conflicted.iter().map(|p| p.to_str().unwrap()));
-                    let _ = co.run();
-                    let mut add = xx::process::cmd("git", ["add", "--"]);
-                    add = add.args(conflicted.iter().map(|p| p.to_str().unwrap()));
-                    let _ = add.run();
+                    // For each conflicted file, prefer the stash side only for conflicting hunks
+                    for f in conflicted.iter() {
+                        let _ = resolve_conflict_markers_preferring_theirs(f);
+                        let _ = xx::process::cmd("git", ["add", "--"]).arg(f).run();
+                    }
                     // Drop the stash entry now that we've applied it
                     let _ = xx::process::cmd("git", ["stash", "drop"]).run();
                 } else {
