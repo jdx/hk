@@ -1,3 +1,4 @@
+use crate::timings::StepTimingGuard;
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
@@ -494,32 +495,21 @@ impl Step {
             let value = tera::render(value, &tctx)?;
             cmd = cmd.env(key, value);
         }
-        let timing = ctx.hook_ctx.timing.clone();
-        if let Some(t) = timing.as_ref() {
-            // Record profiles once per step before execution
-            if let Some(p) = self.profiles.as_ref() {
-                t.record_profiles(&self.name, Some(p));
-            } else {
-                // explicitly ensure absence: do nothing; serde will skip when None
-            }
-        }
-        let start_ms = timing.as_ref().map(|t| t.now_ms());
+        let mut timing_guard = ctx
+            .hook_ctx
+            .timing
+            .clone()
+            .map(|t| StepTimingGuard::new(t, self));
         let exec_result = cmd.execute().await;
-        if let Some(t) = timing.as_ref() {
-            if let Some(s) = start_ms {
-                t.add_interval(&self.name, s, t.now_ms());
-            }
+        if let Some(g) = timing_guard.take() {
+            g.finish();
+        }
+        if self.interactive {
+            clx::progress::resume();
         }
         match exec_result {
-            Ok(_) => {
-                if self.interactive {
-                    clx::progress::resume();
-                }
-            }
+            Ok(_) => {}
             Err(err) => {
-                if self.interactive {
-                    clx::progress::resume();
-                }
                 if let ensembler::Error::ScriptFailed(e) = &err {
                     if let RunType::Check(CheckType::ListFiles) = job.run_type {
                         let result = &e.3;

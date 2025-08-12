@@ -467,8 +467,6 @@ impl Hook {
     }
 }
 
-// TimingRecorder moved to timings.rs
-
 fn watch_for_ctrl_c(cancel: CancellationToken) {
     tokio::spawn(async move {
         if let Err(err) = signal::ctrl_c().await {
