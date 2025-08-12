@@ -494,8 +494,20 @@ impl Step {
             let value = tera::render(value, &tctx)?;
             cmd = cmd.env(key, value);
         }
-        match cmd.execute().await {
-            Ok(_) => {}
+        let timing = ctx.hook_ctx.timing.clone();
+        let start_ms = timing.as_ref().map(|t| t.now_ms());
+        let exec_result = cmd.execute().await;
+        if let Some(t) = timing.as_ref() {
+            if let Some(s) = start_ms {
+                t.add_interval(&self.name, s, t.now_ms());
+            }
+        }
+        match exec_result {
+            Ok(_) => {
+                if self.interactive {
+                    clx::progress::resume();
+                }
+            }
             Err(err) => {
                 if self.interactive {
                     clx::progress::resume();
@@ -517,9 +529,6 @@ impl Step {
                 }
                 return Err(err).wrap_err(run);
             }
-        }
-        if self.interactive {
-            clx::progress::resume();
         }
         ctx.decrement_job_count();
         job.status_finished()?;

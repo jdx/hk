@@ -3,10 +3,11 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     ffi::OsString,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex as StdMutex},
+    time::{Duration, Instant, SystemTime},
 };
 use tokio::{
     signal,
@@ -69,6 +70,7 @@ pub struct HookContext {
     total_jobs: std::sync::Mutex<usize>,
     completed_jobs: std::sync::Mutex<usize>,
     expr_ctx: std::sync::Mutex<expr::Context>,
+    pub timing: Option<Arc<TimingRecorder>>,
 }
 
 impl HookContext {
@@ -82,6 +84,9 @@ impl HookContext {
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = EXPR_CTX.clone();
+        let timing = env::HK_TIMING_JSON
+            .as_ref()
+            .map(|path| Arc::new(TimingRecorder::new(path.clone())));
         Self {
             file_locks: FileRwLocks::new(files),
             git,
@@ -96,6 +101,7 @@ impl HookContext {
             semaphore: Arc::new(Semaphore::new(settings.jobs.get())),
             failed: CancellationToken::new(),
             expr_ctx: std::sync::Mutex::new(expr_ctx),
+            timing,
         }
     }
 
@@ -318,6 +324,11 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
+        if let Some(timing) = &hook_ctx.timing {
+            if let Err(err) = timing.write_json() {
+                warn!("Failed to write timing JSON: {err}");
+            }
+        }
         result
     }
 
@@ -453,6 +464,108 @@ impl Hook {
             hk_progress = hk_progress.prop("message", &style::edim(" – check").to_string());
         }
         Some(hk_progress.start())
+    }
+}
+
+#[derive(Debug)]
+pub struct TimingRecorder {
+    start_instant: Instant,
+    start_system: SystemTime,
+    intervals_by_step: StdMutex<HashMap<String, Vec<(u128, u128)>>>,
+    output_path: PathBuf,
+}
+
+#[derive(Debug, Serialize)]
+struct TimingReportStep {
+    name: String,
+    wall_time_ms: u128,
+}
+
+#[derive(Debug, Serialize)]
+struct TimingReportTotal {
+    wall_time_ms: u128,
+}
+
+#[derive(Debug, Serialize)]
+struct TimingReportJson {
+    total: TimingReportTotal,
+    steps: Vec<TimingReportStep>,
+}
+
+impl TimingRecorder {
+    pub fn new(output_path: PathBuf) -> Self {
+        Self {
+            start_instant: Instant::now(),
+            start_system: SystemTime::now(),
+            intervals_by_step: StdMutex::new(HashMap::new()),
+            output_path,
+        }
+    }
+
+    pub fn now_ms(&self) -> u128 {
+        self.start_instant.elapsed().as_millis()
+    }
+
+    pub fn add_interval(&self, step: &str, start_ms: u128, end_ms: u128) {
+        if end_ms < start_ms {
+            return;
+        }
+        let mut map = self.intervals_by_step.lock().unwrap();
+        map.entry(step.to_string())
+            .or_default()
+            .push((start_ms, end_ms));
+    }
+
+    fn merge_and_sum(intervals: &mut Vec<(u128, u128)>) -> u128 {
+        if intervals.is_empty() {
+            return 0;
+        }
+        intervals.sort_by_key(|(s, e)| (*s, *e));
+        let mut total: u128 = 0;
+        let mut cur = intervals[0];
+        for &(s, e) in intervals.iter().skip(1) {
+            if s <= cur.1 {
+                // overlap or contiguous
+                if e > cur.1 {
+                    cur.1 = e;
+                }
+            } else {
+                total += cur.1 - cur.0;
+                cur = (s, e);
+            }
+        }
+        total += cur.1 - cur.0;
+        total
+    }
+
+    pub fn write_json(&self) -> crate::Result<()> {
+        if let Some(parent) = self.output_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let elapsed_ms = self
+            .start_system
+            .elapsed()
+            .unwrap_or(Duration::ZERO)
+            .as_millis();
+        let mut steps: Vec<TimingReportStep> = Vec::new();
+        let mut map = self.intervals_by_step.lock().unwrap();
+        for (name, intervals) in map.iter_mut() {
+            let wall_ms = Self::merge_and_sum(intervals);
+            steps.push(TimingReportStep {
+                name: name.clone(),
+                wall_time_ms: wall_ms,
+            });
+        }
+        steps.sort_by(|a, b| b.wall_time_ms.cmp(&a.wall_time_ms));
+        let json = TimingReportJson {
+            total: TimingReportTotal {
+                wall_time_ms: elapsed_ms,
+            },
+            steps,
+        };
+        let data = serde_json::to_vec_pretty(&json)?;
+        std::fs::write(&self.output_path, data)?;
+        Ok(())
     }
 }
 
