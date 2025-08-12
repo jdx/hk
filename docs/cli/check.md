@@ -52,12 +52,3 @@ Print the plan instead of running the hook
 ### `-S --step… <STEP>`
 
 Run specific step(s)
-
-## Timing report (JSON)
-
-To capture wall-time spent during a run, set `HK_TIMING_JSON` to a file path. This writes a JSON report when the run completes, including total wall time and per-step wall time (overlaps are merged, so parallel parts aren’t double-counted).
-
-```bash
-HK_TIMING_JSON=/tmp/hk-timing.json hk check
-cat /tmp/hk-timing.json | jq
-```

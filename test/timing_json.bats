@@ -34,8 +34,8 @@ EOF
 
     # extract total wall time
     total_ms=$(jq -r '.total.wall_time_ms' "$timing_file")
-    # extract step wall time for step name "a"
-    step_ms=$(jq -r '.steps[] | select(.name=="a") | .wall_time_ms' "$timing_file")
+    # extract step wall time for step name "a" (steps is an object keyed by step name)
+    step_ms=$(jq -r '.steps["a"]' "$timing_file")
 
     # sanity checks
     [ -n "$total_ms" ]

@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     ffi::OsString,
     path::{Path, PathBuf},
     sync::{Arc, Mutex as StdMutex},
@@ -471,14 +471,8 @@ impl Hook {
 pub struct TimingRecorder {
     start_instant: Instant,
     start_system: SystemTime,
-    intervals_by_step: StdMutex<HashMap<String, Vec<(u128, u128)>>>,
+    intervals_by_step: StdMutex<BTreeMap<String, Vec<(u128, u128)>>>,
     output_path: PathBuf,
-}
-
-#[derive(Debug, Serialize)]
-struct TimingReportStep {
-    name: String,
-    wall_time_ms: u128,
 }
 
 #[derive(Debug, Serialize)]
@@ -489,7 +483,7 @@ struct TimingReportTotal {
 #[derive(Debug, Serialize)]
 struct TimingReportJson {
     total: TimingReportTotal,
-    steps: Vec<TimingReportStep>,
+    steps: BTreeMap<String, u128>,
 }
 
 impl TimingRecorder {
@@ -497,7 +491,7 @@ impl TimingRecorder {
         Self {
             start_instant: Instant::now(),
             start_system: SystemTime::now(),
-            intervals_by_step: StdMutex::new(HashMap::new()),
+            intervals_by_step: StdMutex::new(BTreeMap::new()),
             output_path,
         }
     }
@@ -547,16 +541,12 @@ impl TimingRecorder {
             .elapsed()
             .unwrap_or(Duration::ZERO)
             .as_millis();
-        let mut steps: Vec<TimingReportStep> = Vec::new();
+        let mut steps: BTreeMap<String, u128> = BTreeMap::new();
         let mut map = self.intervals_by_step.lock().unwrap();
         for (name, intervals) in map.iter_mut() {
             let wall_ms = Self::merge_and_sum(intervals);
-            steps.push(TimingReportStep {
-                name: name.clone(),
-                wall_time_ms: wall_ms,
-            });
+            steps.insert(name.clone(), wall_ms);
         }
-        steps.sort_by(|a, b| b.wall_time_ms.cmp(&a.wall_time_ms));
         let json = TimingReportJson {
             total: TimingReportTotal {
                 wall_time_ms: elapsed_ms,
