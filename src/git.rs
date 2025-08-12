@@ -18,6 +18,45 @@ use xx::file::display_path;
 
 use crate::env;
 
+fn parse_paths_from_patch(patch: &str) -> Vec<PathBuf> {
+    // Parse lines like: diff --git a/path b/path
+    let mut files = BTreeSet::new();
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("diff --git a/") {
+            if let Some((a_path, _b)) = rest.split_once(" b/") {
+                let p = PathBuf::from(a_path);
+                if p.exists() {
+                    files.insert(p);
+                }
+            }
+        }
+    }
+    files.into_iter().collect()
+}
+
+fn conflicted_files_from_porcelain(status_z: &str) -> Vec<PathBuf> {
+    // In porcelain v1 short format: lines start with two status letters.
+    // Unmerged statuses include: UU, AA, AU, UA, DU, UD
+    let mut files = BTreeSet::new();
+    for entry in status_z.split('\0').filter(|s| !s.is_empty()) {
+        let mut chars = entry.chars();
+        let x = chars.next().unwrap_or(' ');
+        let y = chars.next().unwrap_or(' ');
+        let path: String = chars.skip(1).collect();
+        let is_unmerged = matches!(
+            (x, y),
+            ('U', 'U') | ('A', 'A') | ('A', 'U') | ('U', 'A') | ('D', 'U') | ('U', 'D')
+        );
+        if is_unmerged {
+            let p = PathBuf::from(path);
+            if p.exists() {
+                files.insert(p);
+            }
+        }
+    }
+    files.into_iter().collect()
+}
+
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
@@ -446,6 +485,16 @@ impl Git {
                         ),
                     )
                     .start();
+                // Prefer original unstaged stash contents when conflicts arise: reset
+                // affected files to HEAD before applying the patch so we drop any
+                // fixer modifications that may conflict.
+                let affected_files = parse_paths_from_patch(&diff);
+                if !affected_files.is_empty() {
+                    let mut cmd = xx::process::cmd("git", ["restore", "--worktree", "--"]);
+                    cmd = cmd.args(affected_files.iter().map(|p| p.to_str().unwrap()));
+                    // Ignore restore errors; best-effort before applying the patch
+                    let _ = cmd.run();
+                }
                 if let Some(repo) = &mut self.repo {
                     let diff = git2::Diff::from_buffer(diff.as_bytes())?;
                     let mut apply_opts = git2::ApplyOptions::new();
@@ -454,9 +503,9 @@ impl Git {
                             format!("failed to apply diff {}", display_path(&patch_file))
                         })?;
                 } else {
-                    xx::process::cmd("git", ["apply", "--reject"])
-                        .arg(&patch_file)
-                        .run()?;
+                    // Apply without attempting to keep fixer changes; the restore above
+                    // ensures we apply cleanly on top of HEAD contents
+                    xx::process::cmd("git", ["apply"]).arg(&patch_file).run()?;
                 }
                 if let Err(err) = xx::file::remove_file(patch_file) {
                     debug!("failed to remove patch file: {err:?}");
@@ -482,7 +531,42 @@ impl Git {
                 job = ProgressJobBuilder::new()
                     .prop("message", "stash – Applying git stash")
                     .start();
-                xx::process::sh("git stash pop")?;
+                // Apply the stash first, detect conflicts, and in case of conflict
+                // prefer the stash (the original unstaged changes), discarding fixer edits.
+                let apply_res = xx::process::cmd("git", ["stash", "apply"]).run();
+                // Determine conflicted files via porcelain status
+                let status = xx::process::cmd(
+                    "git",
+                    [
+                        "status",
+                        "--porcelain",
+                        "-z",
+                        "--no-renames",
+                        "--untracked-files=all",
+                    ],
+                )
+                .read()
+                .unwrap_or_default();
+                let conflicted = conflicted_files_from_porcelain(&status);
+                if !conflicted.is_empty() {
+                    // Prefer stash side for conflicted files
+                    let mut co = xx::process::cmd("git", ["checkout", "--theirs", "--"]);
+                    co = co.args(conflicted.iter().map(|p| p.to_str().unwrap()));
+                    let _ = co.run();
+                    let mut add = xx::process::cmd("git", ["add", "--"]);
+                    add = add.args(conflicted.iter().map(|p| p.to_str().unwrap()));
+                    let _ = add.run();
+                    // Drop the stash entry now that we've applied it
+                    let _ = xx::process::cmd("git", ["stash", "drop"]).run();
+                } else {
+                    // If no conflicts, either apply succeeded or we can fall back to pop
+                    if apply_res.is_err() {
+                        // Last resort: try pop
+                        let _ = xx::process::cmd("git", ["stash", "pop"]).run();
+                    } else {
+                        let _ = xx::process::cmd("git", ["stash", "drop"]).run();
+                    }
+                }
             }
         }
         job.set_status(ProgressStatus::Done);
