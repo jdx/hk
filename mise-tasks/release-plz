@@ -31,9 +31,17 @@ cargo set-version "${version#v}"
 git config user.name mise-en-dev
 git config user.email 123107610+mise-en-dev@users.noreply.github.com
 cargo update
+
+# Regenerate rendered artifacts (CLI docs, usage, etc.) for the release
+mise run render
 git add \
   Cargo.* \
-  CHANGELOG.md
+  CHANGELOG.md \
+  docs \
+  hk.usage.kdl \
+  hk.pkl \
+  src
+
 git checkout -B release
 git commit -m "chore: release $version"
 git push origin release --force

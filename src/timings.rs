@@ -1,4 +1,7 @@
+use crate::Result;
+use crate::step::Step;
 use serde::Serialize;
+use std::sync::Arc;
 use std::{collections::BTreeMap, path::PathBuf, sync::Mutex as StdMutex, time::Instant};
 
 #[derive(Debug)]
@@ -80,9 +83,9 @@ impl TimingRecorder {
         total
     }
 
-    pub fn write_json(&self) -> crate::Result<()> {
+    pub fn write_json(&self) -> Result<()> {
         if let Some(parent) = self.output_path.parent() {
-            std::fs::create_dir_all(parent)?;
+            xx::file::mkdirp(parent)?;
         }
         let elapsed_ms = self.start_instant.elapsed().as_millis();
         let mut steps: BTreeMap<String, TimingReportStep> = BTreeMap::new();
@@ -106,7 +109,34 @@ impl TimingRecorder {
             steps,
         };
         let data = serde_json::to_vec_pretty(&json)?;
-        std::fs::write(&self.output_path, data)?;
+        xx::file::write(&self.output_path, &data)?;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct StepTimingGuard {
+    recorder: Arc<TimingRecorder>,
+    step_name: String,
+    start_ms: u128,
+}
+
+impl StepTimingGuard {
+    pub fn new(recorder: Arc<TimingRecorder>, step: &Step) -> Self {
+        if let Some(p) = step.profiles.as_ref() {
+            recorder.record_profiles(&step.name, Some(p));
+        }
+        let start_ms = recorder.now_ms();
+        Self {
+            recorder,
+            step_name: step.name.clone(),
+            start_ms,
+        }
+    }
+
+    pub fn finish(self) {
+        let end_ms = self.recorder.now_ms();
+        self.recorder
+            .add_interval(&self.step_name, self.start_ms, end_ms);
     }
 }
