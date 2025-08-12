@@ -7,7 +7,7 @@ use std::{
     ffi::OsString,
     path::{Path, PathBuf},
     sync::{Arc, Mutex as StdMutex},
-    time::{Duration, Instant, SystemTime},
+    time::Instant,
 };
 use tokio::{
     signal,
@@ -470,7 +470,6 @@ impl Hook {
 #[derive(Debug)]
 pub struct TimingRecorder {
     start_instant: Instant,
-    start_system: SystemTime,
     intervals_by_step: StdMutex<BTreeMap<String, Vec<(u128, u128)>>>,
     output_path: PathBuf,
 }
@@ -490,7 +489,6 @@ impl TimingRecorder {
     pub fn new(output_path: PathBuf) -> Self {
         Self {
             start_instant: Instant::now(),
-            start_system: SystemTime::now(),
             intervals_by_step: StdMutex::new(BTreeMap::new()),
             output_path,
         }
@@ -536,11 +534,7 @@ impl TimingRecorder {
         if let Some(parent) = self.output_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let elapsed_ms = self
-            .start_system
-            .elapsed()
-            .unwrap_or(Duration::ZERO)
-            .as_millis();
+        let elapsed_ms = self.start_instant.elapsed().as_millis();
         let mut steps: BTreeMap<String, u128> = BTreeMap::new();
         let mut map = self.intervals_by_step.lock().unwrap();
         for (name, intervals) in map.iter_mut() {
