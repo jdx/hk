@@ -62,60 +62,39 @@ fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
     if !content.contains("<<<<<<<") || !content.contains(">>>>>>>") {
         return Ok(());
     }
+
+    // Process as UTF-8 text, preserving original Unicode outside conflict blocks
+    // and keeping exact line endings by using split_inclusive.
     let mut output = String::with_capacity(content.len());
-    let mut i = 0usize;
-    let bytes = content.as_bytes();
-    while i < bytes.len() {
-        if i + 7 <= bytes.len() && &bytes[i..i + 7] == b"<<<<<<<" {
-            // Skip to separator '=======', optionally through '|||||||'
-            // Find end of first line
-            while i < bytes.len() && bytes[i] != b'\n' {
-                i += 1;
+    let parts: Vec<&str> = content.split_inclusive('\n').collect();
+    let mut idx = 0usize;
+    while idx < parts.len() {
+        let line = parts[idx];
+        if line.starts_with("<<<<<<<") {
+            // Advance past our side until the separator '======='
+            idx += 1;
+            while idx < parts.len() && !parts[idx].starts_with("=======") {
+                idx += 1;
             }
-            if i < bytes.len() {
-                i += 1;
+            // Skip the separator line if present
+            if idx < parts.len() && parts[idx].starts_with("=======") {
+                idx += 1;
             }
-            // Optionally skip base section starting with '|||||||' if present
-            if i + 7 <= bytes.len() && &bytes[i..i + 7] == b"|||||||" {
-                // Skip until separator line
-                while i + 7 <= bytes.len() && &bytes[i..i + 7] != b"=======" {
-                    i += 1;
-                }
+            // Capture the 'theirs' side until the closing '>>>>>>>'
+            while idx < parts.len() && !parts[idx].starts_with(">>>>>>>") {
+                output.push_str(parts[idx]);
+                idx += 1;
             }
-            // Expect '======='
-            while i + 7 <= bytes.len() && &bytes[i..i + 7] != b"=======" {
-                i += 1;
+            // Skip the closing marker if present
+            if idx < parts.len() && parts[idx].starts_with(">>>>>>>") {
+                idx += 1;
             }
-            // Move past '=======' line
-            if i + 7 <= bytes.len() {
-                i += 7;
-            }
-            if i < bytes.len() && bytes[i] == b'\n' {
-                i += 1;
-            }
-            // Capture 'theirs' until '>>>>>>>'
-            let start_theirs = i;
-            while i + 7 <= bytes.len() && &bytes[i..i + 7] != b">>>>>>>" {
-                i += 1;
-            }
-            let theirs = &content[start_theirs..i];
-            // Skip closing marker line
-            if i + 7 <= bytes.len() {
-                i += 7;
-            }
-            // Skip rest of line
-            while i < bytes.len() && bytes[i] != b'\n' {
-                i += 1;
-            }
-            if i < bytes.len() {
-                i += 1;
-            }
-            output.push_str(theirs);
         } else {
-            output.push(bytes[i] as char);
-            i += 1;
+            output.push_str(line);
+            idx += 1;
         }
     }
+
     xx::file::write(path, output)?;
     Ok(())
 }
@@ -554,16 +533,37 @@ impl Git {
                 let apply_res = xx::process::cmd("git", ["apply", "--3way"])
                     .arg(&patch_file)
                     .run();
+                // If 3-way apply reported an error, it might still have applied with conflicts.
+                // Detect conflict markers in affected files and treat that as a successful apply
+                // that requires resolution. Only fall back to plain apply when there are no
+                // conflict markers present.
+                let mut had_conflicts = false;
+                for f in &affected_files {
+                    if let Ok(s) = xx::file::read_to_string(f) {
+                        if s.contains("<<<<<<<") && s.contains(">>>>>>>") {
+                            had_conflicts = true;
+                            break;
+                        }
+                    }
+                }
                 if let Err(err) = apply_res {
-                    warn!(
-                        "git apply --3way failed for {}: {err:?}; attempting plain apply",
-                        display_path(&patch_file)
-                    );
-                    if let Err(err2) = xx::process::cmd("git", ["apply"]).arg(&patch_file).run() {
-                        return Err(eyre!(
-                            "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
+                    if had_conflicts {
+                        warn!(
+                            "git apply --3way returned error but left conflicts for {}: {err:?}; proceeding to resolve",
                             display_path(&patch_file)
-                        ));
+                        );
+                    } else {
+                        warn!(
+                            "git apply --3way failed for {}: {err:?}; attempting plain apply",
+                            display_path(&patch_file)
+                        );
+                        if let Err(err2) = xx::process::cmd("git", ["apply"]).arg(&patch_file).run()
+                        {
+                            return Err(eyre!(
+                                "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
+                                display_path(&patch_file)
+                            ));
+                        }
                     }
                 }
                 // Resolve any conflict markers by preferring the patch (stash) side
@@ -645,18 +645,13 @@ impl Git {
                     if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
                         warn!("failed to drop stash after apply: {err:?}");
                     }
-                } else {
-                    // If no conflicts, either apply succeeded or we can fall back to pop
-                    if apply_res.is_err() {
-                        // Last resort: try pop
-                        if let Err(err) = xx::process::cmd("git", ["stash", "pop"]).run() {
-                            warn!("git stash pop also failed after apply error: {err:?}");
-                        }
-                    } else {
-                        if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
-                            warn!("failed to drop stash after successful apply: {err:?}");
-                        }
+                } else if apply_res.is_err() {
+                    // Last resort: try pop
+                    if let Err(err) = xx::process::cmd("git", ["stash", "pop"]).run() {
+                        warn!("git stash pop also failed after apply error: {err:?}");
                     }
+                } else if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
+                    warn!("failed to drop stash after successful apply: {err:?}");
                 }
             }
         }
