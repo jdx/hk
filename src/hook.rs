@@ -471,6 +471,7 @@ impl Hook {
 pub struct TimingRecorder {
     start_instant: Instant,
     intervals_by_step: StdMutex<BTreeMap<String, Vec<(u128, u128)>>>,
+    step_profiles: StdMutex<BTreeMap<String, Vec<String>>>,
     output_path: PathBuf,
 }
 
@@ -482,7 +483,14 @@ struct TimingReportTotal {
 #[derive(Debug, Serialize)]
 struct TimingReportJson {
     total: TimingReportTotal,
-    steps: BTreeMap<String, u128>,
+    steps: BTreeMap<String, TimingReportStep>,
+}
+
+#[derive(Debug, Serialize)]
+struct TimingReportStep {
+    wall_time_ms: u128,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profiles: Option<Vec<String>>,
 }
 
 impl TimingRecorder {
@@ -490,6 +498,7 @@ impl TimingRecorder {
         Self {
             start_instant: Instant::now(),
             intervals_by_step: StdMutex::new(BTreeMap::new()),
+            step_profiles: StdMutex::new(BTreeMap::new()),
             output_path,
         }
     }
@@ -508,7 +517,15 @@ impl TimingRecorder {
             .push((start_ms, end_ms));
     }
 
-    fn merge_and_sum(intervals: &mut Vec<(u128, u128)>) -> u128 {
+    pub fn record_profiles(&self, step_name: &str, profiles: Option<&[String]>) {
+        if let Some(p) = profiles {
+            let mut map = self.step_profiles.lock().unwrap();
+            map.entry(step_name.to_string())
+                .or_insert_with(|| p.to_vec());
+        }
+    }
+
+    fn merge_and_sum(intervals: &mut [(u128, u128)]) -> u128 {
         if intervals.is_empty() {
             return 0;
         }
@@ -535,11 +552,19 @@ impl TimingRecorder {
             std::fs::create_dir_all(parent)?;
         }
         let elapsed_ms = self.start_instant.elapsed().as_millis();
-        let mut steps: BTreeMap<String, u128> = BTreeMap::new();
+        let mut steps: BTreeMap<String, TimingReportStep> = BTreeMap::new();
         let mut map = self.intervals_by_step.lock().unwrap();
+        let profiles_map = self.step_profiles.lock().unwrap();
         for (name, intervals) in map.iter_mut() {
-            let wall_ms = Self::merge_and_sum(intervals);
-            steps.insert(name.clone(), wall_ms);
+            let wall_ms = Self::merge_and_sum(intervals.as_mut_slice());
+            let profiles = profiles_map.get(name).cloned();
+            steps.insert(
+                name.clone(),
+                TimingReportStep {
+                    wall_time_ms: wall_ms,
+                    profiles,
+                },
+            );
         }
         let json = TimingReportJson {
             total: TimingReportTotal {

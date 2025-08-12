@@ -495,6 +495,14 @@ impl Step {
             cmd = cmd.env(key, value);
         }
         let timing = ctx.hook_ctx.timing.clone();
+        if let Some(t) = timing.as_ref() {
+            // Record profiles once per step before execution
+            if let Some(p) = self.profiles.as_ref() {
+                t.record_profiles(&self.name, Some(p));
+            } else {
+                // explicitly ensure absence: do nothing; serde will skip when None
+            }
+        }
         let start_ms = timing.as_ref().map(|t| t.now_ms());
         let exec_result = cmd.execute().await;
         if let Some(t) = timing.as_ref() {
