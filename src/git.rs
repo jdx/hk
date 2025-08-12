@@ -18,6 +18,87 @@ use xx::file::display_path;
 
 use crate::env;
 
+fn parse_paths_from_patch(patch: &str) -> Vec<PathBuf> {
+    // Parse lines like: diff --git a/path b/path
+    let mut files = BTreeSet::new();
+    for line in patch.lines() {
+        if let Some(rest) = line.strip_prefix("diff --git a/") {
+            if let Some((a_path, _b)) = rest.split_once(" b/") {
+                let p = PathBuf::from(a_path);
+                if p.exists() {
+                    files.insert(p);
+                }
+            }
+        }
+    }
+    files.into_iter().collect()
+}
+
+fn conflicted_files_from_porcelain(status_z: &str) -> Vec<PathBuf> {
+    // In porcelain v1 short format: lines start with two status letters.
+    // Unmerged statuses include: UU, AA, AU, UA, DU, UD
+    let mut files = BTreeSet::new();
+    for entry in status_z.split('\0').filter(|s| !s.is_empty()) {
+        let mut chars = entry.chars();
+        let x = chars.next().unwrap_or(' ');
+        let y = chars.next().unwrap_or(' ');
+        let path: String = chars.skip(1).collect();
+        let is_unmerged = matches!(
+            (x, y),
+            ('U', 'U') | ('A', 'A') | ('A', 'U') | ('U', 'A') | ('D', 'U') | ('U', 'D')
+        );
+        if is_unmerged {
+            let p = PathBuf::from(path);
+            if p.exists() {
+                files.insert(p);
+            }
+        }
+    }
+    files.into_iter().collect()
+}
+
+fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
+    let content = xx::file::read_to_string(path).unwrap_or_default();
+    if !content.contains("<<<<<<<") || !content.contains(">>>>>>>") {
+        return Ok(());
+    }
+
+    // Process as UTF-8 text, preserving original Unicode outside conflict blocks
+    // and keeping exact line endings by using split_inclusive.
+    let mut output = String::with_capacity(content.len());
+    let parts: Vec<&str> = content.split_inclusive('\n').collect();
+    let mut idx = 0usize;
+    while idx < parts.len() {
+        let line = parts[idx];
+        if line.starts_with("<<<<<<<") {
+            // Advance past our side until the separator '======='
+            idx += 1;
+            while idx < parts.len() && !parts[idx].starts_with("=======") {
+                idx += 1;
+            }
+            // Skip the separator line if present
+            if idx < parts.len() && parts[idx].starts_with("=======") {
+                idx += 1;
+            }
+            // Capture the 'theirs' side until the closing '>>>>>>>'
+            while idx < parts.len() && !parts[idx].starts_with(">>>>>>>") {
+                output.push_str(parts[idx]);
+                idx += 1;
+            }
+            // Skip the closing marker if present
+            if idx < parts.len() && parts[idx].starts_with(">>>>>>>") {
+                idx += 1;
+            }
+        } else {
+            output.push_str(line);
+            idx += 1;
+        }
+    }
+
+    xx::file::write(path, output)?;
+    Ok(())
+}
+
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
@@ -446,17 +527,53 @@ impl Git {
                         ),
                     )
                     .start();
-                if let Some(repo) = &mut self.repo {
-                    let diff = git2::Diff::from_buffer(diff.as_bytes())?;
-                    let mut apply_opts = git2::ApplyOptions::new();
-                    repo.apply(&diff, git2::ApplyLocation::WorkDir, Some(&mut apply_opts))
-                        .wrap_err_with(|| {
-                            format!("failed to apply diff {}", display_path(&patch_file))
-                        })?;
-                } else {
-                    xx::process::cmd("git", ["apply", "--reject"])
-                        .arg(&patch_file)
-                        .run()?;
+                // Try a 3-way apply so non-conflicting hunks from the patch merge with
+                // any fixer changes. Conflict markers will be written for conflicting hunks.
+                let affected_files = parse_paths_from_patch(&diff);
+                let apply_res = xx::process::cmd("git", ["apply", "--3way"])
+                    .arg(&patch_file)
+                    .run();
+                // If 3-way apply reported an error, it might still have applied with conflicts.
+                // Detect conflict markers in affected files and treat that as a successful apply
+                // that requires resolution. Only fall back to plain apply when there are no
+                // conflict markers present.
+                let mut had_conflicts = false;
+                for f in &affected_files {
+                    if let Ok(s) = xx::file::read_to_string(f) {
+                        if s.contains("<<<<<<<") && s.contains(">>>>>>>") {
+                            had_conflicts = true;
+                            break;
+                        }
+                    }
+                }
+                if let Err(err) = apply_res {
+                    if had_conflicts {
+                        warn!(
+                            "git apply --3way returned error but left conflicts for {}: {err:?}; proceeding to resolve",
+                            display_path(&patch_file)
+                        );
+                    } else {
+                        warn!(
+                            "git apply --3way failed for {}: {err:?}; attempting plain apply",
+                            display_path(&patch_file)
+                        );
+                        if let Err(err2) = xx::process::cmd("git", ["apply"]).arg(&patch_file).run()
+                        {
+                            return Err(eyre!(
+                                "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
+                                display_path(&patch_file)
+                            ));
+                        }
+                    }
+                }
+                // Resolve any conflict markers by preferring the patch (stash) side
+                for f in affected_files {
+                    if let Err(err) = resolve_conflict_markers_preferring_theirs(&f) {
+                        warn!(
+                            "failed to resolve conflict markers in {}: {err:?}",
+                            display_path(&f)
+                        );
+                    }
                 }
                 if let Err(err) = xx::file::remove_file(patch_file) {
                     debug!("failed to remove patch file: {err:?}");
@@ -482,7 +599,60 @@ impl Git {
                 job = ProgressJobBuilder::new()
                     .prop("message", "stash – Applying git stash")
                     .start();
-                xx::process::sh("git stash pop")?;
+                // Apply the stash first, detect conflicts, and in case of conflict
+                // prefer the stash (the original unstaged changes), discarding fixer edits.
+                let apply_res = xx::process::cmd("git", ["stash", "apply"]).run();
+                if let Err(err) = &apply_res {
+                    warn!("git stash apply failed: {err:?}");
+                }
+                // Determine conflicted files via porcelain status
+                let status = match xx::process::cmd(
+                    "git",
+                    [
+                        "status",
+                        "--porcelain",
+                        "-z",
+                        "--no-renames",
+                        "--untracked-files=all",
+                    ],
+                )
+                .read()
+                {
+                    Ok(s) => s,
+                    Err(err) => {
+                        warn!("failed to read git status: {err:?}");
+                        String::new()
+                    }
+                };
+                let conflicted = conflicted_files_from_porcelain(&status);
+                if !conflicted.is_empty() {
+                    // For each conflicted file, prefer the stash side only for conflicting hunks
+                    for f in conflicted.iter() {
+                        if let Err(err) = resolve_conflict_markers_preferring_theirs(f) {
+                            warn!(
+                                "failed to resolve conflict markers in {}: {err:?}",
+                                display_path(f)
+                            );
+                        }
+                        if let Err(err) = xx::process::cmd("git", ["add", "--"]).arg(f).run() {
+                            warn!(
+                                "failed to stage {} after resolving conflicts: {err:?}",
+                                display_path(f)
+                            );
+                        }
+                    }
+                    // Drop the stash entry now that we've applied it
+                    if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
+                        warn!("failed to drop stash after apply: {err:?}");
+                    }
+                } else if apply_res.is_err() {
+                    // Last resort: try pop
+                    if let Err(err) = xx::process::cmd("git", ["stash", "pop"]).run() {
+                        warn!("git stash pop also failed after apply error: {err:?}");
+                    }
+                } else if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
+                    warn!("failed to drop stash after successful apply: {err:?}");
+                }
             }
         }
         job.set_status(ProgressStatus::Done);
