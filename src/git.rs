@@ -554,13 +554,26 @@ impl Git {
                 let apply_res = xx::process::cmd("git", ["apply", "--3way"])
                     .arg(&patch_file)
                     .run();
-                if apply_res.is_err() {
-                    // Fall back to a normal apply which may still work for some files
-                    let _ = xx::process::cmd("git", ["apply"]).arg(&patch_file).run();
+                if let Err(err) = apply_res {
+                    warn!(
+                        "git apply --3way failed for {}: {err:?}; attempting plain apply",
+                        display_path(&patch_file)
+                    );
+                    if let Err(err2) = xx::process::cmd("git", ["apply"]).arg(&patch_file).run() {
+                        return Err(eyre!(
+                            "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
+                            display_path(&patch_file)
+                        ));
+                    }
                 }
                 // Resolve any conflict markers by preferring the patch (stash) side
                 for f in affected_files {
-                    let _ = resolve_conflict_markers_preferring_theirs(&f);
+                    if let Err(err) = resolve_conflict_markers_preferring_theirs(&f) {
+                        warn!(
+                            "failed to resolve conflict markers in {}: {err:?}",
+                            display_path(&f)
+                        );
+                    }
                 }
                 if let Err(err) = xx::file::remove_file(patch_file) {
                     debug!("failed to remove patch file: {err:?}");
@@ -589,8 +602,11 @@ impl Git {
                 // Apply the stash first, detect conflicts, and in case of conflict
                 // prefer the stash (the original unstaged changes), discarding fixer edits.
                 let apply_res = xx::process::cmd("git", ["stash", "apply"]).run();
+                if let Err(err) = &apply_res {
+                    warn!("git stash apply failed: {err:?}");
+                }
                 // Determine conflicted files via porcelain status
-                let status = xx::process::cmd(
+                let status = match xx::process::cmd(
                     "git",
                     [
                         "status",
@@ -601,23 +617,45 @@ impl Git {
                     ],
                 )
                 .read()
-                .unwrap_or_default();
+                {
+                    Ok(s) => s,
+                    Err(err) => {
+                        warn!("failed to read git status: {err:?}");
+                        String::new()
+                    }
+                };
                 let conflicted = conflicted_files_from_porcelain(&status);
                 if !conflicted.is_empty() {
                     // For each conflicted file, prefer the stash side only for conflicting hunks
                     for f in conflicted.iter() {
-                        let _ = resolve_conflict_markers_preferring_theirs(f);
-                        let _ = xx::process::cmd("git", ["add", "--"]).arg(f).run();
+                        if let Err(err) = resolve_conflict_markers_preferring_theirs(f) {
+                            warn!(
+                                "failed to resolve conflict markers in {}: {err:?}",
+                                display_path(f)
+                            );
+                        }
+                        if let Err(err) = xx::process::cmd("git", ["add", "--"]).arg(f).run() {
+                            warn!(
+                                "failed to stage {} after resolving conflicts: {err:?}",
+                                display_path(f)
+                            );
+                        }
                     }
                     // Drop the stash entry now that we've applied it
-                    let _ = xx::process::cmd("git", ["stash", "drop"]).run();
+                    if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
+                        warn!("failed to drop stash after apply: {err:?}");
+                    }
                 } else {
                     // If no conflicts, either apply succeeded or we can fall back to pop
                     if apply_res.is_err() {
                         // Last resort: try pop
-                        let _ = xx::process::cmd("git", ["stash", "pop"]).run();
+                        if let Err(err) = xx::process::cmd("git", ["stash", "pop"]).run() {
+                            warn!("git stash pop also failed after apply error: {err:?}");
+                        }
                     } else {
-                        let _ = xx::process::cmd("git", ["stash", "drop"]).run();
+                        if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
+                            warn!("failed to drop stash after successful apply: {err:?}");
+                        }
                     }
                 }
             }
