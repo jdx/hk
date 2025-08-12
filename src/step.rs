@@ -1,3 +1,4 @@
+use crate::timings::StepTimingGuard;
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
@@ -494,12 +495,21 @@ impl Step {
             let value = tera::render(value, &tctx)?;
             cmd = cmd.env(key, value);
         }
-        match cmd.execute().await {
+        let mut timing_guard = ctx
+            .hook_ctx
+            .timing
+            .clone()
+            .map(|t| StepTimingGuard::new(t, self));
+        let exec_result = cmd.execute().await;
+        if let Some(g) = timing_guard.take() {
+            g.finish();
+        }
+        if self.interactive {
+            clx::progress::resume();
+        }
+        match exec_result {
             Ok(_) => {}
             Err(err) => {
-                if self.interactive {
-                    clx::progress::resume();
-                }
                 if let ensembler::Error::ScriptFailed(e) = &err {
                     if let RunType::Check(CheckType::ListFiles) = job.run_type {
                         let result = &e.3;
@@ -517,9 +527,6 @@ impl Step {
                 }
                 return Err(err).wrap_err(run);
             }
-        }
-        if self.interactive {
-            clx::progress::resume();
         }
         ctx.decrement_job_count();
         job.status_finished()?;

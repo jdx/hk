@@ -25,6 +25,7 @@ mod step_group;
 mod step_job;
 mod step_locks;
 mod tera;
+mod timings;
 mod ui;
 mod version;
 

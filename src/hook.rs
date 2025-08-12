@@ -24,6 +24,7 @@ use crate::{
     step::{CheckType, EXPR_CTX, RunType, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
+    timings::TimingRecorder,
     ui::style,
     version,
 };
@@ -69,6 +70,7 @@ pub struct HookContext {
     total_jobs: std::sync::Mutex<usize>,
     completed_jobs: std::sync::Mutex<usize>,
     expr_ctx: std::sync::Mutex<expr::Context>,
+    pub timing: Option<Arc<TimingRecorder>>,
 }
 
 impl HookContext {
@@ -82,6 +84,9 @@ impl HookContext {
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = EXPR_CTX.clone();
+        let timing = env::HK_TIMING_JSON
+            .as_ref()
+            .map(|path| Arc::new(TimingRecorder::new(path.clone())));
         Self {
             file_locks: FileRwLocks::new(files),
             git,
@@ -96,6 +101,7 @@ impl HookContext {
             semaphore: Arc::new(Semaphore::new(settings.jobs.get())),
             failed: CancellationToken::new(),
             expr_ctx: std::sync::Mutex::new(expr_ctx),
+            timing,
         }
     }
 
@@ -316,6 +322,11 @@ impl Hook {
                 result = Err(err);
             } else {
                 warn!("Failed to pop stash: {err}");
+            }
+        }
+        if let Some(timing) = &hook_ctx.timing {
+            if let Err(err) = timing.write_json() {
+                warn!("Failed to write timing JSON: {err}");
             }
         }
         result
