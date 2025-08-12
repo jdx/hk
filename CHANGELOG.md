@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.0](https://github.com/jdx/hk/compare/v1.3.0..v1.4.0) - 2025-08-12
+
+### 🚀 Features
+
+- timing json report by [@jdx](https://github.com/jdx) in [#134](https://github.com/jdx/hk/pull/134)
+
+### 🔍 Other Changes
+
+- render during release-plz by [@jdx](https://github.com/jdx) in [a19fff8](https://github.com/jdx/hk/commit/a19fff8a706ba53397b7e234ab3274c1ccad4bd1)
+- add usage to mise.toml by [@jdx](https://github.com/jdx) in [844df64](https://github.com/jdx/hk/commit/844df647e63467cab3191bdde92fa592ed0637c9)
+
 ## [1.3.0](https://github.com/jdx/hk/compare/v1.2.2..v1.3.0) - 2025-08-12
 
 ### 🚀 Features
