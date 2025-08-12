@@ -35,6 +35,9 @@ pub static HK_LOG_FILE_LEVEL: LazyLock<log::LevelFilter> =
 pub static HK_LOG_FILE: LazyLock<PathBuf> =
     LazyLock::new(|| var_path("HK_LOG_FILE").unwrap_or(HK_STATE_DIR.join("hk.log")));
 
+// When set, write a JSON timing report to this path after the hook finishes
+pub static HK_TIMING_JSON: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("HK_TIMING_JSON"));
+
 pub static HK_LIBGIT2: LazyLock<bool> = LazyLock::new(|| !var_false("HK_LIBGIT2"));
 pub static HK_HIDE_WHEN_DONE: LazyLock<bool> = LazyLock::new(|| var_true("HK_HIDE_WHEN_DONE"));
 pub static HK_CHECK_FIRST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_CHECK_FIRST"));
