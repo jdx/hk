@@ -145,3 +145,27 @@ Default: `true`
 
 If set to `false`, hk will not use libgit2 to interact with git and instead use shelling out to git commands. This may provide better performance
 in some cases such as when using `fsmonitor` to watch for changes.
+
+## `HK_TIMING_JSON`
+
+Type: `path`
+
+If set to a file path, hk will write a JSON timing report at the end of a run. The report includes total wall time and per-step wall time, with overlapping intervals merged so time isn’t double-counted across parallel step parts.
+
+Example usage:
+
+```bash
+HK_TIMING_JSON=/tmp/hk-timing.json hk check
+```
+
+Example output shape:
+
+```json
+{
+  "total": { "wall_time_ms": 12456 },
+  "steps": [
+    { "name": "lint", "wall_time_ms": 4321 },
+    { "name": "fmt", "wall_time_ms": 2100 }
+  ]
+}
+```
