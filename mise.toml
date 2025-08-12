@@ -19,6 +19,7 @@ yq = "latest"
 bun = "latest"
 ripgrep = "latest"
 "cargo:cargo-edit" = "latest"
+usage = "latest"
 
 [tasks.init]
 run = '''

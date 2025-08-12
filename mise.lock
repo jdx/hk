@@ -86,6 +86,10 @@ backend = "ubi:koalaman/shellcheck"
 version = "0.58.2"
 backend = "asdf:swiftlint"
 
+[tools.usage]
+version = "2.2.1"
+backend = "aqua:jdx/usage"
+
 [tools.yq]
 version = "4.45.1"
 backend = "aqua:mikefarah/yq"
