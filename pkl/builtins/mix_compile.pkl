@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
-mix_fmt = new Config.Step {
+mix_compile = new Config.Step {
     glob = "*.ex"
     stage = glob
     exclude = List("deps/**/*")
