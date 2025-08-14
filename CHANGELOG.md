@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.5.0](https://github.com/jdx/hk/compare/v1.4.0..v1.5.0) - 2025-08-14
+
+### 🚀 Features
+
+- json5 support for prettier builtin by [@tpansino](https://github.com/tpansino) in [#136](https://github.com/jdx/hk/pull/136)
+
+### 🐛 Bug Fixes
+
+- elixir steps named properly by [@paradox460](https://github.com/paradox460) in [#140](https://github.com/jdx/hk/pull/140)
+- pkl builtin by [@tpansino](https://github.com/tpansino) in [#138](https://github.com/jdx/hk/pull/138)
+- make glob, exclude, and stage relative to dir by [@jdx](https://github.com/jdx) in [#142](https://github.com/jdx/hk/pull/142)
+
+### 🔍 Other Changes
+
+- Prettier *.yml and *.md files by [@tpansino](https://github.com/tpansino) in [#141](https://github.com/jdx/hk/pull/141)
+
+### New Contributors
+
+- @tpansino made their first contribution in [#141](https://github.com/jdx/hk/pull/141)
+
 ## [1.4.0](https://github.com/jdx/hk/compare/v1.3.0..v1.4.0) - 2025-08-12
 
 ### 🚀 Features
