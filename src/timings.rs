@@ -9,6 +9,7 @@ pub struct TimingRecorder {
     start_instant: Instant,
     intervals_by_step: StdMutex<BTreeMap<String, Vec<(u128, u128)>>>,
     step_profiles: StdMutex<BTreeMap<String, Vec<String>>>,
+    step_interactive: StdMutex<BTreeMap<String, bool>>,
     output_path: PathBuf,
 }
 
@@ -28,6 +29,7 @@ struct TimingReportStep {
     wall_time_ms: u128,
     #[serde(skip_serializing_if = "Option::is_none")]
     profiles: Option<Vec<String>>,
+    interactive: bool,
 }
 
 impl TimingRecorder {
@@ -36,6 +38,7 @@ impl TimingRecorder {
             start_instant: Instant::now(),
             intervals_by_step: StdMutex::new(BTreeMap::new()),
             step_profiles: StdMutex::new(BTreeMap::new()),
+            step_interactive: StdMutex::new(BTreeMap::new()),
             output_path,
         }
     }
@@ -60,6 +63,11 @@ impl TimingRecorder {
             map.entry(step_name.to_string())
                 .or_insert_with(|| p.to_vec());
         }
+    }
+
+    pub fn record_interactive(&self, step_name: &str, interactive: bool) {
+        let mut map = self.step_interactive.lock().unwrap();
+        map.insert(step_name.to_string(), interactive);
     }
 
     fn merge_and_sum(intervals: &mut [(u128, u128)]) -> u128 {
@@ -91,14 +99,17 @@ impl TimingRecorder {
         let mut steps: BTreeMap<String, TimingReportStep> = BTreeMap::new();
         let mut map = self.intervals_by_step.lock().unwrap();
         let profiles_map = self.step_profiles.lock().unwrap();
+        let interactive_map = self.step_interactive.lock().unwrap();
         for (name, intervals) in map.iter_mut() {
             let wall_ms = Self::merge_and_sum(intervals.as_mut_slice());
             let profiles = profiles_map.get(name).cloned();
+            let interactive = interactive_map.get(name).cloned().unwrap_or(false);
             steps.insert(
                 name.clone(),
                 TimingReportStep {
                     wall_time_ms: wall_ms,
                     profiles,
+                    interactive,
                 },
             );
         }
@@ -126,6 +137,7 @@ impl StepTimingGuard {
         if let Some(p) = step.profiles.as_ref() {
             recorder.record_profiles(&step.name, Some(p));
         }
+        recorder.record_interactive(&step.name, step.interactive);
         let start_ms = recorder.now_ms();
         Self {
             recorder,

@@ -49,3 +49,52 @@ EOF
     # total wall time should be at least the per-step time
     [ "$total_ms" -ge "$step_ms" ]
 }
+
+@test "interactive field in json timing report" {
+    # require jq for JSON parsing
+    type -p jq &>/dev/null || skip "jq is required"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ["interactive-step"] {
+                interactive = true
+                fix = "echo 'interactive step'"
+            }
+            ["normal-step"] {
+                fix = "echo 'normal step'"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "init"
+    
+    # Create a test file to trigger the hook
+    echo "test" > test.txt
+    git add test.txt
+    
+    timing_file="$TEST_TEMP_DIR/timing.json"
+    export HK_TIMING_JSON="$timing_file"
+    
+    # Run with timing JSON output
+    run hk run pre-commit
+    assert_success
+    assert_file_exists "$timing_file"
+    
+    # Check that the JSON contains the interactive field for both steps
+    assert_file_contains "$timing_file" '"interactive": true'
+    assert_file_contains "$timing_file" '"interactive": false'
+    
+    # Verify with jq that the interactive field is correctly set
+    interactive_step=$(jq -r '.steps["interactive-step"].interactive' "$timing_file")
+    normal_step=$(jq -r '.steps["normal-step"].interactive' "$timing_file")
+    
+    [ "$interactive_step" = "true" ]
+    [ "$normal_step" = "false" ]
+}
