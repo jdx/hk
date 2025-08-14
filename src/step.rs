@@ -207,12 +207,32 @@ impl Step {
             // The path stripping should only happen in the command execution context via tera templates
         }
         if let Some(glob) = &self.glob {
-            files = glob::get_matches(glob, &files)?;
+            // when dir is set, globs are relative to that dir only
+            if let Some(dir) = &self.dir {
+                let dir_globs = glob
+                    .iter()
+                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
+                    .collect::<Vec<_>>();
+                files = glob::get_matches(&dir_globs, &files)?;
+            } else {
+                files = glob::get_matches(glob, &files)?;
+            }
         }
         if let Some(exclude) = &self.exclude {
-            let excluded = glob::get_matches(exclude, &files)?
-                .into_iter()
-                .collect::<HashSet<_>>();
+            // when dir is set, excludes are relative to that dir only
+            let excluded = if let Some(dir) = &self.dir {
+                let dir_excludes = exclude
+                    .iter()
+                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
+                    .collect::<Vec<_>>();
+                glob::get_matches(&dir_excludes, &files)?
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+            } else {
+                glob::get_matches(exclude, &files)?
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+            };
             files.retain(|f| !excluded.contains(f));
         }
         Ok(files)
@@ -374,16 +394,24 @@ impl Step {
             return Ok(());
         }
         if matches!(ctx.hook_ctx.run_type, RunType::Fix) {
-            let stage = &self
+            // Build stage pathspecs; if `dir` is set, stage entries are relative to it
+            let stage: Vec<OsString> = self
                 .stage
                 .as_ref()
                 .unwrap_or(&vec![])
                 .iter()
                 .map(|s| tera::render(s, &ctx.hook_ctx.tctx).unwrap())
+                .map(|s| {
+                    if let Some(dir) = &self.dir {
+                        format!("{}/{}", dir.trim_end_matches('/'), s)
+                    } else {
+                        s
+                    }
+                })
                 .map(OsString::from)
                 .collect_vec();
             if !stage.is_empty() {
-                let status = ctx.hook_ctx.git.lock().await.status(Some(stage))?;
+                let status = ctx.hook_ctx.git.lock().await.status(Some(&stage))?;
                 let files = status.unstaged_files.into_iter().collect_vec();
                 if !files.is_empty() {
                     ctx.hook_ctx.git.lock().await.add(&files)?;
