@@ -369,6 +369,8 @@ impl Step {
             set.spawn(async move {
                 if let Some(reason) = &job.skip_reason {
                     step.mark_skipped(&ctx, reason)?;
+                    // Skipped jobs should still count as completed for overall progress
+                    ctx.hook_ctx.inc_completed_jobs(1);
                     return Ok(());
                 }
                 if job.check_first {
@@ -627,7 +629,6 @@ impl Step {
         ctx.progress.prop("message", reason);
         let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
         ctx.progress.set_status(status);
-        ctx.hook_ctx.dec_total_jobs(1);
         ctx.depends.mark_done(&self.name)?;
         Ok(())
     }
