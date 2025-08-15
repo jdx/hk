@@ -35,5 +35,5 @@ EOF
     assert_failure
     assert_output --partial '[warn] subdir/test.html'
     assert_output --partial '[warn] test.ts'
-    assert_output --partial '[warn] Code style issues found in 2 files. Run Prettier with --write to fix.'
+    assert_output --partial '[warn] Code style issues found in 2 files.'
 }
