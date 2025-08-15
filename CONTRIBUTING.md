@@ -35,7 +35,7 @@ This will run all tests, including Bats shell tests and any other checks defined
 To run a specific test, use the following command:
 
 ```sh
-mise run test-bats -- test/workspace_indicator.bats
+mise run test:bats -- test/workspace_indicator.bats
 ```
 
 ## Code Style
