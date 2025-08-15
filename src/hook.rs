@@ -125,7 +125,7 @@ impl HookContext {
             file_locks: FileRwLocks::new(files),
             git,
             hk_progress,
-            total_jobs: StdMutex::new(0),
+            total_jobs: StdMutex::new(groups.iter().map(|g| g.steps.len()).sum()),
             completed_jobs: StdMutex::new(0),
             groups,
             tctx,
@@ -186,6 +186,17 @@ impl HookContext {
             let completed_jobs = *completed_jobs;
             if let Some(hk_progress) = &self.hk_progress {
                 hk_progress.progress_current(completed_jobs);
+            }
+        }
+    }
+
+    pub fn dec_total_jobs(&self, n: usize) {
+        if n > 0 {
+            let mut total_jobs = self.total_jobs.lock().unwrap();
+            *total_jobs = total_jobs.saturating_sub(n);
+            let total_jobs = *total_jobs;
+            if let Some(hk_progress) = &self.hk_progress {
+                hk_progress.progress_total(total_jobs);
             }
         }
     }
@@ -261,7 +272,8 @@ impl Hook {
         let git_status = OnceCell::new();
         let groups = self.get_step_groups(&opts);
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
-        let hk_progress = self.start_hk_progress(run_type, 0);
+        let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
+        let hk_progress = self.start_hk_progress(run_type, total_steps);
         let file_progress = ProgressJobBuilder::new().body(
             "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}"
         )
@@ -545,7 +557,7 @@ fn can_exit_early(
     groups.iter().all(|g| {
         g.steps.iter().all(|(_, s)| {
             // Reuse job builder to determine if this step has any runnable work
-            s.build_step_jobs(&files, run_type, &Default::default(), skip_steps, &EXPR_CTX)
+            s.build_step_jobs(&files, run_type, &Default::default(), skip_steps)
                 .is_ok_and(|jobs| jobs.iter().all(|j| j.skip_reason.is_some()))
         })
     })

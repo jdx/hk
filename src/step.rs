@@ -264,7 +264,6 @@ impl Step {
         run_type: RunType,
         files_in_contention: &HashSet<PathBuf>,
         skip_steps: &indexmap::IndexMap<String, crate::hook::SkipReason>,
-        expr_ctx: &expr::Context,
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
@@ -282,16 +281,6 @@ impl Step {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type).message());
             return Ok(vec![j]);
-        }
-        if let Some(condition) = &self.condition {
-            // TODO: this should be evaluated during the step run, not here
-            if let Ok(val) = EXPR_ENV.eval(condition, expr_ctx) {
-                if val == expr::Value::Bool(false) {
-                    let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-                    j.skip_reason = Some("skipped: condition is false".to_string());
-                    return Ok(vec![j]);
-                }
-            }
         }
         let files = self.filter_files(files)?;
         if files.is_empty() && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
@@ -361,24 +350,27 @@ impl Step {
             ctx.hook_ctx.run_type,
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
             &ctx.hook_ctx.skip_steps,
-            &ctx.hook_ctx.expr_ctx(),
         )?;
         if let Some(job) = jobs.first_mut() {
             job.semaphore = Some(semaphore);
         }
         let non_skip_jobs = jobs.iter().filter(|j| j.skip_reason.is_none()).count();
         ctx.set_jobs_total(non_skip_jobs);
+        if non_skip_jobs > 0 {
+            // Replace the single-step placeholder with the actual number of jobs
+            // Add the extra jobs beyond the placeholder 1
+            ctx.hook_ctx.inc_total_jobs(non_skip_jobs.saturating_sub(1));
+        }
         let mut set = tokio::task::JoinSet::new();
         for job in jobs {
             let ctx = ctx.clone();
             let step = self.clone();
             let mut job = job;
             set.spawn(async move {
-                if let Some(reason) = job.skip_reason.clone() {
-                    step.mark_skipped(&ctx, &reason)?;
+                if let Some(reason) = &job.skip_reason {
+                    step.mark_skipped(&ctx, reason)?;
                     return Ok(());
                 }
-                ctx.hook_ctx.inc_total_jobs(1);
                 if job.check_first {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check(step.check_type());
@@ -635,6 +627,7 @@ impl Step {
         ctx.progress.prop("message", reason);
         let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
         ctx.progress.set_status(status);
+        ctx.hook_ctx.dec_total_jobs(1);
         ctx.depends.mark_done(&self.name)?;
         Ok(())
     }
