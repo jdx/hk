@@ -8,23 +8,23 @@ use std::{collections::BTreeMap, path::PathBuf, sync::Mutex as StdMutex, time::I
 pub struct TimingRecorder {
     start_instant: Instant,
     intervals_by_step: StdMutex<BTreeMap<String, Vec<(u128, u128)>>>,
-    step_profiles: StdMutex<BTreeMap<String, Vec<String>>>,
-    step_interactive: StdMutex<BTreeMap<String, bool>>,
-    output_path: PathBuf,
+    step_profiles: BTreeMap<String, Vec<String>>,
+    step_interactive: BTreeMap<String, bool>,
+    output_path: Option<PathBuf>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct TimingReportTotal {
     wall_time_ms: u128,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct TimingReportJson {
     total: TimingReportTotal,
     steps: BTreeMap<String, TimingReportStep>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct TimingReportStep {
     wall_time_ms: u128,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -33,12 +33,12 @@ struct TimingReportStep {
 }
 
 impl TimingRecorder {
-    pub fn new(output_path: PathBuf) -> Self {
+    pub fn new(output_path: Option<PathBuf>) -> Self {
         Self {
             start_instant: Instant::now(),
             intervals_by_step: StdMutex::new(BTreeMap::new()),
-            step_profiles: StdMutex::new(BTreeMap::new()),
-            step_interactive: StdMutex::new(BTreeMap::new()),
+            step_profiles: BTreeMap::new(),
+            step_interactive: BTreeMap::new(),
             output_path,
         }
     }
@@ -57,17 +57,17 @@ impl TimingRecorder {
             .push((start_ms, end_ms));
     }
 
-    pub fn record_profiles(&self, step_name: &str, profiles: Option<&[String]>) {
+    pub fn set_step_profiles(&mut self, step_name: &str, profiles: Option<&[String]>) {
         if let Some(p) = profiles {
-            let mut map = self.step_profiles.lock().unwrap();
-            map.entry(step_name.to_string())
-                .or_insert_with(|| p.to_vec());
+            self.step_profiles.insert(step_name.to_string(), p.to_vec());
+        } else {
+            self.step_profiles.remove(step_name);
         }
     }
 
-    pub fn record_interactive(&self, step_name: &str, interactive: bool) {
-        let mut map = self.step_interactive.lock().unwrap();
-        map.insert(step_name.to_string(), interactive);
+    pub fn set_step_interactive(&mut self, step_name: &str, interactive: bool) {
+        self.step_interactive
+            .insert(step_name.to_string(), interactive);
     }
 
     fn merge_and_sum(intervals: &mut [(u128, u128)]) -> u128 {
@@ -91,19 +91,14 @@ impl TimingRecorder {
         total
     }
 
-    pub fn write_json(&self) -> Result<()> {
-        if let Some(parent) = self.output_path.parent() {
-            xx::file::mkdirp(parent)?;
-        }
+    fn build_report(&self) -> TimingReportJson {
         let elapsed_ms = self.start_instant.elapsed().as_millis();
         let mut steps: BTreeMap<String, TimingReportStep> = BTreeMap::new();
         let mut map = self.intervals_by_step.lock().unwrap();
-        let profiles_map = self.step_profiles.lock().unwrap();
-        let interactive_map = self.step_interactive.lock().unwrap();
         for (name, intervals) in map.iter_mut() {
             let wall_ms = Self::merge_and_sum(intervals.as_mut_slice());
-            let profiles = profiles_map.get(name).cloned();
-            let interactive = interactive_map.get(name).cloned().unwrap_or(false);
+            let profiles = self.step_profiles.get(name).cloned();
+            let interactive = self.step_interactive.get(name).cloned().unwrap_or(false);
             steps.insert(
                 name.clone(),
                 TimingReportStep {
@@ -113,15 +108,31 @@ impl TimingRecorder {
                 },
             );
         }
-        let json = TimingReportJson {
+        TimingReportJson {
             total: TimingReportTotal {
                 wall_time_ms: elapsed_ms,
             },
             steps,
+        }
+    }
+
+    pub fn write_json(&self) -> Result<()> {
+        let Some(output_path) = &self.output_path else {
+            return Ok(());
         };
+        let json = self.build_report();
         let data = serde_json::to_vec_pretty(&json)?;
-        xx::file::write(&self.output_path, &data)?;
+        if let Some(parent) = output_path.parent() {
+            xx::file::mkdirp(parent)?;
+        }
+        xx::file::write(output_path, &data)?;
         Ok(())
+    }
+
+    pub fn to_json_string(&self) -> Result<String> {
+        let json = self.build_report();
+        let s = serde_json::to_string_pretty(&json)?;
+        Ok(s)
     }
 }
 
@@ -134,10 +145,6 @@ pub struct StepTimingGuard {
 
 impl StepTimingGuard {
     pub fn new(recorder: Arc<TimingRecorder>, step: &Step) -> Self {
-        if let Some(p) = step.profiles.as_ref() {
-            recorder.record_profiles(&step.name, Some(p));
-        }
-        recorder.record_interactive(&step.name, step.interactive);
         let start_ms = recorder.now_ms();
         Self {
             recorder,

@@ -1,3 +1,5 @@
+#!/usr/bin/env bats
+
 setup() {
     load 'test_helper/common_setup'
     _common_setup
@@ -97,4 +99,19 @@ EOF
     
     [ "$interactive_step" = "true" ]
     [ "$normal_step" = "false" ]
+}
+
+@test "hook-level report receives HK_REPORT_JSON" {
+    type -p jq &>/dev/null || skip "jq is required"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps { ["a"] { check = "echo ok" } }
+        report = "printf '%s' \"$HK_REPORT_JSON\" | jq -r '.total.wall_time_ms | tostring' >/dev/null"
+    }
+}
+EOF
+    run hk check --all
+    assert_success
 }

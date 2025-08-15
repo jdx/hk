@@ -2,6 +2,7 @@ use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressOutput, ProgressSta
 use indexmap::IndexMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use std::{
     collections::{BTreeSet, HashSet},
     ffi::OsString,
@@ -21,7 +22,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
-    step::{CheckType, EXPR_CTX, RunType, Step},
+    step::{CheckType, EXPR_CTX, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -29,6 +30,7 @@ use crate::{
     version,
 };
 
+#[serde_as]
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
@@ -39,6 +41,8 @@ pub struct Hook {
     pub steps: IndexMap<String, StepOrGroup>,
     pub fix: Option<bool>,
     pub stash: Option<StashMethod>,
+    #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
+    pub report: Option<Script>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -70,7 +74,7 @@ pub struct HookContext {
     total_jobs: std::sync::Mutex<usize>,
     completed_jobs: std::sync::Mutex<usize>,
     expr_ctx: std::sync::Mutex<expr::Context>,
-    pub timing: Option<Arc<TimingRecorder>>,
+    pub timing: Arc<TimingRecorder>,
 }
 
 impl HookContext {
@@ -84,9 +88,14 @@ impl HookContext {
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = EXPR_CTX.clone();
-        let timing = env::HK_TIMING_JSON
-            .as_ref()
-            .map(|path| Arc::new(TimingRecorder::new(path.clone())));
+        let mut timing = TimingRecorder::new(env::HK_TIMING_JSON.clone());
+        // Pre-populate timing metadata once before any jobs start
+        for group in &groups {
+            for step in group.steps.values() {
+                timing.set_step_profiles(&step.name, step.profiles.as_deref());
+                timing.set_step_interactive(&step.name, step.interactive);
+            }
+        }
         Self {
             file_locks: FileRwLocks::new(files),
             git,
@@ -101,7 +110,7 @@ impl HookContext {
             semaphore: Arc::new(Semaphore::new(settings.jobs.get())),
             failed: CancellationToken::new(),
             expr_ctx: std::sync::Mutex::new(expr_ctx),
-            timing,
+            timing: Arc::new(timing),
         }
     }
 
@@ -324,9 +333,26 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
-        if let Some(timing) = &hook_ctx.timing {
-            if let Err(err) = timing.write_json() {
-                warn!("Failed to write timing JSON: {err}");
+        if let Err(err) = hook_ctx.timing.write_json() {
+            warn!("Failed to write timing JSON: {err}");
+        }
+        // Run hook-level report if configured
+        if let Some(report) = &self.report {
+            if let Ok(json) = hook_ctx.timing.to_json_string() {
+                let mut cmd = ensembler::CmdLineRunner::new("sh")
+                    .arg("-o")
+                    .arg("errexit")
+                    .arg("-c");
+                let run = report.to_string();
+                cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
+                let pr = ProgressJobBuilder::new()
+                    .body("report: {{message}}")
+                    .prop("message", &run)
+                    .start();
+                cmd = cmd.with_pr(pr);
+                if let Err(err) = cmd.execute().await {
+                    warn!("Report command failed: {err}");
+                }
             }
         }
         result

@@ -162,6 +162,8 @@ Example usage:
 HK_TIMING_JSON=/tmp/hk-timing.json hk check
 ```
 
+Additionally, when a hook-level `report` command is configured in `hk.pkl`, hk will set `HK_REPORT_JSON` to the same timing JSON content (in-memory) and execute the command after the hook finishes. This enables custom scripts to post-process or upload timing data without reading a file.
+
 Example output shape:
 
 ```json

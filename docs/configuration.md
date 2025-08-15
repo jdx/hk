@@ -47,6 +47,8 @@ hooks {
     }
     ["check"] {
         steps = linters
+        // optional: run a report after the hook finishes; HK_REPORT_JSON contains timing JSON
+        report = #"node scripts/upload-timings.js <<<"$HK_REPORT_JSON""#
     }
 }
 ```
