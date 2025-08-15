@@ -17,7 +17,7 @@ clap = { version = "4", features = ["derive"] }
 clap_usage = "2"
 clx = "0.2"
 color-eyre = "0.6"
-console = "0.15"
+console = "0.16"
 dirs = "6"
 ensembler = "0.2"
 expr-lang = { version = "0.3.0", features = ["serde"] }
@@ -41,8 +41,8 @@ tera = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["full", "rt-multi-thread"] }
 tokio-util = "0.7"
-toml = "0.8"
-which = "7"
+toml = "0.9"
+which = "8"
 xx = { version = "2", features = ["http", "hash", "rustls"] }
 
 [profile.serious]
