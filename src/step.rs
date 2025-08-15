@@ -320,6 +320,11 @@ impl Step {
             return Ok(());
         }
         if self.run_cmd(ctx.hook_ctx.run_type).is_none() {
+            ctx.progress
+                .prop("message", "skipped: no command for run type");
+            ctx.progress
+                .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
+            ctx.depends.mark_done(&self.name)?;
             debug!("{self}: no available run type");
             return Ok(());
         }
@@ -338,7 +343,7 @@ impl Step {
             //     .prop("message", &format!("skipped: no files to process"));
             // ctx.progress
             //     .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
-            // ctx.depends.mark_done(&self.name)?;
+            ctx.depends.mark_done(&self.name)?;
             debug!("{self}: no files to run");
             return Ok(());
         }
