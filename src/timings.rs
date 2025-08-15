@@ -13,18 +13,18 @@ pub struct TimingRecorder {
     output_path: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct TimingReportTotal {
     wall_time_ms: u128,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct TimingReportJson {
     total: TimingReportTotal,
     steps: BTreeMap<String, TimingReportStep>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 struct TimingReportStep {
     wall_time_ms: u128,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,9 +91,9 @@ impl TimingRecorder {
         total
     }
 
-    pub fn write_json(&self) -> Result<()> {
+    fn build_report(&self) -> TimingReportJson {
         if let Some(parent) = self.output_path.parent() {
-            xx::file::mkdirp(parent)?;
+            let _ = xx::file::mkdirp(parent);
         }
         let elapsed_ms = self.start_instant.elapsed().as_millis();
         let mut steps: BTreeMap<String, TimingReportStep> = BTreeMap::new();
@@ -113,15 +113,25 @@ impl TimingRecorder {
                 },
             );
         }
-        let json = TimingReportJson {
+        TimingReportJson {
             total: TimingReportTotal {
                 wall_time_ms: elapsed_ms,
             },
             steps,
-        };
+        }
+    }
+
+    pub fn write_json(&self) -> Result<()> {
+        let json = self.build_report();
         let data = serde_json::to_vec_pretty(&json)?;
         xx::file::write(&self.output_path, &data)?;
         Ok(())
+    }
+
+    pub fn to_json_string(&self) -> Result<String> {
+        let json = self.build_report();
+        let s = serde_json::to_string_pretty(&json)?;
+        Ok(s)
     }
 }
 

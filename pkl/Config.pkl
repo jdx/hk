@@ -84,6 +84,8 @@ class Group {
 class Hook {
     fix: Boolean?
     stash: StashMethod?
+    /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
+    report: (String | Script)?
     steps: Mapping<String, Step | Group> = new Mapping<String, Step>{}
 }
 
