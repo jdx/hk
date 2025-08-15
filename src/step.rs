@@ -150,12 +150,32 @@ impl Step {
         })
     }
 
-    pub fn is_profile_enabled(&self) -> bool {
-        is_profile_enabled(
-            &self.name,
-            self.enabled_profiles(),
-            self.disabled_profiles(),
-        )
+    pub fn profile_skip_reason(&self) -> Option<SkipReason> {
+        let settings = Settings::get();
+        if let Some(enabled) = self.enabled_profiles() {
+            let missing_profiles = enabled
+                .difference(&settings.enabled_profiles)
+                .collect::<Vec<_>>();
+            if !missing_profiles.is_empty() {
+                return Some(SkipReason::ProfileNotEnabled);
+            }
+            let disabled_profiles = settings
+                .disabled_profiles
+                .intersection(&enabled)
+                .collect_vec();
+            if !disabled_profiles.is_empty() {
+                return Some(SkipReason::ProfileExplicitlyDisabled);
+            }
+        }
+        if let Some(disabled) = self.disabled_profiles() {
+            let disabled_profiles = disabled
+                .intersection(&settings.enabled_profiles)
+                .collect::<Vec<_>>();
+            if !disabled_profiles.is_empty() {
+                return Some(SkipReason::ProfileExplicitlyDisabled);
+            }
+        }
+        None
     }
 
     pub(crate) fn build_step_progress(&self) -> Arc<ProgressJob> {
@@ -253,9 +273,9 @@ impl Step {
             j.skip_reason = Some(msg);
             return Ok(vec![j]);
         }
-        if !self.is_profile_enabled() {
+        if let Some(reason) = self.profile_skip_reason() {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some(SkipReason::ProfileDisabled.message());
+            j.skip_reason = Some(reason.message());
             return Ok(vec![j]);
         }
         if self.run_cmd(run_type).is_none() {
@@ -642,43 +662,6 @@ impl ShellType {
             }
         }
     }
-}
-fn is_profile_enabled(
-    name: &str,
-    enabled: Option<IndexSet<String>>,
-    disabled: Option<IndexSet<String>>,
-) -> bool {
-    let settings = Settings::get();
-    if let Some(enabled) = enabled {
-        let missing_profiles = enabled
-            .difference(&settings.enabled_profiles)
-            .collect::<Vec<_>>();
-        if !missing_profiles.is_empty() {
-            let missing_profiles = missing_profiles.iter().join(", ");
-            debug!("{name}: skipping step due to missing profile: {missing_profiles}");
-            return false;
-        }
-        let disabled_profiles = settings
-            .disabled_profiles
-            .intersection(&enabled)
-            .collect_vec();
-        if !disabled_profiles.is_empty() {
-            let disabled_profiles = disabled_profiles.iter().join(", ");
-            debug!("{name}: skipping step due to disabled profile: {disabled_profiles}");
-            return false;
-        }
-    }
-    if let Some(disabled) = disabled {
-        let disabled_profiles = disabled
-            .intersection(&settings.enabled_profiles)
-            .collect::<Vec<_>>();
-        if !disabled_profiles.is_empty() {
-            let disabled_profiles = disabled_profiles.iter().join(", ");
-            debug!("{name}: skipping step due to disabled profile: {disabled_profiles}");
-            return false;
-        }
-    }
-    true
 }
 
 pub static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::default);

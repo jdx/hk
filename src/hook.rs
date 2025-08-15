@@ -34,7 +34,8 @@ use crate::{
 pub enum SkipReason {
     Env(String),
     Cli(String),
-    ProfileDisabled,
+    ProfileNotEnabled,
+    ProfileExplicitlyDisabled,
     NoCommandForRunType(RunType),
 }
 
@@ -44,7 +45,9 @@ impl SkipReason {
             SkipReason::Env(src) | SkipReason::Cli(src) => {
                 format!("skipped: disabled via {src}")
             }
-            SkipReason::ProfileDisabled => "skipped: disabled by profile".to_string(),
+            SkipReason::ProfileNotEnabled | SkipReason::ProfileExplicitlyDisabled => {
+                "skipped: disabled by profile".to_string()
+            }
             SkipReason::NoCommandForRunType(_) => "skipped: no command for run type".to_string(),
         }
     }
