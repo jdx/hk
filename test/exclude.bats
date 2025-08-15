@@ -18,7 +18,7 @@ hooks {
             ["prettier"] {
                 glob = List("*.js", "*.ts")
                 exclude = List("*.test.js", "*.test.ts")
-                check = "prettier --check {{files}}"
+                check = "prettier --no-color --check {{files}}"
             }
         }
     }
@@ -37,7 +37,7 @@ EOF
     git add test1.js test2.ts test3.test.js test4.test.ts
     run hk check -v
     assert_failure
-    assert_output --partial 'DEBUG $ prettier --check test1.js test2.ts
+    assert_output --partial 'DEBUG $ prettier --no-color --check test1.js test2.ts
 '
     assert_output --partial '[warn] Code style issues found in 2 files.'
 }
@@ -53,7 +53,7 @@ hooks {
                 dir = "src"
                 glob = List("*.js", "*.ts")
                 exclude = List("*.test.js", "*.test.ts")
-                check = "prettier --check {{files}}"
+                check = "prettier --no-color --check {{files}}"
             }
         }
     }
@@ -77,7 +77,7 @@ EOF
     git add src/test1.js src/test2.ts src/test3.test.js src/test4.test.ts test5.js test6.ts
     run hk check -v
     assert_failure
-    assert_output --partial 'DEBUG $ prettier --check test1.js test2.ts
+    assert_output --partial 'DEBUG $ prettier --no-color --check test1.js test2.ts
 '
     assert_output --partial '[warn] Code style issues found in 2 files.'
 } 
