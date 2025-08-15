@@ -14,6 +14,7 @@ teardown() {
 }
 
 @test "pre-push hook" {
+    export NO_COLOR=1
     if [ "$HK_LIBGIT2" = "0" ]; then
         skip "libgit2 is not installed"
     fi
