@@ -51,4 +51,8 @@ Print the plan instead of running the hook
 
 ### `-S --step… <STEP>`
 
-Run specific step(s)
+Run only specific step(s)
+
+### `--skip-step… <STEP>`
+
+Skip specific step(s)

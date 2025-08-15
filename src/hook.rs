@@ -30,6 +30,12 @@ use crate::{
     version,
 };
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum SkipReason {
+    Env(String),
+    Cli(String),
+}
+
 #[serde_as]
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -75,6 +81,7 @@ pub struct HookContext {
     completed_jobs: std::sync::Mutex<usize>,
     expr_ctx: std::sync::Mutex<expr::Context>,
     pub timing: Arc<TimingRecorder>,
+    pub skip_steps: IndexMap<String, SkipReason>,
 }
 
 impl HookContext {
@@ -85,6 +92,7 @@ impl HookContext {
         tctx: crate::tera::Context,
         run_type: RunType,
         hk_progress: Option<Arc<ProgressJob>>,
+        skip_steps: IndexMap<String, SkipReason>,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = EXPR_CTX.clone();
@@ -111,6 +119,7 @@ impl HookContext {
             failed: CancellationToken::new(),
             expr_ctx: std::sync::Mutex::new(expr_ctx),
             timing: Arc::new(timing),
+            skip_steps,
         }
     }
 
@@ -265,6 +274,16 @@ impl Hook {
             opts.tctx,
             run_type,
             hk_progress,
+            {
+                let mut m: IndexMap<String, SkipReason> = IndexMap::new();
+                for s in env::HK_SKIP_STEPS.iter() {
+                    m.insert(s.clone(), SkipReason::Env("HK_SKIP_STEPS".to_string()));
+                }
+                for s in opts.skip_step.into_iter() {
+                    m.insert(s.clone(), SkipReason::Cli(format!("--skip-step {}", s)));
+                }
+                m
+            },
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());

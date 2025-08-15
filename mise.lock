@@ -87,8 +87,13 @@ version = "0.58.2"
 backend = "asdf:swiftlint"
 
 [tools.usage]
-version = "2.2.1"
+version = "2.2.2"
 backend = "aqua:jdx/usage"
+
+[tools.usage.platforms.macos-arm64]
+checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01ac6"
+size = 5008766
+url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-apple-darwin.tar.gz"
 
 [tools.yq]
 version = "4.45.1"

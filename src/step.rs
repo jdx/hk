@@ -1,7 +1,7 @@
-use crate::timings::StepTimingGuard;
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
+use crate::{hook::SkipReason, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -304,27 +304,20 @@ impl Step {
     ) -> Result<()> {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
         // Handle skip conditions at the step level while still surfacing progress to the user
-        if env::HK_SKIP_STEPS.contains(&self.name) {
-            ctx.progress
-                .prop("message", "skipped: disabled via HK_SKIP_STEPS");
-            ctx.progress
-                .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
-            ctx.depends.mark_done(&self.name)?;
+        if let Some(reason) = ctx.hook_ctx.skip_steps.get(&self.name) {
+            let msg = match reason {
+                SkipReason::Env(src) => format!("skipped: disabled via {}", src),
+                SkipReason::Cli(src) => format!("skipped: disabled via {}", src),
+            };
+            self.mark_skipped(&ctx, &msg)?;
             return Ok(());
         }
         if !self.is_profile_enabled() {
-            ctx.progress.prop("message", "skipped: disabled by profile");
-            ctx.progress
-                .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
-            ctx.depends.mark_done(&self.name)?;
+            self.mark_skipped(&ctx, "skipped: disabled by profile")?;
             return Ok(());
         }
         if self.run_cmd(ctx.hook_ctx.run_type).is_none() {
-            ctx.progress
-                .prop("message", "skipped: no command for run type");
-            ctx.progress
-                .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
-            ctx.depends.mark_done(&self.name)?;
+            self.mark_skipped(&ctx, "skipped: no command for run type")?;
             debug!("{self}: no available run type");
             return Ok(());
         }
@@ -481,9 +474,7 @@ impl Step {
             let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
             debug!("{self}: condition: {condition} = {val}");
             if val == expr::Value::Bool(false) {
-                ctx.progress.prop("message", "skipped: condition is false");
-                ctx.progress
-                    .set_status(ProgressStatus::DoneCustom(style::eblue("⏭").to_string()));
+                self.mark_skipped(ctx, "skipped: condition is false")?;
                 return Ok(());
             }
         }
@@ -604,6 +595,14 @@ impl Step {
             "zsh" => ShellType::Zsh,
             _ => ShellType::Other(shell.to_string()),
         }
+    }
+
+    pub fn mark_skipped(&self, ctx: &StepContext, reason: &str) -> Result<()> {
+        ctx.progress.prop("message", reason);
+        let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
+        ctx.progress.set_status(status);
+        ctx.depends.mark_done(&self.name)?;
+        Ok(())
     }
 }
 

@@ -33,9 +33,12 @@ pub(crate) struct HookOptions {
     /// Print the plan instead of running the hook
     #[clap(short = 'P', long)]
     pub plan: bool,
-    /// Run specific step(s)
+    /// Run only specific step(s)
     #[clap(short = 'S', long)]
     pub step: Vec<String>,
+    /// Skip specific step(s)
+    #[clap(long, value_name = "STEP")]
+    pub skip_step: Vec<String>,
     /// Prefilled tera context
     #[clap(skip)]
     pub tctx: Context,

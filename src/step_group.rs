@@ -1,6 +1,6 @@
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::Context;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -12,7 +12,7 @@ use crate::{hook::HookContext, step::Step};
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
@@ -117,9 +117,9 @@ impl StepGroup {
                         hook_ctx: ctx.hook_ctx.clone(),
                         depends: depends.clone(),
                         progress: s.build_step_progress(),
-                        files_added: Arc::new(std::sync::Mutex::new(0)),
-                        jobs_remaining: Arc::new(std::sync::Mutex::new(0)),
-                        jobs_total: std::sync::Mutex::new(0),
+                        files_added: Arc::new(Mutex::new(IndexSet::new())),
+                        jobs_remaining: Arc::new(Mutex::new(0)),
+                        jobs_total: Mutex::new(0),
                         status: Default::default(),
                     }),
                 )
