@@ -2,7 +2,7 @@ use crate::timings::StepTimingGuard;
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
-use crate::{step_context::StepContext, tera};
+use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
 use eyre::{WrapErr, eyre};
@@ -303,6 +303,25 @@ impl Step {
         semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
+        // Handle skip conditions at the step level while still surfacing progress to the user
+        if env::HK_SKIP_STEPS.contains(&self.name) {
+            let progress = ctx.progress.as_ref();
+            progress.prop("message", "skipped: disabled via HK_SKIP_STEPS");
+            progress.set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
+            ctx.depends.mark_done(&self.name)?;
+            return Ok(());
+        }
+        if !self.is_profile_enabled() {
+            let progress = ctx.progress.as_ref();
+            progress.prop("message", "skipped: disabled by profile");
+            progress.set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
+            ctx.depends.mark_done(&self.name)?;
+            return Ok(());
+        }
+        if self.run_cmd(ctx.hook_ctx.run_type).is_none() {
+            debug!("{self}: no available run type");
+            return Ok(());
+        }
         let files = ctx.hook_ctx.files();
         let ctx = Arc::new(ctx);
         let mut jobs = self.build_step_jobs(
@@ -313,8 +332,13 @@ impl Step {
         if let Some(job) = jobs.first_mut() {
             job.semaphore = Some(semaphore);
         } else {
-            ctx.depends.mark_done(&self.name)?;
-            debug!("{self}: no jobs to run");
+            // // No jobs due to no matching files or other filters; surface a skip message
+            // ctx.progress
+            //     .prop("message", &format!("skipped: no files to process"));
+            // ctx.progress
+            //     .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
+            // ctx.depends.mark_done(&self.name)?;
+            debug!("{self}: no files to run");
             return Ok(());
         }
         ctx.set_jobs_total(jobs.len());
@@ -451,6 +475,13 @@ impl Step {
             let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
             trace!("{self}: condition: {condition} = {val}");
             if val == expr::Value::Bool(false) {
+                // show skipped with reason
+                if job.progress.is_none() {
+                    job.progress = Some(job.build_progress(ctx));
+                }
+                let progress = job.progress.as_ref().unwrap();
+                progress.prop("message", "skipped: condition is false");
+                progress.set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
                 return Ok(());
             }
         }

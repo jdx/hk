@@ -182,7 +182,7 @@ impl Hook {
         }
     }
 
-    fn get_step_groups(&self, run_type: RunType, opts: &HookOptions) -> Vec<StepGroup> {
+    fn get_step_groups(&self, opts: &HookOptions) -> Vec<StepGroup> {
         let mut steps = self.steps.values().cloned().collect_vec();
         if !opts.step.is_empty() {
             steps = steps
@@ -196,33 +196,15 @@ impl Hook {
                 })
                 .collect_vec();
         }
-        let step_ok = |step: &Step| {
-            if step.run_cmd(run_type).is_none() {
-                debug!("{step}: skipping step due to no available run type");
-                false
-            } else if env::HK_SKIP_STEPS.contains(&step.name) {
-                debug!("{step}: skipping step due to HK_SKIP_STEPS");
-                false
-            } else {
-                step.is_profile_enabled()
-            }
-        };
-        let steps = steps
-            .into_iter()
-            .filter_map(|s| match s {
-                StepOrGroup::Step(ref step) => step_ok(step).then_some(s),
-                StepOrGroup::Group(mut group) => {
-                    group.steps.retain(|_, s| step_ok(s));
-                    Some(StepOrGroup::Group(group))
-                }
-            })
-            .collect_vec();
+        // Do not filter steps here; allow all selected steps to be planned/run.
+        // Each step will decide at execution time whether to skip while still
+        // showing a progress message to the user.
         StepGroup::build_all(steps)
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
         let run_type = self.run_type(&opts);
-        let groups = self.get_step_groups(run_type, &opts);
+        let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = OnceCell::new();
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
@@ -254,7 +236,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = OnceCell::new();
-        let groups = self.get_step_groups(run_type, &opts);
+        let groups = self.get_step_groups(&opts);
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
         let hk_progress = self.start_hk_progress(run_type, groups.len());
         let file_progress = ProgressJobBuilder::new().body(
