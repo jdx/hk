@@ -1,7 +1,7 @@
-use crate::timings::StepTimingGuard;
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
+use crate::{hook::SkipReason, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -248,25 +248,23 @@ impl Step {
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
-            let msg = match skip_steps.get(&self.name).unwrap() {
-                crate::hook::SkipReason::Env(src) => format!("skipped: disabled via {src}"),
-                crate::hook::SkipReason::Cli(src) => format!("skipped: disabled via {src}"),
-            };
+            let msg = skip_steps.get(&self.name).unwrap().message();
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(msg);
             return Ok(vec![j]);
         }
         if !self.is_profile_enabled() {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some("skipped: disabled by profile".to_string());
+            j.skip_reason = Some(SkipReason::ProfileDisabled.message());
             return Ok(vec![j]);
         }
         if self.run_cmd(run_type).is_none() {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some("skipped: no command for run type".to_string());
+            j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type).message());
             return Ok(vec![j]);
         }
         if let Some(condition) = &self.condition {
+            // TODO: this should be evaluated during the step run, not here
             if let Ok(val) = EXPR_ENV.eval(condition, expr_ctx) {
                 if val == expr::Value::Bool(false) {
                     let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);

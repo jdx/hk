@@ -1,6 +1,7 @@
 use crate::{hook::HookContext, step::Step, step_depends::StepDepends, ui::style};
 use clx::progress::{ProgressJob, ProgressStatus};
 use indexmap::IndexSet;
+use itertools::Itertools;
 use std::{
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -109,12 +110,12 @@ impl StepContext {
         } else if files_added.len() > 3 {
             format!("{} files modified", files_added.len())
         } else if files_added.len() > 1 {
-            format!("{} files modified – {{files}}", files_added.len())
+            let len = files_added.len();
+            let files = files_added.iter().map(|f| f.display()).join(", ");
+            format!("{len} files modified – {files}")
         } else if files_added.len() == 1 {
-            format!(
-                "1 file modified – {}",
-                files_added.iter().next().unwrap().display()
-            )
+            let file = files_added.iter().next().unwrap().display();
+            format!("1 file modified – {file}")
         } else {
             "".to_string()
         };
