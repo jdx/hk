@@ -196,9 +196,6 @@ impl Hook {
                 })
                 .collect_vec();
         }
-        // Do not filter steps here; allow all selected steps to be planned/run.
-        // Each step will decide at execution time whether to skip while still
-        // showing a progress message to the user.
         StepGroup::build_all(steps)
     }
 

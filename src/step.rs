@@ -305,16 +305,17 @@ impl Step {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
         // Handle skip conditions at the step level while still surfacing progress to the user
         if env::HK_SKIP_STEPS.contains(&self.name) {
-            let progress = ctx.progress.as_ref();
-            progress.prop("message", "skipped: disabled via HK_SKIP_STEPS");
-            progress.set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
+            ctx.progress
+                .prop("message", "skipped: disabled via HK_SKIP_STEPS");
+            ctx.progress
+                .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
             ctx.depends.mark_done(&self.name)?;
             return Ok(());
         }
         if !self.is_profile_enabled() {
-            let progress = ctx.progress.as_ref();
-            progress.prop("message", "skipped: disabled by profile");
-            progress.set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
+            ctx.progress.prop("message", "skipped: disabled by profile");
+            ctx.progress
+                .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
             ctx.depends.mark_done(&self.name)?;
             return Ok(());
         }
@@ -473,15 +474,11 @@ impl Step {
         }
         if let Some(condition) = &self.condition {
             let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
-            trace!("{self}: condition: {condition} = {val}");
+            debug!("{self}: condition: {condition} = {val}");
             if val == expr::Value::Bool(false) {
-                // show skipped with reason
-                if job.progress.is_none() {
-                    job.progress = Some(job.build_progress(ctx));
-                }
-                let progress = job.progress.as_ref().unwrap();
-                progress.prop("message", "skipped: condition is false");
-                progress.set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
+                ctx.progress.prop("message", "skipped: condition is false");
+                ctx.progress
+                    .set_status(ProgressStatus::DoneCustom(style::eblue("⏭").to_string()));
                 return Ok(());
             }
         }

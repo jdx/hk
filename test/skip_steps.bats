@@ -33,5 +33,5 @@ EOF
     run hk run pre-commit -v
     assert_success
     assert_output --partial "prettier"
-    assert_output --partial "shellcheck: skipping step due to HK_SKIP_STEPS"
+    assert_output --partial "shellcheck – skipped: disabled via HK_SKIP_STEPS"
 } 

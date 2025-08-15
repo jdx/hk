@@ -54,10 +54,18 @@ run = "cargo test"
 [tasks.test-bats]
 alias = "tb"
 depends = ["build"]
-run = [
-  "HK_LIBGIT2=0 bats {{arg(name='test', var=true, default='test')}}",
-  "HK_LIBGIT2=1 bats {{arg(name='test', var=true, default='test')}}",
-]
+run = '''
+tests={{arg(name='test', var=true, default='test')}}
+mise run test-bats:libgit2 $tests ::: test-bats:nolibgit2 $tests
+'''
+
+[tasks."test-bats:libgit2"]
+depends = ["build"]
+run = "HK_LIBGIT2=1 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
+
+[tasks."test-bats:nolibgit2"]
+depends = ["build"]
+run = "HK_LIBGIT2=0 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
 
 [tasks.dist]
 run = "pkl project package pkl --output-path docs/public/pkl"
