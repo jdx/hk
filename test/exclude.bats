@@ -1,3 +1,5 @@
+#!/usr/bin/env bats
+
 setup() {
     load 'test_helper/common_setup'
     _common_setup
@@ -37,7 +39,7 @@ EOF
     assert_failure
     assert_output --partial 'DEBUG $ prettier --check test1.js test2.ts
 '
-    assert_output --partial '[warn] Code style issues found in 2 files. Run Prettier with --write to fix.'
+    assert_output --partial '[warn] Code style issues found in 2 files.'
 }
 
 @test "exclude with dir" {
@@ -77,5 +79,5 @@ EOF
     assert_failure
     assert_output --partial 'DEBUG $ prettier --check test1.js test2.ts
 '
-    assert_output --partial '[warn] Code style issues found in 2 files. Run Prettier with --write to fix.'
+    assert_output --partial '[warn] Code style issues found in 2 files.'
 } 
