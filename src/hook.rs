@@ -88,7 +88,14 @@ impl HookContext {
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = EXPR_CTX.clone();
-        let timing = TimingRecorder::new(env::HK_TIMING_JSON.clone());
+        let mut timing = TimingRecorder::new(env::HK_TIMING_JSON.clone());
+        // Pre-populate timing metadata once before any jobs start
+        for group in &groups {
+            for step in group.steps.values() {
+                timing.set_step_profiles(&step.name, step.profiles.as_deref());
+                timing.set_step_interactive(&step.name, step.interactive);
+            }
+        }
         Self {
             file_locks: FileRwLocks::new(files),
             git,

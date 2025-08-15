@@ -97,6 +97,7 @@ impl StepGroup {
 
     pub async fn run(&self, ctx: StepGroupContext) -> Result<()> {
         let settings = Settings::get();
+        // timing metadata already pre-populated in HookContext::new
         let depends = Arc::new(StepDepends::new(
             &self
                 .steps
