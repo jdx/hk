@@ -7,7 +7,7 @@ use std::{
     collections::{BTreeSet, HashSet},
     ffi::OsString,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex as StdMutex},
 };
 use tokio::{
     signal,
@@ -108,16 +108,16 @@ impl HookContext {
             file_locks: FileRwLocks::new(files),
             git,
             hk_progress,
-            total_jobs: std::sync::Mutex::new(groups.iter().map(|g| g.steps.len()).sum()),
-            completed_jobs: std::sync::Mutex::new(0),
+            total_jobs: StdMutex::new(groups.iter().map(|g| g.steps.len()).sum()),
+            completed_jobs: StdMutex::new(0),
             groups,
             tctx,
             run_type,
-            step_contexts: std::sync::Mutex::new(Default::default()),
-            files_in_contention: std::sync::Mutex::new(Default::default()),
+            step_contexts: StdMutex::new(Default::default()),
+            files_in_contention: StdMutex::new(Default::default()),
             semaphore: Arc::new(Semaphore::new(settings.jobs.get())),
             failed: CancellationToken::new(),
-            expr_ctx: std::sync::Mutex::new(expr_ctx),
+            expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
             skip_steps,
         }
@@ -220,7 +220,7 @@ impl Hook {
         let files = self
             .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
             .await?;
-        if files.is_empty() && can_exit_early(&groups, &files, run_type) {
+        if files.is_empty() && can_exit_early(&groups, &files, run_type, &IndexMap::new()) {
             info!("no files to run");
             return Ok(());
         }
@@ -260,7 +260,17 @@ impl Hook {
             )
             .await?;
 
-        if files.is_empty() && can_exit_early(&groups, &files, run_type) {
+        let skip_steps = {
+            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
+            for s in env::HK_SKIP_STEPS.iter() {
+                m.insert(s.clone(), SkipReason::Env("HK_SKIP_STEPS".to_string()));
+            }
+            for s in opts.skip_step.iter() {
+                m.insert(s.clone(), SkipReason::Cli(format!("--skip-step {}", s)));
+            }
+            m
+        };
+        if files.is_empty() && can_exit_early(&groups, &files, run_type, &skip_steps) {
             info!("no files to run");
             if let Some(hk_progress) = &hk_progress {
                 hk_progress.set_status(ProgressStatus::Hide);
@@ -274,16 +284,7 @@ impl Hook {
             opts.tctx,
             run_type,
             hk_progress,
-            {
-                let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-                for s in env::HK_SKIP_STEPS.iter() {
-                    m.insert(s.clone(), SkipReason::Env("HK_SKIP_STEPS".to_string()));
-                }
-                for s in opts.skip_step.into_iter() {
-                    m.insert(s.clone(), SkipReason::Cli(format!("--skip-step {}", s)));
-                }
-                m
-            },
+            skip_steps,
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
@@ -517,12 +518,18 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn can_exit_early(groups: &[StepGroup], files: &BTreeSet<PathBuf>, run_type: RunType) -> bool {
+fn can_exit_early(
+    groups: &[StepGroup],
+    files: &BTreeSet<PathBuf>,
+    run_type: RunType,
+    skip_steps: &IndexMap<String, SkipReason>,
+) -> bool {
     let files = files.iter().cloned().collect::<Vec<_>>();
     groups.iter().all(|g| {
         g.steps.iter().all(|(_, s)| {
-            s.build_step_jobs(&files, run_type, &Default::default())
-                .is_ok_and(|jobs| jobs.is_empty())
+            // Reuse job builder to determine if this step has any runnable work
+            s.build_step_jobs(&files, run_type, &Default::default(), skip_steps, &EXPR_CTX)
+                .is_ok_and(|jobs| jobs.iter().all(|j| j.skip_reason.is_some()))
         })
     })
 }

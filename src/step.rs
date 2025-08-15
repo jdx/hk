@@ -1,7 +1,7 @@
+use crate::timings::StepTimingGuard;
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
-use crate::{hook::SkipReason, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -243,12 +243,45 @@ impl Step {
         files: &[PathBuf],
         run_type: RunType,
         files_in_contention: &HashSet<PathBuf>,
+        skip_steps: &indexmap::IndexMap<String, crate::hook::SkipReason>,
+        expr_ctx: &expr::Context,
     ) -> Result<Vec<StepJob>> {
+        // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
+        if skip_steps.contains_key(&self.name) {
+            let msg = match skip_steps.get(&self.name).unwrap() {
+                crate::hook::SkipReason::Env(src) => format!("skipped: disabled via {src}"),
+                crate::hook::SkipReason::Cli(src) => format!("skipped: disabled via {src}"),
+            };
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            j.skip_reason = Some(msg);
+            return Ok(vec![j]);
+        }
+        if !self.is_profile_enabled() {
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            j.skip_reason = Some("skipped: disabled by profile".to_string());
+            return Ok(vec![j]);
+        }
+        if self.run_cmd(run_type).is_none() {
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            j.skip_reason = Some("skipped: no command for run type".to_string());
+            return Ok(vec![j]);
+        }
+        if let Some(condition) = &self.condition {
+            if let Ok(val) = EXPR_ENV.eval(condition, expr_ctx) {
+                if val == expr::Value::Bool(false) {
+                    let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+                    j.skip_reason = Some("skipped: condition is false".to_string());
+                    return Ok(vec![j]);
+                }
+            }
+        }
         let files = self.filter_files(files)?;
         if files.is_empty() && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
         {
             debug!("{self}: no file matches for step");
-            return Ok(Default::default());
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            j.skip_reason = Some("skipped: no files to process".to_string());
+            return Ok(vec![j]);
         }
         let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
             let mut files = files.clone();
@@ -303,50 +336,30 @@ impl Step {
         semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
-        // Handle skip conditions at the step level while still surfacing progress to the user
-        if let Some(reason) = ctx.hook_ctx.skip_steps.get(&self.name) {
-            let msg = match reason {
-                SkipReason::Env(src) => format!("skipped: disabled via {}", src),
-                SkipReason::Cli(src) => format!("skipped: disabled via {}", src),
-            };
-            self.mark_skipped(&ctx, &msg)?;
-            return Ok(());
-        }
-        if !self.is_profile_enabled() {
-            self.mark_skipped(&ctx, "skipped: disabled by profile")?;
-            return Ok(());
-        }
-        if self.run_cmd(ctx.hook_ctx.run_type).is_none() {
-            self.mark_skipped(&ctx, "skipped: no command for run type")?;
-            debug!("{self}: no available run type");
-            return Ok(());
-        }
         let files = ctx.hook_ctx.files();
         let ctx = Arc::new(ctx);
         let mut jobs = self.build_step_jobs(
             &files,
             ctx.hook_ctx.run_type,
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
+            &ctx.hook_ctx.skip_steps,
+            &ctx.hook_ctx.expr_ctx(),
         )?;
         if let Some(job) = jobs.first_mut() {
             job.semaphore = Some(semaphore);
-        } else {
-            // // No jobs due to no matching files or other filters; surface a skip message
-            // ctx.progress
-            //     .prop("message", &format!("skipped: no files to process"));
-            // ctx.progress
-            //     .set_status(ProgressStatus::DoneCustom(style::edim("⏭").to_string()));
-            ctx.depends.mark_done(&self.name)?;
-            debug!("{self}: no files to run");
-            return Ok(());
         }
-        ctx.set_jobs_total(jobs.len());
+        let non_skip_jobs = jobs.iter().filter(|j| j.skip_reason.is_none()).count();
+        ctx.set_jobs_total(non_skip_jobs);
         let mut set = tokio::task::JoinSet::new();
         for job in jobs {
             let ctx = ctx.clone();
             let step = self.clone();
             let mut job = job;
             set.spawn(async move {
+                if let Some(reason) = job.skip_reason.clone() {
+                    step.mark_skipped(&ctx, &reason)?;
+                    return Ok(());
+                }
                 ctx.hook_ctx.inc_total_jobs(1);
                 if job.check_first {
                     let prev_run_type = job.run_type;
@@ -355,6 +368,7 @@ impl Step {
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
+                            ctx.hook_ctx.inc_completed_jobs(1);
                             return Ok(());
                         }
                         Err(e) => {
@@ -382,11 +396,11 @@ impl Step {
                 if let Err(err) = &result {
                     job.status_errored(&ctx, format!("{err}")).await?;
                 }
+                ctx.hook_ctx.inc_completed_jobs(1);
                 result
             });
         }
         while let Some(res) = set.join_next().await {
-            ctx.hook_ctx.inc_completed_jobs(1);
             match res {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
@@ -416,7 +430,7 @@ impl Step {
             ctx.status_aborted();
             return Ok(());
         }
-        if matches!(ctx.hook_ctx.run_type, RunType::Fix) {
+        if non_skip_jobs > 0 && matches!(ctx.hook_ctx.run_type, RunType::Fix) {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
             let stage: Vec<OsString> = self
                 .stage
@@ -442,8 +456,10 @@ impl Step {
                 }
             }
         }
-        ctx.status_finished();
-        ctx.depends.mark_done(&self.name)?;
+        if non_skip_jobs > 0 {
+            ctx.status_finished();
+            ctx.depends.mark_done(&self.name)?;
+        }
         Ok(())
     }
 
