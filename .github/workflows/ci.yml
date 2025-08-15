@@ -29,13 +29,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
+      - run: brew install parallel
+        if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v2
       - run: mise x -- bun i
-      - uses: nick-fields/retry@v3
+      - name: mise run ci
+        uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
           max_attempts: 3
