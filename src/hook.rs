@@ -125,7 +125,7 @@ impl HookContext {
             file_locks: FileRwLocks::new(files),
             git,
             hk_progress,
-            total_jobs: StdMutex::new(groups.iter().map(|g| g.steps.len()).sum()),
+            total_jobs: StdMutex::new(0),
             completed_jobs: StdMutex::new(0),
             groups,
             tctx,
@@ -261,7 +261,7 @@ impl Hook {
         let git_status = OnceCell::new();
         let groups = self.get_step_groups(&opts);
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
-        let hk_progress = self.start_hk_progress(run_type, groups.len());
+        let hk_progress = self.start_hk_progress(run_type, 0);
         let file_progress = ProgressJobBuilder::new().body(
             "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}"
         )
