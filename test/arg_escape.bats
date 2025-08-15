@@ -7,6 +7,7 @@ teardown() {
 }
 
 @test "arg escape" {
+    export NO_COLOR=1
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"

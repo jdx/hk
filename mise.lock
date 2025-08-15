@@ -3,98 +3,116 @@ version = "1.7.7"
 backend = "aqua:rhysd/actionlint"
 
 [tools.bun]
-version = "1.2.9"
+version = "1.2.20"
 backend = "core:bun"
 
 [tools.bun.platforms.macos-arm64]
-checksum = "blake3:1028f4cc166433af0b326cdcb02f0b709744ca17079d4d6b4230f39671f2c63b"
-size = 20821598
+checksum = "blake3:d5f7acc00f0fefc647a50cdfce5a0a20a311ca61f82709d60ae1d627e40b2573"
+size = 21788202
 
 [tools.cargo-binstall]
-version = "1.11.0"
+version = "1.14.4"
 backend = "aqua:cargo-bins/cargo-binstall"
 
 [tools.cargo-binstall.platforms.macos-arm64]
-checksum = "blake3:b664c4a01a4b00dae467f19d58d15783eab51d38cb6cc93e429a74324450950b"
-size = 6017989
-url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.11.0/cargo-binstall-aarch64-apple-darwin.zip"
+checksum = "blake3:86599ab2c99d951d1700a564616926d40efde0014a5306b68df335749135b0e6"
+size = 5938563
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-aarch64-apple-darwin.zip"
 
 [tools."cargo:cargo-edit"]
-version = "0.13.4"
+version = "0.13.7"
 backend = "cargo:cargo-edit"
 
 [tools."cargo:cargo-msrv"]
-version = "0.18.1"
+version = "0.18.4"
 backend = "cargo:cargo-msrv"
 
 [tools."cargo:cargo-release"]
-version = "0.25.15"
+version = "0.25.18"
 backend = "cargo:cargo-release"
 
 [tools.git-cliff]
-version = "2.8.0"
+version = "2.10.0"
 backend = "aqua:orhun/git-cliff"
 
 [tools.git-cliff.platforms.macos-arm64]
-checksum = "sha512:bc841df00273f011e3a88c1d92b3bcd92482647c6721a31eb79f341f65b663386b22b53fd67dcf967b83ef6d1032d176ff0aa74d86a36c9f5f42272b4289720e"
-size = 6382618
-url = "https://github.com/orhun/git-cliff/releases/download/v2.8.0/git-cliff-2.8.0-x86_64-apple-darwin.tar.gz"
+checksum = "sha512:349a6d47b41cd57462148ce94ff1c1b0b0f8eba3f0abfce4af4e5164f74acda15b63808ddf1dc723cad2cb688ce307a22628e539e2a5a4f3c29c779b935409c8"
+size = 6638495
+url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-apple-darwin.tar.gz"
 
 [tools.hadolint]
 version = "2.12.0"
 backend = "ubi:hadolint/hadolint"
 
 [tools.ktlint]
-version = "1.5.0"
+version = "1.7.1"
 backend = "aqua:pinterest/ktlint"
 
 [tools.ktlint.platforms.macos-arm64]
-checksum = "blake3:9391544f30283697c28f79b427cbba4613c40409cdb6cfb09da997b358a1abaf"
-size = 67429929
-url = "https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint-1.5.0.zip"
+checksum = "blake3:bf2916c0929214315774f53f82c6ef40937b36109b69ee55dc3ab8671a190459"
+size = 64558883
+url = "https://github.com/pinterest/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
 
 [tools.node]
-version = "24.4.1"
+version = "24.6.0"
 backend = "core:node"
 
+[tools.node.platforms.macos-arm64]
+checksum = "sha256:768f14952403e3025fed8e2887500dfa63eeb55628a9b203e4b8ebb0fb09c7eb"
+size = 51024329
+url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-darwin-arm64.tar.gz"
+
 [tools."npm:prettier"]
-version = "3.5.2"
+version = "3.6.2"
 backend = "npm:prettier"
 
 [tools."npm:stylelint"]
-version = "16.14.1"
+version = "16.23.1"
 backend = "npm:stylelint"
 
 [tools.pkl]
-version = "0.28.1"
+version = "0.29.0"
 backend = "aqua:apple/pkl"
 
 [tools.pkl.platforms.macos-arm64]
-checksum = "blake3:d3f028c59eb6e3493c92b63f85cfe57091bd7e39f980622bb11aa51a5d477887"
-size = 102083360
-url = "https://github.com/apple/pkl/releases/download/0.28.1/pkl-macos-aarch64"
+checksum = "blake3:b70836a640dc8ff41aa19f3edd7748a6ba7a281fb85335a48e59cd29c796b1ee"
+size = 104891168
+url = "https://github.com/apple/pkl/releases/download/0.29.0/pkl-macos-aarch64"
 
 [tools.ripgrep]
 version = "14.1.1"
 backend = "aqua:BurntSushi/ripgrep"
 
 [tools.shellcheck]
-version = "0.10.0"
+version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
 
+[tools.shellcheck.platforms.macos-arm64-shellcheck]
+checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829f45"
+
 [tools.swiftlint]
-version = "0.58.2"
+version = "0.59.1"
 backend = "asdf:swiftlint"
 
+[tools.swiftlint.platforms.macos-arm64]
+checksum = "blake3:6164196a72866dbd8b324acd6fc73099e2d128d1a996b6807b8bae28f18176f1"
+size = 11034974
+url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
+
 [tools.usage]
-version = "2.2.1"
+version = "2.2.2"
 backend = "aqua:jdx/usage"
 
+[tools.usage.platforms.macos-arm64]
+checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01ac6"
+size = 5008766
+url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-apple-darwin.tar.gz"
+
 [tools.yq]
-version = "4.45.1"
+version = "4.47.1"
 backend = "aqua:mikefarah/yq"
 
 [tools.yq.platforms.macos-arm64]
-checksum = "blake3:450f7d06f0e20a0557e04736042fe9ce7bb903a46d70486ad52394759047239b"
-size = 10217346
-url = "https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_darwin_arm64"
+checksum = "blake3:576374b350e23e8a83123dbb2008bb9115c27cc6569699bfdd6b034562969f16"
+size = 11079202
+url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_darwin_arm64"
