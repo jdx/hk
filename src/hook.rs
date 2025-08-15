@@ -74,7 +74,7 @@ pub struct HookContext {
     total_jobs: std::sync::Mutex<usize>,
     completed_jobs: std::sync::Mutex<usize>,
     expr_ctx: std::sync::Mutex<expr::Context>,
-    pub timing: Option<Arc<TimingRecorder>>,
+    pub timing: Arc<TimingRecorder>,
 }
 
 impl HookContext {
@@ -88,11 +88,7 @@ impl HookContext {
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = EXPR_CTX.clone();
-        let timing = Some(Arc::new(TimingRecorder::new(
-            env::HK_TIMING_JSON
-                .clone()
-                .unwrap_or(env::HK_STATE_DIR.join("timing.json")),
-        )));
+        let timing = TimingRecorder::new(env::HK_TIMING_JSON.clone());
         Self {
             file_locks: FileRwLocks::new(files),
             git,
@@ -107,7 +103,7 @@ impl HookContext {
             semaphore: Arc::new(Semaphore::new(settings.jobs.get())),
             failed: CancellationToken::new(),
             expr_ctx: std::sync::Mutex::new(expr_ctx),
-            timing,
+            timing: Arc::new(timing),
         }
     }
 
@@ -330,30 +326,25 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
-        if let Some(timing) = &hook_ctx.timing {
-            // Write file if requested
-            if env::HK_TIMING_JSON.is_some() {
-                if let Err(err) = timing.write_json() {
-                    warn!("Failed to write timing JSON: {err}");
-                }
-            }
-            // Run hook-level report if configured
-            if let Some(report) = &self.report {
-                if let Ok(json) = timing.to_json_string() {
-                    let mut cmd = ensembler::CmdLineRunner::new("sh")
-                        .arg("-o")
-                        .arg("errexit")
-                        .arg("-c");
-                    let run = report.to_string();
-                    cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
-                    let pr = ProgressJobBuilder::new()
-                        .body("report: {{message}}")
-                        .prop("message", &run)
-                        .start();
-                    cmd = cmd.with_pr(pr);
-                    if let Err(err) = cmd.execute().await {
-                        warn!("Report command failed: {err}");
-                    }
+        if let Err(err) = hook_ctx.timing.write_json() {
+            warn!("Failed to write timing JSON: {err}");
+        }
+        // Run hook-level report if configured
+        if let Some(report) = &self.report {
+            if let Ok(json) = hook_ctx.timing.to_json_string() {
+                let mut cmd = ensembler::CmdLineRunner::new("sh")
+                    .arg("-o")
+                    .arg("errexit")
+                    .arg("-c");
+                let run = report.to_string();
+                cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
+                let pr = ProgressJobBuilder::new()
+                    .body("report: {{message}}")
+                    .prop("message", &run)
+                    .start();
+                cmd = cmd.with_pr(pr);
+                if let Err(err) = cmd.execute().await {
+                    warn!("Report command failed: {err}");
                 }
             }
         }

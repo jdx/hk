@@ -523,15 +523,9 @@ impl Step {
             let value = tera::render(value, &tctx)?;
             cmd = cmd.env(key, value);
         }
-        let mut timing_guard = ctx
-            .hook_ctx
-            .timing
-            .clone()
-            .map(|t| StepTimingGuard::new(t, self));
+        let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
         let exec_result = cmd.execute().await;
-        if let Some(g) = timing_guard.take() {
-            g.finish();
-        }
+        timing_guard.finish();
         if self.interactive {
             clx::progress::resume();
         }

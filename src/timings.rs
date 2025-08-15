@@ -10,7 +10,7 @@ pub struct TimingRecorder {
     intervals_by_step: StdMutex<BTreeMap<String, Vec<(u128, u128)>>>,
     step_profiles: StdMutex<BTreeMap<String, Vec<String>>>,
     step_interactive: StdMutex<BTreeMap<String, bool>>,
-    output_path: PathBuf,
+    output_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -33,7 +33,7 @@ struct TimingReportStep {
 }
 
 impl TimingRecorder {
-    pub fn new(output_path: PathBuf) -> Self {
+    pub fn new(output_path: Option<PathBuf>) -> Self {
         Self {
             start_instant: Instant::now(),
             intervals_by_step: StdMutex::new(BTreeMap::new()),
@@ -92,9 +92,6 @@ impl TimingRecorder {
     }
 
     fn build_report(&self) -> TimingReportJson {
-        if let Some(parent) = self.output_path.parent() {
-            let _ = xx::file::mkdirp(parent);
-        }
         let elapsed_ms = self.start_instant.elapsed().as_millis();
         let mut steps: BTreeMap<String, TimingReportStep> = BTreeMap::new();
         let mut map = self.intervals_by_step.lock().unwrap();
@@ -122,9 +119,15 @@ impl TimingRecorder {
     }
 
     pub fn write_json(&self) -> Result<()> {
+        let Some(output_path) = &self.output_path else {
+            return Ok(());
+        };
         let json = self.build_report();
         let data = serde_json::to_vec_pretty(&json)?;
-        xx::file::write(&self.output_path, &data)?;
+        if let Some(parent) = output_path.parent() {
+            xx::file::mkdirp(parent)?;
+        }
+        xx::file::write(output_path, &data)?;
         Ok(())
     }
 
