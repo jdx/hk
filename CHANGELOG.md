@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.7.0](https://github.com/jdx/hk/compare/v1.6.0..v1.7.0) - 2025-08-16
+
+### 🚀 Features
+
+- make stderr display in progress bars configurable by [@jdx](https://github.com/jdx) in [#155](https://github.com/jdx/hk/pull/155)
+
+### 🐛 Bug Fixes
+
+- properly display aborted steps when fail-fast triggers by [@jdx](https://github.com/jdx) in [#154](https://github.com/jdx/hk/pull/154)
+
 ## [1.6.0](https://github.com/jdx/hk/compare/v1.5.0..v1.6.0) - 2025-08-16
 
 ### 🚀 Features
@@ -9,12 +19,14 @@
 - display message when steps are skipped by [@jdx](https://github.com/jdx) in [#146](https://github.com/jdx/hk/pull/146)
 - convert xx, clx, and ensembler to git subtrees by [@jdx](https://github.com/jdx) in [aa87ee3](https://github.com/jdx/hk/commit/aa87ee35b1d81277212253070865f06fc06b0a87)
 - add configurable skip message visibility by [@jdx](https://github.com/jdx) in [#151](https://github.com/jdx/hk/pull/151)
+- allow hiding warnings by [@jdx](https://github.com/jdx) in [#153](https://github.com/jdx/hk/pull/153)
 
 ### 🐛 Bug Fixes
 
 - libgit2 issue with merging stash diffs by [@jdx](https://github.com/jdx) in [8e1de78](https://github.com/jdx/hk/commit/8e1de7808b0c46b8d0d3ed99bb99be3ac26f672a)
 - bug with truncation of progress by [@jdx](https://github.com/jdx) in [5c81a0c](https://github.com/jdx/hk/commit/5c81a0c2161ad4f622889167bae16f7e25230d59)
 - update release-plz script for git subtrees by [@jdx](https://github.com/jdx) in [b55134c](https://github.com/jdx/hk/commit/b55134c8c5081b57f93b049f59f6e85a32fb9a39)
+- vendor libgit2 by [@jdx](https://github.com/jdx) in [251ff96](https://github.com/jdx/hk/commit/251ff96959cb0934504ec6dc7c31a05e427e793f)
 
 ### 🔍 Other Changes
 
@@ -29,6 +41,8 @@
 - Squashed 'clx/' content from commit e9f476e by [@jdx](https://github.com/jdx) in [f51c062](https://github.com/jdx/hk/commit/f51c06227c297e7040078121804e19574f780b62)
 - Squashed 'ensembler/' content from commit 25e12c4 by [@jdx](https://github.com/jdx) in [34433b1](https://github.com/jdx/hk/commit/34433b193d847baf0746ec12e60b85b550c0c4d8)
 - pin homedir to 0.3.5 for MSRV compatibility by [@jdx](https://github.com/jdx) in [f7e1f42](https://github.com/jdx/hk/commit/f7e1f42d6b86215201a7f06b23014fff4dbe5856)
+- fix release-plz with subtrees by [@jdx](https://github.com/jdx) in [965753e](https://github.com/jdx/hk/commit/965753e98ff3aad5bfcab1a92aab515cca900a69)
+- fix release-plz with subtrees by [@jdx](https://github.com/jdx) in [21475e3](https://github.com/jdx/hk/commit/21475e3f3ce659b637d5982dd69158adb274b2d8)
 
 ## [1.5.0](https://github.com/jdx/hk/compare/v1.4.0..v1.5.0) - 2025-08-14
 
