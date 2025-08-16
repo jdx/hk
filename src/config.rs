@@ -63,9 +63,11 @@ impl Config {
         for (key, value) in self.env.iter() {
             unsafe { std::env::set_var(key, value) };
         }
-        // Set skip_reasons if configured (None means use default, empty list means hide all)
-        if let Some(skip_reasons) = &self.skip_reasons {
-            crate::settings::Settings::set_skip_reasons(skip_reasons.clone().into_iter().collect());
+        // Set display_skip_reasons if configured (None means use default, empty list means hide all)
+        if let Some(display_skip_reasons) = &self.display_skip_reasons {
+            crate::settings::Settings::set_display_skip_reasons(
+                display_skip_reasons.clone().into_iter().collect(),
+            );
         }
         Ok(())
     }
@@ -238,8 +240,8 @@ pub struct Config {
     pub path: PathBuf,
     #[serde(default)]
     pub env: IndexMap<String, String>,
-    #[serde(rename = "skipReasons")]
-    pub skip_reasons: Option<Vec<String>>,
+    #[serde(rename = "display_skip_reasons")]
+    pub display_skip_reasons: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {

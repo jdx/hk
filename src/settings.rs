@@ -15,7 +15,7 @@ pub struct Settings {
     pub enabled_profiles: IndexSet<String>,
     pub disabled_profiles: IndexSet<String>,
     pub fail_fast: bool,
-    pub skip_reasons: HashSet<String>,
+    pub display_skip_reasons: HashSet<String>,
 }
 
 static JOBS: LazyLock<Mutex<Option<NonZero<usize>>>> = LazyLock::new(Default::default);
@@ -28,7 +28,8 @@ static FAIL_FAST: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default
 static ALL: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static FIX: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static CHECK: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
-static SKIP_REASONS: LazyLock<Mutex<Option<HashSet<String>>>> = LazyLock::new(Default::default);
+static DISPLAY_SKIP_REASONS: LazyLock<Mutex<Option<HashSet<String>>>> =
+    LazyLock::new(Default::default);
 
 impl Settings {
     pub fn get() -> Settings {
@@ -84,8 +85,8 @@ impl Settings {
         *CHECK.lock().unwrap() = Some(check);
     }
 
-    pub fn set_skip_reasons(skip_reasons: HashSet<String>) {
-        *SKIP_REASONS.lock().unwrap() = Some(skip_reasons);
+    pub fn set_display_skip_reasons(display_skip_reasons: HashSet<String>) {
+        *DISPLAY_SKIP_REASONS.lock().unwrap() = Some(display_skip_reasons);
     }
 }
 
@@ -111,21 +112,26 @@ impl Default for Settings {
                     .map(|p| p.to_string())
                     .collect()
             });
-        let skip_reasons = SKIP_REASONS.lock().unwrap().clone().unwrap_or_else(|| {
-            // Default: profile-not-enabled, env, cli, and condition-false are shown
-            let mut set = HashSet::new();
-            set.insert("profile-not-enabled".to_string());
-            set.insert("env".to_string());
-            set.insert("cli".to_string());
-            set.insert("condition-false".to_string());
-            set
-        });
+        let display_skip_reasons =
+            DISPLAY_SKIP_REASONS
+                .lock()
+                .unwrap()
+                .clone()
+                .unwrap_or_else(|| {
+                    // Default: profile-not-enabled, env, cli, and condition-false are shown
+                    let mut set = HashSet::new();
+                    set.insert("profile-not-enabled".to_string());
+                    set.insert("env".to_string());
+                    set.insert("cli".to_string());
+                    set.insert("condition-false".to_string());
+                    set
+                });
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
             disabled_profiles,
             fail_fast: FAIL_FAST.lock().unwrap().unwrap_or(*env::HK_FAIL_FAST),
-            skip_reasons,
+            display_skip_reasons,
         }
     }
 }

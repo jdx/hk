@@ -67,7 +67,7 @@ impl SkipReason {
             SkipReason::NoFilesToProcess => "no-files-to-process",
             SkipReason::ConditionFalse => "condition-false",
         };
-        settings.skip_reasons.contains(key)
+        settings.display_skip_reasons.contains(key)
     }
 }
 

@@ -6,8 +6,8 @@ setup() {
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-// Test configuration with custom skipReasons settings
-skipReasons = List()  // Empty list means hide all skip messages
+// Test configuration with custom display_skip_reasons settings
+display_skip_reasons = List()  // Empty list means hide all skip messages
 
 hooks = new {
     ["check"] {
@@ -50,7 +50,7 @@ teardown() {
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List("profile-not-enabled")  // Show profile not enabled messages (default)
+display_skip_reasons = List("profile-not-enabled")  // Show profile not enabled messages (default)
 
 hooks = new {
     ["check"] {
@@ -76,7 +76,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List()  // Empty list hides all messages
+display_skip_reasons = List()  // Empty list hides all messages
 
 hooks = new {
     ["check"] {
@@ -99,7 +99,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List("no-command-for-run-type")  // Show no command messages
+display_skip_reasons = List("no-command-for-run-type")  // Show no command messages
 
 hooks = new {
     ["check"] {
@@ -124,7 +124,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List()  // Empty list hides all messages
+display_skip_reasons = List()  // Empty list hides all messages
 
 hooks = new {
     ["check"] {
@@ -147,7 +147,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List("env")  // Show environment skip messages
+display_skip_reasons = List("env")  // Show environment skip messages
 
 hooks = new {
     ["check"] {
@@ -172,7 +172,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List()  // Empty list hides all messages
+display_skip_reasons = List()  // Empty list hides all messages
 
 hooks = new {
     ["check"] {
@@ -196,7 +196,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List("no-files-to-process")  // Show no files messages
+display_skip_reasons = List("no-files-to-process")  // Show no files messages
 
 hooks = new {
     ["check"] {
@@ -222,7 +222,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List()  // Empty list hides all messages
+display_skip_reasons = List()  // Empty list hides all messages
 
 hooks = new {
     ["check"] {
@@ -245,7 +245,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List("cli")  // Show CLI skip messages
+display_skip_reasons = List("cli")  // Show CLI skip messages
 
 hooks = new {
     ["check"] {
