@@ -87,7 +87,6 @@ impl StepJob {
             .prop("name", &self.step.name)
             .prop("files", &self.files.iter().map(|f| f.display()).join(" "))
             .body(
-                // TODO: truncate properly
                 "{{spinner()}} {% if ensembler_cmd %}{{ensembler_cmd | flex}}\n{{ensembler_stdout | flex}}{% else %}{{message | flex}}{% endif %}"
             )
             .body_text(Some(

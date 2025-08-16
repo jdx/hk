@@ -497,9 +497,20 @@ impl Git {
                 flags.set(git2::StashFlags::INCLUDE_UNTRACKED, true);
             }
             flags.set(git2::StashFlags::KEEP_INDEX, true);
-            repo.stash_save(&sig, "hk", Some(flags))
-                .wrap_err("failed to stash")?;
-            Ok(Some(StashType::LibGit))
+            match repo.stash_save(&sig, "hk", Some(flags)) {
+                Ok(_) => Ok(Some(StashType::LibGit)),
+                Err(e) => {
+                    // libgit2 sometimes fails with "attempt to merge diffs created with conflicting options"
+                    // when there are both staged and unstaged changes. Fall back to shell git command.
+                    debug!("libgit2 stash failed, falling back to shell git: {e}");
+                    let mut cmd = xx::process::cmd("git", ["stash", "push", "--keep-index", "-m", "hk"]);
+                    if *env::HK_STASH_UNTRACKED {
+                        cmd = cmd.arg("--include-untracked");
+                    }
+                    cmd.run()?;
+                    Ok(Some(StashType::Git))
+                }
+            }
         } else {
             let mut cmd = xx::process::cmd("git", ["stash", "push", "--keep-index", "-m", "hk"]);
             if *env::HK_STASH_UNTRACKED {
