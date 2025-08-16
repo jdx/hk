@@ -1,10 +1,11 @@
 use std::{
+    collections::HashSet,
     num::NonZero,
     path::PathBuf,
     sync::{LazyLock, Mutex},
 };
 
-use indexmap::{IndexMap, IndexSet};
+use indexmap::IndexSet;
 
 use crate::env;
 
@@ -14,7 +15,7 @@ pub struct Settings {
     pub enabled_profiles: IndexSet<String>,
     pub disabled_profiles: IndexSet<String>,
     pub fail_fast: bool,
-    pub skip_reasons: IndexMap<String, bool>,
+    pub skip_reasons: HashSet<String>,
 }
 
 static JOBS: LazyLock<Mutex<Option<NonZero<usize>>>> = LazyLock::new(Default::default);
@@ -27,8 +28,7 @@ static FAIL_FAST: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default
 static ALL: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static FIX: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static CHECK: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
-static SKIP_REASONS: LazyLock<Mutex<Option<IndexMap<String, bool>>>> =
-    LazyLock::new(Default::default);
+static SKIP_REASONS: LazyLock<Mutex<Option<HashSet<String>>>> = LazyLock::new(Default::default);
 
 impl Settings {
     pub fn get() -> Settings {
@@ -84,7 +84,7 @@ impl Settings {
         *CHECK.lock().unwrap() = Some(check);
     }
 
-    pub fn set_skip_reasons(skip_reasons: IndexMap<String, bool>) {
+    pub fn set_skip_reasons(skip_reasons: HashSet<String>) {
         *SKIP_REASONS.lock().unwrap() = Some(skip_reasons);
     }
 }
@@ -112,14 +112,10 @@ impl Default for Settings {
                     .collect()
             });
         let skip_reasons = SKIP_REASONS.lock().unwrap().clone().unwrap_or_else(|| {
-            // Default: only ProfileNotEnabled is shown
-            let mut map = IndexMap::new();
-            map.insert("ProfileNotEnabled".to_string(), true);
-            map.insert("ProfileExplicitlyDisabled".to_string(), false);
-            map.insert("NoCommandForRunType".to_string(), false);
-            map.insert("Env".to_string(), false);
-            map.insert("Cli".to_string(), false);
-            map
+            // Default: only profileNotEnabled is shown
+            let mut set = HashSet::new();
+            set.insert("profileNotEnabled".to_string());
+            set
         });
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
