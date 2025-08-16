@@ -32,8 +32,8 @@ EOF
 @test "skip output: HK_SKIP_STEPS" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-// Need to explicitly enable env skip messages since default is only profile-not-enabled
-display_skip_reasons = List("profile-not-enabled", "env")
+// Need to explicitly enable disabled-by-env skip messages since default is only profile-not-enabled
+display_skip_reasons = List("profile-not-enabled", "disabled-by-env")
 hooks {
     ["check"] {
         steps {
