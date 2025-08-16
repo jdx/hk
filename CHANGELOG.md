@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.6.0](https://github.com/jdx/hk/compare/v1.5.0..v1.6.0) - 2025-08-16
+
+### 🚀 Features
+
+- add interactive field to JSON timing report by [@jdx](https://github.com/jdx) in [#143](https://github.com/jdx/hk/pull/143)
+- added report property to hooks by [@jdx](https://github.com/jdx) in [#145](https://github.com/jdx/hk/pull/145)
+- display message when steps are skipped by [@jdx](https://github.com/jdx) in [#146](https://github.com/jdx/hk/pull/146)
+
+### 🔍 Other Changes
+
+- **(mise)** restructure tasks, add dev alias, and parallelize bats tests by [@jdx](https://github.com/jdx) in [#150](https://github.com/jdx/hk/pull/150)
+- update cargo deps by [@jdx](https://github.com/jdx) in [#148](https://github.com/jdx/hk/pull/148)
+- update cargo deps by [@jdx](https://github.com/jdx) in [#149](https://github.com/jdx/hk/pull/149)
+- mise bump by [@jdx](https://github.com/jdx) in [#147](https://github.com/jdx/hk/pull/147)
+- mise.lock by [@jdx](https://github.com/jdx) in [b14839b](https://github.com/jdx/hk/commit/b14839b5fbe33d02fe6799fc6fdef1973a080ed7)
+
 ## [1.5.0](https://github.com/jdx/hk/compare/v1.4.0..v1.5.0) - 2025-08-14
 
 ### 🚀 Features
