@@ -167,6 +167,56 @@ EOF
   assert_output --partial "skipped: disabled via HK_SKIP_STEPS"
 }
 
+@test "skip_reasons: NoFilesToProcess messages can be configured" {
+  # First test with NoFilesToProcess hidden
+  cat >hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+skipReasons = List()  // Empty list hides all messages
+
+hooks = new {
+    ["check"] {
+        steps = new {
+            ["test-glob"] {
+                check = "echo 'test'"
+                glob = "*.nonexistent"  // Will match no files
+            }
+        }
+    }
+}
+EOF
+
+  run hk check --all
+  assert_success
+  
+  # NoFilesToProcess is not in the list, so message should NOT appear
+  refute_output --partial "skipped: no files to process"
+  
+  # Now test with NoFilesToProcess shown
+  cat >hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+skipReasons = List("no-files-to-process")  // Show no files messages
+
+hooks = new {
+    ["check"] {
+        steps = new {
+            ["test-glob"] {
+                check = "echo 'test'"
+                glob = "*.nonexistent"  // Will match no files
+            }
+        }
+    }
+}
+EOF
+
+  run hk check --all
+  assert_success
+  
+  # NoFilesToProcess is in the list, so message SHOULD appear
+  assert_output --partial "skipped: no files to process"
+}
+
 @test "skip_reasons: Cli skip messages can be configured" {
   # Test with Cli messages hidden
   cat >hk.pkl <<EOF

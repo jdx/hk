@@ -37,6 +37,8 @@ pub enum SkipReason {
     ProfileNotEnabled,
     ProfileExplicitlyDisabled,
     NoCommandForRunType(RunType),
+    NoFilesToProcess,
+    ConditionFalse,
 }
 
 impl SkipReason {
@@ -49,6 +51,8 @@ impl SkipReason {
                 "skipped: disabled by profile".to_string()
             }
             SkipReason::NoCommandForRunType(_) => "skipped: no command for run type".to_string(),
+            SkipReason::NoFilesToProcess => "skipped: no files to process".to_string(),
+            SkipReason::ConditionFalse => "skipped: condition is false".to_string(),
         }
     }
 
@@ -60,6 +64,8 @@ impl SkipReason {
             SkipReason::ProfileNotEnabled => "profile-not-enabled",
             SkipReason::ProfileExplicitlyDisabled => "profile-explicitly-disabled",
             SkipReason::NoCommandForRunType(_) => "no-command-for-run-type",
+            SkipReason::NoFilesToProcess => "no-files-to-process",
+            SkipReason::ConditionFalse => "condition-false",
         };
         settings.skip_reasons.contains(key)
     }
