@@ -30,12 +30,16 @@ use crate::{
     version,
 };
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
+#[strum(serialize_all = "kebab-case")]
 pub enum SkipReason {
+    #[strum(serialize = "env")]
     Env(String),
+    #[strum(serialize = "cli")]
     Cli(String),
     ProfileNotEnabled,
     ProfileExplicitlyDisabled,
+    #[strum(serialize = "no-command-for-run-type")]
     NoCommandForRunType(RunType),
     NoFilesToProcess,
     ConditionFalse,
@@ -58,16 +62,9 @@ impl SkipReason {
 
     pub fn should_display(&self) -> bool {
         let settings = Settings::get();
-        let key = match self {
-            SkipReason::Env(_) => "env",
-            SkipReason::Cli(_) => "cli",
-            SkipReason::ProfileNotEnabled => "profile-not-enabled",
-            SkipReason::ProfileExplicitlyDisabled => "profile-explicitly-disabled",
-            SkipReason::NoCommandForRunType(_) => "no-command-for-run-type",
-            SkipReason::NoFilesToProcess => "no-files-to-process",
-            SkipReason::ConditionFalse => "condition-false",
-        };
-        settings.display_skip_reasons.contains(key)
+        // Use strum's Display trait to get the kebab-case string
+        let key = self.to_string();
+        settings.display_skip_reasons.contains(&key)
     }
 }
 
@@ -386,36 +383,42 @@ impl Hook {
         }
 
         // Display summary of profile-skipped steps
-        let skipped_steps = hook_ctx.get_skipped_steps();
-        let profile_skipped: Vec<String> = skipped_steps
-            .iter()
-            .filter_map(|(name, reason)| {
-                if matches!(reason, SkipReason::ProfileNotEnabled) {
-                    Some(name.clone())
+        // Only show summary if profile-not-enabled is configured to be displayed
+        if Settings::get()
+            .display_skip_reasons
+            .contains("profile-not-enabled")
+        {
+            let skipped_steps = hook_ctx.get_skipped_steps();
+            let profile_skipped: Vec<String> = skipped_steps
+                .iter()
+                .filter_map(|(name, reason)| {
+                    if matches!(reason, SkipReason::ProfileNotEnabled) {
+                        Some(name.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if !profile_skipped.is_empty() {
+                let count = profile_skipped.len();
+                let steps_list = profile_skipped.join(", ");
+                eprintln!();
+                eprintln!(
+                    "💡 {} {} skipped due to missing profiles: {}",
+                    count,
+                    if count == 1 { "step was" } else { "steps were" },
+                    steps_list
+                );
+
+                // Show appropriate help message based on hook type
+                if self.name == "pre-commit" || self.name == "pre-push" {
+                    eprintln!("   To enable these steps, set HK_PROFILE environment variable.");
+                    eprintln!("   Example: HK_PROFILE=slow git commit");
                 } else {
-                    None
+                    eprintln!("   To enable these steps, use --profile flag or set HK_PROFILE.");
+                    eprintln!("   Example: hk {} --profile slow", self.name);
                 }
-            })
-            .collect();
-
-        if !profile_skipped.is_empty() {
-            let count = profile_skipped.len();
-            let steps_list = profile_skipped.join(", ");
-            eprintln!();
-            eprintln!(
-                "💡 {} {} skipped due to missing profiles: {}",
-                count,
-                if count == 1 { "step was" } else { "steps were" },
-                steps_list
-            );
-
-            // Show appropriate help message based on hook type
-            if self.name == "pre-commit" || self.name == "pre-push" {
-                eprintln!("   To enable these steps, set HK_PROFILE environment variable.");
-                eprintln!("   Example: HK_PROFILE=slow git commit");
-            } else {
-                eprintln!("   To enable these steps, use --profile flag or set HK_PROFILE.");
-                eprintln!("   Example: hk {} --profile slow", self.name);
             }
         }
 
