@@ -32,7 +32,7 @@ EOF
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
     assert_output --partial "⏭ slow-test – skipped: disabled by profile"
-    assert_output --partial "💡 1 step was skipped due to missing profiles: slow-test"
+    assert_output --partial "1 step was skipped due to missing profiles (slow): slow-test"
     assert_output --partial "To enable these steps, use --profile flag or set HK_PROFILE"
     assert_output --partial "Example: hk check --profile slow"
 }
@@ -64,7 +64,7 @@ EOF
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
     refute_output --partial "EXTRA TEST"
-    assert_output --partial "💡 2 steps were skipped due to missing profiles"
+    assert_output --partial "2 steps were skipped due to missing profiles"
 }
 
 @test "profile skip summary: shows git-specific message for pre-commit hook" {
@@ -91,7 +91,7 @@ EOF
     assert_success
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
-    assert_output --partial "💡 1 step was skipped due to missing profiles: slow-test"
+    assert_output --partial "1 step was skipped due to missing profiles (slow): slow-test"
     assert_output --partial "To enable these steps, set HK_PROFILE environment variable"
     assert_output --partial "Example: HK_PROFILE=slow git commit"
     refute_output --partial "--profile"
@@ -114,6 +114,5 @@ EOF
     run hk check
     assert_success
     assert_output --partial "TEST"
-    refute_output --partial "💡"
     refute_output --partial "skipped due to missing profiles"
 }

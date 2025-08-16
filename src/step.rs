@@ -157,7 +157,11 @@ impl Step {
                 .difference(&settings.enabled_profiles)
                 .collect::<Vec<_>>();
             if !missing_profiles.is_empty() {
-                return Some(SkipReason::ProfileNotEnabled);
+                let profiles = missing_profiles
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect();
+                return Some(SkipReason::ProfileNotEnabled(profiles));
             }
             let disabled_profiles = settings
                 .disabled_profiles

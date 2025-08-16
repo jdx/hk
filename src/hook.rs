@@ -37,7 +37,7 @@ pub enum SkipReason {
     DisabledByEnv(String),
     #[strum(serialize = "disabled-by-cli")]
     DisabledByCli(String),
-    ProfileNotEnabled,
+    ProfileNotEnabled(Vec<String>),
     ProfileExplicitlyDisabled,
     #[strum(serialize = "no-command-for-run-type")]
     NoCommandForRunType(RunType),
@@ -51,7 +51,7 @@ impl SkipReason {
             SkipReason::DisabledByEnv(src) | SkipReason::DisabledByCli(src) => {
                 format!("skipped: disabled via {src}")
             }
-            SkipReason::ProfileNotEnabled | SkipReason::ProfileExplicitlyDisabled => {
+            SkipReason::ProfileNotEnabled(_) | SkipReason::ProfileExplicitlyDisabled => {
                 "skipped: disabled by profile".to_string()
             }
             SkipReason::NoCommandForRunType(_) => "skipped: no command for run type".to_string(),
@@ -388,6 +388,9 @@ impl Hook {
             warn!("Failed to write timing JSON: {err}");
         }
 
+        // Clear progress bars before displaying summary
+        clx::progress::pause();
+
         // Display summary of profile-skipped steps
         // Only show summary if profile-not-enabled is configured to be displayed
         if Settings::get()
@@ -395,25 +398,27 @@ impl Hook {
             .contains("profile-not-enabled")
         {
             let skipped_steps = hook_ctx.get_skipped_steps();
-            let profile_skipped: Vec<String> = skipped_steps
-                .iter()
-                .filter_map(|(name, reason)| {
-                    if matches!(reason, SkipReason::ProfileNotEnabled) {
-                        Some(name.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            let mut profile_skipped: Vec<String> = vec![];
+            let mut missing_profiles = indexmap::IndexSet::new();
+
+            for (name, reason) in skipped_steps.iter() {
+                if let SkipReason::ProfileNotEnabled(profiles) = reason {
+                    profile_skipped.push(name.clone());
+                    missing_profiles.extend(profiles.clone());
+                }
+            }
 
             if !profile_skipped.is_empty() {
                 let count = profile_skipped.len();
                 let steps_list = profile_skipped.join(", ");
+                let profiles_list: Vec<String> = missing_profiles.into_iter().collect();
+                let profiles_list = profiles_list.join(", ");
                 eprintln!();
                 eprintln!(
-                    "💡 {} {} skipped due to missing profiles: {}",
+                    "{} {} skipped due to missing profiles ({}): {}",
                     count,
                     if count == 1 { "step was" } else { "steps were" },
+                    profiles_list,
                     steps_list
                 );
 
