@@ -1,0 +1,29 @@
+tasks.build = "cargo build --all --all-features"
+tasks.build-release = "cargo build --all --all-features --release"
+tasks.format = "cargo fmt -- --all"
+tasks.release = "cargo release"
+tasks.clean = "cargo clean"
+
+[tasks.lint]
+alias = "l"
+depends = ["build"]
+run = "hk check -a"
+
+[tasks.test]
+alias = "t"
+run = "cargo test --all --all-features -- --nocapture"
+env = { RUST_LOG = "xx=trace" }
+
+[tasks.ci]
+depends = ["lint", "test"]
+
+[tasks.pre-commit]
+depends = ["lint", "test"]
+
+[env]
+RUST_TEST_THREADS = '1'
+
+[tools]
+"cargo:cargo-llvm-cov" = "latest"
+hk = "1.2.2"
+pkl = "latest"
