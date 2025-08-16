@@ -10,10 +10,10 @@ if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
     # Temporarily replace path dependencies with version dependencies for publishing
     cp Cargo.toml Cargo.toml.bak
     
-    # Get the current versions of the workspace members
-    xx_version="$(cargo pkgid xx | cut -d# -f2 | cut -d@ -f2)"
-    clx_version="$(cargo pkgid clx | cut -d# -f2 | cut -d@ -f2)"
-    ensembler_version="$(cargo pkgid ensembler | cut -d# -f2 | cut -d@ -f2)"
+    # Get the current versions of the workspace members from their local Cargo.toml files
+    xx_version="$(grep '^version' xx/Cargo.toml | cut -d'"' -f2)"
+    clx_version="$(grep '^version' clx/Cargo.toml | cut -d'"' -f2)"
+    ensembler_version="$(grep '^version' ensembler/Cargo.toml | cut -d'"' -f2)"
     
     # Replace path dependencies with version dependencies
     sed -i "s/clx = { path = \"clx\" }/clx = \"$clx_version\"/" Cargo.toml
