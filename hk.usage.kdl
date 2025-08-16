@@ -42,7 +42,10 @@ cmd check help="Fixes code" {
         arg <GLOB>
     }
     flag "-P --plan" help="Print the plan instead of running the hook"
-    flag "-S --step" help="Run specific step(s)" var=#true {
+    flag "-S --step" help="Run only specific step(s)" var=#true {
+        arg <STEP>
+    }
+    flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
@@ -74,7 +77,10 @@ cmd fix help="Fixes code" {
         arg <GLOB>
     }
     flag "-P --plan" help="Print the plan instead of running the hook"
-    flag "-S --step" help="Run specific step(s)" var=#true {
+    flag "-S --step" help="Run only specific step(s)" var=#true {
+        arg <STEP>
+    }
+    flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
@@ -113,7 +119,10 @@ cmd run help="Run a hook" {
         arg <GLOB>
     }
     flag "-P --plan" help="Print the plan instead of running the hook"
-    flag "-S --step" help="Run specific step(s)" var=#true {
+    flag "-S --step" help="Run only specific step(s)" var=#true {
+        arg <STEP>
+    }
+    flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
     arg "[OTHER]" required=#false hide=#true
@@ -139,7 +148,10 @@ cmd run help="Run a hook" {
             arg <GLOB>
         }
         flag "-P --plan" help="Print the plan instead of running the hook"
-        flag "-S --step" help="Run specific step(s)" var=#true {
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message"
@@ -166,7 +178,10 @@ cmd run help="Run a hook" {
             arg <GLOB>
         }
         flag "-P --plan" help="Print the plan instead of running the hook"
-        flag "-S --step" help="Run specific step(s)" var=#true {
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
@@ -192,7 +207,10 @@ cmd run help="Run a hook" {
             arg <GLOB>
         }
         flag "-P --plan" help="Print the plan instead of running the hook"
-        flag "-S --step" help="Run specific step(s)" var=#true {
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
         arg "[REMOTE]" help="Remote name" required=#false
@@ -220,7 +238,10 @@ cmd run help="Run a hook" {
             arg <GLOB>
         }
         flag "-P --plan" help="Print the plan instead of running the hook"
-        flag "-S --step" help="Run specific step(s)" var=#true {
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message so far"

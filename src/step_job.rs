@@ -20,6 +20,7 @@ pub struct StepJob {
     pub files: Vec<PathBuf>,
     pub run_type: RunType,
     pub check_first: bool,
+    pub skip_reason: Option<String>,
     pub progress: Option<Arc<ProgressJob>>,
     pub semaphore: Option<OwnedSemaphorePermit>,
     workspace_indicator: Option<PathBuf>,
@@ -50,6 +51,7 @@ impl StepJob {
                 && matches!(run_type, RunType::Fix),
             step,
             status: StepJobStatus::Pending,
+            skip_reason: None,
             progress: None,
             semaphore: None,
         }
@@ -161,6 +163,7 @@ impl Clone for StepJob {
             files: self.files.clone(),
             run_type: self.run_type,
             check_first: self.check_first,
+            skip_reason: self.skip_reason.clone(),
             workspace_indicator: self.workspace_indicator.clone(),
             status: StepJobStatus::Pending,
             progress: self.progress.clone(),
