@@ -1,0 +1,8 @@
+/target
+coverage.lcov
+
+# Test artifacts
+dest_dir/
+empty_dir/
+src_dir/
+test.txt
