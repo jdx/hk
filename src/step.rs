@@ -300,8 +300,13 @@ impl Step {
         if files.is_empty() && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
         {
             debug!("{self}: no file matches for step");
+            let reason = SkipReason::NoFilesToProcess;
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some("skipped: no files to process".to_string());
+            j.skip_reason = if reason.should_display() {
+                Some(reason.message())
+            } else {
+                Some("".to_string()) // Empty string indicates skipped but not displayed
+            };
             return Ok(vec![j]);
         }
         let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
@@ -516,7 +521,13 @@ impl Step {
             let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
             debug!("{self}: condition: {condition} = {val}");
             if val == expr::Value::Bool(false) {
-                self.mark_skipped(ctx, "skipped: condition is false")?;
+                let reason = SkipReason::ConditionFalse;
+                let msg = if reason.should_display() {
+                    reason.message()
+                } else {
+                    "".to_string()
+                };
+                self.mark_skipped(ctx, &msg)?;
                 return Ok(());
             }
         }

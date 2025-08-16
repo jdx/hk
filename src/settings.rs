@@ -112,9 +112,12 @@ impl Default for Settings {
                     .collect()
             });
         let skip_reasons = SKIP_REASONS.lock().unwrap().clone().unwrap_or_else(|| {
-            // Default: only profile-not-enabled is shown
+            // Default: profile-not-enabled, env, cli, and condition-false are shown
             let mut set = HashSet::new();
             set.insert("profile-not-enabled".to_string());
+            set.insert("env".to_string());
+            set.insert("cli".to_string());
+            set.insert("condition-false".to_string());
             set
         });
         Self {
