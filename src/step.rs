@@ -558,7 +558,8 @@ impl Step {
             .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())
-            .show_stderr_on_error(false);
+            .show_stderr_on_error(false)
+            .stderr_to_progress(true);
         if self.interactive {
             clx::progress::pause();
             cmd = cmd
