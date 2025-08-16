@@ -7,7 +7,29 @@ cur_version="$(cargo pkgid hk | cut -d# -f2 | cut -d@ -f2)"
 if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
   echo "Releasing $cur_version"
   if [ "${DRY_RUN:-}" == 0 ]; then
-    cargo publish -p hk
+    # Temporarily replace path dependencies with version dependencies for publishing
+    cp Cargo.toml Cargo.toml.bak
+    
+    # Get the current versions of the workspace members
+    xx_version="$(cargo pkgid xx | cut -d# -f2 | cut -d@ -f2)"
+    clx_version="$(cargo pkgid clx | cut -d# -f2 | cut -d@ -f2)"
+    ensembler_version="$(cargo pkgid ensembler | cut -d# -f2 | cut -d@ -f2)"
+    
+    # Replace path dependencies with version dependencies
+    sed -i "s/clx = { path = \"clx\" }/clx = \"$clx_version\"/" Cargo.toml
+    sed -i "s/ensembler = { path = \"ensembler\" }/ensembler = \"$ensembler_version\"/" Cargo.toml
+    sed -i "s/xx = { path = \"xx\", features = \[\"http\", \"hash\", \"rustls\"\] }/xx = { version = \"$xx_version\", features = [\"http\", \"hash\", \"rustls\"] }/" Cargo.toml
+    
+    # Publish the crate
+    cargo publish -p hk || {
+      # Restore original Cargo.toml on failure
+      mv Cargo.toml.bak Cargo.toml
+      exit 1
+    }
+    
+    # Restore original Cargo.toml
+    mv Cargo.toml.bak Cargo.toml
+    
     changelog="$(git cliff --tag "v$cur_version" --strip all --unreleased)"
     git tag "v$cur_version"
     git push --tags
