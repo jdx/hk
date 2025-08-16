@@ -33,10 +33,10 @@ use crate::{
 #[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
 #[strum(serialize_all = "kebab-case")]
 pub enum SkipReason {
-    #[strum(serialize = "env")]
-    Env(String),
-    #[strum(serialize = "cli")]
-    Cli(String),
+    #[strum(serialize = "disabled-by-env")]
+    DisabledByEnv(String),
+    #[strum(serialize = "disabled-by-cli")]
+    DisabledByCli(String),
     ProfileNotEnabled,
     ProfileExplicitlyDisabled,
     #[strum(serialize = "no-command-for-run-type")]
@@ -48,7 +48,7 @@ pub enum SkipReason {
 impl SkipReason {
     pub fn message(&self) -> String {
         match self {
-            SkipReason::Env(src) | SkipReason::Cli(src) => {
+            SkipReason::DisabledByEnv(src) | SkipReason::DisabledByCli(src) => {
                 format!("skipped: disabled via {src}")
             }
             SkipReason::ProfileNotEnabled | SkipReason::ProfileExplicitlyDisabled => {
@@ -309,10 +309,16 @@ impl Hook {
         let skip_steps = {
             let mut m: IndexMap<String, SkipReason> = IndexMap::new();
             for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(s.clone(), SkipReason::Env("HK_SKIP_STEPS".to_string()));
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                );
             }
             for s in opts.skip_step.iter() {
-                m.insert(s.clone(), SkipReason::Cli(format!("--skip-step {}", s)));
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
+                );
             }
             m
         };

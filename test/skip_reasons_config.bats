@@ -119,8 +119,8 @@ EOF
   assert_output --partial "skipped: no command for run type"
 }
 
-@test "skip_reasons: Env skip messages can be configured" {
-  # Test with Env messages hidden
+@test "skip_reasons: DisabledByEnv skip messages can be configured" {
+  # Test with DisabledByEnv messages hidden
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
@@ -140,14 +140,14 @@ EOF
   HK_SKIP_STEPS="test-step" run hk check --all
   assert_success
   
-  # Env is set to false, so skip message should NOT appear
+  # DisabledByEnv is not configured, so skip message should NOT appear
   refute_output --partial "skipped: disabled via HK_SKIP_STEPS"
   
-  # Now test with Env messages shown
+  # Now test with DisabledByEnv messages shown
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-display_skip_reasons = List("env")  // Show environment skip messages
+display_skip_reasons = List("disabled-by-env")  // Show environment skip messages
 
 hooks = new {
     ["check"] {
@@ -163,7 +163,7 @@ EOF
   HK_SKIP_STEPS="test-step" run hk check --all
   assert_success
   
-  # Env is set to true, so skip message SHOULD appear
+  # DisabledByEnv is configured, so skip message SHOULD appear
   assert_output --partial "skipped: disabled via HK_SKIP_STEPS"
 }
 
@@ -217,8 +217,8 @@ EOF
   assert_output --partial "skipped: no files to process"
 }
 
-@test "skip_reasons: Cli skip messages can be configured" {
-  # Test with Cli messages hidden
+@test "skip_reasons: DisabledByCli skip messages can be configured" {
+  # Test with DisabledByCli messages hidden
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
@@ -238,14 +238,14 @@ EOF
   run hk check --all --skip-step test-step
   assert_success
   
-  # Cli is set to false, so skip message should NOT appear
+  # DisabledByCli is not configured, so skip message should NOT appear
   refute_output --partial "skipped: disabled via --skip-step"
   
-  # Now test with Cli messages shown
+  # Now test with DisabledByCli messages shown
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-display_skip_reasons = List("cli")  // Show CLI skip messages
+display_skip_reasons = List("disabled-by-cli")  // Show CLI skip messages
 
 hooks = new {
     ["check"] {
@@ -261,6 +261,6 @@ EOF
   run hk check --all --skip-step test-step
   assert_success
   
-  # Cli is set to true, so skip message SHOULD appear
+  # DisabledByCli is configured, so skip message SHOULD appear
   assert_output --partial "skipped: disabled via --skip-step"
 }
