@@ -267,46 +267,27 @@ impl Step {
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
-            let reason = skip_steps.get(&self.name).unwrap();
+            let reason = skip_steps.get(&self.name).unwrap().clone();
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            // Only set skip_reason if it should be displayed
-            j.skip_reason = if reason.should_display() {
-                Some(reason.message())
-            } else {
-                Some("".to_string()) // Empty string indicates skipped but not displayed
-            };
+            j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
         if let Some(reason) = self.profile_skip_reason() {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = if reason.should_display() {
-                Some(reason.message())
-            } else {
-                Some("".to_string()) // Empty string indicates skipped but not displayed
-            };
+            j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
         if self.run_cmd(run_type).is_none() {
-            let reason = SkipReason::NoCommandForRunType(run_type);
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = if reason.should_display() {
-                Some(reason.message())
-            } else {
-                Some("".to_string()) // Empty string indicates skipped but not displayed
-            };
+            j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
             return Ok(vec![j]);
         }
         let files = self.filter_files(files)?;
         if files.is_empty() && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
         {
             debug!("{self}: no file matches for step");
-            let reason = SkipReason::NoFilesToProcess;
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = if reason.should_display() {
-                Some(reason.message())
-            } else {
-                Some("".to_string()) // Empty string indicates skipped but not displayed
-            };
+            j.skip_reason = Some(SkipReason::NoFilesToProcess);
             return Ok(vec![j]);
         }
         let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
@@ -521,13 +502,7 @@ impl Step {
             let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
             debug!("{self}: condition: {condition} = {val}");
             if val == expr::Value::Bool(false) {
-                let reason = SkipReason::ConditionFalse;
-                let msg = if reason.should_display() {
-                    reason.message()
-                } else {
-                    "".to_string()
-                };
-                self.mark_skipped(ctx, &msg)?;
+                self.mark_skipped(ctx, &SkipReason::ConditionFalse)?;
                 return Ok(());
             }
         }
@@ -650,10 +625,9 @@ impl Step {
         }
     }
 
-    pub fn mark_skipped(&self, ctx: &StepContext, reason: &str) -> Result<()> {
-        if !reason.is_empty() {
-            // Only show skip message if reason is not empty
-            ctx.progress.prop("message", reason);
+    pub fn mark_skipped(&self, ctx: &StepContext, reason: &SkipReason) -> Result<()> {
+        if reason.should_display() {
+            ctx.progress.prop("message", &reason.message());
             let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
             ctx.progress.set_status(status);
         } else {
