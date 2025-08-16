@@ -44,6 +44,9 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.
 version = "2.12.0"
 backend = "ubi:hadolint/hadolint"
 
+[tools.hadolint.platforms.macos-arm64-hadolint]
+checksum = "blake3:8be7ee4645cf6f43c8046be07b77caef5d7cf2ab9cc50ee4e965be20350f2dad"
+
 [tools.ktlint]
 version = "1.7.1"
 backend = "aqua:pinterest/ktlint"
@@ -86,6 +89,11 @@ backend = "aqua:BurntSushi/ripgrep"
 [tools.shellcheck]
 version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
+
+[tools.shellcheck.platforms.macos-arm64]
+checksum = "blake3:ad4957ed937da4e876d19e3500fc31d104e43b6e4e11d57a7b7c40140bc870d6"
+size = 7245972
+url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz"
 
 [tools.shellcheck.platforms.macos-arm64-shellcheck]
 checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829f45"
