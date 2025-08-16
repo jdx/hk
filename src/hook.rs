@@ -57,9 +57,9 @@ impl SkipReason {
         let key = match self {
             SkipReason::Env(_) => "env",
             SkipReason::Cli(_) => "cli",
-            SkipReason::ProfileNotEnabled => "profileNotEnabled",
-            SkipReason::ProfileExplicitlyDisabled => "profileExplicitlyDisabled",
-            SkipReason::NoCommandForRunType(_) => "noCommandForRunType",
+            SkipReason::ProfileNotEnabled => "profile-not-enabled",
+            SkipReason::ProfileExplicitlyDisabled => "profile-explicitly-disabled",
+            SkipReason::NoCommandForRunType(_) => "no-command-for-run-type",
         };
         settings.skip_reasons.contains(key)
     }

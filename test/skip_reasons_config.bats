@@ -50,7 +50,7 @@ teardown() {
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List("profileNotEnabled")  // Show profile not enabled messages (default)
+skipReasons = List("profile-not-enabled")  // Show profile not enabled messages (default)
 
 hooks = new {
     ["check"] {
@@ -99,7 +99,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skipReasons = List("noCommandForRunType")  // Show no command messages
+skipReasons = List("no-command-for-run-type")  // Show no command messages
 
 hooks = new {
     ["check"] {
