@@ -89,6 +89,16 @@ class Hook {
     steps: Mapping<String, Step | Group> = new Mapping<String, Step>{}
 }
 
+/// Configuration for which skip reasons to display
+/// By default, only ProfileNotEnabled is displayed
+skip_reasons: Mapping<String, Boolean> = new Mapping<String, Boolean> {
+    ["ProfileNotEnabled"] = true
+    ["ProfileExplicitlyDisabled"] = false
+    ["NoCommandForRunType"] = false
+    ["Env"] = false
+    ["Cli"] = false
+}
+
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
 env: Mapping<String, String> = new Mapping<String, String>{}
 
