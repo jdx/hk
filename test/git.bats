@@ -148,8 +148,7 @@ EOF
     # Try to commit with --all
     run hk check --all
     assert_success
-    assert_output --partial "foo: "
-    # Verify the file is not in the output
-    refute_output --partial "foo: hk.pkl
-"
+    assert_output --partial "foo: hk.pkl"
+    # Verify the deleted file is not in the output
+    refute_output --partial "src/foo.rs"
 }
