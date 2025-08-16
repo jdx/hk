@@ -595,14 +595,31 @@ pub fn is_paused() -> bool {
 
 pub fn pause() {
     PAUSED.store(true, Ordering::Relaxed);
-    let _ = clear();
+    if *STARTED.lock().unwrap() {
+        let _ = clear();
+    }
 }
 
 pub fn resume() {
     PAUSED.store(false, Ordering::Relaxed);
+    if !*STARTED.lock().unwrap() {
+        return;
+    }
     if output() == ProgressOutput::UI {
         notify();
     }
+}
+
+pub fn stop() {
+    // Simply mark all running jobs as done to stop the refresh loop naturally
+    let jobs = JOBS.lock().unwrap().clone();
+    for job in jobs {
+        if job.is_running() {
+            job.set_status(ProgressStatus::Done);
+        }
+    }
+    // Force one final refresh to show the final state
+    let _ = refresh();
 }
 
 fn clear() -> Result<()> {

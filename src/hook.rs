@@ -389,7 +389,7 @@ impl Hook {
         }
 
         // Clear progress bars before displaying summary
-        clx::progress::pause();
+        clx::progress::stop();
 
         // Display summary of profile-skipped steps
         // Only show summary if profile-not-enabled is configured to be displayed
@@ -414,7 +414,7 @@ impl Hook {
                 let profiles_list: Vec<String> = missing_profiles.into_iter().collect();
                 let profiles_list = profiles_list.join(", ");
                 eprintln!();
-                eprintln!(
+                warn!(
                     "{} {} skipped due to missing profiles ({}): {}",
                     count,
                     if count == 1 { "step was" } else { "steps were" },
