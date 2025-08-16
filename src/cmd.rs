@@ -3,11 +3,16 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
-use tokio::{io::BufReader, process::Command, select, sync::{oneshot, Mutex}};
-use tokio_util::sync::CancellationToken;
 use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::{
+    io::BufReader,
+    process::Command,
+    select,
+    sync::{oneshot, Mutex},
+};
+use tokio_util::sync::CancellationToken;
 
 use indexmap::IndexSet;
 use std::sync::LazyLock as Lazy;
@@ -167,7 +172,10 @@ impl CmdLineRunner {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let args = args.into_iter().map(|s| s.as_ref().to_string_lossy().to_string()).collect::<Vec<_>>();
+        let args = args
+            .into_iter()
+            .map(|s| s.as_ref().to_string_lossy().to_string())
+            .collect::<Vec<_>>();
         self.cmd.args(&args);
         self.args.extend(args);
         self
@@ -238,11 +246,10 @@ impl CmdLineRunner {
                 let stderr = BufReader::new(stderr);
                 let mut lines = stderr.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    let line = 
-                        redactions
+                    let line = redactions
                         .iter()
                         .fold(line, |acc, r| acc.replace(r, "[redacted]"));
-                        let mut result = result.lock().await;
+                    let mut result = result.lock().await;
                     result.stderr += &line;
                     result.stderr += "\n";
                     result.combined_output += &line;
@@ -306,7 +313,12 @@ impl CmdLineRunner {
                 pr.println(&output);
             }
         }
-        Err(ScriptFailed(Box::new((self.program.clone(), self.args.clone(), output, result))))?
+        Err(ScriptFailed(Box::new((
+            self.program.clone(),
+            self.args.clone(),
+            output,
+            result,
+        ))))?
     }
 }
 
