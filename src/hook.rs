@@ -117,6 +117,7 @@ pub struct HookContext {
     expr_ctx: std::sync::Mutex<expr::Context>,
     pub timing: Arc<TimingRecorder>,
     pub skip_steps: IndexMap<String, SkipReason>,
+    profile_skipped_steps: std::sync::Mutex<HashSet<String>>,
 }
 
 impl HookContext {
@@ -155,6 +156,7 @@ impl HookContext {
             expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
             skip_steps,
+            profile_skipped_steps: StdMutex::new(HashSet::new()),
         }
     }
 
@@ -206,6 +208,17 @@ impl HookContext {
                 hk_progress.progress_current(completed_jobs);
             }
         }
+    }
+
+    pub fn track_profile_skip(&self, step_name: &str) {
+        self.profile_skipped_steps
+            .lock()
+            .unwrap()
+            .insert(step_name.to_string());
+    }
+
+    pub fn get_profile_skipped_steps(&self) -> HashSet<String> {
+        self.profile_skipped_steps.lock().unwrap().clone()
     }
 }
 
@@ -371,6 +384,34 @@ impl Hook {
         if let Err(err) = hook_ctx.timing.write_json() {
             warn!("Failed to write timing JSON: {err}");
         }
+
+        // Display summary of profile-skipped steps
+        let profile_skipped = hook_ctx.get_profile_skipped_steps();
+        if !profile_skipped.is_empty() {
+            let count = profile_skipped.len();
+            let steps_list = profile_skipped
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            eprintln!();
+            eprintln!(
+                "💡 {} {} skipped due to missing profiles: {}",
+                count,
+                if count == 1 { "step was" } else { "steps were" },
+                steps_list
+            );
+
+            // Show appropriate help message based on hook type
+            if self.name == "pre-commit" || self.name == "pre-push" {
+                eprintln!("   To enable these steps, set HK_PROFILE environment variable.");
+                eprintln!("   Example: HK_PROFILE=slow git commit");
+            } else {
+                eprintln!("   To enable these steps, use --profile flag or set HK_PROFILE.");
+                eprintln!("   Example: hk {} --profile slow", self.name);
+            }
+        }
+
         // Run hook-level report if configured
         if let Some(report) = &self.report {
             if let Ok(json) = hook_ctx.timing.to_json_string() {
