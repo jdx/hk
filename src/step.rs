@@ -422,16 +422,6 @@ impl Step {
                 Ok(Err(err)) => {
                     ctx.status_errored(&format!("{err}"));
                     return Err(err);
-                    // TODO: abort all jobs after a timeout
-                    // tokio::spawn(async move {
-                    //     tokio::time::sleep(Duration::from_secs(5)).await;
-                    //     set.abort_all();
-                    // });
-                    // if child.is_running() {
-                    //     child.set_status(clx::progress::ProgressStatus::DoneCustom(
-                    //         style::eyellow("▲").to_string(),
-                    //     ));
-                    // }
                 }
                 Err(e) => match e.try_into_panic() {
                     Ok(e) => std::panic::resume_unwind(e),
@@ -500,6 +490,10 @@ impl Step {
     pub(crate) async fn run(&self, ctx: &StepContext, job: &mut StepJob) -> Result<()> {
         if ctx.hook_ctx.failed.is_cancelled() {
             trace!("{self}: skipping step due to previous failure");
+            // Hide the job progress if it was created
+            if let Some(progress) = &job.progress {
+                progress.set_status(ProgressStatus::Hide);
+            }
             return Ok(());
         }
         if let Some(condition) = &self.condition {

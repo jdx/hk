@@ -65,6 +65,7 @@ impl StepContext {
         match &*status {
             StepStatus::Pending | StepStatus::Started => {
                 *status = StepStatus::Aborted;
+                drop(status);
                 self.update_progress();
             }
             StepStatus::Aborted | StepStatus::Finished | StepStatus::Errored(_) => {}
@@ -130,7 +131,14 @@ impl StepContext {
                     .set_status(ProgressStatus::RunningCustom(style::edim("❯").to_string()));
             }
             StepStatus::Aborted => {
-                self.progress.set_status(ProgressStatus::Hide);
+                // Hide all child progress indicators
+                for child in self.progress.children() {
+                    child.set_status(ProgressStatus::Hide);
+                }
+                self.progress
+                    .prop("message", &style::eyellow("aborted").to_string());
+                self.progress
+                    .set_status(ProgressStatus::DoneCustom(style::eyellow("⚠").to_string()));
             }
             StepStatus::Finished => {
                 self.progress.set_status(ProgressStatus::Done);

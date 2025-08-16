@@ -164,6 +164,10 @@ impl StepGroup {
                 Ok(Err(err)) => {
                     if settings.fail_fast {
                         ctx.hook_ctx.failed.cancel();
+                        // Mark remaining steps as aborted
+                        for step_ctx in ctx.hook_ctx.step_contexts.lock().unwrap().values() {
+                            step_ctx.status_aborted();
+                        }
                         return Err(err);
                     } else if result.is_ok() {
                         result = Err(err);
