@@ -1,4 +1,4 @@
-use crate::{Result, file_rw_locks::Flocks};
+use crate::{Result, file_rw_locks::Flocks, hook::SkipReason};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use itertools::Itertools;
 use tokio::sync::OwnedSemaphorePermit;
@@ -20,7 +20,7 @@ pub struct StepJob {
     pub files: Vec<PathBuf>,
     pub run_type: RunType,
     pub check_first: bool,
-    pub skip_reason: Option<String>,
+    pub skip_reason: Option<SkipReason>,
     pub progress: Option<Arc<ProgressJob>>,
     pub semaphore: Option<OwnedSemaphorePermit>,
     workspace_indicator: Option<PathBuf>,
