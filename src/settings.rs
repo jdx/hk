@@ -112,9 +112,9 @@ impl Default for Settings {
                     .collect()
             });
         let skip_reasons = SKIP_REASONS.lock().unwrap().clone().unwrap_or_else(|| {
-            // Default: only profileNotEnabled is shown
+            // Default: only profile-not-enabled is shown
             let mut set = HashSet::new();
-            set.insert("profileNotEnabled".to_string());
+            set.insert("profile-not-enabled".to_string());
             set
         });
         Self {
