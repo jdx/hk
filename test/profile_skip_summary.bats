@@ -31,7 +31,7 @@ EOF
     assert_success
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
-    assert_output --partial "⏭ slow-test – skipped: disabled by profile"
+    assert_output --partial "⏭ slow-test – skipped: missing profile (slow)"
     assert_output --partial "1 step was skipped due to missing profiles (slow): slow-test"
     assert_output --partial "To enable these steps, use --slow flag or set HK_PROFILE=slow"
     assert_output --partial "Example: hk check --slow"

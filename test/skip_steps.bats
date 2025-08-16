@@ -13,6 +13,7 @@ teardown() {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
+display_skip_reasons = List("disabled-by-env")
 hooks {
     ["pre-commit"] {
         fix = true

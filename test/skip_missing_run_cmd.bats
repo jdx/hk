@@ -12,6 +12,7 @@ teardown() {
 @test "dependent step proceeds when dependency has no command for run type" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+display_skip_reasons = List("no-command-for-run-type")
 hooks {
     ["check"] {
         steps {
