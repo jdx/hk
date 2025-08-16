@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "xx", "clx", "ensembler"]
+resolver = "2"
+
 [package]
 name = "hk"
 version = "1.5.0"
@@ -15,11 +19,11 @@ build = "build.rs"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 clap_usage = "2"
-clx = "0.2"
+clx = { path = "clx" }
 color-eyre = "0.6"
 console = "0.16"
 dirs = "6"
-ensembler = "0.2"
+ensembler = { path = "ensembler" }
 expr-lang = { version = "0.3.0", features = ["serde"] }
 eyre = "0.6"
 getrandom = "0.3.2"
@@ -43,7 +47,7 @@ tokio = { version = "1", features = ["full", "rt-multi-thread"] }
 tokio-util = "0.7"
 toml = "0.9"
 which = "8"
-xx = { version = "2", features = ["http", "hash", "rustls"] }
+xx = { path = "xx", features = ["http", "hash", "rustls"] }
 
 [profile.serious]
 inherits = "release"
