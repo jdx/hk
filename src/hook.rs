@@ -51,9 +51,18 @@ impl SkipReason {
             SkipReason::DisabledByEnv(src) | SkipReason::DisabledByCli(src) => {
                 format!("skipped: disabled via {src}")
             }
-            SkipReason::ProfileNotEnabled(_) | SkipReason::ProfileExplicitlyDisabled => {
-                "skipped: disabled by profile".to_string()
+            SkipReason::ProfileNotEnabled(profiles) => {
+                if profiles.is_empty() {
+                    "skipped: disabled by profile".to_string()
+                } else {
+                    format!(
+                        "skipped: missing profile{} ({})",
+                        if profiles.len() > 1 { "s" } else { "" },
+                        profiles.join(", ")
+                    )
+                }
             }
+            SkipReason::ProfileExplicitlyDisabled => "skipped: disabled by profile".to_string(),
             SkipReason::NoCommandForRunType(_) => "skipped: no command for run type".to_string(),
             SkipReason::NoFilesToProcess => "skipped: no files to process".to_string(),
             SkipReason::ConditionFalse => "skipped: condition is false".to_string(),

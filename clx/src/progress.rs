@@ -272,6 +272,14 @@ impl ProgressJob {
             flex_width = flex_width,
             "progress: after flex"
         );
+        // Safety check: if flex tags still exist, log a warning
+        if body.contains("<clx:flex>") {
+            debug!(
+                job_id = self.id,
+                body_preview = ?&body[..body.len().min(200)],
+                "progress: flex tags remain after processing!"
+            );
+        }
         s.push(body.trim_end().to_string());
         if ctx.include_children && self.should_display_children() {
             ctx.indent += 1;
