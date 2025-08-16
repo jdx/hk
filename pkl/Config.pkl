@@ -89,10 +89,10 @@ class Hook {
     steps: Mapping<String, Step | Group> = new Mapping<String, Step>{}
 }
 
-/// Configuration for which skip reasons to display
+/// Controls which skip reasons are displayed in the output
 /// By default, profile-not-enabled, env, cli, and condition-false messages are displayed
 /// Possible values: "profile-not-enabled", "profile-explicitly-disabled", "no-command-for-run-type", "no-files-to-process", "condition-false", "env", "cli"
-skipReasons: List<String> = List("profile-not-enabled", "env", "cli", "condition-false")
+display_skip_reasons: List<String> = List("profile-not-enabled", "env", "cli", "condition-false")
 
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
 env: Mapping<String, String> = new Mapping<String, String>{}
