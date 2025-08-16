@@ -1,0 +1,34 @@
+[package]
+name = "ensembler"
+version = "0.2.10"
+edition = "2021"
+repository = "https://github.com/jdx/ensembler"
+homepage = "https://github.com/jdx/ensembler"
+documentation = "https://docs.rs/ensembler"
+license = "MIT"
+description = "A library for running commands and reporting progress"
+rust-version = "1.85"
+include = ["/LICENSE", "/README.md", "/src/**", "/examples/**"]
+
+[lib]
+name = "ensembler"
+path = "src/lib.rs"
+
+[dependencies]
+clx = "0.2"
+console = "0.15"
+indexmap = "2"
+indicatif = "0.17"
+itertools = "0.14"
+log = "0.4"
+signal-hook = "0.3"
+terminal_size = "0.4"
+thiserror = "2"
+tokio = { version = "1", features = ["io-util", "process", "rt", "sync"] }
+tokio-util = "0.7"
+
+[dev-dependencies]
+test-log = "0.2"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.30", features = ["signal", "user"] }
