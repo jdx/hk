@@ -1,6 +1,7 @@
 [tasks.ci]
 run = [
   "cargo clippy",
+  "cargo fmt --check",
   "cargo test",
   "cargo run --example progress",
 ]

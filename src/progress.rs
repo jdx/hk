@@ -1,14 +1,21 @@
 use crate::{Result, progress_bar, style};
 use serde::ser::Serialize;
 use std::{
-    collections::HashMap, fmt, sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering}, mpsc, Arc, LazyLock, Mutex, OnceLock, Weak
-    }, thread, time::{Duration, Instant}
+    collections::HashMap,
+    fmt,
+    sync::{
+        Arc, LazyLock, Mutex, OnceLock, Weak,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        mpsc,
+    },
+    thread,
+    time::{Duration, Instant},
 };
 
 use console::Term;
 use indicatif::TermLike;
 use tera::{Context, Tera};
+use tracing::{debug, trace};
 
 static DEFAULT_BODY: LazyLock<String> =
     LazyLock::new(|| "{{ spinner() }} {{ message }}".to_string());
@@ -174,6 +181,7 @@ impl ProgressJobBuilder {
     }
 
     pub fn start(self) -> Arc<ProgressJob> {
+        crate::init();
         let job = Arc::new(self.build());
         JOBS.lock().unwrap().push(job.clone());
         job.update();
@@ -246,8 +254,24 @@ impl ProgressJob {
         };
         let name = format!("progress_{}", self.id);
         add_tera_template(tera, &name, &body)?;
-        let body = tera.render(&name, &ctx.tera_ctx)?;
-        let body = flex(&body, ctx.width - ctx.indent);
+        let rendered_body = tera.render(&name, &ctx.tera_ctx)?;
+        trace!(
+            template_name = %name,
+            rendered_len = rendered_body.len(),
+            width = ctx.width,
+            indent = ctx.indent,
+            "progress: rendered template"
+        );
+        if rendered_body.len() > 100 {
+            trace!(preview = ?&rendered_body[..100], "progress: rendered preview");
+        }
+        let flex_width = ctx.width.saturating_sub(ctx.indent);
+        let body = flex(&rendered_body, flex_width);
+        trace!(
+            flexed_len = body.len(),
+            flex_width = flex_width,
+            "progress: after flex"
+        );
         s.push(body.trim_end().to_string());
         if ctx.include_children && self.should_display_children() {
             ctx.indent += 1;
@@ -629,7 +653,13 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
                     .get("width")
                     .as_ref()
                     .and_then(|v| v.as_i64())
-                    .map(|v| if v < 0 { width - (-v as usize) } else { v as usize })
+                    .map(|v| {
+                        if v < 0 {
+                            width - (-v as usize)
+                        } else {
+                            v as usize
+                        }
+                    })
                     .unwrap_or(width);
                 let progress_bar =
                     progress_bar::progress_bar(progress_current, progress_total, width);
@@ -642,14 +672,48 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
     tera.register_filter(
         "flex",
         |value: &tera::Value, _: &HashMap<String, tera::Value>| {
-            Ok(format!(
-                "<clx:flex>{}<clx:flex>",
-                value
-                    .as_str()
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| value.to_string())
-            )
-            .into())
+            let content = value
+                .as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| value.to_string());
+            Ok(format!("<clx:flex>{}<clx:flex>", content).into())
+        },
+    );
+
+    // Simple truncate filter for text mode
+    tera.register_filter(
+        "truncate_text",
+        move |value: &tera::Value, args: &HashMap<String, tera::Value>| {
+            let content = value
+                .as_str()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| value.to_string());
+
+            let prefix_len = args
+                .get("prefix_len")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as usize)
+                .unwrap_or(20); // Default prefix length estimate
+
+            let max_len = args
+                .get("length")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as usize)
+                .unwrap_or_else(|| {
+                    // For text mode, calculate based on terminal width minus prefix
+                    width.saturating_sub(prefix_len)
+                });
+
+            if content.len() <= max_len {
+                Ok(content.into())
+            } else {
+                // Simple truncation with ellipsis
+                if max_len > 1 {
+                    Ok(format!("{}…", &content[..max_len.saturating_sub(1)]).into())
+                } else {
+                    Ok("…".into())
+                }
+            }
         },
     );
 }
@@ -661,7 +725,7 @@ fn add_tera_template(tera: &mut Tera, name: &str, body: &str) -> Result<()> {
     Ok(())
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ProgressOutput {
     UI,
     Text,
@@ -678,21 +742,153 @@ pub fn output() -> ProgressOutput {
 }
 
 fn flex(s: &str, width: usize) -> String {
-    let flex = |s: &str| {
-        let mut result = String::new();
+    // If no flex tags, return as-is
+    if !s.contains("<clx:flex>") {
+        trace!(chars = s.len(), "flex: no flex tags");
+        return s.to_string();
+    }
+
+    debug!(chars = s.len(), width = width, "flex: processing");
+    if s.len() > 100 {
+        trace!(first_100_chars = ?&s[..100], "flex: long content preview");
+    }
+
+    // Check if we have flex tags that might span multiple lines
+    let flex_count = s.matches("<clx:flex>").count();
+    trace!(flex_count = flex_count, "flex: tag count");
+    if flex_count >= 2 {
+        // We have a complete flex tag pair, process as a single unit
         let parts = s.splitn(3, "<clx:flex>").collect::<Vec<_>>();
-        if parts.len() != 3 {
-            return s.to_string();
+        trace!(parts_count = parts.len(), "flex: split parts");
+        if parts.len() >= 2 {
+            let prefix = parts[0];
+            let content = parts[1];
+            let suffix = if parts.len() == 3 { parts[2] } else { "" };
+            trace!(
+                prefix = ?prefix,
+                content_len = content.len(),
+                suffix = ?suffix,
+                "flex: parts breakdown"
+            );
+
+            // Handle empty content case
+            if content.is_empty() {
+                // If content is empty, just return prefix + suffix without the flex tags
+                let mut result = String::new();
+                result.push_str(prefix);
+                result.push_str(suffix);
+                return result;
+            }
+
+            // For multi-line content, we need to handle it specially
+            let content_lines: Vec<&str> = content.lines().collect();
+            let prefix_lines: Vec<&str> = prefix.lines().collect();
+            let suffix_lines: Vec<&str> = suffix.lines().collect();
+
+            // Calculate the width available on the first line
+            let first_line_prefix = prefix_lines.last().unwrap_or(&"");
+            let first_line_prefix_width = console::measure_text_width(first_line_prefix);
+
+            // For multi-line content, truncate more aggressively
+            if content_lines.len() > 1 {
+                let available_width = width.saturating_sub(first_line_prefix_width + 3); // Reserve space for ellipsis
+
+                let mut result = String::new();
+                result.push_str(prefix);
+
+                if let Some(first_content_line) = content_lines.first() {
+                    if available_width > 3 {
+                        // Show truncated first line
+                        let truncated =
+                            console::truncate_str(first_content_line, available_width, "…");
+                        result.push_str(&truncated);
+                    } else {
+                        // Very narrow terminal
+                        result.push('…');
+                    }
+                } else {
+                    result.push_str(content);
+                }
+
+                // Don't include suffix for multi-line truncated content
+                return result;
+            } else {
+                // Single line with flex tags, process normally
+                let suffix_width = if suffix_lines.is_empty() {
+                    0
+                } else {
+                    console::measure_text_width(suffix_lines[0])
+                };
+                let available_for_content =
+                    width.saturating_sub(first_line_prefix_width + suffix_width);
+
+                let mut result = String::new();
+
+                // If prefix alone exceeds width, truncate everything to fit
+                if first_line_prefix_width >= width {
+                    return console::truncate_str(prefix, width, "…").to_string();
+                }
+
+                result.push_str(prefix);
+
+                if available_for_content > 3 {
+                    result.push_str(&console::truncate_str(content, available_for_content, "…"));
+                    result.push_str(suffix);
+                } else {
+                    // Not enough space, truncate aggressively
+                    let available = width.saturating_sub(first_line_prefix_width);
+                    if available > 3 {
+                        result.push_str(&console::truncate_str(content, available, "…"));
+                    }
+                }
+
+                return result;
+            }
         }
-        let width =
-            width - console::measure_text_width(parts[0]) - console::measure_text_width(parts[2]);
-        result.push_str(parts[0]);
-        // TODO: why +1?
-        result.push_str(&console::truncate_str(parts[1], width, "…"));
-        result.push_str(parts[2]);
-        result
-    };
-    s.lines().map(flex).collect::<Vec<_>>().join("\n")
+    }
+
+    // Fallback: process line by line for incomplete flex tags
+    s.lines()
+        .map(|line| {
+            if !line.contains("<clx:flex>") {
+                return line.to_string();
+            }
+
+            let parts = line.splitn(3, "<clx:flex>").collect::<Vec<_>>();
+            if parts.len() < 2 {
+                return line.to_string();
+            }
+
+            let prefix = parts[0];
+            let content = parts[1];
+            let suffix = if parts.len() == 3 { parts[2] } else { "" };
+
+            let prefix_width = console::measure_text_width(prefix);
+            let suffix_width = console::measure_text_width(suffix);
+            let available_for_content = width.saturating_sub(prefix_width + suffix_width);
+
+            // If prefix alone exceeds width, truncate the whole line
+            if prefix_width >= width {
+                return console::truncate_str(line, width, "…").to_string();
+            }
+
+            let mut result = String::new();
+            result.push_str(prefix);
+
+            if available_for_content > 3 {
+                result.push_str(&console::truncate_str(content, available_for_content, "…"));
+                result.push_str(suffix);
+            } else {
+                let available = width.saturating_sub(prefix_width);
+                if available > 3 {
+                    result.push_str(&console::truncate_str(content, available, "…"));
+                }
+            }
+
+            result
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]
@@ -714,5 +910,53 @@ mod tests {
             result,
             "  \x1b[0;31maaaaaaaa\n  \x1b[0;31maaaaaaaa\n  \x1b[0;31maaaaaaaa\n  \x1b[0;31maaaaaaaa\n  \x1b[0;31maa"
         );
+    }
+
+    #[test]
+    fn test_flex() {
+        // Test normal case
+        let s = "prefix<clx:flex>content<clx:flex>suffix";
+        let result = flex(s, 20);
+        let width = console::measure_text_width(&result);
+        println!("Normal case: result='{}', width={}", result, width);
+        assert!(width <= 20);
+        assert!(result.contains("prefix"));
+        assert!(result.contains("suffix"));
+
+        // Test case where prefix + suffix are longer than available width
+        let s = "very_long_prefix<clx:flex>content<clx:flex>very_long_suffix";
+        let result = flex(s, 10);
+        let width = console::measure_text_width(&result);
+        println!(
+            "Long prefix/suffix case: result='{}', width={}",
+            result, width
+        );
+        assert!(width <= 10);
+        // When truncating, we expect the result to be within width limits
+        assert!(result.len() > 0);
+
+        // Test case with extremely long content
+        let long_content = "a".repeat(1000);
+        let s = format!("prefix<clx:flex>{}<clx:flex>suffix", long_content);
+        let result = flex(&s, 30);
+        let width = console::measure_text_width(&result);
+        println!("Long content case: result='{}', width={}", result, width);
+        assert!(width <= 30);
+        assert!(result.contains("prefix"));
+        assert!(result.contains("suffix"));
+
+        // Test case with extremely long prefix and suffix (like the ensembler_stdout issue)
+        let long_prefix = "very_long_prefix_that_exceeds_screen_width_".repeat(10);
+        let long_suffix = "very_long_suffix_that_exceeds_screen_width_".repeat(10);
+        let s = format!("{}<clx:flex>content<clx:flex>{}", long_prefix, long_suffix);
+        let result = flex(&s, 50);
+        let width = console::measure_text_width(&result);
+        println!(
+            "Extreme long prefix/suffix case: result='{}', width={}",
+            result, width
+        );
+        assert!(width <= 50);
+        // Should still contain some content
+        assert!(result.len() > 0);
     }
 }
