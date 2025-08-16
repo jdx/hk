@@ -411,8 +411,7 @@ impl Hook {
             if !profile_skipped.is_empty() {
                 let count = profile_skipped.len();
                 let steps_list = profile_skipped.join(", ");
-                let profiles_list: Vec<String> = missing_profiles.into_iter().collect();
-                let profiles_list = profiles_list.join(", ");
+                let profiles_list = missing_profiles.iter().join(", ");
                 eprintln!();
                 warn!(
                     "{} {} skipped due to missing profiles ({}): {}",
@@ -426,9 +425,15 @@ impl Hook {
                 if self.name == "pre-commit" || self.name == "pre-push" {
                     eprintln!("   To enable these steps, set HK_PROFILE environment variable.");
                     eprintln!("   Example: HK_PROFILE=slow git commit");
+                } else if missing_profiles.contains("slow") {
+                    eprintln!("   To enable these steps, use --slow flag or set HK_PROFILE=slow.");
+                    eprintln!("   Example: hk {} --slow", self.name);
                 } else {
-                    eprintln!("   To enable these steps, use --profile flag or set HK_PROFILE.");
-                    eprintln!("   Example: hk {} --profile slow", self.name);
+                    let example_profile = missing_profiles.iter().next().unwrap();
+                    eprintln!(
+                        "   To enable these steps, use --profile flag or set HK_PROFILE={example_profile}."
+                    );
+                    eprintln!("   Example: hk {} --profile {example_profile}", self.name);
                 }
             }
         }
