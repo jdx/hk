@@ -32,7 +32,7 @@ fi
 depends = ["init"]
 alias = "b"
 run = "cargo build"
-sources = ["build.rs", "src/**/*", "pkl/**/*"]
+sources = ["build.rs", "src/**/*", "pkl/**/*", "ensembler/src/**/*", "xx/src/**/*", "clx/**/*"]
 outputs = ["target/debug/hk"]
 
 [tasks.dev]

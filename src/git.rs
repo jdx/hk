@@ -503,7 +503,8 @@ impl Git {
                     // libgit2 sometimes fails with "attempt to merge diffs created with conflicting options"
                     // when there are both staged and unstaged changes. Fall back to shell git command.
                     debug!("libgit2 stash failed, falling back to shell git: {e}");
-                    let mut cmd = xx::process::cmd("git", ["stash", "push", "--keep-index", "-m", "hk"]);
+                    let mut cmd =
+                        xx::process::cmd("git", ["stash", "push", "--keep-index", "-m", "hk"]);
                     if *env::HK_STASH_UNTRACKED {
                         cmd = cmd.arg("--include-untracked");
                     }

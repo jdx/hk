@@ -87,10 +87,10 @@ impl StepJob {
             .prop("name", &self.step.name)
             .prop("files", &self.files.iter().map(|f| f.display()).join(" "))
             .body(
-                "{{spinner()}} {% if ensembler_cmd %}{{ensembler_cmd | flex}}\n{{ensembler_stdout | flex}}{% else %}{{message | flex}}{% endif %}"
+                "{{spinner()}} {% if ensembler_cmd %}{{ensembler_cmd | flex}}{% if ensembler_stdout %}\n{{ensembler_stdout | flex}}{% endif %}{% else %}{{message | flex}}{% endif %}"
             )
             .body_text(Some(
-                "{% if ensembler_stdout %}  {{name}} – {{ensembler_stdout}}{% elif message %}{{spinner()}} {{name}} – {{message}}{% endif %}".to_string(),
+                "{% if ensembler_stdout %}  {{name}} – {{ensembler_stdout | truncate_text}}{% elif message %}{{spinner()}} {{name}} – {{message | truncate_text}}{% endif %}".to_string(),
             ))
             .on_done(ProgressJobDoneBehavior::Hide)
             .build();
