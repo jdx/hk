@@ -12,6 +12,8 @@ teardown() {
 @test "dependent step proceeds when dependency's condition is false" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+// Need to explicitly enable condition-false skip messages since default is only profile-not-enabled
+display_skip_reasons = List("profile-not-enabled", "condition-false")
 hooks {
     ["check"] {
         steps {

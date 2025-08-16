@@ -626,6 +626,11 @@ impl Step {
     }
 
     pub fn mark_skipped(&self, ctx: &StepContext, reason: &SkipReason) -> Result<()> {
+        // Track profile-not-enabled skips for summary
+        if matches!(reason, SkipReason::ProfileNotEnabled) {
+            ctx.hook_ctx.track_profile_skip(&self.name);
+        }
+
         if reason.should_display() {
             ctx.progress.prop("message", &reason.message());
             let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
