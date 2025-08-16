@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.6.0](https://github.com/jdx/hk/compare/v1.5.0..v1.6.0) - 2025-08-16
+
+### 🚀 Features
+
+- add interactive field to JSON timing report by [@jdx](https://github.com/jdx) in [#143](https://github.com/jdx/hk/pull/143)
+- added report property to hooks by [@jdx](https://github.com/jdx) in [#145](https://github.com/jdx/hk/pull/145)
+- display message when steps are skipped by [@jdx](https://github.com/jdx) in [#146](https://github.com/jdx/hk/pull/146)
+- convert xx, clx, and ensembler to git subtrees by [@jdx](https://github.com/jdx) in [aa87ee3](https://github.com/jdx/hk/commit/aa87ee35b1d81277212253070865f06fc06b0a87)
+- add configurable skip message visibility by [@jdx](https://github.com/jdx) in [#151](https://github.com/jdx/hk/pull/151)
+
+### 🐛 Bug Fixes
+
+- libgit2 issue with merging stash diffs by [@jdx](https://github.com/jdx) in [8e1de78](https://github.com/jdx/hk/commit/8e1de7808b0c46b8d0d3ed99bb99be3ac26f672a)
+- bug with truncation of progress by [@jdx](https://github.com/jdx) in [5c81a0c](https://github.com/jdx/hk/commit/5c81a0c2161ad4f622889167bae16f7e25230d59)
+- update release-plz script for git subtrees by [@jdx](https://github.com/jdx) in [b55134c](https://github.com/jdx/hk/commit/b55134c8c5081b57f93b049f59f6e85a32fb9a39)
+
+### 🔍 Other Changes
+
+- **(mise)** restructure tasks, add dev alias, and parallelize bats tests by [@jdx](https://github.com/jdx) in [#150](https://github.com/jdx/hk/pull/150)
+- update cargo deps by [@jdx](https://github.com/jdx) in [#148](https://github.com/jdx/hk/pull/148)
+- update cargo deps by [@jdx](https://github.com/jdx) in [#149](https://github.com/jdx/hk/pull/149)
+- mise bump by [@jdx](https://github.com/jdx) in [#147](https://github.com/jdx/hk/pull/147)
+- mise.lock by [@jdx](https://github.com/jdx) in [b14839b](https://github.com/jdx/hk/commit/b14839b5fbe33d02fe6799fc6fdef1973a080ed7)
+- add CLAUDE.md by [@jdx](https://github.com/jdx) in [f2a5083](https://github.com/jdx/hk/commit/f2a5083ec49f4575719cc28b9a9d835f8ac75e3c)
+- remove test fixture by [@jdx](https://github.com/jdx) in [564612d](https://github.com/jdx/hk/commit/564612df078990dbc88c9f0e70629cb1d58bff67)
+- Squashed 'xx/' content from commit afb8132 by [@jdx](https://github.com/jdx) in [73d78f8](https://github.com/jdx/hk/commit/73d78f808aba44b2a11cf9603e37da97943fa90e)
+- Squashed 'clx/' content from commit e9f476e by [@jdx](https://github.com/jdx) in [f51c062](https://github.com/jdx/hk/commit/f51c06227c297e7040078121804e19574f780b62)
+- Squashed 'ensembler/' content from commit 25e12c4 by [@jdx](https://github.com/jdx) in [34433b1](https://github.com/jdx/hk/commit/34433b193d847baf0746ec12e60b85b550c0c4d8)
+- pin homedir to 0.3.5 for MSRV compatibility by [@jdx](https://github.com/jdx) in [f7e1f42](https://github.com/jdx/hk/commit/f7e1f42d6b86215201a7f06b23014fff4dbe5856)
+
 ## [1.5.0](https://github.com/jdx/hk/compare/v1.4.0..v1.5.0) - 2025-08-14
 
 ### 🚀 Features

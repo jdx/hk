@@ -1093,7 +1093,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hk"
-version = "1.5.0"
+version = "1.6.0"
 dependencies = [
  "chrono",
  "clap",
@@ -2248,9 +2248,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.100"
+version = "1.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "802989b9fe1b674bc996ac7bed7b3012090a9b4cbfa0fe157ee3ea97e93e4ccd"
+checksum = "89ae43fd86e4158d6db51ad8e2b80f313af9cc74f5c0e03ccb87de09998732de"
 dependencies = [
  "unicode-ident",
 ]
