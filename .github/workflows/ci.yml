@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    tags: ["*"]
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MISE_EXPERIMENTAL: true
+  CARGO_TERM_COLOR: always
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-24.04
+          #- ubuntu-24.04-arm
+          #- windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: Swatinem/rust-cache@v2
+      - uses: jdx/mise-action@v2
+      - run: mise run ci
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: jdx/mise-action@v2
+      - run: mise x -- cargo msrv verify
