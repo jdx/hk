@@ -12,6 +12,7 @@ teardown() {
 @test "--skip-step skips named step with message" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+display_skip_reasons = List("disabled-by-cli")
 hooks {
     ["check"] {
         steps {

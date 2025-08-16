@@ -30,26 +30,50 @@ use crate::{
     version,
 };
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, strum::Display)]
+#[strum(serialize_all = "kebab-case")]
 pub enum SkipReason {
-    Env(String),
-    Cli(String),
-    ProfileNotEnabled,
+    #[strum(serialize = "disabled-by-env")]
+    DisabledByEnv(String),
+    #[strum(serialize = "disabled-by-cli")]
+    DisabledByCli(String),
+    ProfileNotEnabled(Vec<String>),
     ProfileExplicitlyDisabled,
+    #[strum(serialize = "no-command-for-run-type")]
     NoCommandForRunType(RunType),
+    NoFilesToProcess,
+    ConditionFalse,
 }
 
 impl SkipReason {
     pub fn message(&self) -> String {
         match self {
-            SkipReason::Env(src) | SkipReason::Cli(src) => {
+            SkipReason::DisabledByEnv(src) | SkipReason::DisabledByCli(src) => {
                 format!("skipped: disabled via {src}")
             }
-            SkipReason::ProfileNotEnabled | SkipReason::ProfileExplicitlyDisabled => {
-                "skipped: disabled by profile".to_string()
+            SkipReason::ProfileNotEnabled(profiles) => {
+                if profiles.is_empty() {
+                    "skipped: disabled by profile".to_string()
+                } else {
+                    format!(
+                        "skipped: missing profile{} ({})",
+                        if profiles.len() > 1 { "s" } else { "" },
+                        profiles.join(", ")
+                    )
+                }
             }
+            SkipReason::ProfileExplicitlyDisabled => "skipped: disabled by profile".to_string(),
             SkipReason::NoCommandForRunType(_) => "skipped: no command for run type".to_string(),
+            SkipReason::NoFilesToProcess => "skipped: no files to process".to_string(),
+            SkipReason::ConditionFalse => "skipped: condition is false".to_string(),
         }
+    }
+
+    pub fn should_display(&self) -> bool {
+        let settings = Settings::get();
+        // Use strum's Display trait to get the kebab-case string
+        let key = self.to_string();
+        settings.display_skip_reasons.contains(&key)
     }
 }
 
@@ -99,6 +123,7 @@ pub struct HookContext {
     expr_ctx: std::sync::Mutex<expr::Context>,
     pub timing: Arc<TimingRecorder>,
     pub skip_steps: IndexMap<String, SkipReason>,
+    skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
 }
 
 impl HookContext {
@@ -137,6 +162,7 @@ impl HookContext {
             expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
             skip_steps,
+            skipped_steps: StdMutex::new(IndexMap::new()),
         }
     }
 
@@ -188,6 +214,17 @@ impl HookContext {
                 hk_progress.progress_current(completed_jobs);
             }
         }
+    }
+
+    pub fn track_skip(&self, step_name: &str, reason: SkipReason) {
+        self.skipped_steps
+            .lock()
+            .unwrap()
+            .insert(step_name.to_string(), reason);
+    }
+
+    pub fn get_skipped_steps(&self) -> IndexMap<String, SkipReason> {
+        self.skipped_steps.lock().unwrap().clone()
     }
 }
 
@@ -281,10 +318,16 @@ impl Hook {
         let skip_steps = {
             let mut m: IndexMap<String, SkipReason> = IndexMap::new();
             for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(s.clone(), SkipReason::Env("HK_SKIP_STEPS".to_string()));
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                );
             }
             for s in opts.skip_step.iter() {
-                m.insert(s.clone(), SkipReason::Cli(format!("--skip-step {}", s)));
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
+                );
             }
             m
         };
@@ -353,6 +396,57 @@ impl Hook {
         if let Err(err) = hook_ctx.timing.write_json() {
             warn!("Failed to write timing JSON: {err}");
         }
+
+        // Clear progress bars before displaying summary
+        clx::progress::stop();
+
+        // Display summary of profile-skipped steps
+        // Only show summary if profile-not-enabled is configured to be displayed
+        if Settings::get()
+            .display_skip_reasons
+            .contains("profile-not-enabled")
+        {
+            let skipped_steps = hook_ctx.get_skipped_steps();
+            let mut profile_skipped: Vec<String> = vec![];
+            let mut missing_profiles = indexmap::IndexSet::new();
+
+            for (name, reason) in skipped_steps.iter() {
+                if let SkipReason::ProfileNotEnabled(profiles) = reason {
+                    profile_skipped.push(name.clone());
+                    missing_profiles.extend(profiles.clone());
+                }
+            }
+
+            if !profile_skipped.is_empty() {
+                let count = profile_skipped.len();
+                let steps_list = profile_skipped.join(", ");
+                let profiles_list = missing_profiles.iter().join(", ");
+                eprintln!();
+                warn!(
+                    "{} {} skipped due to missing profiles ({}): {}",
+                    count,
+                    if count == 1 { "step was" } else { "steps were" },
+                    profiles_list,
+                    steps_list
+                );
+
+                // Show appropriate help message based on hook type
+                if self.name == "pre-commit" || self.name == "pre-push" {
+                    eprintln!("   To enable these steps, set HK_PROFILE environment variable.");
+                    eprintln!("   Example: HK_PROFILE=slow git commit");
+                } else if missing_profiles.contains("slow") {
+                    eprintln!("   To enable these steps, use --slow flag or set HK_PROFILE=slow.");
+                    eprintln!("   Example: hk {} --slow", self.name);
+                } else {
+                    let example_profile = missing_profiles.iter().next().unwrap();
+                    eprintln!(
+                        "   To enable these steps, use --profile flag or set HK_PROFILE={example_profile}."
+                    );
+                    eprintln!("   Example: hk {} --profile {example_profile}", self.name);
+                }
+            }
+        }
+
         // Run hook-level report if configured
         if let Some(report) = &self.report {
             if let Ok(json) = hook_ctx.timing.to_json_string() {

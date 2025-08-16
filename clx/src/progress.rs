@@ -272,6 +272,14 @@ impl ProgressJob {
             flex_width = flex_width,
             "progress: after flex"
         );
+        // Safety check: if flex tags still exist, log a warning
+        if body.contains("<clx:flex>") {
+            debug!(
+                job_id = self.id,
+                body_preview = ?&body[..body.len().min(200)],
+                "progress: flex tags remain after processing!"
+            );
+        }
         s.push(body.trim_end().to_string());
         if ctx.include_children && self.should_display_children() {
             ctx.indent += 1;
@@ -374,7 +382,13 @@ impl ProgressJob {
                 let tera = tera.as_mut().unwrap();
                 let output = self.render(tera, ctx)?;
                 if !output.is_empty() {
-                    term().write_line(&output)?;
+                    // Safety check: ensure no flex tags are visible
+                    let final_output = if output.contains("<clx:flex>") {
+                        flex(&output, term().width() as usize)
+                    } else {
+                        output
+                    };
+                    term().write_line(&final_output)?;
                 }
                 Result::Ok(())
             };
@@ -389,7 +403,13 @@ impl ProgressJob {
     pub fn println(&self, s: &str) {
         if !s.is_empty() {
             pause();
-            let _ = term().write_line(s);
+            // Safety check: ensure no flex tags are visible
+            let output = if s.contains("<clx:flex>") {
+                flex(s, term().width() as usize)
+            } else {
+                s.to_string()
+            };
+            let _ = term().write_line(&output);
             resume();
         }
     }
@@ -566,9 +586,18 @@ fn refresh() -> Result<bool> {
         .join("\n");
     term.clear_last_lines(*lines)?;
     if !output.is_empty() {
-        term.write_line(&output)?;
+        // Safety check: ensure no flex tags are visible in final output
+        let final_output = if output.contains("<clx:flex>") {
+            // Process any remaining flex tags with terminal width
+            flex(&output, term.width() as usize)
+        } else {
+            output
+        };
+        term.write_line(&final_output)?;
+        *lines = final_output.split("\n").count();
+    } else {
+        *lines = 0;
     }
-    *lines = output.split("\n").count();
     if !any_running && !any_running_check() {
         *STARTED.lock().unwrap() = false;
         return Ok(false); // stop looping if no active progress jobs are running before or after the refresh
@@ -595,14 +624,31 @@ pub fn is_paused() -> bool {
 
 pub fn pause() {
     PAUSED.store(true, Ordering::Relaxed);
-    let _ = clear();
+    if *STARTED.lock().unwrap() {
+        let _ = clear();
+    }
 }
 
 pub fn resume() {
     PAUSED.store(false, Ordering::Relaxed);
+    if !*STARTED.lock().unwrap() {
+        return;
+    }
     if output() == ProgressOutput::UI {
         notify();
     }
+}
+
+pub fn stop() {
+    // Simply mark all running jobs as done to stop the refresh loop naturally
+    let jobs = JOBS.lock().unwrap().clone();
+    for job in jobs {
+        if job.is_running() {
+            job.set_status(ProgressStatus::Done);
+        }
+    }
+    // Force one final refresh to show the final state
+    let _ = refresh();
 }
 
 fn clear() -> Result<()> {

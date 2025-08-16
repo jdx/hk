@@ -25,13 +25,15 @@ hooks {
 EOF
     run hk check
     assert_success
-    assert_output --partial "foo – skipped: disabled by profile"
+    assert_output --partial "foo – skipped: missing profile (needs-profile)"
     refute_output --partial "RUN"
 }
 
 @test "skip output: HK_SKIP_STEPS" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+// Need to explicitly enable disabled-by-env skip messages since default is only profile-not-enabled
+display_skip_reasons = List("profile-not-enabled", "disabled-by-env")
 hooks {
     ["check"] {
         steps {
@@ -51,6 +53,8 @@ EOF
 @test "skip output: condition false" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+// Need to explicitly enable condition-false skip messages since default is only profile-not-enabled
+display_skip_reasons = List("profile-not-enabled", "condition-false")
 hooks {
     ["check"] {
         steps {
