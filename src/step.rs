@@ -626,10 +626,8 @@ impl Step {
     }
 
     pub fn mark_skipped(&self, ctx: &StepContext, reason: &SkipReason) -> Result<()> {
-        // Track profile-not-enabled skips for summary
-        if matches!(reason, SkipReason::ProfileNotEnabled) {
-            ctx.hook_ctx.track_profile_skip(&self.name);
-        }
+        // Track all skip reasons for potential future use
+        ctx.hook_ctx.track_skip(&self.name, reason.clone());
 
         if reason.should_display() {
             ctx.progress.prop("message", &reason.message());

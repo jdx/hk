@@ -117,7 +117,7 @@ pub struct HookContext {
     expr_ctx: std::sync::Mutex<expr::Context>,
     pub timing: Arc<TimingRecorder>,
     pub skip_steps: IndexMap<String, SkipReason>,
-    profile_skipped_steps: std::sync::Mutex<HashSet<String>>,
+    skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
 }
 
 impl HookContext {
@@ -156,7 +156,7 @@ impl HookContext {
             expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
             skip_steps,
-            profile_skipped_steps: StdMutex::new(HashSet::new()),
+            skipped_steps: StdMutex::new(IndexMap::new()),
         }
     }
 
@@ -210,15 +210,15 @@ impl HookContext {
         }
     }
 
-    pub fn track_profile_skip(&self, step_name: &str) {
-        self.profile_skipped_steps
+    pub fn track_skip(&self, step_name: &str, reason: SkipReason) {
+        self.skipped_steps
             .lock()
             .unwrap()
-            .insert(step_name.to_string());
+            .insert(step_name.to_string(), reason);
     }
 
-    pub fn get_profile_skipped_steps(&self) -> HashSet<String> {
-        self.profile_skipped_steps.lock().unwrap().clone()
+    pub fn get_skipped_steps(&self) -> IndexMap<String, SkipReason> {
+        self.skipped_steps.lock().unwrap().clone()
     }
 }
 
@@ -386,14 +386,21 @@ impl Hook {
         }
 
         // Display summary of profile-skipped steps
-        let profile_skipped = hook_ctx.get_profile_skipped_steps();
+        let skipped_steps = hook_ctx.get_skipped_steps();
+        let profile_skipped: Vec<String> = skipped_steps
+            .iter()
+            .filter_map(|(name, reason)| {
+                if matches!(reason, SkipReason::ProfileNotEnabled) {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         if !profile_skipped.is_empty() {
             let count = profile_skipped.len();
-            let steps_list = profile_skipped
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ");
+            let steps_list = profile_skipped.join(", ");
             eprintln!();
             eprintln!(
                 "💡 {} {} skipped due to missing profiles: {}",
