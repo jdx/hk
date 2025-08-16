@@ -1713,7 +1713,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.5.0",
+  "version": "1.6.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
