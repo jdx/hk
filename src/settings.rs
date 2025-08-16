@@ -4,7 +4,7 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-use indexmap::IndexSet;
+use indexmap::{IndexMap, IndexSet};
 
 use crate::env;
 
@@ -14,6 +14,7 @@ pub struct Settings {
     pub enabled_profiles: IndexSet<String>,
     pub disabled_profiles: IndexSet<String>,
     pub fail_fast: bool,
+    pub skip_reasons: IndexMap<String, bool>,
 }
 
 static JOBS: LazyLock<Mutex<Option<NonZero<usize>>>> = LazyLock::new(Default::default);
@@ -26,6 +27,8 @@ static FAIL_FAST: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default
 static ALL: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static FIX: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static CHECK: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
+static SKIP_REASONS: LazyLock<Mutex<Option<IndexMap<String, bool>>>> =
+    LazyLock::new(Default::default);
 
 impl Settings {
     pub fn get() -> Settings {
@@ -80,6 +83,10 @@ impl Settings {
     pub fn set_check(check: bool) {
         *CHECK.lock().unwrap() = Some(check);
     }
+
+    pub fn set_skip_reasons(skip_reasons: IndexMap<String, bool>) {
+        *SKIP_REASONS.lock().unwrap() = Some(skip_reasons);
+    }
 }
 
 impl Default for Settings {
@@ -104,11 +111,22 @@ impl Default for Settings {
                     .map(|p| p.to_string())
                     .collect()
             });
+        let skip_reasons = SKIP_REASONS.lock().unwrap().clone().unwrap_or_else(|| {
+            // Default: only ProfileNotEnabled is shown
+            let mut map = IndexMap::new();
+            map.insert("ProfileNotEnabled".to_string(), true);
+            map.insert("ProfileExplicitlyDisabled".to_string(), false);
+            map.insert("NoCommandForRunType".to_string(), false);
+            map.insert("Env".to_string(), false);
+            map.insert("Cli".to_string(), false);
+            map
+        });
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
             disabled_profiles,
             fail_fast: FAIL_FAST.lock().unwrap().unwrap_or(*env::HK_FAIL_FAST),
+            skip_reasons,
         }
     }
 }

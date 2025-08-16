@@ -51,6 +51,18 @@ impl SkipReason {
             SkipReason::NoCommandForRunType(_) => "skipped: no command for run type".to_string(),
         }
     }
+
+    pub fn should_display(&self) -> bool {
+        let settings = Settings::get();
+        let key = match self {
+            SkipReason::Env(_) => "Env",
+            SkipReason::Cli(_) => "Cli",
+            SkipReason::ProfileNotEnabled => "ProfileNotEnabled",
+            SkipReason::ProfileExplicitlyDisabled => "ProfileExplicitlyDisabled",
+            SkipReason::NoCommandForRunType(_) => "NoCommandForRunType",
+        };
+        settings.skip_reasons.get(key).copied().unwrap_or(false)
+    }
 }
 
 #[serde_as]

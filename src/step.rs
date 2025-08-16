@@ -267,19 +267,33 @@ impl Step {
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
-            let msg = skip_steps.get(&self.name).unwrap().message();
+            let reason = skip_steps.get(&self.name).unwrap();
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some(msg);
+            // Only set skip_reason if it should be displayed
+            j.skip_reason = if reason.should_display() {
+                Some(reason.message())
+            } else {
+                Some("".to_string()) // Empty string indicates skipped but not displayed
+            };
             return Ok(vec![j]);
         }
         if let Some(reason) = self.profile_skip_reason() {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some(reason.message());
+            j.skip_reason = if reason.should_display() {
+                Some(reason.message())
+            } else {
+                Some("".to_string()) // Empty string indicates skipped but not displayed
+            };
             return Ok(vec![j]);
         }
         if self.run_cmd(run_type).is_none() {
+            let reason = SkipReason::NoCommandForRunType(run_type);
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type).message());
+            j.skip_reason = if reason.should_display() {
+                Some(reason.message())
+            } else {
+                Some("".to_string()) // Empty string indicates skipped but not displayed
+            };
             return Ok(vec![j]);
         }
         let files = self.filter_files(files)?;
@@ -626,9 +640,15 @@ impl Step {
     }
 
     pub fn mark_skipped(&self, ctx: &StepContext, reason: &str) -> Result<()> {
-        ctx.progress.prop("message", reason);
-        let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
-        ctx.progress.set_status(status);
+        if !reason.is_empty() {
+            // Only show skip message if reason is not empty
+            ctx.progress.prop("message", reason);
+            let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
+            ctx.progress.set_status(status);
+        } else {
+            // Step is skipped but message shouldn't be displayed
+            ctx.progress.set_status(ProgressStatus::Hide);
+        }
         ctx.depends.mark_done(&self.name)?;
         Ok(())
     }
