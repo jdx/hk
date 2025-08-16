@@ -21,7 +21,7 @@ if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
     sed -i "s/xx = { path = \"xx\", features = \[\"http\", \"hash\", \"rustls\"\] }/xx = { version = \"$xx_version\", features = [\"http\", \"hash\", \"rustls\"] }/" Cargo.toml
     
     # Publish the crate
-    cargo publish -p hk || {
+    cargo publish -p hk --allow-dirty || {
       # Restore original Cargo.toml on failure
       mv Cargo.toml.bak Cargo.toml
       exit 1

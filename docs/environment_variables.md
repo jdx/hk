@@ -131,6 +131,21 @@ Default: `~/.local/state/hk`
 
 The state directory to use.
 
+## `HK_HIDE_WARNINGS`
+
+Type: `string[]` (comma-separated list)
+Default: `(empty)`
+
+A comma-separated list of warning tags to suppress. This allows you to hide specific warning messages that you don't want to see.
+
+Available warning tags:
+- `missing-profiles`: Suppresses warnings about steps being skipped due to missing profiles
+
+Example usage:
+```bash
+HK_HIDE_WARNINGS=missing-profiles hk check
+```
+
 ## `HK_HIDE_WHEN_DONE`
 
 Type: `bool`

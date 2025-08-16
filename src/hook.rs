@@ -422,7 +422,8 @@ impl Hook {
                 let steps_list = profile_skipped.join(", ");
                 let profiles_list = missing_profiles.iter().join(", ");
                 eprintln!();
-                warn!(
+                crate::tagged_warn!(
+                    "missing-profiles",
                     "{} {} skipped due to missing profiles ({}): {}",
                     count,
                     if count == 1 { "step was" } else { "steps were" },
@@ -444,6 +445,7 @@ impl Hook {
                     );
                     eprintln!("   Example: hk {} --profile {example_profile}", self.name);
                 }
+                eprintln!("   To hide this warning: set HK_HIDE_WARNINGS=missing-profiles");
             }
         }
 
