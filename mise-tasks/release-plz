@@ -26,7 +26,7 @@ if [ "${DRY_RUN:-}" != 0 ]; then
 fi
 
 git cliff --bump -o CHANGELOG.md
-cargo set-version "${version#v}"
+cargo set-version --package hk "${version#v}"
 
 git config user.name mise-en-dev
 git config user.email 123107610+mise-en-dev@users.noreply.github.com
@@ -46,4 +46,28 @@ git checkout -B release
 git commit -m "chore: release $version"
 git push origin release --force
 gh pr create --title "chore: release $version" --body "$changelog" --label "release" ||
-  gh pr edit --title "chore: release $version" --body "$changelog" 
+  gh pr edit --title "chore: release $version" --body "$changelog"
+
+# Push subtree changes to respective repositories
+if [ -d "xx/.git" ] || [ -d "clx/.git" ] || [ -d "ensembler/.git" ]; then
+  echo "Error: Subtree directories should not contain .git folders"
+  exit 1
+fi
+
+# Push xx subtree
+if git ls-tree HEAD:xx > /dev/null 2>&1; then
+  echo "Pushing xx subtree changes..."
+  git subtree push --prefix=xx https://github.com/jdx/xx.git main || echo "No changes to push for xx"
+fi
+
+# Push clx subtree
+if git ls-tree HEAD:clx > /dev/null 2>&1; then
+  echo "Pushing clx subtree changes..."
+  git subtree push --prefix=clx https://github.com/jdx/clx.git main || echo "No changes to push for clx"
+fi
+
+# Push ensembler subtree
+if git ls-tree HEAD:ensembler > /dev/null 2>&1; then
+  echo "Pushing ensembler subtree changes..."
+  git subtree push --prefix=ensembler https://github.com/jdx/ensembler.git main || echo "No changes to push for ensembler"
+fi 
