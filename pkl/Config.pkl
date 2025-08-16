@@ -91,13 +91,8 @@ class Hook {
 
 /// Configuration for which skip reasons to display
 /// By default, only ProfileNotEnabled is displayed
-skip_reasons: Mapping<String, Boolean> = new Mapping<String, Boolean> {
-    ["ProfileNotEnabled"] = true
-    ["ProfileExplicitlyDisabled"] = false
-    ["NoCommandForRunType"] = false
-    ["Env"] = false
-    ["Cli"] = false
-}
+/// Possible values: "profileNotEnabled", "profileExplicitlyDisabled", "noCommandForRunType", "env", "cli"
+skipReasons: List<String> = List("profileNotEnabled")
 
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
 env: Mapping<String, String> = new Mapping<String, String>{}

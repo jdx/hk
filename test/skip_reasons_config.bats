@@ -6,14 +6,8 @@ setup() {
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-// Test configuration with custom skip_reasons settings
-skip_reasons = new Mapping<String, Boolean> {
-    ["ProfileNotEnabled"] = false  // Hide profile not enabled messages
-    ["ProfileExplicitlyDisabled"] = true
-    ["NoCommandForRunType"] = true
-    ["Env"] = true
-    ["Cli"] = true
-}
+// Test configuration with custom skipReasons settings
+skipReasons = List()  // Empty list means hide all skip messages
 
 hooks = new {
     ["check"] {
@@ -52,13 +46,11 @@ teardown() {
 }
 
 @test "skip_reasons: Default configuration shows ProfileNotEnabled" {
-  # Create a config with default skip_reasons (or explicitly set ProfileNotEnabled to true)
+  # Create a config with default skipReasons (or explicitly set profileNotEnabled)
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skip_reasons = new Mapping<String, Boolean> {
-    ["ProfileNotEnabled"] = true  // Show profile not enabled messages (default)
-}
+skipReasons = List("profileNotEnabled")  // Show profile not enabled messages (default)
 
 hooks = new {
     ["check"] {
@@ -84,9 +76,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skip_reasons = new Mapping<String, Boolean> {
-    ["NoCommandForRunType"] = false  // Hide no command messages
-}
+skipReasons = List()  // Empty list hides all messages
 
 hooks = new {
     ["check"] {
@@ -109,9 +99,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skip_reasons = new Mapping<String, Boolean> {
-    ["NoCommandForRunType"] = true  // Show no command messages
-}
+skipReasons = List("noCommandForRunType")  // Show no command messages
 
 hooks = new {
     ["check"] {
@@ -136,9 +124,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skip_reasons = new Mapping<String, Boolean> {
-    ["Env"] = false  // Hide environment skip messages
-}
+skipReasons = List()  // Empty list hides all messages
 
 hooks = new {
     ["check"] {
@@ -161,9 +147,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skip_reasons = new Mapping<String, Boolean> {
-    ["Env"] = true  // Show environment skip messages
-}
+skipReasons = List("env")  // Show environment skip messages
 
 hooks = new {
     ["check"] {
@@ -188,9 +172,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skip_reasons = new Mapping<String, Boolean> {
-    ["Cli"] = false  // Hide CLI skip messages
-}
+skipReasons = List()  // Empty list hides all messages
 
 hooks = new {
     ["check"] {
@@ -213,9 +195,7 @@ EOF
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 
-skip_reasons = new Mapping<String, Boolean> {
-    ["Cli"] = true  // Show CLI skip messages
-}
+skipReasons = List("cli")  // Show CLI skip messages
 
 hooks = new {
     ["check"] {

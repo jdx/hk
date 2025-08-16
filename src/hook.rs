@@ -55,13 +55,13 @@ impl SkipReason {
     pub fn should_display(&self) -> bool {
         let settings = Settings::get();
         let key = match self {
-            SkipReason::Env(_) => "Env",
-            SkipReason::Cli(_) => "Cli",
-            SkipReason::ProfileNotEnabled => "ProfileNotEnabled",
-            SkipReason::ProfileExplicitlyDisabled => "ProfileExplicitlyDisabled",
-            SkipReason::NoCommandForRunType(_) => "NoCommandForRunType",
+            SkipReason::Env(_) => "env",
+            SkipReason::Cli(_) => "cli",
+            SkipReason::ProfileNotEnabled => "profileNotEnabled",
+            SkipReason::ProfileExplicitlyDisabled => "profileExplicitlyDisabled",
+            SkipReason::NoCommandForRunType(_) => "noCommandForRunType",
         };
-        settings.skip_reasons.get(key).copied().unwrap_or(false)
+        settings.skip_reasons.contains(key)
     }
 }
 
