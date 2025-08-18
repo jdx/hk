@@ -53,6 +53,7 @@ pretty_assertions = "1"
 tempfile = "3"
 test-log = "0.2"
 wiremock = "0.6"
+tokio = { version = "1", features = ["full"] }
 
 [package.metadata.release]
 pre-release-hook = ["git", "cliff", "-o", "CHANGELOG.md", "--tag", "{{version}}" ]

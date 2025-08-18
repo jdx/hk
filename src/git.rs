@@ -7,6 +7,7 @@ use std::{
 };
 
 use crate::Result;
+use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
 use git2::{Repository, StatusOptions, StatusShow};
@@ -17,6 +18,33 @@ use std::os::unix::ffi::OsStringExt;
 use xx::file::display_path;
 
 use crate::env;
+
+fn git_cmd<I, S>(args: I) -> xx::process::XXExpression
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    xx::process::cmd("git", args).on_stderr_line(|line| {
+        clx::progress::with_terminal_lock(|| eprintln!("{} {}", style::edim("git"), line))
+    })
+}
+
+fn git_run<I, S>(args: I) -> Result<()>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    git_cmd(args).run()?;
+    Ok(())
+}
+
+fn git_read<I, S>(args: I) -> Result<String>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    Ok(git_cmd(args).read()?)
+}
 
 fn parse_paths_from_patch(patch: &str) -> Vec<PathBuf> {
     // Parse lines like: diff --git a/path b/path
@@ -220,7 +248,7 @@ impl Git {
                 })
                 .collect())
         } else {
-            let mut cmd = xx::process::cmd("git", ["ls-files", "-z"]);
+            let mut cmd = git_cmd(["ls-files", "-z"]);
             if let Some(pathspec) = pathspec {
                 cmd = cmd.arg("--");
                 cmd = cmd.args(pathspec.iter().map(|p| p.to_str().unwrap()));
@@ -302,7 +330,7 @@ impl Git {
                 args.push("--".into());
                 args.extend(pathspec.iter().map(|p| p.into()))
             }
-            let output = xx::process::cmd("git", args).read()?;
+            let output = git_read(args)?;
             let mut staged_files = BTreeSet::new();
             let mut unstaged_files = BTreeSet::new();
             let mut untracked_files = BTreeSet::new();
@@ -415,7 +443,7 @@ impl Git {
                         .into_iter()
                         .chain(status.modified_files.iter().map(|p| p.to_str().unwrap()))
                         .collect::<Vec<_>>();
-                    xx::process::cmd("git", &args).run()?;
+                    git_run(&args)?;
                 }
                 for file in status.untracked_files.iter() {
                     if let Err(err) = xx::file::remove_file(file) {
@@ -466,7 +494,7 @@ impl Git {
                     .into_iter()
                     .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
                     .collect::<Vec<_>>();
-                xx::process::cmd("git", &args).run()?;
+                git_run(&args)?;
             }
             let output =
                 xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
@@ -475,7 +503,7 @@ impl Git {
                     .into_iter()
                     .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
                     .collect::<Vec<_>>();
-                xx::process::cmd("git", &args).run()?;
+                git_run(&args)?;
             }
             output
         };
@@ -503,8 +531,7 @@ impl Git {
                     // libgit2 sometimes fails with "attempt to merge diffs created with conflicting options"
                     // when there are both staged and unstaged changes. Fall back to shell git command.
                     debug!("libgit2 stash failed, falling back to shell git: {e}");
-                    let mut cmd =
-                        xx::process::cmd("git", ["stash", "push", "--keep-index", "-m", "hk"]);
+                    let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
                     if *env::HK_STASH_UNTRACKED {
                         cmd = cmd.arg("--include-untracked");
                     }
@@ -513,7 +540,7 @@ impl Git {
                 }
             }
         } else {
-            let mut cmd = xx::process::cmd("git", ["stash", "push", "--keep-index", "-m", "hk"]);
+            let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
             if *env::HK_STASH_UNTRACKED {
                 cmd = cmd.arg("--include-untracked");
             }
@@ -542,9 +569,7 @@ impl Git {
                 // Try a 3-way apply so non-conflicting hunks from the patch merge with
                 // any fixer changes. Conflict markers will be written for conflicting hunks.
                 let affected_files = parse_paths_from_patch(&diff);
-                let apply_res = xx::process::cmd("git", ["apply", "--3way"])
-                    .arg(&patch_file)
-                    .run();
+                let apply_res = git_cmd(["apply", "--3way"]).arg(&patch_file).run();
                 // If 3-way apply reported an error, it might still have applied with conflicts.
                 // Detect conflict markers in affected files and treat that as a successful apply
                 // that requires resolution. Only fall back to plain apply when there are no
@@ -569,8 +594,7 @@ impl Git {
                             "git apply --3way failed for {}: {err:?}; attempting plain apply",
                             display_path(&patch_file)
                         );
-                        if let Err(err2) = xx::process::cmd("git", ["apply"]).arg(&patch_file).run()
-                        {
+                        if let Err(err2) = git_cmd(["apply"]).arg(&patch_file).run() {
                             return Err(eyre!(
                                 "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
                                 display_path(&patch_file)
@@ -613,7 +637,8 @@ impl Git {
                     .start();
                 // Apply the stash first, detect conflicts, and in case of conflict
                 // prefer the stash (the original unstaged changes), discarding fixer edits.
-                let apply_res = xx::process::cmd("git", ["stash", "apply"]).run();
+                // Stream stderr lines to avoid interleaving with CLX redraws while still surfacing messages
+                let apply_res = git_cmd(["stash", "apply"]).run();
                 if let Err(err) = &apply_res {
                     warn!("git stash apply failed: {err:?}");
                 }
@@ -628,6 +653,7 @@ impl Git {
                         "--untracked-files=all",
                     ],
                 )
+                .stderr_capture()
                 .read()
                 {
                     Ok(s) => s,
@@ -646,7 +672,12 @@ impl Git {
                                 display_path(f)
                             );
                         }
-                        if let Err(err) = xx::process::cmd("git", ["add", "--"]).arg(f).run() {
+                        if let Err(err) = xx::process::cmd("git", ["add", "--"])
+                            .arg(f)
+                            .stdout_capture()
+                            .stderr_capture()
+                            .run()
+                        {
                             warn!(
                                 "failed to stage {} after resolving conflicts: {err:?}",
                                 display_path(f)
@@ -654,15 +685,15 @@ impl Git {
                         }
                     }
                     // Drop the stash entry now that we've applied it
-                    if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
+                    if let Err(err) = git_cmd(["stash", "drop"]).run() {
                         warn!("failed to drop stash after apply: {err:?}");
                     }
                 } else if apply_res.is_err() {
                     // Last resort: try pop
-                    if let Err(err) = xx::process::cmd("git", ["stash", "pop"]).run() {
+                    if let Err(err) = git_cmd(["stash", "pop"]).run() {
                         warn!("git stash pop also failed after apply error: {err:?}");
                     }
-                } else if let Err(err) = xx::process::cmd("git", ["stash", "drop"]).run() {
+                } else if let Err(err) = git_cmd(["stash", "drop"]).run() {
                     warn!("failed to drop stash after successful apply: {err:?}");
                 }
             }
@@ -682,10 +713,7 @@ impl Git {
             index.write().wrap_err("failed to write index")?;
             Ok(())
         } else {
-            xx::process::cmd("git", ["add", "--"])
-                .args(pathspecs)
-                .stdout_capture()
-                .run()?;
+            git_cmd(["add", "--"]).args(pathspecs).run()?;
             Ok(())
         }
     }
@@ -742,17 +770,13 @@ impl Git {
             let merge_base = xx::process::sh(&format!("git merge-base {from_ref} {to_ref}"))?;
             let merge_base = merge_base.trim();
 
-            let output = xx::process::cmd(
-                "git",
-                &[
-                    "diff",
-                    "-z",
-                    "--name-only",
-                    "--diff-filter=ACMRTUXB",
-                    format!("{merge_base}..{to_ref}").as_str(),
-                ],
-            )
-            .read()?;
+            let output = git_read([
+                "diff",
+                "-z",
+                "--name-only",
+                "--diff-filter=ACMRTUXB",
+                format!("{merge_base}..{to_ref}").as_str(),
+            ])?;
             Ok(output
                 .split('\0')
                 .filter(|p| !p.is_empty())

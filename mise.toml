@@ -56,7 +56,7 @@ depends = ["test:cargo", "test:bats"]
 
 [tasks."test:cargo"]
 alias = "tc"
-run = "cargo test"
+run = "cargo test --all --all-features"
 
 [tasks."test:bats"]
 alias = "tb"
