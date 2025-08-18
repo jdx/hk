@@ -1,14 +1,60 @@
 # Changelog
 
-## [1.7.0](https://github.com/jdx/hk/compare/v1.6.0..v1.7.0) - 2025-08-16
+## [1.7.1](https://github.com/jdx/hk/compare/v1.7.0..v1.7.1) - 2025-08-18
+
+### 🐛 Bug Fixes
+
+- clx not stopping correctly by [@jdx](https://github.com/jdx) in [#158](https://github.com/jdx/hk/pull/158)
+- clean up output for missing-profile warnings by [@jdx](https://github.com/jdx) in [#157](https://github.com/jdx/hk/pull/157)
+
+### 🔍 Other Changes
+
+- fix duplicate Builtins.pkl files by [@jdx](https://github.com/jdx) in [2785dc6](https://github.com/jdx/hk/commit/2785dc634c155cbec4e5d120fa12beaaf320aa68)
+
+## [1.7.0](https://github.com/jdx/hk/compare/v1.6.0..v1.7.0) - 2025-08-17
 
 ### 🚀 Features
 
 - make stderr display in progress bars configurable by [@jdx](https://github.com/jdx) in [#155](https://github.com/jdx/hk/pull/155)
+- cancellations by [@jdx](https://github.com/jdx) in [700d252](https://github.com/jdx/hk/commit/700d2522453537db949b513ba01738e74bd880e6)
+- convert xx, clx, and ensembler to git subtrees by [@jdx](https://github.com/jdx) in [3a7b6be](https://github.com/jdx/hk/commit/3a7b6be02a26289fb12c37eb9f57057278713e7e)
+- make stderr display in progress bars configurable by [@jdx](https://github.com/jdx) in [b3e7b2e](https://github.com/jdx/hk/commit/b3e7b2e06bf68d40bec8ec81053c3676b7e39767)
 
 ### 🐛 Bug Fixes
 
 - properly display aborted steps when fail-fast triggers by [@jdx](https://github.com/jdx) in [#154](https://github.com/jdx/hk/pull/154)
+- stdout/stderr output by [@jdx](https://github.com/jdx) in [e10f19d](https://github.com/jdx/hk/commit/e10f19dd69e93c2e704cccf94c38060d66342df1)
+- return result information in error by [@jdx](https://github.com/jdx) in [5ae9b15](https://github.com/jdx/hk/commit/5ae9b151869a0976da5455ee0487c78fc153b1bc)
+- clx v2 by [@jdx](https://github.com/jdx) in [0eefaa2](https://github.com/jdx/hk/commit/0eefaa21944f5175bed94d2dc7f31cfccd95831f)
+- clx v2 by [@jdx](https://github.com/jdx) in [511732b](https://github.com/jdx/hk/commit/511732b0fabfc0ead026509a7caf1579600f6c05)
+- added combined_output to result by [@jdx](https://github.com/jdx) in [c5ab404](https://github.com/jdx/hk/commit/c5ab404092c36f9c30a42f096f23622c0c2e7cdd)
+- errexit trimming by [@jdx](https://github.com/jdx) in [d3942bf](https://github.com/jdx/hk/commit/d3942bf5f6c81dbb77e1f9fd6122f922b0c5d785)
+- ensure stdin/out/err gets flushed by [@jdx](https://github.com/jdx) in [43fcea0](https://github.com/jdx/hk/commit/43fcea0058d9254f05d2dde3668a2e959065cd29)
+
+### 🧪 Testing
+
+- fix example by [@jdx](https://github.com/jdx) in [d5b8475](https://github.com/jdx/hk/commit/d5b8475c4713d6466f9ef288b826f7bd8de55886)
+
+### 🔍 Other Changes
+
+- init by [@jdx](https://github.com/jdx) in [7cf57f9](https://github.com/jdx/hk/commit/7cf57f9898103c47db37df6b5a2acd71055f61c4)
+- async by [@jdx](https://github.com/jdx) in [79a0b11](https://github.com/jdx/hk/commit/79a0b118861201e06249186340ee1a34ce901215)
+- move ui stuff to clx crate by [@jdx](https://github.com/jdx) in [474658a](https://github.com/jdx/hk/commit/474658adda35db9df515e6c210e1177e8037b3e5)
+- remove clx exports by [@jdx](https://github.com/jdx) in [dfd2aed](https://github.com/jdx/hk/commit/dfd2aedf1788c9cbcc81ab89834cf0831f942573)
+- wip by [@jdx](https://github.com/jdx) in [1a4d885](https://github.com/jdx/hk/commit/1a4d885c7c9119f4f4e8e6ad98d82a11b2b031c5)
+- fix compilation on windows by [@jdx](https://github.com/jdx) in [ea22c95](https://github.com/jdx/hk/commit/ea22c95b54427cc9bb94450036903f64f2aa143e)
+- clx v2 by [@jdx](https://github.com/jdx) in [befab5a](https://github.com/jdx/hk/commit/befab5ab29d60832e08dd30305fd4997c33ebe0f)
+- clx v2 by [@jdx](https://github.com/jdx) in [293a5b2](https://github.com/jdx/hk/commit/293a5b28929af56bae93267285f08f62ab697a91)
+- use message by [@jdx](https://github.com/jdx) in [56ec6a9](https://github.com/jdx/hk/commit/56ec6a961c948dbff09602727d5078061108c2af)
+- wip by [@jdx](https://github.com/jdx) in [f77cdd4](https://github.com/jdx/hk/commit/f77cdd47a7bec5f380874d23f750c8ad219f1f00)
+- wip by [@jdx](https://github.com/jdx) in [588cb64](https://github.com/jdx/hk/commit/588cb64f46822b5fd476c6af877b35c00c0af641)
+- stdout by [@jdx](https://github.com/jdx) in [f255e1c](https://github.com/jdx/hk/commit/f255e1c26cec4e452dc07f0c0992d952212ec6d3)
+- fix example by [@jdx](https://github.com/jdx) in [24e2be9](https://github.com/jdx/hk/commit/24e2be9c258a93fcdcb2e41dfa415e01bd756b63)
+- box up ScriptFailed by [@jdx](https://github.com/jdx) in [768d991](https://github.com/jdx/hk/commit/768d99128375eae1afd3992d515f77dc0c5ffbbc)
+- ci by [@jdx](https://github.com/jdx) in [47b9515](https://github.com/jdx/hk/commit/47b9515a9628df99360a862080f55363387c3767)
+- set cargo includes by [@jdx](https://github.com/jdx) in [80ef27b](https://github.com/jdx/hk/commit/80ef27be0135ec82faddb5f2b056f178643ecfb9)
+- bump deps by [@jdx](https://github.com/jdx) in [587eb15](https://github.com/jdx/hk/commit/587eb15c1027cf757834e27b410c861edcdc57eb)
+- Merge remote-tracking branch 'ensembler/main' by [@jdx](https://github.com/jdx) in [340d0de](https://github.com/jdx/hk/commit/340d0de673297c0003ab842e49d148ef994b7b0b)
 
 ## [1.6.0](https://github.com/jdx/hk/compare/v1.5.0..v1.6.0) - 2025-08-16
 
@@ -794,9 +840,5 @@
 - remove unused black tool by [@jdx](https://github.com/jdx) in [844a0a4](https://github.com/jdx/hk/commit/844a0a424ee362e861528525c6800bdbc046dd28)
 - Update configuration.md by [@jdx](https://github.com/jdx) in [64178c6](https://github.com/jdx/hk/commit/64178c6cfe0c4820f088867e651b21ebfac5c7b6)
 - switch to rpkl upstream by [@jdx](https://github.com/jdx) in [3d7e219](https://github.com/jdx/hk/commit/3d7e219e7f8686e9c3ebe0ba64a2490a4ae235e7)
-
-### New Contributors
-
-- @jdx made their first contribution
 
 <!-- generated by git-cliff -->
