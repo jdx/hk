@@ -648,12 +648,20 @@ fn refresh() -> Result<bool> {
             // Measure visible width (ANSI-safe)
             let visible_width = console::measure_text_width(line).max(1);
             // Number of rows this line occupies when wrapped on the terminal
-            let rows = if term_width == 0 { 1 } else { (visible_width - 1) / term_width + 1 };
+            let rows = if term_width == 0 {
+                1
+            } else {
+                (visible_width - 1) / term_width + 1
+            };
             consumed_rows += rows.max(1);
         }
-        trace!(consumed_rows = consumed_rows, term_width = term_width, "progress: computed consumed rows");
+        trace!(
+            consumed_rows = consumed_rows,
+            term_width = term_width,
+            "progress: computed consumed rows"
+        );
         *lines = consumed_rows.max(1);
-        trace!(stored_lines=*lines, "progress: after write state");
+        trace!(stored_lines = *lines, "progress: after write state");
     } else {
         *lines = 0;
     }
@@ -704,7 +712,11 @@ fn refresh_once() -> Result<()> {
         let mut consumed_rows = 0usize;
         for line in final_output.lines() {
             let visible_width = console::measure_text_width(line).max(1);
-            let rows = if term_width == 0 { 1 } else { (visible_width - 1) / term_width + 1 };
+            let rows = if term_width == 0 {
+                1
+            } else {
+                (visible_width - 1) / term_width + 1
+            };
             consumed_rows += rows.max(1);
         }
         *lines = consumed_rows.max(1);
