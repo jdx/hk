@@ -146,6 +146,16 @@ Example usage:
 HK_HIDE_WARNINGS=missing-profiles hk check
 ```
 
+## Config warnings list
+
+You can opt-in to specific warning categories in `hk.pkl` or `.hkrc.pkl`. By default this is empty.
+
+Example:
+
+```pkl
+warnings = List("missing-profiles")
+```
+
 ## `HK_HIDE_WHEN_DONE`
 
 Type: `bool`

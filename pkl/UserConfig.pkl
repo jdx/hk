@@ -40,3 +40,4 @@ hooks: Mapping<String, HookConfig> = new Mapping<String, HookConfig>{}
 // Optional top-level configuration
 display_skip_reasons: List<String>?
 hide_warnings: List<String>?
+warnings: List<String>?
