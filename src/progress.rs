@@ -636,6 +636,12 @@ fn refresh() -> Result<bool> {
         } else {
             output
         };
+        if final_output.contains("<clx:flex>") {
+            trace!(
+                final_output = final_output,
+                "progress: flex tags should not be visible in final output"
+            );
+        }
         // Log a brief frame summary for diagnostics
         let newlines = final_output.lines().count();
         let first_line = final_output.lines().next().unwrap_or("");
@@ -707,6 +713,12 @@ fn refresh_once() -> Result<()> {
         } else {
             output
         };
+        if final_output.contains("<clx:flex>") {
+            trace!(
+                final_output = final_output,
+                "progress: flex tags should not be visible in final output"
+            );
+        }
         term.write_line(&final_output)?;
         let term_width = term.width() as usize;
         let mut consumed_rows = 0usize;
