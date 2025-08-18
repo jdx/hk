@@ -61,6 +61,22 @@ static SPINNERS: LazyLock<HashMap<String, Spinner>> = LazyLock::new(|| {
 
 static INTERVAL: Mutex<Duration> = Mutex::new(Duration::from_millis(200)); // TODO: use fps from a spinner
 static LINES: Mutex<usize> = Mutex::new(0);
+static TERM_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+/// Execute the provided function while holding the global terminal lock.
+/// This allows external crates to synchronize stderr writes (e.g., logging)
+/// with clx's progress clear/write operations to avoid interleaved output.
+pub fn with_terminal_lock<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let _guard = TERM_LOCK.lock().unwrap();
+    let result = f();
+    drop(_guard);
+    result
+}
+static REFRESH_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+static STOPPING: AtomicBool = AtomicBool::new(false);
 static NOTIFY: Mutex<Option<mpsc::Sender<()>>> = Mutex::new(None);
 static STARTED: Mutex<bool> = Mutex::new(false);
 static PAUSED: AtomicBool = AtomicBool::new(false);
@@ -368,6 +384,9 @@ impl ProgressJob {
     }
 
     pub fn update(&self) {
+        if STOPPING.load(Ordering::Relaxed) {
+            return;
+        }
         if output() == ProgressOutput::Text {
             let update = || {
                 let mut ctx = RenderContext {
@@ -388,7 +407,9 @@ impl ProgressJob {
                     } else {
                         output
                     };
+                    let _guard = TERM_LOCK.lock().unwrap();
                     term().write_line(&final_output)?;
+                    drop(_guard);
                 }
                 Result::Ok(())
             };
@@ -409,7 +430,9 @@ impl ProgressJob {
             } else {
                 s.to_string()
             };
+            let _guard = TERM_LOCK.lock().unwrap();
             let _ = term().write_line(&output);
+            drop(_guard);
             resume();
         }
     }
@@ -509,6 +532,9 @@ fn indent(s: String, width: usize, indent: usize) -> String {
 }
 
 fn notify() {
+    if STOPPING.load(Ordering::Relaxed) {
+        return;
+    }
     start();
     if let Some(tx) = NOTIFY.lock().unwrap().clone() {
         let _ = tx.send(());
@@ -532,9 +558,12 @@ pub fn flush() {
 
 fn start() {
     let mut started = STARTED.lock().unwrap();
-    if *started || output() == ProgressOutput::Text {
+    if *started || output() == ProgressOutput::Text || STOPPING.load(Ordering::Relaxed) {
         return; // prevent multiple loops running at a time
     }
+    // Mark as started BEFORE spawning to avoid a race that can start two loops
+    *started = true;
+    drop(started);
     thread::spawn(move || {
         let mut refresh_after = Instant::now();
         loop {
@@ -555,10 +584,14 @@ fn start() {
             notify_wait(interval());
         }
     });
-    *started = true;
 }
 
 fn refresh() -> Result<bool> {
+    let _refresh_guard = REFRESH_LOCK.lock().unwrap();
+    if STOPPING.load(Ordering::Relaxed) {
+        *STARTED.lock().unwrap() = false;
+        return Ok(false);
+    }
     if is_paused() {
         return Ok(true);
     }
@@ -584,7 +617,17 @@ fn refresh() -> Result<bool> {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("\n");
-    term.clear_last_lines(*lines)?;
+    // Perform clear + write + line accounting atomically to avoid interleaving with logger/pause
+    let _guard = TERM_LOCK.lock().unwrap();
+    // Robustly clear the previously rendered frame. Using move_cursor_up + clear_to_end_of_screen
+    // avoids issues with terminals that wrap long lines differently.
+    if *lines > 0 {
+        trace!(prev_lines = *lines, "progress: clearing previous frame");
+        // Clear wrapped rows explicitly to handle terminal wrapping correctly
+        term.move_cursor_up(*lines)?;
+        term.move_cursor_left(term.width() as usize)?;
+        term.clear_to_end_of_screen()?;
+    }
     if !output.is_empty() {
         // Safety check: ensure no flex tags are visible in final output
         let final_output = if output.contains("<clx:flex>") {
@@ -593,16 +636,95 @@ fn refresh() -> Result<bool> {
         } else {
             output
         };
+        // Log a brief frame summary for diagnostics
+        let newlines = final_output.lines().count();
+        let first_line = final_output.lines().next().unwrap_or("");
+        trace!(lines=newlines, chars=final_output.len(), first_line=?first_line, "progress: frame summary");
         term.write_line(&final_output)?;
-        *lines = final_output.split("\n").count();
+        // Count how many terminal rows were actually consumed, accounting for wrapping
+        let term_width = term.width() as usize;
+        let mut consumed_rows = 0usize;
+        for line in final_output.lines() {
+            // Measure visible width (ANSI-safe)
+            let visible_width = console::measure_text_width(line).max(1);
+            // Number of rows this line occupies when wrapped on the terminal
+            let rows = if term_width == 0 {
+                1
+            } else {
+                (visible_width - 1) / term_width + 1
+            };
+            consumed_rows += rows.max(1);
+        }
+        trace!(
+            consumed_rows = consumed_rows,
+            term_width = term_width,
+            "progress: computed consumed rows"
+        );
+        *lines = consumed_rows.max(1);
+        trace!(stored_lines = *lines, "progress: after write state");
     } else {
         *lines = 0;
     }
+    drop(_guard);
     if !any_running && !any_running_check() {
         *STARTED.lock().unwrap() = false;
         return Ok(false); // stop looping if no active progress jobs are running before or after the refresh
     }
     Ok(true)
+}
+
+fn refresh_once() -> Result<()> {
+    let _refresh_guard = REFRESH_LOCK.lock().unwrap();
+    let mut tera = TERA.lock().unwrap();
+    if tera.is_none() {
+        *tera = Some(Tera::default());
+    }
+    let tera = tera.as_mut().unwrap();
+    static RENDER_CTX: OnceLock<Mutex<RenderContext>> = OnceLock::new();
+    let ctx = RENDER_CTX.get_or_init(|| Mutex::new(RenderContext::default()));
+    ctx.lock().unwrap().now = Instant::now();
+    let ctx = ctx.lock().unwrap().clone();
+    let jobs = JOBS.lock().unwrap().clone();
+    let term = term();
+    let mut lines = LINES.lock().unwrap();
+    let output = jobs
+        .iter()
+        .map(|job| job.render(tera, ctx.clone()))
+        .collect::<Result<Vec<_>>>()?
+        .into_iter()
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let _guard = TERM_LOCK.lock().unwrap();
+    if *lines > 0 {
+        term.move_cursor_up(*lines)?;
+        term.move_cursor_left(term.width() as usize)?;
+        term.clear_to_end_of_screen()?;
+    }
+    if !output.is_empty() {
+        let final_output = if output.contains("<clx:flex>") {
+            flex(&output, term.width() as usize)
+        } else {
+            output
+        };
+        term.write_line(&final_output)?;
+        let term_width = term.width() as usize;
+        let mut consumed_rows = 0usize;
+        for line in final_output.lines() {
+            let visible_width = console::measure_text_width(line).max(1);
+            let rows = if term_width == 0 {
+                1
+            } else {
+                (visible_width - 1) / term_width + 1
+            };
+            consumed_rows += rows.max(1);
+        }
+        *lines = consumed_rows.max(1);
+    } else {
+        *lines = 0;
+    }
+    drop(_guard);
+    Ok(())
 }
 
 fn term() -> &'static Term {
@@ -640,22 +762,29 @@ pub fn resume() {
 }
 
 pub fn stop() {
-    // Simply mark all running jobs as done to stop the refresh loop naturally
-    let jobs = JOBS.lock().unwrap().clone();
-    for job in jobs {
-        if job.is_running() {
-            job.set_status(ProgressStatus::Done);
-        }
-    }
-    // Force one final refresh to show the final state
-    let _ = refresh();
+    // Stop the refresh loop and finalize a last frame synchronously
+    STOPPING.store(true, Ordering::Relaxed);
+    let _ = refresh_once();
+    *STARTED.lock().unwrap() = false;
+}
+
+pub fn stop_clear() {
+    // Stop immediately and clear any progress from the screen
+    STOPPING.store(true, Ordering::Relaxed);
+    let _ = clear();
+    *STARTED.lock().unwrap() = false;
 }
 
 fn clear() -> Result<()> {
     let term = term();
     let mut lines = LINES.lock().unwrap();
-    term.move_cursor_up(*lines)?;
-    term.clear_to_end_of_screen()?;
+    if *lines > 0 {
+        let _guard = TERM_LOCK.lock().unwrap();
+        term.move_cursor_up(*lines)?;
+        term.move_cursor_left(term.width() as usize)?;
+        term.clear_to_end_of_screen()?;
+        drop(_guard);
+    }
     *lines = 0;
     Ok(())
 }
@@ -979,7 +1108,7 @@ mod tests {
         );
         assert!(width <= 10);
         // When truncating, we expect the result to be within width limits
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
 
         // Test case with extremely long content
         let long_content = "a".repeat(1000);
@@ -1003,6 +1132,6 @@ mod tests {
         );
         assert!(width <= 50);
         // Should still contain some content
-        assert!(result.len() > 0);
+        assert!(!result.is_empty());
     }
 }
