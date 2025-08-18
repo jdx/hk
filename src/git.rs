@@ -24,6 +24,7 @@ where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
+    let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
     xx::process::cmd("git", args).on_stderr_line(|line| {
         clx::progress::with_terminal_lock(|| eprintln!("{} {}", style::edim("git"), line))
     })
@@ -34,7 +35,11 @@ where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
 {
-    git_cmd(args).run()?;
+    git_cmd(args)
+        .on_stdout_line(|line| {
+            clx::progress::with_terminal_lock(|| eprintln!("{} {}", style::edim("git"), line))
+        })
+        .run()?;
     Ok(())
 }
 
@@ -554,6 +559,33 @@ impl Git {
             return Ok(());
         };
         let job: Arc<ProgressJob>;
+        // Capture currently staged files (using porcelain to align with shell git operations)
+        // so we can preserve the user's intent. After applying the stash, we'll only re-stage
+        // files that were already staged before the apply. This prevents unrelated files from
+        // getting staged due to conflict handling side-effects.
+        let previously_staged: BTreeSet<PathBuf> = {
+            let out = git_read([
+                "status",
+                "--porcelain",
+                "--no-renames",
+                "--untracked-files=all",
+                "-z",
+            ])
+            .unwrap_or_default();
+            let mut staged = BTreeSet::new();
+            for entry in out.split('\0').filter(|s| !s.is_empty()) {
+                let mut chars = entry.chars();
+                let x = chars.next().unwrap_or_default();
+                let _y = chars.next().unwrap_or_default();
+                let path = PathBuf::from(chars.skip(1).collect::<String>());
+                let is_modified =
+                    |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
+                if is_modified(x) {
+                    staged.insert(path);
+                }
+            }
+            staged
+        };
 
         match diff {
             StashType::PatchFile(diff, patch_file) => {
@@ -642,18 +674,13 @@ impl Git {
                 if let Err(err) = &apply_res {
                     warn!("git stash apply failed: {err:?}");
                 }
-                // Determine conflicted files via porcelain status
-                let status = match xx::process::cmd(
-                    "git",
-                    [
-                        "status",
-                        "--porcelain",
-                        "-z",
-                        "--no-renames",
-                        "--untracked-files=all",
-                    ],
-                )
-                .stderr_capture()
+                let status = match git_cmd([
+                    "status",
+                    "--porcelain",
+                    "-z",
+                    "--no-renames",
+                    "--untracked-files=all",
+                ])
                 .read()
                 {
                     Ok(s) => s,
@@ -672,16 +699,17 @@ impl Git {
                                 display_path(f)
                             );
                         }
-                        if let Err(err) = xx::process::cmd("git", ["add", "--"])
-                            .arg(f)
-                            .stdout_capture()
-                            .stderr_capture()
-                            .run()
-                        {
-                            warn!(
-                                "failed to stage {} after resolving conflicts: {err:?}",
-                                display_path(f)
-                            );
+                        // Only re-stage files that the user (or previous steps) already had staged
+                        // prior to applying the stash. This avoids staging unrelated files
+                        // like manifests that happened to be part of the stash but not intended
+                        // for the current hook run.
+                        if previously_staged.contains(f) {
+                            if let Err(err) = git_cmd(["add", "--"]).arg(f).run() {
+                                warn!(
+                                    "failed to stage {} after resolving conflicts: {err:?}",
+                                    display_path(f)
+                                );
+                            }
                         }
                     }
                     // Drop the stash entry now that we've applied it
@@ -698,6 +726,62 @@ impl Git {
                 }
             }
         }
+        // After applying the stash (with or without conflicts), ensure we don't leave
+        // any newly staged files that the user hadn't staged before. This can happen
+        // when `git stash apply` reports an error but partially applies changes.
+        let out_after = git_read([
+            "status",
+            "--porcelain",
+            "--no-renames",
+            "--untracked-files=all",
+            "-z",
+        ])
+        .unwrap_or_default();
+        let mut staged_after: BTreeSet<PathBuf> = BTreeSet::new();
+        for entry in out_after.split('\0').filter(|s| !s.is_empty()) {
+            let mut chars = entry.chars();
+            let x = chars.next().unwrap_or_default();
+            let _y = chars.next().unwrap_or_default();
+            let path = PathBuf::from(chars.skip(1).collect::<String>());
+            let is_modified = |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
+            if is_modified(x) {
+                staged_after.insert(path);
+            }
+        }
+        let to_unstage: Vec<_> = staged_after
+            .iter()
+            .filter(|p| !previously_staged.contains(*p))
+            .cloned()
+            .collect();
+        if !to_unstage.is_empty() {
+            trace!(
+                "resetting unintended staged files after stash: {:?}",
+                &to_unstage
+            );
+            let _ = self.reset_paths(&to_unstage);
+        }
+        // Debug: show staged files after cleanup
+        let out_clean = git_read([
+            "status",
+            "--porcelain",
+            "--no-renames",
+            "--untracked-files=all",
+            "-z",
+        ])
+        .unwrap_or_default();
+        let mut staged_clean = BTreeSet::new();
+        for entry in out_clean.split('\0').filter(|s| !s.is_empty()) {
+            let mut chars = entry.chars();
+            let x = chars.next().unwrap_or_default();
+            let _y = chars.next().unwrap_or_default();
+            let path = PathBuf::from(chars.skip(1).collect::<String>());
+            let is_modified = |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
+            if is_modified(x) {
+                staged_clean.insert(path);
+            }
+        }
+        let staged: Vec<_> = staged_clean.into_iter().collect();
+        trace!("staged after stash: {:?}", staged);
         job.set_status(ProgressStatus::Done);
         Ok(())
     }
@@ -716,6 +800,14 @@ impl Git {
             git_cmd(["add", "--"]).args(pathspecs).run()?;
             Ok(())
         }
+    }
+
+    pub fn reset_paths(&self, pathspecs: &[PathBuf]) -> Result<()> {
+        let pathspecs = pathspecs.iter().collect_vec();
+        trace!("resetting (unstaging) files: {:?}", &pathspecs);
+        // Use shell git to ensure consistent behavior with HEAD
+        git_cmd(["reset", "--"]).args(pathspecs).run()?;
+        Ok(())
     }
 
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {
