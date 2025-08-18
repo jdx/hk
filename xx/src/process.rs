@@ -171,10 +171,12 @@ impl XXExpression {
                             } else if line.ends_with('\r') {
                                 line.pop();
                             }
-                            if !line.is_empty()
-                                && let Some(h) = &out_h
-                            {
-                                (h)(&line);
+                            // this can be removed in rust 1.88
+                            #[allow(clippy::collapsible_if)]
+                            if !line.is_empty() {
+                                if let Some(h) = &out_h {
+                                    (h)(&line);
+                                }
                             }
                         }
                         Err(_) => break,
@@ -199,10 +201,12 @@ impl XXExpression {
                             } else if line.ends_with('\r') {
                                 line.pop();
                             }
-                            if !line.is_empty()
-                                && let Some(h) = &err_h
-                            {
-                                (h)(&line);
+                            // this can be removed in rust 1.88
+                            #[allow(clippy::collapsible_if)]
+                            if !line.is_empty() {
+                                if let Some(h) = &err_h {
+                                    (h)(&line);
+                                }
                             }
                         }
                         Err(_) => break,
@@ -266,10 +270,12 @@ impl XXExpression {
                             } else if line.ends_with('\r') {
                                 line.pop();
                             }
-                            if !line.is_empty()
-                                && let Some(h) = &err_h
-                            {
-                                (h)(&line);
+                            // this can be removed in rust 1.88
+                            #[allow(clippy::collapsible_if)]
+                            if !line.is_empty() {
+                                if let Some(h) = &err_h {
+                                    (h)(&line);
+                                }
                             }
                         }
                         Err(_) => break,
