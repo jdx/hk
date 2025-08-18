@@ -1126,7 +1126,7 @@ dependencies = [
  "tokio-util",
  "toml",
  "which",
- "xx 2.1.1",
+ "xx 2.1.2",
 ]
 
 [[package]]
@@ -3615,7 +3615,7 @@ dependencies = [
  "tera",
  "thiserror 2.0.15",
  "versions",
- "xx 2.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xx 2.1.1",
 ]
 
 [[package]]
@@ -4191,6 +4191,21 @@ dependencies = [
 [[package]]
 name = "xx"
 version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0b0d18c02f29d5a0a5e543a90c0190a17370d4f9820b15ee347992d212c22db"
+dependencies = [
+ "duct",
+ "filetime",
+ "homedir",
+ "log",
+ "miette",
+ "regex",
+ "thiserror 2.0.15",
+]
+
+[[package]]
+name = "xx"
+version = "2.1.2"
 dependencies = [
  "bzip2",
  "duct",
@@ -4216,21 +4231,6 @@ dependencies = [
  "wiremock",
  "xz2",
  "zip",
-]
-
-[[package]]
-name = "xx"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0b0d18c02f29d5a0a5e543a90c0190a17370d4f9820b15ee347992d212c22db"
-dependencies = [
- "duct",
- "filetime",
- "homedir",
- "log",
- "miette",
- "regex",
- "thiserror 2.0.15",
 ]
 
 [[package]]
