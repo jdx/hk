@@ -54,6 +54,25 @@ git config user.name mise-en-dev
 git config user.email 123107610+mise-en-dev@users.noreply.github.com
 cargo update
 
+# Ensure subtrees are up-to-date locally before creating the release PR
+# Pull xx subtree
+if git ls-tree HEAD:xx > /dev/null 2>&1; then
+  echo "Pulling xx subtree changes..."
+  git subtree pull --prefix=xx https://github.com/jdx/xx.git main || echo "No changes to pull for xx"
+fi
+
+# Pull clx subtree
+if git ls-tree HEAD:clx > /dev/null 2>&1; then
+  echo "Pulling clx subtree changes..."
+  git subtree pull --prefix=clx https://github.com/jdx/clx.git main || echo "No changes to pull for clx"
+fi
+
+# Pull ensembler subtree
+if git ls-tree HEAD:ensembler > /dev/null 2>&1; then
+  echo "Pulling ensembler subtree changes..."
+  git subtree pull --prefix=ensembler https://github.com/jdx/ensembler.git main || echo "No changes to pull for ensembler"
+fi
+
 # Regenerate rendered artifacts (CLI docs, usage, etc.) for the release
 mise run render
 git add \

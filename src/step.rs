@@ -438,7 +438,7 @@ impl Step {
         }
         if non_skip_jobs > 0 && matches!(ctx.hook_ctx.run_type, RunType::Fix) {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
-            let stage: Vec<OsString> = self
+            let stage_globs: Vec<String> = self
                 .stage
                 .as_ref()
                 .unwrap_or(&vec![])
@@ -451,14 +451,31 @@ impl Step {
                         s
                     }
                 })
-                .map(OsString::from)
                 .collect_vec();
-            if !stage.is_empty() {
-                let status = ctx.hook_ctx.git.lock().await.status(Some(&stage))?;
+            trace!("{}: stage globs: {:?}", self, &stage_globs);
+            let stage_pathspecs: Vec<OsString> =
+                stage_globs.iter().cloned().map(OsString::from).collect();
+            if !stage_pathspecs.is_empty() {
+                trace!(
+                    "{}: requesting status for pathspecs: {:?}",
+                    self, &stage_pathspecs
+                );
+                let status = ctx
+                    .hook_ctx
+                    .git
+                    .lock()
+                    .await
+                    .status(Some(&stage_pathspecs))?;
                 let files = status.unstaged_files.into_iter().collect_vec();
-                if !files.is_empty() {
-                    ctx.hook_ctx.git.lock().await.add(&files)?;
-                    ctx.add_files(&files);
+                trace!("{}: unstaged files from status: {:?}", self, &files);
+                // Post-filter using our glob matcher to be robust across git backends
+                let filtered = glob::get_matches(&stage_globs, &files)?;
+                trace!("{}: files to stage after filtering: {:?}", self, &filtered);
+                if !filtered.is_empty() {
+                    // Only stage matched files; do NOT unstage other previously-staged files.
+                    // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
+                    ctx.hook_ctx.git.lock().await.add(&filtered)?;
+                    ctx.add_files(&filtered);
                 }
             }
         }
