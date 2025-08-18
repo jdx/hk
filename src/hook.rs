@@ -419,33 +419,38 @@ impl Hook {
 
             if !profile_skipped.is_empty() {
                 let count = profile_skipped.len();
-                let steps_list = profile_skipped.join(", ");
                 let profiles_list = missing_profiles.iter().join(", ");
-                eprintln!();
-                crate::tagged_warn!(
-                    "missing-profiles",
-                    "{} {} skipped due to missing profiles ({}): {}",
-                    count,
+                tagged_warn_missing_profiles!(
+                    "{count} {} skipped due to missing profiles: {profiles_list}",
                     if count == 1 { "step was" } else { "steps were" },
-                    profiles_list,
-                    steps_list
                 );
 
                 // Show appropriate help message based on hook type
-                if self.name == "pre-commit" || self.name == "pre-push" {
-                    eprintln!("   To enable these steps, set HK_PROFILE environment variable.");
-                    eprintln!("   Example: HK_PROFILE=slow git commit");
-                } else if missing_profiles.contains("slow") {
-                    eprintln!("   To enable these steps, use --slow flag or set HK_PROFILE=slow.");
-                    eprintln!("   Example: hk {} --slow", self.name);
+                let (hk_profile_env, hk_profile_flag) = if missing_profiles.contains("slow") {
+                    ("HK_PROFILE=slow".to_string(), "--slow".to_string())
                 } else {
-                    let example_profile = missing_profiles.iter().next().unwrap();
-                    eprintln!(
-                        "   To enable these steps, use --profile flag or set HK_PROFILE={example_profile}."
+                    let default = "slow".to_string();
+                    let profile = missing_profiles.iter().next().unwrap_or(&default);
+                    (
+                        format!("HK_PROFILE={profile}"),
+                        format!("--profile={profile}"),
+                    )
+                };
+                let hk_profile_env = style::edim(hk_profile_env);
+                let hk_profile_flag = style::edim(hk_profile_flag);
+                if self.name == "pre-commit" || self.name == "pre-push" {
+                    tagged_warn_missing_profiles!(
+                        "   To enable these steps, set {hk_profile_env} environment variable."
                     );
-                    eprintln!("   Example: hk {} --profile {example_profile}", self.name);
+                } else {
+                    tagged_warn_missing_profiles!(
+                        "   To enable these steps, use {hk_profile_flag} or set {hk_profile_env}."
+                    );
                 }
-                eprintln!("   To hide this warning: set HK_HIDE_WARNINGS=missing-profiles");
+                let hide_warning_env = style::edim("HK_HIDE_WARNINGS=missing-profiles");
+                tagged_warn_missing_profiles!("   To hide this warning: set {hide_warning_env}");
+                let hide_warning_pkl = style::edim(r#"hide_warnings = List("missing-profiles")"#);
+                tagged_warn_missing_profiles!("   or set {hide_warning_pkl} in .hkrc.pkl");
             }
         }
 

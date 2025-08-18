@@ -32,9 +32,8 @@ EOF
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
     assert_output --partial "⏭ slow-test – skipped: missing profile (slow)"
-    assert_output --partial "1 step was skipped due to missing profiles (slow): slow-test"
-    assert_output --partial "To enable these steps, use --slow flag or set HK_PROFILE=slow"
-    assert_output --partial "Example: hk check --slow"
+    assert_output --partial "1 step was skipped due to missing profiles: slow"
+    assert_output --partial "To enable these steps, use --slow or set HK_PROFILE=slow."
     assert_output --partial "To hide this warning: set HK_HIDE_WARNINGS=missing-profiles"
 }
 
@@ -92,9 +91,8 @@ EOF
     assert_success
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
-    assert_output --partial "1 step was skipped due to missing profiles (slow): slow-test"
-    assert_output --partial "To enable these steps, set HK_PROFILE environment variable"
-    assert_output --partial "Example: HK_PROFILE=slow git commit"
+    assert_output --partial "1 step was skipped due to missing profiles: slow"
+    assert_output --partial "To enable these steps, set HK_PROFILE=slow environment variable."
     assert_output --partial "To hide this warning: set HK_HIDE_WARNINGS=missing-profiles"
     refute_output --partial "--profile"
 }
