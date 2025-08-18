@@ -929,7 +929,7 @@ pub fn output() -> ProgressOutput {
 }
 
 fn flex(s: &str, width: usize) -> String {
-    // If no flex tags, return as-is
+    // Fast path: no tags
     if !s.contains("<clx:flex>") {
         trace!(chars = s.len(), "flex: no flex tags");
         return s.to_string();
@@ -940,6 +940,26 @@ fn flex(s: &str, width: usize) -> String {
         trace!(first_100_chars = ?&s[..100], "flex: long content preview");
     }
 
+    // Process repeatedly until no tags remain or no progress can be made
+    let mut current = s.to_string();
+    let max_passes = 8; // avoid pathological loops
+    for _ in 0..max_passes {
+        if !current.contains("<clx:flex>") {
+            break;
+        }
+
+        let before = current.clone();
+        current = flex_process_once(&before, width);
+
+        if current == before {
+            // No progress; bail out
+            break;
+        }
+    }
+    current
+}
+
+fn flex_process_once(s: &str, width: usize) -> String {
     // Check if we have flex tags that might span multiple lines
     let flex_count = s.matches("<clx:flex>").count();
     trace!(flex_count = flex_count, "flex: tag count");
@@ -960,7 +980,6 @@ fn flex(s: &str, width: usize) -> String {
 
             // Handle empty content case
             if content.is_empty() {
-                // If content is empty, just return prefix + suffix without the flex tags
                 let mut result = String::new();
                 result.push_str(prefix);
                 result.push_str(suffix);
@@ -978,26 +997,24 @@ fn flex(s: &str, width: usize) -> String {
 
             // For multi-line content, truncate more aggressively
             if content_lines.len() > 1 {
-                let available_width = width.saturating_sub(first_line_prefix_width + 3); // Reserve space for ellipsis
+                let available_width = width.saturating_sub(first_line_prefix_width + 3); // ellipsis
 
                 let mut result = String::new();
                 result.push_str(prefix);
 
                 if let Some(first_content_line) = content_lines.first() {
                     if available_width > 3 {
-                        // Show truncated first line
                         let truncated =
                             console::truncate_str(first_content_line, available_width, "…");
                         result.push_str(&truncated);
                     } else {
-                        // Very narrow terminal
                         result.push('…');
                     }
                 } else {
                     result.push_str(content);
                 }
 
-                // Don't include suffix for multi-line truncated content
+                // Intentionally omit suffix for multi-line
                 return result;
             } else {
                 // Single line with flex tags, process normally
@@ -1009,20 +1026,18 @@ fn flex(s: &str, width: usize) -> String {
                 let available_for_content =
                     width.saturating_sub(first_line_prefix_width + suffix_width);
 
-                let mut result = String::new();
-
                 // If prefix alone exceeds width, truncate everything to fit
                 if first_line_prefix_width >= width {
                     return console::truncate_str(prefix, width, "…").to_string();
                 }
 
+                let mut result = String::new();
                 result.push_str(prefix);
 
                 if available_for_content > 3 {
                     result.push_str(&console::truncate_str(content, available_for_content, "…"));
                     result.push_str(suffix);
                 } else {
-                    // Not enough space, truncate aggressively
                     let available = width.saturating_sub(first_line_prefix_width);
                     if available > 3 {
                         result.push_str(&console::truncate_str(content, available, "…"));
@@ -1054,7 +1069,6 @@ fn flex(s: &str, width: usize) -> String {
             let suffix_width = console::measure_text_width(suffix);
             let available_for_content = width.saturating_sub(prefix_width + suffix_width);
 
-            // If prefix alone exceeds width, truncate the whole line
             if prefix_width >= width {
                 return console::truncate_str(line, width, "…").to_string();
             }
