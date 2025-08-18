@@ -16,6 +16,7 @@ pub struct Settings {
     pub disabled_profiles: IndexSet<String>,
     pub fail_fast: bool,
     pub display_skip_reasons: HashSet<String>,
+    pub hide_warnings: IndexSet<String>,
 }
 
 static JOBS: LazyLock<Mutex<Option<NonZero<usize>>>> = LazyLock::new(Default::default);
@@ -30,6 +31,7 @@ static FIX: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static CHECK: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static DISPLAY_SKIP_REASONS: LazyLock<Mutex<Option<HashSet<String>>>> =
     LazyLock::new(Default::default);
+static HIDE_WARNINGS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
 
 impl Settings {
     pub fn get() -> Settings {
@@ -88,6 +90,10 @@ impl Settings {
     pub fn set_display_skip_reasons(display_skip_reasons: HashSet<String>) {
         *DISPLAY_SKIP_REASONS.lock().unwrap() = Some(display_skip_reasons);
     }
+
+    pub fn set_hide_warnings(hide_warnings: IndexSet<String>) {
+        *HIDE_WARNINGS.lock().unwrap() = Some(hide_warnings);
+    }
 }
 
 impl Default for Settings {
@@ -123,12 +129,18 @@ impl Default for Settings {
                     set.insert("profile-not-enabled".to_string());
                     set
                 });
+        let hide_warnings = HIDE_WARNINGS
+            .lock()
+            .unwrap()
+            .clone()
+            .unwrap_or_else(|| env::HK_HIDE_WARNINGS.clone());
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
             disabled_profiles,
             fail_fast: FAIL_FAST.lock().unwrap().unwrap_or(*env::HK_FAIL_FAST),
             display_skip_reasons,
+            hide_warnings,
         }
     }
 }

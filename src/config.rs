@@ -69,6 +69,12 @@ impl Config {
                 display_skip_reasons.clone().into_iter().collect(),
             );
         }
+        // Set hide_warnings if configured
+        if let Some(hide_warnings) = &self.hide_warnings {
+            crate::settings::Settings::set_hide_warnings(
+                hide_warnings.clone().into_iter().collect(),
+            );
+        }
         Ok(())
     }
 
@@ -136,6 +142,18 @@ impl Config {
 
             if let Some(check) = user_config.defaults.check {
                 crate::settings::Settings::set_check(check);
+            }
+
+            if let Some(display_skip_reasons) = &user_config.display_skip_reasons {
+                crate::settings::Settings::set_display_skip_reasons(
+                    display_skip_reasons.clone().into_iter().collect(),
+                );
+            }
+
+            if let Some(hide_warnings) = &user_config.hide_warnings {
+                crate::settings::Settings::set_hide_warnings(
+                    hide_warnings.clone().into_iter().collect(),
+                );
             }
 
             for (hook_name, user_hook_config) in &user_config.hooks {
@@ -242,6 +260,8 @@ pub struct Config {
     pub env: IndexMap<String, String>,
     #[serde(rename = "display_skip_reasons")]
     pub display_skip_reasons: Option<Vec<String>>,
+    #[serde(rename = "hide_warnings")]
+    pub hide_warnings: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {
@@ -266,6 +286,10 @@ pub struct UserConfig {
     pub defaults: UserDefaults,
     #[serde(default)]
     pub hooks: IndexMap<String, UserHookConfig>,
+    #[serde(rename = "display_skip_reasons")]
+    pub display_skip_reasons: Option<Vec<String>>,
+    #[serde(rename = "hide_warnings")]
+    pub hide_warnings: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
