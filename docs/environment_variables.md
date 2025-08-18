@@ -148,7 +148,7 @@ HK_HIDE_WARNINGS=missing-profiles hk check
 
 ## Config warnings list
 
-You can opt-in to specific warning categories in `hk.pkl` or `.hkrc.pkl` via `warnings`. By default this is empty.
+You can opt-in to specific warning categories in `hk.pkl` or `.hkrc.pkl`. By default this is empty.
 
 Example:
 
