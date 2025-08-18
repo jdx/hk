@@ -1093,7 +1093,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hk"
-version = "1.7.1"
+version = "1.8.0"
 dependencies = [
  "chrono",
  "clap",
@@ -3615,7 +3615,7 @@ dependencies = [
  "tera",
  "thiserror 2.0.15",
  "versions",
- "xx 2.1.1",
+ "xx 2.2.0",
 ]
 
 [[package]]
@@ -4190,21 +4190,6 @@ dependencies = [
 
 [[package]]
 name = "xx"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0b0d18c02f29d5a0a5e543a90c0190a17370d4f9820b15ee347992d212c22db"
-dependencies = [
- "duct",
- "filetime",
- "homedir",
- "log",
- "miette",
- "regex",
- "thiserror 2.0.15",
-]
-
-[[package]]
-name = "xx"
 version = "2.1.2"
 dependencies = [
  "bzip2",
@@ -4231,6 +4216,21 @@ dependencies = [
  "wiremock",
  "xz2",
  "zip",
+]
+
+[[package]]
+name = "xx"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c49281e5e82dafeb26c72c7bf4b1876401ff662c38c7517d84b641053863486d"
+dependencies = [
+ "duct",
+ "filetime",
+ "homedir",
+ "log",
+ "miette",
+ "regex",
+ "thiserror 2.0.15",
 ]
 
 [[package]]
