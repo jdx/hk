@@ -12,6 +12,7 @@ teardown() {
 @test "hide warnings: HK_HIDE_WARNINGS=missing-profiles suppresses profile skip warning" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["check"] {
         steps {
@@ -44,6 +45,7 @@ EOF
 @test "hide warnings: .hkrc.pkl hide_warnings suppresses profile skip warning" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["check"] {
         steps {
@@ -75,6 +77,7 @@ EOF
 @test "hide warnings: HK_HIDE_WARNINGS with multiple tags" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["check"] {
         steps {
@@ -101,6 +104,7 @@ EOF
 @test "hide warnings: HK_HIDE_WARNINGS with wrong tag doesn't suppress warning" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["check"] {
         steps {

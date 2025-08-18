@@ -12,6 +12,7 @@ teardown() {
 @test "profile skip summary: shows helpful message for profile-not-enabled steps" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["check"] {
         steps {
@@ -40,6 +41,7 @@ EOF
 @test "profile skip summary: shows message for multiple profile-skipped steps" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["check"] {
         steps {
@@ -70,6 +72,7 @@ EOF
 @test "profile skip summary: shows git-specific message for pre-commit hook" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+warnings = List("missing-profiles")
 hooks {
     ["pre-commit"] {
         steps {

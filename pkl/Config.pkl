@@ -94,6 +94,10 @@ class Hook {
 /// Possible values: "profile-not-enabled", "profile-explicitly-disabled", "no-command-for-run-type", "no-files-to-process", "condition-false", "disabled-by-env", "disabled-by-cli"
 display_skip_reasons: List<String> = List("profile-not-enabled")
 
+/// Which warning categories to show. Empty by default (no warnings shown).
+/// Available tags include: "missing-profiles"
+warnings: List<String> = List()
+
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
 env: Mapping<String, String> = new Mapping<String, String>{}
 

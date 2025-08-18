@@ -401,11 +401,8 @@ impl Hook {
         clx::progress::stop();
 
         // Display summary of profile-skipped steps
-        // Only show summary if profile-not-enabled is configured to be displayed
-        if Settings::get()
-            .display_skip_reasons
-            .contains("profile-not-enabled")
-        {
+        // Only show summary if user has enabled the generic warning tag
+        if Settings::get().warnings.contains("missing-profiles") {
             let skipped_steps = hook_ctx.get_skipped_steps();
             let mut profile_skipped: Vec<String> = vec![];
             let mut missing_profiles = indexmap::IndexSet::new();
@@ -420,7 +417,7 @@ impl Hook {
             if !profile_skipped.is_empty() {
                 let count = profile_skipped.len();
                 let profiles_list = missing_profiles.iter().join(", ");
-                tagged_warn_missing_profiles!(
+                warn!(
                     "{count} {} skipped due to missing profiles: {profiles_list}",
                     if count == 1 { "step was" } else { "steps were" },
                 );
@@ -439,18 +436,16 @@ impl Hook {
                 let hk_profile_env = style::edim(hk_profile_env);
                 let hk_profile_flag = style::edim(hk_profile_flag);
                 if self.name == "pre-commit" || self.name == "pre-push" {
-                    tagged_warn_missing_profiles!(
-                        "   To enable these steps, set {hk_profile_env} environment variable."
-                    );
+                    warn!("  To enable these steps, set {hk_profile_env} environment variable.");
                 } else {
-                    tagged_warn_missing_profiles!(
-                        "   To enable these steps, use {hk_profile_flag} or set {hk_profile_env}."
+                    warn!(
+                        "  To enable these steps, use {hk_profile_flag} or set {hk_profile_env}."
                     );
                 }
                 let hide_warning_env = style::edim("HK_HIDE_WARNINGS=missing-profiles");
-                tagged_warn_missing_profiles!("   To hide this warning: set {hide_warning_env}");
+                warn!("  To hide this warning: set {hide_warning_env}");
                 let hide_warning_pkl = style::edim(r#"hide_warnings = List("missing-profiles")"#);
-                tagged_warn_missing_profiles!("   or set {hide_warning_pkl} in .hkrc.pkl");
+                warn!("  or set {hide_warning_pkl} in .hkrc.pkl");
             }
         }
 

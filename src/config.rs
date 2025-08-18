@@ -75,6 +75,10 @@ impl Config {
                 hide_warnings.clone().into_iter().collect(),
             );
         }
+        // Set warnings if configured
+        if let Some(warnings) = &self.warnings {
+            crate::settings::Settings::set_warnings(warnings.clone().into_iter().collect());
+        }
         Ok(())
     }
 
@@ -154,6 +158,9 @@ impl Config {
                 crate::settings::Settings::set_hide_warnings(
                     hide_warnings.clone().into_iter().collect(),
                 );
+            }
+            if let Some(warnings) = &user_config.warnings {
+                crate::settings::Settings::set_warnings(warnings.clone().into_iter().collect());
             }
 
             for (hook_name, user_hook_config) in &user_config.hooks {
@@ -262,6 +269,8 @@ pub struct Config {
     pub display_skip_reasons: Option<Vec<String>>,
     #[serde(rename = "hide_warnings")]
     pub hide_warnings: Option<Vec<String>>,
+    #[serde(rename = "warnings")]
+    pub warnings: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {
@@ -290,6 +299,8 @@ pub struct UserConfig {
     pub display_skip_reasons: Option<Vec<String>>,
     #[serde(rename = "hide_warnings")]
     pub hide_warnings: Option<Vec<String>>,
+    #[serde(rename = "warnings")]
+    pub warnings: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

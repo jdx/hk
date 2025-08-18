@@ -16,7 +16,7 @@ pub struct Settings {
     pub disabled_profiles: IndexSet<String>,
     pub fail_fast: bool,
     pub display_skip_reasons: HashSet<String>,
-    pub hide_warnings: IndexSet<String>,
+    pub warnings: IndexSet<String>,
 }
 
 static JOBS: LazyLock<Mutex<Option<NonZero<usize>>>> = LazyLock::new(Default::default);
@@ -31,6 +31,7 @@ static FIX: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static CHECK: LazyLock<Mutex<Option<bool>>> = LazyLock::new(Default::default);
 static DISPLAY_SKIP_REASONS: LazyLock<Mutex<Option<HashSet<String>>>> =
     LazyLock::new(Default::default);
+static WARNINGS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
 static HIDE_WARNINGS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
 
 impl Settings {
@@ -91,6 +92,10 @@ impl Settings {
         *DISPLAY_SKIP_REASONS.lock().unwrap() = Some(display_skip_reasons);
     }
 
+    pub fn set_warnings(warnings: IndexSet<String>) {
+        *WARNINGS.lock().unwrap() = Some(warnings);
+    }
+
     pub fn set_hide_warnings(hide_warnings: IndexSet<String>) {
         *HIDE_WARNINGS.lock().unwrap() = Some(hide_warnings);
     }
@@ -129,18 +134,25 @@ impl Default for Settings {
                     set.insert("profile-not-enabled".to_string());
                     set
                 });
-        let hide_warnings = HIDE_WARNINGS
+        let hide_warnings = HIDE_WARNINGS.lock().unwrap();
+        let hide_warnings = hide_warnings
+            .as_ref()
+            .unwrap_or_else(|| &*env::HK_HIDE_WARNINGS);
+        let warnings = WARNINGS
             .lock()
             .unwrap()
             .clone()
-            .unwrap_or_else(|| env::HK_HIDE_WARNINGS.clone());
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|tag| !hide_warnings.contains(tag))
+            .collect();
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
             disabled_profiles,
             fail_fast: FAIL_FAST.lock().unwrap().unwrap_or(*env::HK_FAIL_FAST),
             display_skip_reasons,
-            hide_warnings,
+            warnings,
         }
     }
 }
