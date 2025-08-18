@@ -265,11 +265,8 @@ pub struct Config {
     pub path: PathBuf,
     #[serde(default)]
     pub env: IndexMap<String, String>,
-    #[serde(rename = "display_skip_reasons")]
     pub display_skip_reasons: Option<Vec<String>>,
-    #[serde(rename = "hide_warnings")]
     pub hide_warnings: Option<Vec<String>>,
-    #[serde(rename = "warnings")]
     pub warnings: Option<Vec<String>>,
 }
 
