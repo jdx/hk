@@ -80,6 +80,7 @@ impl StepJob {
             tctx.with_workspace_indicator(workspace_indicator);
             let workspace_dir = workspace_indicator
                 .parent()
+                .filter(|p| !p.as_os_str().is_empty())
                 .unwrap_or(std::path::Path::new("."));
             tctx.with_workspace_files(self.step.shell_type(), workspace_dir, &self.files);
         }
