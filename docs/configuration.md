@@ -51,7 +51,7 @@ hooks {
         report = #"node scripts/upload-timings.js <<<"$HK_REPORT_JSON""#
     }
 }
-```text
+```
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
@@ -64,7 +64,7 @@ env {
     ["HK_FAIL_FAST"] = "0"
     ["NODE_ENV"] = "production"
 }
-```text
+```
 
 ## `hooks.<HOOK>`
 
@@ -105,7 +105,7 @@ hooks {
         }
     }
 }
-```text
+```pkl
 
 If you want to use a different check command for different operating systems, you can define a Script instead of a String:
 
@@ -143,7 +143,7 @@ hooks {
         }
     }
 }
-```plain
+```pkl
 
 ### `<STEP>.check_diff: (String | Script)`
 

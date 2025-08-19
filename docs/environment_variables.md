@@ -139,9 +139,11 @@ Default: `(empty)`
 A comma-separated list of warning tags to suppress. This allows you to hide specific warning messages that you don't want to see.
 
 Available warning tags:
+
 - `missing-profiles`: Suppresses warnings about steps being skipped due to missing profiles
 
 Example usage:
+
 ```bash
 HK_HIDE_WARNINGS=missing-profiles hk check
 ```
@@ -178,6 +180,7 @@ Type: `path`
 If set to a file path, hk will write a JSON timing report at the end of a run. The report includes total wall time and per-step wall time, with overlapping intervals merged so time isn’t double-counted across parallel step parts.
 
 The `steps` field is an object mapping step names to an object with:
+
 - `wall_time_ms`: merged wall time in milliseconds
 - `profiles` (optional): the list of profiles required for that step. If there are no profiles, this field is omitted.
 
@@ -199,4 +202,17 @@ Example output shape:
     "fmt": { "wall_time_ms": 2100 }
   }
 }
+```
+
+## `HK_SUMMARY_TEXT`
+
+Type: `bool`
+Default: `false`
+
+Controls whether per-step output summaries are printed in plain text mode. By default, summaries are only shown when hk is rendering progress bars (non-text mode). Set this to `true` to force summaries to appear in text mode.
+
+Example:
+
+```bash
+HK_SUMMARY_TEXT=1 hk check
 ```
