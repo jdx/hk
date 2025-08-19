@@ -73,7 +73,22 @@ subtree_present() {
 pull_subtree() {
   local prefix="$1" remote_name="$2" branch="$3"
   trace "Pulling ${prefix} from ${remote_name}/${branch}"
+  # Auto-stash if working tree is dirty to allow subtree pull
+  local had_stash=0
+  if ! git diff-index --quiet HEAD --; then
+    had_stash=1
+    trace "Working tree dirty; stashing changes"
+    git stash push -u -k -m "subtree-sync:${prefix}:pre-pull" >/dev/null || true
+  fi
+  set +e
   git subtree pull --prefix="$prefix" "$remote_name" "$branch" --squash
+  local rc=$?
+  set -e
+  if [[ $had_stash -eq 1 ]]; then
+    trace "Restoring stashed changes"
+    git stash pop -q || trace "Stash pop reported conflicts; please resolve"
+  fi
+  return $rc
 }
 
 push_subtree() {
@@ -118,6 +133,8 @@ for repo in "${REPO_LIST[@]}"; do
   remote_name="subtree_${repo}"
   ensure_remote "$remote_name" "$url"
   git fetch "$remote_name" "$BRANCH" || true
+  # Ensure refs/remotes/<remote>/HEAD exists to satisfy hooks that expect it
+  git remote set-head "$remote_name" "$BRANCH" >/dev/null 2>&1 || true
 
   case "$MODE" in
     pull)
