@@ -3,11 +3,16 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::Path;
-use tokio::{io::BufReader, process::Command, select, sync::{oneshot, Mutex}};
-use tokio_util::sync::CancellationToken;
 use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio::{
+    io::BufReader,
+    process::Command,
+    select,
+    sync::{oneshot, Mutex},
+};
+use tokio_util::sync::CancellationToken;
 
 use indexmap::IndexSet;
 use std::sync::LazyLock as Lazy;
@@ -24,6 +29,7 @@ pub struct CmdLineRunner {
     redactions: IndexSet<String>,
     pass_signals: bool,
     show_stderr_on_error: bool,
+    stderr_to_progress: bool,
     cancel: CancellationToken,
 }
 
@@ -52,6 +58,7 @@ impl CmdLineRunner {
             redactions: Default::default(),
             pass_signals: false,
             show_stderr_on_error: true,
+            stderr_to_progress: false,
             cancel: CancellationToken::new(),
         }
     }
@@ -121,6 +128,11 @@ impl CmdLineRunner {
         self
     }
 
+    pub fn stderr_to_progress(mut self, enable: bool) -> Self {
+        self.stderr_to_progress = enable;
+        self
+    }
+
     pub fn current_dir<P: AsRef<Path>>(mut self, dir: P) -> Self {
         self.cmd.current_dir(dir);
         self
@@ -167,7 +179,10 @@ impl CmdLineRunner {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let args = args.into_iter().map(|s| s.as_ref().to_string_lossy().to_string()).collect::<Vec<_>>();
+        let args = args
+            .into_iter()
+            .map(|s| s.as_ref().to_string_lossy().to_string())
+            .collect::<Vec<_>>();
         self.cmd.args(&args);
         self.args.extend(args);
         self
@@ -234,21 +249,28 @@ impl CmdLineRunner {
             let combined_output = combined_output.clone();
             let redactions = self.redactions.clone();
             let pr = self.pr.clone();
+            let stderr_to_progress = self.stderr_to_progress;
             tokio::spawn(async move {
                 let stderr = BufReader::new(stderr);
                 let mut lines = stderr.lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    let line = 
-                        redactions
+                    let line = redactions
                         .iter()
                         .fold(line, |acc, r| acc.replace(r, "[redacted]"));
-                        let mut result = result.lock().await;
+                    let mut result = result.lock().await;
                     result.stderr += &line;
                     result.stderr += "\n";
                     result.combined_output += &line;
                     result.combined_output += "\n";
                     if let Some(pr) = &pr {
-                        pr.println(&line);
+                        if stderr_to_progress {
+                            // Update progress bar like stdout does
+                            pr.prop("ensembler_stdout", &line);
+                            pr.update();
+                        } else {
+                            // Print above progress bars (current behavior)
+                            pr.println(&line);
+                        }
                     }
                     combined_output.lock().await.push(line);
                 }
@@ -306,7 +328,12 @@ impl CmdLineRunner {
                 pr.println(&output);
             }
         }
-        Err(ScriptFailed(Box::new((self.program.clone(), self.args.clone(), output, result))))?
+        Err(ScriptFailed(Box::new((
+            self.program.clone(),
+            self.args.clone(),
+            output,
+            result,
+        ))))?
     }
 }
 
