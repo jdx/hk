@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.9.2](https://github.com/jdx/hk/compare/v1.9.1..v1.9.2) - 2025-08-19
+
+### 🐛 Bug Fixes
+
+- progress bar with children jobs by [@jdx](https://github.com/jdx) in [#185](https://github.com/jdx/hk/pull/185)
+- bug with <clx:flex> tags appearing when they should not by [@jdx](https://github.com/jdx) in [a149229](https://github.com/jdx/hk/commit/a14922982add3abdcfcaee3d47ed2bac6c059bd0)
+
+### 📚 Documentation
+
+- add demo by [@jdx](https://github.com/jdx) in [282a62e](https://github.com/jdx/hk/commit/282a62ead207b294ed13e8b4dbe753f6b69b80f7)
+
+### 🔍 Other Changes
+
+- subtree-sync by [@jdx](https://github.com/jdx) in [b37605f](https://github.com/jdx/hk/commit/b37605fc0239fd9dbc8537fe5db55f7a7ba719ab)
+- subtree-sync by [@jdx](https://github.com/jdx) in [d0fc8d3](https://github.com/jdx/hk/commit/d0fc8d34626672952b4162c2ab5186e0a94076bd)
+- subtree by [@jdx](https://github.com/jdx) in [be0df56](https://github.com/jdx/hk/commit/be0df564a5147f4e26f2f06dff88579386b13708)
+
+### New Contributors
+
+- @mise-en-dev made their first contribution
+
 ## [1.9.1](https://github.com/jdx/hk/compare/v1.9.0..v1.9.1) - 2025-08-19
 
 ### 🐛 Bug Fixes
