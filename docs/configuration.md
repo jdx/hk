@@ -105,7 +105,7 @@ hooks {
         }
     }
 }
-```pkl
+```
 
 If you want to use a different check command for different operating systems, you can define a Script instead of a String:
 
@@ -143,7 +143,7 @@ hooks {
         }
     }
 }
-```pkl
+```
 
 ### `<STEP>.check_diff: (String | Script)`
 
