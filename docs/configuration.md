@@ -127,6 +127,9 @@ hooks {
 Template variables:
 
 - <code v-pre>{{files}}</code>: A list of files to run the linter on.
+- <code v-pre>{{workspace}}</code>: When `workspace_indicator` is set and matched, this is the workspace directory path (e.g., `.` for the repo root or `packages/app`).
+- <code v-pre>{{workspace_indicator}}</code>: Full path to the matched workspace indicator file (e.g., `packages/app/package.json`).
+- <code v-pre>{{workspace_files}}</code>: A list of files relative to <code v-pre>{{workspace}}</code>.
 
 ### `<STEP>.check_list_files: (String | Script)`
 
@@ -221,6 +224,25 @@ hk will run 1 step for each workspace even though multiple rs files are in each 
 
 - `cargo clippy --manifest-path workspaces/proj1/Cargo.toml`
 - `cargo clippy --manifest-path workspaces/proj2/Cargo.toml`
+
+When `workspace_indicator` is used, the following template variables become available in commands and env:
+
+- <code v-pre>{{workspace}}</code>: the workspace directory path
+- <code v-pre>{{workspace_indicator}}</code>: the matched indicator file path
+- <code v-pre>{{workspace_files}}</code>: files relative to <code v-pre>{{workspace}}</code>
+
+For example, in a monorepo with Node packages:
+
+```pkl
+local linters = new Mapping<String, Step> {
+  ["npm-lint"] {
+    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
+    workspace_indicator = "package.json"
+    check = "echo cd {{workspace}} && npm run lint -- {{workspace_files}}"
+    fix = "echo cd {{workspace}} && npm run fix -- {{workspace_files}}"
+  }
+}
+```
 
 ### `<STEP>.prefix: String`
 

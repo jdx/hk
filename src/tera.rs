@@ -60,18 +60,33 @@ impl Context {
         workspace_indicator: &P,
     ) -> &mut Self {
         let workspace_indicator = workspace_indicator.as_ref();
-        self.insert(
-            "workspace",
-            &workspace_indicator
-                .parent()
-                .unwrap_or(Path::new("."))
-                .display()
-                .to_string(),
-        );
+        let workspace_dir = workspace_indicator
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        self.insert("workspace", &workspace_dir.display().to_string());
         self.insert(
             "workspace_indicator",
             &workspace_indicator.display().to_string(),
         );
+        self
+    }
+
+    pub fn with_workspace_files<P: AsRef<Path>>(
+        &mut self,
+        shell_type: ShellType,
+        workspace_dir: &Path,
+        files: &[P],
+    ) -> &mut Self {
+        let files = files
+            .iter()
+            .map(|m| {
+                let p = m.as_ref();
+                let rel = p.strip_prefix(workspace_dir).unwrap_or(p);
+                shell_type.quote(rel.to_str().unwrap())
+            })
+            .join(" ");
+        self.insert("workspace_files", &files);
         self
     }
 }
