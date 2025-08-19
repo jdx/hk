@@ -21,6 +21,8 @@ use std::{fmt, process::Stdio};
 use tokio::sync::OwnedSemaphorePermit;
 use xx::file::display_path;
 
+use crate::step_test::StepTest;
+
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +65,8 @@ pub struct Step {
     pub root: Option<PathBuf>,
     #[serde(default)]
     pub hide: bool,
+    #[serde(default)]
+    pub tests: indexmap::IndexMap<String, StepTest>,
 }
 
 impl fmt::Display for Step {

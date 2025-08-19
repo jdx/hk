@@ -32,4 +32,12 @@ done
 """
         other = "sed -i -e '$a\\' {{files}}"
     }
+    tests {
+      ["adds newline"] {
+        run = "fix"
+        write { ["{tmp}/a.txt"] = "no-newline" }
+        files = List("{tmp}/a.txt")
+        expect { files { ["{tmp}/a.txt"] = "no-newline\n" } }
+      }
+    }
 } 

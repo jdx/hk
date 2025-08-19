@@ -51,6 +51,7 @@ Suppresses all output
 - [`hk init [-f --force] [--mise]`](/cli/init.md)
 - [`hk install [--mise]`](/cli/install.md)
 - [`hk run [FLAGS] [FILES]… <SUBCOMMAND>`](/cli/run.md)
+- [`hk test [--step STEP]… [--name NAME]… [--list]`](/cli/test.md)
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
 - [`hk run pre-commit [FLAGS] [FILES]…`](/cli/run/pre-commit.md)
 - [`hk run pre-push [FLAGS] [ARGS]…`](/cli/run/pre-push.md)
