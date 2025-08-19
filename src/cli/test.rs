@@ -85,14 +85,23 @@ impl Test {
                 Ok(r) if r.ok => println!("ok - {step_name} :: {test_name} ({}ms)", r.duration_ms),
                 Ok(r) => {
                     failures += 1;
-                    println!(
-                        "not ok - {step_name} :: {test_name} (code={}; {}ms)",
-                        r.code, r.duration_ms
-                    );
+                    if r.reasons.is_empty() {
+                        println!(
+                            "not ok - {step_name} :: {test_name} (code={}; {}ms)",
+                            r.code, r.duration_ms
+                        );
+                    } else {
+                        eprintln!(
+                            "not ok - {step_name} :: {test_name} (code={}; {}ms)\n  reasons: {}",
+                            r.code,
+                            r.duration_ms,
+                            r.reasons.join(", ")
+                        );
+                    }
                 }
                 Err(e) => {
                     failures += 1;
-                    println!("not ok - {step_name} :: {test_name} ({e})");
+                    eprintln!("not ok - {step_name} :: {test_name} ({e})");
                 }
             }
         }

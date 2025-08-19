@@ -1118,6 +1118,7 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "shell-quote",
+ "similar",
  "siphasher",
  "strum",
  "tempfile",

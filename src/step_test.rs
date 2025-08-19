@@ -5,11 +5,9 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct StepTest {
-    /// One of: "check", "fix", or "command"
+    /// One of: "check" or "fix"
     #[serde(default)]
     pub run: RunKind,
-    /// Raw command to run when run == command
-    pub command: Option<String>,
     /// Files to pass into the template context ({{ files }})
     /// If omitted, defaults to keys from `write`
     pub files: Option<Vec<String>>,

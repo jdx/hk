@@ -17,6 +17,7 @@ pub struct TestResult {
     pub stderr: String,
     pub code: i32,
     pub duration_ms: u128,
+    pub reasons: Vec<String>,
 }
 
 pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<TestResult> {
@@ -110,15 +111,24 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     };
 
     // Evaluate expectations
+    let mut reasons: Vec<String> = Vec::new();
     let mut pass = code == test.expect.code;
+    if code != test.expect.code {
+        reasons.push(format!(
+            "exit code {} != expected {}",
+            code, test.expect.code
+        ));
+    }
     if let Some(needle) = &test.expect.stdout {
         if !stdout.contains(needle) {
             pass = false;
+            reasons.push(format!("stdout missing: {}", needle));
         }
     }
     if let Some(needle) = &test.expect.stderr {
         if !stderr.contains(needle) {
             pass = false;
+            reasons.push(format!("stderr missing: {}", needle));
         }
     }
     for (rel, expected) in &test.expect.files {
@@ -134,6 +144,8 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         let contents = xx::file::read_to_string(&path)?;
         if &contents != expected {
             pass = false;
+            let udiff = render_unified_diff(expected, &contents);
+            reasons.push(format!("file mismatch: {}\n{}", path.display(), udiff));
         }
     }
 
@@ -145,5 +157,15 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         stderr,
         code,
         duration_ms: started_at.elapsed().as_millis(),
+        reasons,
     })
+}
+
+fn render_unified_diff(expected: &str, actual: &str) -> String {
+    use similar::TextDiff;
+    let diff = TextDiff::from_lines(expected, actual);
+    diff.unified_diff()
+        .context_radius(3)
+        .header("expected", "actual")
+        .to_string()
 }

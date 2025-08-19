@@ -16,7 +16,7 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     // Include all Builtins.* steps
-    steps = Builtins.toMap()
+    steps = Builtins.toMap().toMapping()
   }
 }
 PKL

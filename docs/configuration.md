@@ -407,6 +407,67 @@ local linters = new Mapping<String, Step> {
 }
 ```
 
+### `<STEP>.tests: Mapping<String, StepTest>`
+
+Define self-contained tests for a step, runnable via `hk test`.
+
+Key points:
+
+- Mapping is keyed by test name.
+- Supported run modes: `check` or `fix` (defaults to `check`).
+- `files` is optional; if omitted, it defaults to the keys of `write`.
+- `write` lets you create files before the test runs (paths can be relative to the sandbox or absolute).
+- `fixture` copies a directory into a temporary sandbox before the test runs.
+- `env` merges with the step’s `env` (test env wins on conflicts).
+- `expect` supports:
+  - `code` (default 0)
+  - `stdout`, `stderr` substring checks
+  - `files` full-file content assertions
+
+Template variables available in tests are the same as for steps, plus:
+
+- `{{files}}`, `{{globs}}`, `{{workspace}}`, `{{workspace_indicator}}`
+- `{{root}}`: project root
+- `{{tmp}}`: sandbox path used to execute the test
+
+Example:
+
+```pkl
+hooks {
+  ["check"] {
+    steps {
+      ["prettier"] {
+        check = "prettier --check {{ files }}"
+        fix = "prettier --write {{ files }}"
+        tests {
+          ["formats json via fix"] {
+            run = "fix"
+            write { ["{tmp}/a.json"] = "{\"b\":1}" }
+            // files omitted -> defaults to write keys
+            expect { files { ["{tmp}/a.json"] = "{\n  \"b\": 1\n}\n" } }
+          }
+          ["check shows output"] {
+            run = "check"
+            files = List("{tmp}/a.json")
+            env { ["FOO"] = "bar" }
+            expect { stdout = "prettier" }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Run tests with:
+
+```bash
+hk test                 # all tests
+hk test --step prettier # only prettier’s tests
+hk test --name formats json via fix
+hk test --list          # list without running
+```
+
 ### `<GROUP>`
 
 A group is a collection of steps that are executed in parallel, waiting for previous steps/groups to finish and blocking other steps/groups from starting until it finishes. This is a naive way to ensure the order of execution. It's better to make use of read/write locks and depends.
