@@ -1,6 +1,6 @@
 [package]
 name = "xx"
-version = "2.1.1"
+version = "2.1.2"
 edition = "2024"
 authors = ["Jeff Dickey (@jdx)"]
 license = "MIT"
@@ -18,7 +18,7 @@ filetime = "0.2"
 flate2 = { version = "1", optional = true }
 fslock = { version = "0.2", optional = true }
 globwalk = { version = "0.9", optional = true }
-homedir = "0.3"
+homedir = "=0.3.5" # can use newer versions once we support rust 1.88+
 log = "0.4"
 miette = "7"
 regex = "1"
@@ -53,6 +53,7 @@ pretty_assertions = "1"
 tempfile = "3"
 test-log = "0.2"
 wiremock = "0.6"
+tokio = { version = "1", features = ["full"] }
 
 [package.metadata.release]
 pre-release-hook = ["git", "cliff", "-o", "CHANGELOG.md", "--tag", "{{version}}" ]

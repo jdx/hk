@@ -44,8 +44,13 @@
 //! # }
 //! ```
 
-use std::process::{Command, ExitStatus};
+use std::io::BufRead;
+use std::process::{Command, ExitStatus, Stdio};
+use std::sync::Arc;
+use std::thread;
 use std::{ffi::OsString, fmt, io, process::Output};
+
+type LineHandler = dyn Fn(&str) + Send + Sync + 'static;
 
 use duct::IntoExecutablePath;
 
@@ -78,12 +83,14 @@ pub fn check_status(status: ExitStatus) -> io::Result<()> {
     Err(io::Error::other(msg))
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default)]
 pub struct XXExpression {
     program: OsString,
     args: Vec<OsString>,
     stdout_capture: bool,
     stderr_capture: bool,
+    stdout_handler: Option<Arc<LineHandler>>,
+    stderr_handler: Option<Arc<LineHandler>>,
 }
 
 pub fn cmd<T, U>(program: T, args: U) -> XXExpression
@@ -124,6 +131,103 @@ impl XXExpression {
 
     pub fn run(&self) -> XXResult<Output> {
         debug!("$ {self}");
+        if self.stdout_handler.is_some() || self.stderr_handler.is_some() {
+            // Inline streaming behavior previously provided by `run_streaming`
+            let mut cmd = Command::new(&self.program);
+            cmd.args(&self.args)
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+
+            let mut child = cmd
+                .spawn()
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+
+            let mut stdout = child
+                .stdout
+                .take()
+                .ok_or_else(|| io::Error::other("failed to capture stdout"))
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+            let mut stderr = child
+                .stderr
+                .take()
+                .ok_or_else(|| io::Error::other("failed to capture stderr"))
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+
+            let out_h = self.stdout_handler.clone();
+            let stdout_handle = thread::spawn(move || {
+                let mut reader = io::BufReader::new(&mut stdout);
+                let mut line = String::with_capacity(1024);
+                loop {
+                    line.clear();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => break,
+                        Ok(_) => {
+                            if line.ends_with('\n') {
+                                line.pop();
+                                if line.ends_with('\r') {
+                                    line.pop();
+                                }
+                            } else if line.ends_with('\r') {
+                                line.pop();
+                            }
+                            // this can be removed in rust 1.88
+                            #[allow(clippy::collapsible_if)]
+                            if !line.is_empty() {
+                                if let Some(h) = &out_h {
+                                    (h)(&line);
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            let err_h = self.stderr_handler.clone();
+            let stderr_handle = thread::spawn(move || {
+                let mut reader = io::BufReader::new(&mut stderr);
+                let mut line = String::with_capacity(1024);
+                loop {
+                    line.clear();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => break,
+                        Ok(_) => {
+                            if line.ends_with('\n') {
+                                line.pop();
+                                if line.ends_with('\r') {
+                                    line.pop();
+                                }
+                            } else if line.ends_with('\r') {
+                                line.pop();
+                            }
+                            // this can be removed in rust 1.88
+                            #[allow(clippy::collapsible_if)]
+                            if !line.is_empty() {
+                                if let Some(h) = &err_h {
+                                    (h)(&line);
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            let status = child
+                .wait()
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+
+            let _ = stdout_handle.join();
+            let _ = stderr_handle.join();
+
+            check_status(status).map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+            return Ok(Output {
+                status,
+                stdout: vec![],
+                stderr: vec![],
+            });
+        }
         let expr = self.build_expr();
         expr.run()
             .map_err(|err| XXError::ProcessError(err, self.to_string()))
@@ -131,9 +235,130 @@ impl XXExpression {
 
     pub fn read(&self) -> XXResult<String> {
         debug!("$ {self}");
+        if self.stdout_handler.is_some() || self.stderr_handler.is_some() {
+            let mut cmd = Command::new(&self.program);
+            cmd.args(&self.args)
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+
+            let mut child = cmd
+                .spawn()
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+
+            let mut stderr = child
+                .stderr
+                .take()
+                .ok_or_else(|| io::Error::other("failed to capture stderr"))
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+
+            // Drain stderr on a background thread, invoking handler if present
+            let err_h = self.stderr_handler.clone();
+            let stderr_handle = thread::spawn(move || {
+                let mut reader = io::BufReader::new(&mut stderr);
+                let mut line = String::with_capacity(1024);
+                loop {
+                    line.clear();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => break,
+                        Ok(_) => {
+                            if line.ends_with('\n') {
+                                line.pop();
+                                if line.ends_with('\r') {
+                                    line.pop();
+                                }
+                            } else if line.ends_with('\r') {
+                                line.pop();
+                            }
+                            // this can be removed in rust 1.88
+                            #[allow(clippy::collapsible_if)]
+                            if !line.is_empty() {
+                                if let Some(h) = &err_h {
+                                    (h)(&line);
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+
+            // Read stdout line-by-line in the current thread, optionally emitting handler,
+            // while reconstructing the full stdout for return
+            let mut stdout = child
+                .stdout
+                .take()
+                .ok_or_else(|| io::Error::other("failed to capture stdout"))
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+            let out_h = self.stdout_handler.clone();
+            let mut reader = io::BufReader::new(&mut stdout);
+            let mut acc = String::new();
+            let mut line = String::with_capacity(1024);
+            loop {
+                line.clear();
+                match reader.read_line(&mut line) {
+                    Ok(0) => break,
+                    Ok(_) => {
+                        let mut had_nl = false;
+                        if line.ends_with('\n') {
+                            had_nl = true;
+                            line.pop();
+                            if line.ends_with('\r') {
+                                line.pop();
+                            }
+                        } else if line.ends_with('\r') {
+                            line.pop();
+                        }
+                        if !line.is_empty() {
+                            if let Some(h) = &out_h {
+                                (h)(&line);
+                            }
+                            acc.push_str(&line);
+                        }
+                        if had_nl {
+                            acc.push('\n');
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+
+            let status = child
+                .wait()
+                .map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+            let _ = stderr_handle.join();
+            check_status(status).map_err(|err| XXError::ProcessError(err, self.to_string()))?;
+            // Match duct's `read()` behavior: trim a single trailing newline
+            if acc.ends_with('\n') {
+                let _ = acc.pop();
+            }
+            return Ok(acc);
+        }
         let expr = self.build_expr();
         expr.read()
             .map_err(|err| XXError::ProcessError(err, self.to_string()))
+    }
+
+    // run_streaming removed; streaming logic is now handled inline in `run()`
+
+    /// Register a line-by-line stdout handler. When set, `run()` will stream output lines
+    /// to this handler instead of capturing stdout.
+    pub fn on_stdout_line<F>(mut self, handler: F) -> Self
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        self.stdout_handler = Some(Arc::new(handler));
+        self
+    }
+
+    /// Register a line-by-line stderr handler. When set, `run()` will stream error lines
+    /// to this handler instead of capturing stderr.
+    pub fn on_stderr_line<F>(mut self, handler: F) -> Self
+    where
+        F: Fn(&str) + Send + Sync + 'static,
+    {
+        self.stderr_handler = Some(Arc::new(handler));
+        self
     }
 
     fn build_expr(&self) -> duct::Expression {
@@ -166,6 +391,8 @@ impl fmt::Display for XXExpression {
 mod tests {
     #[allow(unused_imports)]
     use super::*;
+    #[allow(unused_imports)]
+    use std::sync::{Arc, Mutex};
 
     #[test]
     fn test_cmd() {
@@ -180,5 +407,120 @@ mod tests {
         let expr = cmd("echo", ["hello"]).arg("world").args(["foo", "bar"]);
         let output = expr.read().unwrap();
         assert_eq!(output, "hello world foo bar");
+    }
+
+    #[test]
+    fn test_line_handlers_capture_stdout_and_stderr_lines() {
+        // Use sh to emit interleaved stdout/stderr lines
+        let script = r#"
+            printf 'o1\n';
+            printf 'e1\n' 1>&2;
+            printf 'o2\n';
+            printf 'e2\n' 1>&2;
+        "#;
+        let out_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let err_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+
+        let out_clone = out_lines.clone();
+        let err_clone = err_lines.clone();
+
+        let output = cmd("sh", ["-c", script])
+            .on_stdout_line(move |line| out_clone.lock().unwrap().push(line.to_string()))
+            .on_stderr_line(move |line| err_clone.lock().unwrap().push(line.to_string()))
+            .run()
+            .unwrap();
+        assert!(output.status.success());
+
+        let mut out = out_lines.lock().unwrap().clone();
+        let mut err = err_lines.lock().unwrap().clone();
+        out.sort();
+        err.sort();
+        assert_eq!(out, vec!["o1", "o2"]);
+        assert_eq!(err, vec!["e1", "e2"]);
+    }
+
+    #[test]
+    fn test_line_handlers_propagate_nonzero_exit() {
+        // Emit some output and then exit non-zero
+        let script = r#"
+            printf 'ok\n';
+            printf 'bad\n' 1>&2;
+            exit 3;
+        "#;
+        let res = cmd("sh", ["-c", script])
+            .on_stdout_line(|_| {})
+            .on_stderr_line(|_| {})
+            .run();
+        assert!(res.is_err());
+        let err = format!("{}", res.unwrap_err());
+        assert!(err.contains("sh -c"));
+    }
+
+    #[test]
+    fn test_line_handlers_handle_partial_last_line() {
+        // Emit lines without trailing newline at the end
+        let script = r#"
+            printf 'a1\n';
+            printf 'b1' 1>&2;
+        "#;
+        let out_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let err_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let out_clone = out_lines.clone();
+        let err_clone = err_lines.clone();
+        let output = cmd("sh", ["-c", script])
+            .on_stdout_line(move |line| out_clone.lock().unwrap().push(line.to_string()))
+            .on_stderr_line(move |line| err_clone.lock().unwrap().push(line.to_string()))
+            .run()
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(out_lines.lock().unwrap().as_slice(), ["a1"]);
+        assert_eq!(err_lines.lock().unwrap().as_slice(), ["b1"]);
+    }
+
+    #[test]
+    fn test_line_handlers_trim_crlf() {
+        // Ensure CRLF endings are normalized before handler invocation
+        let script = r#"
+            printf 'x1\r\n';
+            printf 'y1\r\n' 1>&2;
+        "#;
+        let out_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let err_lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let out_clone = out_lines.clone();
+        let err_clone = err_lines.clone();
+        let output = cmd("sh", ["-c", script])
+            .on_stdout_line(move |line| out_clone.lock().unwrap().push(line.to_string()))
+            .on_stderr_line(move |line| err_clone.lock().unwrap().push(line.to_string()))
+            .run()
+            .unwrap();
+        assert!(output.status.success());
+        assert_eq!(out_lines.lock().unwrap().as_slice(), ["x1"]);
+        assert_eq!(err_lines.lock().unwrap().as_slice(), ["y1"]);
+    }
+
+    #[test]
+    fn test_read_with_handlers_returns_full_stdout_and_invokes_handlers() {
+        let script = r#"
+            printf 'l1\n';
+            printf 'l2\n';
+        "#;
+        let lines: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let lines_clone = lines.clone();
+        let out = cmd("sh", ["-c", script])
+            .on_stdout_line(move |line| lines_clone.lock().unwrap().push(line.to_string()))
+            .read()
+            .unwrap();
+        assert_eq!(out, "l1\nl2");
+        assert_eq!(lines.lock().unwrap().as_slice(), ["l1", "l2"]);
+    }
+
+    #[test]
+    fn test_read_without_handlers_trims_trailing_newline() {
+        let script = r#"
+            printf 'a\n';
+            printf 'b\n';
+        "#;
+        let out = cmd("sh", ["-c", script]).read().unwrap();
+        assert_eq!(out, "a\nb");
     }
 }
