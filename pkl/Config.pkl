@@ -97,10 +97,10 @@ class StepTest {
 class StepTestExpect {
     /// Expected exit code (default 0)
     code = 0
-    /// Substrings that must appear in stdout
-    stdout: (String | List<String>)? = List()
-    /// Substrings that must appear in stderr
-    stderr: (String | List<String>)? = List()
+    /// Substring that must appear in stdout
+    stdout: String?
+    /// Substring that must appear in stderr
+    stderr: String?
     /// Expected files after run: path => full contents (exact match)
     files: Mapping<String, String> = new Mapping<String, String>{}
 }

@@ -44,21 +44,16 @@ impl Default for RunKind {
     }
 }
 
-#[serde_as]
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct StepTestExpect {
     #[serde(default)]
     pub code: i32,
-    /// Substrings which must appear in stdout
-    #[serde_as(as = "OneOrMany<_>")]
-    #[serde(default)]
-    pub stdout: Vec<String>,
-    /// Substrings which must appear in stderr
-    #[serde_as(as = "OneOrMany<_>")]
-    #[serde(default)]
-    pub stderr: Vec<String>,
+    /// Substring which must appear in stdout
+    pub stdout: Option<String>,
+    /// Substring which must appear in stderr
+    pub stderr: Option<String>,
     /// Map of path -> full expected file contents (exact match)
     #[serde(default)]
     pub files: IndexMap<String, String>,

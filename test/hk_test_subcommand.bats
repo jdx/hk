@@ -20,11 +20,11 @@ hooks {
           ["command stdout"] {
             run = "command"
             command = "echo hello"
-            expect { stdout = List("hello") }
+            expect { stdout = "hello" }
           }
           ["writes file"] {
             run = "fix"
-            expect { files { ["{tmp}/out.txt"] = "hi\n" } }
+            expect { files { ["out.txt"] = "hi\n" } }
           }
         }
       }

@@ -28,7 +28,6 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         test.files
             .iter()
             .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
-            .map(|f| f.replace("{tmp}", &sandbox.display().to_string()))
             .map(PathBuf::from)
             .collect()
     };
@@ -36,13 +35,11 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     if let Some(fixture) = &test.fixture {
         let rendered = crate::tera::render(fixture, &tctx)?;
-        let rendered = rendered.replace("{tmp}", &sandbox.display().to_string());
         let src = PathBuf::from(rendered);
         xx::file::copy_dir_all(&src, &sandbox)?;
     }
     for (rel, contents) in &test.write {
         let rendered = crate::tera::render(rel, &tctx)?;
-        let rendered = rendered.replace("{tmp}", &sandbox.display().to_string());
         let path = {
             let p = PathBuf::from(&rendered);
             if p.is_absolute() {
@@ -110,19 +107,18 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Evaluate expectations
     let mut pass = ok && code == test.expect.code;
-    for needle in &test.expect.stdout {
+    if let Some(needle) = &test.expect.stdout {
         if !stdout.contains(needle) {
             pass = false;
         }
     }
-    for needle in &test.expect.stderr {
+    if let Some(needle) = &test.expect.stderr {
         if !stderr.contains(needle) {
             pass = false;
         }
     }
     for (rel, expected) in &test.expect.files {
         let rendered = crate::tera::render(rel, &tctx)?;
-        let rendered = rendered.replace("{tmp}", &sandbox.display().to_string());
         let path = {
             let p = PathBuf::from(&rendered);
             if p.is_absolute() {
