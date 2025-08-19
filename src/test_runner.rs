@@ -59,7 +59,6 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         RunKind::Fix => step
             .run_cmd(crate::step::RunType::Fix)
             .map(|s| s.to_string()),
-        RunKind::Command => test.command.clone(),
     };
     let Some(mut run) = cmd_string else {
         eyre::bail!("{}: no command for test", step.name);
@@ -88,13 +87,12 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     let result = cmd.execute().await;
-    let (ok, stdout, stderr, code) = match result {
-        Ok(r) => (true, r.stdout, r.stderr, r.status.code().unwrap_or(0)),
+    let (stdout, stderr, code) = match result {
+        Ok(r) => (r.stdout, r.stderr, r.status.code().unwrap_or(0)),
         Err(e) => {
             if let ensembler::Error::ScriptFailed(tuple) = &e {
                 let r = &tuple.3;
                 (
-                    false,
                     r.stdout.clone(),
                     r.stderr.clone(),
                     r.status.code().unwrap_or(1),
@@ -106,7 +104,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     };
 
     // Evaluate expectations
-    let mut pass = ok && code == test.expect.code;
+    let mut pass = code == test.expect.code;
     if let Some(needle) = &test.expect.stdout {
         if !stdout.contains(needle) {
             pass = false;

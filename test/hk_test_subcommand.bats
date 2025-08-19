@@ -17,10 +17,9 @@ hooks {
         check = "echo checking {{files}}"
         fix = "sh -c 'echo hi > out.txt'"
         tests {
-          ["command stdout"] {
-            run = "command"
-            command = "echo hello"
-            expect { stdout = "hello" }
+          ["check stdout"] {
+            run = "check"
+            expect { stdout = "checking" }
           }
           ["writes file"] {
             run = "fix"
@@ -35,7 +34,7 @@ PKL
 
     run hk test
     assert_success
-    assert_output --partial "ok - demo :: command stdout"
+    assert_output --partial "ok - demo :: check stdout"
     assert_output --partial "ok - demo :: writes file"
 }
 
