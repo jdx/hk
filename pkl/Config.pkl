@@ -70,6 +70,10 @@ class Step {
 
     hide = false
     
+    /// Controls which stream(s) to include in the end-of-run summary for this step
+    /// One of: "stdout", "stderr", "combined", "hide"
+    output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
+    
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}
 

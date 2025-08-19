@@ -51,7 +51,7 @@ hooks {
         report = #"node scripts/upload-timings.js <<<"$HK_REPORT_JSON""#
     }
 }
-```
+```text
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
@@ -64,7 +64,7 @@ env {
     ["HK_FAIL_FAST"] = "0"
     ["NODE_ENV"] = "production"
 }
-```
+```text
 
 ## `hooks.<HOOK>`
 
@@ -105,7 +105,7 @@ hooks {
         }
     }
 }
-```
+```text
 
 If you want to use a different check command for different operating systems, you can define a Script instead of a String:
 
@@ -126,10 +126,10 @@ hooks {
 
 Template variables:
 
-- <code v-pre>{{files}}</code>: A list of files to run the linter on.
-- <code v-pre>{{workspace}}</code>: When `workspace_indicator` is set and matched, this is the workspace directory path (e.g., `.` for the repo root or `packages/app`).
-- <code v-pre>{{workspace_indicator}}</code>: Full path to the matched workspace indicator file (e.g., `packages/app/package.json`).
-- <code v-pre>{{workspace_files}}</code>: A list of files relative to <code v-pre>{{workspace}}</code>.
+- `{{files}}`: A list of files to run the linter on.
+- `{{workspace}}`: When `workspace_indicator` is set and matched, this is the workspace directory path (e.g., `.` for the repo root or `packages/app`).
+- `{{workspace_indicator}}`: Full path to the matched workspace indicator file (e.g., `packages/app/package.json`).
+- `{{workspace_files}}`: A list of files relative to `{{workspace}}`.
 
 ### `<STEP>.check_list_files: (String | Script)`
 
@@ -143,7 +143,7 @@ hooks {
         }
     }
 }
-```
+```plain
 
 ### `<STEP>.check_diff: (String | Script)`
 
@@ -206,7 +206,7 @@ local linters = new Mapping<String, Step> {
 
 In this example, given a file list like the following:
 
-```
+```text
 └── workspaces/
     ├── proj1/
     │   ├── Cargo.toml
@@ -227,9 +227,9 @@ hk will run 1 step for each workspace even though multiple rs files are in each 
 
 When `workspace_indicator` is used, the following template variables become available in commands and env:
 
-- <code v-pre>{{workspace}}</code>: the workspace directory path
-- <code v-pre>{{workspace_indicator}}</code>: the matched indicator file path
-- <code v-pre>{{workspace_files}}</code>: files relative to <code v-pre>{{workspace}}</code>
+- `{{workspace}}`: the workspace directory path
+- `{{workspace_indicator}}`: the matched indicator file path
+- `{{workspace_files}}`: files relative to `{{workspace}}`
 
 For example, in a monorepo with Node packages:
 
@@ -415,6 +415,40 @@ local linters = new Mapping<String, Step> {
 }
 ```
 
+### `<STEP>.output_summary: "stdout" | "stderr" | "combined" | "hide"`
+
+Default: `"stderr"`
+
+Controls which stream(s) from the step’s command are captured and printed at the end of the hook run. This prints a single consolidated block per step that produced any output, with a header like `STEP_NAME stderr:`.
+
+- `"stderr"` (default): capture only standard error
+- `"stdout"`: capture only standard output
+- `"combined"`: capture both stdout and stderr interleaved (line-by-line as produced)
+- `"hide"`: capture nothing and print nothing for this step
+
+Examples:
+
+```pkl
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] {
+        check = "eslint {{files}}"
+        output_summary = "combined"
+      }
+      ["format"] {
+        check = "prettier --check {{files}}"
+        output_summary = "stdout"
+      }
+      ["quiet-step"] {
+        check = "echo noisy && echo warn 1>&2"
+        output_summary = "hide"
+      }
+    }
+  }
+}
+```
+
 ### `<STEP>.env: Mapping<String, String>`
 
 Environment variables specific to this step. These are merged with the global environment variables.
@@ -554,5 +588,6 @@ hooks {
 ```
 
 The hkrc configuration is applied after loading the project configuration (`hk.pkl`), which means:
+
 - User configuration takes precedence over project configuration
 - Project-specific settings in `hk.pkl` can override or extend the global configuration

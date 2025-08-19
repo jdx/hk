@@ -22,7 +22,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
-    step::{CheckType, EXPR_CTX, RunType, Script, Step},
+    step::{CheckType, EXPR_CTX, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -124,6 +124,8 @@ pub struct HookContext {
     pub timing: Arc<TimingRecorder>,
     pub skip_steps: IndexMap<String, SkipReason>,
     skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
+    /// Aggregated output per step name (in insertion order)
+    pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
 }
 
 impl HookContext {
@@ -163,6 +165,7 @@ impl HookContext {
             timing: Arc::new(timing),
             skip_steps,
             skipped_steps: StdMutex::new(IndexMap::new()),
+            output_by_step: StdMutex::new(IndexMap::new()),
         }
     }
 
@@ -225,6 +228,16 @@ impl HookContext {
 
     pub fn get_skipped_steps(&self) -> IndexMap<String, SkipReason> {
         self.skipped_steps.lock().unwrap().clone()
+    }
+
+    pub fn append_step_output(&self, step_name: &str, mode: OutputSummary, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        let mut map = self.output_by_step.lock().unwrap();
+        map.entry(step_name.to_string())
+            .and_modify(|(_, s)| s.push_str(text))
+            .or_insert_with(|| (mode, text.to_string()));
     }
 }
 
@@ -399,6 +412,25 @@ impl Hook {
 
         // Clear progress bars before displaying summary
         clx::progress::stop();
+
+        // Display aggregated output from steps, once per step
+        if clx::progress::output() != ProgressOutput::Text || *env::HK_SUMMARY_TEXT {
+            let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
+            for (step_name, (mode, output)) in outputs.into_iter() {
+                let trimmed = output.trim_end();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                let label = match mode {
+                    OutputSummary::Stdout => "stdout",
+                    OutputSummary::Stderr => "stderr",
+                    OutputSummary::Combined => "output",
+                    OutputSummary::Hide => continue,
+                };
+                eprintln!("\n{}", style::ebold(format!("{} {}:", step_name, label)));
+                eprintln!("{}", trimmed);
+            }
+        }
 
         // Display summary of profile-skipped steps
         // Only show summary if user has enabled the generic warning tag
