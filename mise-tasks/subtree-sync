@@ -16,6 +16,7 @@ trace() { printf "[subtree-sync] %s\n" "$*"; }
 BRANCH="main"
 MODE="both" # pull+push
 REPOS="xx,clx,ensembler"
+ANY_CHANGE=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -81,7 +82,7 @@ pull_subtree() {
     git stash push -u -k -m "subtree-sync:${prefix}:pre-pull" >/dev/null || true
   fi
   set +e
-  git subtree pull --prefix="$prefix" "$remote_name" "$branch" --squash
+  git subtree pull --prefix="$prefix" "$remote_name" "$branch"
   local rc=$?
   set -e
   if [[ $had_stash -eq 1 ]]; then
@@ -104,6 +105,13 @@ push_subtree() {
       trace "Remote ${remote_name}/${branch} has new commits; pulling before push"
       pull_subtree "$prefix" "$remote_name" "$branch"
       split_sha=$(git subtree split --prefix="$prefix" -q)
+    fi
+    # If remote already equals our split, there is nothing to push
+    local remote_sha
+    remote_sha=$(git rev-parse "$remote_name/$branch")
+    if [[ "$remote_sha" == "$split_sha" ]]; then
+      trace "No local changes to push for ${prefix}"
+      return 3
     fi
   fi
   trace "Pushing ${prefix} split ${split_sha} to ${remote_name}/${branch}"
@@ -138,16 +146,49 @@ for repo in "${REPO_LIST[@]}"; do
 
   case "$MODE" in
     pull)
-      pull_subtree "$repo" "$remote_name" "$BRANCH" || trace "No changes pulled for ${repo}"
+      before_head=$(git rev-parse HEAD)
+      if pull_subtree "$repo" "$remote_name" "$BRANCH"; then
+        after_head=$(git rev-parse HEAD)
+        if [[ "$before_head" != "$after_head" ]]; then
+          ANY_CHANGE=1
+        else
+          trace "No changes pulled for ${repo}"
+        fi
+      else
+        trace "No changes pulled for ${repo}"
+      fi
       ;;
     push)
-      push_subtree "$repo" "$remote_name" "$BRANCH" || trace "No changes pushed for ${repo}"
+      if push_subtree "$repo" "$remote_name" "$BRANCH"; then
+        ANY_CHANGE=1
+      else
+        trace "No changes pushed for ${repo}"
+      fi
       ;;
     both)
-      pull_subtree "$repo" "$remote_name" "$BRANCH" || trace "No changes pulled for ${repo}"
-      push_subtree "$repo" "$remote_name" "$BRANCH" || trace "No changes pushed for ${repo}"
+      before_head=$(git rev-parse HEAD)
+      if pull_subtree "$repo" "$remote_name" "$BRANCH"; then
+        after_head=$(git rev-parse HEAD)
+        if [[ "$before_head" != "$after_head" ]]; then
+          ANY_CHANGE=1
+        else
+          trace "No changes pulled for ${repo}"
+        fi
+      else
+        trace "No changes pulled for ${repo}"
+      fi
+      if push_subtree "$repo" "$remote_name" "$BRANCH"; then
+        ANY_CHANGE=1
+      else
+        trace "No changes pushed for ${repo}"
+      fi
       ;;
   esac
 done
+
+if [[ $ANY_CHANGE -eq 0 ]]; then
+  trace "No subtree changes detected. Nothing to do."
+  exit 0
+fi
 
 trace "Done"
