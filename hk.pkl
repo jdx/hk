@@ -35,6 +35,7 @@ local linters = new Mapping<String, Step | Group> {
     ["docs"] = new Step {
         glob = "docs/**"
         check = "mise run docs:build"
+        output_summary = "hide"
     }
 }
 

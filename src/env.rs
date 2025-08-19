@@ -80,6 +80,9 @@ pub static HK_FAIL_FAST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_FAIL_F
 pub static HK_HIDE_WARNINGS: LazyLock<IndexSet<String>> =
     LazyLock::new(|| var_csv("HK_HIDE_WARNINGS").unwrap_or_default());
 
+// When true, allow output summaries to be printed in text mode
+pub static HK_SUMMARY_TEXT: LazyLock<bool> = LazyLock::new(|| var_true("HK_SUMMARY_TEXT"));
+
 pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));
 
 fn var_path(name: &str) -> Option<PathBuf> {

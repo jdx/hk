@@ -67,6 +67,8 @@ pub struct Step {
     pub hide: bool,
     #[serde(default)]
     pub tests: indexmap::IndexMap<String, StepTest>,
+    #[serde(default)]
+    pub output_summary: OutputSummary,
 }
 
 impl fmt::Display for Step {
@@ -97,6 +99,16 @@ pub enum CheckType {
     Check,
     ListFiles,
     Diff,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputSummary {
+    #[default]
+    Stderr,
+    Stdout,
+    Combined,
+    Hide,
 }
 
 impl Step {
@@ -611,7 +623,27 @@ impl Step {
             clx::progress::resume();
         }
         match exec_result {
-            Ok(_) => {}
+            Ok(result) => {
+                // Save output for end-of-run summary based on configured mode
+                match self.output_summary {
+                    OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
+                        &self.name,
+                        OutputSummary::Stderr,
+                        &result.stderr,
+                    ),
+                    OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
+                        &self.name,
+                        OutputSummary::Stdout,
+                        &result.stdout,
+                    ),
+                    OutputSummary::Combined => ctx.hook_ctx.append_step_output(
+                        &self.name,
+                        OutputSummary::Combined,
+                        &result.combined_output,
+                    ),
+                    OutputSummary::Hide => {}
+                }
+            }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
                     if let RunType::Check(CheckType::ListFiles) = job.run_type {
@@ -621,6 +653,25 @@ impl Step {
                             source: eyre!("{}", err),
                             stdout,
                         })?;
+                    }
+                    // Save output from a failed command as well
+                    match self.output_summary {
+                        OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Stderr,
+                            &e.3.stderr,
+                        ),
+                        OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Stdout,
+                            &e.3.stdout,
+                        ),
+                        OutputSummary::Combined => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Combined,
+                            &e.3.combined_output,
+                        ),
+                        OutputSummary::Hide => {}
                     }
                 }
                 if job.check_first && matches!(job.run_type, RunType::Check(_)) {
