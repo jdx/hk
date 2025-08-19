@@ -56,7 +56,7 @@ impl SkipReason {
                     "skipped: disabled by profile".to_string()
                 } else {
                     format!(
-                        "skipped: missing profile{} ({})",
+                        "skipped: profile{} not enabled ({})",
                         if profiles.len() > 1 { "s" } else { "" },
                         profiles.join(", ")
                     )
