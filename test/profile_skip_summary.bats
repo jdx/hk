@@ -32,7 +32,7 @@ EOF
     assert_success
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
-    assert_output --partial "⏭ slow-test – skipped: missing profile (slow)"
+    assert_output --partial "⏭ slow-test – skipped: profile not enabled (slow)"
     assert_output --partial "1 step was skipped due to missing profiles: slow"
     assert_output --partial "To enable these steps, use --slow or set HK_PROFILE=slow."
     assert_output --partial "To hide this warning: set HK_HIDE_WARNINGS=missing-profiles"

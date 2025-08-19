@@ -25,7 +25,7 @@ hooks {
 EOF
     run hk check
     assert_success
-    assert_output --partial "foo – skipped: missing profile (needs-profile)"
+    assert_output --partial "foo – skipped: profile not enabled (needs-profile)"
     refute_output --partial "RUN"
 }
 

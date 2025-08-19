@@ -280,11 +280,6 @@ impl Step {
             j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
-        if let Some(reason) = self.profile_skip_reason() {
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some(reason);
-            return Ok(vec![j]);
-        }
         if self.run_cmd(run_type).is_none() {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
@@ -338,6 +333,15 @@ impl Step {
                 run_type,
             )]
         };
+        // Apply profile skip only after determining files/no-files, so NoFilesToProcess wins
+        // Also, if a condition is present, defer profile checks to run() so ConditionFalse wins
+        if self.condition.is_none() {
+            if let Some(reason) = self.profile_skip_reason() {
+                for job in jobs.iter_mut() {
+                    job.skip_reason = Some(reason.clone());
+                }
+            }
+        }
         for job in jobs.iter_mut().filter(|j| j.check_first) {
             // only set check_first if there are any files in contention
             job.check_first = job.files.iter().any(|f| files_in_contention.contains(f));
@@ -524,6 +528,11 @@ impl Step {
                 self.mark_skipped(ctx, &SkipReason::ConditionFalse)?;
                 return Ok(());
             }
+        }
+        // After evaluating the condition, check profiles so condition-false wins over profiles
+        if let Some(reason) = self.profile_skip_reason() {
+            self.mark_skipped(ctx, &reason)?;
+            return Ok(());
         }
         job.progress = Some(job.build_progress(ctx));
         job.status = StepJobStatus::Pending;

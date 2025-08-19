@@ -68,7 +68,7 @@ EOF
   assert_success
   
   # ProfileNotEnabled is set to true, so this message SHOULD appear
-  assert_output --partial "skipped: missing profile (nonexistent)"
+  assert_output --partial "skipped: profile not enabled (nonexistent)"
 }
 
 @test "skip_reasons: NoCommandForRunType messages can be configured" {
