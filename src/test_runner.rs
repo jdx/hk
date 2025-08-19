@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -26,6 +27,17 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     let sandbox = tmp.path().to_path_buf();
     let mut tctx = crate::tera::Context::default();
     tctx.insert("tmp", &sandbox.display().to_string());
+    // Decide whether to use a sandbox based on whether files reference {{tmp}}.
+    // If not, operate from the project root instead.
+    let use_sandbox = match &test.files {
+        Some(files) => files.iter().any(|f| f.contains("{{tmp}}")),
+        None => test.write.keys().any(|f| f.contains("{{tmp}}")),
+    };
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let root = xx::file::find_up(&cwd, &[".git"])
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or(cwd);
+    let base_dir = if use_sandbox { &sandbox } else { &root };
     let files: Vec<PathBuf> = match &test.files {
         Some(files) => files
             .iter()
@@ -41,9 +53,34 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     };
     tctx.with_files(step.shell_type(), &files);
 
+    // Track created files/dirs for cleanup on success
+    let mut created_files: Vec<PathBuf> = Vec::new();
+    let mut created_dirs: Vec<PathBuf> = Vec::new();
+
     if let Some(fixture) = &test.fixture {
         let src = PathBuf::from(fixture);
-        xx::file::copy_dir_all(&src, &sandbox)?;
+        // Pre-scan to determine which files/dirs will be newly created
+        let mut stack: Vec<PathBuf> = vec![src.clone()];
+        while let Some(cur) = stack.pop() {
+            let read_dir = match fs::read_dir(&cur) {
+                Ok(iter) => iter,
+                Err(_) => continue,
+            };
+            for entry in read_dir.flatten() {
+                let p = entry.path();
+                let rel = p.strip_prefix(&src).unwrap_or(&p);
+                let dest = base_dir.join(rel);
+                if p.is_dir() {
+                    if !dest.exists() {
+                        created_dirs.push(dest.clone());
+                    }
+                    stack.push(p);
+                } else if !dest.exists() {
+                    created_files.push(dest.clone());
+                }
+            }
+        }
+        xx::file::copy_dir_all(&src, base_dir)?;
     }
     for (rel, contents) in &test.write {
         let rendered = crate::tera::render(rel, &tctx)?;
@@ -52,9 +89,28 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             if p.is_absolute() {
                 p
             } else {
-                sandbox.join(&rendered)
+                base_dir.join(&rendered)
             }
         };
+        // Track newly created parent dirs and file
+        if let Some(mut parent) = path.parent().map(|p| p.to_path_buf()) {
+            let mut to_create: Vec<PathBuf> = Vec::new();
+            while !parent.exists() {
+                to_create.push(parent.clone());
+                if !parent.pop() {
+                    break;
+                }
+            }
+            // Only record directories that are under base_dir
+            for dir in to_create {
+                if dir.starts_with(base_dir) {
+                    created_dirs.push(dir);
+                }
+            }
+        }
+        if !path.exists() {
+            created_files.push(path.clone());
+        }
         xx::file::write(&path, contents)?;
     }
 
@@ -83,7 +139,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     } else {
         CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
     };
-    cmd = cmd.arg(&run).current_dir(&sandbox);
+    cmd = cmd.arg(&run).current_dir(base_dir);
     // Merge env: step then test (test wins)
     for (k, v) in &step.env {
         let v = crate::tera::render(v, &tctx)?;
@@ -138,7 +194,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             if p.is_absolute() {
                 p
             } else {
-                sandbox.join(&rendered)
+                base_dir.join(&rendered)
             }
         };
         let contents = xx::file::read_to_string(&path)?;
@@ -146,6 +202,19 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             pass = false;
             let udiff = render_unified_diff(expected, &contents);
             reasons.push(format!("file mismatch: {}\n{}", path.display(), udiff));
+        }
+    }
+
+    // Cleanup created fixtures if test passed
+    if pass {
+        // Remove files first
+        for f in &created_files {
+            let _ = fs::remove_file(f);
+        }
+        // Remove directories in reverse depth order
+        created_dirs.sort_by_key(|b| std::cmp::Reverse(b.components().count()));
+        for d in &created_dirs {
+            let _ = xx::file::remove_dir_all(d);
         }
     }
 
