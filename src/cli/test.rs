@@ -74,10 +74,13 @@ impl Test {
         for h in handles {
             let (step_name, test_name, res) = h.await.unwrap();
             match res {
-                Ok(r) if r.ok => println!("ok - {step_name} :: {test_name}"),
+                Ok(r) if r.ok => println!("ok - {step_name} :: {test_name} ({}ms)", r.duration_ms),
                 Ok(r) => {
                     failures += 1;
-                    println!("not ok - {step_name} :: {test_name} (code={})", r.code);
+                    println!(
+                        "not ok - {step_name} :: {test_name} (code={}; {}ms)",
+                        r.code, r.duration_ms
+                    );
                 }
                 Err(e) => {
                     failures += 1;

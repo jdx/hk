@@ -11,8 +11,8 @@ pub struct StepTest {
     /// Raw command to run when run == command
     pub command: Option<String>,
     /// Files to pass into the template context ({{ files }})
-    #[serde(default)]
-    pub files: Vec<String>,
+    /// If omitted, defaults to keys from `write`
+    pub files: Option<Vec<String>>,
     /// Optional path to copy into a temporary sandbox before running
     pub fixture: Option<String>,
     /// Inline files to create in the sandbox before running

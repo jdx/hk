@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Instant;
 
 use crate::{
     Result,
@@ -15,27 +16,32 @@ pub struct TestResult {
     pub stdout: String,
     pub stderr: String,
     pub code: i32,
+    pub duration_ms: u128,
 }
 
 pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<TestResult> {
+    let started_at = Instant::now();
     let tmp = tempfile::tempdir().unwrap();
     let sandbox = tmp.path().to_path_buf();
     let mut tctx = crate::tera::Context::default();
     tctx.insert("tmp", &sandbox.display().to_string());
-    let files: Vec<PathBuf> = if test.files.is_empty() {
-        vec![]
-    } else {
-        test.files
+    let files: Vec<PathBuf> = match &test.files {
+        Some(files) => files
             .iter()
             .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
             .map(PathBuf::from)
-            .collect()
+            .collect(),
+        None => test
+            .write
+            .keys()
+            .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
+            .map(PathBuf::from)
+            .collect(),
     };
     tctx.with_files(step.shell_type(), &files);
 
     if let Some(fixture) = &test.fixture {
-        let rendered = crate::tera::render(fixture, &tctx)?;
-        let src = PathBuf::from(rendered);
+        let src = PathBuf::from(fixture);
         xx::file::copy_dir_all(&src, &sandbox)?;
     }
     for (rel, contents) in &test.write {
@@ -138,5 +144,6 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         stdout,
         stderr,
         code,
+        duration_ms: started_at.elapsed().as_millis(),
     })
 }
