@@ -25,7 +25,7 @@ local linters = new Mapping<String, Step> {
   ["golangci-lint"] {
     glob = "*.go"
     workspace_indicator = "go.mod"
-    check = "echo {{ files }}"
+    check = "echo \"ws={{workspace}}; files={{files}}; wfiles={{workspace_files}}\""
   }
 }
 
@@ -45,15 +45,15 @@ EOF
 
   # Should see three jobs, one for each workspace, each with only its own file
   # Root workspace
-  assert_output --partial "echo main.go"
+  assert_output --partial "echo \"ws=.; files=main.go; wfiles=main.go\""
   # Workspace a
-  assert_output --partial "echo a/main.go"
+  assert_output --partial "echo \"ws=a; files=a/main.go; wfiles=main.go\""
   # Workspace b
-  assert_output --partial "echo b/main.go"
+  assert_output --partial "echo \"ws=b; files=b/main.go; wfiles=main.go\""
 
   # Should NOT see a/main.go or b/main.go in the root workspace's echo
   # (i.e., no echo with multiple files)
-  refute_output --partial "echo a/main.go b/main.go main.go"
-  refute_output --partial "echo a/main.go main.go"
-  refute_output --partial "echo b/main.go main.go"
+  refute_output --partial "files=a/main.go b/main.go main.go"
+  refute_output --partial "files=a/main.go main.go"
+  refute_output --partial "files=b/main.go main.go"
 } 
