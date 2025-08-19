@@ -62,10 +62,11 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         // Pre-scan to determine which files/dirs will be newly created
         let mut stack: Vec<PathBuf> = vec![src.clone()];
         while let Some(cur) = stack.pop() {
-            for entry in fs::read_dir(&cur)
-                .unwrap_or_else(|_| fs::read_dir("/").unwrap())
-                .flatten()
-            {
+            let read_dir = match fs::read_dir(&cur) {
+                Ok(iter) => iter,
+                Err(_) => continue,
+            };
+            for entry in read_dir.flatten() {
                 let p = entry.path();
                 let rel = p.strip_prefix(&src).unwrap_or(&p);
                 let dest = base_dir.join(rel);
