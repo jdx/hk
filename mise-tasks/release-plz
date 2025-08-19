@@ -55,23 +55,7 @@ git config user.email 123107610+mise-en-dev@users.noreply.github.com
 cargo update
 
 # Ensure subtrees are up-to-date locally before creating the release PR
-# Pull xx subtree
-if git ls-tree HEAD:xx > /dev/null 2>&1; then
-  echo "Pulling xx subtree changes..."
-  git subtree pull --prefix=xx https://github.com/jdx/xx.git main || echo "No changes to pull for xx"
-fi
-
-# Pull clx subtree
-if git ls-tree HEAD:clx > /dev/null 2>&1; then
-  echo "Pulling clx subtree changes..."
-  git subtree pull --prefix=clx https://github.com/jdx/clx.git main || echo "No changes to pull for clx"
-fi
-
-# Pull ensembler subtree
-if git ls-tree HEAD:ensembler > /dev/null 2>&1; then
-  echo "Pulling ensembler subtree changes..."
-  git subtree pull --prefix=ensembler https://github.com/jdx/ensembler.git main || echo "No changes to pull for ensembler"
-fi
+mise run subtree-sync --pull-only --branch main
 
 # Regenerate rendered artifacts (CLI docs, usage, etc.) for the release
 mise run render
@@ -90,25 +74,4 @@ gh pr create --title "chore: release $version" --body "$changelog" --label "rele
   gh pr edit --title "chore: release $version" --body "$changelog"
 
 # Push subtree changes to respective repositories
-if [ -d "xx/.git" ] || [ -d "clx/.git" ] || [ -d "ensembler/.git" ]; then
-  echo "Error: Subtree directories should not contain .git folders"
-  exit 1
-fi
-
-# Push xx subtree
-if git ls-tree HEAD:xx > /dev/null 2>&1; then
-  echo "Pushing xx subtree changes..."
-  git subtree push --prefix=xx https://github.com/jdx/xx.git main || echo "No changes to push for xx"
-fi
-
-# Push clx subtree
-if git ls-tree HEAD:clx > /dev/null 2>&1; then
-  echo "Pushing clx subtree changes..."
-  git subtree push --prefix=clx https://github.com/jdx/clx.git main || echo "No changes to push for clx"
-fi
-
-# Push ensembler subtree
-if git ls-tree HEAD:ensembler > /dev/null 2>&1; then
-  echo "Pushing ensembler subtree changes..."
-  git subtree push --prefix=ensembler https://github.com/jdx/ensembler.git main || echo "No changes to push for ensembler"
-fi 
+mise run subtree-sync --push-only --branch main
