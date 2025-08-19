@@ -200,9 +200,9 @@ impl Step {
 
     pub(crate) fn build_step_progress(&self) -> Arc<ProgressJob> {
         ProgressJobBuilder::new()
-            .body("{{spinner()}} {{name}} {% if message %}– {{message | flex}}{% elif files %}– {{files}}{% endif %}")
+            .body("{{spinner()}} {{name | flex}} {% if show_step_progress %}{{progress_bar(width=20)}} {{cur}}/{{total}}{% endif %}{% if message %} – {{message | flex}}{% elif files %} – {{files}}{% endif %}")
             .body_text(Some(
-                "{% if message %}{{spinner()}} {{name}} – {{message}}{% elif files %}{{spinner()}} {{name}} – {{files}}{% endif %}",
+                "{{spinner()}} {{name}}{% if show_step_progress %}  {{progress_bar(width=20)}} {{cur}}/{{total}}{% endif %}{% if message %} – {{message}}{% elif files %} – {{files}}{% endif %}",
             ))
             .prop("name", &self.name)
             .prop("files", &0)

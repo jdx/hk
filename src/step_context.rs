@@ -33,6 +33,15 @@ impl StepContext {
     pub fn set_jobs_total(&self, count: usize) {
         *self.jobs_total.lock().unwrap() = count;
         *self.jobs_remaining.lock().unwrap() = count;
+        // Initialize per-step progress counters only when multiple jobs are present
+        if count > 1 {
+            self.progress.progress_total(count);
+            self.progress.progress_current(0);
+            self.progress.prop("show_step_progress", &true);
+        } else {
+            // Hide per-step bar when not applicable
+            self.progress.prop("show_step_progress", &false);
+        }
     }
 
     pub fn add_files(&self, files: &[PathBuf]) {
@@ -43,6 +52,13 @@ impl StepContext {
 
     pub fn decrement_job_count(&self) {
         *self.jobs_remaining.lock().unwrap() -= 1;
+        let jobs_total = *self.jobs_total.lock().unwrap();
+        let jobs_remaining = *self.jobs_remaining.lock().unwrap();
+        if jobs_total > 1 {
+            let completed = jobs_total.saturating_sub(jobs_remaining);
+            self.progress.progress_current(completed);
+        }
+        self.update_progress();
     }
 
     pub fn status_started(&self) {
@@ -66,6 +82,7 @@ impl StepContext {
             StepStatus::Pending | StepStatus::Started => {
                 *status = StepStatus::Aborted;
                 drop(status);
+                self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }
             StepStatus::Aborted | StepStatus::Finished | StepStatus::Errored(_) => {}
@@ -78,6 +95,7 @@ impl StepContext {
             StepStatus::Pending | StepStatus::Started => {
                 *status = StepStatus::Errored(err.to_string());
                 drop(status);
+                self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }
             StepStatus::Aborted | StepStatus::Finished | StepStatus::Errored(_) => {}
@@ -90,6 +108,7 @@ impl StepContext {
             StepStatus::Started => {
                 *status = StepStatus::Finished;
                 drop(status);
+                self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }
             StepStatus::Pending
@@ -107,7 +126,7 @@ impl StepContext {
         let jobs_remaining = *self.jobs_remaining.lock().unwrap();
         let jobs_total = *self.jobs_total.lock().unwrap();
         let msg = if jobs_total > 1 && jobs_remaining > 0 {
-            format!("job {} of {}", jobs_total - jobs_remaining + 1, jobs_total)
+            "".to_string() // progress bar is shows instead
         } else if files_added.len() > 3 {
             format!("{} files modified", files_added.len())
         } else if files_added.len() > 1 {

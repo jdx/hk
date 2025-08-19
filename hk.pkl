@@ -14,7 +14,7 @@ local linters = new Mapping<String, Step | Group> {
     // predefined formatters+linters
     ["cargo-clippy"] = (Builtins.cargo_clippy) {
         profiles = List("slow")
-        check = "cargo clippy --manifest-path {{workspace_indicator}} -- -D warnings"
+        check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
     }
     ["cargo-check"] = (Builtins.cargo_check) {
         profiles = List("!slow")
