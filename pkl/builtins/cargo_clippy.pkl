@@ -4,8 +4,8 @@ cargo_clippy = new Config.Step {
     glob = "*.rs"
     stage = "*.rs"
     workspace_indicator = "Cargo.toml"
-    check = "cargo clippy --manifest-path {{workspace_indicator}}"
-    fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged"
+    check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet"
+    fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
     check_first = false
     env {
       ["CARGO_TERM_PROGRESS_WHEN"] = "never"
