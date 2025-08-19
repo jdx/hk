@@ -85,19 +85,15 @@ impl Test {
                 Ok(r) if r.ok => println!("ok - {step_name} :: {test_name} ({}ms)", r.duration_ms),
                 Ok(r) => {
                     failures += 1;
-                    if r.reasons.is_empty() {
-                        println!(
-                            "not ok - {step_name} :: {test_name} (code={}; {}ms)",
-                            r.code, r.duration_ms
-                        );
-                    } else {
-                        eprintln!(
-                            "not ok - {step_name} :: {test_name} (code={}; {}ms)\n  reasons: {}",
-                            r.code,
-                            r.duration_ms,
-                            r.reasons.join(", ")
-                        );
-                    }
+                    eyre::ensure!(!r.reasons.is_empty(), "reasons are empty");
+                    eprintln!(
+                        "not ok - {step_name} :: {test_name} (code={}; {}ms)\n  reasons: {}",
+                        r.code,
+                        r.duration_ms,
+                        r.reasons.join(", ")
+                    );
+                    eprintln!("  stdout:\n{}", r.stdout);
+                    eprintln!("  stderr:\n{}", r.stderr);
                 }
                 Err(e) => {
                     failures += 1;

@@ -498,13 +498,13 @@ hooks {
         tests {
           ["formats json via fix"] {
             run = "fix"
-            write { ["{tmp}/a.json"] = "{\"b\":1}" }
+            write { ["{{tmp}}/a.json"] = "{\"b\":1}" }
             // files omitted -> defaults to write keys
-            expect { files { ["{tmp}/a.json"] = "{\n  \"b\": 1\n}\n" } }
+            expect { files { ["{{tmp}}/a.json"] = "{\n  \"b\": 1\n}\n" } }
           }
           ["check shows output"] {
             run = "check"
-            files = List("{tmp}/a.json")
+            files = List("{{tmp}}/a.json")
             env { ["FOO"] = "bar" }
             expect { stdout = "prettier" }
           }
