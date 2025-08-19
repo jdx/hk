@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.1](https://github.com/jdx/hk/compare/v1.9.0..v1.9.1) - 2025-08-19
+
+### 🐛 Bug Fixes
+
+- **(test)** make sandbox opt-in via {{tmp}}; clean fixtures on success; fix builtins to use {{tmp}}; docs: update examples by [@jdx](https://github.com/jdx) in [#182](https://github.com/jdx/hk/pull/182)
+
+### 🔍 Other Changes
+
+- subtree-sync by [@jdx](https://github.com/jdx) in [#184](https://github.com/jdx/hk/pull/184)
+
 ## [1.9.0](https://github.com/jdx/hk/compare/v1.8.0..v1.9.0) - 2025-08-19
 
 ### 🚀 Features
