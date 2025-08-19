@@ -79,9 +79,7 @@ class Step {
 
 class StepTest {
     /// What to run: "check", "fix", or "command"
-    run: "check" | "fix" | "command" = "check"
-    /// Command to run when run == "command"
-    command: String?
+    run: "check" | "fix" = "check"
     /// Files to pass to the command (used to render {{ files }})
     files: (String | List<String>)? = List()
     /// Optional path to copy into a temp sandbox before running

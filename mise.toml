@@ -35,8 +35,8 @@ run = "cargo build"
 sources = ["build.rs", "src/**/*", "pkl/**/*", "ensembler/src/**/*", "xx/src/**/*", "clx/**/*"]
 outputs = ["target/debug/hk"]
 
-[tasks.dev]
-alias = "d"
+[tasks.hk]
+alias = "dev"
 depends = ["build"]
 run = "hk"
 

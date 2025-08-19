@@ -10,15 +10,9 @@ prettier = new Config.Step {
     tests {
       ["formats json"] {
         run = "fix"
-        write { ["{tmp}/a.json"] = """
-          {"b":1}
-        """ }
+        write { ["{tmp}/a.json"] = "{\"b\":1}" }
         files = List("{tmp}/a.json")
-        expect { files { ["{tmp}/a.json"] = """
-          {
-            "b": 1
-          }
-        """ } }
+        expect { files { ["{tmp}/a.json"] = "{\n  \"b\": 1\n}\n" } }
       }
     }
 } 

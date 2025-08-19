@@ -1,5 +1,6 @@
 use crate::{Result, config::Config};
 use clap::Args;
+use indexmap::IndexSet;
 use tokio::sync::Semaphore;
 
 /// Run step-defined tests
@@ -28,6 +29,7 @@ impl Test {
             String,
             crate::step_test::StepTest,
         )> = vec![];
+        let mut seen: IndexSet<String> = IndexSet::new();
         for (_hook_name, hook) in cfg.hooks {
             for (step_name, sog) in hook.steps {
                 let step = match sog {
@@ -41,16 +43,22 @@ impl Test {
                     if !self.name.is_empty() && !self.name.contains(tname) {
                         continue;
                     }
-                    if self.list {
-                        println!("{step_name} :: {tname}");
+                    // Deduplicate identical step+test pairs across hooks
+                    let step_sig = serde_json::to_string(&*step).unwrap_or_default();
+                    let test_sig = serde_json::to_string(&test).unwrap_or_default();
+                    let sig = format!("{}::{}::{}::{}", step_name, tname, step_sig, test_sig);
+                    if seen.insert(sig) {
+                        if self.list {
+                            println!("{step_name} :: {tname}");
+                        }
+                        count += 1;
+                        to_run.push((
+                            step_name.clone(),
+                            (*step).clone(),
+                            tname.clone(),
+                            test.clone(),
+                        ));
                     }
-                    count += 1;
-                    to_run.push((
-                        step_name.clone(),
-                        (*step).clone(),
-                        tname.clone(),
-                        test.clone(),
-                    ));
                 }
             }
         }
