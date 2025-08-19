@@ -72,6 +72,35 @@ class Step {
     
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}
+
+    /// Per-step tests runnable via `hk test`
+    tests: Mapping<String, StepTest> = new Mapping<String, StepTest>{}
+}
+
+class StepTest {
+    /// What to run: "check", "fix", or "command"
+    run: "check" | "fix" = "check"
+    /// Files to pass to the command (used to render {{ files }})
+    files: (String | List<String>)? = List()
+    /// Optional path to copy into a temp sandbox before running
+    fixture: String?
+    /// Inline files to write into the sandbox
+    write: Mapping<String, String> = new Mapping<String, String>{}
+    /// Extra environment variables for this test
+    env: Mapping<String, String> = new Mapping<String, String>{}
+    /// Expectations for the test result
+    expect: StepTestExpect = new StepTestExpect{}
+}
+
+class StepTestExpect {
+    /// Expected exit code (default 0)
+    code = 0
+    /// Substring that must appear in stdout
+    stdout: String?
+    /// Substring that must appear in stderr
+    stderr: String?
+    /// Expected files after run: path => full contents (exact match)
+    files: Mapping<String, String> = new Mapping<String, String>{}
 }
 
 typealias StashMethod = Boolean | "git" | "patch-file" | "none"

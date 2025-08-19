@@ -15,6 +15,7 @@ mod fix;
 mod init;
 mod install;
 mod run;
+mod test;
 mod uninstall;
 mod usage;
 mod validate;
@@ -64,8 +65,9 @@ enum Commands {
     Init(Box<init::Init>),
     Install(Box<install::Install>),
     Run(Box<run::Run>),
-    Usage(Box<usage::Usage>),
+    Test(Box<test::Test>),
     Uninstall(Box<uninstall::Uninstall>),
+    Usage(Box<usage::Usage>),
     Validate(Box<validate::Validate>),
     Version(Box<version::Version>),
 }
@@ -123,5 +125,6 @@ pub async fn run() -> Result<()> {
         Commands::Usage(cmd) => cmd.run().await,
         Commands::Validate(cmd) => cmd.run().await,
         Commands::Version(cmd) => cmd.run().await,
+        Commands::Test(cmd) => cmd.run().await,
     }
 }
