@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.9.0](https://github.com/jdx/hk/compare/v1.8.0..v1.9.0) - 2025-08-19
+
+### 🚀 Features
+
+- **(step)** per-step output summaries (stderr|stdout|combined|hide) by [@jdx](https://github.com/jdx) in [#180](https://github.com/jdx/hk/pull/180)
+- add `warning` config to hk.pkl by [@jdx](https://github.com/jdx) in [#162](https://github.com/jdx/hk/pull/162)
+- add `{{workspace_files}}` by [@jdx](https://github.com/jdx) in [#177](https://github.com/jdx/hk/pull/177)
+- added `hk test` by [@jdx](https://github.com/jdx) in [#178](https://github.com/jdx/hk/pull/178)
+
+### 🐛 Bug Fixes
+
+- make NoFilesToProcess/ConditionFalse take precedence over ProfileNotEnabled by [@jdx](https://github.com/jdx) in [#179](https://github.com/jdx/hk/pull/179)
+
+### 📚 Documentation
+
+- add demo by [@jdx](https://github.com/jdx) in [#181](https://github.com/jdx/hk/pull/181)
+
 ## [1.8.0](https://github.com/jdx/hk/compare/v1.7.1..v1.8.0) - 2025-08-18
 
 ### 🚀 Features
