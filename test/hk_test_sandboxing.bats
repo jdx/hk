@@ -9,7 +9,7 @@ teardown() {
     _common_teardown
 }
 
-@test "hk test runs sandboxed (cwd is tmp instead of project root)" {
+@test "hk test defaults to project root when {{tmp}} not used" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -20,8 +20,8 @@ hooks {
         tests {
           ["prints working directory"] {
             run = "check"
-            // Expect project root path fragment, which should fail if sandboxed
-            expect { stdout = "pwd: $(pwd)/src/proj" }
+            // Expect project root
+            expect { stdout = "pwd: $(pwd)" }
           }
         }
       }
@@ -31,12 +31,10 @@ hooks {
 PKL
 
     run hk test --step cwd
-    assert_failure
-    assert_output --partial "stdout:"
-    assert_output --partial "pwd: $(pwd)/src/proj"
+    assert_success
 }
 
-@test "hk test ignores step.dir during tests (still sandboxed)" {
+@test "hk test ignores step.dir during tests (not sandboxed)" {
     mkdir -p app
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -45,12 +43,12 @@ hooks {
     steps {
       ["cwd_dir"] {
         dir = "app"
-        check = "pwd"
+        check = #"echo "pwd: \$(pwd)""#
         tests {
           ["prints working directory under dir"] {
             run = "check"
-            // Expect project root/app path fragment, which should fail if sandboxed
-            expect { stdout = "pwd: $(pwd)/src/proj/app" }
+            // step.dir is ignored during tests, so still expect project root
+            expect { stdout = "pwd: $(pwd)" }
           }
         }
       }
@@ -60,7 +58,5 @@ hooks {
 PKL
 
     run hk test --step cwd_dir
-    assert_failure
-    assert_output --partial "stdout:"
-    assert_output --partial "pwd: $(pwd)/src/proj/app"
+    assert_success
 }
