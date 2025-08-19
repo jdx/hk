@@ -7,5 +7,18 @@ prettier = new Config.Step {
     check = "prettier --check {{ files }}"
     check_list_files = "prettier --list-different {{ files }}"
     fix = "prettier --write {{ files }}"
-    // tests intentionally omitted here to avoid requiring external tooling in CI
+    tests {
+      ["formats json"] {
+        run = "fix"
+        write { ["{tmp}/a.json"] = """
+          {"b":1}
+        """ }
+        files = List("{tmp}/a.json")
+        expect { files { ["{tmp}/a.json"] = """
+          {
+            "b": 1
+          }
+        """ } }
+      }
+    }
 } 
