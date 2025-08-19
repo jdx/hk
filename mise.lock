@@ -116,6 +116,15 @@ checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01
 size = 5008766
 url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-apple-darwin.tar.gz"
 
+[tools.vhs]
+version = "0.10.0"
+backend = "aqua:charmbracelet/vhs"
+
+[tools.vhs.platforms.macos-arm64]
+checksum = "sha256:dc256c403305ac8ba623563d0ef3241a38024f35b27c705f79d523e9da618012"
+size = 9127691
+url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Darwin_arm64.tar.gz"
+
 [tools.yq]
 version = "4.47.1"
 backend = "aqua:mikefarah/yq"

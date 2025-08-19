@@ -21,3 +21,5 @@ hero:
       text: Discord
       link: https://discord.gg/UBa7pJUN7Z
 ---
+
+![hk check --all](/hk-demo.gif)

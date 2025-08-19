@@ -1,48 +1,19 @@
-### `hk test`
+# `hk test`
 
-Run per-step tests defined in `hk.pkl`.
+- **Usage**: `hk test [FLAGS]`
 
-Usage:
+Run step-defined tests
 
-```bash
-hk test [--step STEP]... [--name NAME]... [--list]
-```
+## Flags
 
-Flags:
+### `--step… <STEP>`
 
-- `--step STEP`: Filter by step name (repeatable)
-- `--name NAME`: Filter by test name (repeatable)
-- `--list`: List matching tests without running
+Filter by step name (repeatable)
 
-Notes:
+### `--name… <NAME>`
 
-- Tests run in a temporary sandbox. They do not modify your repo.
-- Concurrency respects global `-j/--jobs`.
+Filter by test name (repeatable)
 
-Example step test in `hk.pkl`:
+### `--list`
 
-```pkl
-steps {
-  rustfmt {
-    check = "rustfmt --check {{ files }}"
-    fix = "rustfmt {{ files }}"
-    tests {
-      ["formats simple file"] {
-        run = "fix"
-        write = { "src/example.rs" = """
-          fn  main(){println!("hi");}
-        """ }
-        files = ["src/example.rs"]
-        expect {
-          code = 0
-          files { ["src/example.rs"] = """
-            fn main() {
-                println!("hi");
-            }
-          """ }
-        }
-      }
-    }
-  }
-}
-```
+List tests without running

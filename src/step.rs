@@ -378,12 +378,20 @@ impl Step {
         if let Some(job) = jobs.first_mut() {
             job.semaphore = Some(semaphore);
         }
+        // Count all jobs (including those that will be marked skipped) for totals.
+        // This avoids total being less than the number of completions we emit.
+        let total_jobs_for_step = jobs.len();
         let non_skip_jobs = jobs.iter().filter(|j| j.skip_reason.is_none()).count();
         ctx.set_jobs_total(non_skip_jobs);
-        if non_skip_jobs > 0 {
-            // Replace the single-step placeholder with the actual number of jobs
-            // Add the extra jobs beyond the placeholder 1
-            ctx.hook_ctx.inc_total_jobs(non_skip_jobs.saturating_sub(1));
+        if total_jobs_for_step > 0 {
+            // Replace the single-step placeholder with the actual number of jobs.
+            // Add the extra jobs beyond the placeholder 1.
+            ctx.hook_ctx
+                .inc_total_jobs(total_jobs_for_step.saturating_sub(1));
+        } else {
+            // If there are zero jobs after expansion, decrement the placeholder 1 we pre-added
+            // for the step so the total does not exceed the number of completions.
+            ctx.hook_ctx.dec_total_jobs(1);
         }
         let mut set = tokio::task::JoinSet::new();
         for job in jobs {

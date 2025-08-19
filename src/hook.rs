@@ -219,6 +219,17 @@ impl HookContext {
         }
     }
 
+    pub fn dec_total_jobs(&self, n: usize) {
+        if n > 0 {
+            let mut total_jobs = self.total_jobs.lock().unwrap();
+            *total_jobs = total_jobs.saturating_sub(n);
+            let total_jobs = *total_jobs;
+            if let Some(hk_progress) = &self.hk_progress {
+                hk_progress.progress_total(total_jobs);
+            }
+        }
+    }
+
     pub fn track_skip(&self, step_name: &str, reason: SkipReason) {
         self.skipped_steps
             .lock()
@@ -607,7 +618,7 @@ impl Hook {
             return None;
         }
         let mut hk_progress = ProgressJobBuilder::new()
-            .body("{{hk}}{{hook}}{{message}}  {{progress_bar(width=40)}}")
+            .body("{{hk}}{{hook}}{{message}}  {{progress_bar(width=40)}} {{cur}}/{{total}}")
             .body_text(Some("{{hk}}{{hook}}{{message}}"))
             .prop(
                 "hk",
