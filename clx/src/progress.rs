@@ -167,12 +167,14 @@ impl ProgressJobBuilder {
 
     pub fn progress_current(mut self, progress_current: usize) -> Self {
         self.progress_current = Some(progress_current);
-        self
+        trace!(progress_current = progress_current, "progress_current");
+        self.prop("cur", &progress_current)
     }
 
     pub fn progress_total(mut self, progress_total: usize) -> Self {
         self.progress_total = Some(progress_total);
-        self
+        trace!(progress_total = progress_total, "progress_total");
+        self.prop("total", &progress_total)
     }
 
     pub fn prop<T: Serialize + ?Sized, S: Into<String>>(mut self, key: S, val: &T) -> Self {
@@ -368,6 +370,8 @@ impl ProgressJob {
     }
 
     pub fn progress_current(&self, mut current: usize) {
+        trace!(progress_current = current, "progress_current");
+        self.prop("cur", &current);
         if let Some(total) = *self.progress_total.lock().unwrap() {
             current = current.min(total);
         }
@@ -376,10 +380,12 @@ impl ProgressJob {
     }
 
     pub fn progress_total(&self, mut total: usize) {
+        trace!(progress_total = total, "progress_total");
         if let Some(current) = *self.progress_current.lock().unwrap() {
             total = total.max(current);
         }
         *self.progress_total.lock().unwrap() = Some(total);
+        self.prop("total", &total);
         self.update();
     }
 

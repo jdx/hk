@@ -1538,17 +1538,63 @@
         "hidden_aliases": [],
         "examples": []
       },
-      "usage": {
-        "full_cmd": ["usage"],
-        "usage": "usage",
+      "test": {
+        "full_cmd": ["test"],
+        "usage": "test [FLAGS]",
         "subcommands": {},
         "args": [],
-        "flags": [],
+        "flags": [
+          {
+            "name": "step",
+            "usage": "--step… <STEP>",
+            "help": "Filter by step name (repeatable)",
+            "help_first_line": "Filter by step name (repeatable)",
+            "short": [],
+            "long": ["step"],
+            "var": true,
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "STEP",
+              "usage": "<STEP>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "name",
+            "usage": "--name… <NAME>",
+            "help": "Filter by test name (repeatable)",
+            "help_first_line": "Filter by test name (repeatable)",
+            "short": [],
+            "long": ["name"],
+            "var": true,
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "NAME",
+              "usage": "<NAME>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "list",
+            "usage": "--list",
+            "help": "List tests without running",
+            "help_first_line": "List tests without running",
+            "short": [],
+            "long": ["list"],
+            "hide": false,
+            "global": false
+          }
+        ],
         "mounts": [],
-        "hide": true,
-        "help": "Generates a usage spec for the CLI",
-        "help_long": "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev",
-        "name": "usage",
+        "hide": false,
+        "help": "Run step-defined tests",
+        "name": "test",
         "aliases": [],
         "hidden_aliases": [],
         "examples": []
@@ -1563,6 +1609,21 @@
         "hide": false,
         "help": "Removes hk hooks from the current git repository",
         "name": "uninstall",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": []
+      },
+      "usage": {
+        "full_cmd": ["usage"],
+        "usage": "usage",
+        "subcommands": {},
+        "args": [],
+        "flags": [],
+        "mounts": [],
+        "hide": true,
+        "help": "Generates a usage spec for the CLI",
+        "help_long": "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev",
+        "name": "usage",
         "aliases": [],
         "hidden_aliases": [],
         "examples": []

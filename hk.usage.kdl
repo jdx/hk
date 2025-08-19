@@ -250,9 +250,18 @@ cmd run help="Run a hook" {
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
 }
+cmd test help="Run step-defined tests" {
+    flag --step help="Filter by step name (repeatable)" var=#true {
+        arg <STEP>
+    }
+    flag --name help="Filter by test name (repeatable)" var=#true {
+        arg <NAME>
+    }
+    flag --list help="List tests without running"
+}
+cmd uninstall help="Removes hk hooks from the current git repository"
 cmd usage hide=#true help="Generates a usage spec for the CLI" {
     long_help "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev"
 }
-cmd uninstall help="Removes hk hooks from the current git repository"
 cmd validate help="Validate the config file"
 cmd version help="Print the version of hk"
