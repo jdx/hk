@@ -618,7 +618,7 @@ impl Hook {
             return None;
         }
         let mut hk_progress = ProgressJobBuilder::new()
-            .body("{{hk}}{{hook}}{{message}}  {{progress_bar(width=40)}} {{cur}}/{{total}}")
+            .body("{{hk}}{{hook}}{{message}}  {{progress_bar(flex=true)}} {{cur}}/{{total}}")
             .body_text(Some("{{hk}}{{hook}}{{message}}"))
             .prop(
                 "hk",
