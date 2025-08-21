@@ -719,7 +719,7 @@ impl Step {
 
         if reason.should_display() {
             ctx.progress.prop("message", &reason.message());
-            let status = ProgressStatus::DoneCustom(style::eblue("⏭").bold().to_string());
+            let status = ProgressStatus::DoneCustom(style::eblue("⇢").bold().to_string());
             ctx.progress.set_status(status);
         } else {
             // Step is skipped but message shouldn't be displayed
