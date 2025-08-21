@@ -341,22 +341,30 @@ impl Git {
             let mut untracked_files = BTreeSet::new();
             let mut modified_files = BTreeSet::new();
             for file in output.split('\0') {
+                if file.is_empty() {
+                    continue;
+                }
                 let mut chars = file.chars();
                 let index_status = chars.next().unwrap_or_default();
                 let workdir_status = chars.next().unwrap_or_default();
                 let path = PathBuf::from(chars.skip(1).collect::<String>());
+                let exists = path.exists();
                 let is_modified =
                     |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-                if is_modified(index_status) {
+
+                // Only consider staged files that still exist in the worktree to avoid AD cases
+                if is_modified(index_status) && workdir_status != 'D' && exists {
                     staged_files.insert(path.clone());
                 }
-                if is_modified(workdir_status) || workdir_status == '?' {
+                // Unstaged files include actual worktree changes and untracked files
+                if (is_modified(workdir_status) || workdir_status == '?') && exists {
                     unstaged_files.insert(path.clone());
                 }
-                if workdir_status == '?' {
+                if workdir_status == '?' && exists {
                     untracked_files.insert(path.clone());
                 }
-                if is_modified(index_status) || is_modified(workdir_status) {
+                // Track modified files only if the path exists
+                if (is_modified(index_status) || is_modified(workdir_status)) && exists {
                     modified_files.insert(path);
                 }
             }
