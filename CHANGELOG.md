@@ -1,10 +1,17 @@
 # Changelog
 
+## [1.10.1](https://github.com/jdx/hk/compare/v1.10.0..v1.10.1) - 2025-08-22
+
+### 🐛 Bug Fixes
+
+- **(clx)** avoid Unicode slicing panic in truncate_text and previews by using char-safe prefix by [@jdx](https://github.com/jdx) in [3369b59](https://github.com/jdx/hk/commit/3369b591910d2bbdc36f8055021f469c307563ca)
+
 ## [1.10.0](https://github.com/jdx/hk/compare/v1.9.2..v1.10.0) - 2025-08-22
 
 ### 🚀 Features
 
 - **(progress)** flex-width progress bar by [@jdx](https://github.com/jdx) in [#187](https://github.com/jdx/hk/pull/187)
+- expose git status to expr conditions and Tera templates by [@jdx](https://github.com/jdx) in [#191](https://github.com/jdx/hk/pull/191)
 
 ### 🐛 Bug Fixes
 
