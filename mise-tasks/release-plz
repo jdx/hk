@@ -2,11 +2,38 @@
 # shellcheck shell=bash
 set -euxo pipefail
 
+crates=(clx ensembler xx)
+
+crate_version_published() {
+  local crate="$1" version="$2"
+  curl -fsS "https://crates.io/api/v1/crates/${crate}/${version}" >/dev/null 2>&1
+}
+
+publish_crate_if_needed() {
+  local crate="$1"
+  local version
+  version="$(cargo pkgid "$crate" | cut -d# -f2 | cut -d@ -f2)"
+  if crate_version_published "$crate" "$version"; then
+    echo "Skipping ${crate} ${version}; already published"
+  else
+    echo "Publishing ${crate} ${version}"
+    cargo publish -p "$crate" --allow-dirty
+  fi
+}
+
 released_versions="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$')"
 cur_version="$(cargo pkgid hk | cut -d# -f2 | cut -d@ -f2)"
 if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
   echo "Releasing $cur_version"
   if [ "${DRY_RUN:-}" == 0 ]; then
+    # Ensure subtree commits are pushed before publishing crates
+    mise run subtree-sync --push-only --branch main || true
+
+    # Publish sub-crates first if their current versions are not on crates.io
+    for crate in "${crates[@]}"; do
+      publish_crate_if_needed "$crate"
+    done
+
     # Temporarily replace path dependencies with version dependencies for publishing
     cp Cargo.toml Cargo.toml.bak
     
@@ -57,6 +84,23 @@ cargo update
 # Ensure subtrees are up-to-date locally before creating the release PR
 mise run subtree-sync --pull-only --branch main
 
+# Detect and prepare releases for sub-crates with local changes compared to their remotes
+for crate in "${crates[@]}"; do
+  remote="subtree_${crate}"
+  branch="main"
+  # Ensure the subtree remote exists and fetch
+  git fetch "$remote" "$branch" || true
+  split_sha="$(git subtree split --prefix="$crate" -q)"
+  remote_sha="$(git rev-parse "$remote/$branch" 2>/dev/null || echo '')"
+  if [ -z "$remote_sha" ] || [ "$split_sha" != "$remote_sha" ]; then
+    echo "Detected changes in ${crate}; bumping version and changelog"
+    cargo set-version --package "$crate" --bump patch
+    git cliff --bump -o "$crate/CHANGELOG.md" --include-path "$crate/**"
+  else
+    echo "No changes detected for ${crate}; skipping"
+  fi
+done
+
 # Regenerate rendered artifacts (CLI docs, usage, etc.) for the release
 mise run render
 git add \
@@ -65,7 +109,10 @@ git add \
   docs \
   hk.usage.kdl \
   hk.pkl \
-  src
+  src \
+  clx \
+  ensembler \
+  xx
 
 git checkout -B release
 git commit -m "chore: release $version"
