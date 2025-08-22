@@ -278,46 +278,87 @@ impl Git {
                     status_options.pathspec(path);
                 }
             }
-            // Get staged files
+            // Get staged files (index)
             status_options.show(StatusShow::Index);
             let staged_statuses = repo
                 .statuses(Some(&mut status_options))
                 .wrap_err("failed to get staged statuses")?;
-            let staged_files = staged_statuses
-                .iter()
-                .filter_map(|s| s.path().map(PathBuf::from))
-                .filter(|p| p.exists())
-                .collect();
+            let mut staged_files = BTreeSet::new();
+            let mut staged_added_files = BTreeSet::new();
+            let mut staged_modified_files = BTreeSet::new();
+            let mut staged_deleted_files = BTreeSet::new();
+            let mut staged_renamed_files = BTreeSet::new();
+            let staged_copied_files = BTreeSet::new();
+            for s in staged_statuses.iter() {
+                if let Some(path) = s.path().map(PathBuf::from) {
+                    let exists = path.exists();
+                    let st = s.status();
+                    if st.is_index_new() {
+                        staged_added_files.insert(path.clone());
+                    }
+                    if st.is_index_modified() || st.is_index_typechange() {
+                        staged_modified_files.insert(path.clone());
+                    }
+                    if st.is_index_deleted() {
+                        staged_deleted_files.insert(path.clone());
+                    }
+                    if st.is_index_renamed() {
+                        staged_renamed_files.insert(path.clone());
+                    }
+                    // libgit2 does not expose an index-copied accessor; keep empty here
+                    if exists {
+                        staged_files.insert(path);
+                    }
+                }
+            }
 
-            // Get unstaged files
+            // Get unstaged files (workdir)
             status_options.show(StatusShow::Workdir);
             let unstaged_statuses = repo
                 .statuses(Some(&mut status_options))
                 .wrap_err("failed to get unstaged statuses")?;
-            let unstaged_files = unstaged_statuses
-                .iter()
-                .filter_map(|s| s.path().map(PathBuf::from))
-                .filter(|p| p.exists())
-                .collect();
-            let untracked_files = unstaged_statuses
-                .iter()
-                .filter(|s| s.status() == git2::Status::WT_NEW)
-                .filter_map(|s| s.path().map(PathBuf::from))
-                .collect();
-            let modified_files = unstaged_statuses
-                .iter()
-                .filter(|s| {
-                    s.status() == git2::Status::WT_MODIFIED
-                        || s.status() == git2::Status::WT_TYPECHANGE
-                })
-                .filter_map(|s| s.path().map(PathBuf::from))
-                .collect();
+            let mut unstaged_files = BTreeSet::new();
+            let mut untracked_files = BTreeSet::new();
+            let mut modified_files = BTreeSet::new();
+            let mut unstaged_modified_files = BTreeSet::new();
+            let mut unstaged_deleted_files = BTreeSet::new();
+            let mut unstaged_renamed_files = BTreeSet::new();
+            for s in unstaged_statuses.iter() {
+                if let Some(path) = s.path().map(PathBuf::from) {
+                    let exists = path.exists();
+                    let st = s.status();
+                    if st == git2::Status::WT_NEW {
+                        untracked_files.insert(path.clone());
+                    }
+                    if st == git2::Status::WT_MODIFIED || st == git2::Status::WT_TYPECHANGE {
+                        modified_files.insert(path.clone());
+                        unstaged_modified_files.insert(path.clone());
+                    }
+                    if st == git2::Status::WT_DELETED {
+                        unstaged_deleted_files.insert(path.clone());
+                    }
+                    if st == git2::Status::WT_RENAMED {
+                        unstaged_renamed_files.insert(path.clone());
+                    }
+                    if exists {
+                        unstaged_files.insert(path);
+                    }
+                }
+            }
 
             Ok(GitStatus {
                 staged_files,
                 unstaged_files,
                 untracked_files,
                 modified_files,
+                staged_added_files,
+                staged_modified_files,
+                staged_deleted_files,
+                staged_renamed_files,
+                staged_copied_files,
+                unstaged_modified_files,
+                unstaged_deleted_files,
+                unstaged_renamed_files,
             })
         } else {
             let mut args = vec![
@@ -340,6 +381,14 @@ impl Git {
             let mut unstaged_files = BTreeSet::new();
             let mut untracked_files = BTreeSet::new();
             let mut modified_files = BTreeSet::new();
+            let mut staged_added_files = BTreeSet::new();
+            let mut staged_modified_files = BTreeSet::new();
+            let mut staged_deleted_files = BTreeSet::new();
+            let mut staged_renamed_files = BTreeSet::new();
+            let mut staged_copied_files = BTreeSet::new();
+            let mut unstaged_modified_files = BTreeSet::new();
+            let mut unstaged_deleted_files = BTreeSet::new();
+            let mut unstaged_renamed_files = BTreeSet::new();
             for file in output.split('\0') {
                 if file.is_empty() {
                     continue;
@@ -356,6 +405,25 @@ impl Git {
                 if is_modified(index_status) && workdir_status != 'D' && exists {
                     staged_files.insert(path.clone());
                 }
+                // Classify staged/index status
+                match index_status {
+                    'A' => {
+                        staged_added_files.insert(path.clone());
+                    }
+                    'M' | 'T' => {
+                        staged_modified_files.insert(path.clone());
+                    }
+                    'D' => {
+                        staged_deleted_files.insert(path.clone());
+                    }
+                    'R' => {
+                        staged_renamed_files.insert(path.clone());
+                    }
+                    'C' => {
+                        staged_copied_files.insert(path.clone());
+                    }
+                    _ => {}
+                }
                 // Unstaged files include actual worktree changes and untracked files
                 if (is_modified(workdir_status) || workdir_status == '?') && exists {
                     unstaged_files.insert(path.clone());
@@ -365,7 +433,20 @@ impl Git {
                 }
                 // Track modified files only if the path exists
                 if (is_modified(index_status) || is_modified(workdir_status)) && exists {
-                    modified_files.insert(path);
+                    modified_files.insert(path.clone());
+                }
+                // Classify workdir status
+                match workdir_status {
+                    'M' | 'T' => {
+                        unstaged_modified_files.insert(path.clone());
+                    }
+                    'D' => {
+                        unstaged_deleted_files.insert(path.clone());
+                    }
+                    'R' => {
+                        unstaged_renamed_files.insert(path.clone());
+                    }
+                    _ => {}
                 }
             }
 
@@ -374,6 +455,14 @@ impl Git {
                 unstaged_files,
                 untracked_files,
                 modified_files,
+                staged_added_files,
+                staged_modified_files,
+                staged_deleted_files,
+                staged_renamed_files,
+                staged_copied_files,
+                unstaged_modified_files,
+                unstaged_deleted_files,
+                unstaged_renamed_files,
             })
         }
     }
@@ -892,4 +981,14 @@ pub(crate) struct GitStatus {
     pub staged_files: BTreeSet<PathBuf>,
     pub untracked_files: BTreeSet<PathBuf>,
     pub modified_files: BTreeSet<PathBuf>,
+    // Staged classifications
+    pub staged_added_files: BTreeSet<PathBuf>,
+    pub staged_modified_files: BTreeSet<PathBuf>,
+    pub staged_deleted_files: BTreeSet<PathBuf>,
+    pub staged_renamed_files: BTreeSet<PathBuf>,
+    pub staged_copied_files: BTreeSet<PathBuf>,
+    // Unstaged classifications
+    pub unstaged_modified_files: BTreeSet<PathBuf>,
+    pub unstaged_deleted_files: BTreeSet<PathBuf>,
+    pub unstaged_renamed_files: BTreeSet<PathBuf>,
 }
