@@ -2,6 +2,8 @@
 # shellcheck shell=bash
 set -euxo pipefail
 
+DRY_RUN="${DRY_RUN:-0}"
+
 crates=(clx ensembler xx)
 
 crate_version_published() {
@@ -124,9 +126,15 @@ fi
 version="$(git cliff --bumped-version)"
 changelog="$(git cliff --bump --unreleased --strip all)"
 
-if [ "${DRY_RUN:-}" != 0 ]; then
+if [ "$DRY_RUN" -ne 0 ]; then
   echo "version: $version"
   echo "changelog: $changelog"
+  exit 0
+fi
+
+# If there is no new version to bump (i.e., equal to current), skip creating a release PR
+if [ "$version" = "v$cur_version" ]; then
+  echo "No unreleased changes detected for hk; skipping release PR creation."
   exit 0
 fi
 
