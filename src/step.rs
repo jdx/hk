@@ -466,20 +466,40 @@ impl Step {
         }
         if non_skip_jobs > 0 && matches!(ctx.hook_ctx.run_type, RunType::Fix) {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
-            let stage_globs: Vec<String> = self
+            // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
+            let rendered_patterns: Vec<String> = self
                 .stage
                 .as_ref()
                 .unwrap_or(&vec![])
                 .iter()
                 .map(|s| tera::render(s, &ctx.hook_ctx.tctx))
-                .map_ok(|s| {
-                    if let Some(dir) = &self.dir {
-                        format!("{}/{}", dir.trim_end_matches('/'), s)
-                    } else {
-                        s
-                    }
-                })
                 .collect::<Result<Vec<_>>>()?;
+
+            let mut stage_globs: Vec<String> = Vec::new();
+            for pat in rendered_patterns {
+                // Always include the base pattern (with dir prefix if present)
+                if let Some(dir) = &self.dir {
+                    stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), pat));
+                } else {
+                    stage_globs.push(pat.clone());
+                }
+
+                // If the original (un-prefixed) pattern starts with "**/", also include a root-level variant
+                // without that prefix. When `dir` is set, make the root variant relative to `dir`.
+                if let Some(rest) = pat.strip_prefix("**/") {
+                    if !rest.is_empty() {
+                        if let Some(dir) = &self.dir {
+                            stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), rest));
+                        } else {
+                            stage_globs.push(rest.to_string());
+                        }
+                    }
+                }
+            }
+            // Guard against empty pathspecs (e.g., when pattern is exactly "**/")
+            stage_globs.retain(|g| !g.is_empty());
+            // Ignore directory-only patterns (ending with '/'); staging should target files
+            stage_globs.retain(|g| !g.ends_with('/'));
             trace!("{}: stage globs: {:?}", self, &stage_globs);
             let stage_pathspecs: Vec<OsString> =
                 stage_globs.iter().cloned().map(OsString::from).collect();
