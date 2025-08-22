@@ -166,5 +166,5 @@ git push origin release --force
 gh pr create --title "chore: release $version" --body "$changelog" --label "release" ||
   gh pr edit --title "chore: release $version" --body "$changelog"
 
-# Push subtree changes to respective repositories
-mise run subtree-sync --push-only --branch main
+# Push subtree changes to respective repositories (allow non-FF skips without failing)
+mise run subtree-sync --push-only --branch main || true
