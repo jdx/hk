@@ -464,7 +464,7 @@ hk provides the current git status to both condition expressions and Tera templa
 condition = "git.staged_files != []"
 
 // Run only if a Cargo.toml file is staged
-condition = "git.staged_files | any(f, f.ends_with(\"Cargo.toml\"))"
+condition = #"any(git.staged_files, {hasSuffix(#, "Cargo.toml")})"#
 
 // Diff-filter approximations
 // Added or Renamed (AR):
