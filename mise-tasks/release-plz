@@ -4,6 +4,9 @@ set -euxo pipefail
 
 DRY_RUN="${DRY_RUN:-0}"
 
+# Ensure submodules are present for workspace resolution
+git submodule update --init --recursive
+
 # Sub-crates are maintained as submodules; do not auto-publish from here
 crates=(clx ensembler xx)
 
