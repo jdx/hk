@@ -1,9 +1,0 @@
-[tasks.ci]
-run = [
-  "cargo clippy",
-  "cargo test",
-  "cargo run --example run",
-]
-
-[tools]
-"cargo:cargo-msrv" = "latest"

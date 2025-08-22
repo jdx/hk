@@ -1,7 +1,0 @@
-pre-commit:
-  commands:
-    lint:
-      interactive: true
-      run: mise run lint
-
-skip_output: true

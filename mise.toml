@@ -24,9 +24,7 @@ vhs = "latest"
 
 [tasks.init]
 run = '''
-if [ ! -d test/bats ]; then
-    git submodule update --init --recursive
-fi
+git submodule update --init --recursive
 '''
 
 [tasks.build]
@@ -104,8 +102,7 @@ run = "bun i && bun run docs:dev"
 dir = "docs"
 run = "bun i && bun run docs:build"
 
-[tasks."subtree-sync"]
-run = "bash mise-tasks/subtree-sync {{args*}}"
+
 
 [tasks.render]
 depends = ["render:*"]

@@ -4,6 +4,7 @@ set -euxo pipefail
 
 DRY_RUN="${DRY_RUN:-0}"
 
+# Sub-crates are maintained as submodules; do not auto-publish from here
 crates=(clx ensembler xx)
 
 crate_version_published() {
@@ -12,7 +13,7 @@ crate_version_published() {
 }
 
 publish_crate_if_needed() {
-  echo "Deprecated local publish path; sub-crate publishing now happens in the cloned upstream repo"
+  echo "Sub-crate publishing is disabled; managed in their own repositories."
 }
 
 # Clone upstream repo for a sub-crate, bump its version and changelog, open a PR
@@ -68,14 +69,9 @@ process_subcrate_upstream() {
   git push -u origin "$branch_name"
 
   # Open PR in the upstream repository
-  gh pr create --title "chore: release v${new_version}" --body "Release ${crate} v${new_version}. Auto-generated from hk subtree updates." || true
+  gh pr create --title "chore: release v${new_version}" --body "Release ${crate} v${new_version}." || true
 
-  # Optionally publish immediately from upstream repo
-  if [[ "${SUBCRATE_AUTO_PUBLISH:-0}" == 1 ]]; then
-    cargo publish || true
-    git tag "v${new_version}"
-    git push --tags || true
-  fi
+  # No auto-publish from this monorepo
 
   popd >/dev/null
   rm -rf "$tmpdir"
@@ -86,35 +82,14 @@ cur_version="$(cargo pkgid hk | cut -d# -f2 | cut -d@ -f2)"
 if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
   echo "Releasing $cur_version"
   if [ "${DRY_RUN:-}" == 0 ]; then
-    # Ensure subtree commits are pushed before publishing crates
-    mise run subtree-sync --push-only --branch main || true
+    # Update submodules to latest commits on their default branches
+    git submodule update --init --recursive
+    git submodule foreach --recursive 'git fetch --tags --all || true'
 
-    # For sub-crates, use their upstream repos for version/changelog updates
+    # Let upstream repos manage their own versioning and releases; open PRs only
     for crate in "${crates[@]}"; do process_subcrate_upstream "$crate"; done
 
-    # Temporarily replace path dependencies with version dependencies for publishing
-    cp Cargo.toml Cargo.toml.bak
-    
-    # Get the current versions of the workspace members from their local Cargo.toml files
-    xx_version="$(grep '^version' xx/Cargo.toml | cut -d'"' -f2)"
-    clx_version="$(grep '^version' clx/Cargo.toml | cut -d'"' -f2)"
-    ensembler_version="$(grep '^version' ensembler/Cargo.toml | cut -d'"' -f2)"
-    
-    # Replace path dependencies with version dependencies
-    sed -i "s/clx = { path = \"clx\" }/clx = \"$clx_version\"/" Cargo.toml
-    sed -i "s/ensembler = { path = \"ensembler\" }/ensembler = \"$ensembler_version\"/" Cargo.toml
-    sed -i "s/xx = { path = \"xx\", features = \[\"http\", \"hash\", \"rustls\"\] }/xx = { version = \"$xx_version\", features = [\"http\", \"hash\", \"rustls\"] }/" Cargo.toml
-    
-    # Publish the crate
-    cargo publish -p hk --allow-dirty || {
-      # Restore original Cargo.toml on failure
-      mv Cargo.toml.bak Cargo.toml
-      exit 1
-    }
-    
-    # Restore original Cargo.toml
-    mv Cargo.toml.bak Cargo.toml
-    
+    # Publish only the main crate from this repo
     changelog="$(git cliff --tag "v$cur_version" --strip all --unreleased)"
     git tag "v$cur_version"
     git push --tags
@@ -145,8 +120,8 @@ git config user.name mise-en-dev
 git config user.email 123107610+mise-en-dev@users.noreply.github.com
 cargo update
 
-# Ensure subtrees are up-to-date locally before creating the release PR
-mise run subtree-sync --pull-only --branch main
+# Ensure submodules are initialized before creating the release PR
+git submodule update --init --recursive
 
 # Do not touch sub-crate versions/changelogs in this repository
 
@@ -166,5 +141,4 @@ git push origin release --force
 gh pr create --title "chore: release $version" --body "$changelog" --label "release" ||
   gh pr edit --title "chore: release $version" --body "$changelog"
 
-# Push subtree changes to respective repositories (allow non-FF skips without failing)
-mise run subtree-sync --push-only --branch main || true
+# No subtree push; submodules track external repos directly

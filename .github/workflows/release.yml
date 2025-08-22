@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: taiki-e/create-gh-release-action@v1
         if: github.event_name != 'workflow_dispatch'
         with:
@@ -49,6 +51,8 @@ jobs:
             build-tool: cargo
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: rust-${{ matrix.target }}

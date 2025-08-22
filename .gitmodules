@@ -1,3 +1,12 @@
+[submodule "clx"]
+	path = clx
+	url = https://github.com/jdx/clx.git
+[submodule "ensembler"]
+	path = ensembler
+	url = https://github.com/jdx/ensembler.git
+[submodule "xx"]
+	path = xx
+	url = https://github.com/jdx/xx.git
 [submodule "test/test_helper/bats-support"]
 	path = test/test_helper/bats-support
 	url = https://github.com/bats-core/bats-support.git
