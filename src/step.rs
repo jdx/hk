@@ -471,15 +471,15 @@ impl Step {
                 .as_ref()
                 .unwrap_or(&vec![])
                 .iter()
-                .map(|s| tera::render(s, &ctx.hook_ctx.tctx).unwrap())
-                .map(|s| {
+                .map(|s| tera::render(s, &ctx.hook_ctx.tctx))
+                .map_ok(|s| {
                     if let Some(dir) = &self.dir {
                         format!("{}/{}", dir.trim_end_matches('/'), s)
                     } else {
                         s
                     }
                 })
-                .collect_vec();
+                .collect::<Result<Vec<_>>>()?;
             trace!("{}: stage globs: {:?}", self, &stage_globs);
             let stage_pathspecs: Vec<OsString> =
                 stage_globs.iter().cloned().map(OsString::from).collect();
@@ -577,7 +577,8 @@ impl Step {
         if let Some(prefix) = &self.prefix {
             run = format!("{prefix} {run}");
         }
-        let run = tera::render(&run, &tctx).unwrap();
+        let run = tera::render(&run, &tctx)
+            .wrap_err_with(|| format!("{self}: failed to render command template"))?;
         job.progress.as_ref().unwrap().prop(
             "message",
             &format!(
