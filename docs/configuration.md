@@ -449,6 +449,39 @@ hooks {
 }
 ```
 
+#### Git status in conditions and templates
+
+hk provides the current git status to both condition expressions and Tera templates via a `git` object. This lets you avoid shelling out in conditions (e.g., `exec('git …')`).
+
+- Available fields: `git.staged_files`, `git.unstaged_files`, `git.untracked_files`, `git.modified_files`
+  - Staged classifications: `git.staged_added_files`, `git.staged_modified_files`, `git.staged_deleted_files`, `git.staged_renamed_files`, `git.staged_copied_files`
+  - Unstaged classifications: `git.unstaged_modified_files`, `git.unstaged_deleted_files`, `git.unstaged_renamed_files`
+
+- In conditions (expr):
+
+```pkl
+// Run only if there are any staged files
+condition = "git.staged_files != []"
+
+// Run only if a Cargo.toml file is staged
+condition = "git.staged_files | any(f, f.ends_with(\"Cargo.toml\"))"
+
+// Diff-filter approximations
+// Added or Renamed (AR):
+condition = "(git.staged_added_files != []) || (git.staged_renamed_files != [])"
+
+// Renamed or Deleted (RD):
+condition = "(git.staged_renamed_files != []) || (git.staged_deleted_files != [])"
+```
+
+- In templates (Tera):
+
+```pkl
+check = "echo staged: {{ git.staged_files }}"
+```
+
+These lists contain repository-relative paths for files currently in each state.
+
 ### `<STEP>.env: Mapping<String, String>`
 
 Environment variables specific to this step. These are merged with the global environment variables.
