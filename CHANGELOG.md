@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.10.2](https://github.com/jdx/hk/compare/v1.10.1..v1.10.2) - 2025-08-22
+
+### 🐛 Bug Fixes
+
+- use correct expr environment with builtins by [@jdx](https://github.com/jdx) in [2284b33](https://github.com/jdx/hk/commit/2284b334200b5cb17dd06536b84755bf85778021)
+
+### 📚 Documentation
+
+- correct expr examples for git staged file syntax by [@jdx](https://github.com/jdx) in [f1fa1cf](https://github.com/jdx/hk/commit/f1fa1cfebec13cd03b1fb867777af477d433a3fe)
+
 ## [1.10.1](https://github.com/jdx/hk/compare/v1.10.0..v1.10.1) - 2025-08-22
 
 ### 🐛 Bug Fixes
