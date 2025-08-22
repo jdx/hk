@@ -10,15 +10,73 @@ crate_version_published() {
 }
 
 publish_crate_if_needed() {
+  echo "Deprecated local publish path; sub-crate publishing now happens in the cloned upstream repo"
+}
+
+# Clone upstream repo for a sub-crate, bump its version and changelog, open a PR
+process_subcrate_upstream() {
   local crate="$1"
-  local version
-  version="$(cargo pkgid "$crate" | cut -d# -f2 | cut -d@ -f2)"
-  if crate_version_published "$crate" "$version"; then
-    echo "Skipping ${crate} ${version}; already published"
-  else
-    echo "Publishing ${crate} ${version}"
-    cargo publish -p "$crate" --allow-dirty
+  local upstream_url
+  # Prefer repository URL from the crate's Cargo.toml
+  upstream_url="$(grep '^repository\s*=\s*"' "$crate/Cargo.toml" | head -n1 | cut -d '"' -f2 || true)"
+  if [[ -z "$upstream_url" ]]; then
+    case "$crate" in
+      clx) upstream_url="https://github.com/jdx/clx.git" ;;
+      ensembler) upstream_url="https://github.com/jdx/ensembler.git" ;;
+      xx) upstream_url="https://github.com/jdx/xx.git" ;;
+      *) echo "Unknown upstream for $crate" ; return 0 ;;
+    esac
   fi
+
+  local tmpdir
+  tmpdir="$(mktemp -d)"
+  pushd "$tmpdir" >/dev/null
+  git clone "$upstream_url" "$crate"
+  cd "$crate"
+  git fetch --tags --all
+
+  # Detect if there are commits since last tag
+  last_tag="$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)"
+  need_release=0
+  if [[ -z "$last_tag" ]]; then
+    if [[ -n "$(git rev-list --count HEAD)" ]]; then
+      need_release=1
+    fi
+  else
+    if [[ "$(git rev-list --count "${last_tag}..HEAD")" -gt 0 ]]; then
+      need_release=1
+    fi
+  fi
+
+  if [[ "$need_release" -eq 0 ]]; then
+    echo "No new commits in upstream $crate; skipping"
+    popd >/dev/null
+    rm -rf "$tmpdir"
+    return 0
+  fi
+
+  # Bump version and changelog on a branch
+  branch_name="release/${crate}-bump"
+  git checkout -B "$branch_name"
+  cargo set-version --package "$crate" --bump patch
+  new_version="$(grep '^version' Cargo.toml | head -n1 | cut -d '"' -f2)"
+  git cliff --bump -o CHANGELOG.md
+  git add Cargo.toml CHANGELOG.md
+  git commit -m "chore: release v${new_version}"
+  git push -u origin "$branch_name"
+
+  # Open PR in the upstream repository
+  gh pr create --title "chore: release v${new_version}" --body "Release ${crate} v${new_version}. Auto-generated from hk subtree updates." || true
+
+  # Optionally publish immediately from upstream repo
+  if [[ "${SUBCRATE_AUTO_PUBLISH:-0}" == 1 ]]; then
+    cargo publish || true
+    git tag "v${new_version}"
+    git push --tags || true
+  fi
+
+  popd >/dev/null
+  rm -rf "$tmpdir"
 }
 
 released_versions="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$')"
@@ -29,10 +87,8 @@ if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
     # Ensure subtree commits are pushed before publishing crates
     mise run subtree-sync --push-only --branch main || true
 
-    # Publish sub-crates first if their current versions are not on crates.io
-    for crate in "${crates[@]}"; do
-      publish_crate_if_needed "$crate"
-    done
+    # For sub-crates, use their upstream repos for version/changelog updates
+    for crate in "${crates[@]}"; do process_subcrate_upstream "$crate"; done
 
     # Temporarily replace path dependencies with version dependencies for publishing
     cp Cargo.toml Cargo.toml.bak
@@ -84,22 +140,7 @@ cargo update
 # Ensure subtrees are up-to-date locally before creating the release PR
 mise run subtree-sync --pull-only --branch main
 
-# Detect and prepare releases for sub-crates with local changes compared to their remotes
-for crate in "${crates[@]}"; do
-  remote="subtree_${crate}"
-  branch="main"
-  # Ensure the subtree remote exists and fetch
-  git fetch "$remote" "$branch" || true
-  split_sha="$(git subtree split --prefix="$crate" -q)"
-  remote_sha="$(git rev-parse "$remote/$branch" 2>/dev/null || echo '')"
-  if [ -z "$remote_sha" ] || [ "$split_sha" != "$remote_sha" ]; then
-    echo "Detected changes in ${crate}; bumping version and changelog"
-    cargo set-version --package "$crate" --bump patch
-    git cliff --bump -o "$crate/CHANGELOG.md" --include-path "$crate/**"
-  else
-    echo "No changes detected for ${crate}; skipping"
-  fi
-done
+# Do not touch sub-crate versions/changelogs in this repository
 
 # Regenerate rendered artifacts (CLI docs, usage, etc.) for the release
 mise run render
@@ -109,10 +150,7 @@ git add \
   docs \
   hk.usage.kdl \
   hk.pkl \
-  src \
-  clx \
-  ensembler \
-  xx
+  src
 
 git checkout -B release
 git commit -m "chore: release $version"
