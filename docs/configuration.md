@@ -449,6 +449,29 @@ hooks {
 }
 ```
 
+#### Git status in conditions and templates
+
+hk provides the current git status to both condition expressions and Tera templates via a `git` object. This lets you avoid shelling out in conditions (e.g., `exec('git …')`).
+
+- Available fields: `git.staged_files`, `git.unstaged_files`, `git.untracked_files`, `git.modified_files`
+- In conditions (expr):
+
+```pkl
+// Run only if there are any staged files
+condition = "git.staged_files != []"
+
+// Run only if a maintainers file is staged
+condition = "git.staged_files | any(f, f.ends_with(\"maintainers.yml\"))"
+```
+
+- In templates (Tera):
+
+```pkl
+check = "echo staged: {{ git.staged_files }}"
+```
+
+These lists contain repository-relative paths for files currently in each state.
+
 ### `<STEP>.env: Mapping<String, String>`
 
 Environment variables specific to this step. These are merged with the global environment variables.

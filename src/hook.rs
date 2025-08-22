@@ -11,7 +11,7 @@ use std::{
 };
 use tokio::{
     signal,
-    sync::{Mutex, OnceCell, OwnedSemaphorePermit, Semaphore},
+    sync::{Mutex, OwnedSemaphorePermit, Semaphore},
 };
 use tokio_util::sync::CancellationToken;
 
@@ -134,12 +134,13 @@ impl HookContext {
         git: Arc<Mutex<Git>>,
         groups: Vec<StepGroup>,
         tctx: crate::tera::Context,
+        expr_ctx: expr::Context,
         run_type: RunType,
         hk_progress: Option<Arc<ProgressJob>>,
         skip_steps: IndexMap<String, SkipReason>,
     ) -> Self {
         let settings = Settings::get();
-        let expr_ctx = EXPR_CTX.clone();
+        let expr_ctx = expr_ctx;
         let mut timing = TimingRecorder::new(env::HK_TIMING_JSON.clone());
         // Pre-populate timing metadata once before any jobs start
         for group in &groups {
@@ -290,7 +291,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = OnceCell::new();
+        let git_status = repo.lock().await.status(None)?;
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
@@ -319,7 +320,7 @@ impl Hook {
         }
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = OnceCell::new();
+        let git_status = repo.lock().await.status(None)?;
         let groups = self.get_step_groups(&opts);
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
@@ -362,11 +363,22 @@ impl Hook {
             }
             return Ok(());
         }
+        // Enrich Tera and expr contexts with git status for template/condition use
+        let git_status_for_ctx = git_status.clone();
+        let mut tctx = opts.tctx;
+        // Insert a serializable view under "git"
+        tctx.insert("git", &git_status_for_ctx);
+        // Build expression context with the same data under "git"
+        let mut expr_ctx = EXPR_CTX.clone();
+        if let Ok(val) = expr::to_value(&git_status_for_ctx) {
+            expr_ctx.insert("git", val);
+        }
         let hook_ctx = Arc::new(HookContext::new(
             files,
             repo.clone(),
             groups,
-            opts.tctx,
+            tctx,
+            expr_ctx,
             run_type,
             hk_progress,
             skip_steps,
@@ -375,12 +387,9 @@ impl Hook {
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
         if stash_method != StashMethod::None {
-            let git_status = git_status
-                .get_or_try_init(async || repo.lock().await.status(None))
-                .await?;
             repo.lock()
                 .await
-                .stash_unstaged(&file_progress, stash_method, git_status)?;
+                .stash_unstaged(&file_progress, stash_method, &git_status)?;
         }
 
         if hook_ctx.groups.is_empty() {
@@ -518,7 +527,7 @@ impl Hook {
         &self,
         opts: &HookOptions,
         repo: Arc<Mutex<Git>>,
-        git_status: &OnceCell<GitStatus>,
+        git_status: &GitStatus,
         stash_method: StashMethod,
         file_progress: &ProgressJob,
     ) -> Result<BTreeSet<PathBuf>> {
@@ -542,9 +551,6 @@ impl Hook {
             let pathspec = glob.iter().map(OsString::from).collect::<Vec<_>>();
             let mut all_files = repo.lock().await.all_files(Some(&pathspec))?;
             if !stash {
-                let git_status = git_status
-                    .get_or_try_init(async || repo.lock().await.status(None))
-                    .await?;
                 all_files.extend(git_status.untracked_files.iter().cloned());
             }
             let all_files = all_files.into_iter().collect_vec();
@@ -572,23 +578,14 @@ impl Hook {
             file_progress.prop("message", "Fetching all files in repo");
             let mut all_files = repo.lock().await.all_files(None)?;
             if !stash {
-                let git_status = git_status
-                    .get_or_try_init(async || repo.lock().await.status(None))
-                    .await?;
                 all_files.extend(git_status.untracked_files.iter().cloned());
             }
             all_files
         } else if stash {
             file_progress.prop("message", "Fetching staged files");
-            let git_status = git_status
-                .get_or_try_init(async || repo.lock().await.status(None))
-                .await?;
             git_status.staged_files.iter().cloned().collect()
         } else {
             file_progress.prop("message", "Fetching modified files");
-            let git_status = git_status
-                .get_or_try_init(async || repo.lock().await.status(None))
-                .await?;
             git_status
                 .staged_files
                 .iter()

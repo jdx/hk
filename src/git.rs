@@ -886,7 +886,7 @@ impl Git {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub(crate) struct GitStatus {
     pub unstaged_files: BTreeSet<PathBuf>,
     pub staged_files: BTreeSet<PathBuf>,
