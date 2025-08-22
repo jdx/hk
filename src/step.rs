@@ -758,7 +758,7 @@ impl ShellType {
 pub static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::default);
 
 pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
-    let mut env = expr::Environment::default();
+    let mut env = expr::Environment::new();
 
     env.add_function("exec", |c| {
         let out = xx::process::sh(c.args[0].as_string().unwrap())
