@@ -466,7 +466,7 @@ impl Step {
         }
         if non_skip_jobs > 0 && matches!(ctx.hook_ctx.run_type, RunType::Fix) {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
-            let stage_globs: Vec<String> = self
+            let mut stage_globs: Vec<String> = self
                 .stage
                 .as_ref()
                 .unwrap_or(&vec![])
@@ -480,6 +480,15 @@ impl Step {
                     }
                 })
                 .collect::<Result<Vec<_>>>()?;
+            // If any glob starts with "**/", also include a root-level variant without the prefix
+            // to ensure files at repo root like "maintainers.yml" are matched.
+            let mut extra_roots = Vec::new();
+            for g in &stage_globs {
+                if let Some(rest) = g.strip_prefix("**/") {
+                    extra_roots.push(rest.to_string());
+                }
+            }
+            stage_globs.extend(extra_roots);
             trace!("{}: stage globs: {:?}", self, &stage_globs);
             let stage_pathspecs: Vec<OsString> =
                 stage_globs.iter().cloned().map(OsString::from).collect();
