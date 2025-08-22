@@ -129,6 +129,7 @@ pub struct HookContext {
 }
 
 impl HookContext {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         files: impl IntoIterator<Item = PathBuf>,
         git: Arc<Mutex<Git>>,
