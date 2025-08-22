@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.10.0](https://github.com/jdx/hk/compare/v1.9.2..v1.10.0) - 2025-08-22
+
+### 🚀 Features
+
+- **(progress)** flex-width progress bar by [@jdx](https://github.com/jdx) in [#187](https://github.com/jdx/hk/pull/187)
+
+### 🐛 Bug Fixes
+
+- handle tera render errors without panic; improve progress UI stability by [@jdx](https://github.com/jdx) in [#190](https://github.com/jdx/hk/pull/190)
+
+### 🔍 Other Changes
+
+- ignore staged entries when worktree deleted (AD); add Bats repro by [@jdx](https://github.com/jdx) in [#188](https://github.com/jdx/hk/pull/188)
+
 ## [1.9.2](https://github.com/jdx/hk/compare/v1.9.1..v1.9.2) - 2025-08-19
 
 ### 🐛 Bug Fixes
