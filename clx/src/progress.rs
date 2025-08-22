@@ -917,7 +917,7 @@ fn add_tera_functions(tera: &mut Tera, ctx: &RenderContext, job: &ProgressJob) {
             } else {
                 // Simple truncation with ellipsis
                 if max_len > 1 {
-                    Ok(format!("{}…", &content[..max_len.saturating_sub(1)]).into())
+                    Ok(format!("{}…", safe_prefix(&content, max_len.saturating_sub(1))).into())
                 } else {
                     Ok("…".into())
                 }
@@ -958,7 +958,8 @@ fn flex(s: &str, width: usize) -> String {
 
     debug!(chars = s.len(), width = width, "flex: processing");
     if s.len() > 100 {
-        trace!(first_100_chars = ?&s[..100], "flex: long content preview");
+        let preview = safe_prefix(s, 100);
+        trace!(first_100_chars = ?preview, "flex: long content preview");
     }
 
     // Process repeatedly until no tags remain or no progress can be made
@@ -1131,6 +1132,22 @@ fn flex_process_once(s: &str, width: usize) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+// Returns a prefix of s with at most max_bytes bytes, cutting only at char boundaries
+fn safe_prefix(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    match s
+        .char_indices()
+        .take_while(|(i, _)| *i < max_bytes)
+        .map(|(i, _)| i)
+        .last()
+    {
+        Some(last_boundary) => &s[..last_boundary],
+        None => "",
+    }
 }
 
 #[cfg(test)]
