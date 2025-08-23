@@ -63,6 +63,14 @@ export default defineConfig({
     },
   },
   markdown: {
+    // https://github.com/vuejs/vitepress/discussions/3724
+    config(md) {
+      const defaultCodeInline = md.renderer.rules.code_inline!
+      md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+        tokens[idx].attrSet('v-pre', '')
+        return defaultCodeInline(tokens, idx, options, env, self)
+      }
+    },
     languages: [{
       name: 'pkl',
       displayName: 'pkl',
