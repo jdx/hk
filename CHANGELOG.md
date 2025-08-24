@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.10.3](https://github.com/jdx/hk/compare/v1.10.2..v1.10.3) - 2025-08-22
+
+### 🐛 Bug Fixes
+
+- **(step)** include root variant for '**/' stage globs (stage maintainers.yml at repo root) by [@jdx](https://github.com/jdx) in [#198](https://github.com/jdx/hk/pull/198)
+
+### 🔍 Other Changes
+
+- fix msrv job by [@jdx](https://github.com/jdx) in [5590e22](https://github.com/jdx/hk/commit/5590e2293f84907a142bd34334dbd0164bb050b6)
+
 ## [1.10.2](https://github.com/jdx/hk/compare/v1.10.1..v1.10.2) - 2025-08-22
 
 ### 🐛 Bug Fixes
@@ -9,6 +19,12 @@
 ### 📚 Documentation
 
 - correct expr examples for git staged file syntax by [@jdx](https://github.com/jdx) in [f1fa1cf](https://github.com/jdx/hk/commit/f1fa1cfebec13cd03b1fb867777af477d433a3fe)
+
+### 🔍 Other Changes
+
+- remove embedded subtrees in favor of submodules by [@jdx](https://github.com/jdx) in [186480d](https://github.com/jdx/hk/commit/186480d317441cce2294a9960932939112dc11d6)
+- fetch submodules by [@jdx](https://github.com/jdx) in [397e0d3](https://github.com/jdx/hk/commit/397e0d3ae78375be506963e6fe60900af4c23374)
+- fixing release-plz by [@jdx](https://github.com/jdx) in [86a2d79](https://github.com/jdx/hk/commit/86a2d7942f6fa19222e2f6b8311adb8cfab74f20)
 
 ## [1.10.1](https://github.com/jdx/hk/compare/v1.10.0..v1.10.1) - 2025-08-22
 
