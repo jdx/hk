@@ -1,9 +1,16 @@
 # Changelog
 
-## [1.10.3](https://github.com/jdx/hk/compare/v1.10.2..v1.10.3) - 2025-08-22
+## [1.10.4](https://github.com/jdx/hk/compare/v1.10.3..v1.10.4) - 2025-08-24
+
+### 🔍 Other Changes
+
+- bump clx by [@jdx](https://github.com/jdx) in [3dccbc4](https://github.com/jdx/hk/commit/3dccbc4484c46c9eb6feff20d4365297b642a832)
+
+## [1.10.3](https://github.com/jdx/hk/compare/v1.10.2..v1.10.3) - 2025-08-24
 
 ### 🐛 Bug Fixes
 
+- **(docs)** add v-pre directive to inline code for proper rendering by [@smasato](https://github.com/smasato) in [#200](https://github.com/jdx/hk/pull/200)
 - **(step)** include root variant for '**/' stage globs (stage maintainers.yml at repo root) by [@jdx](https://github.com/jdx) in [#198](https://github.com/jdx/hk/pull/198)
 
 ### 🔍 Other Changes
