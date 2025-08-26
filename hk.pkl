@@ -74,3 +74,5 @@ hooks = new {
     // TODO
     // ["commit-msg"] {}
 }
+
+warnings = List("missing-profiles")
