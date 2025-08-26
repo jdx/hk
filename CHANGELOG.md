@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.10.5](https://github.com/jdx/hk/compare/v1.10.4..v1.10.5) - 2025-08-26
+
+### 🔍 Other Changes
+
+- bump clx by [@jdx](https://github.com/jdx) in [a4e4f5c](https://github.com/jdx/hk/commit/a4e4f5c166d5c9c24d2c158cd7822be8cc4bc7f1)
+
 ## [1.10.4](https://github.com/jdx/hk/compare/v1.10.3..v1.10.4) - 2025-08-24
 
 ### 🔍 Other Changes
