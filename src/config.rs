@@ -95,15 +95,20 @@ impl Config {
                 if path.exists() {
                     let hash_key = format!("{}.json", hash::hash_to_str(&path));
                     let hash_key_path = env::HK_CACHE_DIR.join("configs").join(hash_key);
-                    return CacheManagerBuilder::new(hash_key_path)
+                    let cache_mgr = CacheManagerBuilder::new(hash_key_path)
                         .with_fresh_file(path.to_path_buf())
-                        .build()
+                        .build();
+                    // Load from cache if fresh; otherwise read from disk. In both cases, run init
+                    // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
+                    let mut config = cache_mgr
                         .get_or_try_init(|| {
                             Self::read(&path).wrap_err_with(|| {
                                 format!("Failed to read config file: {}", path.display())
                             })
-                        })
-                        .cloned();
+                        })?
+                        .clone();
+                    config.init(&path)?;
+                    return Ok(config);
                 }
             }
             cwd = cwd.parent().map(PathBuf::from).unwrap_or_default();
