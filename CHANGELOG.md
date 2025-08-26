@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.10.6](https://github.com/jdx/hk/compare/v1.10.5..v1.10.6) - 2025-08-26
+
+### 🔍 Other Changes
+
+- **(cache)** run init after loading cached config to apply warnings/settings\n\nFixes missing profile summary not showing on cached runs. Also ensures env/settings side-effects from config are applied consistently whether read fresh or from cache. by [@jdx](https://github.com/jdx) in [3b08788](https://github.com/jdx/hk/commit/3b08788956718d82e1f612e83cf36b6059e03365)
+
 ## [1.10.5](https://github.com/jdx/hk/compare/v1.10.4..v1.10.5) - 2025-08-26
 
 ### 🔍 Other Changes
