@@ -55,6 +55,27 @@ hooks {
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
+## `default_branch: String`
+
+Default: auto-detected
+
+Specifies the preferred default branch to compare against when hk needs a reference (e.g., suggestions in pre-commit warnings). If unset or empty, hk attempts to detect it via `origin/HEAD`, the current branch's remote, or falls back to `main`/`master` if they exist on the remote.
+
+Examples:
+
+```pkl
+// Use a local branch name
+default_branch = "main"
+
+// Or a remote-qualified ref
+default_branch = "origin/main"
+```
+
+Notes:
+
+- Both local branch names (e.g., `main`) and remote-qualified refs (e.g., `origin/main`) are supported.
+- If omitted, hk will detect the default branch based on your repository's remotes and branches.
+
 ## `env: Mapping<String, String>`
 
 Environment variables can be set in hk.pkl for configuring hk or the linters.
