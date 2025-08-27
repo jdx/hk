@@ -95,7 +95,7 @@ EOF
     assert_output --partial "FAST TEST"
     refute_output --partial "SLOW TEST"
     assert_output --partial "1 step was skipped due to missing profiles: slow"
-    assert_output --partial "To enable these steps, set HK_PROFILE=slow environment variable."
+    assert_output --partial "To enable these steps, set HK_PROFILE=slow environment variable or run hk fix --slow --from-ref=main."
     assert_output --partial "To hide this warning: set HK_HIDE_WARNINGS=missing-profiles"
     refute_output --partial "--profile"
 }
