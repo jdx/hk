@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.10.7](https://github.com/jdx/hk/compare/v1.10.6..v1.10.7) - 2025-08-27
+
+### 🐛 Bug Fixes
+
+- show `--from-ref` instructions for missing profile warning by [@jdx](https://github.com/jdx) in [#204](https://github.com/jdx/hk/pull/204)
+
+### 📚 Documentation
+
+- document default_branch by [@jdx](https://github.com/jdx) in [#206](https://github.com/jdx/hk/pull/206)
+
 ## [1.10.6](https://github.com/jdx/hk/compare/v1.10.5..v1.10.6) - 2025-08-26
 
 ### 🔍 Other Changes
