@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.10.6"
+version "1.10.7"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
