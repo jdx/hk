@@ -265,6 +265,8 @@ pub struct Config {
     pub min_hk_version: Option<String>,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
+    /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
+    pub default_branch: Option<String>,
     #[serde(skip)]
     #[serde(default)]
     pub path: PathBuf,

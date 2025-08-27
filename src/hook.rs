@@ -487,10 +487,16 @@ impl Hook {
                     )
                 };
                 let hk_profile_env = style::edim(hk_profile_env);
-                let hk_profile_flag = style::edim(hk_profile_flag);
                 if self.name == "pre-commit" || self.name == "pre-push" {
-                    warn!("  To enable these steps, set {hk_profile_env} environment variable.");
+                    let default_branch = repo.lock().await.resolve_default_branch();
+                    let hk_fix_cmd =
+                        format!("hk fix {hk_profile_flag} --from-ref={default_branch}");
+                    let hk_fix_cmd = style::edim(hk_fix_cmd);
+                    warn!(
+                        "  To enable these steps, set {hk_profile_env} environment variable or run {hk_fix_cmd}."
+                    );
                 } else {
+                    let hk_profile_flag = style::edim(hk_profile_flag);
                     warn!(
                         "  To enable these steps, use {hk_profile_flag} or set {hk_profile_env}."
                     );

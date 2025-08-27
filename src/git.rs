@@ -182,6 +182,60 @@ impl Git {
         })
     }
 
+    /// Determine the repository's default branch reference.
+    /// Strategy:
+    /// 1) Use `origin/HEAD` if it points to a branch
+    /// 2) If current branch exists on origin, use that
+    /// 3) Otherwise, try `main` then `master` if they exist
+    pub fn default_branch(&self) -> Result<String> {
+        // Try origin/HEAD -> refs/remotes/origin/HEAD -> symbolic-ref
+        // Shell git path (works with or without libgit2 enabled)
+        let head_sym = git_cmd(["symbolic-ref", "refs/remotes/origin/HEAD"]).read();
+        if let Ok(symref) = head_sym {
+            if let Some(target) = symref.lines().next() {
+                // Expect something like: refs/remotes/main
+                if let Some(short) = target.strip_prefix("refs/remotes/") {
+                    return Ok(short.to_string());
+                }
+            }
+        }
+
+        // If current branch has a remote counterpart, prefer it
+        if let Ok(Some(rb)) = self.matching_remote_branch("origin") {
+            if let Some(short) = rb.strip_prefix("refs/remotes/") {
+                return Ok(short.to_string());
+            }
+            return Ok(rb);
+        }
+
+        // Fallbacks: main, master
+        for cand in ["main", "master"] {
+            let branch = cand.split('/').next_back().unwrap();
+            let out = xx::process::sh(&format!("git ls-remote --heads origin {}", branch))?;
+            if out
+                .lines()
+                .any(|l| l.ends_with(&format!("refs/heads/{}", branch)))
+            {
+                return Ok(cand.to_string());
+            }
+        }
+
+        // As a last resort, return origin/HEAD literal to let callers handle errors
+        Ok("origin/HEAD".to_string())
+    }
+
+    /// Resolve the effective default branch, honoring a configured override in project config.
+    /// If `Config.default_branch` is set and non-empty, it is returned as-is. Otherwise, falls back to detection.
+    pub fn resolve_default_branch(&self) -> String {
+        if let Ok(cfg) = crate::config::Config::get() {
+            if let Some(val) = cfg.default_branch {
+                if !val.trim().is_empty() {
+                    return val;
+                }
+            }
+        }
+        self.default_branch().unwrap_or_else(|_| "main".to_string())
+    }
     pub fn patch_file(&self) -> &Path {
         self.patch_file.get_or_init(|| {
             let name = self
