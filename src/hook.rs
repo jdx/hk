@@ -493,7 +493,7 @@ impl Hook {
                         format!("hk fix {hk_profile_flag} --from-ref={default_branch}");
                     let hk_fix_cmd = style::edim(hk_fix_cmd);
                     warn!(
-                        "  To enable these steps, set {hk_profile_env} environment variable or run {hk_fix_cmd}."
+                        "  To enable these steps, set {hk_profile_env} environment variable or run {hk_fix_cmd}"
                     );
                 } else {
                     let hk_profile_flag = style::edim(hk_profile_flag);
