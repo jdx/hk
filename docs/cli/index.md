@@ -2,7 +2,7 @@
 
 **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
-**Version**: 1.10.7
+**Version**: 1.10.8
 
 - **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 

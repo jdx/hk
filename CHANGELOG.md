@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.10.8](https://github.com/jdx/hk/compare/v1.10.7..v1.10.8) - 2025-08-28
+
+### 🐛 Bug Fixes
+
+- remove period from missin-profile message by [@jdx](https://github.com/jdx) in [5f525a4](https://github.com/jdx/hk/commit/5f525a46e0815c0179f0a49d5bd25656a1e7f0f3)
+
 ## [1.10.7](https://github.com/jdx/hk/compare/v1.10.6..v1.10.7) - 2025-08-27
 
 ### 🐛 Bug Fixes
