@@ -87,6 +87,15 @@ env {
 }
 ```
 
+## `fail_fast: Boolean`
+
+Default: `true`
+
+Controls whether hk aborts remaining steps/groups after the first failure.
+
+- When `true`, as soon as a step fails, hk cancels pending steps in the same hook and returns the error.
+- When `false`, hk continues running other steps and reports all failures at the end.
+
 ## `hooks.<HOOK>`
 
 Hooks define when and how linters are run. See [hooks](/hooks) for more information.

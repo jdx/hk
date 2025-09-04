@@ -135,6 +135,8 @@ hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
 env: Mapping<String, String> = new Mapping<String, String>{}
 /// Preferred default branch to compare against (e.g. "main"). If empty or omitted, hk will auto-detect.
 default_branch: String?
+/// If true, abort remaining steps/groups after the first failure
+fail_fast: Boolean?
 
 output {
   renderer {
