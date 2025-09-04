@@ -150,7 +150,8 @@ impl Default for Settings {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
             disabled_profiles,
-            fail_fast: FAIL_FAST.lock().unwrap().unwrap_or(*env::HK_FAIL_FAST),
+            fail_fast: env::HK_FAIL_FAST
+                .unwrap_or_else(|| FAIL_FAST.lock().unwrap().unwrap_or(true)),
             display_skip_reasons,
             warnings,
         }

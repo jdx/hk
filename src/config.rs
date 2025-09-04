@@ -63,6 +63,10 @@ impl Config {
         for (key, value) in self.env.iter() {
             unsafe { std::env::set_var(key, value) };
         }
+        // Set fail_fast if configured
+        if let Some(fail_fast) = self.fail_fast {
+            crate::settings::Settings::set_fail_fast(fail_fast);
+        }
         // Set display_skip_reasons if configured (None means use default, empty list means hide all)
         if let Some(display_skip_reasons) = &self.display_skip_reasons {
             crate::settings::Settings::set_display_skip_reasons(
@@ -272,6 +276,7 @@ pub struct Config {
     pub path: PathBuf,
     #[serde(default)]
     pub env: IndexMap<String, String>,
+    pub fail_fast: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
     pub warnings: Option<Vec<String>>,

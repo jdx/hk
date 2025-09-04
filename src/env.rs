@@ -76,7 +76,8 @@ pub static HK_JOBS: LazyLock<NonZero<usize>> = LazyLock::new(|| {
         .or(thread::available_parallelism().ok())
         .unwrap_or(NonZero::new(4).unwrap())
 });
-pub static HK_FAIL_FAST: LazyLock<bool> = LazyLock::new(|| !var_false("HK_FAIL_FAST"));
+// None means not set in environment; Some(true/false) if explicitly set
+pub static HK_FAIL_FAST: LazyLock<Option<bool>> = LazyLock::new(|| var_bool("HK_FAIL_FAST"));
 pub static HK_HIDE_WARNINGS: LazyLock<IndexSet<String>> =
     LazyLock::new(|| var_csv("HK_HIDE_WARNINGS").unwrap_or_default());
 
@@ -111,4 +112,21 @@ fn var_false(name: &str) -> bool {
         .map(|val| val.to_lowercase())
         .map(|val| val == "false" || val == "0")
         .unwrap_or(false)
+}
+
+fn var_bool(name: &str) -> Option<bool> {
+    match var(name) {
+        Ok(val) => {
+            let v = val.to_lowercase();
+            match v.as_str() {
+                "false" | "0" => Some(false),
+                "true" | "1" => Some(true),
+                _ => {
+                    warn!("{name} is set to an invalid value: {val}");
+                    None
+                }
+            }
+        }
+        Err(_) => None,
+    }
 }
