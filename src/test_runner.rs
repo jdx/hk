@@ -214,20 +214,9 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             code, test.expect.code
         ));
     }
-    if let Some((a_code, a_stdout, a_stderr)) = after_fail {
+    if let Some((a_code, _a_stdout, _a_stderr)) = after_fail {
+        pass = false;
         reasons.push(format!("after failed with code {}", a_code));
-        // Overwrite stdout/stderr/code with the 'after' failure to aid debugging
-        // Note: we keep main command outputs in reasons already above if mismatched
-        return Ok(TestResult {
-            step: step.name.clone(),
-            name: name.to_string(),
-            ok: false,
-            stdout: a_stdout,
-            stderr: a_stderr,
-            code: a_code,
-            duration_ms: started_at.elapsed().as_millis(),
-            reasons,
-        });
     }
     if let Some(needle) = &test.expect.stdout {
         if !stdout.contains(needle) {
