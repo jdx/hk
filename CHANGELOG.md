@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.11.0](https://github.com/jdx/hk/compare/v1.10.7..v1.11.0) - 2025-09-05
+
+### 🚀 Features
+
+- **(test)** support before/after commands in hk test by [@jdx](https://github.com/jdx) in [#214](https://github.com/jdx/hk/pull/214)
+- support fail_fast in hk.pkl (env > config) by [@jdx](https://github.com/jdx) in [#212](https://github.com/jdx/hk/pull/212)
+
+### 🐛 Bug Fixes
+
+- remove period from missin-profile message by [@jdx](https://github.com/jdx) in [5f525a4](https://github.com/jdx/hk/commit/5f525a46e0815c0179f0a49d5bd25656a1e7f0f3)
+
+### 📚 Documentation
+
+- Add missing code block end marker by [@karouf](https://github.com/karouf) in [#213](https://github.com/jdx/hk/pull/213)
+
+### 🔍 Other Changes
+
+- add pkl linter in Builtins by [@aheritier](https://github.com/aheritier) in [#210](https://github.com/jdx/hk/pull/210)
+
+### New Contributors
+
+- @karouf made their first contribution in [#213](https://github.com/jdx/hk/pull/213)
+- @aheritier made their first contribution in [#210](https://github.com/jdx/hk/pull/210)
+
 ## [1.10.7](https://github.com/jdx/hk/compare/v1.10.6..v1.10.7) - 2025-08-27
 
 ### 🐛 Bug Fixes
