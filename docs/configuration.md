@@ -574,12 +574,16 @@ hooks {
             env { ["FOO"] = "bar" }
             expect { stdout = "prettier" }
           }
-          ["pre/post hooks example"] {
-            run = "check"
-            write { ["{{tmp}}/x.txt"] = "one" }
-            before = "echo before > {{tmp}}/before.txt"
-            after = "echo after >> {{tmp}}/x.txt"
-            expect { files { ["{{tmp}}/x.txt"] = "oneafter\n" } }
+          ["before generates file, after verifies contents"] {
+            run = "fix"
+            // before: generate an input file the step will process
+            before = #"printf '{\"b\":1}' > {{tmp}}/raw.json"#
+            // files: tell hk which file the step should operate on
+            files = List("{{tmp}}/raw.json")
+            // after: verify the contents using a shell assertion
+            after = #"grep -q '\"b\": 1' {{tmp}}/raw.json"#
+            // expect: full-file match after formatting
+            expect { files { ["{{tmp}}/raw.json"] = "{\n  \"b\": 1\n}\n" } }
           }
         }
       }
