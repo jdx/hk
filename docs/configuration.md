@@ -350,6 +350,7 @@ hooks {
         }
     }
 }
+```
 
 ### `<STEP>.stage: List<String>`
 
