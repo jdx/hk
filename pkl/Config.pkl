@@ -90,8 +90,12 @@ class StepTest {
     fixture: String?
     /// Inline files to write into the sandbox
     write: Mapping<String, String> = new Mapping<String, String>{}
+    /// Command to run before executing the test command
+    before: String?
     /// Extra environment variables for this test
     env: Mapping<String, String> = new Mapping<String, String>{}
+    /// Command to run after the main command, before expectations (cleanup or extra verification)
+    after: String?
     /// Expectations for the test result
     expect: StepTestExpect = new StepTestExpect{}
 }

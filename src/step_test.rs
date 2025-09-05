@@ -22,6 +22,10 @@ pub struct StepTest {
     /// Expected result of running the test
     #[serde(default)]
     pub expect: StepTestExpect,
+    /// Command to run before executing the test command
+    pub before: Option<String>,
+    /// Command to run after the main command, before evaluating expectations
+    pub after: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]

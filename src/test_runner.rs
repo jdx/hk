@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::{
@@ -19,6 +19,48 @@ pub struct TestResult {
     pub code: i32,
     pub duration_ms: u128,
     pub reasons: Vec<String>,
+}
+
+async fn execute_cmd(
+    step: &Step,
+    tctx: &crate::tera::Context,
+    base_dir: &Path,
+    test: &StepTest,
+    cmd_str: &str,
+) -> Result<(String, String, i32)> {
+    let mut runner = if let Some(shell) = &step.shell {
+        let shell = shell.to_string();
+        let mut parts = shell.split_whitespace();
+        let bin = parts.next().unwrap_or("sh");
+        CmdLineRunner::new(bin).args(parts)
+    } else {
+        CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+    };
+    runner = runner.arg(cmd_str).current_dir(base_dir);
+    for (k, v) in &step.env {
+        let v = crate::tera::render(v, tctx)?;
+        runner = runner.env(k, v);
+    }
+    for (k, v) in &test.env {
+        runner = runner.env(k, v);
+    }
+    let result = runner.execute().await;
+    let (stdout, stderr, code) = match result {
+        Ok(r) => (r.stdout, r.stderr, r.status.code().unwrap_or(0)),
+        Err(e) => {
+            if let ensembler::Error::ScriptFailed(tuple) = &e {
+                let r = &tuple.3;
+                (
+                    r.stdout.clone(),
+                    r.stderr.clone(),
+                    r.status.code().unwrap_or(1),
+                )
+            } else {
+                return Err(e.into());
+            }
+        }
+    };
+    Ok((stdout, stderr, code))
 }
 
 pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<TestResult> {
@@ -131,40 +173,36 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
     let run = crate::tera::render(&run, &tctx)?;
 
-    let mut cmd = if let Some(shell) = &step.shell {
-        let shell = shell.to_string();
-        let mut parts = shell.split_whitespace();
-        let bin = parts.next().unwrap_or("sh");
-        CmdLineRunner::new(bin).args(parts)
-    } else {
-        CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
-    };
-    cmd = cmd.arg(&run).current_dir(base_dir);
-    // Merge env: step then test (test wins)
-    for (k, v) in &step.env {
-        let v = crate::tera::render(v, &tctx)?;
-        cmd = cmd.env(k, v);
-    }
-    for (k, v) in &test.env {
-        cmd = cmd.env(k, v);
+    // Run pre-command (before)
+    if let Some(cmd_str) = &test.before {
+        let rendered = crate::tera::render(cmd_str, &tctx)?;
+        let (stdout, stderr, code) = execute_cmd(step, &tctx, base_dir, test, &rendered).await?;
+        if code != 0 {
+            return Ok(TestResult {
+                step: step.name.clone(),
+                name: name.to_string(),
+                ok: false,
+                stdout,
+                stderr,
+                code,
+                duration_ms: started_at.elapsed().as_millis(),
+                reasons: vec![format!("before failed with code {}", code)],
+            });
+        }
     }
 
-    let result = cmd.execute().await;
-    let (stdout, stderr, code) = match result {
-        Ok(r) => (r.stdout, r.stderr, r.status.code().unwrap_or(0)),
-        Err(e) => {
-            if let ensembler::Error::ScriptFailed(tuple) = &e {
-                let r = &tuple.3;
-                (
-                    r.stdout.clone(),
-                    r.stderr.clone(),
-                    r.status.code().unwrap_or(1),
-                )
-            } else {
-                return Err(e.into());
-            }
+    // Run main command
+    let (stdout, stderr, code) = execute_cmd(step, &tctx, base_dir, test, &run).await?;
+
+    // Run post-command (after) before evaluating expectations so it can contribute to assertions
+    let mut after_fail: Option<(i32, String, String)> = None;
+    if let Some(cmd_str) = &test.after {
+        let rendered = crate::tera::render(cmd_str, &tctx)?;
+        let (a_stdout, a_stderr, a_code) = execute_cmd(step, &tctx, base_dir, test, &rendered).await?;
+        if a_code != 0 {
+            after_fail = Some((a_code, a_stdout, a_stderr));
         }
-    };
+    }
 
     // Evaluate expectations
     let mut reasons: Vec<String> = Vec::new();
@@ -174,6 +212,21 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             "exit code {} != expected {}",
             code, test.expect.code
         ));
+    }
+    if let Some((a_code, a_stdout, a_stderr)) = after_fail {
+        reasons.push(format!("after failed with code {}", a_code));
+        // Overwrite stdout/stderr/code with the 'after' failure to aid debugging
+        // Note: we keep main command outputs in reasons already above if mismatched
+        return Ok(TestResult {
+            step: step.name.clone(),
+            name: name.to_string(),
+            ok: false,
+            stdout: a_stdout,
+            stderr: a_stderr,
+            code: a_code,
+            duration_ms: started_at.elapsed().as_millis(),
+            reasons,
+        });
     }
     if let Some(needle) = &test.expect.stdout {
         if !stdout.contains(needle) {

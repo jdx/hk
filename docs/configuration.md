@@ -538,6 +538,8 @@ Key points:
 - `write` lets you create files before the test runs (paths can be relative to the sandbox or absolute).
 - `fixture` copies a directory into a temporary sandbox before the test runs.
 - `env` merges with the step’s `env` (test env wins on conflicts).
+- `before` is an optional shell command to run before the test's main command. If it fails (non-zero exit), the test fails immediately.
+- `after` is an optional shell command to run after the main command, before evaluating expectations. If it fails, the test fails and reports that failure.
 - `expect` supports:
   - `code` (default 0)
   - `stdout`, `stderr` substring checks
@@ -570,6 +572,13 @@ hooks {
             files = List("{{tmp}}/a.json")
             env { ["FOO"] = "bar" }
             expect { stdout = "prettier" }
+          }
+          ["pre/post hooks example"] {
+            run = "check"
+            write { ["{{tmp}}/x.txt"] = "one" }
+            before = "echo before > {{tmp}}/before.txt"
+            after = "echo after >> {{tmp}}/x.txt"
+            expect { files { ["{{tmp}}/x.txt"] = "oneafter\n" } }
           }
         }
       }
