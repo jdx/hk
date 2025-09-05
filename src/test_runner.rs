@@ -198,7 +198,8 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     let mut after_fail: Option<(i32, String, String)> = None;
     if let Some(cmd_str) = &test.after {
         let rendered = crate::tera::render(cmd_str, &tctx)?;
-        let (a_stdout, a_stderr, a_code) = execute_cmd(step, &tctx, base_dir, test, &rendered).await?;
+        let (a_stdout, a_stderr, a_code) =
+            execute_cmd(step, &tctx, base_dir, test, &rendered).await?;
         if a_code != 0 {
             after_fail = Some((a_code, a_stdout, a_stderr));
         }
