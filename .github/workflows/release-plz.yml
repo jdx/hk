@@ -25,7 +25,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-          token: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+          token: ${{ secrets.HK_GH_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: test
@@ -36,5 +36,5 @@ jobs:
       - run: mise trust --all
       - run: mise run release-plz
         env:
-          GITHUB_TOKEN: ${{ secrets.MY_RELEASE_PLEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.HK_GH_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
