@@ -588,11 +588,12 @@ impl Git {
             if let Some(repo) = &self.repo {
                 let mut checkout_opts = git2::build::CheckoutBuilder::new();
                 checkout_opts.allow_conflicts(true);
-                checkout_opts.remove_untracked(true);
+                // Do not remove unrelated untracked files when stashing via patch-file
+                checkout_opts.remove_untracked(false);
                 checkout_opts.force();
                 checkout_opts.update_index(true);
                 repo.checkout_index(None, Some(&mut checkout_opts))
-                    .wrap_err("failed to reset to head")?;
+                    .wrap_err("failed to reset worktree for modified files")?;
             } else {
                 if !status.modified_files.is_empty() {
                     let args = vec!["restore", "--worktree", "--"]
@@ -601,11 +602,7 @@ impl Git {
                         .collect::<Vec<_>>();
                     git_run(&args)?;
                 }
-                for file in status.untracked_files.iter() {
-                    if let Err(err) = xx::file::remove_file(file) {
-                        warn!("failed to remove untracked file: {err:?}");
-                    }
-                }
+                // Intentionally leave untracked files alone in patch-file mode
             }
         } else {
             job.prop("message", "Stashed unstaged changes with git stash");
@@ -818,9 +815,7 @@ impl Git {
                 job = ProgressJobBuilder::new()
                     .prop("message", "stash – Applying git stash")
                     .start();
-                // Apply the stash first, detect conflicts, and in case of conflict
-                // prefer the stash (the original unstaged changes), discarding fixer edits.
-                // Stream stderr lines to avoid interleaving with CLX redraws while still surfacing messages
+                // Apply the stash first; if there are conflicts, prefer the stash (unstaged) side.
                 let apply_res = git_cmd(["stash", "apply"]).run();
                 if let Err(err) = &apply_res {
                     warn!("git stash apply failed: {err:?}");
@@ -842,7 +837,6 @@ impl Git {
                 };
                 let conflicted = conflicted_files_from_porcelain(&status);
                 if !conflicted.is_empty() {
-                    // For each conflicted file, prefer the stash side only for conflicting hunks
                     for f in conflicted.iter() {
                         if let Err(err) = resolve_conflict_markers_preferring_theirs(f) {
                             warn!(
@@ -850,10 +844,6 @@ impl Git {
                                 display_path(f)
                             );
                         }
-                        // Only re-stage files that the user (or previous steps) already had staged
-                        // prior to applying the stash. This avoids staging unrelated files
-                        // like manifests that happened to be part of the stash but not intended
-                        // for the current hook run.
                         if previously_staged.contains(f) {
                             if let Err(err) = git_cmd(["add", "--"]).arg(f).run() {
                                 warn!(
@@ -863,12 +853,10 @@ impl Git {
                             }
                         }
                     }
-                    // Drop the stash entry now that we've applied it
                     if let Err(err) = git_cmd(["stash", "drop"]).run() {
                         warn!("failed to drop stash after apply: {err:?}");
                     }
                 } else if apply_res.is_err() {
-                    // Last resort: try pop
                     if let Err(err) = git_cmd(["stash", "pop"]).run() {
                         warn!("git stash pop also failed after apply error: {err:?}");
                     }
