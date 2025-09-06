@@ -77,6 +77,9 @@ hooks {
             let mise_content = r#"[tools]
 hk = "latest"
 pkl = "latest"
+
+[tasks.pre-commit]
+run = "hk run pre-commit"
 "#;
             if mise_toml.exists() {
                 warn!("mise.toml already exists, run with --force to overwrite");
