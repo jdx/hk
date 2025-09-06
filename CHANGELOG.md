@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.11.0](https://github.com/jdx/hk/compare/v1.10.7..v1.11.0) - 2025-09-06
+
+### 🚀 Features
+
+- **(test)** support before/after commands in hk test by [@jdx](https://github.com/jdx) in [#214](https://github.com/jdx/hk/pull/214)
+- support fail_fast in hk.pkl (env > config) by [@jdx](https://github.com/jdx) in [#212](https://github.com/jdx/hk/pull/212)
+
+### 🐛 Bug Fixes
+
+- remove period from missin-profile message by [@jdx](https://github.com/jdx) in [5f525a4](https://github.com/jdx/hk/commit/5f525a46e0815c0179f0a49d5bd25656a1e7f0f3)
+- add pre-commit task to mise.toml generation by [@jdx](https://github.com/jdx) in [#217](https://github.com/jdx/hk/pull/217)
+
+### 📚 Documentation
+
+- Add missing code block end marker by [@karouf](https://github.com/karouf) in [#213](https://github.com/jdx/hk/pull/213)
+
+### 🔍 Other Changes
+
+- add pkl linter in Builtins by [@aheritier](https://github.com/aheritier) in [#210](https://github.com/jdx/hk/pull/210)
+- set gh token by [@jdx](https://github.com/jdx) in [#215](https://github.com/jdx/hk/pull/215)
+- support immutable releases by [@jdx](https://github.com/jdx) in [#216](https://github.com/jdx/hk/pull/216)
+- Add Claude Code GitHub Workflow by [@jdx](https://github.com/jdx) in [#218](https://github.com/jdx/hk/pull/218)
+- bump xx by [@jdx](https://github.com/jdx) in [82dba87](https://github.com/jdx/hk/commit/82dba87d3fc3fcbe25b290570529ea72c7acb31e)
+- lint by [@jdx](https://github.com/jdx) in [912e9c8](https://github.com/jdx/hk/commit/912e9c8c028caf966c949d81064a22616b33325c)
+
+### New Contributors
+
+- @karouf made their first contribution in [#213](https://github.com/jdx/hk/pull/213)
+- @aheritier made their first contribution in [#210](https://github.com/jdx/hk/pull/210)
+
 ## [1.10.7](https://github.com/jdx/hk/compare/v1.10.6..v1.10.7) - 2025-08-27
 
 ### 🐛 Bug Fixes
