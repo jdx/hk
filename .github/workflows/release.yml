@@ -14,21 +14,7 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  create-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - uses: taiki-e/create-gh-release-action@v1
-        if: github.event_name != 'workflow_dispatch'
-        with:
-          # changelog: CHANGELOG.md not working for some reason
-          token: ${{ secrets.GITHUB_TOKEN }}
-          draft: true
-
-  upload-assets:
-    needs: create-release
+  build-binaries:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -71,10 +57,18 @@ jobs:
           profile: serious
           codesign: "Developer ID Application: Jeffrey Dickey (4993Y37DX6)"
           codesign_prefix: dev.jdx.
-          dry-run: ${{ github.event_name == 'workflow_dispatch' }}
+          dry-run: true # Always dry-run to just build without uploading
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: |
+            hk-*.tar.gz
+            hk-*.tar.xz
+            hk-*.zip
+          retention-days: 1
 
-  pkl:
-    needs: create-release
+  build-pkl:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,20 +77,43 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         env:
           VERSION: ${{ github.ref_name || 'dev' }}
-      - uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         if: github.event_name != 'workflow_dispatch'
         with:
-          files: .out/**
-          draft: true
+          name: pkl-packages
+          path: .out/**
+          retention-days: 1
 
-  publish-release:
-    needs: [upload-assets, pkl]
+  create-release:
+    needs: [build-binaries, build-pkl]
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@v2
-      - run: git cliff --latest > release-notes.md && cat release-notes.md
-      - if: github.event_name != 'workflow_dispatch'
-        run: gh release edit ${{ github.ref_name }} --draft=false -R ${{ github.repository }} -F release-notes.md
+      - name: Generate release notes
+        run: git cliff --latest > release-notes.md && cat release-notes.md
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          # Move all binary artifacts to release-assets
+          find artifacts/binary-* -type f \( -name "*.tar.gz" -o -name "*.tar.xz" -o -name "*.zip" \) -exec mv {} release-assets/ \;
+          # Move pkl packages to release-assets
+          if [ -d "artifacts/pkl-packages" ]; then
+            find artifacts/pkl-packages -type f -exec mv {} release-assets/ \;
+          fi
+          ls -la release-assets/
+      - name: Create release with all assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          draft: false # Create as final release, not draft
