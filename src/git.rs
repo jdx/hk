@@ -637,7 +637,12 @@ impl Git {
             }
         } else {
             // Shell git path: build a patch without untracked contents
-            xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?
+            let out =
+                xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
+            if out.trim().is_empty() {
+                return Ok(None);
+            }
+            out
         };
         let patch_file = self.patch_file();
         if let Err(err) = xx::file::write(patch_file, &patch) {
