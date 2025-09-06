@@ -564,7 +564,7 @@ impl Git {
                 ),
             );
             job.update();
-            self.build_diff(status)?
+            self.build_diff()?
         } else {
             job.prop("message", "Running git stash");
             job.update();
@@ -588,24 +588,18 @@ impl Git {
             if let Some(repo) = &self.repo {
                 let mut checkout_opts = git2::build::CheckoutBuilder::new();
                 checkout_opts.allow_conflicts(true);
-                checkout_opts.remove_untracked(true);
+                // Do not remove unrelated untracked files when stashing via patch-file
+                checkout_opts.remove_untracked(false);
                 checkout_opts.force();
                 checkout_opts.update_index(true);
                 repo.checkout_index(None, Some(&mut checkout_opts))
-                    .wrap_err("failed to reset to head")?;
-            } else {
-                if !status.modified_files.is_empty() {
-                    let args = vec!["restore", "--worktree", "--"]
-                        .into_iter()
-                        .chain(status.modified_files.iter().map(|p| p.to_str().unwrap()))
-                        .collect::<Vec<_>>();
-                    git_run(&args)?;
-                }
-                for file in status.untracked_files.iter() {
-                    if let Err(err) = xx::file::remove_file(file) {
-                        warn!("failed to remove untracked file: {err:?}");
-                    }
-                }
+                    .wrap_err("failed to reset worktree for modified files")?;
+            } else if !status.modified_files.is_empty() {
+                let args = vec!["restore", "--worktree", "--"]
+                    .into_iter()
+                    .chain(status.modified_files.iter().map(|p| p.to_str().unwrap()))
+                    .collect::<Vec<_>>();
+                git_run(&args)?;
             }
         } else {
             job.prop("message", "Stashed unstaged changes with git stash");
@@ -614,16 +608,13 @@ impl Git {
         Ok(())
     }
 
-    fn build_diff(&self, status: &GitStatus) -> Result<Option<StashType>> {
+    fn build_diff(&self) -> Result<Option<StashType>> {
         debug!("building diff for stash");
         let patch = if let Some(repo) = &self.repo {
             // essentially: git diff-index --ignore-submodules --binary --exit-code --no-color --no-ext-diff (git write-tree)
             let mut opts = git2::DiffOptions::new();
-            if *env::HK_STASH_UNTRACKED {
-                opts.include_untracked(true);
-            }
+            // Do not include untracked in patch-file mode; we leave untracked files alone
             opts.show_binary(true);
-            opts.show_untracked_content(true);
             let diff = repo
                 .diff_index_to_workdir(None, Some(&mut opts))
                 .wrap_err("failed to get diff")?;
@@ -645,23 +636,13 @@ impl Git {
                 String::from_utf8_lossy(&diff_bytes).to_string()
             }
         } else {
-            if *env::HK_STASH_UNTRACKED && !status.untracked_files.is_empty() {
-                let args = vec!["add", "--intent-to-add", "--"]
-                    .into_iter()
-                    .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
-                    .collect::<Vec<_>>();
-                git_run(&args)?;
-            }
-            let output =
+            // Shell git path: build a patch without untracked contents
+            let out =
                 xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
-            if *env::HK_STASH_UNTRACKED && !status.untracked_files.is_empty() {
-                let args = vec!["reset", "--"]
-                    .into_iter()
-                    .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
-                    .collect::<Vec<_>>();
-                git_run(&args)?;
+            if out.trim().is_empty() {
+                return Ok(None);
             }
-            output
+            out
         };
         let patch_file = self.patch_file();
         if let Err(err) = xx::file::write(patch_file, &patch) {
@@ -793,6 +774,15 @@ impl Git {
                             display_path(&f)
                         );
                     }
+                    // After resolving, re-stage only files that were previously staged to clear unmerged state
+                    if previously_staged.contains(&f) {
+                        if let Err(err) = git_cmd(["add", "--"]).arg(&f).run() {
+                            warn!(
+                                "failed to stage {} after resolving conflicts: {err:?}",
+                                display_path(&f)
+                            );
+                        }
+                    }
                 }
                 if let Err(err) = xx::file::remove_file(patch_file) {
                     debug!("failed to remove patch file: {err:?}");
@@ -818,9 +808,7 @@ impl Git {
                 job = ProgressJobBuilder::new()
                     .prop("message", "stash – Applying git stash")
                     .start();
-                // Apply the stash first, detect conflicts, and in case of conflict
-                // prefer the stash (the original unstaged changes), discarding fixer edits.
-                // Stream stderr lines to avoid interleaving with CLX redraws while still surfacing messages
+                // Apply the stash first; if there are conflicts, prefer the stash (unstaged) side.
                 let apply_res = git_cmd(["stash", "apply"]).run();
                 if let Err(err) = &apply_res {
                     warn!("git stash apply failed: {err:?}");
@@ -842,7 +830,6 @@ impl Git {
                 };
                 let conflicted = conflicted_files_from_porcelain(&status);
                 if !conflicted.is_empty() {
-                    // For each conflicted file, prefer the stash side only for conflicting hunks
                     for f in conflicted.iter() {
                         if let Err(err) = resolve_conflict_markers_preferring_theirs(f) {
                             warn!(
@@ -850,10 +837,6 @@ impl Git {
                                 display_path(f)
                             );
                         }
-                        // Only re-stage files that the user (or previous steps) already had staged
-                        // prior to applying the stash. This avoids staging unrelated files
-                        // like manifests that happened to be part of the stash but not intended
-                        // for the current hook run.
                         if previously_staged.contains(f) {
                             if let Err(err) = git_cmd(["add", "--"]).arg(f).run() {
                                 warn!(
@@ -863,12 +846,10 @@ impl Git {
                             }
                         }
                     }
-                    // Drop the stash entry now that we've applied it
                     if let Err(err) = git_cmd(["stash", "drop"]).run() {
                         warn!("failed to drop stash after apply: {err:?}");
                     }
                 } else if apply_res.is_err() {
-                    // Last resort: try pop
                     if let Err(err) = git_cmd(["stash", "pop"]).run() {
                         warn!("git stash pop also failed after apply error: {err:?}");
                     }
