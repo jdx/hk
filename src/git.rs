@@ -564,7 +564,7 @@ impl Git {
                 ),
             );
             job.update();
-            self.build_diff(status)?
+            self.build_diff()?
         } else {
             job.prop("message", "Running git stash");
             job.update();
@@ -608,7 +608,7 @@ impl Git {
         Ok(())
     }
 
-    fn build_diff(&self, _status: &GitStatus) -> Result<Option<StashType>> {
+    fn build_diff(&self) -> Result<Option<StashType>> {
         debug!("building diff for stash");
         let patch = if let Some(repo) = &self.repo {
             // essentially: git diff-index --ignore-submodules --binary --exit-code --no-color --no-ext-diff (git write-tree)
