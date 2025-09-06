@@ -25,6 +25,17 @@ hooks {
       }
     }
   }
+  ["fix"] {
+    fix = true
+    stash = "$method"
+    steps = new Mapping<String, Step> {
+      ["overwrite"] {
+        glob = "conflict.txt"
+        stage = "conflict.txt"
+        fix = "printf 'fixed\\n' > conflict.txt"
+      }
+    }
+  }
 }
 PKL
     git add hk.pkl
@@ -34,9 +45,16 @@ PKL
 
 prepare_repo_with_conflicting_changes_and_untracked() {
     mkdir -p untracked_dir
+    # Commit base
     printf 'base\n' > conflict.txt
     git add conflict.txt
+    git commit -m "base"
+    # Stage a change to same line
+    printf 'staged\n' > conflict.txt
+    git add conflict.txt
+    # Make an unstaged change to same line
     printf 'unstaged\n' > conflict.txt
+    # Add unrelated untracked
     printf 'u\n' > untracked_dir/file.txt
 }
 
@@ -52,30 +70,37 @@ assert_head_not_contains() {
     assert_failure
 }
 
-@test "stash=git: current behavior commits unstaged changes in pre-commit" {
-    skip "documents previous behavior; kept for reference"
+@test "stash=git: worktree keeps unstaged; no conflicts" {
     create_config_with_stash_method git
     prepare_repo_with_conflicting_changes_and_untracked
-    run git commit -m 'Add conflict.txt'
+    run hk fix -v
     assert_success
-    # Current behavior: unstaged content ends up in the commit (buggy)
-    assert_head_contains 'unstaged'
-    assert_head_not_contains 'fixed'
-    # And the working tree should not show conflict.txt as modified
-    run bash -c "git status --porcelain | grep '^ M .*conflict.txt'"
+    # Worktree should preserve unstaged changes without conflicts; fixer output not in worktree
+    run grep -q 'unstaged' conflict.txt
+    assert_success
+    run grep -q 'fixed' conflict.txt
+    assert_failure
+    run grep -q '<<<<<<<' conflict.txt
+    assert_failure
+    run grep -q '>>>>>>>' conflict.txt
     assert_failure
 }
 
-@test "stash=patch-file: current behavior commits unstaged changes and removes untracked" {
-    skip "documents previous behavior; kept for reference"
+@test "stash=patch-file: worktree keeps unstaged; untracked preserved; no conflicts" {
     create_config_with_stash_method patch-file
     prepare_repo_with_conflicting_changes_and_untracked
-    run git commit -m 'Add conflict.txt'
+    run hk fix -v
     assert_success
-    # Current behavior: unstaged content ends up in the commit (buggy)
-    assert_head_contains 'unstaged'
-    assert_head_not_contains 'fixed'
-    # Untracked files are removed under patch-file strategy currently
-    run test -e untracked_dir/file.txt
+    # Worktree should preserve unstaged changes without conflicts; fixer output not in worktree
+    run grep -q 'unstaged' conflict.txt
+    assert_success
+    run grep -q 'fixed' conflict.txt
     assert_failure
+    run grep -q '<<<<<<<' conflict.txt
+    assert_failure
+    run grep -q '>>>>>>>' conflict.txt
+    assert_failure
+    # Untracked files should remain
+    run test -e untracked_dir/file.txt
+    assert_success
 }

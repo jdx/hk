@@ -594,15 +594,12 @@ impl Git {
                 checkout_opts.update_index(true);
                 repo.checkout_index(None, Some(&mut checkout_opts))
                     .wrap_err("failed to reset worktree for modified files")?;
-            } else {
-                if !status.modified_files.is_empty() {
-                    let args = vec!["restore", "--worktree", "--"]
-                        .into_iter()
-                        .chain(status.modified_files.iter().map(|p| p.to_str().unwrap()))
-                        .collect::<Vec<_>>();
-                    git_run(&args)?;
-                }
-                // Intentionally leave untracked files alone in patch-file mode
+            } else if !status.modified_files.is_empty() {
+                let args = vec!["restore", "--worktree", "--"]
+                    .into_iter()
+                    .chain(status.modified_files.iter().map(|p| p.to_str().unwrap()))
+                    .collect::<Vec<_>>();
+                git_run(&args)?;
             }
         } else {
             job.prop("message", "Stashed unstaged changes with git stash");
@@ -611,16 +608,13 @@ impl Git {
         Ok(())
     }
 
-    fn build_diff(&self, status: &GitStatus) -> Result<Option<StashType>> {
+    fn build_diff(&self, _status: &GitStatus) -> Result<Option<StashType>> {
         debug!("building diff for stash");
         let patch = if let Some(repo) = &self.repo {
             // essentially: git diff-index --ignore-submodules --binary --exit-code --no-color --no-ext-diff (git write-tree)
             let mut opts = git2::DiffOptions::new();
-            if *env::HK_STASH_UNTRACKED {
-                opts.include_untracked(true);
-            }
+            // Do not include untracked in patch-file mode; we leave untracked files alone
             opts.show_binary(true);
-            opts.show_untracked_content(true);
             let diff = repo
                 .diff_index_to_workdir(None, Some(&mut opts))
                 .wrap_err("failed to get diff")?;
@@ -642,23 +636,8 @@ impl Git {
                 String::from_utf8_lossy(&diff_bytes).to_string()
             }
         } else {
-            if *env::HK_STASH_UNTRACKED && !status.untracked_files.is_empty() {
-                let args = vec!["add", "--intent-to-add", "--"]
-                    .into_iter()
-                    .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
-                    .collect::<Vec<_>>();
-                git_run(&args)?;
-            }
-            let output =
-                xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
-            if *env::HK_STASH_UNTRACKED && !status.untracked_files.is_empty() {
-                let args = vec!["reset", "--"]
-                    .into_iter()
-                    .chain(status.unstaged_files.iter().map(|p| p.to_str().unwrap()))
-                    .collect::<Vec<_>>();
-                git_run(&args)?;
-            }
-            output
+            // Shell git path: build a patch without untracked contents
+            xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?
         };
         let patch_file = self.patch_file();
         if let Err(err) = xx::file::write(patch_file, &patch) {
@@ -789,6 +768,15 @@ impl Git {
                             "failed to resolve conflict markers in {}: {err:?}",
                             display_path(&f)
                         );
+                    }
+                    // After resolving, re-stage only files that were previously staged to clear unmerged state
+                    if previously_staged.contains(&f) {
+                        if let Err(err) = git_cmd(["add", "--"]).arg(&f).run() {
+                            warn!(
+                                "failed to stage {} after resolving conflicts: {err:?}",
+                                display_path(&f)
+                            );
+                        }
                     }
                 }
                 if let Err(err) = xx::file::remove_file(patch_file) {
