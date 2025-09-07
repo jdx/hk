@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.11.1](https://github.com/jdx/hk/compare/v1.11.0..v1.11.1) - 2025-09-07
+
+### 🐛 Bug Fixes
+
+- release with gh by [@jdx](https://github.com/jdx) in [7d10b8d](https://github.com/jdx/hk/commit/7d10b8d8c356b5207bbadd57ebeccdfaeca55d71)
+
 ## [1.11.0](https://github.com/jdx/hk/compare/v1.10.7..v1.11.0) - 2025-09-06
 
 ### 🚀 Features
@@ -11,6 +17,7 @@
 
 - remove period from missin-profile message by [@jdx](https://github.com/jdx) in [5f525a4](https://github.com/jdx/hk/commit/5f525a46e0815c0179f0a49d5bd25656a1e7f0f3)
 - add pre-commit task to mise.toml generation by [@jdx](https://github.com/jdx) in [#217](https://github.com/jdx/hk/pull/217)
+- prefer unstaged over fixer changes; keep untracked in patch-file by [@jdx](https://github.com/jdx) in [#219](https://github.com/jdx/hk/pull/219)
 
 ### 📚 Documentation
 
