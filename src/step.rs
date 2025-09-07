@@ -702,7 +702,7 @@ impl Step {
                     }
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
-                    self.collect_fix_suggestion(ctx, &job, Some(&e.3));
+                    self.collect_fix_suggestion(ctx, job, Some(&e.3));
                 }
                 if job.check_first && matches!(job.run_type, RunType::Check(_)) {
                     ctx.progress.set_status(ProgressStatus::Warn);
@@ -728,8 +728,8 @@ impl Step {
             .collect();
         let files: IndexSet<PathBuf> = original_files
             .iter()
-            .cloned()
             .filter(|f| listed.contains(&try_canonicalize(f)))
+            .cloned()
             .collect();
         let canonicalized_files: IndexSet<PathBuf> = files.iter().map(try_canonicalize).collect();
         let extras: Vec<PathBuf> = listed
