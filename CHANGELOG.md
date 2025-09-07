@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.11.2](https://github.com/jdx/hk/compare/v1.11.1..v1.11.2) - 2025-09-07
+
+### 🔍 Other Changes
+
+- remove gh release create from release-plz by [@jdx](https://github.com/jdx) in [ae69d4a](https://github.com/jdx/hk/commit/ae69d4acc39f95752a32907c53e89476da5366bc)
+
 ## [1.11.1](https://github.com/jdx/hk/compare/v1.11.0..v1.11.1) - 2025-09-07
 
 ### 🐛 Bug Fixes
