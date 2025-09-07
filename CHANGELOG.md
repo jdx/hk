@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.0](https://github.com/jdx/hk/compare/v1.11.2..v1.12.0) - 2025-09-07
+
+### 🚀 Features
+
+- display fix instructions when running under check by [@jdx](https://github.com/jdx) in [#223](https://github.com/jdx/hk/pull/223)
+
 ## [1.11.2](https://github.com/jdx/hk/compare/v1.11.1..v1.11.2) - 2025-09-07
 
 ### 🔍 Other Changes
