@@ -16,11 +16,9 @@ if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
     git submodule update --init --recursive
     git submodule foreach --recursive 'git fetch --tags --all || true'
 
-    # Publish only the main crate from this repo
-    changelog="$(git cliff --tag "v$cur_version" --strip all --unreleased)"
+    # Only create and push the tag - let the release workflow handle creating the release
     git tag "v$cur_version"
     git push --tags
-    gh release create "v$cur_version" --title "v$cur_version" --notes "$changelog"
   fi
   exit 0
 fi
