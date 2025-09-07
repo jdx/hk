@@ -420,16 +420,14 @@ impl Step {
                                 e.downcast_ref::<Error>()
                             {
                                 debug!("{step}: failed check step first: {source}");
-                                let filtered_files: HashSet<PathBuf> =
-                                    stdout.lines().map(|p| try_canonicalize(&PathBuf::from(p))).collect();
-                                let files: IndexSet<PathBuf> = job.files.into_iter().filter(|f| {
-                                    filtered_files.contains(&try_canonicalize(f))
-                                }).collect();
-                                let canonicalized_files: IndexSet<PathBuf> = files.iter().map(try_canonicalize).collect();
-                                for f in filtered_files.into_iter().filter(|f| !canonicalized_files.contains(f)) {
-                                    warn!("{step}: file in check_list_files not found in original files: {}", f.display());
+                                let (files, extras) = step.filter_files_from_check_list(&job.files, stdout);
+                                for f in extras {
+                                    warn!(
+                                        "{step}: file in check_list_files not found in original files: {}",
+                                        f.display()
+                                    );
                                 }
-                                job.files = files.into_iter().collect();
+                                job.files = files;
                             }
                             debug!("{step}: failed check step first: {e}");
                         }
@@ -702,6 +700,9 @@ impl Step {
                         ),
                         OutputSummary::Hide => {}
                     }
+
+                    // If we're in check mode and a fix command exists, collect a helpful suggestion
+                    self.collect_fix_suggestion(ctx, job, Some(&e.3));
                 }
                 if job.check_first && matches!(job.run_type, RunType::Check(_)) {
                     ctx.progress.set_status(ProgressStatus::Warn);
@@ -714,6 +715,73 @@ impl Step {
         ctx.decrement_job_count();
         job.status_finished()?;
         Ok(())
+    }
+
+    fn filter_files_from_check_list(
+        &self,
+        original_files: &[PathBuf],
+        stdout: &str,
+    ) -> (Vec<PathBuf>, Vec<PathBuf>) {
+        let listed: HashSet<PathBuf> = stdout
+            .lines()
+            .map(|p| try_canonicalize(&PathBuf::from(p)))
+            .collect();
+        let files: IndexSet<PathBuf> = original_files
+            .iter()
+            .filter(|f| listed.contains(&try_canonicalize(f)))
+            .cloned()
+            .collect();
+        let canonicalized_files: IndexSet<PathBuf> = files.iter().map(try_canonicalize).collect();
+        let extras: Vec<PathBuf> = listed
+            .into_iter()
+            .filter(|f| !canonicalized_files.contains(f))
+            .collect();
+        (files.into_iter().collect(), extras)
+    }
+
+    fn collect_fix_suggestion(
+        &self,
+        ctx: &StepContext,
+        job: &StepJob,
+        cmd_result: Option<&ensembler::CmdResult>,
+    ) {
+        if !matches!(job.run_type, RunType::Check(_)) || self.fix.is_none() {
+            return;
+        }
+        // Prefer filtering files if check_list_files output is available
+        let mut suggest_files = job.files.clone();
+        if let Some(result) = cmd_result {
+            if self.check_list_files.is_some() {
+                let (files, _extras) =
+                    self.filter_files_from_check_list(&job.files, &result.stdout);
+                if !files.is_empty() {
+                    suggest_files = files;
+                }
+            }
+        }
+        // Build a minimal context based on the suggested files, honoring dir/workspace
+        let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
+        let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
+        if let Some(mut fix_cmd) = self.run_cmd(RunType::Fix).map(|s| s.to_string()) {
+            if let Some(prefix) = &self.prefix {
+                fix_cmd = format!("{prefix} {fix_cmd}");
+            }
+            if let Ok(rendered) = tera::render(&fix_cmd, &suggest_ctx) {
+                let is_multi_line = rendered.contains('\n');
+                if is_multi_line {
+                    // Too long to inline; suggest hk fix with step filter
+                    let step_flag = format!("-S {}", &self.name);
+                    let cmd = format!(
+                        "To fix, run: {}",
+                        style::edim(format!("hk fix {}", step_flag))
+                    );
+                    ctx.hook_ctx.add_fix_suggestion(cmd);
+                } else {
+                    let cmd = format!("To fix, run: {}", style::edim(rendered));
+                    ctx.hook_ctx.add_fix_suggestion(cmd);
+                }
+            }
+        }
     }
 
     pub fn shell_type(&self) -> ShellType {
