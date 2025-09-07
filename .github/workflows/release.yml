@@ -110,10 +110,8 @@ jobs:
           fi
           ls -la release-assets/
       - name: Create release with all assets
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ github.ref_name }}
-          body_path: release-notes.md
-          files: release-assets/*
-          fail_on_unmatched_files: true
-          draft: false # Create as final release, not draft
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "${{ github.ref_name }}" \
+            --notes-file release-notes.md \
+            release-assets/*
