@@ -126,6 +126,8 @@ pub struct HookContext {
     skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
     /// Aggregated output per step name (in insertion order)
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
+    /// Collected fix suggestions to display at end of run
+    pub fix_suggestions: std::sync::Mutex<Vec<String>>,
 }
 
 impl HookContext {
@@ -168,6 +170,7 @@ impl HookContext {
             skip_steps,
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
+            fix_suggestions: StdMutex::new(Vec::new()),
         }
     }
 
@@ -251,6 +254,14 @@ impl HookContext {
         map.entry(step_name.to_string())
             .and_modify(|(_, s)| s.push_str(text))
             .or_insert_with(|| (mode, text.to_string()));
+    }
+
+    pub fn add_fix_suggestion(&self, suggestion: String) {
+        self.fix_suggestions.lock().unwrap().push(suggestion);
+    }
+
+    pub fn take_fix_suggestions(&self) -> Vec<String> {
+        self.fix_suggestions.lock().unwrap().clone()
     }
 }
 
@@ -525,6 +536,13 @@ impl Hook {
                 if let Err(err) = cmd.execute().await {
                     warn!("Report command failed: {err}");
                 }
+            }
+        }
+        // Emit collected fix suggestions at the end (after progress bars and summaries)
+        let suggestions = hook_ctx.take_fix_suggestions();
+        if !suggestions.is_empty() {
+            for s in suggestions {
+                error!("{}", s);
             }
         }
         result

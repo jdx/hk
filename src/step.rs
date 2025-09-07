@@ -702,6 +702,55 @@ impl Step {
                         ),
                         OutputSummary::Hide => {}
                     }
+
+                    // If we're in check mode and a fix command exists, collect a helpful suggestion
+                    if matches!(job.run_type, RunType::Check(_)) && self.fix.is_some() {
+                        // Prefer filtering files if check_list_files output is available
+                        let mut suggest_files = job.files.clone();
+                        if self.check_list_files.is_some() {
+                            let listed: std::collections::HashSet<PathBuf> =
+                                e.3.stdout
+                                    .lines()
+                                    .map(|p| try_canonicalize(&PathBuf::from(p)))
+                                    .collect();
+                            if !listed.is_empty() {
+                                let filtered = job
+                                    .files
+                                    .iter()
+                                    .filter(|f| listed.contains(&try_canonicalize(f)))
+                                    .cloned()
+                                    .collect::<Vec<_>>();
+                                if !filtered.is_empty() {
+                                    suggest_files = filtered;
+                                }
+                            }
+                        }
+                        // Build a minimal context based on the suggested files, honoring dir/workspace
+                        let temp_job =
+                            StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
+                        let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
+                        if let Some(mut fix_cmd) = self.run_cmd(RunType::Fix).map(|s| s.to_string())
+                        {
+                            if let Some(prefix) = &self.prefix {
+                                fix_cmd = format!("{prefix} {fix_cmd}");
+                            }
+                            if let Ok(rendered) = tera::render(&fix_cmd, &suggest_ctx) {
+                                let is_multi_line = rendered.contains('\n');
+                                if is_multi_line {
+                                    // Too long to inline; suggest hk fix with step filter
+                                    let step_flag = format!("-S {}", &self.name);
+                                    let cmd = format!(
+                                        "To fix, run: {}",
+                                        style::edim(format!("hk fix {}", step_flag))
+                                    );
+                                    ctx.hook_ctx.add_fix_suggestion(cmd);
+                                } else {
+                                    let cmd = format!("To fix, run: {}", style::edim(rendered));
+                                    ctx.hook_ctx.add_fix_suggestion(cmd);
+                                }
+                            }
+                        }
+                    }
                 }
                 if job.check_first && matches!(job.run_type, RunType::Check(_)) {
                     ctx.progress.set_status(ProgressStatus::Warn);
