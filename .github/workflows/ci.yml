@@ -31,17 +31,12 @@ jobs:
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
-      - name: Install Windows dependencies
+      - name: Set Windows environment
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
-          # Install pkl for Windows
-          $pklVersion = "0.27.1"
-          $url = "https://github.com/apple/pkl/releases/download/$pklVersion/pkl-windows-amd64.zip"
-          Invoke-WebRequest -Uri $url -OutFile pkl.zip
-          Expand-Archive -Path pkl.zip -DestinationPath .
-          Move-Item -Path "pkl-windows-amd64\pkl.exe" -Destination "$env:GITHUB_WORKSPACE"
-          echo "$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Set MISE_DISABLE_TOOLS for Windows
+          echo "MISE_DISABLE_TOOLS=hadolint,swiftlint,bun" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -60,9 +55,8 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
-          $env:MISE_DISABLE_TOOLS="hadolint,swiftlint,bun"
-          cargo build --release
-          cargo test --lib --bins
+          mise run build
+          mise run test:cargo
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
           Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed

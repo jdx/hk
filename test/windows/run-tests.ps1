@@ -33,7 +33,11 @@ Write-Host "Starting hk Windows integration tests..." -ForegroundColor Green
 # Build the project if requested
 if ($BuildFirst) {
     Write-Host "Building hk in release mode..." -ForegroundColor Yellow
-    cargo build --release
+    if (Get-Command mise -ErrorAction SilentlyContinue) {
+        mise run build
+    } else {
+        cargo build --release
+    }
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to build hk"
         exit 1

@@ -1,11 +1,5 @@
 Describe "hk Windows Integration Tests" {
     BeforeAll {
-        # Setup environment for mise and pkl
-        $env:MISE_DISABLE_TOOLS="hadolint,swiftlint,bun"
-        if (-not ($env:PATH -like "*pkl*")) {
-            $env:PATH += ";D:\.mise\installs\pkl\0.29.0"
-        }
-        
         # Setup test environment
         $script:TestRoot = Join-Path $env:TEMP ("hk-test-" + [System.Guid]::NewGuid().ToString())
         New-Item -Path $script:TestRoot -ItemType Directory -Force | Out-Null

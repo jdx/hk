@@ -14,6 +14,8 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_EXPERIMENTAL: true
+  MISE_DISABLE_TOOLS: hadolint,swiftlint,bun
 
 jobs:
   windows-test:
@@ -24,32 +26,29 @@ jobs:
         with:
           submodules: recursive
       
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
       - uses: Swatinem/rust-cache@v2
       
-      - name: Install pkl
+      - name: Install mise
+        uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      
+      - name: Install tools with mise
         shell: pwsh
         run: |
-          # Download and install pkl for Windows
-          $pklVersion = "0.27.1"
-          $url = "https://github.com/apple/pkl/releases/download/$pklVersion/pkl-windows-amd64.zip"
-          Invoke-WebRequest -Uri $url -OutFile pkl.zip
-          Expand-Archive -Path pkl.zip -DestinationPath .
-          Move-Item -Path "pkl-windows-amd64\pkl.exe" -Destination "$env:GITHUB_WORKSPACE"
-          echo "$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Install required tools via mise
+          mise install
+          mise list
       
       - name: Build
-        run: cargo build --release
+        run: mise run build
       
       - name: Run Rust unit tests
-        run: cargo test --lib --bins
+        run: mise run test:cargo
       
       - name: Run Windows Pester tests
         shell: pwsh
         run: |
-          $env:MISE_DISABLE_TOOLS="hadolint,swiftlint,bun"
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
           Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed
@@ -62,7 +61,7 @@ jobs:
           git init
           git config user.email "test@example.com"
           git config user.name "Test User"
-          ..\target\release\hk.exe init
+          mise x -- hk init
           if (!(Test-Path "hk.pkl")) {
             Write-Error "hk.pkl was not created"
             exit 1
@@ -72,12 +71,12 @@ jobs:
         shell: pwsh
         run: |
           cd test-repo
-          ..\target\release\hk.exe install
+          mise x -- hk install
           if (!(Test-Path ".git\hooks\pre-commit")) {
             Write-Error "pre-commit hook was not created"
             exit 1
           }
-          ..\target\release\hk.exe uninstall
+          mise x -- hk uninstall
           if (Test-Path ".git\hooks\pre-commit") {
             Write-Error "pre-commit hook was not removed"
             exit 1
@@ -93,7 +92,7 @@ jobs:
           git config user.name "Test User"
           
           @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -106,7 +105,7 @@ hooks {
 }
 '@ | Out-File -FilePath hk.pkl -Encoding UTF8
           
-          $output = ..\target\release\hk.exe check 2>&1
+          $output = mise x -- hk check 2>&1
           if ($LASTEXITCODE -ne 0) {
             Write-Error "hk check failed"
             Write-Host $output
@@ -122,19 +121,21 @@ hooks {
           git config user.email "test@example.com"
           git config user.name "Test User"
           
-          echo amends "pkl:hk/Config" > hk.pkl
-          echo hooks { >> hk.pkl
-          echo     ["check"] { >> hk.pkl
-          echo         steps { >> hk.pkl
-          echo             ["test-cmd"] { >> hk.pkl
-          echo                 check = "echo CMD test passed" >> hk.pkl
-          echo                 shell = "cmd.exe /C" >> hk.pkl
-          echo             } >> hk.pkl
-          echo         } >> hk.pkl
-          echo     } >> hk.pkl
-          echo } >> hk.pkl
+          (
+          echo amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+          echo hooks {
+          echo     ["check"] {
+          echo         steps {
+          echo             ["test-cmd"] {
+          echo                 check = "echo CMD test passed"
+          echo                 shell = "cmd.exe /C"
+          echo             }
+          echo         }
+          echo     }
+          echo }
+          ) > hk.pkl
           
-          ..\target\release\hk.exe check
+          mise x -- hk check
           if %ERRORLEVEL% neq 0 (
             echo hk check failed
             exit /b 1
@@ -144,18 +145,23 @@ hooks {
     runs-on: windows-latest
     timeout-minutes: 30
     if: startsWith(github.ref, 'refs/tags/')
+    env:
+      MISE_EXPERIMENTAL: true
+      MISE_DISABLE_TOOLS: hadolint,swiftlint,bun
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
       - uses: Swatinem/rust-cache@v2
       
+      - name: Install mise
+        uses: jdx/mise-action@v2
+        with:
+          experimental: true
+      
       - name: Build release binary
-        run: cargo build --release
+        run: mise run build
       
       - name: Package Windows binary
         shell: pwsh

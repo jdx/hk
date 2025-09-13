@@ -1,3 +1,4 @@
+use crate::shell::Shell;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
@@ -258,7 +259,6 @@ impl UserConfig {
 }
 
 fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
-    use crate::shell::Shell;
     let json = Shell::detect().execute(&format!("{bin} eval -f json \"{}\"", path.display()))?;
     serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
 }

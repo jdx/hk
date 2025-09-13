@@ -6,9 +6,18 @@ backend = "aqua:rhysd/actionlint"
 version = "1.2.20"
 backend = "core:bun"
 
+[tools.bun.platforms.macos-arm64]
+checksum = "blake3:d5f7acc00f0fefc647a50cdfce5a0a20a311ca61f82709d60ae1d627e40b2573"
+size = 21788202
+
 [tools.cargo-binstall]
 version = "1.14.4"
 backend = "aqua:cargo-bins/cargo-binstall"
+
+[tools.cargo-binstall.platforms.macos-arm64]
+checksum = "blake3:86599ab2c99d951d1700a564616926d40efde0014a5306b68df335749135b0e6"
+size = 5938563
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-aarch64-apple-darwin.zip"
 
 [tools."cargo:cargo-edit"]
 version = "0.13.7"
@@ -26,17 +35,35 @@ backend = "cargo:cargo-release"
 version = "2.10.0"
 backend = "aqua:orhun/git-cliff"
 
+[tools.git-cliff.platforms.macos-arm64]
+checksum = "sha512:349a6d47b41cd57462148ce94ff1c1b0b0f8eba3f0abfce4af4e5164f74acda15b63808ddf1dc723cad2cb688ce307a22628e539e2a5a4f3c29c779b935409c8"
+size = 6638495
+url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-apple-darwin.tar.gz"
+
 [tools.hadolint]
 version = "2.12.0"
 backend = "ubi:hadolint/hadolint"
+
+[tools.hadolint.platforms.macos-arm64-hadolint]
+checksum = "blake3:8be7ee4645cf6f43c8046be07b77caef5d7cf2ab9cc50ee4e965be20350f2dad"
 
 [tools.ktlint]
 version = "1.7.1"
 backend = "aqua:pinterest/ktlint"
 
+[tools.ktlint.platforms.macos-arm64]
+checksum = "blake3:bf2916c0929214315774f53f82c6ef40937b36109b69ee55dc3ab8671a190459"
+size = 64558883
+url = "https://github.com/pinterest/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
+
 [tools.node]
 version = "24.6.0"
 backend = "core:node"
+
+[tools.node.platforms.macos-arm64]
+checksum = "sha256:768f14952403e3025fed8e2887500dfa63eeb55628a9b203e4b8ebb0fb09c7eb"
+size = 51024329
+url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-darwin-arm64.tar.gz"
 
 [tools."npm:prettier"]
 version = "3.6.2"
@@ -50,8 +77,10 @@ backend = "npm:stylelint"
 version = "0.29.0"
 backend = "aqua:apple/pkl"
 
-[tools.pkl.checksums]
-"pkl-windows-amd64.exe" = "sha256:0f1db1490444293a050be5ddf612ec2a70d9b30312ddedb3f7c3104fa50c492f"
+[tools.pkl.platforms.macos-arm64]
+checksum = "blake3:b70836a640dc8ff41aa19f3edd7748a6ba7a281fb85335a48e59cd29c796b1ee"
+size = 104891168
+url = "https://github.com/apple/pkl/releases/download/0.29.0/pkl-macos-aarch64"
 
 [tools.ripgrep]
 version = "14.1.1"
@@ -61,18 +90,46 @@ backend = "aqua:BurntSushi/ripgrep"
 version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
 
+[tools.shellcheck.platforms.macos-arm64]
+checksum = "blake3:ad4957ed937da4e876d19e3500fc31d104e43b6e4e11d57a7b7c40140bc870d6"
+size = 7245972
+url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz"
+
+[tools.shellcheck.platforms.macos-arm64-shellcheck]
+checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829f45"
+
 [tools.swiftlint]
 version = "0.59.1"
 backend = "asdf:swiftlint"
+
+[tools.swiftlint.platforms.macos-arm64]
+checksum = "blake3:6164196a72866dbd8b324acd6fc73099e2d128d1a996b6807b8bae28f18176f1"
+size = 11034974
+url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
 [tools.usage]
 version = "2.2.2"
 backend = "aqua:jdx/usage"
 
+[tools.usage.platforms.macos-arm64]
+checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01ac6"
+size = 5008766
+url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-apple-darwin.tar.gz"
+
 [tools.vhs]
 version = "0.10.0"
 backend = "aqua:charmbracelet/vhs"
 
+[tools.vhs.platforms.macos-arm64]
+checksum = "sha256:dc256c403305ac8ba623563d0ef3241a38024f35b27c705f79d523e9da618012"
+size = 9127691
+url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Darwin_arm64.tar.gz"
+
 [tools.yq]
 version = "4.47.1"
 backend = "aqua:mikefarah/yq"
+
+[tools.yq.platforms.macos-arm64]
+checksum = "blake3:576374b350e23e8a83123dbb2008bb9115c27cc6569699bfdd6b034562969f16"
+size = 11079202
+url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_darwin_arm64"

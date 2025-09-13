@@ -11,7 +11,7 @@ Since the main test suite uses bats (Bash Automated Testing System) which is Uni
 - Windows 10 or later
 - PowerShell 5.1 or PowerShell Core 6+
 - Git
-- Rust and Cargo (for building hk)
+- mise (for managing tools and building)
 - Pester module (automatically installed if missing)
 
 ## Running Tests
@@ -19,14 +19,17 @@ Since the main test suite uses bats (Bash Automated Testing System) which is Uni
 ### Quick Start
 
 ```powershell
-# Build and run all tests
+# Build and run all tests (using mise if available)
 .\run-tests.ps1
 ```
 
 ### Manual Execution
 
 ```powershell
-# Build hk first
+# Build hk using mise
+mise run build
+
+# Or build directly with cargo
 cargo build --release
 
 # Install Pester if not already installed
@@ -35,6 +38,15 @@ Install-Module -Name Pester -Force -SkipPublisherCheck
 # Run tests
 Invoke-Pester -Path "hk.Tests.ps1" -Output Detailed
 ```
+
+### Environment Setup
+
+For Windows, it's recommended to set:
+```powershell
+$env:MISE_DISABLE_TOOLS = "hadolint,swiftlint,bun"
+```
+
+This prevents mise from trying to install tools that don't work well on Windows.
 
 ### CI/CD
 
