@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use crate::{
     Result,
+    shell::Shell,
     step::Step,
     step_test::{RunKind, StepTest},
 };
@@ -34,7 +35,7 @@ async fn execute_cmd(
         let bin = parts.next().unwrap_or("sh");
         CmdLineRunner::new(bin).args(parts)
     } else {
-        CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+        Shell::detect().runner()
     };
     runner = runner.arg(cmd_str).current_dir(base_dir);
     for (k, v) in &step.env {

@@ -36,9 +36,12 @@ impl Config {
                     Err(err) => {
                         // if pkl bin is not installed
                         if which::which("pkl").is_err() {
-                            if let Ok(out) = parse_pkl("mise x -- pkl", path) {
-                                return Ok(out);
-                            };
+                            // Don't try to use mise if we're already running under mise (to avoid nested execution)
+                            if std::env::var("MISE_DATA_DIR").is_err() {
+                                if let Ok(out) = parse_pkl("mise x -- pkl", path) {
+                                    return Ok(out);
+                                };
+                            }
                             bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
                         } else {
                             return Err(err).wrap_err("failed to read pkl config file");
@@ -261,7 +264,42 @@ impl UserConfig {
 }
 
 fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
-    let json = xx::process::sh(&format!("{bin} eval -f json {}", path.display()))?;
+    use std::process::Command;
+
+    // Run pkl directly without shell wrapper for cross-platform compatibility
+    let output = if bin.contains("mise x") {
+        // Handle "mise x -- pkl" case - split the command properly
+        Command::new("mise")
+            .arg("x")
+            .arg("--")
+            .arg("pkl")
+            .arg("eval")
+            .arg("-f")
+            .arg("json")
+            .arg(path)
+            .output()
+            .wrap_err_with(|| format!("failed to run pkl via mise: {bin}"))?
+    } else {
+        // Direct pkl execution
+        Command::new(bin)
+            .arg("eval")
+            .arg("-f")
+            .arg("json")
+            .arg(path)
+            .output()
+            .wrap_err_with(|| format!("failed to run pkl: {bin}"))?
+    };
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(eyre::eyre!(
+            "pkl eval failed with exit code {:?}:\n{}",
+            output.status.code(),
+            stderr
+        ));
+    }
+
+    let json = String::from_utf8_lossy(&output.stdout);
     serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
 }
 

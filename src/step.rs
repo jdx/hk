@@ -1,7 +1,7 @@
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
-use crate::{hook::SkipReason, timings::StepTimingGuard};
+use crate::{hook::SkipReason, shell::Shell, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -621,7 +621,7 @@ impl Step {
             }
             cmd
         } else {
-            CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+            Shell::detect().runner()
         };
         cmd = cmd
             .arg(&run)
@@ -851,7 +851,8 @@ pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::new();
 
     env.add_function("exec", |c| {
-        let out = xx::process::sh(c.args[0].as_string().unwrap())
+        let out = Shell::detect()
+            .execute(c.args[0].as_string().unwrap())
             .map_err(|e| expr::Error::ExprError(e.to_string()))?;
         Ok(expr::Value::String(out))
     });

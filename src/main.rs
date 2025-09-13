@@ -18,6 +18,7 @@ mod hook;
 mod hook_options;
 mod logger;
 mod settings;
+mod shell;
 mod step;
 mod step_context;
 mod step_depends;

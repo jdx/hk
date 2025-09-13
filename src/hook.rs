@@ -22,6 +22,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
+    shell::Shell,
     step::{CheckType, EXPR_CTX, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
@@ -523,10 +524,7 @@ impl Hook {
         // Run hook-level report if configured
         if let Some(report) = &self.report {
             if let Ok(json) = hook_ctx.timing.to_json_string() {
-                let mut cmd = ensembler::CmdLineRunner::new("sh")
-                    .arg("-o")
-                    .arg("errexit")
-                    .arg("-c");
+                let mut cmd = Shell::detect().runner();
                 let run = report.to_string();
                 cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
                 let pr = ProgressJobBuilder::new()

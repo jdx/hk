@@ -25,24 +25,55 @@ jobs:
           - macos-latest
           - ubuntu-latest
           #- ubuntu-24.04-arm
-          #- windows-latest
+          - windows-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
+      - name: Set Windows environment
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          # Set MISE_DISABLE_TOOLS for Windows
+          echo "MISE_DISABLE_TOOLS=hadolint,swiftlint,bun" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v2
       - run: mise x -- bun i
+        if: ${{ matrix.os != 'windows-latest' }}
       - name: mise run ci
+        if: ${{ matrix.os != 'windows-latest' }}
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
           max_attempts: 3
           command: mise run ci
+      - name: Windows tests
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          # Install required tools via mise
+          mise install
+          mise list
+
+          # Verify pkl is available via mise
+          mise x -- pkl --version
+
+          cargo build
+          cargo test --all --all-features -- --skip test_read_file_not_found
+
+          # Use mise to provide pkl for hk in tests
+          $env:USE_MISE = "true"
+
+          # Run the new modular test suite and ensure exit code is propagated
+          & test\windows\RunAllTests.ps1 -Output Detailed
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Tests failed with exit code: $LASTEXITCODE"
+              exit $LASTEXITCODE
+          }
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10
