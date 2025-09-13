@@ -85,6 +85,26 @@ impl Shell {
             }
         }
     }
+    
+    /// Create a CmdLineRunner configured for this shell type
+    pub fn runner(&self) -> ensembler::CmdLineRunner {
+        use ensembler::CmdLineRunner;
+        
+        match self {
+            Shell::PowerShell => {
+                if which::which("pwsh.exe").is_ok() {
+                    CmdLineRunner::new("pwsh.exe")
+                } else {
+                    CmdLineRunner::new("powershell.exe")
+                }
+                .arg("-NoProfile")
+                .arg("-NonInteractive")
+                .arg("-Command")
+            }
+            Shell::Cmd => CmdLineRunner::new("cmd.exe").arg("/C"),
+            _ => CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c"),
+        }
+    }
 
     pub fn execute(&self, script: &str) -> Result<String> {
         let mut cmd = self.command();
@@ -155,11 +175,3 @@ impl Shell {
     }
 }
 
-pub fn execute_command(script: &str) -> Result<String> {
-    let shell = Shell::detect();
-    shell.execute(script)
-}
-
-pub fn execute_command_with_shell(script: &str, shell: &Shell) -> Result<String> {
-    shell.execute(script)
-}

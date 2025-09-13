@@ -621,21 +621,7 @@ impl Step {
             }
             cmd
         } else {
-            let detected_shell = Shell::detect();
-            match &detected_shell {
-                Shell::PowerShell => {
-                    if which::which("pwsh.exe").is_ok() {
-                        CmdLineRunner::new("pwsh.exe")
-                    } else {
-                        CmdLineRunner::new("powershell.exe")
-                    }
-                    .arg("-NoProfile")
-                    .arg("-NonInteractive")
-                    .arg("-Command")
-                }
-                Shell::Cmd => CmdLineRunner::new("cmd.exe").arg("/C"),
-                _ => CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c"),
-            }
+            Shell::detect().runner()
         };
         cmd = cmd
             .arg(&run)
@@ -865,14 +851,9 @@ pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::new();
 
     env.add_function("exec", |c| {
-        let out = if cfg!(windows) {
-            let shell = Shell::detect();
-            shell.execute(c.args[0].as_string().unwrap())
-                .map_err(|e| expr::Error::ExprError(e.to_string()))?
-        } else {
-            xx::process::sh(c.args[0].as_string().unwrap())
-                .map_err(|e| expr::Error::ExprError(e.to_string()))?
-        };
+        let out = Shell::detect()
+            .execute(c.args[0].as_string().unwrap())
+            .map_err(|e| expr::Error::ExprError(e.to_string()))?;
         Ok(expr::Value::String(out))
     });
 

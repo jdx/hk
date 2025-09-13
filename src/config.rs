@@ -258,45 +258,8 @@ impl UserConfig {
 }
 
 fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
-    let json = if cfg!(windows) {
-        // Use proper command execution on Windows
-        let path_str = path.display().to_string();
-        let cmd = format!("{bin} eval -f json \"{}\"", path_str);
-        
-        // Try PowerShell first, then cmd
-        if which::which("pwsh.exe").is_ok() || which::which("powershell.exe").is_ok() {
-            let ps_cmd = if which::which("pwsh.exe").is_ok() {
-                std::process::Command::new("pwsh.exe")
-            } else {
-                std::process::Command::new("powershell.exe")
-            }
-            .arg("-NoProfile")
-            .arg("-NonInteractive")
-            .arg("-Command")
-            .arg(&cmd)
-            .output()?;
-            
-            if ps_cmd.status.success() {
-                String::from_utf8_lossy(&ps_cmd.stdout).to_string()
-            } else {
-                // Fallback to cmd
-                let cmd_output = std::process::Command::new("cmd.exe")
-                    .arg("/C")
-                    .arg(&cmd)
-                    .output()?;
-                String::from_utf8_lossy(&cmd_output.stdout).to_string()
-            }
-        } else {
-            // Only cmd available
-            let cmd_output = std::process::Command::new("cmd.exe")
-                .arg("/C")
-                .arg(&cmd)
-                .output()?;
-            String::from_utf8_lossy(&cmd_output.stdout).to_string()
-        }
-    } else {
-        xx::process::sh(&format!("{bin} eval -f json {}", path.display()))?
-    };
+    use crate::shell::Shell;
+    let json = Shell::detect().execute(&format!("{bin} eval -f json \"{}\"", path.display()))?;
     serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
 }
 

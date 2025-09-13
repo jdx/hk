@@ -522,24 +522,7 @@ impl Hook {
         // Run hook-level report if configured
         if let Some(report) = &self.report {
             if let Ok(json) = hook_ctx.timing.to_json_string() {
-                let detected_shell = Shell::detect();
-                let mut cmd = match &detected_shell {
-                    Shell::PowerShell => {
-                        if which::which("pwsh.exe").is_ok() {
-                            ensembler::CmdLineRunner::new("pwsh.exe")
-                        } else {
-                            ensembler::CmdLineRunner::new("powershell.exe")
-                        }
-                        .arg("-NoProfile")
-                        .arg("-NonInteractive")
-                        .arg("-Command")
-                    }
-                    Shell::Cmd => ensembler::CmdLineRunner::new("cmd.exe").arg("/C"),
-                    _ => ensembler::CmdLineRunner::new("sh")
-                        .arg("-o")
-                        .arg("errexit")
-                        .arg("-c"),
-                };
+                let mut cmd = Shell::detect().runner();
                 let run = report.to_string();
                 cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
                 let pr = ProgressJobBuilder::new()
