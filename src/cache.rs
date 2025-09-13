@@ -121,9 +121,7 @@ where
             }
             tracing::event!(tracing::Level::INFO, "cache.miss");
             let val = (fetch)()?;
-            if crate::trace::hk_trace_enabled() {
-                tracing::info!(path = %path.display(), "cache.write");
-            }
+            tracing::info!(path = %path.display(), "cache.write");
             if let Err(err) = self.write(&val) {
                 warn!("failed to write cache file: {} {:#}", path.display(), err);
             }

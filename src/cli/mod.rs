@@ -2,7 +2,7 @@ use crate::version as version_lib;
 use std::num::NonZero;
 use std::path::PathBuf;
 
-use crate::{Result, logger, settings::Settings};
+use crate::{Result, env, logger, settings::Settings};
 use clap::Parser;
 use clx::progress::ProgressOutput;
 
@@ -83,9 +83,9 @@ pub async fn run() -> Result<()> {
 
     // Initialize tracing IMMEDIATELY if requested, before ANY other initialization
     // We need to do this before clx functions are called which might initialize tracing
-    let trace_enabled = args.trace || std::env::var("HK_TRACE").is_ok();
+    let trace_enabled = args.trace || *env::HK_TRACE;
     if trace_enabled {
-        let json_output = args.json || std::env::var("HK_JSON").is_ok();
+        let json_output = args.json || *env::HK_JSON;
         crate::trace::init_tracing(json_output)?;
     }
 
