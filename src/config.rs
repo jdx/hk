@@ -36,9 +36,12 @@ impl Config {
                     Err(err) => {
                         // if pkl bin is not installed
                         if which::which("pkl").is_err() {
-                            if let Ok(out) = parse_pkl("mise x -- pkl", path) {
-                                return Ok(out);
-                            };
+                            // Don't try to use mise if we're already running under mise (to avoid nested execution)
+                            if std::env::var("MISE_DATA_DIR").is_err() {
+                                if let Ok(out) = parse_pkl("mise x -- pkl", path) {
+                                    return Ok(out);
+                                };
+                            }
                             bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
                         } else {
                             return Err(err).wrap_err("failed to read pkl config file");
