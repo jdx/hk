@@ -37,9 +37,12 @@ impl Config {
                         // if pkl bin is not installed
                         if which::which("pkl").is_err() {
                             if let Ok(out) = parse_pkl("mise x -- pkl", path) {
-                                return Ok(out);
-                            };
-                            bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
+                                out
+                            } else {
+                                bail!(
+                                    "install pkl cli to use pkl config files https://pkl-lang.org/"
+                                );
+                            }
                         } else {
                             return Err(err).wrap_err("failed to read pkl config file");
                         }
@@ -261,7 +264,8 @@ impl UserConfig {
 }
 
 fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
-    let json = xx::process::sh(&format!("{bin} eval -f json {}", path.display()))?;
+    let json = crate::shell::Shell::detect()
+        .execute(&format!("{bin} eval -f json \"{}\"", path.display()))?;
     serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
 }
 
