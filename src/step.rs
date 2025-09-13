@@ -745,7 +745,9 @@ impl Step {
         job: &StepJob,
         cmd_result: Option<&ensembler::CmdResult>,
     ) {
-        if !matches!(job.run_type, RunType::Check(_)) || self.fix.is_none() {
+        // Only suggest fixes when the entire hook run is in check mode,
+        // not when an individual job temporarily runs a check (e.g., check_first during a fix run)
+        if !matches!(ctx.hook_ctx.run_type, RunType::Check(_)) || self.fix.is_none() {
             return;
         }
         // Prefer filtering files if check_list_files output is available
