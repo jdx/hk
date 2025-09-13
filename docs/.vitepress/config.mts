@@ -40,6 +40,14 @@ export default defineConfig({
       { text: 'About', link: '/about' },
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },
+      { 
+        text: 'Reference', 
+        items: [
+          { text: 'Schema Reference', link: '/reference/schema' },
+          { text: 'Built-in Linters', link: '/builtins' },
+          { text: 'Configuration Examples', link: '/reference/examples/' },
+        ]
+      },
       { text: 'Environment Variables', link: '/environment_variables' },
       { text: 'Hooks', link: '/hooks' },
       { text: 'Introduction to pkl', link: '/pkl_introduction' },
