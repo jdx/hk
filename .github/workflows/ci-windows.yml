@@ -25,34 +25,34 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      
+
       - uses: Swatinem/rust-cache@v2
-      
+
       - name: Install mise
         uses: jdx/mise-action@v2
         with:
           experimental: true
-      
+
       - name: Install tools with mise
         shell: pwsh
         run: |
           # Install required tools via mise
           mise install
           mise list
-      
+
       - name: Build
         run: mise run build
-      
+
       - name: Run Rust unit tests
         run: mise run test:cargo
-      
+
       - name: Run Windows Pester tests
         shell: pwsh
         run: |
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
           Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed
-      
+
       - name: Test hk init
         shell: pwsh
         run: |
@@ -66,7 +66,7 @@ jobs:
             Write-Error "hk.pkl was not created"
             exit 1
           }
-      
+
       - name: Test hk install/uninstall
         shell: pwsh
         run: |
@@ -81,7 +81,7 @@ jobs:
             Write-Error "pre-commit hook was not removed"
             exit 1
           }
-      
+
       - name: Test hk check with PowerShell
         shell: pwsh
         run: |
@@ -90,7 +90,7 @@ jobs:
           git init
           git config user.email "test@example.com"
           git config user.name "Test User"
-          
+
           @'
           amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
           hooks {
@@ -104,14 +104,14 @@ jobs:
               }
           }
           '@ | Out-File -FilePath hk.pkl -Encoding UTF8
-          
+
           $output = mise x -- hk check 2>&1
           if ($LASTEXITCODE -ne 0) {
             Write-Error "hk check failed"
             Write-Host $output
             exit 1
           }
-      
+
       - name: Test hk check with cmd
         shell: cmd
         run: |
@@ -120,7 +120,7 @@ jobs:
           git init
           git config user.email "test@example.com"
           git config user.name "Test User"
-          
+
           (
           echo amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
           echo hooks {
@@ -134,7 +134,7 @@ jobs:
           echo     }
           echo }
           ) > hk.pkl
-          
+
           mise x -- hk check
           if %ERRORLEVEL% neq 0 (
             echo hk check failed
@@ -152,17 +152,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-      
+
       - uses: Swatinem/rust-cache@v2
-      
+
       - name: Install mise
         uses: jdx/mise-action@v2
         with:
           experimental: true
-      
+
       - name: Build release binary
         run: mise run build
-      
+
       - name: Package Windows binary
         shell: pwsh
         run: |
@@ -172,7 +172,7 @@ jobs:
           Copy-Item "README.md" "hk-$version-windows-x64\"
           Copy-Item "LICENSE" "hk-$version-windows-x64\"
           Compress-Archive -Path "hk-$version-windows-x64" -DestinationPath "hk-$version-windows-x64.zip"
-      
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:

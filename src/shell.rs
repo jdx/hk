@@ -1,6 +1,5 @@
 use std::process::Command;
 use eyre::Result;
-use shell_quote::QuoteInto;
 
 #[derive(Debug, Clone)]
 pub enum Shell {
@@ -83,44 +82,5 @@ impl Shell {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 
-    pub fn quote(&self, s: &str) -> String {
-        match self {
-            Shell::Sh => {
-                let mut quoted = Vec::new();
-                shell_quote::Sh::quote_into(s, &mut quoted);
-                String::from_utf8(quoted).unwrap_or_default()
-            }
-            Shell::PowerShell => {
-                if s.contains(' ') || s.contains('"') || s.contains('\'') {
-                    format!("'{}'", s.replace('\'', "''"))
-                } else {
-                    s.to_string()
-                }
-            }
-            Shell::Cmd => {
-                if s.contains(' ') || s.contains('"') {
-                    format!("\"{}\"", s.replace('"', "\"\""))
-                } else {
-                    s.to_string()
-                }
-            }
-        }
-    }
-
-    pub fn shebang(&self) -> &str {
-        match self {
-            Shell::Sh => "#!/bin/sh",
-            Shell::PowerShell => "#!powershell",
-            Shell::Cmd => "@echo off",
-        }
-    }
-
-    pub fn file_extension(&self) -> &str {
-        match self {
-            Shell::Sh => "sh",
-            Shell::PowerShell => "ps1",
-            Shell::Cmd => "bat",
-        }
-    }
 }
 
