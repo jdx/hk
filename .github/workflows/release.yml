@@ -106,7 +106,7 @@ jobs:
           find artifacts/binary-* -type f \( -name "*.tar.gz" -o -name "*.tar.xz" -o -name "*.zip" \) -exec mv {} release-assets/ \;
           # Move pkl packages to release-assets
           if [ -d "artifacts/pkl-packages" ]; then
-            find artifacts/pkl-packages -type f -exec mv {} release-assets/ \;
+            find artifacts/pkl-packages -type f \( -name "*.zip" -o -name "*.sha256" \) -exec mv {} release-assets/ \;
           fi
           ls -la release-assets/
       - name: Create release with all assets
