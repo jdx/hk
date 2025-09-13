@@ -114,17 +114,24 @@ pub async fn run() -> Result<()> {
 
     // Decide tracing enablement and output format
     // Support: --trace, HK_TRACE mode (Text/Json), or effective log level TRACE
+    let json_output =
+        args.json || *env::HK_JSON || matches!(*env::HK_TRACE_MODE, env::TraceMode::Json);
+
     let mut trace_enabled = args.trace
         || matches!(
             *env::HK_TRACE_MODE,
             env::TraceMode::Text | env::TraceMode::Json
         );
+
     let effective_level = level.unwrap_or(*env::HK_LOG);
     if effective_level == log::LevelFilter::Trace {
         trace_enabled = true;
     }
-    let json_output =
-        args.json || *env::HK_JSON || matches!(*env::HK_TRACE_MODE, env::TraceMode::Json);
+
+    // Set text progress output for debug/trace levels to prevent interference
+    if effective_level == log::LevelFilter::Debug || effective_level == log::LevelFilter::Trace {
+        clx::progress::set_output(ProgressOutput::Text);
+    }
 
     // Initialize logger first so regular log records are handled by our logger (and not forwarded to tracing)
     logger::init(level);
