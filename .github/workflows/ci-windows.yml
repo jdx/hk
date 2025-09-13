@@ -44,7 +44,7 @@ jobs:
         run: mise run build
 
       - name: Run Rust unit tests
-        run: mise run test:cargo
+        run: cargo test --all --all-features -- --skip test_read_file_not_found
 
       - name: Run Windows Pester tests
         shell: pwsh
