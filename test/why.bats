@@ -6,16 +6,20 @@ setup() {
     _common_setup
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["multi-reason"] {
-        glob = List("*.js")
-        check = "echo test"
-        profiles = List("test")
-        condition = "true"
-    }
-    ["simple"] {
-        glob = List("*.rs")
-        check = "echo simple"
+hooks {
+    ["check"] {
+        steps {
+            ["multi-reason"] {
+                glob = List("*.js")
+                check = "echo test"
+                profiles = List("test")
+                condition = "true"
+            }
+            ["simple"] {
+                glob = List("*.rs")
+                check = "echo simple"
+            }
+        }
     }
 }
 EOF
@@ -68,21 +72,25 @@ teardown() {
 @test "hk --plan --why shows condition evaluation" {
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["cond-true"] {
-        glob = List("*.js")
-        check = "echo test"
-        condition = "true"
-    }
-    ["cond-false"] {
-        glob = List("*.js")
-        check = "echo test"
-        condition = "false"
-    }
-    ["cond-complex"] {
-        glob = List("*.js")
-        check = "echo test"
-        condition = "1 + 1 == 2"
+hooks {
+    ["check"] {
+        steps {
+            ["cond-true"] {
+                glob = List("*.js")
+                check = "echo test"
+                condition = "true"
+            }
+            ["cond-false"] {
+                glob = List("*.js")
+                check = "echo test"
+                condition = "false"
+            }
+            ["cond-complex"] {
+                glob = List("*.js")
+                check = "echo test"
+                condition = "1 + 1 == 2"
+            }
+        }
     }
 }
 EOF

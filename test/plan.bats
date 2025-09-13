@@ -6,21 +6,25 @@ setup() {
     _common_setup
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["prettier"] {
-        glob = List("*.{js,ts}")
-        check = "prettier --check"
-        fix = "prettier --write"
-    }
-    ["eslint"] {
-        glob = List("*.{js,ts}")
-        check = "eslint"
-        fix = "eslint --fix"
-    }
-    ["cargo-fmt"] {
-        glob = List("*.rs")
-        check = "cargo fmt --check"
-        fix = "cargo fmt"
+hooks {
+    ["check"] {
+        steps {
+            ["prettier"] {
+                glob = List("*.{js,ts}")
+                check = "prettier --check"
+                fix = "prettier --write"
+            }
+            ["eslint"] {
+                glob = List("*.{js,ts}")
+                check = "eslint"
+                fix = "eslint --fix"
+            }
+            ["cargo-fmt"] {
+                glob = List("*.rs")
+                check = "cargo fmt --check"
+                fix = "cargo fmt"
+            }
+        }
     }
 }
 EOF
@@ -65,16 +69,20 @@ teardown() {
 @test "hk --plan with profiles" {
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["fast-check"] {
-        glob = List("*.js")
-        check = "echo fast"
-        profiles = List("fast")
-    }
-    ["slow-check"] {
-        glob = List("*.js")
-        check = "echo slow"
-        profiles = List("slow")
+hooks {
+    ["check"] {
+        steps {
+            ["fast-check"] {
+                glob = List("*.js")
+                check = "echo fast"
+                profiles = List("fast")
+            }
+            ["slow-check"] {
+                glob = List("*.js")
+                check = "echo slow"
+                profiles = List("slow")
+            }
+        }
     }
 }
 EOF
@@ -97,16 +105,20 @@ EOF
 @test "hk --plan with conditions" {
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["conditional-step"] {
-        glob = List("*.js")
-        check = "echo test"
-        condition = "true"
-    }
-    ["conditional-false"] {
-        glob = List("*.js")
-        check = "echo test"
-        condition = "false"
+hooks {
+    ["check"] {
+        steps {
+            ["conditional-step"] {
+                glob = List("*.js")
+                check = "echo test"
+                condition = "true"
+            }
+            ["conditional-false"] {
+                glob = List("*.js")
+                check = "echo test"
+                condition = "false"
+            }
+        }
     }
 }
 EOF
@@ -123,15 +135,19 @@ EOF
 @test "hk --plan with dependencies" {
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["step-a"] {
-        glob = List("*.js")
-        check = "echo a"
-    }
-    ["step-b"] {
-        glob = List("*.js")
-        check = "echo b"
-        depends = List("step-a")
+hooks {
+    ["check"] {
+        steps {
+            ["step-a"] {
+                glob = List("*.js")
+                check = "echo a"
+            }
+            ["step-b"] {
+                glob = List("*.js")
+                check = "echo b"
+                depends = List("step-a")
+            }
+        }
     }
 }
 EOF
@@ -146,15 +162,19 @@ EOF
 @test "hk --plan with parallel groups" {
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["group:parallel"] {
-        ["step1"] {
-            glob = List("*.js")
-            check = "echo 1"
-        }
-        ["step2"] {
-            glob = List("*.js")
-            check = "echo 2"
+hooks {
+    ["check"] {
+        steps {
+            ["group:parallel"] {
+                ["step1"] {
+                    glob = List("*.js")
+                    check = "echo 1"
+                }
+                ["step2"] {
+                    glob = List("*.js")
+                    check = "echo 2"
+                }
+            }
         }
     }
 }

@@ -6,16 +6,20 @@ setup() {
     _common_setup
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["prettier"] {
-        glob = List("*.js")
-        check = "prettier --check"
-        fix = "prettier --write"
-    }
-    ["eslint"] {
-        glob = List("*.js")
-        check = "eslint"
-        depends = List("prettier")
+hooks {
+    ["check"] {
+        steps {
+            ["prettier"] {
+                glob = List("*.js")
+                check = "prettier --check"
+                fix = "prettier --write"
+            }
+            ["eslint"] {
+                glob = List("*.js")
+                check = "eslint"
+                depends = List("prettier")
+            }
+        }
     }
 }
 EOF
@@ -84,15 +88,19 @@ teardown() {
 @test "hk --plan --json shows parallel groups" {
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["group:parallel"] {
-        ["step1"] {
-            glob = List("*.js")
-            check = "echo 1"
-        }
-        ["step2"] {
-            glob = List("*.js")
-            check = "echo 2"
+hooks {
+    ["check"] {
+        steps {
+            ["group:parallel"] {
+                ["step1"] {
+                    glob = List("*.js")
+                    check = "echo 1"
+                }
+                ["step2"] {
+                    glob = List("*.js")
+                    check = "echo 2"
+                }
+            }
         }
     }
 }
@@ -127,16 +135,20 @@ EOF
 @test "hk --plan --json shows condition evaluation results" {
     cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps {
-    ["cond-true"] {
-        glob = List("*.js")
-        check = "echo test"
-        condition = "true"
-    }
-    ["cond-false"] {
-        glob = List("*.js")
-        check = "echo test"
-        condition = "false"
+hooks {
+    ["check"] {
+        steps {
+            ["cond-true"] {
+                glob = List("*.js")
+                check = "echo test"
+                condition = "true"
+            }
+            ["cond-false"] {
+                glob = List("*.js")
+                check = "echo test"
+                condition = "false"
+            }
+        }
     }
 }
 EOF

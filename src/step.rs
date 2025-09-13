@@ -577,6 +577,7 @@ impl Step {
             job.progress = Some(Arc::new(
                 ProgressJobBuilder::new()
                     .status(ProgressStatus::Hide)
+                    .on_done(ProgressJobDoneBehavior::Hide)
                     .build(),
             ));
         } else {
@@ -606,16 +607,18 @@ impl Step {
         }
         let run = tera::render(&run, &tctx)
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
-        job.progress.as_ref().unwrap().prop(
-            "message",
-            &format!(
-                "{} – {} – {}",
-                file_msg(&job.files),
-                self.glob.as_ref().unwrap_or(&vec![]).join(" "),
-                run
-            ),
-        );
-        job.progress.as_ref().unwrap().update();
+        if !ctx.hook_ctx.dry_run {
+            job.progress.as_ref().unwrap().prop(
+                "message",
+                &format!(
+                    "{} – {} – {}",
+                    file_msg(&job.files),
+                    self.glob.as_ref().unwrap_or(&vec![]).join(" "),
+                    run
+                ),
+            );
+            job.progress.as_ref().unwrap().update();
+        }
         if log::log_enabled!(log::Level::Trace) {
             for file in &job.files {
                 trace!("{self}: {}", file.display());
