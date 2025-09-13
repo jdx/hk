@@ -41,7 +41,7 @@ jobs:
           mise list
 
       - name: Build
-        run: cargo build --release
+        run: cargo build
 
       - name: Run Rust unit tests
         run: cargo test --all --all-features -- --skip test_read_file_not_found

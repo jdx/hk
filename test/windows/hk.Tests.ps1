@@ -4,8 +4,14 @@ Describe "hk Windows Integration Tests" {
         $script:TestRoot = Join-Path $env:TEMP ("hk-test-" + [System.Guid]::NewGuid().ToString())
         New-Item -Path $script:TestRoot -ItemType Directory -Force | Out-Null
         
-        # Always find the local hk.exe binary
-        $script:HkPath = Resolve-Path "target\release\hk.exe" -ErrorAction SilentlyContinue
+        # Always find the local hk.exe binary (try debug first, then release)
+        $script:HkPath = Resolve-Path "target\debug\hk.exe" -ErrorAction SilentlyContinue
+        if (-not $script:HkPath) {
+            $script:HkPath = Resolve-Path "target\release\hk.exe" -ErrorAction SilentlyContinue
+        }
+        if (-not $script:HkPath) {
+            $script:HkPath = Resolve-Path "..\..\target\debug\hk.exe" -ErrorAction SilentlyContinue
+        }
         if (-not $script:HkPath) {
             $script:HkPath = Resolve-Path "..\..\target\release\hk.exe" -ErrorAction SilentlyContinue
         }
