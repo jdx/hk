@@ -32,6 +32,15 @@ if (-not $global:HkCommand) {
     # Locally, detect PKL availability
     if ($env:USE_MISE -eq "false") {
         # CI has configured mise shims in PATH, use hk directly
+        # But first, ensure mise shims are in PATH (in case they weren't persisted)
+        $misePath = "$env:USERPROFILE\AppData\Local\mise\shims"
+        if (Test-Path $misePath) {
+            if ($env:PATH -notlike "*$misePath*") {
+                $env:PATH = "$misePath;$env:PATH"
+                Write-Host "Added mise shims to PATH: $misePath" -ForegroundColor Gray
+            }
+        }
+
         Write-Host "Running hk directly (CI mode with mise shims in PATH)" -ForegroundColor Gray
         $global:HkCommand = {
             param([Parameter(ValueFromRemainingArguments=$true)]$CommandArgs)

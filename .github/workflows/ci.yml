@@ -67,11 +67,22 @@ jobs:
           # Verify pkl is accessible
           pkl --version
 
+          # Also check pkl is in the expected location
+          Get-Command pkl -ErrorAction SilentlyContinue
+          if (-not (Get-Command pkl -ErrorAction SilentlyContinue)) {
+              Write-Error "pkl not found in PATH even after adding mise shims"
+              exit 1
+          }
+
           cargo build
           cargo test --all --all-features -- --skip test_read_file_not_found
 
           # Don't use mise x -- for running hk, since shims are already in PATH
           $env:USE_MISE = "false"
+
+          # Ensure pkl is still accessible before running tests
+          Write-Host "Verifying pkl is still accessible before tests..."
+          pkl --version
 
           # Run the new modular test suite and ensure exit code is propagated
           & test\windows\RunAllTests.ps1 -Output Detailed
