@@ -4,12 +4,20 @@ Describe "hk Windows Integration Tests" {
         $script:TestRoot = Join-Path $env:TEMP ("hk-test-" + [System.Guid]::NewGuid().ToString())
         New-Item -Path $script:TestRoot -ItemType Directory -Force | Out-Null
         
-        $script:HkPath = Resolve-Path "target\release\hk.exe" -ErrorAction SilentlyContinue
-        if (-not $script:HkPath) {
-            $script:HkPath = Resolve-Path "..\..\target\release\hk.exe" -ErrorAction SilentlyContinue
-        }
-        if (-not $script:HkPath) {
-            throw "Could not find hk.exe. Please build the project first."
+        # Determine how to run hk commands
+        if ($env:USE_MISE -eq "true") {
+            # In CI, use mise to run hk
+            $script:HkCommand = { param($args) & mise x -- hk @args }
+        } else {
+            # Local development, use direct path to hk.exe
+            $script:HkPath = Resolve-Path "target\release\hk.exe" -ErrorAction SilentlyContinue
+            if (-not $script:HkPath) {
+                $script:HkPath = Resolve-Path "..\..\target\release\hk.exe" -ErrorAction SilentlyContinue
+            }
+            if (-not $script:HkPath) {
+                throw "Could not find hk.exe. Please build the project first."
+            }
+            $script:HkCommand = { param($args) & $script:HkCommand @args }
         }
     }
 
@@ -39,7 +47,7 @@ Describe "hk Windows Integration Tests" {
 
     Context "Basic Commands" {
         It "Should initialize hk configuration" {
-            & $script:HkPath init | Out-Null
+            & $script:HkCommand init | Out-Null
             $LASTEXITCODE | Should -Be 0
             "hk.pkl" | Should -Exist
             
@@ -55,7 +63,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            & $script:HkPath validate | Out-Null
+            & $script:HkCommand validate | Out-Null
             $LASTEXITCODE | Should -Be 0
         }
 
@@ -65,7 +73,7 @@ amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pk
 invalid_syntax {
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            & $script:HkPath validate 2>&1 | Out-Null
+            & $script:HkCommand validate 2>&1 | Out-Null
             $LASTEXITCODE | Should -Not -Be 0
         }
     }
@@ -80,7 +88,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            & $script:HkPath install | Out-Null
+            & $script:HkCommand install | Out-Null
             $LASTEXITCODE | Should -Be 0
             
             ".git\hooks\pre-commit" | Should -Exist
@@ -95,7 +103,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            & $script:HkPath install | Out-Null
+            & $script:HkCommand install | Out-Null
             $content = Get-Content ".git\hooks\pre-commit" -Raw
             $content | Should -Match '@echo off'
             $content | Should -Match 'hk run pre-commit'
@@ -109,10 +117,10 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            & $script:HkPath install | Out-Null
+            & $script:HkCommand install | Out-Null
             ".git\hooks\pre-commit" | Should -Exist
             
-            & $script:HkPath uninstall | Out-Null
+            & $script:HkCommand uninstall | Out-Null
             $LASTEXITCODE | Should -Be 0
             ".git\hooks\pre-commit" | Should -Not -Exist
         }
@@ -134,7 +142,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            $output = & $script:HkPath check 2>&1
+            $output = & $script:HkCommand check 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "(PowerShell test successful|ps-test)"
         }
@@ -159,7 +167,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            $output = & $script:HkPath check 2>&1
+            $output = & $script:HkCommand check 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "(PowerShell Core test successful|pwsh-test)"
         }
@@ -181,7 +189,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            $output = & $script:HkPath check 2>&1
+            $output = & $script:HkCommand check 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "(CMD test successful|cmd-test)"
         }
@@ -211,7 +219,7 @@ hooks {
             "test content" | Out-File -FilePath "test.txt" -Encoding UTF8
             "other content" | Out-File -FilePath "test.log" -Encoding UTF8
 
-            $output = & $script:HkPath check test.ps1 test.txt 2>&1
+            $output = & $script:HkCommand check test.ps1 test.txt 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "(Processing PowerShell files|ps1-files)"
             ($output -join " ") | Should -Match "(Processing text files|txt-files)"
@@ -234,7 +242,7 @@ hooks {
             New-Item -Path "subdir" -ItemType Directory | Out-Null
             "content" | Out-File -FilePath "subdir\test.txt" -Encoding UTF8
 
-            $output = & $script:HkPath check "subdir\test.txt" 2>&1
+            $output = & $script:HkCommand check "subdir\test.txt" 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "subdir"
         }
@@ -255,7 +263,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            $output = & $script:HkPath check 2>&1
+            $output = & $script:HkCommand check 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "(Step 1 completed|step1)"
             ($output -join " ") | Should -Match "(Step 2 completed|step2)"
@@ -284,7 +292,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            $output = & $script:HkPath check 2>&1
+            $output = & $script:HkCommand check 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "(First step|first)"
             ($output -join " ") | Should -Match "(Second step|second)"
@@ -308,7 +316,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            & $script:HkPath check 2>&1 | Out-Null
+            & $script:HkCommand check 2>&1 | Out-Null
             $LASTEXITCODE | Should -Not -Be 0
         }
 
@@ -326,7 +334,7 @@ hooks {
 }
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
-            $output = & $script:HkPath check 2>&1
+            $output = & $script:HkCommand check 2>&1
             # Should still fail overall but run both steps
             $LASTEXITCODE | Should -Not -Be 0
             ($output -join " ") | Should -Match "(Success|passing)"
@@ -355,7 +363,7 @@ hooks {
             "modified content" | Out-File -FilePath "test.txt" -Encoding UTF8
             git add test.txt | Out-Null
 
-            $output = & $script:HkPath run pre-commit 2>&1
+            $output = & $script:HkCommand run pre-commit 2>&1
             $LASTEXITCODE | Should -Be 0
             ($output -join " ") | Should -Match "test.txt"
         }
@@ -369,7 +377,7 @@ hooks {
 check = "echo TOML config works"
 '@ | Out-File -FilePath "hk.toml" -Encoding UTF8
 
-            $output = & $script:HkPath check 2>&1
+            $output = & $script:HkCommand check 2>&1
             if ($LASTEXITCODE -eq 0) {
                 ($output -join " ") | Should -Match "(TOML config works|toml-test)"
             } else {
