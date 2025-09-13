@@ -94,3 +94,10 @@ EOF
     assert_output --partial "config.load"
     assert_output --partial "hook.run"
 }
+
+@test "trace: with stashing" {
+    echo "unstaged" > test.txt
+    run hk --trace --json check --stash=git
+    assert_success
+    assert_output --partial '"name":"git.stash.push"'
+}

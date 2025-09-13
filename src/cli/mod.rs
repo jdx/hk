@@ -83,7 +83,6 @@ pub async fn run() -> Result<()> {
 
     // Determine effective log level from CLI flags (env default applied by logger if None)
     let mut level: Option<log::LevelFilter> = None;
-    // When tracing is enabled (via flags/env/effective level), we also want text progress output
     // Derive verbosity overrides first
     let config_path = if let Some(custom_path) = args.hkrc {
         custom_path
