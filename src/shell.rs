@@ -1,11 +1,11 @@
-use std::process::Command;
 use eyre::Result;
+use std::process::Command;
 
 #[derive(Debug, Clone)]
 pub enum Shell {
-    Sh,           // Unix shell (sh -o errexit -c)
-    PowerShell,   // Windows PowerShell or PowerShell Core
-    Cmd,          // Windows Command Prompt
+    Sh,         // Unix shell (sh -o errexit -c)
+    PowerShell, // Windows PowerShell or PowerShell Core
+    Cmd,        // Windows Command Prompt
 }
 
 impl Shell {
@@ -35,9 +35,7 @@ impl Shell {
                 } else {
                     Command::new("powershell.exe")
                 };
-                cmd.arg("-NoProfile")
-                    .arg("-NonInteractive")
-                    .arg("-Command");
+                cmd.arg("-NoProfile").arg("-NonInteractive").arg("-Command");
                 cmd
             }
             Shell::Cmd => {
@@ -47,23 +45,21 @@ impl Shell {
             }
         }
     }
-    
+
     /// Create a CmdLineRunner configured for this shell type
     pub fn runner(&self) -> ensembler::CmdLineRunner {
         use ensembler::CmdLineRunner;
-        
+
         match self {
             Shell::Sh => CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c"),
-            Shell::PowerShell => {
-                if which::which("pwsh.exe").is_ok() {
-                    CmdLineRunner::new("pwsh.exe")
-                } else {
-                    CmdLineRunner::new("powershell.exe")
-                }
-                .arg("-NoProfile")
-                .arg("-NonInteractive")
-                .arg("-Command")
+            Shell::PowerShell => if which::which("pwsh.exe").is_ok() {
+                CmdLineRunner::new("pwsh.exe")
+            } else {
+                CmdLineRunner::new("powershell.exe")
             }
+            .arg("-NoProfile")
+            .arg("-NonInteractive")
+            .arg("-Command"),
             Shell::Cmd => CmdLineRunner::new("cmd.exe").arg("/C"),
         }
     }
@@ -71,16 +67,14 @@ impl Shell {
     pub fn execute(&self, script: &str) -> Result<String> {
         let mut cmd = self.command();
         cmd.arg(script);
-        
+
         let output = cmd.output()?;
-        
+
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(eyre::eyre!("Command failed: {:?}\nstderr: {}", cmd, stderr).into());
         }
-        
+
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
-
 }
-

@@ -6,8 +6,8 @@ use std::{
     sync::Arc,
 };
 
-use crate::{Result, shell::Shell};
 use crate::ui::style;
+use crate::{Result, shell::Shell};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
 use git2::{Repository, StatusOptions, StatusShow};
@@ -211,7 +211,8 @@ impl Git {
         // Fallbacks: main, master
         for cand in ["main", "master"] {
             let branch = cand.split('/').next_back().unwrap();
-            let out = Shell::detect().execute(&format!("git ls-remote --heads origin {}", branch))?;
+            let out =
+                Shell::detect().execute(&format!("git ls-remote --heads origin {}", branch))?;
             if out
                 .lines()
                 .any(|l| l.ends_with(&format!("refs/heads/{}", branch)))
@@ -266,7 +267,8 @@ impl Git {
                     return Ok(_ref.name().map(|s| s.to_string()));
                 }
             } else {
-                let output = Shell::detect().execute(&format!("git ls-remote --heads {remote} {branch}"))?;
+                let output =
+                    Shell::detect().execute(&format!("git ls-remote --heads {remote} {branch}"))?;
                 for line in output.lines() {
                     if line.contains(&format!("refs/remotes/{remote}/{branch}")) {
                         return Ok(Some(branch.to_string()));
@@ -639,8 +641,8 @@ impl Git {
             }
         } else {
             // Shell git path: build a patch without untracked contents
-            let out =
-                Shell::detect().execute("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
+            let out = Shell::detect()
+                .execute("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
             if out.trim().is_empty() {
                 return Ok(None);
             }
@@ -1014,7 +1016,8 @@ impl Git {
             Ok(files.into_iter().collect())
         } else {
             // Use git merge-base to find the common ancestor
-            let merge_base = Shell::detect().execute(&format!("git merge-base {from_ref} {to_ref}"))?;
+            let merge_base =
+                Shell::detect().execute(&format!("git merge-base {from_ref} {to_ref}"))?;
             let merge_base = merge_base.trim();
 
             let output = git_read([
