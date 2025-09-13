@@ -141,12 +141,22 @@ Windows paths are properly handled in:
 
 ## Testing
 
-### Windows Testing (Pester)
+### Windows Testing (Pester) 
 ```powershell
+# Set required environment variable for mise/pkl
+$env:MISE_DISABLE_TOOLS="hadolint,swiftlint,bun"
+
 # Run all Windows tests
 cd test/windows
 ./run-tests.ps1
 ```
+
+### Verified Functionality ✅
+- **hk init**: Creates pkl configuration files
+- **hk validate**: Validates pkl configurations 
+- **hk check**: Executes PowerShell and CMD commands
+- **hk install**: Creates Windows batch file hooks
+- **Cross-platform shell detection**: Auto-detects available shells
 
 ### Unix Testing (bats)
 ```bash

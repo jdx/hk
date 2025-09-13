@@ -49,6 +49,7 @@ jobs:
       - name: Run Windows Pester tests
         shell: pwsh
         run: |
+          $env:MISE_DISABLE_TOOLS="hadolint,swiftlint,bun"
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
           Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed

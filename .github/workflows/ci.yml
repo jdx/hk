@@ -60,6 +60,7 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
+          $env:MISE_DISABLE_TOOLS="hadolint,swiftlint,bun"
           cargo build --release
           cargo test --lib --bins
           Install-Module -Name Pester -Force -SkipPublisherCheck

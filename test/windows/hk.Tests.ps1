@@ -1,7 +1,15 @@
 Describe "hk Windows Integration Tests" {
     BeforeAll {
+        # Setup environment for mise and pkl
+        $env:MISE_DISABLE_TOOLS="hadolint,swiftlint,bun"
+        if (-not ($env:PATH -like "*pkl*")) {
+            $env:PATH += ";D:\.mise\installs\pkl\0.29.0"
+        }
+        
         # Setup test environment
-        $script:TestRoot = New-TemporaryFile | % { rm $_; mkdir $_ }
+        $script:TestRoot = Join-Path $env:TEMP ("hk-test-" + [System.Guid]::NewGuid().ToString())
+        New-Item -Path $script:TestRoot -ItemType Directory -Force | Out-Null
+        
         $script:HkPath = Resolve-Path "target\release\hk.exe" -ErrorAction SilentlyContinue
         if (-not $script:HkPath) {
             $script:HkPath = Resolve-Path "..\..\target\release\hk.exe" -ErrorAction SilentlyContinue
@@ -47,7 +55,7 @@ Describe "hk Windows Integration Tests" {
 
         It "Should validate configuration" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["pre-commit"] { steps {} }
 }
@@ -59,7 +67,7 @@ hooks {
 
         It "Should detect invalid configuration" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 invalid_syntax {
 '@ | Out-File -FilePath "hk.pkl" -Encoding UTF8
 
@@ -71,7 +79,7 @@ invalid_syntax {
     Context "Hook Installation" {
         It "Should install git hooks" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["pre-commit"] { steps {} }
     ["pre-push"] { steps {} }
@@ -87,7 +95,7 @@ hooks {
 
         It "Should create Windows batch files for hooks" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["pre-commit"] { steps {} }
 }
@@ -101,7 +109,7 @@ hooks {
 
         It "Should uninstall git hooks" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["pre-commit"] { steps {} }
 }
@@ -119,7 +127,7 @@ hooks {
     Context "PowerShell Command Execution" {
         It "Should execute PowerShell commands" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -144,7 +152,7 @@ hooks {
             }
 
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -166,7 +174,7 @@ hooks {
     Context "CMD Command Execution" {
         It "Should execute CMD commands" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -188,7 +196,7 @@ hooks {
     Context "File Handling" {
         It "Should process files with glob patterns" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -217,7 +225,7 @@ hooks {
 
         It "Should handle Windows paths correctly" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -241,7 +249,7 @@ hooks {
     Context "Parallel Execution" {
         It "Should run multiple steps in parallel" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -264,7 +272,7 @@ hooks {
     Context "Step Dependencies" {
         It "Should respect step dependencies" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -293,7 +301,7 @@ hooks {
     Context "Error Handling" {
         It "Should handle failing commands" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -312,7 +320,7 @@ hooks {
 
         It "Should continue with other steps when fail-fast is disabled" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["check"] {
         fail_fast = false
@@ -334,7 +342,7 @@ hooks {
     Context "Git Integration" {
         It "Should work with git staged files" {
             @'
-amends "pkl:hk/Config"
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 hooks {
     ["pre-commit"] {
         steps {
