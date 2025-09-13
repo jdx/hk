@@ -70,12 +70,11 @@ jobs:
           cargo build
           cargo test --all --all-features -- --skip test_read_file_not_found
 
-          Install-Module -Name Pester -Force -SkipPublisherCheck
-          Import-Module Pester
-
           # Don't use mise x -- for running hk, since shims are already in PATH
           $env:USE_MISE = "false"
-          Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed
+
+          # Run the new modular test suite
+          & test\windows\RunAllTests.ps1 -Output Detailed
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10
