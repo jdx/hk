@@ -87,14 +87,6 @@ impl StepGroup {
             .start()
     }
 
-    pub async fn plan(self) -> Result<()> {
-        for step_name in self.steps.keys() {
-            info!("step: {step_name} –");
-            todo!("list files and run types like check-first");
-        }
-        Ok(())
-    }
-
     pub async fn run(&self, ctx: StepGroupContext) -> Result<()> {
         let settings = Settings::get();
         // timing metadata already pre-populated in HookContext::new

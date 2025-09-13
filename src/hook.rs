@@ -4,7 +4,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     ffi::OsString,
     path::{Path, PathBuf},
     sync::{Arc, Mutex as StdMutex},
@@ -21,6 +21,7 @@ use crate::{
     git::{Git, GitStatus, StashMethod},
     glob,
     hook_options::HookOptions,
+    plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
     step::{CheckType, EXPR_CTX, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
@@ -300,6 +301,7 @@ impl Hook {
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
+        let settings = Settings::get();
         let run_type = self.run_type(&opts);
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
@@ -311,17 +313,294 @@ impl Hook {
         let files = self
             .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
             .await?;
-        if files.is_empty() && can_exit_early(&groups, &files, run_type, &IndexMap::new()) {
-            info!("no files to run");
-            return Ok(());
+
+        // Build skip_steps map like in run()
+        let skip_steps = {
+            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
+            for s in env::HK_SKIP_STEPS.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                );
+            }
+            for s in opts.skip_step.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
+                );
+            }
+            m
+        };
+
+        // Create the plan
+        let mut plan = Plan::new(self.name.clone())
+            .with_profiles(settings.enabled_profiles.iter().cloned().collect());
+
+        // Build tera and expr contexts
+        let mut tctx = opts.tctx.clone();
+        tctx.insert("git", &git_status);
+        let mut expr_ctx = EXPR_CTX.clone();
+        if let Ok(val) = expr::to_value(&git_status) {
+            expr_ctx.insert("git", val);
         }
-        if stash_method != StashMethod::None {
-            info!("stashing unstaged changes");
+
+        let mut order_index = 0;
+
+        // Process each group
+        for (group_idx, group) in groups.iter().enumerate() {
+            let group_id = format!("group_{}", group_idx);
+            let mut group_step_ids = Vec::new();
+
+            // Process steps in the group
+            for (step_name, step) in &group.steps {
+                let step_id = step_name.clone();
+                let mut reasons = Vec::new();
+                let mut status = StepStatus::Included;
+
+                // Check if step is explicitly skipped
+                if let Some(skip_reason) = skip_steps.get(step_name) {
+                    status = StepStatus::Skipped;
+                    reasons.push(Reason {
+                        kind: match skip_reason {
+                            SkipReason::DisabledByEnv(_src) => ReasonKind::Disabled,
+                            SkipReason::DisabledByCli(_src) => ReasonKind::CliExclude,
+                            _ => ReasonKind::Disabled,
+                        },
+                        detail: Some(skip_reason.message()),
+                        data: HashMap::new(),
+                    });
+                } else {
+                    // Check profile requirements
+                    if let Some(profile_reason) = step.profile_skip_reason() {
+                        status = StepStatus::Skipped;
+                        reasons.push(Reason {
+                            kind: ReasonKind::ProfileExclude,
+                            detail: Some(profile_reason.message()),
+                            data: HashMap::new(),
+                        });
+                    }
+
+                    // Check if step has commands for the run type
+                    if status == StepStatus::Included && step.run_cmd(run_type).is_none() {
+                        status = StepStatus::Skipped;
+                        reasons.push(Reason {
+                            kind: ReasonKind::Disabled,
+                            detail: Some(format!("no command for run type {:?}", run_type)),
+                            data: HashMap::new(),
+                        });
+                    }
+
+                    // Check file filters
+                    if status == StepStatus::Included && step.glob.is_some() {
+                        let files_vec: Vec<PathBuf> = files.iter().cloned().collect();
+                        let step_files =
+                            glob::get_matches(step.glob.as_ref().unwrap(), &files_vec)?;
+                        if step_files.is_empty() {
+                            status = StepStatus::Skipped;
+                            reasons.push(Reason {
+                                kind: ReasonKind::FilterNoMatch,
+                                detail: Some("no files matched glob patterns".to_string()),
+                                data: HashMap::new(),
+                            });
+                        } else {
+                            reasons.push(Reason {
+                                kind: ReasonKind::FilterMatch,
+                                detail: Some(format!("{} files matched", step_files.len())),
+                                data: HashMap::new(),
+                            });
+                        }
+                    }
+
+                    // Check conditions
+                    if status == StepStatus::Included {
+                        if let Some(condition) = &step.condition {
+                            match crate::step::EXPR_ENV.eval(condition, &expr_ctx) {
+                                Ok(val) => {
+                                    if val.as_bool().unwrap_or(false) {
+                                        reasons.push(Reason {
+                                            kind: ReasonKind::ConditionTrue,
+                                            detail: Some(format!("condition: {}", condition)),
+                                            data: HashMap::new(),
+                                        });
+                                    } else {
+                                        status = StepStatus::Skipped;
+                                        reasons.push(Reason {
+                                            kind: ReasonKind::ConditionFalse,
+                                            detail: Some(format!("condition: {}", condition)),
+                                            data: HashMap::new(),
+                                        });
+                                    }
+                                }
+                                Err(_) => {
+                                    status = StepStatus::Skipped;
+                                    reasons.push(Reason {
+                                        kind: ReasonKind::ConditionUnknown,
+                                        detail: Some(format!(
+                                            "condition could not be evaluated: {}",
+                                            condition
+                                        )),
+                                        data: HashMap::new(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // Check CLI step selection
+                    if !opts.step.is_empty() {
+                        if opts.step.contains(step_name) {
+                            reasons.push(Reason {
+                                kind: ReasonKind::CliInclude,
+                                detail: Some(format!("included via --step {}", step_name)),
+                                data: HashMap::new(),
+                            });
+                        }
+                    }
+                }
+
+                // Add default reason if no reasons were added
+                if reasons.is_empty() {
+                    reasons.push(Reason {
+                        kind: if status == StepStatus::Included {
+                            ReasonKind::Always
+                        } else {
+                            ReasonKind::Disabled
+                        },
+                        detail: None,
+                        data: HashMap::new(),
+                    });
+                }
+
+                let planned_step = PlannedStep {
+                    name: step_name.clone(),
+                    id: Some(step_id.clone()),
+                    status,
+                    order_index,
+                    parallel_group_id: if group.steps.len() > 1 {
+                        Some(group_id.clone())
+                    } else {
+                        None
+                    },
+                    depends_on: step.depends.clone(),
+                    reasons,
+                    metadata: HashMap::new(),
+                };
+
+                plan.add_step(planned_step);
+                group_step_ids.push(step_id);
+                order_index += 1;
+            }
+
+            // Add parallel group if it has multiple steps
+            if group.steps.len() > 1 {
+                plan.add_group(ParallelGroup {
+                    id: group_id,
+                    step_ids: group_step_ids,
+                });
+            }
         }
-        for group in groups {
-            group.plan().await?;
+
+        // Output the plan
+        if opts.plan_json {
+            // JSON output
+            let json = serde_json::to_string_pretty(&plan)?;
+            println!("{}", json);
+        } else {
+            // Human-readable output
+            self.print_plan(&plan, &opts)?;
         }
+
         Ok(())
+    }
+
+    fn print_plan(&self, plan: &Plan, opts: &HookOptions) -> Result<()> {
+        use crate::ui::style;
+
+        // Print header
+        println!("Plan: {}", style::nbold(&plan.hook));
+        if !plan.profiles.is_empty() {
+            println!("Profiles: {}", plan.profiles.join(", "));
+        }
+        println!();
+
+        // Determine what to show based on --why flag
+        let show_all_reasons = opts.why.as_ref().map_or(false, |w| w.is_none());
+        let specific_step = opts.why.as_ref().and_then(|w| w.as_ref());
+
+        // Group steps by parallel groups for better display
+        let mut current_group: Option<String> = None;
+        let mut group_steps = Vec::new();
+
+        for step in &plan.steps {
+            // Check if we should show this step
+            let should_show = specific_step.map_or(true, |s| s == &step.name);
+            if !should_show && !show_all_reasons {
+                continue;
+            }
+
+            // Handle parallel groups
+            if step.parallel_group_id != current_group {
+                // Print previous group if any
+                if !group_steps.is_empty() {
+                    if group_steps.len() > 1 {
+                        println!("  [parallel group]");
+                    }
+                    for s in &group_steps {
+                        self.print_step(s, show_all_reasons || specific_step.is_some());
+                    }
+                    group_steps.clear();
+                }
+                current_group = step.parallel_group_id.clone();
+            }
+
+            group_steps.push(step.clone());
+        }
+
+        // Print remaining steps
+        if !group_steps.is_empty() {
+            if group_steps.len() > 1 {
+                println!("  [parallel group]");
+            }
+            for s in &group_steps {
+                self.print_step(s, show_all_reasons || specific_step.is_some());
+            }
+        }
+
+        Ok(())
+    }
+
+    fn print_step(&self, step: &PlannedStep, verbose: bool) {
+        use crate::ui::style;
+
+        let status_icon = if step.status == StepStatus::Included {
+            "✓"
+        } else {
+            "○"
+        };
+
+        let main_reason = step
+            .reasons
+            .first()
+            .map(|r| r.detail.as_deref().unwrap_or(r.kind.short_description()))
+            .unwrap_or("no reason");
+
+        println!(
+            "  {} {} ({})",
+            status_icon,
+            style::ncyan(&step.name),
+            main_reason
+        );
+
+        // Show all reasons if verbose
+        if verbose && step.reasons.len() > 1 {
+            for reason in &step.reasons[1..] {
+                let detail = reason
+                    .detail
+                    .as_deref()
+                    .unwrap_or(reason.kind.short_description());
+                println!("      - {}", detail);
+            }
+        }
     }
 
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
