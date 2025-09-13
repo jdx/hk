@@ -4,20 +4,22 @@ Describe "hk Windows Integration Tests" {
         $script:TestRoot = Join-Path $env:TEMP ("hk-test-" + [System.Guid]::NewGuid().ToString())
         New-Item -Path $script:TestRoot -ItemType Directory -Force | Out-Null
         
+        # Always find the local hk.exe binary
+        $script:HkPath = Resolve-Path "target\release\hk.exe" -ErrorAction SilentlyContinue
+        if (-not $script:HkPath) {
+            $script:HkPath = Resolve-Path "..\..\target\release\hk.exe" -ErrorAction SilentlyContinue
+        }
+        if (-not $script:HkPath) {
+            throw "Could not find hk.exe. Please build the project first."
+        }
+        
         # Determine how to run hk commands
         if ($env:USE_MISE -eq "true") {
-            # In CI, use mise to run hk
-            $script:HkCommand = { param($args) & mise x -- hk @args }
+            # In CI, use mise to provide PKL but run local hk.exe
+            $script:HkCommand = { param($args) & mise x -- $script:HkPath @args }
         } else {
             # Local development, use direct path to hk.exe
-            $script:HkPath = Resolve-Path "target\release\hk.exe" -ErrorAction SilentlyContinue
-            if (-not $script:HkPath) {
-                $script:HkPath = Resolve-Path "..\..\target\release\hk.exe" -ErrorAction SilentlyContinue
-            }
-            if (-not $script:HkPath) {
-                throw "Could not find hk.exe. Please build the project first."
-            }
-            $script:HkCommand = { param($args) & $script:HkCommand @args }
+            $script:HkCommand = { param($args) & $script:HkPath @args }
         }
     }
 
