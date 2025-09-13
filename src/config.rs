@@ -31,9 +31,7 @@ impl Config {
                 let raw = xx::file::read_to_string(path)?;
                 serde_json::from_str(&raw)?
             }
-            "pkl" => {
-                parse_pkl_with_fallback(path)?
-            }
+            "pkl" => parse_pkl_with_fallback(path)?,
             _ => {
                 bail!("Unsupported file extension: {}", ext);
             }
@@ -260,7 +258,9 @@ fn parse_pkl_with_fallback<T: DeserializeOwned>(path: &Path) -> Result<T> {
             // try fallback with mise if direct pkl fails
             match parse_pkl("mise x pkl -- pkl", path) {
                 Ok(result) => Ok(result),
-                Err(_) => Err(err).wrap_err("failed to read pkl config file. Try: mise install pkl"),
+                Err(_) => {
+                    Err(err).wrap_err("failed to read pkl config file. Try: mise install pkl")
+                }
             }
         }
     }
