@@ -81,15 +81,10 @@ enum Commands {
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
 
-    // Initialize tracing IMMEDIATELY if requested, before ANY other initialization
-    // We need to do this before clx functions are called which might initialize tracing
-    let trace_enabled = args.trace || *env::HK_TRACE;
-    if trace_enabled {
-        let json_output = args.json || *env::HK_JSON;
-        crate::trace::init_tracing(json_output)?;
-    }
-
-    let mut level = None;
+    // Determine effective log level from CLI flags (env default applied by logger if None)
+    let mut level: Option<log::LevelFilter> = None;
+    // When tracing is enabled (via flags/env/effective level), we also want text progress output
+    // Derive verbosity overrides first
     let config_path = if let Some(custom_path) = args.hkrc {
         custom_path
     } else {
@@ -100,11 +95,11 @@ pub async fn run() -> Result<()> {
     if !console::user_attended_stderr() || args.no_progress {
         clx::progress::set_output(ProgressOutput::Text);
     }
-    if args.verbose > 1 || log::log_enabled!(log::Level::Trace) {
+    if args.verbose > 1 {
         clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Trace);
     }
-    if args.verbose == 1 || log::log_enabled!(log::Level::Debug) {
+    if args.verbose == 1 {
         clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Debug);
     }
@@ -116,9 +111,26 @@ pub async fn run() -> Result<()> {
         clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Error);
     }
-    // Initialize logger only if tracing is not enabled
-    if !trace_enabled {
-        logger::init(level);
+
+    // Decide tracing enablement and output format
+    // Support: --trace, HK_TRACE=true/1, HK_TRACE=json (enables JSON traces), or effective log level TRACE
+    let hk_trace_raw = std::env::var("HK_TRACE").ok();
+    let hk_trace_is_json = hk_trace_raw
+        .as_deref()
+        .map(|v| v.eq_ignore_ascii_case("json"))
+        .unwrap_or(false);
+    let mut trace_enabled = args.trace || *env::HK_TRACE || hk_trace_is_json;
+    let effective_level = level.unwrap_or(*env::HK_LOG);
+    if effective_level == log::LevelFilter::Trace {
+        trace_enabled = true;
+    }
+    let json_output = args.json || *env::HK_JSON || hk_trace_is_json;
+
+    // Initialize logger first so regular log records are handled by our logger (and not forwarded to tracing)
+    logger::init(level);
+    if trace_enabled {
+        clx::progress::set_output(ProgressOutput::Text);
+        crate::trace::init_tracing(json_output)?;
     }
 
     if let Some(jobs) = args.jobs {
