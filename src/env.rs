@@ -99,9 +99,6 @@ pub static HK_TRACE_MODE: LazyLock<TraceMode> =
         _ => TraceMode::Off,
     });
 
-// Kept for backward compatibility where a boolean is convenient
-pub static HK_TRACE: LazyLock<bool> =
-    LazyLock::new(|| matches!(*HK_TRACE_MODE, TraceMode::Text | TraceMode::Json));
 pub static HK_JSON: LazyLock<bool> = LazyLock::new(|| var_true("HK_JSON"));
 
 pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));

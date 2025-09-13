@@ -23,10 +23,7 @@ pub fn init_tracing(json_output: bool) -> Result<()> {
 
     // Install LogTracer to forward log events to tracing if possible
     // This allows existing log macros to show up as trace events
-    if let Err(_) = tracing_log::LogTracer::init() {
-        // LogTracer couldn't be installed, probably because a logger is already set
-        // This is fine - we just won't capture log events in traces
-    }
+    let _ = tracing_log::LogTracer::init();
 
     // Try to set our subscriber, but handle the case where one is already set
     let result = if json_output {
@@ -233,7 +230,9 @@ struct JsonInstant {
 // Internal span data stored in extensions
 struct SpanData {
     id: String,
+    #[allow(dead_code)]
     parent_id: Option<String>,
+    #[allow(dead_code)]
     start_ns: u64,
 }
 
