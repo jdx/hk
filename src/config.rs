@@ -1,4 +1,3 @@
-use crate::shell::Shell;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
@@ -31,7 +30,22 @@ impl Config {
                 let raw = xx::file::read_to_string(path)?;
                 serde_json::from_str(&raw)?
             }
-            "pkl" => parse_pkl_with_fallback(path)?,
+            "pkl" => {
+                match parse_pkl("pkl", path) {
+                    Ok(raw) => raw,
+                    Err(err) => {
+                        // if pkl bin is not installed
+                        if which::which("pkl").is_err() {
+                            if let Ok(out) = parse_pkl("mise x -- pkl", path) {
+                                return Ok(out);
+                            };
+                            bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
+                        } else {
+                            return Err(err).wrap_err("failed to read pkl config file");
+                        }
+                    }
+                }
+            }
             _ => {
                 bail!("Unsupported file extension: {}", ext);
             }
@@ -234,7 +248,7 @@ impl UserConfig {
             .expect("Config path should always be set by CLI");
 
         if user_config_path.exists() {
-            let user_config: UserConfig = parse_pkl_with_fallback(&user_config_path)?;
+            let user_config: UserConfig = parse_pkl("pkl", &user_config_path)?;
             Ok(Some(user_config))
         } else {
             let default_path = PathBuf::from(".hkrc.pkl");
@@ -247,23 +261,8 @@ impl UserConfig {
 }
 
 fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
-    let json = Shell::detect().execute(&format!("{bin} eval -f json \"{}\"", path.display()))?;
+    let json = xx::process::sh(&format!("{bin} eval -f json {}", path.display()))?;
     serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
-}
-
-fn parse_pkl_with_fallback<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    match parse_pkl("pkl", path) {
-        Ok(result) => Ok(result),
-        Err(err) => {
-            // try fallback with mise if direct pkl fails
-            match parse_pkl("mise x pkl -- pkl", path) {
-                Ok(result) => Ok(result),
-                Err(_) => {
-                    Err(err).wrap_err("failed to read pkl config file. Try: mise install pkl")
-                }
-            }
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
