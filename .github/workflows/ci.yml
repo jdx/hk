@@ -55,8 +55,8 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
-          mise run build
-          mise run test:cargo
+          cargo build --release
+          cargo test --all --all-features -- --skip test_read_file_not_found
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
           Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed

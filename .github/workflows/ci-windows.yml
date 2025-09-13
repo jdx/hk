@@ -161,7 +161,7 @@ jobs:
           experimental: true
 
       - name: Build release binary
-        run: mise run build
+        run: cargo build --release
 
       - name: Package Windows binary
         shell: pwsh
