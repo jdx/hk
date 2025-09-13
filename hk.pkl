@@ -28,7 +28,9 @@ local linters = new Mapping<String, Step | Group> {
         dir = "docs"
         prefix = "bun run"
     }
-    ["newlines"] = Builtins.newlines
+    ["newlines"] = (Builtins.newlines) {
+        exclude = List("*.ps1")
+    }
     ["prettier"] = (Builtins.prettier) {
         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
     }
