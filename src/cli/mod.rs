@@ -50,6 +50,12 @@ struct Cli {
     /// Suppresses all output
     #[clap(long, global = true, overrides_with_all = ["quiet", "verbose"])]
     silent: bool,
+    /// Enable tracing spans and performance diagnostics
+    #[clap(long, global = true)]
+    trace: bool,
+    /// Output traces as JSON Lines (requires --trace)
+    #[clap(long, global = true, requires = "trace")]
+    json: bool,
     #[clap(subcommand)]
     command: Commands,
 }
@@ -74,6 +80,13 @@ enum Commands {
 
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
+
+    // Initialize tracing FIRST if requested, before any other initialization
+    let trace_enabled = args.trace || std::env::var("HK_TRACE").is_ok();
+    if trace_enabled {
+        let json_output = args.json || std::env::var("HK_TRACE").unwrap_or_default() == "json";
+        crate::trace::init_tracing(json_output)?;
+    }
     let mut level = None;
     let config_path = if let Some(custom_path) = args.hkrc {
         custom_path
@@ -101,7 +114,11 @@ pub async fn run() -> Result<()> {
         clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Error);
     }
-    logger::init(level);
+    // Initialize logger only if tracing is not enabled
+    if !trace_enabled {
+        logger::init(level);
+    }
+
     if let Some(jobs) = args.jobs {
         Settings::set_jobs(jobs);
     }
