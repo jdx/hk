@@ -6,6 +6,7 @@ use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail};
 
 impl Config {
+    #[tracing::instrument(level = "info", name = "config.load")]
     pub fn get() -> Result<Self> {
         let mut config = Self::load_project_config()?;
         let user_config = UserConfig::load()?;
@@ -13,6 +14,7 @@ impl Config {
         Ok(config)
     }
 
+    #[tracing::instrument(level = "info", name = "config.read", skip_all, fields(path = %path.display()))]
     fn read(path: &Path) -> Result<Self> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
         let mut config: Config = match ext {
@@ -86,6 +88,7 @@ impl Config {
         Ok(())
     }
 
+    #[tracing::instrument(level = "info", name = "config.load_project")]
     fn load_project_config() -> Result<Self> {
         let default_path = env::HK_FILE
             .as_ref()

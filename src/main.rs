@@ -28,6 +28,7 @@ mod step_test;
 mod tera;
 mod test_runner;
 mod timings;
+mod trace;
 mod ui;
 mod version;
 
