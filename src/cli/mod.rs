@@ -81,12 +81,14 @@ enum Commands {
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
 
-    // Initialize tracing FIRST if requested, before any other initialization
+    // Initialize tracing IMMEDIATELY if requested, before ANY other initialization
+    // We need to do this before clx functions are called which might initialize tracing
     let trace_enabled = args.trace || std::env::var("HK_TRACE").is_ok();
     if trace_enabled {
-        let json_output = args.json || std::env::var("HK_TRACE").unwrap_or_default() == "json";
+        let json_output = args.json || std::env::var("HK_JSON").is_ok();
         crate::trace::init_tracing(json_output)?;
     }
+
     let mut level = None;
     let config_path = if let Some(custom_path) = args.hkrc {
         custom_path

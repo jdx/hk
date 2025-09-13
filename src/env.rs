@@ -84,6 +84,10 @@ pub static HK_HIDE_WARNINGS: LazyLock<IndexSet<String>> =
 // When true, allow output summaries to be printed in text mode
 pub static HK_SUMMARY_TEXT: LazyLock<bool> = LazyLock::new(|| var_true("HK_SUMMARY_TEXT"));
 
+// Tracing configuration
+pub static HK_TRACE: LazyLock<bool> = LazyLock::new(|| var_true("HK_TRACE"));
+pub static HK_JSON: LazyLock<bool> = LazyLock::new(|| var_true("HK_JSON"));
+
 pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));
 
 fn var_path(name: &str) -> Option<PathBuf> {
