@@ -78,4 +78,9 @@ try {
     Write-Host "ERROR: Test execution failed with exception:" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
     exit 1
+} finally {
+    # Clean up test directories
+    if ($global:TestCleanup) {
+        & $global:TestCleanup
+    }
 }

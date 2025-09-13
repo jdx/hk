@@ -3,6 +3,14 @@ BeforeAll {
 }
 
 Describe "hk Configuration Formats" {
+    BeforeEach {
+        $script:TestDir = New-TestDirectory
+    }
+
+    AfterEach {
+        Remove-TestDirectory $script:TestDir
+    }
+
     It "Should work with different config formats" {
         # Test TOML config
         @'

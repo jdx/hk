@@ -3,6 +3,14 @@ BeforeAll {
 }
 
 Describe "hk File Handling" {
+    BeforeEach {
+        $script:TestDir = New-TestDirectory
+    }
+
+    AfterEach {
+        Remove-TestDirectory $script:TestDir
+    }
+
     It "Should process files with glob patterns" {
         @'
 amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"

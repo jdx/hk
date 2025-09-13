@@ -3,6 +3,14 @@ BeforeAll {
 }
 
 Describe "hk Parallel Execution" {
+    BeforeEach {
+        $script:TestDir = New-TestDirectory
+    }
+
+    AfterEach {
+        Remove-TestDirectory $script:TestDir
+    }
+
     It "Should run multiple steps in parallel" {
         @'
 amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"

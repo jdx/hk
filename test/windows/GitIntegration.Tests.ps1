@@ -3,6 +3,14 @@ BeforeAll {
 }
 
 Describe "hk Git Integration" {
+    BeforeEach {
+        $script:TestDir = New-TestDirectory
+    }
+
+    AfterEach {
+        Remove-TestDirectory $script:TestDir
+    }
+
     It "Should work with git staged files" {
         @'
 amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"

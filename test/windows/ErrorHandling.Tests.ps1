@@ -3,6 +3,14 @@ BeforeAll {
 }
 
 Describe "hk Error Handling" {
+    BeforeEach {
+        $script:TestDir = New-TestDirectory
+    }
+
+    AfterEach {
+        Remove-TestDirectory $script:TestDir
+    }
+
     It "Should handle failing commands" {
         @'
 amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"

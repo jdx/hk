@@ -3,6 +3,14 @@ BeforeAll {
 }
 
 Describe "hk Step Dependencies" {
+    BeforeEach {
+        $script:TestDir = New-TestDirectory
+    }
+
+    AfterEach {
+        Remove-TestDirectory $script:TestDir
+    }
+
     It "Should respect step dependencies" {
         @'
 amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"

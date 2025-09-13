@@ -3,6 +3,14 @@ BeforeAll {
 }
 
 Describe "hk Basic Commands" {
+    BeforeEach {
+        $script:TestDir = New-TestDirectory
+    }
+
+    AfterEach {
+        Remove-TestDirectory $script:TestDir
+    }
+
     It "Should initialize hk configuration" {
         & $global:HkCommand init | Out-Null
         $LASTEXITCODE | Should -Be 0
