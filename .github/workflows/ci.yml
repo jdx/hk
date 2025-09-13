@@ -73,8 +73,12 @@ jobs:
           # Don't use mise x -- for running hk, since shims are already in PATH
           $env:USE_MISE = "false"
 
-          # Run the new modular test suite
+          # Run the new modular test suite and ensure exit code is propagated
           & test\windows\RunAllTests.ps1 -Output Detailed
+          if ($LASTEXITCODE -ne 0) {
+              Write-Error "Tests failed with exit code: $LASTEXITCODE"
+              exit $LASTEXITCODE
+          }
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10

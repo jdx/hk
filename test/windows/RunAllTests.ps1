@@ -47,15 +47,35 @@ $config.Run.Path = $testPaths
 $config.Output.Verbosity = $Output
 $config.Run.Exit = $false
 
-$result = Invoke-Pester -Configuration $config
+try {
+    $result = Invoke-Pester -Configuration $config
 
-# Summary
-Write-Host ""
-Write-Host "Test Summary:" -ForegroundColor Cyan
-Write-Host "  Total: $($result.TotalCount)" -ForegroundColor Gray
-Write-Host "  Passed: $($result.PassedCount)" -ForegroundColor Green
-Write-Host "  Failed: $($result.FailedCount)" -ForegroundColor Red
-Write-Host "  Skipped: $($result.SkippedCount)" -ForegroundColor Yellow
+    if ($null -eq $result) {
+        Write-Host "ERROR: Pester returned no results!" -ForegroundColor Red
+        exit 1
+    }
 
-# Exit with appropriate code
-exit $result.FailedCount
+    # Summary
+    Write-Host ""
+    Write-Host "Test Summary:" -ForegroundColor Cyan
+    Write-Host "  Total: $($result.TotalCount)" -ForegroundColor Gray
+    Write-Host "  Passed: $($result.PassedCount)" -ForegroundColor Green
+    Write-Host "  Failed: $($result.FailedCount)" -ForegroundColor Red
+    Write-Host "  Skipped: $($result.SkippedCount)" -ForegroundColor Yellow
+
+    # Exit with appropriate code
+    if ($result.FailedCount -gt 0) {
+        Write-Host ""
+        Write-Host "TESTS FAILED!" -ForegroundColor Red
+        Write-Host "Exiting with code: $($result.FailedCount)" -ForegroundColor Red
+        exit $result.FailedCount
+    } else {
+        Write-Host ""
+        Write-Host "All tests passed!" -ForegroundColor Green
+        exit 0
+    }
+} catch {
+    Write-Host "ERROR: Test execution failed with exception:" -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    exit 1
+}
