@@ -264,13 +264,28 @@ fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
     use std::process::Command;
 
     // Run pkl directly without shell wrapper for cross-platform compatibility
-    let output = Command::new(bin)
-        .arg("eval")
-        .arg("-f")
-        .arg("json")
-        .arg(path)
-        .output()
-        .wrap_err_with(|| format!("failed to run pkl: {bin}"))?;
+    let output = if bin.contains("mise x") {
+        // Handle "mise x -- pkl" case - split the command properly
+        Command::new("mise")
+            .arg("x")
+            .arg("--")
+            .arg("pkl")
+            .arg("eval")
+            .arg("-f")
+            .arg("json")
+            .arg(path)
+            .output()
+            .wrap_err_with(|| format!("failed to run pkl via mise: {bin}"))?
+    } else {
+        // Direct pkl execution
+        Command::new(bin)
+            .arg("eval")
+            .arg("-f")
+            .arg("json")
+            .arg(path)
+            .output()
+            .wrap_err_with(|| format!("failed to run pkl: {bin}"))?
+    };
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

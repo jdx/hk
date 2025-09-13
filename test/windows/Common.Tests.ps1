@@ -28,22 +28,37 @@ if (-not $global:HkPath) {
 
 # Determine how to run hk commands
 if (-not $global:HkCommand) {
-    # Check if pkl is available in PATH
-    $pklAvailable = Get-Command pkl -ErrorAction SilentlyContinue
-
-    if ($env:USE_MISE -eq "true" -or -not $pklAvailable) {
-        # Use mise to provide PKL when not in PATH
-        Write-Host "Using mise to provide PKL for hk" -ForegroundColor Gray
+    # In CI, always use the method specified by USE_MISE env var
+    # Locally, detect PKL availability
+    if ($env:USE_MISE -eq "false") {
+        # CI has configured mise shims in PATH, use hk directly
+        Write-Host "Running hk directly (CI mode with mise shims in PATH)" -ForegroundColor Gray
+        $global:HkCommand = {
+            param([Parameter(ValueFromRemainingArguments=$true)]$CommandArgs)
+            & $global:HkPath $CommandArgs
+        }
+    } elseif ($env:USE_MISE -eq "true") {
+        # Explicitly requested to use mise
+        Write-Host "Using mise to provide PKL for hk (USE_MISE=true)" -ForegroundColor Gray
         $global:HkCommand = {
             param([Parameter(ValueFromRemainingArguments=$true)]$CommandArgs)
             & mise x -- $global:HkPath $CommandArgs
         }
     } else {
-        # PKL is in PATH, use direct path to hk.exe
-        Write-Host "PKL found in PATH, running hk directly" -ForegroundColor Gray
-        $global:HkCommand = {
-            param([Parameter(ValueFromRemainingArguments=$true)]$CommandArgs)
-            & $global:HkPath $CommandArgs
+        # Local development - auto-detect
+        $pklAvailable = Get-Command pkl -ErrorAction SilentlyContinue
+        if ($pklAvailable) {
+            Write-Host "PKL found in PATH, running hk directly" -ForegroundColor Gray
+            $global:HkCommand = {
+                param([Parameter(ValueFromRemainingArguments=$true)]$CommandArgs)
+                & $global:HkPath $CommandArgs
+            }
+        } else {
+            Write-Host "PKL not in PATH, using mise to provide it" -ForegroundColor Gray
+            $global:HkCommand = {
+                param([Parameter(ValueFromRemainingArguments=$true)]$CommandArgs)
+                & mise x -- $global:HkPath $CommandArgs
+            }
         }
     }
 }
