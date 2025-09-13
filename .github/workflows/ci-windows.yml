@@ -92,18 +92,18 @@ jobs:
           git config user.name "Test User"
           
           @'
-amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["test-ps"] {
-                check = "Write-Host 'PowerShell test passed'"
-                shell = "powershell.exe -NoProfile -Command"
-            }
-        }
-    }
-}
-'@ | Out-File -FilePath hk.pkl -Encoding UTF8
+          amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+          hooks {
+              ["check"] {
+                  steps {
+                      ["test-ps"] {
+                          check = "Write-Host 'PowerShell test passed'"
+                          shell = "powershell.exe -NoProfile -Command"
+                      }
+                  }
+              }
+          }
+          '@ | Out-File -FilePath hk.pkl -Encoding UTF8
           
           $output = mise x -- hk check 2>&1
           if ($LASTEXITCODE -ne 0) {
