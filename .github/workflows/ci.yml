@@ -55,7 +55,7 @@ jobs:
         if: ${{ matrix.os == 'windows-latest' }}
         shell: pwsh
         run: |
-          cargo build --release
+          cargo build
           cargo test --all --all-features -- --skip test_read_file_not_found
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
