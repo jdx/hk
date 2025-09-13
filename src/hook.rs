@@ -434,7 +434,7 @@ impl Hook {
         println!();
 
         // Determine what to show based on --why flag
-        let show_all_reasons = opts.why.as_ref().map_or(false, |w| w.is_none());
+        let show_all_reasons = opts.why.as_ref().is_some_and(|w| w.is_none());
         let specific_step = opts.why.as_ref().and_then(|w| w.as_ref());
 
         // Group steps by parallel groups for better display
@@ -443,7 +443,7 @@ impl Hook {
 
         for step in &plan.steps {
             // Check if we should show this step
-            let should_show = specific_step.map_or(true, |s| s == &step.name);
+            let should_show = specific_step.is_none_or(|s| s == &step.name);
             if !should_show && !show_all_reasons {
                 continue;
             }
