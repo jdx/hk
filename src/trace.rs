@@ -59,9 +59,12 @@ pub fn init_tracing(json_output: bool) -> Result<()> {
                 // This is the common case - another part of the system has set up tracing
                 // We can still use tracing, we just can't install our own subscriber
                 // For now, just continue - our spans will go to the existing subscriber
-                eprintln!(
-                    "Note: Tracing subscriber already initialized, using existing subscriber"
-                );
+                // Only print the note in pretty mode, not JSON mode or when testing
+                if !json_output && !cfg!(test) && std::env::var("BATS_TEST_NAME").is_err() {
+                    eprintln!(
+                        "Note: Tracing subscriber already initialized, using existing subscriber"
+                    );
+                }
                 Ok(())
             } else {
                 Err(eyre::eyre!(
