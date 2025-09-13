@@ -129,6 +129,8 @@ pub struct HookContext {
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
+    /// Dry run mode - don't execute commands, just collect plan
+    pub dry_run: bool,
 }
 
 impl HookContext {
@@ -172,7 +174,13 @@ impl HookContext {
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
+            dry_run: false,
         }
+    }
+
+    pub fn with_dry_run(mut self) -> Self {
+        self.dry_run = true;
+        self
     }
 
     pub fn files(&self) -> Vec<PathBuf> {
@@ -301,53 +309,26 @@ impl Hook {
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
+        // Use the run_internal method with dry_run mode
+        self.run_internal(opts, true).await
+    }
+
+    fn build_plan_from_context(
+        &self,
+        hook_ctx: &Arc<HookContext>,
+        opts: &HookOptions,
+    ) -> Result<Plan> {
         let settings = Settings::get();
-        let run_type = self.run_type(&opts);
-        let groups = self.get_step_groups(&opts);
-        let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
-        let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
-        let progress = ProgressJobBuilder::new()
-            .status(ProgressStatus::Hide)
-            .build();
-        let files = self
-            .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
-            .await?;
-
-        // Build skip_steps map like in run()
-        let skip_steps = {
-            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-            for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
-            }
-            for s in opts.skip_step.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
-                );
-            }
-            m
-        };
-
-        // Create the plan
         let mut plan = Plan::new(self.name.clone())
             .with_profiles(settings.enabled_profiles.iter().cloned().collect());
 
-        // Build tera and expr contexts
-        let mut tctx = opts.tctx.clone();
-        tctx.insert("git", &git_status);
-        let mut expr_ctx = EXPR_CTX.clone();
-        if let Ok(val) = expr::to_value(&git_status) {
-            expr_ctx.insert("git", val);
-        }
-
         let mut order_index = 0;
 
+        // Get skipped steps info
+        let skipped_steps = hook_ctx.get_skipped_steps();
+
         // Process each group
-        for (group_idx, group) in groups.iter().enumerate() {
+        for (group_idx, group) in hook_ctx.groups.iter().enumerate() {
             let group_id = format!("group_{}", group_idx);
             let mut group_step_ids = Vec::new();
 
@@ -357,52 +338,28 @@ impl Hook {
                 let mut reasons = Vec::new();
                 let mut status = StepStatus::Included;
 
-                // Check if step is explicitly skipped
-                if let Some(skip_reason) = skip_steps.get(step_name) {
+                // Check if step was skipped
+                if let Some(skip_reason) = skipped_steps.get(step_name) {
                     status = StepStatus::Skipped;
                     reasons.push(Reason {
                         kind: match skip_reason {
-                            SkipReason::DisabledByEnv(_src) => ReasonKind::Disabled,
-                            SkipReason::DisabledByCli(_src) => ReasonKind::CliExclude,
-                            _ => ReasonKind::Disabled,
+                            SkipReason::DisabledByEnv(_) => ReasonKind::Disabled,
+                            SkipReason::DisabledByCli(_) => ReasonKind::CliExclude,
+                            SkipReason::ProfileNotEnabled(_) => ReasonKind::ProfileExclude,
+                            SkipReason::ProfileExplicitlyDisabled => ReasonKind::ProfileExclude,
+                            SkipReason::NoCommandForRunType(_) => ReasonKind::Disabled,
+                            SkipReason::NoFilesToProcess => ReasonKind::FilterNoMatch,
+                            SkipReason::ConditionFalse => ReasonKind::ConditionFalse,
                         },
                         detail: Some(skip_reason.message()),
                         data: HashMap::new(),
                     });
                 } else {
-                    // Check profile requirements
-                    if let Some(profile_reason) = step.profile_skip_reason() {
-                        status = StepStatus::Skipped;
-                        reasons.push(Reason {
-                            kind: ReasonKind::ProfileExclude,
-                            detail: Some(profile_reason.message()),
-                            data: HashMap::new(),
-                        });
-                    }
-
-                    // Check if step has commands for the run type
-                    if status == StepStatus::Included && step.run_cmd(run_type).is_none() {
-                        status = StepStatus::Skipped;
-                        reasons.push(Reason {
-                            kind: ReasonKind::Disabled,
-                            detail: Some(format!("no command for run type {:?}", run_type)),
-                            data: HashMap::new(),
-                        });
-                    }
-
-                    // Check file filters
-                    if status == StepStatus::Included && step.glob.is_some() {
-                        let files_vec: Vec<PathBuf> = files.iter().cloned().collect();
-                        let step_files =
-                            glob::get_matches(step.glob.as_ref().unwrap(), &files_vec)?;
-                        if step_files.is_empty() {
-                            status = StepStatus::Skipped;
-                            reasons.push(Reason {
-                                kind: ReasonKind::FilterNoMatch,
-                                detail: Some("no files matched glob patterns".to_string()),
-                                data: HashMap::new(),
-                            });
-                        } else {
+                    // Step was included - check why
+                    if step.glob.is_some() {
+                        let files = hook_ctx.files();
+                        let step_files = glob::get_matches(step.glob.as_ref().unwrap(), &files)?;
+                        if !step_files.is_empty() {
                             reasons.push(Reason {
                                 kind: ReasonKind::FilterMatch,
                                 detail: Some(format!("{} files matched", step_files.len())),
@@ -411,50 +368,13 @@ impl Hook {
                         }
                     }
 
-                    // Check conditions
-                    if status == StepStatus::Included {
-                        if let Some(condition) = &step.condition {
-                            match crate::step::EXPR_ENV.eval(condition, &expr_ctx) {
-                                Ok(val) => {
-                                    if val.as_bool().unwrap_or(false) {
-                                        reasons.push(Reason {
-                                            kind: ReasonKind::ConditionTrue,
-                                            detail: Some(format!("condition: {}", condition)),
-                                            data: HashMap::new(),
-                                        });
-                                    } else {
-                                        status = StepStatus::Skipped;
-                                        reasons.push(Reason {
-                                            kind: ReasonKind::ConditionFalse,
-                                            detail: Some(format!("condition: {}", condition)),
-                                            data: HashMap::new(),
-                                        });
-                                    }
-                                }
-                                Err(_) => {
-                                    status = StepStatus::Skipped;
-                                    reasons.push(Reason {
-                                        kind: ReasonKind::ConditionUnknown,
-                                        detail: Some(format!(
-                                            "condition could not be evaluated: {}",
-                                            condition
-                                        )),
-                                        data: HashMap::new(),
-                                    });
-                                }
-                            }
-                        }
-                    }
-
-                    // Check CLI step selection
-                    if !opts.step.is_empty() {
-                        if opts.step.contains(step_name) {
-                            reasons.push(Reason {
-                                kind: ReasonKind::CliInclude,
-                                detail: Some(format!("included via --step {}", step_name)),
-                                data: HashMap::new(),
-                            });
-                        }
+                    // Check if included via CLI
+                    if !opts.step.is_empty() && opts.step.contains(step_name) {
+                        reasons.push(Reason {
+                            kind: ReasonKind::CliInclude,
+                            detail: Some(format!("included via --step {}", step_name)),
+                            data: HashMap::new(),
+                        });
                     }
                 }
 
@@ -500,17 +420,7 @@ impl Hook {
             }
         }
 
-        // Output the plan
-        if opts.plan_json {
-            // JSON output
-            let json = serde_json::to_string_pretty(&plan)?;
-            println!("{}", json);
-        } else {
-            // Human-readable output
-            self.print_plan(&plan, &opts)?;
-        }
-
-        Ok(())
+        Ok(plan)
     }
 
     fn print_plan(&self, plan: &Plan, opts: &HookOptions) -> Result<()> {
@@ -605,6 +515,14 @@ impl Hook {
 
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
+        self.run_internal(opts, false).await
+    }
+
+    async fn run_internal(&self, opts: HookOptions, dry_run: bool) -> Result<()> {
+        // Disable progress output entirely in dry_run mode
+        if dry_run {
+            clx::progress::set_output(ProgressOutput::Text);
+        }
         let settings = Settings::get();
         if env::HK_SKIP_HOOK.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
@@ -616,12 +534,23 @@ impl Hook {
         let groups = self.get_step_groups(&opts);
         let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
-        let hk_progress = self.start_hk_progress(run_type, total_steps);
-        let file_progress = ProgressJobBuilder::new().body(
-            "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}"
-        )
-        .prop("message", "Fetching git status")
-        .start();
+        let hk_progress = if dry_run {
+            None
+        } else {
+            self.start_hk_progress(run_type, total_steps)
+        };
+        let file_progress = if dry_run {
+            ProgressJobBuilder::new()
+                .status(ProgressStatus::Hide)
+                .build()
+                .into()
+        } else {
+            ProgressJobBuilder::new().body(
+                "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}"
+            )
+            .prop("message", "Fetching git status")
+            .start()
+        };
         let files = self
             .file_list(
                 &opts,
@@ -657,7 +586,7 @@ impl Hook {
         }
         // Enrich Tera and expr contexts with git status for template/condition use
         let git_status_for_ctx = git_status.clone();
-        let mut tctx = opts.tctx;
+        let mut tctx = opts.tctx.clone();
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
         // Build expression context with the same data under "git"
@@ -665,7 +594,7 @@ impl Hook {
         if let Ok(val) = expr::to_value(&git_status_for_ctx) {
             expr_ctx.insert("git", val);
         }
-        let hook_ctx = Arc::new(HookContext::new(
+        let mut hook_ctx = HookContext::new(
             files,
             repo.clone(),
             groups,
@@ -674,11 +603,18 @@ impl Hook {
             run_type,
             hk_progress,
             skip_steps,
-        ));
+        );
+
+        if dry_run {
+            hook_ctx = hook_ctx.with_dry_run();
+        }
+
+        let hook_ctx = Arc::new(hook_ctx);
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
-        if stash_method != StashMethod::None {
+        // Skip stashing in dry_run mode
+        if !dry_run && stash_method != StashMethod::None {
             repo.lock()
                 .await
                 .stash_unstaged(&file_progress, stash_method, &git_status)?;
@@ -711,11 +647,14 @@ impl Hook {
             }
         }
 
-        if let Err(err) = repo.lock().await.pop_stash() {
-            if result.is_ok() {
-                result = Err(err);
-            } else {
-                warn!("Failed to pop stash: {err}");
+        // Skip stash popping in dry_run mode
+        if !dry_run {
+            if let Err(err) = repo.lock().await.pop_stash() {
+                if result.is_ok() {
+                    result = Err(err);
+                } else {
+                    warn!("Failed to pop stash: {err}");
+                }
             }
         }
         if let Err(err) = hook_ctx.timing.write_json() {
@@ -724,6 +663,18 @@ impl Hook {
 
         // Clear progress bars before displaying summary
         clx::progress::stop();
+
+        // In dry_run mode, output the plan instead of regular summary
+        if dry_run {
+            let plan = self.build_plan_from_context(&hook_ctx, &opts)?;
+            if opts.plan_json {
+                let json = serde_json::to_string_pretty(&plan)?;
+                println!("{}", json);
+            } else {
+                self.print_plan(&plan, &opts)?;
+            }
+            return Ok(());
+        }
 
         // Display aggregated output from steps, once per step
         if clx::progress::output() != ProgressOutput::Text || *env::HK_SUMMARY_TEXT {

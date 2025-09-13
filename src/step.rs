@@ -572,7 +572,16 @@ impl Step {
             self.mark_skipped(ctx, &reason)?;
             return Ok(());
         }
-        job.progress = Some(job.build_progress(ctx));
+        // Hide progress in dry_run mode
+        if ctx.hook_ctx.dry_run {
+            job.progress = Some(Arc::new(
+                ProgressJobBuilder::new()
+                    .status(ProgressStatus::Hide)
+                    .build(),
+            ));
+        } else {
+            job.progress = Some(job.build_progress(ctx));
+        }
         job.status = StepJobStatus::Pending;
         let semaphore = if let Some(semaphore) = job.semaphore.take() {
             semaphore
@@ -643,6 +652,12 @@ impl Step {
             let value = tera::render(value, &tctx)?;
             cmd = cmd.env(key, value);
         }
+        // Skip actual execution in dry_run mode
+        if ctx.hook_ctx.dry_run {
+            job.status_finished()?;
+            return Ok(());
+        }
+
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
         let exec_result = cmd.execute().await;
         timing_guard.finish();
