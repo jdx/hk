@@ -59,30 +59,14 @@ jobs:
           mise install
           mise list
 
-          # Add mise shims to PATH so pkl is available for hk binary
-          $misePath = "$env:USERPROFILE\AppData\Local\mise\shims"
-          $env:PATH = "$misePath;$env:PATH"
-          echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-          # Verify pkl is accessible
-          pkl --version
-
-          # Also check pkl is in the expected location
-          Get-Command pkl -ErrorAction SilentlyContinue
-          if (-not (Get-Command pkl -ErrorAction SilentlyContinue)) {
-              Write-Error "pkl not found in PATH even after adding mise shims"
-              exit 1
-          }
+          # Verify pkl is available via mise
+          mise x -- pkl --version
 
           cargo build
           cargo test --all --all-features -- --skip test_read_file_not_found
 
-          # Don't use mise x -- for running hk, since shims are already in PATH
-          $env:USE_MISE = "false"
-
-          # Ensure pkl is still accessible before running tests
-          Write-Host "Verifying pkl is still accessible before tests..."
-          pkl --version
+          # Use mise to provide pkl for hk in tests
+          $env:USE_MISE = "true"
 
           # Run the new modular test suite and ensure exit code is propagated
           & test\windows\RunAllTests.ps1 -Output Detailed
