@@ -1,0 +1,173 @@
+name: ci-windows
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    tags: ["*"]
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  windows-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Install pkl
+        shell: pwsh
+        run: |
+          # Download and install pkl for Windows
+          $pklVersion = "0.27.1"
+          $url = "https://github.com/apple/pkl/releases/download/$pklVersion/pkl-windows-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile pkl.zip
+          Expand-Archive -Path pkl.zip -DestinationPath .
+          Move-Item -Path "pkl-windows-amd64\pkl.exe" -Destination "$env:GITHUB_WORKSPACE"
+          echo "$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      
+      - name: Build
+        run: cargo build --release
+      
+      - name: Run Rust unit tests
+        run: cargo test --lib --bins
+      
+      - name: Run Windows Pester tests
+        shell: pwsh
+        run: |
+          Install-Module -Name Pester -Force -SkipPublisherCheck
+          Import-Module Pester
+          Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed
+      
+      - name: Test hk init
+        shell: pwsh
+        run: |
+          mkdir test-repo
+          cd test-repo
+          git init
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          ..\target\release\hk.exe init
+          if (!(Test-Path "hk.pkl")) {
+            Write-Error "hk.pkl was not created"
+            exit 1
+          }
+      
+      - name: Test hk install/uninstall
+        shell: pwsh
+        run: |
+          cd test-repo
+          ..\target\release\hk.exe install
+          if (!(Test-Path ".git\hooks\pre-commit")) {
+            Write-Error "pre-commit hook was not created"
+            exit 1
+          }
+          ..\target\release\hk.exe uninstall
+          if (Test-Path ".git\hooks\pre-commit") {
+            Write-Error "pre-commit hook was not removed"
+            exit 1
+          }
+      
+      - name: Test hk check with PowerShell
+        shell: pwsh
+        run: |
+          mkdir test-ps
+          cd test-ps
+          git init
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          
+          @'
+amends "pkl:hk/Config"
+hooks {
+    ["check"] {
+        steps {
+            ["test-ps"] {
+                check = "Write-Host 'PowerShell test passed'"
+                shell = "powershell.exe -NoProfile -Command"
+            }
+        }
+    }
+}
+'@ | Out-File -FilePath hk.pkl -Encoding UTF8
+          
+          $output = ..\target\release\hk.exe check 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "hk check failed"
+            Write-Host $output
+            exit 1
+          }
+      
+      - name: Test hk check with cmd
+        shell: cmd
+        run: |
+          mkdir test-cmd
+          cd test-cmd
+          git init
+          git config user.email "test@example.com"
+          git config user.name "Test User"
+          
+          echo amends "pkl:hk/Config" > hk.pkl
+          echo hooks { >> hk.pkl
+          echo     ["check"] { >> hk.pkl
+          echo         steps { >> hk.pkl
+          echo             ["test-cmd"] { >> hk.pkl
+          echo                 check = "echo CMD test passed" >> hk.pkl
+          echo                 shell = "cmd.exe /C" >> hk.pkl
+          echo             } >> hk.pkl
+          echo         } >> hk.pkl
+          echo     } >> hk.pkl
+          echo } >> hk.pkl
+          
+          ..\target\release\hk.exe check
+          if %ERRORLEVEL% neq 0 (
+            echo hk check failed
+            exit /b 1
+          )
+
+  windows-build-artifacts:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - uses: Swatinem/rust-cache@v2
+      
+      - name: Build release binary
+        run: cargo build --release
+      
+      - name: Package Windows binary
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          mkdir "hk-$version-windows-x64"
+          Copy-Item "target\release\hk.exe" "hk-$version-windows-x64\"
+          Copy-Item "README.md" "hk-$version-windows-x64\"
+          Copy-Item "LICENSE" "hk-$version-windows-x64\"
+          Compress-Archive -Path "hk-$version-windows-x64" -DestinationPath "hk-$version-windows-x64.zip"
+      
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hk-windows-x64
+          path: hk-*.zip

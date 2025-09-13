@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::Result;
+use crate::{Result, shell::Shell};
 use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
@@ -211,7 +211,12 @@ impl Git {
         // Fallbacks: main, master
         for cand in ["main", "master"] {
             let branch = cand.split('/').next_back().unwrap();
-            let out = xx::process::sh(&format!("git ls-remote --heads origin {}", branch))?;
+            let out = if cfg!(windows) {
+            let shell = Shell::detect();
+            shell.execute(&format!("git ls-remote --heads origin {}", branch))?
+        } else {
+            xx::process::sh(&format!("git ls-remote --heads origin {}", branch))?
+        };
             if out
                 .lines()
                 .any(|l| l.ends_with(&format!("refs/heads/{}", branch)))
@@ -266,7 +271,12 @@ impl Git {
                     return Ok(_ref.name().map(|s| s.to_string()));
                 }
             } else {
-                let output = xx::process::sh(&format!("git ls-remote --heads {remote} {branch}"))?;
+                let output = if cfg!(windows) {
+            let shell = Shell::detect();
+            shell.execute(&format!("git ls-remote --heads {remote} {branch}"))?
+        } else {
+            xx::process::sh(&format!("git ls-remote --heads {remote} {branch}"))?
+        };
                 for line in output.lines() {
                     if line.contains(&format!("refs/remotes/{remote}/{branch}")) {
                         return Ok(Some(branch.to_string()));
@@ -283,7 +293,12 @@ impl Git {
             let branch_name = head.shorthand().map(|s| s.to_string());
             Ok(branch_name)
         } else {
-            let output = xx::process::sh("git branch --show-current")?;
+            let output = if cfg!(windows) {
+            let shell = Shell::detect();
+            shell.execute("git branch --show-current")?
+        } else {
+            xx::process::sh("git branch --show-current")?
+        };
             Ok(output.lines().next().map(|s| s.to_string()))
         }
     }
@@ -638,7 +653,12 @@ impl Git {
         } else {
             // Shell git path: build a patch without untracked contents
             let out =
-                xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
+                if cfg!(windows) {
+                    let shell = Shell::detect();
+                    shell.execute("git diff --no-color --no-ext-diff --binary --ignore-submodules")?
+                } else {
+                    xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?
+                };
             if out.trim().is_empty() {
                 return Ok(None);
             }
@@ -1012,7 +1032,12 @@ impl Git {
             Ok(files.into_iter().collect())
         } else {
             // Use git merge-base to find the common ancestor
-            let merge_base = xx::process::sh(&format!("git merge-base {from_ref} {to_ref}"))?;
+            let merge_base = if cfg!(windows) {
+            let shell = Shell::detect();
+            shell.execute(&format!("git merge-base {from_ref} {to_ref}"))?
+        } else {
+            xx::process::sh(&format!("git merge-base {from_ref} {to_ref}"))?
+        };
             let merge_base = merge_base.trim();
 
             let output = git_read([

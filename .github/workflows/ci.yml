@@ -25,24 +25,46 @@ jobs:
           - macos-latest
           - ubuntu-latest
           #- ubuntu-24.04-arm
-          #- windows-latest
+          - windows-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
+      - name: Install Windows dependencies
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          # Install pkl for Windows
+          $pklVersion = "0.27.1"
+          $url = "https://github.com/apple/pkl/releases/download/$pklVersion/pkl-windows-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile pkl.zip
+          Expand-Archive -Path pkl.zip -DestinationPath .
+          Move-Item -Path "pkl-windows-amd64\pkl.exe" -Destination "$env:GITHUB_WORKSPACE"
+          echo "$env:GITHUB_WORKSPACE" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v2
       - run: mise x -- bun i
+        if: ${{ matrix.os != 'windows-latest' }}
       - name: mise run ci
+        if: ${{ matrix.os != 'windows-latest' }}
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 10
           max_attempts: 3
           command: mise run ci
+      - name: Windows tests
+        if: ${{ matrix.os == 'windows-latest' }}
+        shell: pwsh
+        run: |
+          cargo build --release
+          cargo test --lib --bins
+          Install-Module -Name Pester -Force -SkipPublisherCheck
+          Import-Module Pester
+          Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10

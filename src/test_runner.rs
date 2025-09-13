@@ -4,6 +4,7 @@ use std::time::Instant;
 
 use crate::{
     Result,
+    shell::Shell,
     step::Step,
     step_test::{RunKind, StepTest},
 };
@@ -34,7 +35,21 @@ async fn execute_cmd(
         let bin = parts.next().unwrap_or("sh");
         CmdLineRunner::new(bin).args(parts)
     } else {
-        CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+        let detected_shell = Shell::detect();
+        match &detected_shell {
+            Shell::PowerShell => {
+                if which::which("pwsh.exe").is_ok() {
+                    CmdLineRunner::new("pwsh.exe")
+                } else {
+                    CmdLineRunner::new("powershell.exe")
+                }
+                .arg("-NoProfile")
+                .arg("-NonInteractive")
+                .arg("-Command")
+            }
+            Shell::Cmd => CmdLineRunner::new("cmd.exe").arg("/C"),
+            _ => CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c"),
+        }
     };
     runner = runner.arg(cmd_str).current_dir(base_dir);
     for (k, v) in &step.env {

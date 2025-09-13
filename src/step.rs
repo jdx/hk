@@ -1,7 +1,7 @@
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
-use crate::{hook::SkipReason, timings::StepTimingGuard};
+use crate::{hook::SkipReason, shell::Shell, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -621,7 +621,21 @@ impl Step {
             }
             cmd
         } else {
-            CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+            let detected_shell = Shell::detect();
+            match &detected_shell {
+                Shell::PowerShell => {
+                    if which::which("pwsh.exe").is_ok() {
+                        CmdLineRunner::new("pwsh.exe")
+                    } else {
+                        CmdLineRunner::new("powershell.exe")
+                    }
+                    .arg("-NoProfile")
+                    .arg("-NonInteractive")
+                    .arg("-Command")
+                }
+                Shell::Cmd => CmdLineRunner::new("cmd.exe").arg("/C"),
+                _ => CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c"),
+            }
         };
         cmd = cmd
             .arg(&run)
@@ -851,8 +865,14 @@ pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::new();
 
     env.add_function("exec", |c| {
-        let out = xx::process::sh(c.args[0].as_string().unwrap())
-            .map_err(|e| expr::Error::ExprError(e.to_string()))?;
+        let out = if cfg!(windows) {
+            let shell = Shell::detect();
+            shell.execute(c.args[0].as_string().unwrap())
+                .map_err(|e| expr::Error::ExprError(e.to_string()))?
+        } else {
+            xx::process::sh(c.args[0].as_string().unwrap())
+                .map_err(|e| expr::Error::ExprError(e.to_string()))?
+        };
         Ok(expr::Value::String(out))
     });
 

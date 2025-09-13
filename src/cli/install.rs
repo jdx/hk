@@ -27,6 +27,7 @@ impl Install {
                 "hk".to_string()
             };
             xx::file::write(&hook_file, git_hook_content(&command, hook))?;
+            #[cfg(unix)]
             xx::file::make_executable(&hook_file)?;
             println!("Installed hk hook: .git/hooks/{hook}");
             Result::<(), eyre::Report>::Ok(())
@@ -42,9 +43,23 @@ impl Install {
 }
 
 fn git_hook_content(hk: &str, hook: &str) -> String {
-    format!(
-        r#"#!/bin/sh
+    if cfg!(windows) {
+        // Windows batch file
+        format!(
+            r#"@echo off
+if "%HK%"=="0" (
+    exit /b 0
+) else (
+    {hk} run {hook} %*
+)
+"#
+        )
+    } else {
+        // Unix shell script
+        format!(
+            r#"#!/bin/sh
 test "${{HK:-1}}" = "0" || exec {hk} run {hook} "$@"
 "#
-    )
+        )
+    }
 }
