@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.12.1"
+version "1.13.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -17,6 +17,8 @@ flag "-v --verbose" help="Enables verbose output" var=#true global=#true count=#
 flag "-n --no-progress" help="Disables progress output" global=#true
 flag "-q --quiet" help="Suppresses output" global=#true
 flag --silent help="Suppresses all output" global=#true
+flag --trace help="Enable tracing spans and performance diagnostics" global=#true
+flag --json help="Output traces as JSON Lines (requires --trace)" global=#true
 cmd builtins help="Lists all available builtin linters"
 cmd cache hide=#true subcommand_required=#true help="Manage hk internal cache" {
     cmd clear help="Clear the cache directory"

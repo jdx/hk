@@ -1762,6 +1762,26 @@
         "long": ["silent"],
         "hide": false,
         "global": true
+      },
+      {
+        "name": "trace",
+        "usage": "--trace",
+        "help": "Enable tracing spans and performance diagnostics",
+        "help_first_line": "Enable tracing spans and performance diagnostics",
+        "short": [],
+        "long": ["trace"],
+        "hide": false,
+        "global": true
+      },
+      {
+        "name": "json",
+        "usage": "--json",
+        "help": "Output traces as JSON Lines (requires --trace)",
+        "help_first_line": "Output traces as JSON Lines (requires --trace)",
+        "short": [],
+        "long": ["json"],
+        "hide": false,
+        "global": true
       }
     ],
     "mounts": [],
@@ -1774,7 +1794,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.12.1",
+  "version": "1.13.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
