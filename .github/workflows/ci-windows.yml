@@ -51,8 +51,8 @@ jobs:
         run: |
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
-          # Set environment variable to use mise for hk execution in Pester tests
-          $env:USE_MISE = "true"
+          # Use local binary directly (mise not needed for local tests)
+          $env:USE_MISE = "false"
           Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed
 
       - name: Test hk init
