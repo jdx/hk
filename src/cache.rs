@@ -121,6 +121,7 @@ where
             }
             tracing::event!(tracing::Level::INFO, "cache.miss");
             let val = (fetch)()?;
+            tracing::info!(path = %path.display(), "cache.write");
             if let Err(err) = self.write(&val) {
                 warn!("failed to write cache file: {} {:#}", path.display(), err);
             }

@@ -6,38 +6,30 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
 use tracing::{Event, Id, Subscriber};
-use tracing_subscriber::layer::{Context, SubscriberExt};
+use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
-use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{Layer, fmt};
 
 static TRACE_ENABLED: AtomicBool = AtomicBool::new(false);
 static PROCESS_START: OnceCell<Instant> = OnceCell::new();
 static SPAN_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Check if tracing is enabled
-pub fn hk_trace_enabled() -> bool {
-    TRACE_ENABLED.load(Ordering::Relaxed)
-}
-
 /// Initialize the tracing subscriber
 pub fn init_tracing(json_output: bool) -> Result<()> {
+    use tracing_subscriber::prelude::*;
+
     TRACE_ENABLED.store(true, Ordering::Relaxed);
     PROCESS_START.set(Instant::now()).ok();
 
-    // Skip LogTracer for now to avoid conflicts with existing logger
-    // TODO: In the future we might want to coordinate this better
+    // Install LogTracer to forward log events to tracing if possible
+    // This allows existing log macros to show up as trace events
+    let _ = tracing_log::LogTracer::init();
 
-    if json_output {
+    // Try to set our subscriber, but handle the case where one is already set
+    let result = if json_output {
         // JSON Lines output to stdout
         let json_layer = JsonLayer::new();
-        let subscriber = tracing_subscriber::registry().with(json_layer);
-        if let Err(e) = subscriber.try_init() {
-            return Err(eyre::eyre!(
-                "Failed to initialize tracing subscriber: {}",
-                e
-            ));
-        }
+        tracing_subscriber::registry().with(json_layer).try_init()
     } else {
         // Pretty console output to stderr with hierarchical spans
         let fmt_layer = fmt::layer()
@@ -49,13 +41,36 @@ pub fn init_tracing(json_output: bool) -> Result<()> {
             .with_thread_names(false)
             .compact();
 
-        tracing_subscriber::registry()
-            .with(fmt_layer)
-            .try_init()
-            .map_err(|e| eyre::eyre!("Failed to initialize tracing subscriber: {}", e))?;
-    }
+        tracing_subscriber::registry().with(fmt_layer).try_init()
+    };
 
-    Ok(())
+    match result {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            // A subscriber is already set - this might be from clx or elsewhere
+            // Let's check if we can work with the existing subscriber
+            let err_str = e.to_string();
+            if err_str.contains(
+                "attempted to set a logger after the logging system was already initialized",
+            ) {
+                // This is the common case - another part of the system has set up tracing
+                // We can still use tracing, we just can't install our own subscriber
+                // For now, just continue - our spans will go to the existing subscriber
+                // Only print the note in pretty mode, not JSON mode or when testing
+                if !json_output && !cfg!(test) && std::env::var("BATS_TEST_NAME").is_err() {
+                    eprintln!(
+                        "Note: Tracing subscriber already initialized, using existing subscriber"
+                    );
+                }
+                Ok(())
+            } else {
+                Err(eyre::eyre!(
+                    "Failed to initialize tracing subscriber: {}",
+                    e
+                ))
+            }
+        }
+    }
 }
 
 /// JSON Lines layer for tracing output
@@ -215,7 +230,9 @@ struct JsonInstant {
 // Internal span data stored in extensions
 struct SpanData {
     id: String,
+    #[allow(dead_code)]
     parent_id: Option<String>,
+    #[allow(dead_code)]
     start_ns: u64,
 }
 

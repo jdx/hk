@@ -2,7 +2,7 @@ use crate::version as version_lib;
 use std::num::NonZero;
 use std::path::PathBuf;
 
-use crate::{Result, logger, settings::Settings};
+use crate::{Result, env, logger, settings::Settings};
 use clap::Parser;
 use clx::progress::ProgressOutput;
 
@@ -53,8 +53,8 @@ struct Cli {
     /// Enable tracing spans and performance diagnostics
     #[clap(long, global = true)]
     trace: bool,
-    /// Output traces as JSON Lines (requires --trace)
-    #[clap(long, global = true, requires = "trace")]
+    /// Output in JSON format
+    #[clap(long, global = true)]
     json: bool,
     #[clap(subcommand)]
     command: Commands,
@@ -81,13 +81,9 @@ enum Commands {
 pub async fn run() -> Result<()> {
     let args = Cli::parse();
 
-    // Initialize tracing FIRST if requested, before any other initialization
-    let trace_enabled = args.trace || std::env::var("HK_TRACE").is_ok();
-    if trace_enabled {
-        let json_output = args.json || std::env::var("HK_TRACE").unwrap_or_default() == "json";
-        crate::trace::init_tracing(json_output)?;
-    }
-    let mut level = None;
+    // Determine effective log level from CLI flags (env default applied by logger if None)
+    let mut level: Option<log::LevelFilter> = None;
+    // Derive verbosity overrides first
     let config_path = if let Some(custom_path) = args.hkrc {
         custom_path
     } else {
@@ -98,11 +94,11 @@ pub async fn run() -> Result<()> {
     if !console::user_attended_stderr() || args.no_progress {
         clx::progress::set_output(ProgressOutput::Text);
     }
-    if args.verbose > 1 || log::log_enabled!(log::Level::Trace) {
+    if args.verbose > 1 {
         clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Trace);
     }
-    if args.verbose == 1 || log::log_enabled!(log::Level::Debug) {
+    if args.verbose == 1 {
         clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Debug);
     }
@@ -114,9 +110,29 @@ pub async fn run() -> Result<()> {
         clx::progress::set_output(ProgressOutput::Text);
         level = Some(log::LevelFilter::Error);
     }
-    // Initialize logger only if tracing is not enabled
-    if !trace_enabled {
-        logger::init(level);
+
+    // Decide tracing enablement and output format
+    // Support: --trace, HK_TRACE mode (Text/Json), or effective log level TRACE
+    let json_output = args.json || *env::HK_JSON || matches!(*env::HK_TRACE, env::TraceMode::Json);
+
+    let mut trace_enabled =
+        args.trace || matches!(*env::HK_TRACE, env::TraceMode::Text | env::TraceMode::Json);
+
+    let effective_level = level.unwrap_or(*env::HK_LOG);
+    if effective_level == log::LevelFilter::Trace {
+        trace_enabled = true;
+    }
+
+    // Set text progress output for debug/trace levels to prevent interference
+    if effective_level == log::LevelFilter::Debug || effective_level == log::LevelFilter::Trace {
+        clx::progress::set_output(ProgressOutput::Text);
+    }
+
+    // Initialize logger first so regular log records are handled by our logger (and not forwarded to tracing)
+    logger::init(level);
+    if trace_enabled {
+        clx::progress::set_output(ProgressOutput::Text);
+        crate::trace::init_tracing(json_output)?;
     }
 
     if let Some(jobs) = args.jobs {
