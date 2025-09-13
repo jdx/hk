@@ -14,11 +14,6 @@ static TRACE_ENABLED: AtomicBool = AtomicBool::new(false);
 static PROCESS_START: OnceCell<Instant> = OnceCell::new();
 static SPAN_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Check if tracing is enabled
-pub fn hk_trace_enabled() -> bool {
-    TRACE_ENABLED.load(Ordering::Relaxed)
-}
-
 /// Initialize the tracing subscriber
 pub fn init_tracing(json_output: bool) -> Result<()> {
     use tracing_subscriber::prelude::*;

@@ -92,7 +92,7 @@ pub enum TraceMode {
     Json,
 }
 
-pub static HK_TRACE_MODE: LazyLock<TraceMode> =
+pub static HK_TRACE: LazyLock<TraceMode> =
     LazyLock::new(|| match var("HK_TRACE").map(|v| v.to_lowercase()) {
         Ok(v) if v == "json" => TraceMode::Json,
         Ok(v) if v == "1" || v == "true" => TraceMode::Text,

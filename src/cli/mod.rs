@@ -53,8 +53,8 @@ struct Cli {
     /// Enable tracing spans and performance diagnostics
     #[clap(long, global = true)]
     trace: bool,
-    /// Output traces as JSON Lines (requires --trace)
-    #[clap(long, global = true, requires = "trace")]
+    /// Output in JSON format
+    #[clap(long, global = true)]
     json: bool,
     #[clap(subcommand)]
     command: Commands,
@@ -113,14 +113,10 @@ pub async fn run() -> Result<()> {
 
     // Decide tracing enablement and output format
     // Support: --trace, HK_TRACE mode (Text/Json), or effective log level TRACE
-    let json_output =
-        args.json || *env::HK_JSON || matches!(*env::HK_TRACE_MODE, env::TraceMode::Json);
+    let json_output = args.json || *env::HK_JSON || matches!(*env::HK_TRACE, env::TraceMode::Json);
 
-    let mut trace_enabled = args.trace
-        || matches!(
-            *env::HK_TRACE_MODE,
-            env::TraceMode::Text | env::TraceMode::Json
-        );
+    let mut trace_enabled =
+        args.trace || matches!(*env::HK_TRACE, env::TraceMode::Text | env::TraceMode::Json);
 
     let effective_level = level.unwrap_or(*env::HK_LOG);
     if effective_level == log::LevelFilter::Trace {
