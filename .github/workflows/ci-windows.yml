@@ -40,7 +40,8 @@ jobs:
           mise install
           mise list
           # Add mise shims to PATH so pkl is available for hk binary
-          $env:PATH = "$(mise which mise | Split-Path);" + $env:PATH
+          $misePath = "$env:USERPROFILE\AppData\Local\mise\shims"
+          $env:PATH = "$misePath;$env:PATH"
           echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Build
