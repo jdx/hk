@@ -6,6 +6,10 @@ backend = "aqua:rhysd/actionlint"
 version = "1.2.20"
 backend = "core:bun"
 
+[tools.bun.platforms.linux-x64]
+checksum = "blake3:b16555642ccb461c9d0f280b1a8c664f8c8421925c210ec40e8e7427d3286679"
+size = 38849822
+
 [tools.bun.platforms.macos-arm64]
 checksum = "blake3:d5f7acc00f0fefc647a50cdfce5a0a20a311ca61f82709d60ae1d627e40b2573"
 size = 21788202
@@ -13,6 +17,11 @@ size = 21788202
 [tools.cargo-binstall]
 version = "1.14.4"
 backend = "aqua:cargo-bins/cargo-binstall"
+
+[tools.cargo-binstall.platforms.linux-x64]
+checksum = "blake3:b2a4a55c83830ef20d2024c5d7394df9571fecd06c24e5f99568899dc507ace0"
+size = 6715267
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-unknown-linux-musl.tgz"
 
 [tools.cargo-binstall.platforms.macos-arm64]
 checksum = "blake3:86599ab2c99d951d1700a564616926d40efde0014a5306b68df335749135b0e6"
@@ -35,6 +44,11 @@ backend = "cargo:cargo-release"
 version = "2.10.0"
 backend = "aqua:orhun/git-cliff"
 
+[tools.git-cliff.platforms.linux-x64]
+checksum = "sha512:1fa2b3409add2e8f576d5a9520ae4e513edf1b8dafb477f65fa65f0a51d2efeb476cb1c86b58f277d5705a9cfc0392dee93f80a253806675379a785410f04038"
+size = 7239814
+url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-unknown-linux-musl.tar.gz"
+
 [tools.git-cliff.platforms.macos-arm64]
 checksum = "sha512:349a6d47b41cd57462148ce94ff1c1b0b0f8eba3f0abfce4af4e5164f74acda15b63808ddf1dc723cad2cb688ce307a22628e539e2a5a4f3c29c779b935409c8"
 size = 6638495
@@ -44,12 +58,20 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.
 version = "2.12.0"
 backend = "ubi:hadolint/hadolint"
 
+[tools.hadolint.platforms.linux-x64-hadolint]
+checksum = "blake3:35f56b2a62d2a03084500dd1a6de5fd56ac35219d29f45e915940add0da39b84"
+
 [tools.hadolint.platforms.macos-arm64-hadolint]
 checksum = "blake3:8be7ee4645cf6f43c8046be07b77caef5d7cf2ab9cc50ee4e965be20350f2dad"
 
 [tools.ktlint]
 version = "1.7.1"
 backend = "aqua:pinterest/ktlint"
+
+[tools.ktlint.platforms.linux-x64]
+checksum = "blake3:bf2916c0929214315774f53f82c6ef40937b36109b69ee55dc3ab8671a190459"
+size = 64558883
+url = "https://github.com/pinterest/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
 
 [tools.ktlint.platforms.macos-arm64]
 checksum = "blake3:bf2916c0929214315774f53f82c6ef40937b36109b69ee55dc3ab8671a190459"
@@ -59,6 +81,11 @@ url = "https://github.com/pinterest/ktlint/releases/download/1.7.1/ktlint-1.7.1.
 [tools.node]
 version = "24.6.0"
 backend = "core:node"
+
+[tools.node.platforms.linux-x64]
+checksum = "sha256:352ddbc48b586c11f018ec9b886225117909ea93e05b4a04a6db32f3e63d0281"
+size = 58781067
+url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-linux-x64.tar.gz"
 
 [tools.node.platforms.macos-arm64]
 checksum = "sha256:768f14952403e3025fed8e2887500dfa63eeb55628a9b203e4b8ebb0fb09c7eb"
@@ -76,6 +103,11 @@ backend = "npm:stylelint"
 [tools.pkl]
 version = "0.29.0"
 backend = "aqua:apple/pkl"
+
+[tools.pkl.platforms.linux-x64]
+checksum = "blake3:954ab61f352db192105bc3dd6daef7bd27aa847b1ea0a8f469f1f05881644864"
+size = 103994096
+url = "https://github.com/apple/pkl/releases/download/0.29.0/pkl-linux-amd64"
 
 [tools.pkl.platforms.macos-arm64]
 checksum = "blake3:b70836a640dc8ff41aa19f3edd7748a6ba7a281fb85335a48e59cd29c796b1ee"
@@ -111,6 +143,11 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 version = "2.2.2"
 backend = "aqua:jdx/usage"
 
+[tools.usage.platforms.linux-x64]
+checksum = "blake3:4b84855fe96884d5451b4a95a087cec138a0980b26f7dabb95ab119c12a4ead3"
+size = 2777340
+url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-x86_64-unknown-linux-musl.tar.gz"
+
 [tools.usage.platforms.macos-arm64]
 checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01ac6"
 size = 5008766
@@ -120,6 +157,11 @@ url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-app
 version = "0.10.0"
 backend = "aqua:charmbracelet/vhs"
 
+[tools.vhs.platforms.linux-x64]
+checksum = "sha256:b552c3870aca101dcafe533cfef32dceb7b783400ad32642e728775c9f125407"
+size = 9240353
+url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Linux_x86_64.tar.gz"
+
 [tools.vhs.platforms.macos-arm64]
 checksum = "sha256:dc256c403305ac8ba623563d0ef3241a38024f35b27c705f79d523e9da618012"
 size = 9127691
@@ -128,6 +170,11 @@ url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0
 [tools.yq]
 version = "4.47.1"
 backend = "aqua:mikefarah/yq"
+
+[tools.yq.platforms.linux-x64]
+checksum = "blake3:afa83f43baa909da08f999ecdeed0f799076b0b4aeb8eb464537a0fe38a21ab4"
+size = 11440312
+url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_linux_amd64"
 
 [tools.yq.platforms.macos-arm64]
 checksum = "blake3:576374b350e23e8a83123dbb2008bb9115c27cc6569699bfdd6b034562969f16"
