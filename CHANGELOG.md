@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.1](https://github.com/jdx/hk/compare/v1.12.0..v1.12.1) - 2025-09-13
+
+### 🐛 Bug Fixes
+
+- include pkl packages in releases by [@jdx](https://github.com/jdx) in [#227](https://github.com/jdx/hk/pull/227)
+- improve stashing error handling and robustness by [@jdx](https://github.com/jdx) in [#229](https://github.com/jdx/hk/pull/229)
+
 ## [1.12.0](https://github.com/jdx/hk/compare/v1.11.2..v1.12.0) - 2025-09-07
 
 ### 🚀 Features
