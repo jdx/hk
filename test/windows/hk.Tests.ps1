@@ -136,7 +136,7 @@ hooks {
 
             $output = & $script:HkPath check 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "(PowerShell test successful|ps-test)"
+            ($output -join " ") | Should -Match "(PowerShell test successful|ps-test)"
         }
 
         It "Should execute pwsh commands if available" {
@@ -161,7 +161,7 @@ hooks {
 
             $output = & $script:HkPath check 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "(PowerShell Core test successful|pwsh-test)"
+            ($output -join " ") | Should -Match "(PowerShell Core test successful|pwsh-test)"
         }
     }
 
@@ -183,7 +183,7 @@ hooks {
 
             $output = & $script:HkPath check 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "(CMD test successful|cmd-test)"
+            ($output -join " ") | Should -Match "(CMD test successful|cmd-test)"
         }
     }
 
@@ -213,8 +213,8 @@ hooks {
 
             $output = & $script:HkPath check test.ps1 test.txt 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "(Processing PowerShell files|ps1-files)"
-            $output | Should -Match "(Processing text files|txt-files)"
+            ($output -join " ") | Should -Match "(Processing PowerShell files|ps1-files)"
+            ($output -join " ") | Should -Match "(Processing text files|txt-files)"
         }
 
         It "Should handle Windows paths correctly" {
@@ -236,7 +236,7 @@ hooks {
 
             $output = & $script:HkPath check "subdir\test.txt" 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "subdir"
+            ($output -join " ") | Should -Match "subdir"
         }
     }
 
@@ -257,9 +257,9 @@ hooks {
 
             $output = & $script:HkPath check 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "(Step 1 completed|step1)"
-            $output | Should -Match "(Step 2 completed|step2)"
-            $output | Should -Match "(Step 3 completed|step3)"
+            ($output -join " ") | Should -Match "(Step 1 completed|step1)"
+            ($output -join " ") | Should -Match "(Step 2 completed|step2)"
+            ($output -join " ") | Should -Match "(Step 3 completed|step3)"
         }
     }
 
@@ -286,9 +286,9 @@ hooks {
 
             $output = & $script:HkPath check 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "(First step|first)"
-            $output | Should -Match "(Second step|second)"
-            $output | Should -Match "(Third step|third)"
+            ($output -join " ") | Should -Match "(First step|first)"
+            ($output -join " ") | Should -Match "(Second step|second)"
+            ($output -join " ") | Should -Match "(Third step|third)"
         }
     }
 
@@ -329,7 +329,7 @@ hooks {
             $output = & $script:HkPath check 2>&1
             # Should still fail overall but run both steps
             $LASTEXITCODE | Should -Not -Be 0
-            $output | Should -Match "(Success|passing)"
+            ($output -join " ") | Should -Match "(Success|passing)"
         }
     }
 
@@ -357,7 +357,7 @@ hooks {
 
             $output = & $script:HkPath run pre-commit 2>&1
             $LASTEXITCODE | Should -Be 0
-            $output | Should -Match "test.txt"
+            ($output -join " ") | Should -Match "test.txt"
         }
     }
 
@@ -371,7 +371,7 @@ check = "echo TOML config works"
 
             $output = & $script:HkPath check 2>&1
             if ($LASTEXITCODE -eq 0) {
-                $output | Should -Match "(TOML config works|toml-test)"
+                ($output -join " ") | Should -Match "(TOML config works|toml-test)"
             } else {
                 # TOML support might not be available, that's ok
                 Write-Host "TOML config not supported, skipping"
