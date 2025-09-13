@@ -2,6 +2,7 @@ use eyre::Result;
 use std::process::Command;
 
 #[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum Shell {
     Sh,         // Unix shell (sh -o errexit -c)
     PowerShell, // Windows PowerShell or PowerShell Core
@@ -72,7 +73,7 @@ impl Shell {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(eyre::eyre!("Command failed: {:?}\nstderr: {}", cmd, stderr).into());
+            return Err(eyre::eyre!("Command failed: {:?}\nstderr: {}", cmd, stderr));
         }
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
