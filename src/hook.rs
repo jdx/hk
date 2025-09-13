@@ -309,78 +309,8 @@ impl Hook {
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
-        let _settings = Settings::get();
-        if env::HK_SKIP_HOOK.contains(&self.name) {
-            warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
-            return Ok(());
-        }
-        let run_type = self.run_type(&opts);
-        let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
-        let groups = self.get_step_groups(&opts);
-        let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
-
-        // Use a dummy progress job for file_list (won't be displayed)
-        let dummy_progress = ProgressJobBuilder::new()
-            .status(ProgressStatus::Hide)
-            .build()
-            .into();
-
-        // Get files using the same method as normal execution
-        let files = self
-            .file_list(
-                &opts,
-                repo.clone(),
-                &git_status,
-                stash_method,
-                &dummy_progress,
-            )
-            .await?;
-
-        // Build skip_steps the same way as normal execution
-        let skip_steps = {
-            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-            for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
-            }
-            for s in opts.skip_step.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
-                );
-            }
-            m
-        };
-
-        // Build contexts the same way as normal execution
-        let git_status_for_ctx = git_status.clone();
-        let mut tctx = opts.tctx.clone();
-        tctx.insert("git", &git_status_for_ctx);
-        let mut expr_ctx = EXPR_CTX.clone();
-        if let Ok(val) = expr::to_value(&git_status_for_ctx) {
-            expr_ctx.insert("git", val);
-        }
-
-        // Create hook context for plan generation (no progress)
-        let hook_ctx = Arc::new(HookContext::new(
-            files, repo, groups, tctx, expr_ctx, run_type, None, // no progress for plan mode
-            skip_steps,
-        ));
-
-        // Build the plan without executing anything
-        let plan = self.build_plan_from_context(&hook_ctx, &opts)?;
-
-        // Display the plan
-        if opts.json {
-            println!("{}", serde_json::to_string_pretty(&plan)?);
-        } else {
-            self.print_plan(&plan, &opts)?;
-        }
-
-        Ok(())
+        // Reuse the real execution path in dry-run mode so planning can't drift
+        self.run_internal(opts, true).await
     }
 
     fn build_plan_from_context(
@@ -394,7 +324,7 @@ impl Hook {
 
         let mut order_index = 0;
 
-        // Get skipped steps info
+        // Skipped steps recorded during dry-run execution
         let skipped_steps = hook_ctx.get_skipped_steps();
 
         // Process each group
@@ -407,8 +337,7 @@ impl Hook {
                 let step_id = step_name.clone();
                 let mut reasons = Vec::new();
                 let mut status = StepStatus::Included;
-
-                // Check if step was skipped
+                // First, honor any recorded skip from real dry-run execution (condition/profile)
                 if let Some(skip_reason) = skipped_steps.get(step_name) {
                     status = StepStatus::Skipped;
                     reasons.push(Reason {
@@ -425,147 +354,84 @@ impl Hook {
                         data: HashMap::new(),
                     });
                 } else {
-                    // Step was included - check why by following actual execution logic
+                    // Reuse the real job builder to determine file-based inclusion/exclusion
+                    let files = hook_ctx.files();
+                    let files_in_contention = hook_ctx.files_in_contention.lock().unwrap().clone();
+                    let jobs = step.build_step_jobs(
+                        &files,
+                        hook_ctx.run_type,
+                        &files_in_contention,
+                        &hook_ctx.skip_steps,
+                    )?;
 
-                    // First check if step has a command for the run type
-                    if step.run_cmd(hook_ctx.run_type).is_none() {
+                    let (included_jobs, skipped_jobs): (Vec<_>, Vec<_>) =
+                        jobs.into_iter().partition(|j| j.skip_reason.is_none());
+
+                    if included_jobs.is_empty() {
                         status = StepStatus::Skipped;
+                        // Prefer specific skip reason if available from any job
+                        if let Some(j) = skipped_jobs.first() {
+                            if let Some(skip_reason) = &j.skip_reason {
+                                reasons.push(Reason {
+                                    kind: match skip_reason {
+                                        SkipReason::DisabledByEnv(_) => ReasonKind::Disabled,
+                                        SkipReason::DisabledByCli(_) => ReasonKind::CliExclude,
+                                        SkipReason::ProfileNotEnabled(_) => {
+                                            ReasonKind::ProfileExclude
+                                        }
+                                        SkipReason::ProfileExplicitlyDisabled => {
+                                            ReasonKind::ProfileExclude
+                                        }
+                                        SkipReason::NoCommandForRunType(_) => ReasonKind::Disabled,
+                                        SkipReason::NoFilesToProcess => ReasonKind::FilterNoMatch,
+                                        SkipReason::ConditionFalse => ReasonKind::ConditionFalse,
+                                    },
+                                    detail: Some(skip_reason.message()),
+                                    data: HashMap::new(),
+                                });
+                            }
+                        }
+                    } else {
+                        // Files matched for at least one job
+                        let total_files: usize = included_jobs.iter().map(|j| j.files.len()).sum();
                         reasons.push(Reason {
-                            kind: ReasonKind::Disabled,
+                            kind: ReasonKind::FilterMatch,
                             detail: Some(format!(
-                                "no command for run type {:?}",
-                                hook_ctx.run_type
+                                "{} file{} matched",
+                                total_files,
+                                if total_files == 1 { "" } else { "s" }
                             )),
                             data: HashMap::new(),
                         });
-                    } else {
-                        // Apply file filtering exactly like in step execution
-                        let files = hook_ctx.files();
 
-                        // Apply glob filter first
-                        let mut step_files = if let Some(glob) = &step.glob {
-                            glob::get_matches(glob, &files)?
-                        } else {
-                            files.clone()
-                        };
-
-                        // Apply step's own filters (exclude and dir)
-                        step_files = self.apply_step_filters(&step_files, step, &hook_ctx.tctx)?;
-
-                        if step_files.is_empty() {
-                            status = StepStatus::Skipped;
-                            reasons.push(Reason {
-                                kind: ReasonKind::FilterNoMatch,
-                                detail: Some("no files to process".to_string()),
-                                data: HashMap::new(),
-                            });
-                        } else {
-                            // Files matched - this is a reason for inclusion
-                            let mut match_details = Vec::new();
-
-                            if step.glob.is_some() {
-                                match_details.push(format!(
-                                    "{} files matched glob patterns",
-                                    step_files.len()
-                                ));
-                            }
-
-                            if step.exclude.is_some() {
-                                let original_count = if let Some(glob) = &step.glob {
-                                    glob::get_matches(glob, &files)?.len()
-                                } else {
-                                    files.len()
-                                };
-                                if original_count > step_files.len() {
-                                    match_details.push(format!(
-                                        "{} files excluded by filters",
-                                        original_count - step_files.len()
-                                    ));
-                                }
-                            }
-
-                            if step.dir.is_some() {
-                                match_details.push("filtered by directory".to_string());
-                            }
-
-                            let detail = if match_details.is_empty() {
-                                format!("{} files matched", step_files.len())
-                            } else {
-                                format!(
-                                    "{} files matched ({})",
-                                    step_files.len(),
-                                    match_details.join(", ")
-                                )
-                            };
-
-                            reasons.push(Reason {
-                                kind: ReasonKind::FilterMatch,
-                                detail: Some(detail),
-                                data: HashMap::new(),
-                            });
-                        }
-
-                        // Check conditions for both included and potentially excluded steps
-                        if status == StepStatus::Included {
-                            if let Some(condition) = &step.condition {
-                                match crate::step::EXPR_ENV.eval(condition, &hook_ctx.expr_ctx()) {
-                                    Ok(val) => {
-                                        if val.as_bool().unwrap_or(false) {
-                                            reasons.push(Reason {
-                                                kind: ReasonKind::ConditionTrue,
-                                                detail: Some(format!(
-                                                    "condition evaluated to true: {}",
-                                                    condition
-                                                )),
-                                                data: HashMap::new(),
-                                            });
-                                        } else {
-                                            status = StepStatus::Skipped;
-                                            reasons.push(Reason {
-                                                kind: ReasonKind::ConditionFalse,
-                                                detail: Some(format!(
-                                                    "condition evaluated to false: {}",
-                                                    condition
-                                                )),
-                                                data: HashMap::new(),
-                                            });
-                                        }
-                                    }
-                                    Err(_) => {
-                                        status = StepStatus::Skipped;
-                                        reasons.push(Reason {
-                                            kind: ReasonKind::ConditionUnknown,
-                                            detail: Some(format!(
-                                                "condition could not be evaluated: {}",
-                                                condition
-                                            )),
-                                            data: HashMap::new(),
-                                        });
-                                    }
+                        // Condition truthiness (for positive signal)
+                        if let Some(condition) = &step.condition {
+                            if let Ok(val) =
+                                crate::step::EXPR_ENV.eval(condition, &hook_ctx.expr_ctx())
+                            {
+                                if val.as_bool().unwrap_or(false) {
+                                    reasons.push(Reason {
+                                        kind: ReasonKind::ConditionTrue,
+                                        detail: Some(format!(
+                                            "condition evaluated to true: {}",
+                                            condition
+                                        )),
+                                        data: HashMap::new(),
+                                    });
                                 }
                             }
                         }
 
-                        // Check profile requirements for included steps
-                        if status == StepStatus::Included {
-                            if let Some(profile_reason) = step.profile_skip_reason() {
-                                status = StepStatus::Skipped;
-                                reasons.push(Reason {
-                                    kind: ReasonKind::ProfileExclude,
-                                    detail: Some(profile_reason.message()),
-                                    data: HashMap::new(),
-                                });
-                            } else if step.profiles.is_some() {
-                                // Step has profiles and they're enabled - this is a positive reason
-                                reasons.push(Reason {
-                                    kind: ReasonKind::ProfileInclude,
-                                    detail: Some("required profiles are enabled".to_string()),
-                                    data: HashMap::new(),
-                                });
-                            }
+                        // Profiles: positive include if specified and enabled
+                        if step.profiles.is_some() && step.profile_skip_reason().is_none() {
+                            reasons.push(Reason {
+                                kind: ReasonKind::ProfileInclude,
+                                detail: Some("required profiles are enabled".to_string()),
+                                data: HashMap::new(),
+                            });
                         }
 
-                        // Check CLI step selection
+                        // CLI inclusion reason
                         if !opts.step.is_empty() && opts.step.contains(step_name) {
                             reasons.push(Reason {
                                 kind: ReasonKind::CliInclude,
@@ -622,50 +488,6 @@ impl Hook {
         }
 
         Ok(plan)
-    }
-
-    /// Apply step-specific filters to match Step::filter_files exactly
-    fn apply_step_filters(
-        &self,
-        files: &[PathBuf],
-        step: &Step,
-        _tctx: &crate::tera::Context,
-    ) -> Result<Vec<PathBuf>> {
-        // Use the exact same logic as Step::filter_files()
-        let mut files = files.to_vec();
-        if let Some(dir) = &step.dir {
-            files.retain(|f| f.starts_with(dir));
-        }
-        if let Some(glob) = &step.glob {
-            // when dir is set, globs are relative to that dir only
-            if let Some(dir) = &step.dir {
-                let dir_globs = glob
-                    .iter()
-                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                    .collect::<Vec<_>>();
-                files = glob::get_matches(&dir_globs, &files)?;
-            } else {
-                files = glob::get_matches(glob, &files)?;
-            }
-        }
-        if let Some(exclude) = &step.exclude {
-            // when dir is set, excludes are relative to that dir only
-            let excluded = if let Some(dir) = &step.dir {
-                let dir_excludes = exclude
-                    .iter()
-                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                    .collect::<Vec<_>>();
-                glob::get_matches(&dir_excludes, &files)?
-                    .into_iter()
-                    .collect::<std::collections::HashSet<_>>()
-            } else {
-                glob::get_matches(exclude, &files)?
-                    .into_iter()
-                    .collect::<std::collections::HashSet<_>>()
-            };
-            files.retain(|f| !excluded.contains(f));
-        }
-        Ok(files)
     }
 
     fn print_plan(&self, plan: &Plan, opts: &HookOptions) -> Result<()> {

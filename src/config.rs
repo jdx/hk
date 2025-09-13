@@ -33,16 +33,17 @@ impl Config {
             "pkl" => {
                 match parse_pkl("pkl", path) {
                     Ok(raw) => raw,
-                    Err(err) => {
-                        // if pkl bin is not installed
-                        if which::which("pkl").is_err() {
-                            if let Ok(out) = parse_pkl("mise x -- pkl", path) {
-                                return Ok(out);
-                            };
-                            bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
-                        } else {
-                            return Err(err).wrap_err("failed to read pkl config file");
+                    Err(primary_err) => {
+                        // Try via mise regardless of whether a pkl shim exists in PATH.
+                        // Some environments provide a shim that fails in subprocesses.
+                        if let Ok(out) = parse_pkl("mise x -- pkl", path) {
+                            return Ok(out);
                         }
+                        // If pkl is not installed, provide a helpful message
+                        if which::which("pkl").is_err() {
+                            bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
+                        }
+                        return Err(primary_err).wrap_err("failed to read pkl config file");
                     }
                 }
             }
