@@ -258,7 +258,7 @@ fn parse_pkl_with_fallback<T: DeserializeOwned>(path: &Path) -> Result<T> {
         Ok(result) => Ok(result),
         Err(err) => {
             // try fallback with mise if direct pkl fails
-            match parse_pkl("mise x -- pkl", path) {
+            match parse_pkl("mise x pkl -- pkl", path) {
                 Ok(result) => Ok(result),
                 Err(_) => Err(err).wrap_err("failed to read pkl config file. Try: mise install pkl"),
             }
