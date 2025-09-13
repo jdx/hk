@@ -54,7 +54,7 @@ teardown() {
 @test "hk --plan --json outputs valid JSON" {
     touch file.js
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
     # Check JSON structure
     echo "$output" | jq -e '.hook == "check"' >/dev/null
@@ -137,7 +137,7 @@ steps {
 EOF
     touch file.js
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
     # Check that step-b has step-a in dependencies
     echo "$output" | jq -e '.steps[] | select(.name == "step-b") | .dependsOn | contains(["step-a"])' >/dev/null

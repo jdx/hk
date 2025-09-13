@@ -374,7 +374,7 @@ impl Hook {
         let plan = self.build_plan_from_context(&hook_ctx, &opts)?;
 
         // Display the plan
-        if opts.plan_json {
+        if opts.json {
             println!("{}", serde_json::to_string_pretty(&plan)?);
         } else {
             self.print_plan(&plan, &opts)?;
@@ -912,7 +912,7 @@ impl Hook {
         // In dry_run mode, output the plan instead of regular summary
         if dry_run {
             let plan = self.build_plan_from_context(&hook_ctx, &opts)?;
-            if opts.plan_json {
+            if opts.json {
                 let json = serde_json::to_string_pretty(&plan)?;
                 println!("{}", json);
             } else {

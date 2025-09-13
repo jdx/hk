@@ -36,9 +36,9 @@ pub(crate) struct HookOptions {
     /// Show detailed reasons for inclusion/exclusion (can specify step name or use with --all)
     #[clap(short = 'W', long, value_name = "STEP")]
     pub why: Option<Option<String>>,
-    /// Output plan as JSON (only with --plan)
-    #[clap(long = "plan-json", requires = "plan")]
-    pub plan_json: bool,
+    /// Output as JSON (only with --plan)
+    #[clap(short = 'J', long, requires = "plan")]
+    pub json: bool,
     /// Run only specific step(s)
     #[clap(short = 'S', long)]
     pub step: Vec<String>,

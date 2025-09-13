@@ -28,7 +28,7 @@ teardown() {
 @test "hk --plan --json outputs valid JSON schema" {
     touch file.js
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
 
     # Validate JSON structure
@@ -49,7 +49,7 @@ teardown() {
 @test "hk --plan --json includes profiles when set" {
     touch file.js
     git add .
-    run hk --profile fast check --plan --plan-json
+    run hk --profile fast check --plan --json
     [ "$status" -eq 0 ]
 
     # Check profiles field exists and contains "fast"
@@ -59,7 +59,7 @@ teardown() {
 @test "hk --plan --json shows step dependencies" {
     touch file.js
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
 
     # eslint should depend on prettier
@@ -70,7 +70,7 @@ teardown() {
     # No JS files, so steps should be skipped
     touch file.rs
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
 
     # Check that steps are marked as skipped
@@ -99,7 +99,7 @@ steps {
 EOF
     touch file.js
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
 
     # Check that groups array exists if there are parallel groups
@@ -114,7 +114,7 @@ EOF
 @test "hk --plan --json respects --step selection" {
     touch file.js
     git add .
-    run hk check --plan --plan-json --step prettier
+    run hk check --plan --json --step prettier
     [ "$status" -eq 0 ]
 
     # prettier should be included
@@ -142,7 +142,7 @@ steps {
 EOF
     touch file.js
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
 
     # cond-true should be included with condition_true reason
@@ -157,7 +157,7 @@ EOF
 @test "hk --plan --json includes timestamp" {
     touch file.js
     git add .
-    run hk check --plan --plan-json
+    run hk check --plan --json
     [ "$status" -eq 0 ]
 
     # generatedAt should be a valid ISO timestamp
