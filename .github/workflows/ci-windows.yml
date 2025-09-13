@@ -63,7 +63,7 @@ jobs:
           git init
           git config user.email "test@example.com"
           git config user.name "Test User"
-          mise x -- hk init
+          ../target/debug/hk.exe init
           if (!(Test-Path "hk.pkl")) {
             Write-Error "hk.pkl was not created"
             exit 1
@@ -73,12 +73,12 @@ jobs:
         shell: pwsh
         run: |
           cd test-repo
-          mise x -- hk install
+          ../target/debug/hk.exe install
           if (!(Test-Path ".git\hooks\pre-commit")) {
             Write-Error "pre-commit hook was not created"
             exit 1
           }
-          mise x -- hk uninstall
+          ../target/debug/hk.exe uninstall
           if (Test-Path ".git\hooks\pre-commit") {
             Write-Error "pre-commit hook was not removed"
             exit 1
@@ -107,7 +107,7 @@ jobs:
           }
           '@ | Out-File -FilePath hk.pkl -Encoding UTF8
 
-          $output = mise x -- hk check 2>&1
+          $output = ../target/debug/hk.exe check 2>&1
           if ($LASTEXITCODE -ne 0) {
             Write-Error "hk check failed"
             Write-Host $output
@@ -137,7 +137,7 @@ jobs:
           echo }
           ) > hk.pkl
 
-          mise x -- hk check
+          ..\target\debug\hk.exe check
           if %ERRORLEVEL% neq 0 (
             echo hk check failed
             exit /b 1
