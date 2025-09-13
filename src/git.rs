@@ -733,36 +733,47 @@ impl Git {
                 // Try a 3-way apply so non-conflicting hunks from the patch merge with
                 // any fixer changes. Conflict markers will be written for conflicting hunks.
                 let affected_files = parse_paths_from_patch(&diff);
+                debug!(
+                    "applying patch to {} files: {:?}",
+                    affected_files.len(),
+                    affected_files
+                );
+
                 let apply_res = git_cmd(["apply", "--3way"]).arg(&patch_file).run();
-                // If 3-way apply reported an error, it might still have applied with conflicts.
-                // Detect conflict markers in affected files and treat that as a successful apply
-                // that requires resolution. Only fall back to plain apply when there are no
-                // conflict markers present.
+
+                // Check for conflicts after apply attempt
                 let mut had_conflicts = false;
                 for f in &affected_files {
                     if let Ok(s) = xx::file::read_to_string(f) {
                         if s.contains("<<<<<<<") && s.contains(">>>>>>>") {
                             had_conflicts = true;
+                            debug!("found conflict markers in {}", display_path(f));
                             break;
                         }
                     }
                 }
-                if let Err(err) = apply_res {
-                    if had_conflicts {
-                        warn!(
-                            "git apply --3way returned error but left conflicts for {}: {err:?}; proceeding to resolve",
-                            display_path(&patch_file)
-                        );
-                    } else {
-                        warn!(
-                            "git apply --3way failed for {}: {err:?}; attempting plain apply",
-                            display_path(&patch_file)
-                        );
-                        if let Err(err2) = git_cmd(["apply"]).arg(&patch_file).run() {
-                            return Err(eyre!(
-                                "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
+
+                match apply_res {
+                    Ok(_) => {
+                        debug!("patch applied successfully");
+                    }
+                    Err(err) => {
+                        if had_conflicts {
+                            debug!(
+                                "git apply --3way returned error but left conflicts for {}: {err:?}; proceeding to resolve",
                                 display_path(&patch_file)
-                            ));
+                            );
+                        } else {
+                            warn!(
+                                "git apply --3way failed for {}: {err:?}; attempting plain apply",
+                                display_path(&patch_file)
+                            );
+                            if let Err(err2) = git_cmd(["apply"]).arg(&patch_file).run() {
+                                return Err(eyre!(
+                                    "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
+                                    display_path(&patch_file)
+                                ));
+                            }
                         }
                     }
                 }
@@ -810,9 +821,8 @@ impl Git {
                     .start();
                 // Apply the stash first; if there are conflicts, prefer the stash (unstaged) side.
                 let apply_res = git_cmd(["stash", "apply"]).run();
-                if let Err(err) = &apply_res {
-                    warn!("git stash apply failed: {err:?}");
-                }
+
+                // Check git status after apply attempt to understand the state
                 let status = match git_cmd([
                     "status",
                     "--porcelain",
@@ -829,7 +839,11 @@ impl Git {
                     }
                 };
                 let conflicted = conflicted_files_from_porcelain(&status);
+
+                // Handle different scenarios based on apply result and conflicts
                 if !conflicted.is_empty() {
+                    // Case 1: There are conflicts - resolve them preferring stash content
+                    debug!("resolving {} conflicted files", conflicted.len());
                     for f in conflicted.iter() {
                         if let Err(err) = resolve_conflict_markers_preferring_theirs(f) {
                             warn!(
@@ -837,6 +851,7 @@ impl Git {
                                 display_path(f)
                             );
                         }
+                        // Only re-stage files that were previously staged to clear unmerged state
                         if previously_staged.contains(f) {
                             if let Err(err) = git_cmd(["add", "--"]).arg(f).run() {
                                 warn!(
@@ -846,15 +861,21 @@ impl Git {
                             }
                         }
                     }
+                    // Drop the stash since we've applied it (even with conflicts)
                     if let Err(err) = git_cmd(["stash", "drop"]).run() {
-                        warn!("failed to drop stash after apply: {err:?}");
+                        warn!("failed to drop stash after conflict resolution: {err:?}");
                     }
                 } else if apply_res.is_err() {
-                    if let Err(err) = git_cmd(["stash", "pop"]).run() {
-                        warn!("git stash pop also failed after apply error: {err:?}");
+                    // Case 2: Apply failed but no conflicts detected - stash is likely intact
+                    warn!("git stash apply failed: {:?}", apply_res.unwrap_err());
+                    // Don't try git stash pop here, as the stash is likely still intact
+                    // and the error might be due to a non-conflicting issue
+                    debug!("stash apply failed without conflicts - leaving stash intact");
+                } else {
+                    // Case 3: Apply succeeded - drop the stash
+                    if let Err(err) = git_cmd(["stash", "drop"]).run() {
+                        warn!("failed to drop stash after successful apply: {err:?}");
                     }
-                } else if let Err(err) = git_cmd(["stash", "drop"]).run() {
-                    warn!("failed to drop stash after successful apply: {err:?}");
                 }
             }
         }
