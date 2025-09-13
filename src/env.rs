@@ -85,7 +85,23 @@ pub static HK_HIDE_WARNINGS: LazyLock<IndexSet<String>> =
 pub static HK_SUMMARY_TEXT: LazyLock<bool> = LazyLock::new(|| var_true("HK_SUMMARY_TEXT"));
 
 // Tracing configuration
-pub static HK_TRACE: LazyLock<bool> = LazyLock::new(|| var_true("HK_TRACE"));
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum TraceMode {
+    Off,
+    Text,
+    Json,
+}
+
+pub static HK_TRACE_MODE: LazyLock<TraceMode> =
+    LazyLock::new(|| match var("HK_TRACE").map(|v| v.to_lowercase()) {
+        Ok(v) if v == "json" => TraceMode::Json,
+        Ok(v) if v == "1" || v == "true" => TraceMode::Text,
+        _ => TraceMode::Off,
+    });
+
+// Kept for backward compatibility where a boolean is convenient
+pub static HK_TRACE: LazyLock<bool> =
+    LazyLock::new(|| matches!(*HK_TRACE_MODE, TraceMode::Text | TraceMode::Json));
 pub static HK_JSON: LazyLock<bool> = LazyLock::new(|| var_true("HK_JSON"));
 
 pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));

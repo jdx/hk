@@ -113,18 +113,18 @@ pub async fn run() -> Result<()> {
     }
 
     // Decide tracing enablement and output format
-    // Support: --trace, HK_TRACE=true/1, HK_TRACE=json (enables JSON traces), or effective log level TRACE
-    let hk_trace_raw = std::env::var("HK_TRACE").ok();
-    let hk_trace_is_json = hk_trace_raw
-        .as_deref()
-        .map(|v| v.eq_ignore_ascii_case("json"))
-        .unwrap_or(false);
-    let mut trace_enabled = args.trace || *env::HK_TRACE || hk_trace_is_json;
+    // Support: --trace, HK_TRACE mode (Text/Json), or effective log level TRACE
+    let mut trace_enabled = args.trace
+        || matches!(
+            *env::HK_TRACE_MODE,
+            env::TraceMode::Text | env::TraceMode::Json
+        );
     let effective_level = level.unwrap_or(*env::HK_LOG);
     if effective_level == log::LevelFilter::Trace {
         trace_enabled = true;
     }
-    let json_output = args.json || *env::HK_JSON || hk_trace_is_json;
+    let json_output =
+        args.json || *env::HK_JSON || matches!(*env::HK_TRACE_MODE, env::TraceMode::Json);
 
     // Initialize logger first so regular log records are handled by our logger (and not forwarded to tracing)
     logger::init(level);
