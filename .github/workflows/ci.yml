@@ -58,17 +58,23 @@ jobs:
           # Install required tools via mise
           mise install
           mise list
+
           # Add mise shims to PATH so pkl is available for hk binary
           $misePath = "$env:USERPROFILE\AppData\Local\mise\shims"
           $env:PATH = "$misePath;$env:PATH"
           echo "PATH=$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+          # Verify pkl is accessible
+          pkl --version
+
           cargo build
           cargo test --all --all-features -- --skip test_read_file_not_found
+
           Install-Module -Name Pester -Force -SkipPublisherCheck
           Import-Module Pester
-          # Use mise to provide PKL for hk binary
-          $env:USE_MISE = "true"
+
+          # Don't use mise x -- for running hk, since shims are already in PATH
+          $env:USE_MISE = "false"
           Invoke-Pester -Path "test\windows\hk.Tests.ps1" -Output Detailed
   msrv:
     runs-on: ubuntu-latest
