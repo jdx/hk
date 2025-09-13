@@ -2,7 +2,7 @@
 
 **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
-**Version**: 1.12.1
+**Version**: 1.13.0
 
 - **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
@@ -39,6 +39,14 @@ Suppresses output
 ### `--silent`
 
 Suppresses all output
+
+### `--trace`
+
+Enable tracing spans and performance diagnostics
+
+### `--json`
+
+Output traces as JSON Lines (requires --trace)
 
 ## Subcommands
 
