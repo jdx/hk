@@ -1116,6 +1116,11 @@ dependencies = [
  "tokio",
  "tokio-util",
  "toml",
+ "tracing",
+ "tracing-error",
+ "tracing-log",
+ "tracing-serde",
+ "tracing-subscriber",
  "which",
  "xx 2.1.2",
 ]

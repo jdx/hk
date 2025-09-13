@@ -101,6 +101,7 @@ impl<T> CacheManager<T>
 where
     T: Serialize + DeserializeOwned,
 {
+    #[tracing::instrument(level = "info", name = "cache.get_or_try_init", skip_all, fields(path = %self.cache_file_path.display()))]
     pub fn get_or_try_init<F>(&self, fetch: F) -> Result<&T>
     where
         F: FnOnce() -> Result<T>,
@@ -109,13 +110,18 @@ where
             let path = &self.cache_file_path;
             if self.is_fresh() && !cfg!(debug_assertions) {
                 match self.parse() {
-                    Ok(val) => return Ok::<_, eyre::Report>(val),
+                    Ok(val) => {
+                        tracing::event!(tracing::Level::INFO, "cache.hit");
+                        return Ok::<_, eyre::Report>(val);
+                    }
                     Err(err) => {
                         warn!("failed to parse cache file: {} {:#}", path.display(), err);
                     }
                 }
             }
+            tracing::event!(tracing::Level::INFO, "cache.miss");
             let val = (fetch)()?;
+            tracing::info!(path = %path.display(), "cache.write");
             if let Err(err) = self.write(&val) {
                 warn!("failed to write cache file: {} {:#}", path.display(), err);
             }

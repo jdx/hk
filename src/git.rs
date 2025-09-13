@@ -321,6 +321,7 @@ impl Git {
         }
     }
 
+    #[tracing::instrument(level = "info", name = "git.status", skip(self, pathspec), fields(pathspec_count = pathspec.as_ref().map(|p| p.len()).unwrap_or(0)))]
     pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         if let Some(repo) = &self.repo {
             let mut status_options = StatusOptions::new();
@@ -521,6 +522,7 @@ impl Git {
         }
     }
 
+    #[tracing::instrument(level = "info", name = "git.stash.push", skip_all)]
     pub fn stash_unstaged(
         &mut self,
         job: &ProgressJob,

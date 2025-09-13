@@ -70,3 +70,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: jdx/mise-action@v2
       - run: mise run msrv
+  docs-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check documentation sync
+        run: ./scripts/check-docs-sync.sh

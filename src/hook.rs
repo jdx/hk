@@ -324,6 +324,7 @@ impl Hook {
         Ok(())
     }
 
+    #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         let settings = Settings::get();
         if env::HK_SKIP_HOOK.contains(&self.name) {
