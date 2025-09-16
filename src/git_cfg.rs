@@ -2,7 +2,6 @@ use crate::settings::Settings;
 use git2::Config;
 use indexmap::IndexSet;
 use std::num::NonZero;
-use std::path::PathBuf;
 
 pub fn read_git_config() -> Result<(), git2::Error> {
     let config = Config::open_default()?;
@@ -76,14 +75,14 @@ pub fn read_git_config() -> Result<(), git2::Error> {
         Settings::set_hide_warnings(hide_warnings);
     }
 
-    // Read excludes
+    // Read excludes (now all patterns are globs)
     if let Ok(excludes) = read_string_list(&config, "hk.exclude") {
-        let paths: Vec<PathBuf> = excludes.into_iter().map(PathBuf::from).collect();
-        Settings::add_exclude_paths(paths);
+        Settings::add_exclude(excludes.into_iter().collect::<Vec<_>>());
     }
 
+    // For backward compatibility, also read excludeGlob
     if let Ok(exclude_globs) = read_string_list(&config, "hk.excludeGlob") {
-        Settings::add_exclude_globs(exclude_globs.into_iter().collect::<Vec<_>>());
+        Settings::add_exclude(exclude_globs.into_iter().collect::<Vec<_>>());
     }
 
     Ok(())

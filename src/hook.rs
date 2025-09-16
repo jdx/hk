@@ -644,22 +644,22 @@ impl Hook {
         };
         // Union excludes from Settings with CLI options
         let settings = crate::settings::Settings::get();
-        let mut all_exclude_paths = settings.exclude_paths.clone();
+        let mut all_excludes = settings.exclude.clone();
+
+        // Add CLI --exclude patterns
         if let Some(cli_excludes) = &opts.exclude {
-            all_exclude_paths.extend(cli_excludes.iter().map(PathBuf::from));
-        }
-        for exclude in all_exclude_paths {
-            files.retain(|f| !f.starts_with(&exclude));
+            all_excludes.extend(cli_excludes.iter().cloned());
         }
 
-        let mut all_exclude_globs = settings.exclude_globs.clone();
+        // Add CLI --exclude-glob patterns (they're all globs now)
         if let Some(cli_exclude_globs) = &opts.exclude_glob {
-            all_exclude_globs.extend(cli_exclude_globs.iter().cloned());
+            all_excludes.extend(cli_exclude_globs.iter().cloned());
         }
-        if !all_exclude_globs.is_empty() {
+
+        if !all_excludes.is_empty() {
             let f = files.iter().collect::<Vec<_>>();
             let exclude_files =
-                glob::get_matches(&all_exclude_globs.into_iter().collect::<Vec<_>>(), &f)?
+                glob::get_matches(&all_excludes.into_iter().collect::<Vec<_>>(), &f)?
                     .into_iter()
                     .collect::<HashSet<_>>();
             files.retain(|f| !exclude_files.contains(f));

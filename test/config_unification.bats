@@ -33,7 +33,7 @@ teardown() {
     echo "$output" | grep -q "Git config"
 }
 
-@test "HK_EXCLUDE environment variable works" {
+@test "HK_EXCLUDE environment variable works with paths" {
     cat > hk.pkl << 'EOF'
 amends "Builtins.pkl"
 
@@ -58,7 +58,7 @@ EOF
     # The excluded directory should not be processed
 }
 
-@test "HK_EXCLUDE_GLOB environment variable works" {
+@test "HK_EXCLUDE environment variable works with glob patterns" {
     cat > hk.pkl << 'EOF'
 amends "Builtins.pkl"
 
@@ -76,7 +76,7 @@ EOF
     echo "test" > test.min.js
     echo "test" > test.js
 
-    export HK_EXCLUDE_GLOB="**/*.min.js"
+    export HK_EXCLUDE="**/*.min.js"
     run hk check --all
     [ "$status" -eq 0 ]
     # The .min.js files should be excluded

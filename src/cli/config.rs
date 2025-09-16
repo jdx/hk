@@ -64,8 +64,7 @@ impl ConfigDump {
             "fail_fast": settings.fail_fast,
             "display_skip_reasons": settings.display_skip_reasons,
             "warnings": settings.warnings,
-            "exclude_paths": settings.exclude_paths,
-            "exclude_globs": settings.exclude_globs,
+            "exclude": settings.exclude,
         });
 
         match self.format.as_str() {
@@ -91,8 +90,7 @@ impl ConfigGet {
             "fail_fast" => json!(settings.fail_fast),
             "display_skip_reasons" => json!(settings.display_skip_reasons),
             "warnings" => json!(settings.warnings),
-            "exclude_paths" => json!(settings.exclude_paths),
-            "exclude_globs" => json!(settings.exclude_globs),
+            "exclude" => json!(settings.exclude),
             _ => return Err(eyre::eyre!("Unknown configuration key: {}", self.key)),
         };
 

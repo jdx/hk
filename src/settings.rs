@@ -1,7 +1,7 @@
 use std::{
     collections::HashSet,
     num::NonZero,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{LazyLock, Mutex},
 };
 
@@ -17,8 +17,7 @@ pub struct Settings {
     pub fail_fast: bool,
     pub display_skip_reasons: HashSet<String>,
     pub warnings: IndexSet<String>,
-    pub exclude_paths: IndexSet<PathBuf>,
-    pub exclude_globs: IndexSet<String>,
+    pub exclude: IndexSet<String>,
 }
 
 static JOBS: LazyLock<Mutex<Option<NonZero<usize>>>> = LazyLock::new(Default::default);
@@ -35,8 +34,7 @@ static DISPLAY_SKIP_REASONS: LazyLock<Mutex<Option<HashSet<String>>>> =
     LazyLock::new(Default::default);
 static WARNINGS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
 static HIDE_WARNINGS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
-static EXCLUDE_PATHS: LazyLock<Mutex<Option<IndexSet<PathBuf>>>> = LazyLock::new(Default::default);
-static EXCLUDE_GLOBS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
+static EXCLUDE: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
 
 impl Settings {
     pub fn get() -> Settings {
@@ -104,27 +102,15 @@ impl Settings {
         *HIDE_WARNINGS.lock().unwrap() = Some(hide_warnings);
     }
 
-    pub fn add_exclude_paths<I, P>(paths: I)
-    where
-        I: IntoIterator<Item = P>,
-        P: AsRef<Path>,
-    {
-        let mut exclude_paths = EXCLUDE_PATHS.lock().unwrap();
-        let set = exclude_paths.get_or_insert_with(IndexSet::new);
-        for path in paths {
-            set.insert(path.as_ref().to_path_buf());
-        }
-    }
-
-    pub fn add_exclude_globs<I, S>(globs: I)
+    pub fn add_exclude<I, S>(patterns: I)
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let mut exclude_globs = EXCLUDE_GLOBS.lock().unwrap();
-        let set = exclude_globs.get_or_insert_with(IndexSet::new);
-        for glob in globs {
-            set.insert(glob.as_ref().to_string());
+        let mut exclude = EXCLUDE.lock().unwrap();
+        let set = exclude.get_or_insert_with(IndexSet::new);
+        for pattern in patterns {
+            set.insert(pattern.as_ref().to_string());
         }
     }
 }
@@ -174,16 +160,11 @@ impl Default for Settings {
             .into_iter()
             .filter(|tag| !hide_warnings.contains(tag))
             .collect();
-        let exclude_paths = EXCLUDE_PATHS
+        let exclude = EXCLUDE
             .lock()
             .unwrap()
             .clone()
-            .unwrap_or_else(|| env::HK_EXCLUDE.iter().map(|p| PathBuf::from(p)).collect());
-        let exclude_globs = EXCLUDE_GLOBS
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_else(|| env::HK_EXCLUDE_GLOB.clone());
+            .unwrap_or_else(|| env::HK_EXCLUDE.clone());
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
@@ -192,8 +173,7 @@ impl Default for Settings {
                 .unwrap_or_else(|| FAIL_FAST.lock().unwrap().unwrap_or(true)),
             display_skip_reasons,
             warnings,
-            exclude_paths,
-            exclude_globs,
+            exclude,
         }
     }
 }
