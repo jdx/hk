@@ -175,6 +175,22 @@ impl Config {
                 crate::settings::Settings::set_warnings(warnings.clone().into_iter().collect());
             }
 
+            if let Some(exclude) = &user_config.defaults.exclude {
+                let paths: Vec<std::path::PathBuf> = match exclude {
+                    StringOrList::String(s) => vec![std::path::PathBuf::from(s)],
+                    StringOrList::List(list) => list.iter().map(std::path::PathBuf::from).collect(),
+                };
+                crate::settings::Settings::add_exclude_paths(paths);
+            }
+
+            if let Some(exclude_glob) = &user_config.defaults.exclude_glob {
+                let globs: Vec<String> = match exclude_glob {
+                    StringOrList::String(s) => vec![s.clone()],
+                    StringOrList::List(list) => list.clone(),
+                };
+                crate::settings::Settings::add_exclude_globs(globs);
+            }
+
             for (hook_name, user_hook_config) in &user_config.hooks {
                 if let Some(hook) = self.hooks.get_mut(hook_name) {
                     for (step_or_group_name, step_or_group) in hook.steps.iter_mut() {
@@ -324,6 +340,8 @@ pub struct UserDefaults {
     pub all: Option<bool>,
     pub fix: Option<bool>,
     pub check: Option<bool>,
+    pub exclude: Option<StringOrList>,
+    pub exclude_glob: Option<StringOrList>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

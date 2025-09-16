@@ -10,6 +10,8 @@ class Defaults {
     all: Boolean?
     fix: Boolean?
     check: Boolean?
+    exclude: (String | List<String>)?
+    exclude_glob: (String | List<String>)?
 }
 
 class HookConfig {
