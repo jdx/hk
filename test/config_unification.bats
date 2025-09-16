@@ -16,8 +16,7 @@ teardown() {
     [ "$status" -eq 0 ]
     echo "$output" | grep -q '"jobs"'
     echo "$output" | grep -q '"fail_fast"'
-    echo "$output" | grep -q '"exclude_paths"'
-    echo "$output" | grep -q '"exclude_globs"'
+    echo "$output" | grep -q '"exclude"'
 }
 
 @test "hk config get retrieves specific values" {
