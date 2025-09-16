@@ -657,11 +657,21 @@ impl Hook {
         }
 
         if !all_excludes.is_empty() {
+            // Process excludes - handle both directory patterns and glob patterns
+            let mut expanded_excludes = Vec::new();
+            for exclude in &all_excludes {
+                expanded_excludes.push(exclude.clone());
+                // If the pattern doesn't contain glob characters, also add patterns for directory contents
+                if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
+                    expanded_excludes.push(format!("{}/*", exclude));
+                    expanded_excludes.push(format!("{}/**", exclude));
+                }
+            }
+
             let f = files.iter().collect::<Vec<_>>();
-            let exclude_files =
-                glob::get_matches(&all_excludes.into_iter().collect::<Vec<_>>(), &f)?
-                    .into_iter()
-                    .collect::<HashSet<_>>();
+            let exclude_files = glob::get_matches(&expanded_excludes, &f)?
+                .into_iter()
+                .collect::<HashSet<_>>();
             files.retain(|f| !exclude_files.contains(f));
         }
         file_progress.prop("files", &files.len());

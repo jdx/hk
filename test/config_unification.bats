@@ -1,14 +1,13 @@
 #!/usr/bin/env bats
 
 setup() {
-    export HK_TEMP_DIR="$(mktemp -d)"
-    cd "$HK_TEMP_DIR"
-    git init .
+    load 'test_helper/common_setup'
+    _common_setup
+    export PKL_PATH="$PROJECT_ROOT/pkl"
 }
 
 teardown() {
-    cd ..
-    rm -rf "$HK_TEMP_DIR"
+    _common_teardown
 }
 
 @test "hk config dump shows effective settings" {
@@ -33,14 +32,14 @@ teardown() {
 }
 
 @test "HK_EXCLUDE environment variable works with paths" {
-    cat > hk.pkl << 'EOF'
-amends "Builtins.pkl"
-
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["test"] {
-                run = "echo testing"
+                check = "echo testing {{files}}"
+                glob = List("**/test.txt")
             }
         }
     }
@@ -50,22 +49,24 @@ EOF
     mkdir -p excluded normal
     echo "test" > excluded/test.txt
     echo "test" > normal/test.txt
+    git add .
 
     export HK_EXCLUDE="excluded"
     run hk check --all
     [ "$status" -eq 0 ]
-    # The excluded directory should not be processed
+    echo "$output" | grep -q "normal/test.txt"
+    ! echo "$output" | grep -q "excluded/test.txt"
 }
 
 @test "HK_EXCLUDE environment variable works with glob patterns" {
-    cat > hk.pkl << 'EOF'
-amends "Builtins.pkl"
-
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["test"] {
-                run = "echo testing"
+                check = "echo testing {{files}}"
+                glob = List("**/*.js")
             }
         }
     }
@@ -74,25 +75,28 @@ EOF
 
     echo "test" > test.min.js
     echo "test" > test.js
+    git add .
 
     export HK_EXCLUDE="**/*.min.js"
     run hk check --all
     [ "$status" -eq 0 ]
-    # The .min.js files should be excluded
+    echo "$output" | grep -q "test.js"
+    ! echo "$output" | grep -q "test.min.js"
 }
 
 @test "--fail-fast flag works" {
-    cat > hk.pkl << 'EOF'
-amends "Builtins.pkl"
-
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["step1"] {
-                run = "exit 1"
+                check = "exit 1"
+                glob = List("*.txt")
             }
             ["step2"] {
-                run = "echo should not run"
+                check = "echo should not run"
+                glob = List("*.txt")
             }
         }
     }
@@ -100,6 +104,7 @@ hooks {
 EOF
 
     echo "test" > test.txt
+    git add .
 
     run hk check --fail-fast --all
     [ "$status" -ne 0 ]
@@ -107,17 +112,19 @@ EOF
 }
 
 @test "--no-fail-fast flag works" {
-    cat > hk.pkl << 'EOF'
-amends "Builtins.pkl"
-
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
+        fail_fast = true
         steps {
             ["step1"] {
-                run = "exit 1"
+                check = "exit 1"
+                glob = List("*.txt")
             }
             ["step2"] {
-                run = "echo should run"
+                check = "echo should run"
+                glob = List("*.txt")
             }
         }
     }
@@ -125,6 +132,7 @@ hooks {
 EOF
 
     echo "test" > test.txt
+    git add .
 
     run hk check --no-fail-fast --all
     [ "$status" -ne 0 ]
@@ -132,14 +140,14 @@ EOF
 }
 
 @test "--stash flag works" {
-    cat > hk.pkl << 'EOF'
-amends "Builtins.pkl"
-
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["test"] {
-                run = "echo testing"
+                check = "echo testing"
+                glob = List("*.txt")
             }
         }
     }
