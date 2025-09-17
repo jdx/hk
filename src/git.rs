@@ -1,5 +1,4 @@
 use std::{
-    cell::OnceCell,
     collections::BTreeSet,
     ffi::{CString, OsString},
     path::{Path, PathBuf},
@@ -121,15 +120,14 @@ fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
+    #[allow(dead_code)]
     root: PathBuf,
-    patch_file: OnceCell<PathBuf>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
 }
 
 enum StashType {
     LibGit,
     Git,
-    PatchFile(PathBuf),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
@@ -137,7 +135,6 @@ enum StashType {
 #[strum(serialize_all = "kebab-case")]
 pub enum StashMethod {
     Git,
-    PatchFile,
     None,
 }
 
@@ -165,7 +162,6 @@ impl Git {
             root,
             repo,
             stash: None,
-            patch_file: OnceCell::new(),
             saved_index: None,
         })
     }
@@ -224,28 +220,7 @@ impl Git {
         }
         self.default_branch().unwrap_or_else(|_| "main".to_string())
     }
-    pub fn patch_file(&self) -> &Path {
-        self.patch_file.get_or_init(|| {
-            let name = self
-                .root
-                .parent()
-                .unwrap()
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap();
-            let rand = getrandom::u32()
-                .unwrap_or_default()
-                .to_string()
-                .chars()
-                .take(8)
-                .collect::<String>();
-            let date = chrono::Local::now().format("%Y-%m-%d").to_string();
-            env::HK_STATE_DIR
-                .join("patches")
-                .join(format!("{name}-{date}-{rand}.patch"))
-        })
-    }
+    // removed: patch_file path helper
 
     pub fn matching_remote_branch(&self, remote: &str) -> Result<Option<String>> {
         if let Some(branch) = self.current_branch()? {
@@ -618,7 +593,7 @@ impl Git {
         // TODO: if any intent_to_add files exist, run `git rm --cached -- <file>...` then `git add --intent-to-add -- <file>...` when unstashing
         // let intent_to_add = self.intent_to_add_files()?;
         // see https://github.com/pre-commit/pre-commit/blob/main/pre_commit/staged_files_only.py
-        if files_to_stash.is_empty() && method != StashMethod::Git {
+        if files_to_stash.is_empty() {
             job.prop("message", "No unstaged changes to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
@@ -629,18 +604,9 @@ impl Git {
         //         return Ok(());
         //     }
         // }
-        if method == StashMethod::PatchFile {
-            job.prop(
-                "message",
-                "Running git stash (keep-index, excluding untracked)",
-            );
-            job.update();
-            self.stash = self.push_stash_keep_index_no_untracked()?;
-        } else {
-            job.prop("message", "Running git stash");
-            job.update();
-            self.stash = self.push_stash(None, status)?;
-        }
+        job.prop("message", "Running git stash");
+        job.update();
+        self.stash = self.push_stash(None, status)?;
         if self.stash.is_none() {
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
@@ -655,48 +621,7 @@ impl Git {
         Ok(())
     }
 
-    fn build_diff(&self) -> Result<Option<StashType>> {
-        debug!("building diff for stash");
-        let patch = if let Some(repo) = &self.repo {
-            // essentially: git diff-index --ignore-submodules --binary --exit-code --no-color --no-ext-diff (git write-tree)
-            let mut opts = git2::DiffOptions::new();
-            // Do not include untracked in patch-file mode; we leave untracked files alone
-            opts.show_binary(true);
-            let diff = repo
-                .diff_index_to_workdir(None, Some(&mut opts))
-                .wrap_err("failed to get diff")?;
-            let mut diff_bytes = vec![];
-            diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
-                match line.origin() {
-                    '+' | '-' | ' ' => diff_bytes.push(line.origin() as u8),
-                    _ => {}
-                };
-                diff_bytes.extend(line.content());
-                true
-            })
-            .wrap_err("failed to print diff")?;
-            let mut idx = repo.index()?;
-            // if we can't write the index or there's no diff, don't stash
-            if idx.write().is_err() || diff_bytes.is_empty() {
-                return Ok(None);
-            } else {
-                String::from_utf8_lossy(&diff_bytes).to_string()
-            }
-        } else {
-            // Shell git path: build a patch without untracked contents
-            let out =
-                xx::process::sh("git diff --no-color --no-ext-diff --binary --ignore-submodules")?;
-            if out.trim().is_empty() {
-                return Ok(None);
-            }
-            out
-        };
-        let patch_file = self.patch_file();
-        if let Err(err) = xx::file::write(patch_file, &patch) {
-            warn!("failed to write patch file: {err:?}");
-        }
-        Ok(None)
-    }
+    // removed: build_diff helper
 
     // removed patch-file custom path for now
 
@@ -744,25 +669,7 @@ impl Git {
         }
     }
 
-    fn push_stash_keep_index_no_untracked(&mut self) -> Result<Option<StashType>> {
-        if let Some(repo) = &mut self.repo {
-            let sig = repo.signature()?;
-            let mut flags = git2::StashFlags::default();
-            // Do not include untracked here
-            flags.set(git2::StashFlags::KEEP_INDEX, true);
-            match repo.stash_save(&sig, "hk", Some(flags)) {
-                Ok(_) => Ok(Some(StashType::LibGit)),
-                Err(e) => {
-                    debug!("libgit2 stash failed, falling back to shell git: {e}");
-                    git_cmd(["stash", "push", "--keep-index", "-m", "hk"]).run()?;
-                    Ok(Some(StashType::Git))
-                }
-            }
-        } else {
-            git_cmd(["stash", "push", "--keep-index", "-m", "hk"]).run()?;
-            Ok(Some(StashType::Git))
-        }
-    }
+    // removed: push_stash_keep_index_no_untracked helper
 
     pub fn capture_index(&mut self, paths: &[PathBuf]) -> Result<()> {
         if paths.is_empty() {
@@ -921,53 +828,7 @@ impl Git {
                         warn!("failed to drop stash after successful apply: {err:?}");
                     }
                 }
-            }
-            StashType::PatchFile(patch_file) => {
-                job = ProgressJobBuilder::new()
-                    .prop(
-                        "message",
-                        &format!(
-                            "stash – Applying git diff patch – {}",
-                            display_path(&patch_file)
-                        ),
-                    )
-                    .start();
-                // Try 3-way apply with index updates so staged state stays coherent
-                let apply_res = git_cmd([
-                    "apply",
-                    "--index",
-                    "--3way",
-                    "--recount",
-                    "--whitespace=nowarn",
-                ])
-                .arg(&patch_file)
-                .run();
-                let mut had_conflicts = false;
-                // Detect conflicts via status
-                let status = git_read([
-                    "status",
-                    "--porcelain",
-                    "-z",
-                    "--no-renames",
-                    "--untracked-files=all",
-                ])
-                .unwrap_or_default();
-                for entry in status.split('\0').filter(|s| !s.is_empty()) {
-                    if entry.starts_with("UU") {
-                        had_conflicts = true;
-                        break;
-                    }
-                }
-                if apply_res.is_err() && !had_conflicts {
-                    // fallback to plain apply (still updating index)
-                    git_cmd(["apply", "--index", "--recount", "--whitespace=nowarn"])
-                        .arg(&patch_file)
-                        .run()?;
-                }
-                if let Err(err) = xx::file::remove_file(&patch_file) {
-                    debug!("failed to remove patch file: {err:?}");
-                }
-            }
+            } // no-op: removed PatchFile path
         }
         // After applying the stash (with or without conflicts), ensure we don't leave
         // any newly staged files that the user hadn't staged before. This can happen
