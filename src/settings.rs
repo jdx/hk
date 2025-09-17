@@ -92,11 +92,13 @@ impl Settings {
         &self.inner.skip_hooks
     }
 
+    #[allow(dead_code)]
     pub fn all(&self) -> bool {
         self.inner.all
     }
 
     // Provide access to the full generated settings
+    #[allow(dead_code)]
     pub fn inner(&self) -> &generated::settings::GeneratedSettings {
         &self.inner
     }
@@ -540,6 +542,7 @@ impl SettingsBuilder {
     }
 
     /// Load settings from a Config instance (from hkrc.pkl/toml etc.)
+    #[allow(dead_code)]
     pub fn from_config(mut self, config: &crate::config::Config) -> Self {
         // Apply config-level settings to our config overrides
         if let Some(fail_fast) = config.fail_fast {
@@ -658,6 +661,7 @@ impl SettingsBuilder {
     }
 
     /// Build and return as an immutable snapshot
+    #[allow(dead_code)]
     pub fn build_snapshot(self) -> SettingsSnapshot {
         Arc::new(self.build())
     }

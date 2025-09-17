@@ -19,11 +19,10 @@ include = [
     "/LICENSE",
     "/CHANGELOG.md",
     "/pkl",
-    "/build.rs",
     "/build/**/*",
     "/settings.toml",
 ]
-build = "build.rs"
+build = "build/mod.rs"
 rust-version = "1.85"
 
 [dependencies]

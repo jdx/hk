@@ -53,6 +53,7 @@ pub static HK_STASH: LazyLock<Option<StashMethod>> = LazyLock::new(|| {
 pub static HK_STASH_UNTRACKED: LazyLock<bool> = LazyLock::new(|| !var_false("HK_STASH_UNTRACKED"));
 pub static HK_FIX: LazyLock<bool> = LazyLock::new(|| !var_false("HK_FIX"));
 pub static HK_MISE: LazyLock<bool> = LazyLock::new(|| var_true("HK_MISE"));
+#[allow(dead_code)]
 pub static HK_PROFILE: LazyLock<IndexSet<String>> = LazyLock::new(|| {
     var_csv("HK_PROFILE")
         .or(var_csv("HK_PROFILES"))
@@ -63,11 +64,13 @@ pub static HK_SKIP_STEPS: LazyLock<IndexSet<String>> = LazyLock::new(|| {
         .or(var_csv("HK_SKIP_STEP"))
         .unwrap_or_default()
 });
+#[allow(dead_code)]
 pub static HK_SKIP_HOOK: LazyLock<IndexSet<String>> = LazyLock::new(|| {
     var_csv("HK_SKIP_HOOK")
         .or(var_csv("HK_SKIP_HOOKS"))
         .unwrap_or_default()
 });
+#[allow(dead_code)]
 pub static HK_JOBS: LazyLock<NonZero<usize>> = LazyLock::new(|| {
     var("HK_JOBS")
         .or(var("HK_JOB"))
@@ -77,11 +80,14 @@ pub static HK_JOBS: LazyLock<NonZero<usize>> = LazyLock::new(|| {
         .unwrap_or(NonZero::new(4).unwrap())
 });
 // None means not set in environment; Some(true/false) if explicitly set
+#[allow(dead_code)]
 pub static HK_FAIL_FAST: LazyLock<Option<bool>> = LazyLock::new(|| var_bool("HK_FAIL_FAST"));
+#[allow(dead_code)]
 pub static HK_HIDE_WARNINGS: LazyLock<IndexSet<String>> =
     LazyLock::new(|| var_csv("HK_HIDE_WARNINGS").unwrap_or_default());
 
 // Exclude patterns - comma-separated list of glob patterns to exclude from processing
+#[allow(dead_code)]
 pub static HK_EXCLUDE: LazyLock<IndexSet<String>> =
     LazyLock::new(|| var_csv("HK_EXCLUDE").unwrap_or_default());
 
@@ -135,6 +141,7 @@ fn var_false(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+#[allow(dead_code)]
 fn var_bool(name: &str) -> Option<bool> {
     match var(name) {
         Ok(val) => {

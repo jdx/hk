@@ -18,10 +18,12 @@ pub fn generate(out_dir: &Path) -> Result<(), std::io::Error> {
     scope.raw(&builtins_array);
 
     // Also generate individual constants for each builtin if needed
+    scope.raw("#[allow(dead_code)]");
     for builtin in &builtins {
         let const_name = builtin.to_uppercase().replace('-', "_");
         scope.raw(&format!(
-            "pub const BUILTIN_{}: &str = \"{}\";",
+            "#[allow(dead_code)]
+pub const BUILTIN_{}: &str = \"{}\";",
             const_name, builtin
         ));
     }

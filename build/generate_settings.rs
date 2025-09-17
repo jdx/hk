@@ -334,6 +334,7 @@ fn generate_settings_meta(
     scope.push_struct(setting_meta_struct);
 
     // Generate SettingSourcesMeta struct
+    scope.raw("#[allow(dead_code)]");
     let mut sources_meta_struct = Struct::new("SettingSourcesMeta");
     sources_meta_struct
         .vis("pub")
@@ -465,8 +466,9 @@ fn generate_settings_merge(
     registry: &SettingsRegistry,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut scope = Scope::new();
-    scope.import("indexmap", "IndexSet");
-    scope.import("std::collections", "HashSet");
+    // These imports are not currently used but kept for potential future use
+    // scope.import("indexmap", "IndexSet");
+    // scope.import("std::collections", "HashSet");
     scope.raw("#[allow(dead_code)]");
 
     // Generate the SettingsMerger struct
