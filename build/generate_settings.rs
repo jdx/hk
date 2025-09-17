@@ -11,6 +11,7 @@ pub struct SettingsRegistry {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct OptionConfig {
     #[serde(rename = "type")]
     pub typ: String,
@@ -22,6 +23,7 @@ pub struct OptionConfig {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct SourcesConfig {
     #[serde(default)]
     pub cli: Vec<String>,
@@ -35,6 +37,7 @@ pub struct SourcesConfig {
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(untagged)]
+#[allow(dead_code)]
 pub enum PklSource {
     #[default]
     None,
@@ -43,6 +46,7 @@ pub enum PklSource {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ValidateConfig {
     #[serde(rename = "enum")]
     pub enum_values: Option<Vec<String>>,
@@ -98,7 +102,7 @@ fn generate_settings_struct(
     let mut default_impl = Impl::new("GeneratedSettings");
     default_impl.impl_trait("Default");
 
-    let mut default_fn = default_impl.new_fn("default");
+    let default_fn = default_impl.new_fn("default");
     default_fn
         .ret("Self")
         .doc("Create settings with default values");
