@@ -51,21 +51,7 @@ where
     Ok(git_cmd(args).read()?)
 }
 
-fn parse_paths_from_patch(patch: &str) -> Vec<PathBuf> {
-    // Parse lines like: diff --git a/path b/path
-    let mut files = BTreeSet::new();
-    for line in patch.lines() {
-        if let Some(rest) = line.strip_prefix("diff --git a/") {
-            if let Some((a_path, _b)) = rest.split_once(" b/") {
-                let p = PathBuf::from(a_path);
-                if p.exists() {
-                    files.insert(p);
-                }
-            }
-        }
-    }
-    files.into_iter().collect()
-}
+// removed: parse_paths_from_patch
 
 fn conflicted_files_from_porcelain(status_z: &str) -> Vec<PathBuf> {
     // In porcelain v1 short format: lines start with two status letters.
@@ -141,7 +127,6 @@ pub struct Git {
 }
 
 enum StashType {
-    PatchFile(String, PathBuf),
     LibGit,
     Git,
 }
@@ -583,23 +568,9 @@ impl Git {
         //         return Ok(());
         //     }
         // }
-        self.stash = if method == StashMethod::PatchFile {
-            job.prop(
-                "message",
-                &format!(
-                    "Creating git diff patch – {}",
-                    display_path(self.patch_file())
-                ),
-            );
-            job.update();
-            // Build a diff limited to these paths against index
-            self.build_diff_with_paths(Some(&files_to_stash.iter().cloned().collect::<Vec<_>>()))?
-        } else {
-            job.prop("message", "Running git stash");
-            job.update();
-            // Shell git supports pathspecs after --; libgit2 path ignores paths
-            self.push_stash(None, status)?
-        };
+        job.prop("message", "Running git stash");
+        job.update();
+        self.stash = self.push_stash(None, status)?;
         if self.stash.is_none() {
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
@@ -609,32 +580,7 @@ impl Git {
         job.prop("message", "Removing unstaged changes");
         job.update();
 
-        if method == StashMethod::PatchFile {
-            let patch_file = display_path(self.patch_file());
-            job.prop(
-                "message",
-                &format!("Stashed unstaged changes in {patch_file}"),
-            );
-            if let Some(repo) = &self.repo {
-                let mut checkout_opts = git2::build::CheckoutBuilder::new();
-                checkout_opts.allow_conflicts(true);
-                // Do not remove unrelated untracked files when stashing via patch-file
-                checkout_opts.remove_untracked(false);
-                checkout_opts.force();
-                checkout_opts.update_index(true);
-                repo.checkout_index(None, Some(&mut checkout_opts))
-                    .wrap_err("failed to reset worktree for modified files")?;
-            } else if !files_to_stash.is_empty() {
-                // Restore only the paths we stashed to the index state
-                let args = vec!["restore", "--worktree", "--"]
-                    .into_iter()
-                    .chain(files_to_stash.iter().map(|p| p.to_str().unwrap()))
-                    .collect::<Vec<_>>();
-                git_run(&args)?;
-            }
-        } else {
-            job.prop("message", "Stashed unstaged changes with git stash");
-        }
+        job.prop("message", "Stashed unstaged changes with git stash");
         job.set_status(ProgressStatus::Done);
         Ok(())
     }
@@ -679,32 +625,10 @@ impl Git {
         if let Err(err) = xx::file::write(patch_file, &patch) {
             warn!("failed to write patch file: {err:?}");
         }
-        Ok(Some(StashType::PatchFile(patch, patch_file.to_path_buf())))
+        Ok(None)
     }
 
-    fn build_diff_with_paths(&self, paths: Option<&[PathBuf]>) -> Result<Option<StashType>> {
-        // Build a patch representing worktree changes relative to index, limited to optional paths
-        let mut args: Vec<OsString> = vec![
-            "diff".into(),
-            "--binary".into(),
-            "--no-color".into(),
-            "--no-ext-diff".into(),
-            "--ignore-submodules".into(),
-        ];
-        if let Some(paths) = paths {
-            args.push("--".into());
-            args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
-        }
-        let out = git_read(args)?;
-        if out.trim().is_empty() {
-            return Ok(None);
-        }
-        let patch_file = self.patch_file();
-        if let Err(err) = xx::file::write(patch_file, &out) {
-            warn!("failed to write patch file: {err:?}");
-        }
-        Ok(Some(StashType::PatchFile(out, patch_file.to_path_buf())))
-    }
+    // removed patch-file custom path for now
 
     fn push_stash(
         &mut self,
@@ -766,7 +690,7 @@ impl Git {
             if let Some((left, path)) = rec.split_once('\t') {
                 let mut parts = left.split_whitespace();
                 let mode = parts.next().unwrap_or("100644");
-                let oid = parts.nth(1).unwrap_or("");
+                let oid = parts.next().unwrap_or("");
                 if !oid.is_empty() {
                     let mode = u32::from_str_radix(mode, 8).unwrap_or(0o100644);
                     entries.push((mode, oid.to_string(), PathBuf::from(path)));
@@ -829,85 +753,6 @@ impl Git {
         };
 
         match diff {
-            StashType::PatchFile(diff, patch_file) => {
-                job = ProgressJobBuilder::new()
-                    .prop(
-                        "message",
-                        &format!(
-                            "stash – Applying git diff patch – {}",
-                            display_path(self.patch_file())
-                        ),
-                    )
-                    .start();
-                // Try a 3-way apply so non-conflicting hunks from the patch merge with
-                // any fixer changes. Conflict markers will be written for conflicting hunks.
-                let affected_files = parse_paths_from_patch(&diff);
-                debug!(
-                    "applying patch to {} files: {:?}",
-                    affected_files.len(),
-                    affected_files
-                );
-
-                let apply_res = git_cmd(["apply", "--3way"]).arg(&patch_file).run();
-
-                // Check for conflicts after apply attempt
-                let mut had_conflicts = false;
-                for f in &affected_files {
-                    if let Ok(s) = xx::file::read_to_string(f) {
-                        if s.contains("<<<<<<<") && s.contains(">>>>>>>") {
-                            had_conflicts = true;
-                            debug!("found conflict markers in {}", display_path(f));
-                            break;
-                        }
-                    }
-                }
-
-                match apply_res {
-                    Ok(_) => {
-                        debug!("patch applied successfully");
-                    }
-                    Err(err) => {
-                        if had_conflicts {
-                            debug!(
-                                "git apply --3way returned error but left conflicts for {}: {err:?}; proceeding to resolve",
-                                display_path(&patch_file)
-                            );
-                        } else {
-                            warn!(
-                                "git apply --3way failed for {}: {err:?}; attempting plain apply",
-                                display_path(&patch_file)
-                            );
-                            if let Err(err2) = git_cmd(["apply"]).arg(&patch_file).run() {
-                                return Err(eyre!(
-                                    "failed to apply patch (3-way and plain) {}: {err:?}; {err2:?}",
-                                    display_path(&patch_file)
-                                ));
-                            }
-                        }
-                    }
-                }
-                // Resolve any conflict markers by preferring the patch (stash) side
-                for f in affected_files {
-                    if let Err(err) = resolve_conflict_markers_preferring_theirs(&f) {
-                        warn!(
-                            "failed to resolve conflict markers in {}: {err:?}",
-                            display_path(&f)
-                        );
-                    }
-                    // After resolving, re-stage only files that were previously staged to clear unmerged state
-                    if previously_staged.contains(&f) {
-                        if let Err(err) = git_cmd(["add", "--"]).arg(&f).run() {
-                            warn!(
-                                "failed to stage {} after resolving conflicts: {err:?}",
-                                display_path(&f)
-                            );
-                        }
-                    }
-                }
-                if let Err(err) = xx::file::remove_file(patch_file) {
-                    debug!("failed to remove patch file: {err:?}");
-                }
-            }
             // TODO: this does not work with untracked files
             // StashType::LibGit(_oid) => {
             //     job = ProgressJobBuilder::new()
