@@ -5,10 +5,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::Result;
 use crate::ui::style;
+use crate::Result;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
-use eyre::{WrapErr, eyre};
+use eyre::{eyre, WrapErr};
 use git2::{Repository, StatusOptions, StatusShow};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -121,6 +121,10 @@ pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
+    // Paths restaged by steps during the hook run that must be preserved in the index
+    // even after applying/restoring the stash. If present, we skip restoring their
+    // pre-hook index entries so fixer changes remain staged.
+    restaged_paths: BTreeSet<PathBuf>,
 }
 
 enum StashType {
@@ -161,6 +165,7 @@ impl Git {
             repo,
             stash: None,
             saved_index: None,
+            restaged_paths: BTreeSet::new(),
         })
     }
 
@@ -736,6 +741,10 @@ impl Git {
             return Ok(());
         }
         for (mode, oid, path) in entries {
+            // Preserve staged content created by hook steps (e.g., prettier --write + git add)
+            if self.restaged_paths.contains(&path) {
+                continue;
+            }
             let mode_str = format!("{:o}", mode);
             git_cmd(["update-index", "--cacheinfo"])
                 .arg(mode_str)
@@ -743,6 +752,8 @@ impl Git {
                 .arg(path)
                 .run()?;
         }
+        // Clear after restoration; a subsequent hook run will rebuild this set
+        self.restaged_paths.clear();
         Ok(())
     }
 
@@ -924,8 +935,12 @@ impl Git {
         Ok(())
     }
 
-    pub fn add(&self, pathspecs: &[PathBuf]) -> Result<()> {
+    pub fn add(&mut self, pathspecs: &[PathBuf]) -> Result<()> {
         let pathspecs = pathspecs.iter().collect_vec();
+        // Record for index-restore preservation
+        for p in &pathspecs {
+            self.restaged_paths.insert((*p).clone());
+        }
         trace!("adding files: {:?}", &pathspecs);
         if let Some(repo) = &self.repo {
             let mut index = repo.index().wrap_err("failed to get index")?;
