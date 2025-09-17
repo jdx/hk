@@ -59,8 +59,14 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Generate the settings struct
     generate_settings_struct(out_dir, &registry)?;
 
+    // Generate the settings override struct
+    generate_settings_override_struct(out_dir, &registry)?;
+
     // Generate the CLI flags struct
     generate_cli_flags_struct(out_dir, &registry)?;
+
+    // Generate the settings meta
+    generate_settings_meta(out_dir, &registry)?;
 
     Ok(())
 }
@@ -85,7 +91,7 @@ fn generate_settings_struct(
     // Add fields to the struct
     for (name, opt) in &registry.options {
         let field_name = name.replace('-', "_");
-        let base_type = rust_type(&opt.typ, name);
+        let base_type = rust_type(&opt.typ);
 
         let field_type = if is_nullable(opt) {
             format!("Option<{}>", base_type)
@@ -126,6 +132,43 @@ fn generate_settings_struct(
     Ok(())
 }
 
+fn generate_settings_override_struct(
+    out_dir: &Path,
+    registry: &SettingsRegistry,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut scope = Scope::new();
+    scope.import("indexmap", "IndexSet");
+    scope.import("std::path", "PathBuf");
+    scope.raw("#[allow(dead_code)]");
+
+    // Create the override settings struct - all fields are Option
+    let mut override_struct = Struct::new("GeneratedSettingsOverride");
+    override_struct
+        .vis("pub")
+        .derive("Debug")
+        .derive("Clone")
+        .derive("Default")
+        .doc("Auto-generated settings override struct from settings.toml");
+
+    // Add fields to the struct - all as Option types
+    for (name, opt) in &registry.options {
+        let field_name = name.replace('-', "_");
+        let base_type = rust_type(&opt.typ);
+        let field_type = format!("Option<{}>", base_type);
+        override_struct.field(&format!("pub {}", field_name), field_type);
+    }
+
+    scope.push_struct(override_struct);
+
+    // Write the scope to file
+    fs::write(
+        out_dir.join("generated_settings_override.rs"),
+        scope.to_string(),
+    )?;
+
+    Ok(())
+}
+
 fn generate_cli_flags_struct(
     out_dir: &Path,
     registry: &SettingsRegistry,
@@ -150,7 +193,7 @@ fn generate_cli_flags_struct(
         let field_type = if name == "verbose" {
             "u8".to_string()
         } else {
-            format!("Option<{}>", rust_type_for_cli(&opt.typ, name))
+            format!("Option<{}>", rust_type_for_cli(&opt.typ))
         };
 
         // Add documentation
@@ -179,10 +222,11 @@ fn generate_cli_flags_struct(
     Ok(())
 }
 
-fn rust_type(typ: &str, _name: &str) -> String {
+fn rust_type(typ: &str) -> String {
     match typ {
         "bool" => "bool".to_string(),
-        "int" => "usize".to_string(),
+        "usize" => "usize".to_string(),
+        "u8" => "u8".to_string(),
         "string" => "String".to_string(),
         "path" => "PathBuf".to_string(),
         "enum" => "String".to_string(),
@@ -191,10 +235,11 @@ fn rust_type(typ: &str, _name: &str) -> String {
     }
 }
 
-fn rust_type_for_cli(typ: &str, _name: &str) -> String {
+fn rust_type_for_cli(typ: &str) -> String {
     match typ {
         "bool" => "bool".to_string(),
-        "int" => "usize".to_string(),
+        "usize" => "usize".to_string(),
+        "u8" => "u8".to_string(),
         "string" => "String".to_string(),
         "path" => "PathBuf".to_string(),
         "enum" => "String".to_string(),
@@ -222,7 +267,7 @@ fn get_default_value(opt: &OptionConfig, name: &str) -> String {
             _ => "false",
         }
         .to_string(),
-        "int" => match &opt.default {
+        "usize" | "u8" => match &opt.default {
             Some(v) => v.as_integer().unwrap_or(0).to_string(),
             None => "0".to_string(),
         },
@@ -261,6 +306,98 @@ fn format_doc_comment(docs: &str) -> Vec<String> {
         .map(|line| line.trim().to_string())
         .filter(|line| !line.is_empty())
         .collect()
+}
+
+fn generate_settings_meta(
+    out_dir: &Path,
+    registry: &SettingsRegistry,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut scope = Scope::new();
+    scope.import("indexmap", "IndexMap");
+    scope.import("once_cell::sync", "Lazy");
+    scope.raw("#[allow(dead_code)]");
+
+    // Generate SettingMeta struct
+    let mut setting_meta_struct = Struct::new("SettingMeta");
+    setting_meta_struct
+        .vis("pub")
+        .derive("Debug")
+        .derive("Clone")
+        .field("pub typ", "&'static str")
+        .field("pub default_value", "Option<&'static str>")
+        .field("pub merge", "Option<&'static str>")
+        .field("pub sources", "SettingSourcesMeta");
+
+    scope.push_struct(setting_meta_struct);
+
+    // Generate SettingSourcesMeta struct
+    let mut sources_meta_struct = Struct::new("SettingSourcesMeta");
+    sources_meta_struct
+        .vis("pub")
+        .derive("Debug")
+        .derive("Clone")
+        .field("pub cli", "&'static [&'static str]")
+        .field("pub env", "&'static [&'static str]")
+        .field("pub git", "&'static [&'static str]")
+        .field("pub pkl", "&'static [&'static str]");
+
+    scope.push_struct(sources_meta_struct);
+
+    // Generate the static SETTINGS_META
+    let mut static_entries = Vec::new();
+    for (name, opt) in &registry.options {
+        let cli_sources = format_string_array(&opt.sources.cli);
+        let env_sources = format_string_array(&opt.sources.env);
+        let git_sources = format_string_array(&opt.sources.git);
+
+        let pkl_sources = match &opt.sources.pkl {
+            PklSource::None => "&[]".to_string(),
+            PklSource::Single(s) => format!("&[{:?}]", s),
+            PklSource::Multiple(v) => format_string_array(v),
+        };
+
+        let default_value = match &opt.default {
+            Some(v) => format!("Some({:?})", v.as_str().unwrap_or(&v.to_string())),
+            None => "None".to_string(),
+        };
+
+        let merge = match &opt.merge {
+            Some(m) => format!("Some({:?})", m),
+            None => "None".to_string(),
+        };
+
+        static_entries.push(format!(
+            "        ({:?}, SettingMeta {{\n            typ: {:?},\n            default_value: {},\n            merge: {},\n            sources: SettingSourcesMeta {{\n                cli: {},\n                env: {},\n                git: {},\n                pkl: {},\n            }},\n        }})",
+            name, opt.typ, default_value, merge, cli_sources, env_sources, git_sources, pkl_sources
+        ));
+    }
+
+    // Create the static variable using raw code since codegen doesn't have great support for complex statics
+    scope.raw(&format!(
+        "pub static SETTINGS_META: Lazy<IndexMap<&'static str, SettingMeta>> =\n    Lazy::new(|| {{\n        IndexMap::from([\n{}\n        ])\n    }});",
+        static_entries.join(",\n")
+    ));
+
+    // Write the scope to file
+    fs::write(
+        out_dir.join("generated_settings_meta.rs"),
+        scope.to_string(),
+    )?;
+
+    Ok(())
+}
+
+fn format_string_array(strings: &[String]) -> String {
+    if strings.is_empty() {
+        "&[]".to_string()
+    } else {
+        let items = strings
+            .iter()
+            .map(|s| format!("{:?}", s))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("&[{}]", items)
+    }
 }
 
 fn build_clap_attributes(name: &str, opt: &OptionConfig) -> Vec<String> {

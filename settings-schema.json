@@ -10,7 +10,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["bool", "int", "string", "path", "enum", "list<string>"],
+          "enum": ["bool", "int", "usize", "u8", "string", "path", "enum", "list<string>"],
           "description": "The data type of the option"
         },
         "default": {

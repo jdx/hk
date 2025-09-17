@@ -2,6 +2,19 @@
 # This is an internal options registry used for codegen (not user-edited config).
 # It defines all configuration options and their sources, merge policies, and documentation.
 
+[all]
+type = "bool"
+default = false
+sources.cli = ["--all"]
+docs = """
+Enables running all available steps, including those that might be disabled by default or require specific profiles.
+
+When enabled, hk will run all configured steps regardless of their profile requirements or other filtering criteria.
+This is useful for comprehensive checking or when you want to run every possible linting/formatting task.
+
+Example: `hk check --all` to run all available checks.
+"""
+
 [cache_dir]
 type = "path"
 sources.env = ["HK_CACHE_DIR"]
@@ -147,7 +160,7 @@ This file can override project-level settings and is useful for personal prefere
 """
 
 [jobs]
-type = "int"
+type = "usize"
 default = 0 # 0 means auto-detect from environment or CPU count
 sources.cli = ["--jobs", "-j"]
 sources.env = ["HK_JOBS", "HK_JOB"]
@@ -449,7 +462,7 @@ Example: `HK_TRACE=text hk check` to see detailed execution traces.
 """
 
 [verbose]
-type = "int"
+type = "u8"
 default = 0
 sources.cli = ["--verbose", "-v"]
 docs = """
