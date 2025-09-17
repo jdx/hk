@@ -315,7 +315,13 @@ impl Hook {
         }
         match &self.stash {
             Some(StashSetting::Method(m)) => *m,
-            Some(StashSetting::Bool(b)) => if *b { StashMethod::Git } else { StashMethod::None },
+            Some(StashSetting::Bool(b)) => {
+                if *b {
+                    StashMethod::Git
+                } else {
+                    StashMethod::None
+                }
+            }
             None => StashMethod::None,
         }
     }
@@ -450,7 +456,12 @@ impl Hook {
             {
                 let mut r = repo.lock().await;
                 r.capture_index(&files_vec)?;
-                r.stash_unstaged(&file_progress, stash_method, &git_status, Some(&files_vec[..]))?;
+                r.stash_unstaged(
+                    &file_progress,
+                    stash_method,
+                    &git_status,
+                    Some(&files_vec[..]),
+                )?;
             }
         }
 

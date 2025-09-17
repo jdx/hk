@@ -5,10 +5,10 @@ use std::{
     sync::Arc,
 };
 
-use crate::ui::style;
 use crate::Result;
+use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
-use eyre::{eyre, WrapErr};
+use eyre::{WrapErr, eyre};
 use git2::{Repository, StatusOptions, StatusShow};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
