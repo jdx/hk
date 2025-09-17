@@ -194,6 +194,7 @@ exclude = "node_modules"
 ```
 
 Notes:
+
 - Patterns from all configuration sources are unioned together
 - Simple directory names automatically match their contents (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
 - Can be overridden per-step with `<STEP>.exclude`

@@ -65,26 +65,7 @@ impl Config {
         for (key, value) in self.env.iter() {
             unsafe { std::env::set_var(key, value) };
         }
-        // Set fail_fast if configured
-        if let Some(fail_fast) = self.fail_fast {
-            crate::settings::Settings::set_fail_fast(fail_fast);
-        }
-        // Set display_skip_reasons if configured (None means use default, empty list means hide all)
-        if let Some(display_skip_reasons) = &self.display_skip_reasons {
-            crate::settings::Settings::set_display_skip_reasons(
-                display_skip_reasons.clone().into_iter().collect(),
-            );
-        }
-        // Set hide_warnings if configured
-        if let Some(hide_warnings) = &self.hide_warnings {
-            crate::settings::Settings::set_hide_warnings(
-                hide_warnings.clone().into_iter().collect(),
-            );
-        }
-        // Set warnings if configured
-        if let Some(warnings) = &self.warnings {
-            crate::settings::Settings::set_warnings(warnings.clone().into_iter().collect());
-        }
+        // No imperative settings mutation; values are consumed during Settings build
         Ok(())
     }
 
@@ -134,70 +115,7 @@ impl Config {
                 unsafe { std::env::set_var(key, value) };
             }
 
-            if let Some(jobs) = user_config.defaults.jobs {
-                if let Some(jobs) = std::num::NonZero::new(jobs as usize) {
-                    crate::settings::Settings::set_jobs(jobs);
-                }
-            }
-
-            if let Some(profiles) = &user_config.defaults.profiles {
-                crate::settings::Settings::with_profiles(profiles);
-            }
-
-            if let Some(fail_fast) = user_config.defaults.fail_fast {
-                crate::settings::Settings::set_fail_fast(fail_fast);
-            }
-
-            if let Some(all) = user_config.defaults.all {
-                crate::settings::Settings::set_all(all);
-            }
-
-            if let Some(fix) = user_config.defaults.fix {
-                crate::settings::Settings::set_fix(fix);
-            }
-
-            if let Some(check) = user_config.defaults.check {
-                crate::settings::Settings::set_check(check);
-            }
-
-            if let Some(display_skip_reasons) = &user_config.display_skip_reasons {
-                crate::settings::Settings::set_display_skip_reasons(
-                    display_skip_reasons.clone().into_iter().collect(),
-                );
-            }
-
-            if let Some(hide_warnings) = &user_config.hide_warnings {
-                crate::settings::Settings::set_hide_warnings(
-                    hide_warnings.clone().into_iter().collect(),
-                );
-            }
-            if let Some(warnings) = &user_config.warnings {
-                crate::settings::Settings::set_warnings(warnings.clone().into_iter().collect());
-            }
-
-            if let Some(exclude) = &user_config.defaults.exclude {
-                let patterns: Vec<String> = match exclude {
-                    StringOrList::String(s) => vec![s.clone()],
-                    StringOrList::List(list) => list.clone(),
-                };
-                crate::settings::Settings::add_exclude(patterns);
-            }
-
-            if let Some(skip_steps) = &user_config.defaults.skip_steps {
-                let steps: Vec<String> = match skip_steps {
-                    StringOrList::String(s) => vec![s.clone()],
-                    StringOrList::List(list) => list.clone(),
-                };
-                crate::settings::Settings::add_skip_steps(steps);
-            }
-
-            if let Some(skip_hooks) = &user_config.defaults.skip_hooks {
-                let hooks: Vec<String> = match skip_hooks {
-                    StringOrList::String(s) => vec![s.clone()],
-                    StringOrList::List(list) => list.clone(),
-                };
-                crate::settings::Settings::add_skip_hooks(hooks);
-            }
+            // No imperative settings mutations here; Settings reads these during build
 
             for (hook_name, user_hook_config) in &user_config.hooks {
                 if let Some(hook) = self.hooks.get_mut(hook_name) {
@@ -268,7 +186,7 @@ impl Config {
 
 impl UserConfig {
     fn load() -> Result<Option<Self>> {
-        let user_config_path = crate::settings::Settings::get_user_config_path()
+        let user_config_path = crate::settings::Settings::cli_user_config_path()
             .expect("Config path should always be set by CLI");
 
         if user_config_path.exists() {

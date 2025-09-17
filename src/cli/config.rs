@@ -1,4 +1,5 @@
 use crate::{Result, settings::Settings};
+use crate::settings::generated::SETTINGS_META;
 use serde_json::json;
 
 /// Configuration introspection and management
@@ -84,18 +85,22 @@ impl Config {
 impl ConfigDump {
     fn run(&self) -> Result<()> {
         let settings = Settings::get();
-
-        let output = json!({
-            "jobs": settings.jobs(),
-            "enabled_profiles": settings.enabled_profiles(),
-            "disabled_profiles": settings.disabled_profiles(),
-            "fail_fast": settings.fail_fast(),
-            "display_skip_reasons": settings.display_skip_reasons(),
-            "warnings": settings.warnings(),
-            "exclude": settings.exclude(),
-            "skip_steps": settings.skip_steps(),
-            "skip_hooks": settings.skip_hooks(),
-        });
+        // Start from full settings based on meta to reduce boilerplate
+        let mut map = serde_json::Map::new();
+        // Serialize full settings once for generic lookups
+        let full = serde_json::to_value(settings.clone())?;
+        for (key, _meta) in SETTINGS_META.iter() {
+            let k = (*key).to_string();
+            // Special-case computed values that differ from raw fields
+            if k == "jobs" {
+                map.insert(k, json!(settings.jobs()));
+                continue;
+            }
+            if let Some(v) = full.get(key) {
+                map.insert(k, v.clone());
+            }
+        }
+        let output = serde_json::Value::Object(map);
 
         match self.format.as_str() {
             "json" => println!("{}", serde_json::to_string_pretty(&output)?),
@@ -112,18 +117,17 @@ impl ConfigDump {
 impl ConfigGet {
     fn run(&self) -> Result<()> {
         let settings = Settings::get();
-
-        let value = match self.key.as_str() {
-            "jobs" => json!(settings.jobs()),
-            "enabled_profiles" => json!(settings.enabled_profiles()),
-            "disabled_profiles" => json!(settings.disabled_profiles()),
-            "fail_fast" => json!(settings.fail_fast()),
-            "display_skip_reasons" => json!(settings.display_skip_reasons()),
-            "warnings" => json!(settings.warnings()),
-            "exclude" => json!(settings.exclude()),
-            "skip_steps" => json!(settings.skip_steps()),
-            "skip_hooks" => json!(settings.skip_hooks()),
-            _ => return Err(eyre::eyre!("Unknown configuration key: {}", self.key)),
+        // Derived and computed keys
+        let value = if self.key == "jobs" {
+            json!(settings.jobs())
+        } else if SETTINGS_META.contains_key(self.key.as_str()) {
+            // Generic lookup via serialization
+            let full = serde_json::to_value(settings.clone())?;
+            full.get(&self.key)
+                .cloned()
+                .ok_or_else(|| eyre::eyre!("Key present in meta but missing in settings: {}", self.key))?
+        } else {
+            return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
         };
 
         println!("{}", serde_json::to_string(&value)?);
@@ -133,56 +137,22 @@ impl ConfigGet {
 
 impl ConfigExplain {
     fn run(&self) -> Result<()> {
-        use crate::settings::SettingsBuilder;
-
         // Get the current value
         let settings = Settings::get();
-        let inner = settings.inner();
-
-        let current_value = match self.key.as_str() {
-            // Use existing accessor methods where available
-            "jobs" => json!(settings.jobs()),
-            "enabled_profiles" => json!(settings.enabled_profiles()),
-            "disabled_profiles" => json!(settings.disabled_profiles()),
-            "fail_fast" => json!(settings.fail_fast()),
-            "display_skip_reasons" => json!(settings.display_skip_reasons()),
-            "warnings" => json!(settings.warnings()),
-            "exclude" => json!(settings.exclude()),
-            "skip_steps" => json!(settings.skip_steps()),
-            "skip_hooks" => json!(settings.skip_hooks()),
-            "all" => json!(settings.all()),
-
-            // Access inner struct fields directly for everything else
-            "quiet" => json!(inner.quiet),
-            "silent" => json!(inner.silent),
-            "no_progress" => json!(inner.no_progress),
-            "slow" => json!(inner.slow),
-            "json" => json!(inner.json),
-            "libgit2" => json!(inner.libgit2),
-            "fix" => json!(inner.fix),
-            "check" => json!(inner.check),
-            "mise" => json!(inner.mise),
-            "stash" => json!(inner.stash),
-            "stash_untracked" => json!(inner.stash_untracked),
-            "hide_when_done" => json!(inner.hide_when_done),
-            "summary_text" => json!(inner.summary_text),
-            "check_first" => json!(inner.check_first),
-            "log_level" => json!(inner.log_level),
-            "log_file_level" => json!(inner.log_file_level),
-            "trace" => json!(inner.trace),
-            "verbose" => json!(inner.verbose),
-            "cache_dir" => json!(inner.cache_dir.as_ref().map(|p| p.display().to_string())),
-            "hkrc" => json!(inner.hkrc.display().to_string()),
-            "log_file" => json!(inner.log_file.as_ref().map(|p| p.display().to_string())),
-            "state_dir" => json!(inner.state_dir.as_ref().map(|p| p.display().to_string())),
-            "timing_json" => json!(inner.timing_json.as_ref().map(|p| p.display().to_string())),
-            "profiles" => json!(inner.profiles),
-
-            _ => return Err(eyre::eyre!("Unknown configuration key: {}", self.key)),
+        // Current value (computed for special keys, generic via meta for the rest)
+        let current_value = if self.key == "jobs" {
+            json!(settings.jobs())
+        } else if SETTINGS_META.contains_key(self.key.as_str()) {
+            let full = serde_json::to_value(settings.clone())?;
+            full.get(&self.key)
+                .cloned()
+                .ok_or_else(|| eyre::eyre!("Key present in meta but missing in settings: {}", self.key))?
+        } else {
+            return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
         };
 
         // Build a resolution report
-        let resolution_info = SettingsBuilder::explain_value(&self.key)?;
+        let resolution_info = Settings::explain_value(&self.key)?;
 
         println!("Configuration key: {}", self.key);
         println!("Current value: {}", serde_json::to_string(&current_value)?);

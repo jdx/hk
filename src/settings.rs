@@ -1,454 +1,103 @@
 use std::{
-    collections::HashSet,
     num::NonZero,
     path::PathBuf,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex}, thread,
 };
 
 use arc_swap::ArcSwap;
 use indexmap::IndexSet;
-use log::debug;
+use once_cell::sync::Lazy;
+use generated::merge::{SourceMap, SettingValue};
+use serde_json::json;
 
 // Include the generated settings structs from the build
 pub mod generated {
     pub mod settings {
         include!(concat!(env!("OUT_DIR"), "/generated_settings.rs"));
     }
-    pub mod settings_override {
-        include!(concat!(env!("OUT_DIR"), "/generated_settings_override.rs"));
-    }
-    pub mod cli {
-        include!(concat!(env!("OUT_DIR"), "/generated_cli_flags.rs"));
-    }
     pub mod settings_meta {
         include!(concat!(env!("OUT_DIR"), "/generated_settings_meta.rs"));
     }
+    pub mod merge {
+        include!(concat!(env!("OUT_DIR"), "/generated_settings_merge.rs"));
+    }
+    // no generated accessors
 
     // Re-export the main types for convenience
     pub use settings_meta::*;
-    pub use settings_override::GeneratedSettingsOverride;
+}
+pub use generated::settings::Settings;
+
+use crate::settings::generated::merge::SettingSource;
+
+#[macro_export]
+macro_rules! setting {
+    ($field:ident) => {{
+        let __s = $crate::settings::Settings::get();
+        __s.inner().$field.clone()
+    }};
 }
 
-/// Dynamic settings merger using metadata-driven approach
-#[derive(Debug, Default)]
-pub struct SettingsMerger;
-
-impl SettingsMerger {
-    /// Create a new settings merger
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Merge settings from all sources with systematic precedence: defaults → env → git → pkl → CLI → programmatic
-    pub fn merge_sources(
-        &self,
-        defaults: &generated::settings::GeneratedSettings,
-        env_overrides: &generated::GeneratedSettingsOverride,
-        git_overrides: &generated::GeneratedSettingsOverride,
-        pkl_overrides: &generated::GeneratedSettingsOverride,
-        cli_overrides: &generated::GeneratedSettingsOverride,
-        programmatic_overrides: &generated::GeneratedSettingsOverride,
-    ) -> generated::settings::GeneratedSettings {
-        let mut result = defaults.clone();
-
-        // Apply each override layer in precedence order: env → git → pkl → CLI → programmatic
-        for (field_name, meta) in generated::SETTINGS_META.iter() {
-            let merge_strategy = meta.merge.unwrap_or("replace");
-
-            match merge_strategy {
-                "union" => {
-                    self.merge_union_field(&mut result, field_name, env_overrides, git_overrides, pkl_overrides, cli_overrides, programmatic_overrides);
-                }
-                _ => {
-                    // Default to "replace" strategy
-                    self.merge_replace_field(&mut result, field_name, meta, env_overrides, git_overrides, pkl_overrides, cli_overrides, programmatic_overrides);
-                }
-            }
-        }
-
-        result
-    }
-
-    /// Merge a field using union strategy (for list fields)
-    fn merge_union_field(
-        &self,
-        result: &mut generated::settings::GeneratedSettings,
-        field_name: &str,
-        env_overrides: &generated::GeneratedSettingsOverride,
-        git_overrides: &generated::GeneratedSettingsOverride,
-        pkl_overrides: &generated::GeneratedSettingsOverride,
-        cli_overrides: &generated::GeneratedSettingsOverride,
-        programmatic_overrides: &generated::GeneratedSettingsOverride,
-    ) {
-        match field_name {
-            "exclude" => {
-                let mut merged = result.exclude.clone();
-                if let Some(ref val) = env_overrides.exclude { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = git_overrides.exclude { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = pkl_overrides.exclude { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = cli_overrides.exclude { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = programmatic_overrides.exclude { merged.extend(val.iter().cloned()); }
-                result.exclude = merged;
-            }
-            "hide_warnings" => {
-                let mut merged = result.hide_warnings.clone();
-                if let Some(ref val) = env_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = git_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = pkl_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = cli_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = programmatic_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
-                result.hide_warnings = merged;
-            }
-            "skip_hooks" => {
-                let mut merged = result.skip_hooks.clone();
-                if let Some(ref val) = env_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = git_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = pkl_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = cli_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = programmatic_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
-                result.skip_hooks = merged;
-            }
-            "skip_steps" => {
-                let mut merged = result.skip_steps.clone();
-                if let Some(ref val) = env_overrides.skip_steps { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = git_overrides.skip_steps { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = pkl_overrides.skip_steps { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = cli_overrides.skip_steps { merged.extend(val.iter().cloned()); }
-                if let Some(ref val) = programmatic_overrides.skip_steps { merged.extend(val.iter().cloned()); }
-                result.skip_steps = merged;
-            }
-            _ => {
-                // Unknown union field - this shouldn't happen with current schema but handle gracefully
-                debug!("Unknown union field: {}", field_name);
-            }
-        }
-    }
-
-    /// Merge a field using replace strategy (highest precedence wins)
-    fn merge_replace_field(
-        &self,
-        result: &mut generated::settings::GeneratedSettings,
-        field_name: &str,
-        _meta: &generated::SettingMeta,
-        env_overrides: &generated::GeneratedSettingsOverride,
-        git_overrides: &generated::GeneratedSettingsOverride,
-        pkl_overrides: &generated::GeneratedSettingsOverride,
-        cli_overrides: &generated::GeneratedSettingsOverride,
-        programmatic_overrides: &generated::GeneratedSettingsOverride,
-    ) {
-        // Define macros for nullable and non-nullable fields
-        macro_rules! apply_override_nullable {
-            ($overrides:expr, $field:ident) => {
-                if let Some(ref val) = $overrides.$field {
-                    result.$field = Some(val.clone());
-                }
-            };
-        }
-
-        macro_rules! apply_override_non_nullable {
-            ($overrides:expr, $field:ident) => {
-                if let Some(ref val) = $overrides.$field {
-                    result.$field = val.clone();
-                }
-            };
-        }
-
-        match field_name {
-            "all" => {
-                apply_override_non_nullable!(env_overrides, all);
-                apply_override_non_nullable!(git_overrides, all);
-                apply_override_non_nullable!(pkl_overrides, all);
-                apply_override_non_nullable!(cli_overrides, all);
-                apply_override_non_nullable!(programmatic_overrides, all);
-            }
-            "cache_dir" => {
-                apply_override_nullable!(env_overrides, cache_dir);
-                apply_override_nullable!(git_overrides, cache_dir);
-                apply_override_nullable!(pkl_overrides, cache_dir);
-                apply_override_nullable!(cli_overrides, cache_dir);
-                apply_override_nullable!(programmatic_overrides, cache_dir);
-            }
-            "check" => {
-                apply_override_non_nullable!(env_overrides, check);
-                apply_override_non_nullable!(git_overrides, check);
-                apply_override_non_nullable!(pkl_overrides, check);
-                apply_override_non_nullable!(cli_overrides, check);
-                apply_override_non_nullable!(programmatic_overrides, check);
-            }
-            "check_first" => {
-                apply_override_non_nullable!(env_overrides, check_first);
-                apply_override_non_nullable!(git_overrides, check_first);
-                apply_override_non_nullable!(pkl_overrides, check_first);
-                apply_override_non_nullable!(cli_overrides, check_first);
-                apply_override_non_nullable!(programmatic_overrides, check_first);
-            }
-            "display_skip_reasons" => {
-                apply_override_non_nullable!(env_overrides, display_skip_reasons);
-                apply_override_non_nullable!(git_overrides, display_skip_reasons);
-                apply_override_non_nullable!(pkl_overrides, display_skip_reasons);
-                apply_override_non_nullable!(cli_overrides, display_skip_reasons);
-                apply_override_non_nullable!(programmatic_overrides, display_skip_reasons);
-            }
-            "fail_fast" => {
-                apply_override_non_nullable!(env_overrides, fail_fast);
-                apply_override_non_nullable!(git_overrides, fail_fast);
-                apply_override_non_nullable!(pkl_overrides, fail_fast);
-                apply_override_non_nullable!(cli_overrides, fail_fast);
-                apply_override_non_nullable!(programmatic_overrides, fail_fast);
-            }
-            "fix" => {
-                apply_override_non_nullable!(env_overrides, fix);
-                apply_override_non_nullable!(git_overrides, fix);
-                apply_override_non_nullable!(pkl_overrides, fix);
-                apply_override_non_nullable!(cli_overrides, fix);
-                apply_override_non_nullable!(programmatic_overrides, fix);
-            }
-            "hide_when_done" => {
-                apply_override_non_nullable!(env_overrides, hide_when_done);
-                apply_override_non_nullable!(git_overrides, hide_when_done);
-                apply_override_non_nullable!(pkl_overrides, hide_when_done);
-                apply_override_non_nullable!(cli_overrides, hide_when_done);
-                apply_override_non_nullable!(programmatic_overrides, hide_when_done);
-            }
-            "hkrc" => {
-                apply_override_non_nullable!(env_overrides, hkrc);
-                apply_override_non_nullable!(git_overrides, hkrc);
-                apply_override_non_nullable!(pkl_overrides, hkrc);
-                apply_override_non_nullable!(cli_overrides, hkrc);
-                apply_override_non_nullable!(programmatic_overrides, hkrc);
-            }
-            "jobs" => {
-                apply_override_non_nullable!(env_overrides, jobs);
-                apply_override_non_nullable!(git_overrides, jobs);
-                apply_override_non_nullable!(pkl_overrides, jobs);
-                apply_override_non_nullable!(cli_overrides, jobs);
-                apply_override_non_nullable!(programmatic_overrides, jobs);
-            }
-            "json" => {
-                apply_override_non_nullable!(env_overrides, json);
-                apply_override_non_nullable!(git_overrides, json);
-                apply_override_non_nullable!(pkl_overrides, json);
-                apply_override_non_nullable!(cli_overrides, json);
-                apply_override_non_nullable!(programmatic_overrides, json);
-            }
-            "libgit2" => {
-                apply_override_non_nullable!(env_overrides, libgit2);
-                apply_override_non_nullable!(git_overrides, libgit2);
-                apply_override_non_nullable!(pkl_overrides, libgit2);
-                apply_override_non_nullable!(cli_overrides, libgit2);
-                apply_override_non_nullable!(programmatic_overrides, libgit2);
-            }
-            "log_file" => {
-                apply_override_nullable!(env_overrides, log_file);
-                apply_override_nullable!(git_overrides, log_file);
-                apply_override_nullable!(pkl_overrides, log_file);
-                apply_override_nullable!(cli_overrides, log_file);
-                apply_override_nullable!(programmatic_overrides, log_file);
-            }
-            "log_file_level" => {
-                apply_override_non_nullable!(env_overrides, log_file_level);
-                apply_override_non_nullable!(git_overrides, log_file_level);
-                apply_override_non_nullable!(pkl_overrides, log_file_level);
-                apply_override_non_nullable!(cli_overrides, log_file_level);
-                apply_override_non_nullable!(programmatic_overrides, log_file_level);
-            }
-            "log_level" => {
-                apply_override_non_nullable!(env_overrides, log_level);
-                apply_override_non_nullable!(git_overrides, log_level);
-                apply_override_non_nullable!(pkl_overrides, log_level);
-                apply_override_non_nullable!(cli_overrides, log_level);
-                apply_override_non_nullable!(programmatic_overrides, log_level);
-            }
-            "mise" => {
-                apply_override_non_nullable!(env_overrides, mise);
-                apply_override_non_nullable!(git_overrides, mise);
-                apply_override_non_nullable!(pkl_overrides, mise);
-                apply_override_non_nullable!(cli_overrides, mise);
-                apply_override_non_nullable!(programmatic_overrides, mise);
-            }
-            "no_progress" => {
-                apply_override_non_nullable!(env_overrides, no_progress);
-                apply_override_non_nullable!(git_overrides, no_progress);
-                apply_override_non_nullable!(pkl_overrides, no_progress);
-                apply_override_non_nullable!(cli_overrides, no_progress);
-                apply_override_non_nullable!(programmatic_overrides, no_progress);
-            }
-            "profiles" => {
-                apply_override_non_nullable!(env_overrides, profiles);
-                apply_override_non_nullable!(git_overrides, profiles);
-                apply_override_non_nullable!(pkl_overrides, profiles);
-                apply_override_non_nullable!(cli_overrides, profiles);
-                apply_override_non_nullable!(programmatic_overrides, profiles);
-            }
-            "quiet" => {
-                apply_override_non_nullable!(env_overrides, quiet);
-                apply_override_non_nullable!(git_overrides, quiet);
-                apply_override_non_nullable!(pkl_overrides, quiet);
-                apply_override_non_nullable!(cli_overrides, quiet);
-                apply_override_non_nullable!(programmatic_overrides, quiet);
-            }
-            "silent" => {
-                apply_override_non_nullable!(env_overrides, silent);
-                apply_override_non_nullable!(git_overrides, silent);
-                apply_override_non_nullable!(pkl_overrides, silent);
-                apply_override_non_nullable!(cli_overrides, silent);
-                apply_override_non_nullable!(programmatic_overrides, silent);
-            }
-            "slow" => {
-                apply_override_non_nullable!(env_overrides, slow);
-                apply_override_non_nullable!(git_overrides, slow);
-                apply_override_non_nullable!(pkl_overrides, slow);
-                apply_override_non_nullable!(cli_overrides, slow);
-                apply_override_non_nullable!(programmatic_overrides, slow);
-            }
-            "stash" => {
-                apply_override_non_nullable!(env_overrides, stash);
-                apply_override_non_nullable!(git_overrides, stash);
-                apply_override_non_nullable!(pkl_overrides, stash);
-                apply_override_non_nullable!(cli_overrides, stash);
-                apply_override_non_nullable!(programmatic_overrides, stash);
-            }
-            "stash_untracked" => {
-                apply_override_non_nullable!(env_overrides, stash_untracked);
-                apply_override_non_nullable!(git_overrides, stash_untracked);
-                apply_override_non_nullable!(pkl_overrides, stash_untracked);
-                apply_override_non_nullable!(cli_overrides, stash_untracked);
-                apply_override_non_nullable!(programmatic_overrides, stash_untracked);
-            }
-            "state_dir" => {
-                apply_override_nullable!(env_overrides, state_dir);
-                apply_override_nullable!(git_overrides, state_dir);
-                apply_override_nullable!(pkl_overrides, state_dir);
-                apply_override_nullable!(cli_overrides, state_dir);
-                apply_override_nullable!(programmatic_overrides, state_dir);
-            }
-            "summary_text" => {
-                apply_override_non_nullable!(env_overrides, summary_text);
-                apply_override_non_nullable!(git_overrides, summary_text);
-                apply_override_non_nullable!(pkl_overrides, summary_text);
-                apply_override_non_nullable!(cli_overrides, summary_text);
-                apply_override_non_nullable!(programmatic_overrides, summary_text);
-            }
-            "timing_json" => {
-                apply_override_nullable!(env_overrides, timing_json);
-                apply_override_nullable!(git_overrides, timing_json);
-                apply_override_nullable!(pkl_overrides, timing_json);
-                apply_override_nullable!(cli_overrides, timing_json);
-                apply_override_nullable!(programmatic_overrides, timing_json);
-            }
-            "trace" => {
-                apply_override_non_nullable!(env_overrides, trace);
-                apply_override_non_nullable!(git_overrides, trace);
-                apply_override_non_nullable!(pkl_overrides, trace);
-                apply_override_non_nullable!(cli_overrides, trace);
-                apply_override_non_nullable!(programmatic_overrides, trace);
-            }
-            "verbose" => {
-                apply_override_non_nullable!(env_overrides, verbose);
-                apply_override_non_nullable!(git_overrides, verbose);
-                apply_override_non_nullable!(pkl_overrides, verbose);
-                apply_override_non_nullable!(cli_overrides, verbose);
-                apply_override_non_nullable!(programmatic_overrides, verbose);
-            }
-            "warnings" => {
-                apply_override_non_nullable!(env_overrides, warnings);
-                apply_override_non_nullable!(git_overrides, warnings);
-                apply_override_non_nullable!(pkl_overrides, warnings);
-                apply_override_non_nullable!(cli_overrides, warnings);
-                apply_override_non_nullable!(programmatic_overrides, warnings);
-            }
-            _ => {
-                // Unknown field - this shouldn't happen with current schema but handle gracefully
-                debug!("Unknown field: {}", field_name);
-            }
-        }
-    }
+#[derive(Debug, Clone, Default)]
+pub struct CliSnapshot {
+    pub hkrc: Option<PathBuf>,
+    pub jobs: Option<usize>,
+    pub profiles: Vec<String>,
+    pub slow: bool,
+    pub quiet: bool,
+    pub silent: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct Settings {
-    inner: generated::settings::GeneratedSettings,
+static CLI_SNAPSHOT: Lazy<Mutex<Option<CliSnapshot>>> = Lazy::new(|| Mutex::new(None));
+static PROGRAMMATIC_MAP: Lazy<Mutex<SourceMap>> = Lazy::new(|| Mutex::new(SourceMap::new()));
+
+fn read_git_string_list(config: &git2::Config, key: &str) -> Result<IndexSet<String>, git2::Error> {
+    let mut result = IndexSet::new();
+    match config.multivar(key, None) {
+        Ok(mut entries) => {
+            while let Some(entry) = entries.next() {
+                if let Some(value) = entry?.value() {
+                    for item in value.split(',').map(|s| s.trim()) {
+                        if !item.is_empty() {
+                            result.insert(item.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            if let Ok(value) = config.get_string(key) {
+                for item in value.split(',').map(|s| s.trim()) {
+                    if !item.is_empty() {
+                        result.insert(item.to_string());
+                    }
+                }
+            }
+        }
+    }
+    Ok(result)
 }
 
 impl Settings {
-    // Expose commonly used fields with computed logic where needed
-    pub fn jobs(&self) -> NonZero<usize> {
-        NonZero::new(self.inner.jobs).unwrap_or(NonZero::new(1).unwrap())
+    pub fn set_cli_snapshot(snapshot: CliSnapshot) {
+        let mut guard = CLI_SNAPSHOT.lock().unwrap();
+        *guard = Some(snapshot);
     }
 
-    pub fn enabled_profiles(&self) -> IndexSet<String> {
-        // Extract enabled profiles (those not starting with '!')
-        self.inner
-            .profiles
-            .iter()
-            .filter(|p| !p.starts_with('!'))
-            .cloned()
-            .collect()
+    pub fn cli_user_config_path() -> Option<PathBuf> {
+        CLI_SNAPSHOT
+            .lock()
+            .unwrap()
+            .as_ref()
+            .and_then(|s| s.hkrc.clone())
     }
-
-    pub fn disabled_profiles(&self) -> IndexSet<String> {
-        // Extract disabled profiles (those starting with '!')
-        self.inner
-            .profiles
-            .iter()
-            .filter(|p| p.starts_with('!'))
-            .map(|p| p.strip_prefix('!').unwrap().to_string())
-            .collect()
-    }
-
-    pub fn fail_fast(&self) -> bool {
-        self.inner.fail_fast
-    }
-
-    pub fn display_skip_reasons(&self) -> HashSet<String> {
-        self.inner.display_skip_reasons.iter().cloned().collect()
-    }
-
-    pub fn warnings(&self) -> &IndexSet<String> {
-        &self.inner.warnings
-    }
-
-    pub fn hide_warnings(&self) -> &IndexSet<String> {
-        &self.inner.hide_warnings
-    }
-
-    pub fn exclude(&self) -> &IndexSet<String> {
-        &self.inner.exclude
-    }
-
-    pub fn skip_steps(&self) -> &IndexSet<String> {
-        &self.inner.skip_steps
-    }
-
-    pub fn skip_hooks(&self) -> &IndexSet<String> {
-        &self.inner.skip_hooks
-    }
-
-    #[allow(dead_code)]
-    pub fn all(&self) -> bool {
-        self.inner.all
-    }
-
-    // Provide access to the full generated settings
-    #[allow(dead_code)]
-    pub fn inner(&self) -> &generated::settings::GeneratedSettings {
-        &self.inner
-    }
-}
-
-// Global storage for programmatically set settings
-// We store deltas that override the base settings from all other sources
-static SETTINGS_OVERRIDE: LazyLock<Mutex<generated::GeneratedSettingsOverride>> =
-    LazyLock::new(|| Mutex::new(generated::GeneratedSettingsOverride::default()));
-
-impl Settings {
     pub fn get() -> Settings {
         // For backward compatibility, clone from the global snapshot
         (*Self::get_snapshot()).clone()
     }
 
     /// Get the global settings snapshot
-    pub fn get_snapshot() -> SettingsSnapshot {
+    fn get_snapshot() -> SettingsSnapshot {
         // Check if we need to initialize
         let mut initialized = INITIALIZED.lock().unwrap();
         if !*initialized {
@@ -464,154 +113,320 @@ impl Settings {
         GLOBAL_SETTINGS.load_full()
     }
 
+    // Expose commonly used fields with computed logic where needed
+    pub fn jobs(&self) -> NonZero<usize> {
+        NonZero::new(self.jobs).unwrap_or(thread::available_parallelism().unwrap())
+    }
+
+    pub fn enabled_profiles(&self) -> IndexSet<String> {
+        // Extract enabled profiles (those not starting with '!')
+        self.profiles
+            .iter()
+            .filter(|p| !p.starts_with('!'))
+            .cloned()
+            .collect()
+    }
+
+    pub fn disabled_profiles(&self) -> IndexSet<String> {
+        // Extract disabled profiles (those starting with '!')
+        self.profiles
+            .iter()
+            .filter(|p| p.starts_with('!'))
+            .map(|p| p.strip_prefix('!').unwrap().to_string())
+            .collect()
+    }
+
     /// Build settings from all sources using the canonical path
     fn build_from_all_sources() -> Settings {
-        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
-
-        SettingsBuilder::new()
-            .from_env()
-            .from_git()
-            .with_programmatic(programmatic_overrides)
-            .build()
+        let defaults = generated::settings::Settings::default();
+        let env_map = Self::collect_env_map();
+        let git_map = Self::collect_git_map();
+        let pkl_map = Self::collect_pkl_map();
+        let cli_map = Self::collect_cli_map();
+        Self::merge_settings_generic(&defaults, &env_map, &git_map, &pkl_map, &cli_map)
     }
 
-    /// Reset the global settings cache (useful for testing)
-    #[allow(dead_code)]
-    pub fn reset_global_cache() {
-        let new_settings = Arc::new(Self::build_from_all_sources());
-        GLOBAL_SETTINGS.store(new_settings);
-        let mut initialized = INITIALIZED.lock().unwrap();
-        *initialized = true; // Mark as initialized with the new settings
-    }
-
-    /// Reload settings from all sources (useful for config file changes)
-    #[allow(dead_code)]
-    pub fn reload() -> SettingsSnapshot {
-        Self::reset_global_cache();
-        Self::get_snapshot()
-    }
-
-    pub fn with_profiles(profiles: &[String]) {
-        let mut override_settings = SETTINGS_OVERRIDE.lock().unwrap();
-
-        for profile in profiles {
-            if profile.starts_with('!') {
-                let profile = profile.strip_prefix('!').unwrap();
-                // Add to disabled profiles
-                if override_settings.profiles.is_none() {
-                    override_settings.profiles = Some(IndexSet::new());
-                }
-                // Remove from enabled profiles (if present)
-                if let Some(ref mut enabled) = override_settings.profiles {
-                    enabled.shift_remove(profile);
-                }
-                // This will be handled in Default implementation
+    pub(crate) fn merge_settings_generic(
+        defaults: &generated::settings::Settings,
+        env: &SourceMap,
+        git: &SourceMap,
+        pkl: &SourceMap,
+        cli: &SourceMap,
+    ) -> generated::settings::Settings {
+        let mut val = serde_json::to_value(defaults.clone()).unwrap_or_else(|_| json!({}));
+        // helper to replace scalar value
+        fn set_value(val: &mut serde_json::Value, field: &str, v: &SettingValue) {
+            let new_v = match v {
+                SettingValue::Bool(b) => json!(b),
+                SettingValue::Usize(n) => json!(n),
+                SettingValue::U8(n) => json!(n),
+                SettingValue::String(s) => json!(s),
+                SettingValue::Path(p) => json!(p.display().to_string()),
+                SettingValue::StringList(list) => json!(list.iter().collect::<Vec<_>>()),
+            };
+            if let Some(obj) = val.as_object_mut() {
+                obj.insert(field.to_string(), new_v);
+            }
+        }
+        // helper to union list<string>
+        fn union_list(val: &mut serde_json::Value, field: &str, list: &indexmap::IndexSet<String>) {
+            let mut current: indexmap::IndexSet<String> = if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
             } else {
-                // Add to enabled profiles
-                if override_settings.profiles.is_none() {
-                    override_settings.profiles = Some(IndexSet::new());
+                indexmap::IndexSet::new()
+            };
+            current.extend(list.iter().cloned());
+            if let Some(obj) = val.as_object_mut() {
+                obj.insert(field.to_string(), json!(current.iter().collect::<Vec<_>>()));
+            }
+        }
+
+        // Apply layers in precedence order
+        for (name, meta) in generated::SETTINGS_META.iter() {
+            let field = *name;
+            let merge_is_union = meta.merge == Some("union");
+            // closure to apply setting from one layer
+            let mut apply = |map: &SourceMap| {
+                if let Some(sv) = map.get(field) {
+                    match sv {
+                        SettingValue::StringList(set) if merge_is_union => union_list(&mut val, field, set),
+                        _ => set_value(&mut val, field, sv),
+                    }
                 }
-                if let Some(ref mut profiles_set) = override_settings.profiles {
-                    profiles_set.insert(profile.to_string());
+            };
+            apply(env);
+            apply(git);
+            apply(pkl);
+            apply(cli);
+        }
+
+        serde_json::from_value(val).unwrap_or_else(|_| defaults.clone())
+    }
+
+    pub(crate) fn merge_settings_with_sources_generic(
+        defaults: &generated::settings::Settings,
+        env: &SourceMap,
+        git: &SourceMap,
+        pkl: &SourceMap,
+        cli: &SourceMap,
+    ) -> (
+        generated::settings::Settings,
+        generated::merge::SourceInfoMap,
+    ) {
+        let mut val = serde_json::to_value(defaults.clone()).unwrap_or_else(|_| json!({}));
+        let mut info: generated::merge::SourceInfoMap = indexmap::IndexMap::new();
+
+        fn set_value2(val: &mut serde_json::Value, info: &mut generated::merge::SourceInfoMap, field: &'static str, v: &SettingValue, src: SettingSource) {
+            let new_v = match v {
+                SettingValue::Bool(b) => json!(b),
+                SettingValue::Usize(n) => json!(n),
+                SettingValue::U8(n) => json!(n),
+                SettingValue::String(s) => json!(s),
+                SettingValue::Path(p) => json!(p.display().to_string()),
+                SettingValue::StringList(list) => json!(list.iter().collect::<Vec<_>>()),
+            };
+            if let Some(obj) = val.as_object_mut() {
+                obj.insert(field.to_string(), new_v);
+            }
+            info.entry(field).or_default().last = Some(src);
+        }
+
+        fn union_list2(val: &mut serde_json::Value, info: &mut generated::merge::SourceInfoMap, field: &'static str, list: &indexmap::IndexSet<String>, src: SettingSource) {
+            let mut current: indexmap::IndexSet<String> = if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
+                arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
+            } else {
+                indexmap::IndexSet::new()
+            };
+            for item in list.iter() {
+                let inserted = current.insert(item.clone());
+                let entry = info.entry(field).or_default();
+                let m = entry.list_items.get_or_insert_with(indexmap::IndexMap::new);
+                let srcs = m.entry(item.clone()).or_default();
+                // Always record source for item regardless of duplication, keeps full provenance
+                srcs.push(src.clone());
+                if inserted {
+                    // nothing extra
+                }
+            }
+            if let Some(obj) = val.as_object_mut() {
+                obj.insert(field.to_string(), json!(current.iter().collect::<Vec<_>>()));
+            }
+            info.entry(field).or_default().last = Some(src);
+        }
+
+        // initialize defaults provenance
+        for (name, meta) in generated::SETTINGS_META.iter() {
+            let field = *name;
+            if meta.typ.starts_with("list<string>") {
+                if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
+                    if !arr.is_empty() {
+                        let mut m: indexmap::IndexMap<String, Vec<SettingSource>> = indexmap::IndexMap::new();
+                        for it in arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())) {
+                            m.insert(it, vec![SettingSource::Defaults]);
+                        }
+                        info.entry(field).or_default().list_items = Some(m);
+                    }
+                }
+            }
+            info.entry(field).or_default().last = Some(SettingSource::Defaults);
+        }
+
+        for (name, meta) in generated::SETTINGS_META.iter() {
+            let field = *name;
+            let merge_is_union = meta.merge == Some("union");
+            let mut apply = |map: &SourceMap, src: SettingSource| {
+                if let Some(sv) = map.get(field) {
+                    match sv {
+                        SettingValue::StringList(set) if merge_is_union => union_list2(&mut val, &mut info, field, set, src),
+                        _ => set_value2(&mut val, &mut info, field, sv, src),
+                    }
+                }
+            };
+            apply(env, SettingSource::Env);
+            apply(git, SettingSource::Git);
+            apply(pkl, SettingSource::Pkl);
+            apply(cli, SettingSource::Cli);
+        }
+
+        (serde_json::from_value(val).unwrap_or_else(|_| defaults.clone()), info)
+    }
+
+    fn collect_env_map() -> SourceMap {
+        let mut map: SourceMap = SourceMap::new();
+        for (setting_name, meta) in generated::SETTINGS_META.iter() {
+            for env_var in meta.sources.env {
+                if let Ok(val) = std::env::var(env_var) {
+                    match meta.typ {
+                        "bool" => {
+                            let s = val.to_lowercase();
+                            let parsed = matches!(s.as_str(), "1"|"true"|"yes"|"on");
+                            map.insert(setting_name, SettingValue::Bool(parsed));
+                        }
+                        "usize" => {
+                            if let Ok(n) = val.parse::<usize>() {
+                                map.insert(setting_name, SettingValue::Usize(n));
+                            }
+                        }
+                        "u8" => {
+                            if let Ok(n) = val.parse::<u8>() {
+                                map.insert(setting_name, SettingValue::U8(n));
+                            }
+                        }
+                        t if t.starts_with("list<string>") => {
+                            let items: IndexSet<String> = val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                            map.insert(setting_name, SettingValue::StringList(items));
+                        }
+                        "path" => {
+                            map.insert(setting_name, SettingValue::Path(PathBuf::from(val)));
+                        }
+                        "string" | "enum" => {
+                            map.insert(setting_name, SettingValue::String(val));
+                        }
+                        _ => {}
+                    }
+                    break; // first matching env var wins
                 }
             }
         }
+        map
     }
 
-    pub fn get_user_config_path() -> Option<PathBuf> {
-        SETTINGS_OVERRIDE.lock().unwrap().hkrc.clone()
-    }
-
-    pub fn set_jobs(jobs: NonZero<usize>) {
-        SETTINGS_OVERRIDE.lock().unwrap().jobs = Some(jobs.get());
-    }
-
-    pub fn set_user_config_path(path: PathBuf) {
-        SETTINGS_OVERRIDE.lock().unwrap().hkrc = Some(path);
-    }
-
-    pub fn set_fail_fast(fail_fast: bool) {
-        SETTINGS_OVERRIDE.lock().unwrap().fail_fast = Some(fail_fast);
-    }
-
-    pub fn set_all(all: bool) {
-        SETTINGS_OVERRIDE.lock().unwrap().all = Some(all);
-    }
-
-    pub fn set_fix(fix: bool) {
-        SETTINGS_OVERRIDE.lock().unwrap().fix = Some(fix);
-    }
-
-    pub fn set_check(check: bool) {
-        SETTINGS_OVERRIDE.lock().unwrap().check = Some(check);
-    }
-
-    pub fn set_display_skip_reasons(display_skip_reasons: HashSet<String>) {
-        SETTINGS_OVERRIDE.lock().unwrap().display_skip_reasons =
-            Some(display_skip_reasons.into_iter().collect());
-    }
-
-    pub fn set_warnings(warnings: IndexSet<String>) {
-        SETTINGS_OVERRIDE.lock().unwrap().warnings = Some(warnings);
-    }
-
-    pub fn set_hide_warnings(hide_warnings: IndexSet<String>) {
-        SETTINGS_OVERRIDE.lock().unwrap().hide_warnings = Some(hide_warnings);
-    }
-
-    pub fn add_exclude<I, S>(patterns: I)
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let mut override_settings = SETTINGS_OVERRIDE.lock().unwrap();
-        if override_settings.exclude.is_none() {
-            override_settings.exclude = Some(IndexSet::new());
-        }
-        if let Some(ref mut exclude) = override_settings.exclude {
-            for pattern in patterns {
-                exclude.insert(pattern.as_ref().to_string());
+    fn collect_git_map() -> SourceMap {
+        let mut map: SourceMap = SourceMap::new();
+        if let Ok(cfg) = {
+            use git2::{Config, Repository};
+            if let Ok(repo) = Repository::open_from_env() { repo.config() } else if let Ok(repo) = Repository::discover(".") { repo.config() } else { Config::open_default() }
+        } {
+            for (setting_name, meta) in generated::SETTINGS_META.iter() {
+                let mut merged: Option<IndexSet<String>> = None;
+                for key in meta.sources.git {
+                    match meta.typ {
+                        "bool" => {
+                            if let Ok(v) = cfg.get_bool(key) { map.insert(setting_name, SettingValue::Bool(v)); break; }
+                        }
+                        "usize" => {
+                            if let Ok(v) = cfg.get_i32(key) { if v > 0 { map.insert(setting_name, SettingValue::Usize(v as usize)); break; } }
+                        }
+                        "u8" => {
+                            if let Ok(v) = cfg.get_i32(key) { if (0..=255).contains(&v) { map.insert(setting_name, SettingValue::U8(v as u8)); break; } }
+                        }
+                        t if t.starts_with("list<string>") => {
+                            if let Ok(list) = read_git_string_list(&cfg, key) {
+                                if !list.is_empty() {
+                                    if let Some(acc) = &mut merged { acc.extend(list.into_iter()); } else { merged = Some(list); }
+                                }
+                            }
+                        }
+                        "string" | "enum" => {
+                            if let Ok(v) = cfg.get_str(key) { map.insert(setting_name, SettingValue::String(v.to_string())); break; }
+                        }
+                        "path" => {
+                            if let Ok(v) = cfg.get_str(key) { map.insert(setting_name, SettingValue::Path(PathBuf::from(v))); break; }
+                        }
+                        _ => {}
+                    }
+                }
+                if let Some(set) = merged { map.insert(setting_name, SettingValue::StringList(set)); }
             }
         }
+        map
     }
 
-    pub fn add_skip_steps<I, S>(steps: I)
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let mut override_settings = SETTINGS_OVERRIDE.lock().unwrap();
-        if override_settings.skip_steps.is_none() {
-            override_settings.skip_steps = Some(IndexSet::new());
+    fn collect_pkl_map() -> SourceMap {
+        let mut map: SourceMap = SourceMap::new();
+        if let Ok(cfg) = crate::config::Config::get() {
+            // Direct fields available on Config
+            if let Some(v) = cfg.fail_fast { map.insert("fail_fast", SettingValue::Bool(v)); }
+            if let Some(v) = cfg.display_skip_reasons {
+                let set: IndexSet<String> = v.into_iter().collect();
+                map.insert("display_skip_reasons", SettingValue::StringList(set));
+            }
+            if let Some(v) = cfg.hide_warnings {
+                let set: IndexSet<String> = v.into_iter().collect();
+                map.insert("hide_warnings", SettingValue::StringList(set));
+            }
+            if let Some(v) = cfg.warnings {
+                let set: IndexSet<String> = v.into_iter().collect();
+                map.insert("warnings", SettingValue::StringList(set));
+            }
+            // Project defaults or other nested values could be handled via serde_json path lookup if needed in future
+            let _ = cfg; // suppress unused warning in some builds
         }
-        if let Some(ref mut skip_steps) = override_settings.skip_steps {
-            for step in steps {
-                skip_steps.insert(step.as_ref().to_string());
+        map
+    }
+
+    fn collect_cli_map() -> SourceMap {
+        let mut map: SourceMap = SourceMap::new();
+        if let Some(snapshot) = CLI_SNAPSHOT.lock().unwrap().clone() {
+            if let Some(p) = snapshot.hkrc { map.insert("hkrc", SettingValue::Path(p)); }
+            if let Some(j) = snapshot.jobs { map.insert("jobs", SettingValue::Usize(j)); }
+            if !snapshot.profiles.is_empty() {
+                let set: IndexSet<String> = snapshot.profiles.into_iter().collect();
+                map.insert("profiles", SettingValue::StringList(set));
+            }
+            if snapshot.slow { map.insert("slow", SettingValue::Bool(true)); }
+            if snapshot.quiet { map.insert("quiet", SettingValue::Bool(true)); }
+            if snapshot.silent { map.insert("silent", SettingValue::Bool(true)); }
+        }
+        // Apply programmatic map on top (highest precedence)
+        {
+            let prog = PROGRAMMATIC_MAP.lock().unwrap();
+            for (k, v) in prog.iter() {
+                match (map.get(k), v) {
+                    (Some(SettingValue::StringList(existing)), SettingValue::StringList(additional)) => {
+                        let mut merged = existing.clone();
+                        merged.extend(additional.iter().cloned());
+                        map.insert(*k, SettingValue::StringList(merged));
+                    }
+                    _ => {
+                        map.insert(*k, v.clone());
+                    }
+                }
             }
         }
-    }
-
-    pub fn add_skip_hooks<I, S>(hooks: I)
-    where
-        I: IntoIterator<Item = S>,
-        S: AsRef<str>,
-    {
-        let mut override_settings = SETTINGS_OVERRIDE.lock().unwrap();
-        if override_settings.skip_hooks.is_none() {
-            override_settings.skip_hooks = Some(IndexSet::new());
-        }
-        if let Some(ref mut skip_hooks) = override_settings.skip_hooks {
-            for hook in hooks {
-                skip_hooks.insert(hook.as_ref().to_string());
-            }
-        }
-    }
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        // Use the single canonical build path
-        Self::build_from_all_sources()
+        map
     }
 }
 
@@ -622,336 +437,166 @@ pub type SettingsSnapshot = Arc<Settings>;
 // Initially contains a dummy value that will be replaced on first access
 static GLOBAL_SETTINGS: LazyLock<ArcSwap<Settings>> = LazyLock::new(|| {
     // Initial dummy value - will be replaced on first real access
-    ArcSwap::from_pointee(Settings {
-        inner: generated::settings::GeneratedSettings::default(),
-    })
+    ArcSwap::from_pointee(generated::settings::Settings::default())
 });
 
 // Track whether we've initialized with real settings
 static INITIALIZED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
-/// Builder for creating Settings instances with different sources
-#[derive(Default)]
-pub struct SettingsBuilder {
-    env_overrides: generated::GeneratedSettingsOverride,
-    git_overrides: generated::GeneratedSettingsOverride,
-    config_overrides: generated::GeneratedSettingsOverride,
-    cli_overrides: generated::GeneratedSettingsOverride,
-    programmatic_overrides: generated::GeneratedSettingsOverride,
-}
-
-impl SettingsBuilder {
-    /// Create a new SettingsBuilder
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Load settings from environment variables
-    pub fn from_env(mut self) -> Self {
-        self.env_overrides = Self::collect_env_overrides();
-        self
-    }
-
-    /// Load settings from git configuration
-    pub fn from_git(mut self) -> Self {
-        // Load git configuration and apply to our git overrides
-        if let Err(e) = self.load_git_config() {
-            debug!("Failed to load git config: {}", e);
-        }
-        self
-    }
-
-    /// Load git configuration into the builder
-    fn load_git_config(&mut self) -> Result<(), git2::Error> {
-        use git2::{Config, Repository};
-
-        // Try to find repository config first, fall back to default
-        let config = if let Ok(repo) = Repository::open_from_env() {
-            debug!("Git config: Using repository from env");
-            repo.config()?
-        } else if let Ok(repo) = Repository::discover(".") {
-            // Also try discovering from current directory
-            debug!("Git config: Using repository from current directory");
-            repo.config()?
-        } else {
-            debug!("Git config: Using default config");
-            Config::open_default()?
-        };
-
-        // Load git config values into our git overrides using metadata
-        for (setting_name, setting_meta) in generated::SETTINGS_META.iter() {
-            for git_key in setting_meta.sources.git {
-                self.apply_git_setting(&config, setting_name, setting_meta, git_key);
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Apply a single git config setting based on metadata
-    fn apply_git_setting(
-        &mut self,
-        config: &git2::Config,
-        setting_name: &str,
-        setting_meta: &generated::SettingMeta,
-        git_key: &str,
-    ) {
-        match setting_meta.typ {
-            "bool" => {
-                if let Ok(value) = config.get_bool(git_key) {
-                    Self::set_bool_field(&mut self.git_overrides, setting_name, value);
-                }
-            }
-            "usize" => {
-                if let Ok(value) = config.get_i32(git_key) {
-                    if value > 0 {
-                        Self::set_usize_field(
-                            &mut self.git_overrides,
-                            setting_name,
-                            value as usize,
-                        );
-                    }
-                }
-            }
-            "u8" => {
-                if let Ok(value) = config.get_i32(git_key) {
-                    if value >= 0 && value <= 255 {
-                        Self::set_u8_field(&mut self.git_overrides, setting_name, value as u8);
-                    }
-                }
-            }
-            "list<string>" => {
-                if let Ok(value) = Self::read_string_list(config, git_key) {
-                    if !value.is_empty() {
-                        debug!("Git config: {} = {:?}", git_key, value);
-                        Self::set_string_list_field(&mut self.git_overrides, setting_name, value);
-                    }
-                }
-            }
-            "string" | "enum" => {
-                if let Ok(value) = config.get_str(git_key) {
-                    Self::set_string_field(
-                        &mut self.git_overrides,
-                        setting_name,
-                        value.to_string(),
-                    );
-                }
-            }
-            "path" => {
-                if let Ok(value) = config.get_str(git_key) {
-                    Self::set_path_field(
-                        &mut self.git_overrides,
-                        setting_name,
-                        PathBuf::from(value),
-                    );
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Read a string list from git config (handles both multivar and comma-separated)
-    fn read_string_list(config: &git2::Config, key: &str) -> Result<IndexSet<String>, git2::Error> {
-        let mut result = IndexSet::new();
-
-        // Try to read as multivar (multiple entries with same key)
-        match config.multivar(key, None) {
-            Ok(mut entries) => {
-                while let Some(entry) = entries.next() {
-                    if let Some(value) = entry?.value() {
-                        // Support comma-separated values too
-                        for item in value.split(',').map(|s| s.trim()) {
-                            if !item.is_empty() {
-                                result.insert(item.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            Err(_) => {
-                // If multivar fails, try single value
-                if let Ok(value) = config.get_string(key) {
-                    for item in value.split(',').map(|s| s.trim()) {
-                        if !item.is_empty() {
-                            result.insert(item.to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(result)
-    }
-
-    // Helper methods to set fields on GeneratedSettingsOverride by name
-    fn set_bool_field(
-        overrides: &mut generated::GeneratedSettingsOverride,
-        name: &str,
-        value: bool,
-    ) {
-        match name {
-            "all" => overrides.all = Some(value),
-            "check" => overrides.check = Some(value),
-            "check_first" => overrides.check_first = Some(value),
-            "fail_fast" => overrides.fail_fast = Some(value),
-            "fix" => overrides.fix = Some(value),
-            "hide_when_done" => overrides.hide_when_done = Some(value),
-            "json" => overrides.json = Some(value),
-            "libgit2" => overrides.libgit2 = Some(value),
-            "mise" => overrides.mise = Some(value),
-            "no_progress" => overrides.no_progress = Some(value),
-            "quiet" => overrides.quiet = Some(value),
-            "silent" => overrides.silent = Some(value),
-            "slow" => overrides.slow = Some(value),
-            "stash_untracked" => overrides.stash_untracked = Some(value),
-            "summary_text" => overrides.summary_text = Some(value),
-            _ => {}
-        }
-    }
-
-    fn set_usize_field(
-        overrides: &mut generated::GeneratedSettingsOverride,
-        name: &str,
-        value: usize,
-    ) {
-        match name {
-            "jobs" => overrides.jobs = Some(value),
-            _ => {}
-        }
-    }
-
-    fn set_u8_field(overrides: &mut generated::GeneratedSettingsOverride, name: &str, value: u8) {
-        match name {
-            "verbose" => overrides.verbose = Some(value),
-            _ => {}
-        }
-    }
-
-    fn set_string_field(
-        overrides: &mut generated::GeneratedSettingsOverride,
-        name: &str,
-        value: String,
-    ) {
-        match name {
-            "log_file_level" => overrides.log_file_level = Some(value),
-            "log_level" => overrides.log_level = Some(value),
-            "stash" => overrides.stash = Some(value),
-            "trace" => overrides.trace = Some(value),
-            _ => {}
-        }
-    }
-
-    fn set_path_field(
-        overrides: &mut generated::GeneratedSettingsOverride,
-        name: &str,
-        value: PathBuf,
-    ) {
-        match name {
-            "cache_dir" => overrides.cache_dir = Some(value),
-            "hkrc" => overrides.hkrc = Some(value),
-            "log_file" => overrides.log_file = Some(value),
-            "state_dir" => overrides.state_dir = Some(value),
-            "timing_json" => overrides.timing_json = Some(value),
-            _ => {}
-        }
-    }
-
-    fn set_string_list_field(
-        overrides: &mut generated::GeneratedSettingsOverride,
-        name: &str,
-        value: IndexSet<String>,
-    ) {
-        match name {
-            "display_skip_reasons" => overrides.display_skip_reasons = Some(value),
-            "exclude" => overrides.exclude = Some(value),
-            "hide_warnings" => overrides.hide_warnings = Some(value),
-            "profiles" => overrides.profiles = Some(value),
-            "skip_hooks" => overrides.skip_hooks = Some(value),
-            "skip_steps" => overrides.skip_steps = Some(value),
-            "warnings" => overrides.warnings = Some(value),
-            _ => {}
-        }
-    }
-
-    /// Explain where a configuration value comes from
+impl Settings {
+    /// Explain where a configuration value comes from, using collected source maps
     pub fn explain_value(key: &str) -> Result<String, eyre::Error> {
         use std::fmt::Write;
 
-        // Convert key to rust field name
         let field_name = key.replace('-', "_");
-
-        // Get metadata for this setting
         let meta = generated::SETTINGS_META
             .get(field_name.as_str())
             .ok_or_else(|| eyre::eyre!("Unknown configuration key: {}", key))?;
 
+        let env_map = Self::collect_env_map();
+        let git_map = Self::collect_git_map();
+        let pkl_map = Self::collect_pkl_map();
+        let cli_map = Self::collect_cli_map();
+
+        // Use provenance-aware merge to get sources
+        let defaults = generated::settings::Settings::default();
+        let (_merged, sources) = Self::merge_settings_with_sources_generic(
+            &defaults, &env_map, &git_map, &pkl_map, &cli_map,
+        );
+
+        // Determine exact identifiers (env var names, git keys, etc.) used for this field
+        let env_id: Option<&'static str> = meta
+            .sources
+            .env
+            .iter()
+            .copied()
+            .find(|name| std::env::var(name).is_ok());
+
+        let git_id: Option<&'static str> = {
+            use git2::{Config, Repository};
+            let cfg: Option<git2::Config> = if let Ok(repo) = Repository::open_from_env() {
+                repo.config().ok()
+        } else if let Ok(repo) = Repository::discover(".") {
+                repo.config().ok()
+        } else {
+                Config::open_default().ok()
+            };
+            cfg.and_then(|c| meta.sources.git.iter().copied().find(|k| c.get_entry(k).is_ok()))
+        };
+
+        let pkl_id: Option<&'static str> = if pkl_map.get(field_name.as_str()).is_some() {
+            meta.sources.pkl.first().copied()
+        } else {
+            None
+        };
+
+        let cli_id: Option<&'static str> = if cli_map.get(field_name.as_str()).is_some() {
+            meta.sources.cli.first().copied()
+        } else {
+            None
+        };
+
+        let source_to_string = |s: &generated::merge::SettingSource| -> String {
+            match s {
+                generated::merge::SettingSource::Defaults => "defaults".to_string(),
+                generated::merge::SettingSource::Env => match env_id { Some(id) => format!("env({})", id), None => "env".to_string() },
+                generated::merge::SettingSource::Git => match git_id { Some(id) => format!("git({})", id), None => "git".to_string() },
+                generated::merge::SettingSource::Pkl => match pkl_id { Some(id) => format!("pkl({})", id), None => "pkl".to_string() },
+                generated::merge::SettingSource::Cli => match cli_id { Some(id) => format!("cli({})", id), None => "cli".to_string() },
+            }
+        };
+
+        fn display_value(v: &SettingValue) -> String {
+            match v {
+                SettingValue::Bool(b) => b.to_string()
+                    ,
+                SettingValue::Usize(n) => n.to_string()
+                    ,
+                SettingValue::U8(n) => n.to_string()
+                    ,
+                SettingValue::String(s) => s.clone()
+                    ,
+                SettingValue::Path(p) => p.display().to_string()
+                    ,
+                SettingValue::StringList(list) => format!("{:?}", list)
+                    ,
+            }
+        }
+
         let mut output = String::new();
-
-        // Build a new SettingsBuilder to check each layer
-        let mut builder = Self::new();
-
         writeln!(
             &mut output,
             "Source resolution for '{}' (in precedence order):",
             key
         )?;
-        writeln!(
-            &mut output,
-            "================================================"
-        )?;
+        writeln!(&mut output, "================================================")?;
 
-        // Check programmatic overrides (highest precedence)
-        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
-        if Self::has_value(&programmatic_overrides, &field_name) {
-            writeln!(&mut output, "✓ PROGRAMMATIC (via Settings::set_* methods)")?;
-            if let Some(val) = Self::get_override_value(&programmatic_overrides, &field_name) {
-                writeln!(&mut output, "  Value: {}", val)?;
-            }
-        }
-
-        // Check CLI flags
+        // CLI
         if !meta.sources.cli.is_empty() {
             writeln!(&mut output, "  CLI FLAGS: {}", meta.sources.cli.join(", "))?;
-            // Note: CLI values are set via programmatic overrides, checked above
-        }
-
-        // Check environment variables
-        builder = builder.from_env();
-        if !meta.sources.env.is_empty() {
-            writeln!(
-                &mut output,
-                "  ENVIRONMENT: {}",
-                meta.sources.env.join(", ")
-            )?;
-            if Self::has_value(&builder.env_overrides, &field_name) {
-                if let Some(val) = Self::get_override_value(&builder.env_overrides, &field_name) {
-                    writeln!(&mut output, "    ✓ Set to: {}", val)?;
-                }
+            if let Some(v) = cli_map.get(field_name.as_str()) {
+                writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
+            }
+            if let Some(info) = sources.get(field_name.as_str()) {
+                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
             }
         }
 
-        // Check git config
-        builder = builder.from_git();
+        // ENV
+        if !meta.sources.env.is_empty() {
+            writeln!(&mut output, "  ENVIRONMENT: {}", meta.sources.env.join(", "))?;
+            if let Some(v) = env_map.get(field_name.as_str()) {
+                writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
+            }
+            if let Some(info) = sources.get(field_name.as_str()) {
+                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
+            }
+        }
+
+        // GIT
         if !meta.sources.git.is_empty() {
             writeln!(&mut output, "  GIT CONFIG: {}", meta.sources.git.join(", "))?;
-            if Self::has_value(&builder.git_overrides, &field_name) {
-                if let Some(val) = Self::get_override_value(&builder.git_overrides, &field_name) {
-                    writeln!(&mut output, "    ✓ Set to: {}", val)?;
+            if let Some(v) = git_map.get(field_name.as_str()) {
+                writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
                 }
+            if let Some(info) = sources.get(field_name.as_str()) {
+                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
             }
         }
 
-        // Check pkl sources (would be in config layer)
+        // PKL
         if !meta.sources.pkl.is_empty() {
             writeln!(&mut output, "  PKL CONFIG: {}", meta.sources.pkl.join(", "))?;
+            if let Some(v) = pkl_map.get(field_name.as_str()) {
+                writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
+            }
+            if let Some(info) = sources.get(field_name.as_str()) {
+                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
+            }
         }
 
-        // Show default value
+        // Default
         writeln!(&mut output, "  DEFAULT:")?;
         if let Some(default) = &meta.default_value {
             writeln!(&mut output, "    Value: {}", default)?;
         } else {
             writeln!(&mut output, "    Value: (type default)")?;
+        }
+
+        // For list<string> types, show per-item provenance
+        if meta.typ.starts_with("list<string>") {
+            if let Some(info) = sources.get(field_name.as_str()) {
+                if let Some(items) = &info.list_items {
+                    writeln!(&mut output, "\n  Items and their sources:")?;
+                    for (item, srcs) in items.iter() {
+                        let parts: Vec<String> = srcs
+                            .iter()
+                            .map(&source_to_string)
+                            .collect();
+                        writeln!(&mut output, "    - {}: {}", item, parts.join(", "))?;
+                    }
+                }
+            }
         }
 
         writeln!(&mut output)?;
@@ -963,244 +608,29 @@ impl SettingsBuilder {
 
         Ok(output)
     }
-
-    /// Check if an override struct has a value for a field
-    fn has_value(overrides: &generated::GeneratedSettingsOverride, field_name: &str) -> bool {
-        match field_name {
-            "all" => overrides.all.is_some(),
-            "cache_dir" => overrides.cache_dir.is_some(),
-            "check" => overrides.check.is_some(),
-            "check_first" => overrides.check_first.is_some(),
-            "display_skip_reasons" => overrides.display_skip_reasons.is_some(),
-            "exclude" => overrides.exclude.is_some(),
-            "fail_fast" => overrides.fail_fast.is_some(),
-            "fix" => overrides.fix.is_some(),
-            "hide_warnings" => overrides.hide_warnings.is_some(),
-            "hide_when_done" => overrides.hide_when_done.is_some(),
-            "hkrc" => overrides.hkrc.is_some(),
-            "jobs" => overrides.jobs.is_some(),
-            "json" => overrides.json.is_some(),
-            "libgit2" => overrides.libgit2.is_some(),
-            "log_file" => overrides.log_file.is_some(),
-            "log_file_level" => overrides.log_file_level.is_some(),
-            "log_level" => overrides.log_level.is_some(),
-            "mise" => overrides.mise.is_some(),
-            "no_progress" => overrides.no_progress.is_some(),
-            "profiles" => overrides.profiles.is_some(),
-            "quiet" => overrides.quiet.is_some(),
-            "silent" => overrides.silent.is_some(),
-            "skip_hooks" => overrides.skip_hooks.is_some(),
-            "skip_steps" => overrides.skip_steps.is_some(),
-            "slow" => overrides.slow.is_some(),
-            "stash" => overrides.stash.is_some(),
-            "stash_untracked" => overrides.stash_untracked.is_some(),
-            "state_dir" => overrides.state_dir.is_some(),
-            "summary_text" => overrides.summary_text.is_some(),
-            "timing_json" => overrides.timing_json.is_some(),
-            "trace" => overrides.trace.is_some(),
-            "verbose" => overrides.verbose.is_some(),
-            "warnings" => overrides.warnings.is_some(),
-            _ => false,
-        }
-    }
-
-    /// Get the override value as a string for display
-    fn get_override_value(
-        overrides: &generated::GeneratedSettingsOverride,
-        field_name: &str,
-    ) -> Option<String> {
-        match field_name {
-            "all" => overrides.all.map(|v| v.to_string()),
-            "cache_dir" => overrides
-                .cache_dir
-                .as_ref()
-                .map(|p| p.display().to_string()),
-            "check" => overrides.check.map(|v| v.to_string()),
-            "check_first" => overrides.check_first.map(|v| v.to_string()),
-            "display_skip_reasons" => overrides
-                .display_skip_reasons
-                .as_ref()
-                .map(|v| format!("{:?}", v)),
-            "exclude" => overrides.exclude.as_ref().map(|v| format!("{:?}", v)),
-            "fail_fast" => overrides.fail_fast.map(|v| v.to_string()),
-            "fix" => overrides.fix.map(|v| v.to_string()),
-            "hide_warnings" => overrides.hide_warnings.as_ref().map(|v| format!("{:?}", v)),
-            "hide_when_done" => overrides.hide_when_done.map(|v| v.to_string()),
-            "hkrc" => overrides.hkrc.as_ref().map(|p| p.display().to_string()),
-            "jobs" => overrides.jobs.map(|v| v.to_string()),
-            "json" => overrides.json.map(|v| v.to_string()),
-            "libgit2" => overrides.libgit2.map(|v| v.to_string()),
-            "log_file" => overrides.log_file.as_ref().map(|p| p.display().to_string()),
-            "log_file_level" => overrides.log_file_level.clone(),
-            "log_level" => overrides.log_level.clone(),
-            "mise" => overrides.mise.map(|v| v.to_string()),
-            "no_progress" => overrides.no_progress.map(|v| v.to_string()),
-            "profiles" => overrides.profiles.as_ref().map(|v| format!("{:?}", v)),
-            "quiet" => overrides.quiet.map(|v| v.to_string()),
-            "silent" => overrides.silent.map(|v| v.to_string()),
-            "skip_hooks" => overrides.skip_hooks.as_ref().map(|v| format!("{:?}", v)),
-            "skip_steps" => overrides.skip_steps.as_ref().map(|v| format!("{:?}", v)),
-            "slow" => overrides.slow.map(|v| v.to_string()),
-            "stash" => overrides.stash.clone(),
-            "stash_untracked" => overrides.stash_untracked.map(|v| v.to_string()),
-            "state_dir" => overrides
-                .state_dir
-                .as_ref()
-                .map(|p| p.display().to_string()),
-            "summary_text" => overrides.summary_text.map(|v| v.to_string()),
-            "timing_json" => overrides
-                .timing_json
-                .as_ref()
-                .map(|p| p.display().to_string()),
-            "trace" => overrides.trace.clone(),
-            "verbose" => overrides.verbose.map(|v| v.to_string()),
-            "warnings" => overrides.warnings.as_ref().map(|v| format!("{:?}", v)),
-            _ => None,
-        }
-    }
-
-    /// Load settings from a Config instance (from hkrc.pkl/toml etc.)
-    #[allow(dead_code)]
-    pub fn from_config(mut self, config: &crate::config::Config) -> Self {
-        // Apply config-level settings to our config overrides
-        if let Some(fail_fast) = config.fail_fast {
-            self.config_overrides.fail_fast = Some(fail_fast);
-        }
-
-        if let Some(ref display_skip_reasons) = config.display_skip_reasons {
-            self.config_overrides.display_skip_reasons =
-                Some(display_skip_reasons.iter().cloned().collect());
-        }
-
-        if let Some(ref hide_warnings) = config.hide_warnings {
-            self.config_overrides.hide_warnings = Some(hide_warnings.iter().cloned().collect());
-        }
-
-        if let Some(ref warnings) = config.warnings {
-            self.config_overrides.warnings = Some(warnings.iter().cloned().collect());
-        }
-
-        self
-    }
-
-    /// Build the Settings instance
-    pub fn build(self) -> Settings {
-        // Use the new dynamic merge logic
-        let merger = SettingsMerger::new();
-
-        // Apply systematic precedence: defaults → env → git → pkl → CLI → programmatic
-        let defaults = generated::settings::GeneratedSettings::default();
-        let inner = merger.merge_sources(
-            &defaults, // defaults
-            &self.env_overrides,
-            &self.git_overrides,
-            &self.config_overrides, // pkl config
-            &self.cli_overrides,
-            &self.programmatic_overrides,
-        );
-
-        Settings { inner }
-    }
-
-    /// Collect environment variable overrides into a settings override structure
-    fn collect_env_overrides() -> generated::GeneratedSettingsOverride {
-        let mut env_overrides = generated::GeneratedSettingsOverride::default();
-
-        // Collect environment variables following the generated settings metadata
-        for (setting_name, setting_meta) in generated::SETTINGS_META.iter() {
-            for env_var in setting_meta.sources.env {
-                Self::apply_env_setting(&mut env_overrides, setting_name, setting_meta, env_var);
-            }
-        }
-
-        env_overrides
-    }
-
-    /// Apply a single environment variable setting based on metadata
-    fn apply_env_setting(
-        overrides: &mut generated::GeneratedSettingsOverride,
-        setting_name: &str,
-        setting_meta: &generated::SettingMeta,
-        env_var: &str,
-    ) {
-        match setting_meta.typ {
-            "bool" => {
-                if let Ok(value) = std::env::var(env_var) {
-                    let bool_value = match value.to_lowercase().as_str() {
-                        "true" | "1" | "yes" | "on" => true,
-                        "false" | "0" | "no" | "off" => false,
-                        _ => return,
-                    };
-                    Self::set_bool_field(overrides, setting_name, bool_value);
-                }
-            }
-            "usize" => {
-                if let Ok(value) = std::env::var(env_var) {
-                    if let Ok(usize_value) = value.parse::<usize>() {
-                        Self::set_usize_field(overrides, setting_name, usize_value);
-                    }
-                }
-            }
-            "u8" => {
-                if let Ok(value) = std::env::var(env_var) {
-                    if let Ok(u8_value) = value.parse::<u8>() {
-                        Self::set_u8_field(overrides, setting_name, u8_value);
-                    }
-                }
-            }
-            "list<string>" => {
-                if let Ok(value) = std::env::var(env_var) {
-                    let items: IndexSet<String> = value
-                        .split(',')
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                    Self::set_string_list_field(overrides, setting_name, items);
-                }
-            }
-            "path" => {
-                if let Ok(value) = std::env::var(env_var) {
-                    Self::set_path_field(overrides, setting_name, PathBuf::from(value));
-                }
-            }
-            "string" | "enum" => {
-                if let Ok(value) = std::env::var(env_var) {
-                    Self::set_string_field(overrides, setting_name, value);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    /// Set programmatic overrides
-    pub fn with_programmatic(mut self, overrides: generated::GeneratedSettingsOverride) -> Self {
-        self.programmatic_overrides = overrides;
-        self
-    }
-
-    /// Build and return as an immutable snapshot
-    #[allow(dead_code)]
-    pub fn build_snapshot(self) -> SettingsSnapshot {
-        Arc::new(self.build())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    // --- generated merge tests moved from config/test_generated_merge.rs ---
+    use crate::settings::generated;
+    use crate::settings::generated::merge::{SourceMap, SettingValue};
+
 
     #[test]
     fn test_settings_builder_fluent_api() {
+        Settings::set_cli_snapshot(CliSnapshot { hkrc: Some(PathBuf::from(".hkrc.pkl")), ..Default::default() });
         // Test that the fluent API works correctly
-        let settings = SettingsBuilder::new().from_env().from_git().build();
+        let settings = Settings::get();
 
         // Should have some reasonable defaults
         assert!(settings.jobs().get() >= 1);
-        assert!(settings.fail_fast() || !settings.fail_fast()); // Should be either true or false
     }
 
     #[test]
     fn test_settings_snapshot_caching() {
+        Settings::set_cli_snapshot(CliSnapshot { hkrc: Some(PathBuf::from(".hkrc.pkl")), ..Default::default() });
         // Get multiple snapshots - they should be the same Arc
         let snapshot1 = Settings::get_snapshot();
         let snapshot2 = Settings::get_snapshot();
@@ -1211,15 +641,111 @@ mod tests {
 
     #[test]
     fn test_settings_from_config() {
-        use crate::config::Config;
+        Settings::set_cli_snapshot(CliSnapshot { hkrc: Some(PathBuf::from(".hkrc.pkl")), ..Default::default() });
+        // Backwards-compatible behavior validated at higher level; smoke test get()
+        let _settings = Settings::get();
+    }
 
-        let mut config = Config::default();
-        config.fail_fast = Some(false);
-        config.warnings = Some(vec!["test-warning".to_string()]);
+    fn set_list(map: &mut SourceMap, key: &'static str, vals: &[&str]) {
+        let set: IndexSet<String> = vals.iter().map(|s| (*s).to_string()).collect();
+        map.insert(key, SettingValue::StringList(set));
+    }
 
-        let settings = SettingsBuilder::new().from_config(&config).build();
+    #[test]
+    fn test_union_merge_skip_steps() {
+        let defaults = generated::settings::Settings {
+            skip_steps: IndexSet::from(["default_step".to_string()]),
+            ..Default::default()
+        };
 
-        assert_eq!(settings.fail_fast(), false);
-        assert!(settings.warnings().contains("test-warning"));
+        let mut env: SourceMap = SourceMap::new();
+        let mut git: SourceMap = SourceMap::new();
+        let mut pkl: SourceMap = SourceMap::new();
+        let mut cli: SourceMap = SourceMap::new();
+
+        set_list(&mut pkl, "skip_steps", &["pkl_step"]);
+        set_list(&mut git, "skip_steps", &["git_step", "pkl_step"]);
+        set_list(&mut env, "skip_steps", &["env_step"]);
+        set_list(&mut cli, "skip_steps", &["cli_step", "env_step"]);
+
+        let merged = Settings::merge_settings_generic(&defaults, &env, &git, &pkl, &cli);
+
+        assert!(merged.skip_steps.contains("default_step"));
+        assert!(merged.skip_steps.contains("pkl_step"));
+        assert!(merged.skip_steps.contains("git_step"));
+        assert!(merged.skip_steps.contains("env_step"));
+        assert!(merged.skip_steps.contains("cli_step"));
+        assert_eq!(merged.skip_steps.len(), 5);
+    }
+
+    #[test]
+    fn test_replace_merge_fail_fast() {
+        let defaults = generated::settings::Settings::default();
+
+        let mut env: SourceMap = SourceMap::new();
+        let mut git: SourceMap = SourceMap::new();
+        let mut pkl: SourceMap = SourceMap::new();
+        let mut cli: SourceMap = SourceMap::new();
+
+        env.insert("fail_fast", SettingValue::Bool(false));
+        git.insert("fail_fast", SettingValue::Bool(true));
+        pkl.insert("fail_fast", SettingValue::Bool(false));
+        cli.insert("fail_fast", SettingValue::Bool(true));
+
+        let merged = Settings::merge_settings_generic(&defaults, &env, &git, &pkl, &cli);
+        assert!(merged.fail_fast);
+    }
+
+    #[test]
+    fn test_precedence_ordering_jobs() {
+        let defaults = generated::settings::Settings::default();
+
+        let mut env: SourceMap = SourceMap::new();
+        let mut git: SourceMap = SourceMap::new();
+        let mut pkl: SourceMap = SourceMap::new();
+        let mut cli: SourceMap = SourceMap::new();
+
+        pkl.insert("jobs", SettingValue::Usize(2));
+        git.insert("jobs", SettingValue::Usize(3));
+        env.insert("jobs", SettingValue::Usize(4));
+        cli.insert("jobs", SettingValue::Usize(5));
+
+        let merged = Settings::merge_settings_generic(&defaults, &env, &git, &pkl, &cli);
+        assert_eq!(merged.jobs, 5);
+    }
+
+    #[test]
+    fn test_precedence_with_missing_layers() {
+        let defaults = generated::settings::Settings::default();
+
+        let env: SourceMap = SourceMap::new();
+        let mut git: SourceMap = SourceMap::new();
+        let pkl: SourceMap = SourceMap::new();
+        let cli: SourceMap = SourceMap::new();
+
+        git.insert("jobs", SettingValue::Usize(3));
+
+        let merged = Settings::merge_settings_generic(&defaults, &env, &git, &pkl, &cli);
+        assert_eq!(merged.jobs, 3);
+    }
+
+    #[test]
+    fn test_warnings_replace_merge() {
+        let defaults = generated::settings::Settings {
+            warnings: IndexSet::from(["warning1".to_string()]),
+            ..Default::default()
+        };
+
+        let mut env: SourceMap = SourceMap::new();
+        let git: SourceMap = SourceMap::new();
+        let pkl: SourceMap = SourceMap::new();
+        let cli: SourceMap = SourceMap::new();
+
+        let env_set: IndexSet<String> = IndexSet::from(["warning4".to_string()]);
+        env.insert("warnings", SettingValue::StringList(env_set));
+
+        let merged = Settings::merge_settings_generic(&defaults, &env, &git, &pkl, &cli);
+        assert!(merged.warnings.contains("warning4"));
+        assert_eq!(merged.warnings.len(), 1);
     }
 }

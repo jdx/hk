@@ -11,22 +11,10 @@ pub fn generate(out_dir: &Path) -> Result<(), std::io::Error> {
 
     // Generate the builtins module using Scope
     let mut scope = Scope::new();
-    scope.raw("#[allow(dead_code)]");
 
     // Create the BUILTINS constant as a static array
     let builtins_array = generate_builtins_array(&builtins);
     scope.raw(&builtins_array);
-
-    // Also generate individual constants for each builtin if needed
-    scope.raw("#[allow(dead_code)]");
-    for builtin in &builtins {
-        let const_name = builtin.to_uppercase().replace('-', "_");
-        scope.raw(&format!(
-            "#[allow(dead_code)]
-pub const BUILTIN_{}: &str = \"{}\";",
-            const_name, builtin
-        ));
-    }
 
     // Write to file
     let dest_path = out_dir.join("builtins.rs");
@@ -55,12 +43,8 @@ fn collect_builtin_files(builtins_dir: &Path) -> Result<BTreeSet<String>, std::i
 fn generate_builtins_array(builtins: &BTreeSet<String>) -> String {
     let items: Vec<String> = builtins.iter().map(|b| format!("    \"{}\"", b)).collect();
 
-    if items.is_empty() {
-        "pub const BUILTINS: &[&str] = &[];".to_string()
-    } else {
         format!(
             "/// List of all available builtin configurations\npub const BUILTINS: &[&str] = &[\n{},\n];",
             items.join(",\n")
         )
-    }
 }

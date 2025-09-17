@@ -11,7 +11,6 @@ pub struct SettingsRegistry {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct OptionConfig {
     #[serde(rename = "type")]
     pub typ: String,
@@ -29,7 +28,6 @@ pub struct OptionConfig {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct SourcesConfig {
     #[serde(default)]
     pub cli: Vec<String>,
@@ -43,7 +41,6 @@ pub struct SourcesConfig {
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(untagged)]
-#[allow(dead_code)]
 pub enum PklSource {
     #[default]
     None,
@@ -52,7 +49,6 @@ pub enum PklSource {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct ValidateConfig {
     #[serde(rename = "enum")]
     pub enum_values: Option<Vec<String>>,
@@ -65,15 +61,14 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Generate the settings struct with documentation
     generate_settings_struct(out_dir, &registry)?;
 
-    // Generate the settings override struct
-    generate_settings_override_struct(out_dir, &registry)?;
+    // Also generate merge/types
+    generate_settings_merge(out_dir, &registry)?;
 
     // Generate the CLI flags struct
-    generate_cli_flags_struct(out_dir, &registry)?;
+    // generate_cli_flags_struct(out_dir, &registry)?;
 
     // Generate the settings meta
     generate_settings_meta(out_dir, &registry)?;
-
 
     // Generate JSON Schema for external tooling
     generate_json_schema(&registry)?;
@@ -88,14 +83,15 @@ fn generate_settings_struct(
     let mut scope = Scope::new();
     scope.import("indexmap", "IndexSet");
     scope.import("std::path", "PathBuf");
-    scope.raw("#[allow(dead_code)]");
 
     // Create the main settings struct
-    let mut settings_struct = Struct::new("GeneratedSettings");
+    let mut settings_struct = Struct::new("Settings");
     settings_struct
         .vis("pub")
         .derive("Debug")
         .derive("Clone")
+        .derive("serde::Serialize")
+        .derive("serde::Deserialize")
         .doc("Auto-generated settings struct from settings.toml");
 
     // Add fields to the struct with documentation
@@ -118,7 +114,7 @@ fn generate_settings_struct(
         // Add deprecation notice if present
         if let Some(deprecated) = &opt.deprecated {
             doc_lines.push(String::new());
-            doc_lines.push(format!("# Deprecated"));
+            doc_lines.push("# Deprecated".to_string());
             doc_lines.push(deprecated.clone());
         }
 
@@ -170,7 +166,7 @@ fn generate_settings_struct(
         // Create a field with documentation
         let mut field = codegen::Field::new(&format!("pub {}", field_name), field_type);
         if !doc_lines.is_empty() {
-            field.doc(&doc_lines.join("\n"));
+            field.doc(doc_lines.join("\n"));
         }
         settings_struct.push_field(field);
     }
@@ -178,7 +174,7 @@ fn generate_settings_struct(
     scope.push_struct(settings_struct);
 
     // Generate default implementation
-    let mut default_impl = Impl::new("GeneratedSettings");
+    let mut default_impl = Impl::new("Settings");
     default_impl.impl_trait("Default");
 
     let default_fn = default_impl.new_fn("default");
@@ -205,180 +201,28 @@ fn generate_settings_struct(
     Ok(())
 }
 
-fn generate_settings_override_struct(
+fn generate_settings_merge(
     out_dir: &Path,
-    registry: &SettingsRegistry,
+    _registry: &SettingsRegistry,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut scope = Scope::new();
+    scope.import("indexmap", "IndexMap");
     scope.import("indexmap", "IndexSet");
     scope.import("std::path", "PathBuf");
-    scope.raw("#[allow(dead_code)]");
 
-    // Create the override settings struct - all fields are Option
-    let mut override_struct = Struct::new("GeneratedSettingsOverride");
-    override_struct
-        .vis("pub")
-        .derive("Debug")
-        .derive("Clone")
-        .derive("Default")
-        .doc("Auto-generated settings override struct from settings.toml");
+    // Define SettingValue and SourceMap types
+    scope.raw("#[derive(Clone)]\npub enum SettingValue {\n    Bool(bool),\n    Usize(usize),\n    U8(u8),\n    String(String),\n    Path(PathBuf),\n    StringList(IndexSet<String>),\n}");
+    scope.raw("pub type SourceMap = IndexMap<&'static str, SettingValue>;");
 
-    // Add fields to the struct - all as Option types
-    for (name, opt) in &registry.options {
-        let field_name = name.replace('-', "_");
-        let base_type = rust_type(&opt.typ);
-        let field_type = format!("Option<{}>", base_type);
-        override_struct.field(&format!("pub {}", field_name), field_type);
-    }
+    // Provenance tracking types
+    scope.raw("#[derive(Clone, Debug)]\npub enum SettingSource { Defaults, Env, Git, Pkl, Cli }");
+    scope.raw("#[derive(Clone, Debug, Default)]\npub struct SourceInfoEntry {\n    pub last: Option<SettingSource>,\n    pub list_items: Option<IndexMap<String, Vec<SettingSource>>>,\n}");
+    scope.raw("pub type SourceInfoMap = IndexMap<&'static str, SourceInfoEntry>;");
 
-    scope.push_struct(override_struct);
-
+    // Only types are generated; merge logic implemented in src/settings.rs
     // Write the scope to file
-    fs::write(
-        out_dir.join("generated_settings_override.rs"),
-        scope.to_string(),
-    )?;
-
+    fs::write(out_dir.join("generated_settings_merge.rs"), scope.to_string())?;
     Ok(())
-}
-
-fn generate_cli_flags_struct(
-    out_dir: &Path,
-    registry: &SettingsRegistry,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut scope = Scope::new();
-    scope.import("clap", "Args");
-    scope.import("std::path", "PathBuf");
-    scope.raw("#[allow(dead_code)]");
-
-    // We need to manually build this struct with documentation
-    let mut struct_code = Vec::new();
-    struct_code.push("#[derive(Debug, Args, Default)]".to_string());
-    struct_code.push("pub struct GeneratedCliFlags {".to_string());
-
-    // Process each option that has CLI sources
-    for (name, opt) in &registry.options {
-        if opt.sources.cli.is_empty() {
-            continue;
-        }
-
-        let field_name = name.replace('-', "_");
-        let field_type = if name == "verbose" {
-            "u8".to_string()
-        } else {
-            format!("Option<{}>", rust_type_for_cli(&opt.typ))
-        };
-
-        // Add documentation
-        let doc_lines = format_doc_comment(&opt.docs);
-        for line in doc_lines {
-            struct_code.push(format!("    /// {}", line));
-        }
-
-        // Add clap attributes
-        let clap_attrs = build_clap_attributes(name, opt);
-        if !clap_attrs.is_empty() {
-            struct_code.push(format!("    #[clap({})]", clap_attrs.join(", ")));
-        }
-
-        struct_code.push(format!("    pub {}: {},", field_name, field_type));
-    }
-
-    struct_code.push("}".to_string());
-
-    // Add the struct to the scope
-    scope.raw(&struct_code.join("\n"));
-
-    // Write the generated code
-    fs::write(out_dir.join("generated_cli_flags.rs"), scope.to_string())?;
-
-    Ok(())
-}
-
-fn rust_type(typ: &str) -> String {
-    match typ {
-        "bool" => "bool".to_string(),
-        "usize" => "usize".to_string(),
-        "u8" => "u8".to_string(),
-        "string" => "String".to_string(),
-        "path" => "PathBuf".to_string(),
-        "enum" => "String".to_string(),
-        typ if typ.starts_with("list<string>") => "IndexSet<String>".to_string(),
-        _ => "String".to_string(),
-    }
-}
-
-fn rust_type_for_cli(typ: &str) -> String {
-    match typ {
-        "bool" => "bool".to_string(),
-        "usize" => "usize".to_string(),
-        "u8" => "u8".to_string(),
-        "string" => "String".to_string(),
-        "path" => "PathBuf".to_string(),
-        "enum" => "String".to_string(),
-        typ if typ.starts_with("list<string>") => "Vec<String>".to_string(),
-        _ => "String".to_string(),
-    }
-}
-
-fn is_nullable(opt: &OptionConfig) -> bool {
-    // List types default to empty if no default is specified
-    if opt.typ.starts_with("list<") {
-        return false;
-    }
-    opt.default.is_none()
-}
-
-fn get_default_value(opt: &OptionConfig, name: &str) -> String {
-    if is_nullable(opt) {
-        return "None".to_string();
-    }
-
-    match opt.typ.as_str() {
-        "bool" => match &opt.default {
-            Some(v) if v.as_bool() == Some(true) => "true",
-            _ => "false",
-        }
-        .to_string(),
-        "usize" | "u8" => match &opt.default {
-            Some(v) => v.as_integer().unwrap_or(0).to_string(),
-            None => "0".to_string(),
-        },
-        "string" | "enum" => match &opt.default {
-            Some(v) => format!("\"{}\".to_string()", v.as_str().unwrap_or("")),
-            None => "String::new()".to_string(),
-        },
-        "path" => match &opt.default {
-            Some(v) => format!("PathBuf::from(\"{}\")", v.as_str().unwrap_or("")),
-            None => "PathBuf::new()".to_string(),
-        },
-        typ if typ.starts_with("list<") => match &opt.default {
-            Some(toml::Value::Array(vals)) if !vals.is_empty() => {
-                let items = vals
-                    .iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| format!("\"{s}\".to_string()"))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("IndexSet::from([{}])", items)
-            }
-            _ => "IndexSet::new()".to_string(),
-        },
-        _ => {
-            eprintln!("Warning: Unknown type '{}' for field '{}'", opt.typ, name);
-            "Default::default()".to_string()
-        }
-    }
-}
-
-fn format_doc_comment(docs: &str) -> Vec<String> {
-    // Remove backticks and single quotes to avoid syntax issues
-    docs.replace('`', "")
-        .replace('\'', "")
-        .lines()
-        .map(|line| line.trim().to_string())
-        .filter(|line| !line.is_empty())
-        .collect()
 }
 
 fn generate_settings_meta(
@@ -388,7 +232,6 @@ fn generate_settings_meta(
     let mut scope = Scope::new();
     scope.import("indexmap", "IndexMap");
     scope.import("once_cell::sync", "Lazy");
-    scope.raw("#[allow(dead_code)]");
 
     // Generate SettingMeta struct
     let mut setting_meta_struct = Struct::new("SettingMeta");
@@ -404,7 +247,6 @@ fn generate_settings_meta(
     scope.push_struct(setting_meta_struct);
 
     // Generate SettingSourcesMeta struct
-    scope.raw("#[allow(dead_code)]");
     let mut sources_meta_struct = Struct::new("SettingSourcesMeta");
     sources_meta_struct
         .vis("pub")
@@ -447,16 +289,13 @@ fn generate_settings_meta(
     }
 
     // Create the static variable using raw code since codegen doesn't have great support for complex statics
-    scope.raw(&format!(
+    scope.raw(format!(
         "pub static SETTINGS_META: Lazy<IndexMap<&'static str, SettingMeta>> =\n    Lazy::new(|| {{\n        IndexMap::from([\n{}\n        ])\n    }});",
         static_entries.join(",\n")
     ));
 
     // Write the scope to file
-    fs::write(
-        out_dir.join("generated_settings_meta.rs"),
-        scope.to_string(),
-    )?;
+    fs::write(out_dir.join("generated_settings_meta.rs"), scope.to_string())?;
 
     Ok(())
 }
@@ -474,163 +313,59 @@ fn format_string_array(strings: &[String]) -> String {
     }
 }
 
-fn build_clap_attributes(name: &str, opt: &OptionConfig) -> Vec<String> {
-    let mut attrs = Vec::new();
-
-    // Collect long and short flags
-    let mut long_flags = Vec::new();
-    let mut short_flags = Vec::new();
-
-    for flag in &opt.sources.cli {
-        if flag.starts_with("--") {
-            let long = flag.strip_prefix("--").unwrap();
-            long_flags.push(long);
-        } else if flag.starts_with('-') && flag.len() == 2 {
-            short_flags.push(flag.chars().nth(1).unwrap());
-        }
-    }
-
-    // For boolean options with both positive and negative flags,
-    // we only use the positive form. Clap will automatically handle
-    // --no-<flag> for boolean options when using Option<bool>
-    if opt.typ == "bool" {
-        // Find the primary (non-negated) flag
-        if let Some(primary) = long_flags.iter().find(|&&f| !f.starts_with("no-")) {
-            attrs.push(format!("long = \"{}\"", primary));
-            // Check if there's also a negation flag - if so, we need to enable overrides_with
-            if long_flags.iter().any(|&f| f.starts_with("no-")) {
-                // For Option<bool>, clap automatically handles --no-<flag>
-                // We just need to specify the primary flag
-            }
-        } else {
-            // Only negation flags present (unusual case)
-            for long in &long_flags {
-                attrs.push(format!("long = \"{}\"", long));
-            }
-        }
-    } else {
-        // Non-boolean options - for multiple long flags, we can only use the first one
-        // Clap doesn't support multiple long attributes in a single #[clap()] attribute
-        // Note: This means --exclude-glob won't work in the generated CLI flags,
-        // but it's still supported through the manual CLI parsing in hook_options.rs
-        if let Some(first_long) = long_flags.first() {
-            attrs.push(format!("long = \"{}\"", first_long));
-        }
-    }
-
-    // Add short flags
-    for short in short_flags {
-        attrs.push(format!("short = '{}'", short));
-    }
-
-    // Special handling for verbose (count flag)
-    if name == "verbose" {
-        attrs.push("action = clap::ArgAction::Count".to_string());
-    }
-
-    attrs
-}
-
-
 fn generate_json_schema(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::Error>> {
-    use serde_json::{Value, json};
+    use serde_json::{json};
 
     let mut properties = serde_json::Map::new();
-    let mut required = Vec::new();
 
-    for (name, opt) in &registry.options {
+    for (name, _opt) in &registry.options {
         let field_name = name.replace('-', "_");
 
-        let mut field_schema = serde_json::Map::new();
-
-        // Add type
-        let (json_type, format) = match opt.typ.as_str() {
-            "bool" => ("boolean", None),
-            "int" | "usize" | "u8" => ("integer", None),
-            "string" | "enum" => ("string", None),
-            "path" => ("string", Some("path")),
-            "list<string>" => ("array", None),
-            _ => ("string", None),
-        };
-
-        if opt.typ == "list<string>" {
-            field_schema.insert("type".to_string(), json!("array"));
-            field_schema.insert("items".to_string(), json!({"type": "string"}));
-        } else {
-            field_schema.insert("type".to_string(), json!(json_type));
-        }
-
-        if let Some(fmt) = format {
-            field_schema.insert("format".to_string(), json!(fmt));
-        }
-
-        // Add description (docs)
-        field_schema.insert("description".to_string(), json!(opt.docs.trim()));
-
-        // Add default value
-        if let Some(default) = &opt.default {
-            field_schema.insert("default".to_string(), toml_to_json(default)?);
-        } else if !is_nullable(opt) {
-            required.push(field_name.clone());
-        }
-
-        // Add enum values if present
-        if let Some(validate) = &opt.validate {
-            if let Some(enum_values) = &validate.enum_values {
-                field_schema.insert("enum".to_string(), json!(enum_values));
+        // Schema for a single option definition object in settings.toml
+        let option_schema = json!({
+            "type": "object",
+            "required": ["type", "sources", "docs"],
+            "additionalProperties": false,
+            "properties": {
+                "type": { "type": "string", "enum": ["bool","usize","u8","string","path","enum","list<string>"] },
+                "default": {},
+                "merge": { "type": "string", "enum": ["union","replace"] },
+                "sources": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "cli": { "type": "array", "items": {"type": "string"} },
+                        "env": { "type": "array", "items": {"type": "string"} },
+                        "git": { "type": "array", "items": {"type": "string"} },
+                        "pkl": { "type": "array", "items": {"type": "string"} }
+                    }
+                },
+                "validate": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "enum": { "type": "array", "items": {"type": "string"} }
+                    }
+                },
+                "docs": { "type": "string" },
+                "examples": { "type": "array", "items": {"type": "string"} },
+                "deprecated": { "type": "string" },
+                "since": { "type": "string" }
             }
-        }
+        });
 
-        // Add examples
-        if !opt.examples.is_empty() {
-            field_schema.insert("examples".to_string(), json!(opt.examples));
-        }
-
-        // Add deprecation info
-        if let Some(deprecated) = &opt.deprecated {
-            field_schema.insert("deprecated".to_string(), json!(true));
-            field_schema.insert("deprecatedMessage".to_string(), json!(deprecated));
-        }
-
-        // Add metadata as x-properties (custom properties)
-        let mut metadata = serde_json::Map::new();
-
-        // Add source information
-        if !opt.sources.cli.is_empty() {
-            metadata.insert("cli".to_string(), json!(opt.sources.cli));
-        }
-        if !opt.sources.env.is_empty() {
-            metadata.insert("env".to_string(), json!(opt.sources.env));
-        }
-        if !opt.sources.git.is_empty() {
-            metadata.insert("git".to_string(), json!(opt.sources.git));
-        }
-
-        // Add merge strategy
-        if let Some(merge) = &opt.merge {
-            metadata.insert("merge".to_string(), json!(merge));
-        }
-
-        // Add since version
-        if let Some(since) = &opt.since {
-            metadata.insert("since".to_string(), json!(since));
-        }
-
-        if !metadata.is_empty() {
-            field_schema.insert("x-hk-metadata".to_string(), json!(metadata));
-        }
-
-        properties.insert(field_name, Value::Object(field_schema));
+        properties.insert(field_name, option_schema);
+        // Each option name is required in registry? keep not required to allow partials; skip.
     }
 
     // Build the complete schema
     let schema = json!({
         "$schema": "https://json-schema.org/draft-07/schema#",
-        "title": "HK Settings",
-        "description": "Configuration schema for hk - A tool for managing git hooks",
+        "title": "HK Settings Registry",
+        "description": "Schema for settings.toml (settings registry)",
         "type": "object",
         "properties": properties,
-        "required": required,
+        "required": [],
         "additionalProperties": false,
         "$comment": "This schema is auto-generated from settings.toml by build/generate_settings.rs"
     });
@@ -644,25 +379,63 @@ fn generate_json_schema(registry: &SettingsRegistry) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-fn toml_to_json(value: &toml::Value) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    use serde_json::json;
+fn rust_type(typ: &str) -> String {
+    match typ {
+        "bool" => "bool".to_string(),
+        "usize" => "usize".to_string(),
+        "u8" => "u8".to_string(),
+        "string" => "String".to_string(),
+        "path" => "PathBuf".to_string(),
+        "enum" => "String".to_string(),
+        typ if typ.starts_with("list<string>") => "IndexSet<String>".to_string(),
+        _ => "String".to_string(),
+    }
+}
 
-    Ok(match value {
-        toml::Value::String(s) => json!(s),
-        toml::Value::Integer(i) => json!(i),
-        toml::Value::Float(f) => json!(f),
-        toml::Value::Boolean(b) => json!(b),
-        toml::Value::Array(arr) => {
-            let json_arr: Result<Vec<_>, _> = arr.iter().map(toml_to_json).collect();
-            json!(json_arr?)
+fn is_nullable(opt: &OptionConfig) -> bool {
+    if opt.typ.starts_with("list<") {
+        return false;
+    }
+    opt.default.is_none()
+}
+
+fn get_default_value(opt: &OptionConfig, name: &str) -> String {
+    if is_nullable(opt) {
+        return "None".to_string();
+    }
+    match opt.typ.as_str() {
+        "bool" => match &opt.default {
+            Some(v) if v.as_bool() == Some(true) => "true",
+            _ => "false",
         }
-        toml::Value::Table(table) => {
-            let mut json_obj = serde_json::Map::new();
-            for (k, v) in table {
-                json_obj.insert(k.clone(), toml_to_json(v)?);
+        .to_string(),
+        "usize" | "u8" => match &opt.default {
+            Some(v) => v.as_integer().unwrap_or(0).to_string(),
+            None => "0".to_string(),
+        },
+        "string" | "enum" => match &opt.default {
+            Some(v) => format!("\"{}\".to_string()", v.as_str().unwrap_or("")),
+            None => "String::new()".to_string(),
+        },
+        "path" => match &opt.default {
+            Some(v) => format!("PathBuf::from(\"{}\")", v.as_str().unwrap_or("")),
+            None => "PathBuf::new()".to_string(),
+        },
+        typ if typ.starts_with("list<") => match &opt.default {
+            Some(toml::Value::Array(vals)) if !vals.is_empty() => {
+                let items = vals
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| format!("\"{s}\".to_string()"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!("IndexSet::from([{}])", items)
             }
-            json!(json_obj)
+            _ => "IndexSet::new()".to_string(),
+        },
+        _ => {
+            eprintln!("Warning: Unknown type '{}' for field '{}'", opt.typ, name);
+            "Default::default()".to_string()
         }
-        toml::Value::Datetime(dt) => json!(dt.to_string()),
-    })
+    }
 }
