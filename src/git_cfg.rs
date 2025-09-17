@@ -90,6 +90,25 @@ pub fn read_git_config() -> Result<(), git2::Error> {
         Settings::add_exclude(exclude_globs.into_iter().collect::<Vec<_>>());
     }
 
+    // Read skip configuration
+    if let Ok(skip_steps) = read_string_list(&config, "hk.skipSteps") {
+        Settings::add_skip_steps(skip_steps.into_iter().collect::<Vec<_>>());
+    }
+
+    // Also check singular form for backward compatibility
+    if let Ok(skip_step) = read_string_list(&config, "hk.skipStep") {
+        Settings::add_skip_steps(skip_step.into_iter().collect::<Vec<_>>());
+    }
+
+    if let Ok(skip_hooks) = read_string_list(&config, "hk.skipHooks") {
+        Settings::add_skip_hooks(skip_hooks.into_iter().collect::<Vec<_>>());
+    }
+
+    // Also check singular form for backward compatibility
+    if let Ok(skip_hook) = read_string_list(&config, "hk.skipHook") {
+        Settings::add_skip_hooks(skip_hook.into_iter().collect::<Vec<_>>());
+    }
+
     Ok(())
 }
 

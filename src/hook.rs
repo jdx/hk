@@ -342,8 +342,8 @@ impl Hook {
         }
 
         let settings = Settings::get();
-        if env::HK_SKIP_HOOK.contains(&self.name) {
-            warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
+        if settings.skip_hooks.contains(&self.name) {
+            warn!("{}: skipping hook due to skip configuration", &self.name);
             return Ok(());
         }
         let run_type = self.run_type(&opts);
@@ -378,10 +378,11 @@ impl Hook {
 
         let skip_steps = {
             let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-            for s in env::HK_SKIP_STEPS.iter() {
+            // Use settings for skip_steps which includes env vars, git config, etc.
+            for s in settings.skip_steps.iter() {
                 m.insert(
                     s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                    SkipReason::DisabledByEnv("skip configuration".to_string()),
                 );
             }
             for s in opts.skip_step.iter() {

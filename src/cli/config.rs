@@ -65,6 +65,8 @@ impl ConfigDump {
             "display_skip_reasons": settings.display_skip_reasons,
             "warnings": settings.warnings,
             "exclude": settings.exclude,
+            "skip_steps": settings.skip_steps,
+            "skip_hooks": settings.skip_hooks,
         });
 
         match self.format.as_str() {

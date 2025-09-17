@@ -183,6 +183,22 @@ impl Config {
                 crate::settings::Settings::add_exclude(patterns);
             }
 
+            if let Some(skip_steps) = &user_config.defaults.skip_steps {
+                let steps: Vec<String> = match skip_steps {
+                    StringOrList::String(s) => vec![s.clone()],
+                    StringOrList::List(list) => list.clone(),
+                };
+                crate::settings::Settings::add_skip_steps(steps);
+            }
+
+            if let Some(skip_hooks) = &user_config.defaults.skip_hooks {
+                let hooks: Vec<String> = match skip_hooks {
+                    StringOrList::String(s) => vec![s.clone()],
+                    StringOrList::List(list) => list.clone(),
+                };
+                crate::settings::Settings::add_skip_hooks(hooks);
+            }
+
             for (hook_name, user_hook_config) in &user_config.hooks {
                 if let Some(hook) = self.hooks.get_mut(hook_name) {
                     for (step_or_group_name, step_or_group) in hook.steps.iter_mut() {
@@ -333,6 +349,8 @@ pub struct UserDefaults {
     pub fix: Option<bool>,
     pub check: Option<bool>,
     pub exclude: Option<StringOrList>,
+    pub skip_steps: Option<StringOrList>,
+    pub skip_hooks: Option<StringOrList>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
