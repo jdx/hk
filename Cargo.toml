@@ -11,7 +11,18 @@ license = "MIT"
 repository = "https://github.com/jdx/hk"
 documentation = "https://hk.jdx.dev"
 homepage = "https://hk.jdx.dev"
-include = ["/src/**/*", "/Cargo.toml", "/Cargo.lock", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pkl", "/build.rs"]
+include = [
+    "/src/**/*",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/pkl",
+    "/build.rs",
+    "/build/**/*",
+    "/settings.toml",
+]
 build = "build.rs"
 rust-version = "1.85"
 
@@ -61,6 +72,7 @@ toml = "0.9"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 indexmap = { version = "2", features = ["serde"] }
+codegen = "0.2"
 
 [profile.serious]
 inherits = "release"
