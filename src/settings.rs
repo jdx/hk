@@ -23,8 +23,12 @@ pub mod generated {
     pub mod settings_meta {
         include!(concat!(env!("OUT_DIR"), "/generated_settings_meta.rs"));
     }
+    pub mod settings_merge {
+        include!(concat!(env!("OUT_DIR"), "/generated_settings_merge.rs"));
+    }
 
     // Re-export the main types for convenience
+    pub use settings_merge::SettingsMerger;
     pub use settings_meta::*;
     pub use settings_override::GeneratedSettingsOverride;
 }
@@ -341,7 +345,11 @@ static GLOBAL_SETTINGS: OnceLock<SettingsSnapshot> = OnceLock::new();
 /// Builder for creating Settings instances with different sources
 #[derive(Default)]
 pub struct SettingsBuilder {
-    override_settings: generated::GeneratedSettingsOverride,
+    env_overrides: generated::GeneratedSettingsOverride,
+    git_overrides: generated::GeneratedSettingsOverride,
+    config_overrides: generated::GeneratedSettingsOverride,
+    cli_overrides: generated::GeneratedSettingsOverride,
+    programmatic_overrides: generated::GeneratedSettingsOverride,
 }
 
 impl SettingsBuilder {
@@ -351,15 +359,14 @@ impl SettingsBuilder {
     }
 
     /// Load settings from environment variables
-    pub fn from_env(self) -> Self {
-        // Environment variables are automatically loaded in the Default implementation
-        // This is a no-op but provides the fluent API
+    pub fn from_env(mut self) -> Self {
+        self.env_overrides = Self::collect_env_overrides();
         self
     }
 
     /// Load settings from git configuration
     pub fn from_git(mut self) -> Self {
-        // Load git configuration and apply to our local override
+        // Load git configuration and apply to our git overrides
         if let Err(e) = self.load_git_config() {
             eprintln!("Warning: Failed to load git config: {}", e);
         }
@@ -377,14 +384,21 @@ impl SettingsBuilder {
             Config::open_default()?
         };
 
-        // Load git config values into our local override
+        // Load git config values into our git overrides
         for (setting_name, setting_meta) in generated::SETTINGS_META.iter() {
             for git_key in setting_meta.sources.git {
                 match setting_meta.typ {
                     "bool" => {
                         if let Ok(value) = config.get_bool(git_key) {
                             match *setting_name {
-                                "fail_fast" => self.override_settings.fail_fast = Some(value),
+                                "fail_fast" => self.git_overrides.fail_fast = Some(value),
+                                "check" => self.git_overrides.check = Some(value),
+                                "fix" => self.git_overrides.fix = Some(value),
+                                "json" => self.git_overrides.json = Some(value),
+                                "check_first" => self.git_overrides.check_first = Some(value),
+                                "stash_untracked" => {
+                                    self.git_overrides.stash_untracked = Some(value)
+                                }
                                 _ => {}
                             }
                         }
@@ -392,7 +406,7 @@ impl SettingsBuilder {
                     "usize" => {
                         if let Ok(value) = config.get_i32(git_key) {
                             if *setting_name == "jobs" && value > 0 {
-                                self.override_settings.jobs = Some(value as usize);
+                                self.git_overrides.jobs = Some(value as usize);
                             }
                         }
                     }
@@ -405,24 +419,24 @@ impl SettingsBuilder {
                                 .collect();
 
                             match *setting_name {
+                                "profiles" => self.git_overrides.profiles = Some(items),
                                 "display_skip_reasons" => {
-                                    self.override_settings.display_skip_reasons = Some(items);
+                                    self.git_overrides.display_skip_reasons = Some(items)
                                 }
-                                "hide_warnings" => {
-                                    self.override_settings.hide_warnings = Some(items);
-                                }
-                                "warnings" => {
-                                    self.override_settings.warnings = Some(items);
-                                }
-                                "exclude" => {
-                                    self.override_settings.exclude = Some(items);
-                                }
-                                "skip_steps" => {
-                                    self.override_settings.skip_steps = Some(items);
-                                }
-                                "skip_hooks" => {
-                                    self.override_settings.skip_hooks = Some(items);
-                                }
+                                "hide_warnings" => self.git_overrides.hide_warnings = Some(items),
+                                "warnings" => self.git_overrides.warnings = Some(items),
+                                "exclude" => self.git_overrides.exclude = Some(items),
+                                "skip_steps" => self.git_overrides.skip_steps = Some(items),
+                                "skip_hooks" => self.git_overrides.skip_hooks = Some(items),
+                                _ => {}
+                            }
+                        }
+                    }
+                    "enum" => {
+                        if let Ok(value) = config.get_str(git_key) {
+                            match *setting_name {
+                                "stash" => self.git_overrides.stash = Some(value.to_string()),
+                                "trace" => self.git_overrides.trace = Some(value.to_string()),
                                 _ => {}
                             }
                         }
@@ -437,22 +451,22 @@ impl SettingsBuilder {
 
     /// Load settings from a Config instance (from hkrc.pkl/toml etc.)
     pub fn from_config(mut self, config: &crate::config::Config) -> Self {
-        // Apply config-level settings to our override
+        // Apply config-level settings to our config overrides
         if let Some(fail_fast) = config.fail_fast {
-            self.override_settings.fail_fast = Some(fail_fast);
+            self.config_overrides.fail_fast = Some(fail_fast);
         }
 
         if let Some(ref display_skip_reasons) = config.display_skip_reasons {
-            self.override_settings.display_skip_reasons =
+            self.config_overrides.display_skip_reasons =
                 Some(display_skip_reasons.iter().cloned().collect());
         }
 
         if let Some(ref hide_warnings) = config.hide_warnings {
-            self.override_settings.hide_warnings = Some(hide_warnings.iter().cloned().collect());
+            self.config_overrides.hide_warnings = Some(hide_warnings.iter().cloned().collect());
         }
 
         if let Some(ref warnings) = config.warnings {
-            self.override_settings.warnings = Some(warnings.iter().cloned().collect());
+            self.config_overrides.warnings = Some(warnings.iter().cloned().collect());
         }
 
         self
@@ -460,98 +474,131 @@ impl SettingsBuilder {
 
     /// Build the Settings instance
     pub fn build(self) -> Settings {
-        // Create settings directly without modifying global state
-        let mut inner = generated::settings::GeneratedSettings::default();
+        // Use the generated systematic merge logic
+        let merger = generated::SettingsMerger::default();
 
-        // Handle profiles with proper precedence: CLI > env > defaults
-        let mut all_profiles: IndexSet<String> = IndexSet::new();
-
-        // Start with environment profiles
-        all_profiles.extend(env::HK_PROFILE.iter().cloned());
-
-        // Apply builder profile overrides (union semantics)
-        if let Some(ref builder_profiles) = self.override_settings.profiles {
-            all_profiles.extend(builder_profiles.iter().cloned());
-        }
-        inner.profiles = all_profiles;
-
-        // Handle display_skip_reasons
-        if let Some(ref reasons) = self.override_settings.display_skip_reasons {
-            inner.display_skip_reasons = reasons.clone();
-        }
-
-        // Handle hide_warnings with union semantics
-        let mut hide_warnings = self
-            .override_settings
-            .hide_warnings
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        hide_warnings.extend(env::HK_HIDE_WARNINGS.iter().cloned());
-        inner.hide_warnings = hide_warnings;
-
-        // Handle warnings, filtering out hidden ones
-        let mut warnings = self
-            .override_settings
-            .warnings
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        warnings.retain(|tag| !inner.hide_warnings.contains(tag));
-        inner.warnings = warnings;
-
-        // Handle exclude with union semantics
-        let mut exclude = self
-            .override_settings
-            .exclude
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        exclude.extend(env::HK_EXCLUDE.iter().cloned());
-        inner.exclude = exclude;
-
-        // Handle skip_steps with union semantics
-        let mut skip_steps = self
-            .override_settings
-            .skip_steps
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        skip_steps.extend(env::HK_SKIP_STEPS.iter().cloned());
-        inner.skip_steps = skip_steps;
-
-        // Handle skip_hooks with union semantics
-        let mut skip_hooks = self
-            .override_settings
-            .skip_hooks
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        skip_hooks.extend(env::HK_SKIP_HOOK.iter().cloned());
-        inner.skip_hooks = skip_hooks;
-
-        // Handle jobs with precedence: CLI > env > default
-        let jobs_value = self
-            .override_settings
-            .jobs
-            .unwrap_or_else(|| env::HK_JOBS.get());
-        inner.jobs = jobs_value;
-
-        // Handle fail_fast with precedence: CLI > env > default
-        if let Some(fail_fast) = self
-            .override_settings
-            .fail_fast
-            .or_else(|| *env::HK_FAIL_FAST)
-        {
-            inner.fail_fast = fail_fast;
-        }
-
-        // Handle all with precedence: CLI > default
-        if let Some(all) = self.override_settings.all {
-            inner.all = all;
-        }
+        // Apply systematic precedence: defaults → env → git → pkl → CLI → programmatic
+        let defaults = generated::settings::GeneratedSettings::default();
+        let inner = merger.merge_sources(
+            &defaults, // defaults
+            &self.env_overrides,
+            &self.git_overrides,
+            &self.config_overrides, // pkl config
+            &self.cli_overrides,
+            &self.programmatic_overrides,
+        );
 
         Settings { inner }
+    }
+
+    /// Collect environment variable overrides into a settings override structure
+    fn collect_env_overrides() -> generated::GeneratedSettingsOverride {
+        let mut env_overrides = generated::GeneratedSettingsOverride::default();
+
+        // Collect environment variables following the generated settings metadata
+        for (setting_name, setting_meta) in generated::SETTINGS_META.iter() {
+            for env_var in setting_meta.sources.env {
+                match setting_meta.typ {
+                    "bool" => {
+                        if let Ok(value) = std::env::var(env_var) {
+                            let bool_value = match value.to_lowercase().as_str() {
+                                "true" | "1" | "yes" | "on" => true,
+                                "false" | "0" | "no" | "off" => false,
+                                _ => continue,
+                            };
+                            match *setting_name {
+                                "fail_fast" => env_overrides.fail_fast = Some(bool_value),
+                                "check" => env_overrides.check = Some(bool_value),
+                                "fix" => env_overrides.fix = Some(bool_value),
+                                "all" => env_overrides.all = Some(bool_value),
+                                "json" => env_overrides.json = Some(bool_value),
+                                "libgit2" => env_overrides.libgit2 = Some(bool_value),
+                                "mise" => env_overrides.mise = Some(bool_value),
+                                "quiet" => env_overrides.quiet = Some(bool_value),
+                                "silent" => env_overrides.silent = Some(bool_value),
+                                "slow" => env_overrides.slow = Some(bool_value),
+                                "stash_untracked" => {
+                                    env_overrides.stash_untracked = Some(bool_value)
+                                }
+                                "summary_text" => env_overrides.summary_text = Some(bool_value),
+                                "check_first" => env_overrides.check_first = Some(bool_value),
+                                "hide_when_done" => env_overrides.hide_when_done = Some(bool_value),
+                                "no_progress" => env_overrides.no_progress = Some(bool_value),
+                                _ => {}
+                            }
+                        }
+                    }
+                    "usize" => {
+                        if let Ok(value) = std::env::var(env_var) {
+                            if let Ok(usize_value) = value.parse::<usize>() {
+                                match *setting_name {
+                                    "jobs" => env_overrides.jobs = Some(usize_value),
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    "u8" => {
+                        if let Ok(value) = std::env::var(env_var) {
+                            if let Ok(u8_value) = value.parse::<u8>() {
+                                match *setting_name {
+                                    "verbose" => env_overrides.verbose = Some(u8_value),
+                                    _ => {}
+                                }
+                            }
+                        }
+                    }
+                    "list<string>" => {
+                        if let Ok(value) = std::env::var(env_var) {
+                            let items: IndexSet<String> = value
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+
+                            match *setting_name {
+                                "profiles" => env_overrides.profiles = Some(items),
+                                "display_skip_reasons" => {
+                                    env_overrides.display_skip_reasons = Some(items)
+                                }
+                                "hide_warnings" => env_overrides.hide_warnings = Some(items),
+                                "warnings" => env_overrides.warnings = Some(items),
+                                "exclude" => env_overrides.exclude = Some(items),
+                                "skip_steps" => env_overrides.skip_steps = Some(items),
+                                "skip_hooks" => env_overrides.skip_hooks = Some(items),
+                                _ => {}
+                            }
+                        }
+                    }
+                    "path" => {
+                        if let Ok(value) = std::env::var(env_var) {
+                            let path_value = PathBuf::from(value);
+                            match *setting_name {
+                                "cache_dir" => env_overrides.cache_dir = Some(path_value),
+                                "state_dir" => env_overrides.state_dir = Some(path_value),
+                                "log_file" => env_overrides.log_file = Some(path_value),
+                                "timing_json" => env_overrides.timing_json = Some(path_value),
+                                _ => {}
+                            }
+                        }
+                    }
+                    "enum" => {
+                        if let Ok(value) = std::env::var(env_var) {
+                            match *setting_name {
+                                "log_level" => env_overrides.log_level = Some(value),
+                                "log_file_level" => env_overrides.log_file_level = Some(value),
+                                "stash" => env_overrides.stash = Some(value),
+                                "trace" => env_overrides.trace = Some(value),
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        env_overrides
     }
 
     /// Build and return as an immutable snapshot

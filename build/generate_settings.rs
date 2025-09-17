@@ -68,6 +68,9 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Generate the settings meta
     generate_settings_meta(out_dir, &registry)?;
 
+    // Generate the settings merge logic
+    generate_settings_merge(out_dir, &registry)?;
+
     Ok(())
 }
 
@@ -455,4 +458,153 @@ fn build_clap_attributes(name: &str, opt: &OptionConfig) -> Vec<String> {
     }
 
     attrs
+}
+
+fn generate_settings_merge(
+    out_dir: &Path,
+    registry: &SettingsRegistry,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut scope = Scope::new();
+    scope.import("indexmap", "IndexSet");
+    scope.import("std::collections", "HashSet");
+    scope.raw("#[allow(dead_code)]");
+
+    // Generate the SettingsMerger struct
+    let mut merger_struct = Struct::new("SettingsMerger");
+    merger_struct
+        .vis("pub")
+        .derive("Debug")
+        .derive("Default")
+        .doc("Generated settings merger with systematic precedence: defaults → env → git → pkl → CLI → programmatic");
+
+    scope.push_struct(merger_struct);
+
+    // Generate the merge implementation
+    let mut merger_impl = Impl::new("SettingsMerger");
+
+    // Add the main merge function
+    let merge_fn = merger_impl.new_fn("merge_sources");
+    merge_fn
+        .vis("pub")
+        .arg("self", "&Self")
+        .arg("defaults", "&super::settings::GeneratedSettings")
+        .arg(
+            "env_overrides",
+            "&super::settings_override::GeneratedSettingsOverride",
+        )
+        .arg(
+            "git_overrides",
+            "&super::settings_override::GeneratedSettingsOverride",
+        )
+        .arg(
+            "pkl_overrides",
+            "&super::settings_override::GeneratedSettingsOverride",
+        )
+        .arg(
+            "cli_overrides",
+            "&super::settings_override::GeneratedSettingsOverride",
+        )
+        .arg(
+            "programmatic_overrides",
+            "&super::settings_override::GeneratedSettingsOverride",
+        )
+        .ret("super::settings::GeneratedSettings")
+        .doc("Merge settings from all sources with systematic precedence");
+
+    let mut merge_body = vec![
+        "let mut result = defaults.clone();".to_string(),
+        "".to_string(),
+        "// Apply each layer in precedence order: env → git → pkl → CLI → programmatic".to_string(),
+    ];
+
+    // Generate merge logic for each field
+    for (field_name, field_config) in registry.options.iter() {
+        let rust_field_name = field_name.replace('-', "_");
+        let merge_strategy = field_config.merge.as_deref().unwrap_or("replace");
+
+        merge_body.push(format!(
+            "// Merge {}: {} strategy",
+            field_name, merge_strategy
+        ));
+
+        if merge_strategy == "union" {
+            // Union merge for list types
+            merge_body.extend(vec![
+                format!("{{"),
+                format!("    let mut merged_{} = result.{}.clone();", rust_field_name, rust_field_name),
+                format!("    if let Some(ref val) = env_overrides.{} {{ merged_{}.extend(val.iter().cloned()); }}", rust_field_name, rust_field_name),
+                format!("    if let Some(ref val) = git_overrides.{} {{ merged_{}.extend(val.iter().cloned()); }}", rust_field_name, rust_field_name),
+                format!("    if let Some(ref val) = pkl_overrides.{} {{ merged_{}.extend(val.iter().cloned()); }}", rust_field_name, rust_field_name),
+                format!("    if let Some(ref val) = cli_overrides.{} {{ merged_{}.extend(val.iter().cloned()); }}", rust_field_name, rust_field_name),
+                format!("    if let Some(ref val) = programmatic_overrides.{} {{ merged_{}.extend(val.iter().cloned()); }}", rust_field_name, rust_field_name),
+                format!("    result.{} = merged_{};", rust_field_name, rust_field_name),
+                format!("}}"),
+            ]);
+        } else {
+            // Replace merge (precedence order)
+            if is_nullable(field_config) {
+                // For nullable fields, wrap in Some()
+                merge_body.extend(vec![
+                    format!(
+                        "env_overrides.{}.as_ref().map(|v| result.{} = Some(v.clone()));",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "git_overrides.{}.as_ref().map(|v| result.{} = Some(v.clone()));",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "pkl_overrides.{}.as_ref().map(|v| result.{} = Some(v.clone()));",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "cli_overrides.{}.as_ref().map(|v| result.{} = Some(v.clone()));",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "programmatic_overrides.{}.as_ref().map(|v| result.{} = Some(v.clone()));",
+                        rust_field_name, rust_field_name
+                    ),
+                ]);
+            } else {
+                // For non-nullable fields, assign directly
+                merge_body.extend(vec![
+                    format!(
+                        "env_overrides.{}.as_ref().map(|v| result.{} = v.clone());",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "git_overrides.{}.as_ref().map(|v| result.{} = v.clone());",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "pkl_overrides.{}.as_ref().map(|v| result.{} = v.clone());",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "cli_overrides.{}.as_ref().map(|v| result.{} = v.clone());",
+                        rust_field_name, rust_field_name
+                    ),
+                    format!(
+                        "programmatic_overrides.{}.as_ref().map(|v| result.{} = v.clone());",
+                        rust_field_name, rust_field_name
+                    ),
+                ]);
+            }
+        }
+        merge_body.push("".to_string());
+    }
+
+    merge_body.push("result".to_string());
+    merge_fn.line(merge_body.join("\n        "));
+
+    scope.push_impl(merger_impl);
+
+    // Write the scope to file
+    fs::write(
+        out_dir.join("generated_settings_merge.rs"),
+        scope.to_string(),
+    )?;
+
+    Ok(())
 }
