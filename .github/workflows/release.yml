@@ -78,13 +78,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
-      - name: Install Pkl
-        run: |
-          # Install pkl CLI
-          curl -L -o /tmp/pkl https://github.com/apple/pkl/releases/download/0.29.0/pkl-linux-amd64
-          chmod +x /tmp/pkl
-          sudo mv /tmp/pkl /usr/local/bin/pkl
-          pkl --version
       - name: Package Pkl
         run: |
           TAG_NAME="${{ github.ref_name }}"
@@ -94,23 +87,30 @@ jobs:
           VERSION="${TAG_NAME#v}"
           echo "Building pkl package for version: $VERSION"
 
-          # Run pkl package directly
-          cd pkl && VERSION="${VERSION}" pkl project package
-          cd ..
+          # Run pkl package in the pkl directory
+          cd pkl
+          VERSION="${VERSION}" pkl project package
 
-          # Check if files were created
-          if [ -d "pkl/.out" ]; then
-            echo "Found pkl/.out directory, moving to root"
-            mv pkl/.out .
+          # The .out directory is created in the current (pkl) directory
+          if [ -d ".out" ]; then
+            echo "Found .out directory in pkl/, moving to root"
+            mv .out ../
           fi
+          cd ..
 
           # List the output
           echo "Contents of .out:"
           ls -laR .out/ || echo "No .out directory found"
+
+          # Debug: check current directory
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
       - uses: actions/upload-artifact@v4
         with:
           name: pkl-packages
           path: .out/
+          if-no-files-found: error
           retention-days: 1
 
   create-release:
