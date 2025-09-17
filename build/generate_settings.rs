@@ -194,7 +194,7 @@ fn generate_builder_impl(
             }
             _ => format!("toml::Value::from({:?})", opt.default),
         };
-        new_fn.line(&format!(
+        new_fn.line(format!(
             "builder.defaults.{} = Some({});",
             field_name, default_str
         ));
@@ -273,7 +273,7 @@ fn generate_env_source_method(
     for (name, opt) in &registry.option {
         let field_name = name.replace('-', "_");
         for env_var in &opt.sources.env {
-            method.line(&format!(
+            method.line(format!(
                 "if let Ok(val) = std::env::var(\"{}\") {{",
                 env_var
             ));
@@ -281,22 +281,22 @@ fn generate_env_source_method(
             match opt.typ.as_str() {
                 "bool" => {
                     method.line("    let b = val == \"true\" || val == \"1\";");
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.env.{} = Some(toml::Value::Boolean(b));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.sources.insert(\"{}\".to_string(), \"env:{}\".to_string());",
                         field_name, env_var
                     ));
                 }
                 "int" => {
                     method.line("    if let Ok(i) = val.parse::<i64>() {");
-                    method.line(&format!(
+                    method.line(format!(
                         "        self.env.{} = Some(toml::Value::Integer(i));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "        self.sources.insert(\"{}\".to_string(), \"env:{}\".to_string());",
                         field_name, env_var
                     ));
@@ -304,21 +304,21 @@ fn generate_env_source_method(
                 }
                 typ if typ.starts_with("list<") => {
                     method.line("    let items: Vec<toml::Value> = val.split(',').map(|s| toml::Value::String(s.trim().to_string())).collect();");
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.env.{} = Some(toml::Value::Array(items));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.sources.insert(\"{}\".to_string(), \"env:{}\".to_string());",
                         field_name, env_var
                     ));
                 }
                 _ => {
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.env.{} = Some(toml::Value::String(val));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.sources.insert(\"{}\".to_string(), \"env:{}\".to_string());",
                         field_name, env_var
                     ));
@@ -348,63 +348,63 @@ fn generate_git_source_method(
         for git_key in &opt.sources.git {
             match opt.typ.as_str() {
                 "bool" => {
-                    method.line(&format!(
+                    method.line(format!(
                         "if let Ok(val) = config.get_bool(\"{}\") {{",
                         git_key
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.git.{} = Some(toml::Value::Boolean(val));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.sources.insert(\"{}\".to_string(), \"git:{}\".to_string());",
                         field_name, git_key
                     ));
                     method.line("}");
                 }
                 "int" => {
-                    method.line(&format!(
+                    method.line(format!(
                         "if let Ok(val) = config.get_i32(\"{}\") {{",
                         git_key
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.git.{} = Some(toml::Value::Integer(val as i64));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.sources.insert(\"{}\".to_string(), \"git:{}\".to_string());",
                         field_name, git_key
                     ));
                     method.line("}");
                 }
                 "string" | "path" | "enum" => {
-                    method.line(&format!(
+                    method.line(format!(
                         "if let Ok(val) = config.get_string(\"{}\") {{",
                         git_key
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.git.{} = Some(toml::Value::String(val));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.sources.insert(\"{}\".to_string(), \"git:{}\".to_string());",
                         field_name, git_key
                     ));
                     method.line("}");
                 }
                 typ if typ.starts_with("list<") => {
-                    method.line(&format!(
+                    method.line(format!(
                         "if let Ok(vals) = read_string_list(config, \"{}\") {{",
                         git_key
                     ));
                     method.line(
                         "    let array = vals.into_iter().map(toml::Value::String).collect();",
                     );
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.git.{} = Some(toml::Value::Array(array));",
                         field_name
                     ));
-                    method.line(&format!(
+                    method.line(format!(
                         "    self.sources.insert(\"{}\".to_string(), \"git:{}\".to_string());",
                         field_name, git_key
                     ));
@@ -434,14 +434,14 @@ fn generate_build_method(
     for (name, opt) in &registry.option {
         let field_name = name.replace('-', "_");
 
-        method.line(&format!("    {}: {{", field_name));
+        method.line(format!("    {}: {{", field_name));
 
         if opt.merge == "union" {
             // Union merge for lists
             method.line("        let mut result = IndexSet::new();");
 
             for layer in ["defaults", "pkl", "git", "env", "cli"] {
-                method.line(&format!(
+                method.line(format!(
                     "        if let Some(toml::Value::Array(arr)) = &self.{}.{} {{",
                     layer, field_name
                 ));
@@ -462,15 +462,15 @@ fn generate_build_method(
             method.line("        result");
         } else {
             // Replace merge
-            method.line(&format!("        let val = self.cli.{}", field_name));
-            method.line(&format!("            .or(self.env.{})", field_name));
-            method.line(&format!("            .or(self.git.{})", field_name));
-            method.line(&format!("            .or(self.pkl.{})", field_name));
-            method.line(&format!("            .or(self.defaults.{});", field_name));
+            method.line(format!("        let val = self.cli.{}", field_name));
+            method.line(format!("            .or(self.env.{})", field_name));
+            method.line(format!("            .or(self.git.{})", field_name));
+            method.line(format!("            .or(self.pkl.{})", field_name));
+            method.line(format!("            .or(self.defaults.{});", field_name));
 
             // Type conversion based on type
             let conversion = type_conversion(&opt.typ, name, &opt.default);
-            method.line(&format!("        {}", conversion));
+            method.line(format!("        {}", conversion));
         }
 
         method.line("    },");
@@ -634,7 +634,7 @@ fn generate_git_keys(
             .map(|k| format!("\"{}\"", k))
             .collect::<Vec<_>>()
             .join(", ");
-        new_fn.line(&format!("    {}: vec![{}],", field_name, keys));
+        new_fn.line(format!("    {}: vec![{}],", field_name, keys));
     }
     new_fn.line("}");
 
@@ -668,7 +668,7 @@ fn generate_docs(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::
             for src in opt.sources.pkl.as_vec() {
                 doc.push_str(&format!("- `{}`\n", src));
             }
-            doc.push_str("\n");
+            doc.push('\n');
         }
 
         if !opt.sources.env.is_empty() {
@@ -676,7 +676,7 @@ fn generate_docs(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::
             for src in &opt.sources.env {
                 doc.push_str(&format!("- `{}`\n", src));
             }
-            doc.push_str("\n");
+            doc.push('\n');
         }
 
         if !opt.sources.git.is_empty() {
@@ -684,7 +684,7 @@ fn generate_docs(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::
             for src in &opt.sources.git {
                 doc.push_str(&format!("- `{}`\n", src));
             }
-            doc.push_str("\n");
+            doc.push('\n');
         }
 
         if !opt.sources.cli.is_empty() {
@@ -692,7 +692,7 @@ fn generate_docs(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::
             for src in &opt.sources.cli {
                 doc.push_str(&format!("- `{}`\n", src));
             }
-            doc.push_str("\n");
+            doc.push('\n');
         }
 
         if !opt.validate.enum_values.is_empty() {
@@ -700,7 +700,7 @@ fn generate_docs(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::
             for val in &opt.validate.enum_values {
                 doc.push_str(&format!("- `{}`\n", val));
             }
-            doc.push_str("\n");
+            doc.push('\n');
         }
     }
 
