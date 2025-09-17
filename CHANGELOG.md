@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.5](https://github.com/jdx/hk/compare/v1.13.4..v1.13.5) - 2025-09-17
+
+### 🔍 Other Changes
+
+- fix pkl release building by [@jdx](https://github.com/jdx) in [#278](https://github.com/jdx/hk/pull/278)
+
 ## [1.13.4](https://github.com/jdx/hk/compare/v1.13.3..v1.13.4) - 2025-09-17
 
 ### 🐛 Bug Fixes
