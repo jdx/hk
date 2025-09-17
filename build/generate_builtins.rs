@@ -30,9 +30,6 @@ pub fn generate(out_dir: &Path) -> Result<(), std::io::Error> {
     let dest_path = out_dir.join("builtins.rs");
     fs::write(dest_path, scope.to_string())?;
 
-    // Tell cargo to rerun if the builtins directory changes
-    println!("cargo:rerun-if-changed=pkl/builtins");
-
     Ok(())
 }
 

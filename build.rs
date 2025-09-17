@@ -4,19 +4,16 @@ mod build {
 }
 
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
 
-    // Generate builtins
+    println!("cargo:rerun-if-changed=pkl/builtins");
     build::generate_builtins::generate(&out_dir)?;
 
-    // Generate settings code if settings.toml exists
-    if Path::new("settings.toml").exists() {
-        println!("cargo:rerun-if-changed=settings.toml");
-        build::generate_settings::generate(&out_dir)?;
-    }
+    println!("cargo:rerun-if-changed=settings.toml");
+    build::generate_settings::generate(&out_dir)?;
 
     Ok(())
 }

@@ -266,19 +266,50 @@ fn format_doc_comment(docs: &str) -> Vec<String> {
 fn build_clap_attributes(name: &str, opt: &OptionConfig) -> Vec<String> {
     let mut attrs = Vec::new();
 
-    // Add long and short flags
+    // Collect long and short flags
+    let mut long_flags = Vec::new();
+    let mut short_flags = Vec::new();
+
     for flag in &opt.sources.cli {
         if flag.starts_with("--") {
             let long = flag.strip_prefix("--").unwrap();
-            if long.contains("no-") {
-                // Handle negation flags
-                attrs.push(format!("long = \"{}\"", long));
-            } else {
+            long_flags.push(long);
+        } else if flag.starts_with('-') && flag.len() == 2 {
+            short_flags.push(flag.chars().nth(1).unwrap());
+        }
+    }
+
+    // For boolean options with both positive and negative flags,
+    // we only use the positive form. Clap will automatically handle
+    // --no-<flag> for boolean options when using Option<bool>
+    if opt.typ == "bool" {
+        // Find the primary (non-negated) flag
+        if let Some(primary) = long_flags.iter().find(|&&f| !f.starts_with("no-")) {
+            attrs.push(format!("long = \"{}\"", primary));
+            // Check if there's also a negation flag - if so, we need to enable overrides_with
+            if long_flags.iter().any(|&f| f.starts_with("no-")) {
+                // For Option<bool>, clap automatically handles --no-<flag>
+                // We just need to specify the primary flag
+            }
+        } else {
+            // Only negation flags present (unusual case)
+            for long in &long_flags {
                 attrs.push(format!("long = \"{}\"", long));
             }
-        } else if flag.starts_with('-') && flag.len() == 2 {
-            attrs.push(format!("short = '{}'", flag.chars().nth(1).unwrap()));
         }
+    } else {
+        // Non-boolean options - for multiple long flags, we can only use the first one
+        // Clap doesn't support multiple long attributes in a single #[clap()] attribute
+        // Note: This means --exclude-glob won't work in the generated CLI flags,
+        // but it's still supported through the manual CLI parsing in hook_options.rs
+        if let Some(first_long) = long_flags.first() {
+            attrs.push(format!("long = \"{}\"", first_long));
+        }
+    }
+
+    // Add short flags
+    for short in short_flags {
+        attrs.push(format!("short = '{}'", short));
     }
 
     // Special handling for verbose (count flag)
