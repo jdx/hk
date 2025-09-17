@@ -174,12 +174,22 @@ fn generate_cli_flags(
         }
 
         // Add field with attributes
+        // Format documentation for Rust doc comments, handling multiline properly
+        let doc_lines: Vec<String> = opt
+            .docs
+            .replace('`', "") // Remove backticks to avoid syntax issues
+            .replace('\'', "") // Remove single quotes that might cause issues
+            .lines()
+            .map(|line| format!("    /// {}", line.trim()))
+            .collect();
+        let doc_string = doc_lines.join("\n");
+
         let field_definition = if attrs.is_empty() {
-            format!("/// {}\npub {}", opt.docs, field_name)
+            format!("{}\n    pub {}", doc_string, field_name)
         } else {
             format!(
-                "/// {}\n#[clap({})]\npub {}",
-                opt.docs,
+                "{}\n    #[clap({})]\n    pub {}",
+                doc_string,
                 attrs.join(", "),
                 field_name
             )
@@ -211,6 +221,10 @@ fn rust_type(typ: &str, _name: &str) -> String {
 }
 
 fn is_nullable(opt: &OptionConfig) -> bool {
+    // List types default to empty if no default is specified
+    if opt.typ.starts_with("list<") {
+        return false;
+    }
     opt.default.is_none()
 }
 
