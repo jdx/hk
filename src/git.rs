@@ -517,10 +517,53 @@ impl Git {
         // partially staged files are handled correctly even when detection is flaky
         // under pre-commit environments.
         if let Some(paths) = files_subset {
+            // Detect whether there are any worktree-only changes limited to the requested paths.
+            // This guards against cases where `git stash --keep-index -- <paths>` prints
+            // "No unstaged changes to stash" even though there are partially-staged hunks.
+            let mut any_unstaged = false;
+            // 1) diff (worktree vs index)
+            {
+                let mut args: Vec<OsString> = vec![
+                    "diff".into(),
+                    "--name-only".into(),
+                    "-z".into(),
+                    "--no-ext-diff".into(),
+                    "--ignore-submodules".into(),
+                ];
+                args.push("--".into());
+                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+                let out = git_read(args).unwrap_or_default();
+                any_unstaged |= out.split('\0').any(|s| !s.is_empty());
+            }
+            // 2) ls-files -m (modified in worktree)
+            if !any_unstaged {
+                let mut args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
+                args.push("--".into());
+                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+                let out = git_read(args).unwrap_or_default();
+                any_unstaged |= out.split('\0').any(|s| !s.is_empty());
+            }
+            // 3) Intersect with previously computed status for extra safety
+            if !any_unstaged {
+                any_unstaged = paths
+                    .iter()
+                    .any(|p| status.unstaged_modified_files.contains(p));
+            }
+
             job.prop("message", "Running git stash for selected paths");
             job.update();
-        self.stash = self.push_stash(Some(paths), status, method)?;
+            self.stash = self.push_stash(Some(paths), status, method)?;
+
             if self.stash.is_none() {
+                // If we detected worktree-only changes but couldn't form either a real stash
+                // or a patch-file fallback, abort to avoid committing unintended hunks.
+                if any_unstaged {
+                    job.prop("message", "Failed to isolate unstaged changes; aborting");
+                    job.set_status(ProgressStatus::Failed);
+                    return Err(eyre!(
+                        "detected unstaged changes for selected paths but could not create stash/patch"
+                    ));
+                }
                 job.prop("message", "No unstaged changes to stash");
                 job.prop("files", &0);
                 job.set_status(ProgressStatus::Done);
@@ -651,7 +694,9 @@ impl Git {
             // If partial paths requested, force shell git path since libgit2 does not support it
             if let Some(paths) = tracked_subset.as_deref() {
                 // Detect stash creation by comparing refs/stash before and after
-                let before = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"]).read().ok();
+                let before = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
+                    .read()
+                    .ok();
                 let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
                 if *env::HK_STASH_UNTRACKED {
                     cmd = cmd.arg("--include-untracked");
@@ -662,7 +707,9 @@ impl Git {
                     cmd = cmd.args(utf8_paths);
                 }
                 cmd.run()?;
-                let after = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"]).read().ok();
+                let after = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
+                    .read()
+                    .ok();
                 if before != after {
                     Ok(Some(StashType::Git))
                 } else if matches!(method, StashMethod::PatchFile | StashMethod::Git) {
@@ -676,13 +723,17 @@ impl Git {
                     Ok(_) => Ok(Some(StashType::LibGit)),
                     Err(e) => {
                         debug!("libgit2 stash failed, falling back to shell git: {e}");
-                        let before = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"]).read().ok();
+                        let before = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
+                            .read()
+                            .ok();
                         let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
                         if *env::HK_STASH_UNTRACKED {
                             cmd = cmd.arg("--include-untracked");
                         }
                         cmd.run()?;
-                        let after = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"]).read().ok();
+                        let after = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
+                            .read()
+                            .ok();
                         if before != after {
                             Ok(Some(StashType::Git))
                         } else if matches!(method, StashMethod::PatchFile | StashMethod::Git) {
@@ -698,7 +749,9 @@ impl Git {
                 }
             }
         } else {
-            let before = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"]).read().ok();
+            let before = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
+                .read()
+                .ok();
             let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
             if *env::HK_STASH_UNTRACKED {
                 cmd = cmd.arg("--include-untracked");
@@ -711,7 +764,9 @@ impl Git {
                 }
             }
             cmd.run()?;
-            let after = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"]).read().ok();
+            let after = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
+                .read()
+                .ok();
             if before != after {
                 Ok(Some(StashType::Git))
             } else if matches!(method, StashMethod::PatchFile | StashMethod::Git) {
@@ -750,7 +805,9 @@ impl Git {
         patch_path.push(format!("hk-stash-{}.patch", ts));
         xx::file::write(&patch_path, patch)?;
         // Remove the unstaged changes from worktree by checking out the index version
-        let _ = git_cmd(["checkout", "--"]).args(utf8_paths.iter().map(|s| s.as_str())).run();
+        let _ = git_cmd(["checkout", "--"])
+            .args(utf8_paths.iter().map(|s| s.as_str()))
+            .run();
         Ok(Some(StashType::PatchFile(patch_path)))
     }
 
@@ -972,7 +1029,9 @@ impl Git {
         // Re-stage any files explicitly staged by steps so their fixer content remains in the index
         if !self.restaged_paths.is_empty() {
             let restaged: Vec<PathBuf> = self.restaged_paths.iter().cloned().collect();
-            let _ = git_cmd(["add", "--"]).args(restaged.iter().map(|p| p.as_path())).run();
+            let _ = git_cmd(["add", "--"])
+                .args(restaged.iter().map(|p| p.as_path()))
+                .run();
         }
         // Debug: show staged files after cleanup
         let out_clean = git_read([
