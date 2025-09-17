@@ -1,10 +1,17 @@
 # Changelog
 
+## [1.13.6](https://github.com/jdx/hk/compare/v1.13.5..v1.13.6) - 2025-09-17
+
+### 🔍 Other Changes
+
+- fix build-pkl upload path to use mise dist (docs/public/pkl) by [@jdx](https://github.com/jdx) in [6745830](https://github.com/jdx/hk/commit/6745830a9f5f4bb949216b682ba501119aa4262f)
+
 ## [1.13.5](https://github.com/jdx/hk/compare/v1.13.4..v1.13.5) - 2025-09-17
 
 ### 🔍 Other Changes
 
 - fix pkl release building by [@jdx](https://github.com/jdx) in [#278](https://github.com/jdx/hk/pull/278)
+- enable cache for release-plz by [@jdx](https://github.com/jdx) in [85195fa](https://github.com/jdx/hk/commit/85195fadfcaa50137d3807b165d924bcabbc6d0a)
 
 ## [1.13.4](https://github.com/jdx/hk/compare/v1.13.3..v1.13.4) - 2025-09-17
 
