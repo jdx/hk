@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "HK Settings Registry",
+  "description": "Internal options registry used for codegen (not user-edited config)",
+  "type": "object",
+  "patternProperties": {
+    "^[a-z][a-z0-9_]*$": {
+      "type": "object",
+      "required": ["type", "docs"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["bool", "int", "string", "path", "enum", "list<string>"],
+          "description": "The data type of the option"
+        },
+        "default": {
+          "description": "Default value for the option. Absence indicates nullable/optional."
+        },
+        "merge": {
+          "type": "string",
+          "enum": ["replace", "union"],
+          "default": "replace",
+          "description": "Merge strategy when values come from multiple sources"
+        },
+        "sources": {
+          "type": "object",
+          "description": "Configuration sources for this option",
+          "properties": {
+            "pkl": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ],
+              "description": "PKL configuration path(s)"
+            },
+            "env": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Environment variable names"
+            },
+            "git": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Git config keys"
+            },
+            "cli": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "CLI flag names"
+            }
+          }
+        },
+        "validate": {
+          "type": "object",
+          "properties": {
+            "enum": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Valid enum values for enum types"
+            }
+          }
+        },
+        "docs": {
+          "type": "string",
+          "description": "Documentation for this option"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}

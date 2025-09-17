@@ -2,261 +2,261 @@
 # This is an internal options registry used for codegen (not user-edited config).
 # It defines all configuration options and their sources, merge policies, and documentation.
 
-[option.jobs]
-type = "int"
-default = 0  # 0 means auto-detect from environment or CPU count
+[jobs]
+default     = 0                                                              # 0 means auto-detect from environment or CPU count
+docs        = "Maximum number of parallel jobs to run. 0 means auto-detect."
+sources.cli = [ "--jobs", "-j" ]
+sources.env = [ "HK_JOBS", "HK_JOB" ]
+sources.git = [ "hk.jobs" ]
 sources.pkl = "defaults.jobs"
-sources.env = ["HK_JOBS", "HK_JOB"]
-sources.git = ["hk.jobs"]
-sources.cli = ["--jobs", "-j"]
-docs = "Maximum number of parallel jobs to run. 0 means auto-detect."
+type        = "int"
 
-[option.fail_fast]
-type = "bool"
-default = true
-sources.pkl = ["fail_fast", "defaults.fail_fast"]
-sources.env = ["HK_FAIL_FAST"]
-sources.git = ["hk.failFast"]
-sources.cli = ["--fail-fast", "--no-fail-fast"]
-docs = "Abort execution on first failure."
+[fail_fast]
+default     = true
+docs        = "Abort execution on first failure."
+sources.cli = [ "--fail-fast", "--no-fail-fast" ]
+sources.env = [ "HK_FAIL_FAST" ]
+sources.git = [ "hk.failFast" ]
+sources.pkl = [ "fail_fast", "defaults.fail_fast" ]
+type        = "bool"
 
-[option.warnings]
-type = "list<string>"
-default = []
+[warnings]
+default     = [  ]
+docs        = "Warning tags to enable/show."
+sources.env = [ "HK_WARNINGS" ]
+sources.git = [ "hk.warnings" ]
 sources.pkl = "warnings"
-sources.env = ["HK_WARNINGS"]
-sources.git = ["hk.warnings"]
-docs = "Warning tags to enable/show."
+type        = "list<string>"
 
-[option.hide_warnings]
-type = "list<string>"
-default = []
-merge = "union"
+[hide_warnings]
+default     = [  ]
+docs        = "Warning tags to hide (union across sources)."
+merge       = "union"
+sources.env = [ "HK_HIDE_WARNINGS" ]
+sources.git = [ "hk.hideWarnings" ]
 sources.pkl = "hide_warnings"
-sources.env = ["HK_HIDE_WARNINGS"]
-sources.git = ["hk.hideWarnings"]
-docs = "Warning tags to hide (union across sources)."
+type        = "list<string>"
 
-[option.exclude]
-type = "list<string>"
-default = []
-merge = "union"
+[exclude]
+default     = [  ]
+docs        = "Glob patterns to exclude from processing (union across sources)."
+merge       = "union"
+sources.cli = [ "--exclude", "--exclude-glob", "-e" ]
+sources.env = [ "HK_EXCLUDE" ]
+sources.git = [ "hk.exclude", "hk.excludeGlob" ]
 sources.pkl = "defaults.exclude"
-sources.env = ["HK_EXCLUDE"]
-sources.git = ["hk.exclude", "hk.excludeGlob"]
-sources.cli = ["--exclude", "--exclude-glob", "-e"]
-docs = "Glob patterns to exclude from processing (union across sources)."
+type        = "list<string>"
 
-[option.skip_steps]
-type = "list<string>"
-default = []
-merge = "union"
+[skip_steps]
+default     = [  ]
+docs        = "Skip specific steps across all hooks (union across sources)."
+merge       = "union"
+sources.cli = [ "--skip-step" ]
+sources.env = [ "HK_SKIP_STEPS", "HK_SKIP_STEP" ]
+sources.git = [ "hk.skipSteps", "hk.skipStep" ]
 sources.pkl = "defaults.skip_steps"
-sources.env = ["HK_SKIP_STEPS", "HK_SKIP_STEP"]
-sources.git = ["hk.skipSteps", "hk.skipStep"]
-sources.cli = ["--skip-step"]
-docs = "Skip specific steps across all hooks (union across sources)."
+type        = "list<string>"
 
-[option.skip_hooks]
-type = "list<string>"
-default = []
-merge = "union"
+[skip_hooks]
+default     = [  ]
+docs        = "Skip entire hooks (union across sources)."
+merge       = "union"
+sources.env = [ "HK_SKIP_HOOK", "HK_SKIP_HOOKS" ]
+sources.git = [ "hk.skipHooks", "hk.skipHook" ]
 sources.pkl = "defaults.skip_hooks"
-sources.env = ["HK_SKIP_HOOK", "HK_SKIP_HOOKS"]
-sources.git = ["hk.skipHooks", "hk.skipHook"]
-docs = "Skip entire hooks (union across sources)."
+type        = "list<string>"
 
-[option.profiles]
-type = "list<string>"
-default = []
+[profiles]
+default     = [  ]
+docs        = "Profiles to enable/disable. Prefix with '!' to disable."
+sources.cli = [ "--profile", "-p" ]
+sources.env = [ "HK_PROFILE", "HK_PROFILES" ]
+sources.git = [ "hk.profile" ]
 sources.pkl = "defaults.profiles"
-sources.env = ["HK_PROFILE", "HK_PROFILES"]
-sources.git = ["hk.profile"]
-sources.cli = ["--profile", "-p"]
-docs = "Profiles to enable/disable. Prefix with '!' to disable."
+type        = "list<string>"
 
-[option.slow]
-type = "bool"
-default = false
-sources.cli = ["--slow", "-s"]
-docs = "Enable slow mode. Shorthand for --profile=slow."
+[slow]
+default     = false
+docs        = "Enable slow mode. Shorthand for --profile=slow."
+sources.cli = [ "--slow", "-s" ]
+type        = "bool"
 
-[option.all]
-type = "bool"
-default = false
-sources.cli = ["--all", "-a"]
-docs = "Run on all files instead of just staged files."
+[all]
+default     = false
+docs        = "Run on all files instead of just staged files."
+sources.cli = [ "--all", "-a" ]
+type        = "bool"
 
-[option.fix]
-type = "bool"
-default = true
-sources.env = ["HK_FIX"]
-sources.git = ["hk.fix"]
-sources.cli = ["--fix", "-f"]
-docs = "Run fix command instead of check command."
+[fix]
+default     = true
+docs        = "Run fix command instead of check command."
+sources.cli = [ "--fix", "-f" ]
+sources.env = [ "HK_FIX" ]
+sources.git = [ "hk.fix" ]
+type        = "bool"
 
-[option.check]
-type = "bool"
-default = false
-sources.env = ["HK_CHECK"]
-sources.git = ["hk.check"]
-sources.cli = ["--check", "-c"]
-docs = "Run check command instead of fix command."
+[check]
+default     = false
+docs        = "Run check command instead of fix command."
+sources.cli = [ "--check", "-c" ]
+sources.env = [ "HK_CHECK" ]
+sources.git = [ "hk.check" ]
+type        = "bool"
 
-[option.check_first]
-type = "bool"
-default = true
-sources.env = ["HK_CHECK_FIRST"]
-sources.git = ["hk.checkFirst"]
-docs = "Run check before fix."
+[check_first]
+default     = true
+docs        = "Run check before fix."
+sources.env = [ "HK_CHECK_FIRST" ]
+sources.git = [ "hk.checkFirst" ]
+type        = "bool"
 
-[option.stash]
-type = "enum"
-default = "auto"
-sources.env = ["HK_STASH"]
-sources.git = ["hk.stash"]
-sources.cli = ["--stash"]
-validate.enum = ["auto", "git", "patch-file", "none"]
-docs = "Stash method to use for git hooks."
+[stash]
+default       = "auto"
+docs          = "Stash method to use for git hooks."
+sources.cli   = [ "--stash" ]
+sources.env   = [ "HK_STASH" ]
+sources.git   = [ "hk.stash" ]
+type          = "enum"
+validate.enum = [ "auto", "git", "patch-file", "none" ]
 
-[option.stash_untracked]
-type = "bool"
-default = true
-sources.env = ["HK_STASH_UNTRACKED"]
-sources.git = ["hk.stashUntracked"]
-docs = "Include untracked files when stashing."
+[stash_untracked]
+default     = true
+docs        = "Include untracked files when stashing."
+sources.env = [ "HK_STASH_UNTRACKED" ]
+sources.git = [ "hk.stashUntracked" ]
+type        = "bool"
 
-[option.display_skip_reasons]
-type = "list<string>"
-default = ["profile-not-enabled"]
+[display_skip_reasons]
+default     = [ "profile-not-enabled" ]
+docs        = "Which skip reasons to display. Options: all, none, disabled-by-config, profile-not-enabled."
+sources.env = [ "HK_DISPLAY_SKIP_REASONS" ]
+sources.git = [ "hk.displaySkipReasons" ]
 sources.pkl = "display_skip_reasons"
-sources.env = ["HK_DISPLAY_SKIP_REASONS"]
-sources.git = ["hk.displaySkipReasons"]
-docs = "Which skip reasons to display. Options: all, none, disabled-by-config, profile-not-enabled."
+type        = "list<string>"
 
-[option.hkrc]
-type = "path"
-default = ".hkrc.pkl"
-sources.cli = ["--hkrc"]
-docs = "Path to user configuration file."
+[hkrc]
+default     = ".hkrc.pkl"
+docs        = "Path to user configuration file."
+sources.cli = [ "--hkrc" ]
+type        = "path"
 
-[option.verbose]
-type = "int"
-default = 0
-sources.cli = ["--verbose", "-v"]
-docs = "Verbose output level."
+[verbose]
+default     = 0
+docs        = "Verbose output level."
+sources.cli = [ "--verbose", "-v" ]
+type        = "int"
 
-[option.quiet]
-type = "bool"
-default = false
-sources.cli = ["--quiet", "-q"]
-docs = "Suppress output."
+[quiet]
+default     = false
+docs        = "Suppress output."
+sources.cli = [ "--quiet", "-q" ]
+type        = "bool"
 
-[option.silent]
-type = "bool"
-default = false
-sources.cli = ["--silent"]
-docs = "Suppress all output."
+[silent]
+default     = false
+docs        = "Suppress all output."
+sources.cli = [ "--silent" ]
+type        = "bool"
 
-[option.no_progress]
-type = "bool"
-default = false
-sources.cli = ["--no-progress"]
-docs = "Disable progress output."
+[no_progress]
+default     = false
+docs        = "Disable progress output."
+sources.cli = [ "--no-progress" ]
+type        = "bool"
 
-[option.trace]
-type = "enum"
-default = "off"
-sources.env = ["HK_TRACE"]
-sources.git = ["hk.trace"]
-sources.cli = ["--trace"]
-validate.enum = ["off", "text", "json", "1", "true"]
-docs = "Enable tracing spans and performance diagnostics."
+[trace]
+default       = "off"
+docs          = "Enable tracing spans and performance diagnostics."
+sources.cli   = [ "--trace" ]
+sources.env   = [ "HK_TRACE" ]
+sources.git   = [ "hk.trace" ]
+type          = "enum"
+validate.enum = [ "off", "text", "json", "1", "true" ]
 
-[option.json]
-type = "bool"
-default = false
-sources.env = ["HK_JSON"]
-sources.git = ["hk.json"]
-sources.cli = ["--json"]
-docs = "Output in JSON format."
+[json]
+default     = false
+docs        = "Output in JSON format."
+sources.cli = [ "--json" ]
+sources.env = [ "HK_JSON" ]
+sources.git = [ "hk.json" ]
+type        = "bool"
 
-[option.plan]
-type = "bool"
-default = false
-sources.cli = ["--plan", "-P"]
-docs = "Print the plan instead of executing."
+[plan]
+default     = false
+docs        = "Print the plan instead of executing."
+sources.cli = [ "--plan", "-P" ]
+type        = "bool"
 
-[option.hide_when_done]
-type = "bool"
-default = false
-sources.env = ["HK_HIDE_WHEN_DONE"]
-docs = "Hide output after successful completion."
+[hide_when_done]
+default     = false
+docs        = "Hide output after successful completion."
+sources.env = [ "HK_HIDE_WHEN_DONE" ]
+type        = "bool"
 
-[option.mise]
-type = "bool"
-default = false
-sources.env = ["HK_MISE"]
-docs = "Enable mise integration."
+[mise]
+default     = false
+docs        = "Enable mise integration."
+sources.env = [ "HK_MISE" ]
+type        = "bool"
 
-[option.libgit2]
-type = "bool"
-default = true
-sources.env = ["HK_LIBGIT2"]
-docs = "Use libgit2 instead of git CLI commands."
+[libgit2]
+default     = true
+docs        = "Use libgit2 instead of git CLI commands."
+sources.env = [ "HK_LIBGIT2" ]
+type        = "bool"
 
-[option.summary_text]
-type = "bool"
-default = false
-sources.env = ["HK_SUMMARY_TEXT"]
-docs = "Allow output summaries to be printed in text mode."
+[summary_text]
+default     = false
+docs        = "Allow output summaries to be printed in text mode."
+sources.env = [ "HK_SUMMARY_TEXT" ]
+type        = "bool"
 
-[option.timing_json]
-type = "path"
-sources.env = ["HK_TIMING_JSON"]
-docs = "Path to write JSON timing report after hook finishes."
+[timing_json]
+docs        = "Path to write JSON timing report after hook finishes."
+sources.env = [ "HK_TIMING_JSON" ]
+type        = "path"
 
-[option.log_level]
-type = "enum"
-default = "info"
-sources.env = ["HK_LOG", "HK_LOG_LEVEL"]
-validate.enum = ["off", "error", "warn", "info", "debug", "trace"]
-docs = "Log level for console output."
+[log_level]
+default       = "info"
+docs          = "Log level for console output."
+sources.env   = [ "HK_LOG", "HK_LOG_LEVEL" ]
+type          = "enum"
+validate.enum = [ "off", "error", "warn", "info", "debug", "trace" ]
 
-[option.log_file_level]
-type = "enum"
-default = "info"
-sources.env = ["HK_LOG_FILE_LEVEL"]
-validate.enum = ["off", "error", "warn", "info", "debug", "trace"]
-docs = "Log level for file output."
+[log_file_level]
+default       = "info"
+docs          = "Log level for file output."
+sources.env   = [ "HK_LOG_FILE_LEVEL" ]
+type          = "enum"
+validate.enum = [ "off", "error", "warn", "info", "debug", "trace" ]
 
-[option.log_file]
-type = "path"
-sources.env = ["HK_LOG_FILE"]
-docs = "Path to log file."
+[log_file]
+docs        = "Path to log file."
+sources.env = [ "HK_LOG_FILE" ]
+type        = "path"
 
-[option.cache_dir]
-type = "path"
-sources.env = ["HK_CACHE_DIR"]
-docs = "Directory for cache files."
+[cache_dir]
+docs        = "Directory for cache files."
+sources.env = [ "HK_CACHE_DIR" ]
+type        = "path"
 
-[option.state_dir]
-type = "path"
-sources.env = ["HK_STATE_DIR"]
-docs = "Directory for state files."
+[state_dir]
+docs        = "Directory for state files."
+sources.env = [ "HK_STATE_DIR" ]
+type        = "path"
 
-[option.from_ref]
-type = "string"
-sources.cli = ["--from-ref"]
-docs = "Start reference for checking files."
+[from_ref]
+docs        = "Start reference for checking files."
+sources.cli = [ "--from-ref" ]
+type        = "string"
 
-[option.to_ref]
-type = "string"
-sources.cli = ["--to-ref"]
-docs = "End reference for checking files."
+[to_ref]
+docs        = "End reference for checking files."
+sources.cli = [ "--to-ref" ]
+type        = "string"
 
-[option.glob]
-type = "list<string>"
-default = []
-sources.cli = ["--glob", "-g"]
-docs = "Run on files that match these glob patterns."
+[glob]
+default     = [  ]
+docs        = "Run on files that match these glob patterns."
+sources.cli = [ "--glob", "-g" ]
+type        = "list<string>"

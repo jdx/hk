@@ -32,6 +32,11 @@ local linters = new Mapping<String, Step | Group> {
     ["prettier"] = (Builtins.prettier) {
         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
     }
+    ["taplo"] = new Step {
+        glob = "settings.toml"
+        check = "taplo fmt --check {{files}} && taplo lint {{files}}"
+        fix = "taplo fmt {{files}}"
+    }
     ["docs"] = new Step {
         glob = "docs/**"
         check = "mise run docs:build"

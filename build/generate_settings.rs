@@ -6,7 +6,8 @@ use std::path::Path;
 
 #[derive(Debug, Deserialize)]
 pub struct SettingsRegistry {
-    pub option: IndexMap<String, OptionConfig>,
+    #[serde(flatten)]
+    pub options: IndexMap<String, OptionConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -98,7 +99,6 @@ fn generate_settings_module(
     // Add imports
     scope.raw("#[allow(dead_code)]");
     scope.import("indexmap", "IndexSet");
-    scope.import("std::num", "NonZero");
     scope.import("std::path", "PathBuf");
 
     // Generate the Settings struct
@@ -108,7 +108,7 @@ fn generate_settings_module(
         .derive("Clone")
         .vis("pub");
 
-    for (name, opt) in &registry.option {
+    for (name, opt) in &registry.options {
         let field_name = name.replace('-', "_");
         let base_type = rust_type(&opt.typ, name);
         let field_type = if is_nullable(opt) {
@@ -145,7 +145,7 @@ fn generate_cli_flags(
         .derive("Default")
         .vis("pub");
 
-    for (name, opt) in &registry.option {
+    for (name, opt) in &registry.options {
         if opt.sources.cli.is_empty() {
             continue;
         }
@@ -198,16 +198,10 @@ fn generate_cli_flags(
     Ok(())
 }
 
-fn rust_type(typ: &str, name: &str) -> String {
+fn rust_type(typ: &str, _name: &str) -> String {
     match typ {
         "bool" => "bool".to_string(),
-        "int" => {
-            if name == "jobs" || name == "verbose" {
-                "NonZero<usize>".to_string()
-            } else {
-                "usize".to_string()
-            }
-        }
+        "int" => "usize".to_string(), // Use usize for all ints, including jobs and verbose
         "string" => "String".to_string(),
         "path" => "PathBuf".to_string(),
         "enum" => "String".to_string(),
