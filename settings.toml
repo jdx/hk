@@ -148,7 +148,7 @@ This file can override project-level settings and is useful for personal prefere
 
 [jobs]
 type = "int"
-default = 0  # 0 means auto-detect from environment or CPU count
+default = 0 # 0 means auto-detect from environment or CPU count
 sources.cli = ["--jobs", "-j"]
 sources.env = ["HK_JOBS", "HK_JOB"]
 sources.git = ["hk.jobs"]
