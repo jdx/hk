@@ -120,7 +120,6 @@ fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
-    #[allow(dead_code)]
     root: PathBuf,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
 }
@@ -607,8 +606,6 @@ impl Git {
         // }
         job.prop("message", "Running git stash");
         job.update();
-        // Treat PatchFile as an alias of Git for now
-        let _alias = method == StashMethod::PatchFile;
         self.stash = self.push_stash(None, status)?;
         if self.stash.is_none() {
             job.prop("message", "No unstaged files to stash");
