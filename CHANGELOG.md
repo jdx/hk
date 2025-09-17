@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.7](https://github.com/jdx/hk/compare/v1.13.6..v1.13.7) - 2025-09-17
+
+### 🔍 Other Changes
+
+- include all Pkl package files (zip, sha256, and raw) in artifact and release by jdx in [1df62e0](https://github.com/jdx/hk/commit/1df62e0031efaaeca780a9e1c7e05c1cda635fd1)
+
 ## [1.13.6](https://github.com/jdx/hk/compare/v1.13.5..v1.13.6) - 2025-09-17
 
 ### 🔍 Other Changes
