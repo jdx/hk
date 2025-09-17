@@ -104,7 +104,12 @@ fn generate_settings_module(
 
     for (name, opt) in &registry.option {
         let field_name = name.replace('-', "_");
-        let field_type = rust_type(&opt.typ, name);
+        let base_type = rust_type(&opt.typ, name);
+        let field_type = if is_nullable(opt) {
+            format!("Option<{}>", base_type)
+        } else {
+            base_type
+        };
         settings_struct
             .field(&format!("pub {}", field_name), &field_type)
             .doc(&opt.docs);
@@ -202,6 +207,13 @@ fn rust_type(typ: &str, name: &str) -> String {
         "enum" => "String".to_string(),
         typ if typ.starts_with("list<string>") => "IndexSet<String>".to_string(),
         _ => "String".to_string(),
+    }
+}
+
+fn is_nullable(opt: &OptionConfig) -> bool {
+    match &opt.default {
+        toml::Value::String(s) if s.is_empty() => true,
+        _ => false,
     }
 }
 
