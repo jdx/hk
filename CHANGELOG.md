@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.1](https://github.com/jdx/hk/compare/v1.13.0..v1.13.1) - 2025-09-17
+
+### 🐛 Bug Fixes
+
+- correct pkl package artifact path in release workflow by [@jdx](https://github.com/jdx) in [#271](https://github.com/jdx/hk/pull/271)
+
 ## [1.13.0](https://github.com/jdx/hk/compare/v1.12.1..v1.13.0) - 2025-09-17
 
 ### 🚀 Features
@@ -8,6 +14,10 @@
 - add tracing and performance diagnostics support by [@jdx](https://github.com/jdx) in [#259](https://github.com/jdx/hk/pull/259)
 - comprehensive configuration unification with proper precedence and union semantics by [@jdx](https://github.com/jdx) in [#266](https://github.com/jdx/hk/pull/266)
 - centralized skip configuration for steps and hooks by [@jdx](https://github.com/jdx) in [#268](https://github.com/jdx/hk/pull/268)
+
+### 🐛 Bug Fixes
+
+- pre-commit partial staging: honor env stash, alias patch-file, robust partial stash by [@jdx](https://github.com/jdx) in [#267](https://github.com/jdx/hk/pull/267)
 
 ### 📚 Documentation
 
