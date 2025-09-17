@@ -247,92 +247,13 @@ impl Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let override_settings = SETTINGS_OVERRIDE.lock().unwrap();
+        // Use the systematic merge logic via SettingsBuilder with programmatic overrides
+        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
 
-        // Start with the generated default
-        let mut inner = generated::settings::GeneratedSettings::default();
+        let mut builder = SettingsBuilder::new().from_env().from_git();
+        builder.programmatic_overrides = programmatic_overrides;
 
-        // Handle profiles with proper precedence: CLI > env > defaults
-        let mut all_profiles: IndexSet<String> = IndexSet::new();
-
-        // Start with environment profiles
-        all_profiles.extend(env::HK_PROFILE.iter().cloned());
-
-        // Apply CLI profile overrides (union semantics)
-        if let Some(ref cli_profiles) = override_settings.profiles {
-            all_profiles.extend(cli_profiles.iter().cloned());
-        }
-        inner.profiles = all_profiles;
-
-        // Handle display_skip_reasons with precedence
-        if let Some(ref reasons) = override_settings.display_skip_reasons {
-            inner.display_skip_reasons = reasons.clone();
-        }
-
-        // Handle hide_warnings with union semantics
-        let mut hide_warnings = override_settings
-            .hide_warnings
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        // Always add environment hide_warnings (union semantics)
-        hide_warnings.extend(env::HK_HIDE_WARNINGS.iter().cloned());
-        inner.hide_warnings = hide_warnings;
-
-        // Handle warnings, filtering out hidden ones
-        let mut warnings = override_settings
-            .warnings
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        warnings.retain(|tag| !inner.hide_warnings.contains(tag));
-        inner.warnings = warnings;
-
-        // Handle exclude with union semantics
-        let mut exclude = override_settings
-            .exclude
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        // Always add environment excludes (union semantics)
-        exclude.extend(env::HK_EXCLUDE.iter().cloned());
-        inner.exclude = exclude;
-
-        // Handle skip_steps with union semantics
-        let mut skip_steps = override_settings
-            .skip_steps
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        // Always add environment skip_steps (union semantics)
-        skip_steps.extend(env::HK_SKIP_STEPS.iter().cloned());
-        inner.skip_steps = skip_steps;
-
-        // Handle skip_hooks with union semantics
-        let mut skip_hooks = override_settings
-            .skip_hooks
-            .as_ref()
-            .cloned()
-            .unwrap_or_default();
-        // Always add environment skip_hooks (union semantics)
-        skip_hooks.extend(env::HK_SKIP_HOOK.iter().cloned());
-        inner.skip_hooks = skip_hooks;
-
-        // Handle jobs with precedence: CLI > env > default
-        let jobs_value = override_settings.jobs.unwrap_or_else(|| env::HK_JOBS.get());
-        inner.jobs = jobs_value;
-
-        // Handle fail_fast with precedence: CLI > env > default
-        if let Some(fail_fast) = override_settings.fail_fast.or_else(|| *env::HK_FAIL_FAST) {
-            inner.fail_fast = fail_fast;
-        }
-
-        // Handle all with precedence: CLI > default
-        if let Some(all) = override_settings.all {
-            inner.all = all;
-        }
-
-        Self { inner }
+        builder.build()
     }
 }
 
