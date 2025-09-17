@@ -81,6 +81,10 @@ pub static HK_FAIL_FAST: LazyLock<Option<bool>> = LazyLock::new(|| var_bool("HK_
 pub static HK_HIDE_WARNINGS: LazyLock<IndexSet<String>> =
     LazyLock::new(|| var_csv("HK_HIDE_WARNINGS").unwrap_or_default());
 
+// Exclude patterns - comma-separated list of glob patterns to exclude from processing
+pub static HK_EXCLUDE: LazyLock<IndexSet<String>> =
+    LazyLock::new(|| var_csv("HK_EXCLUDE").unwrap_or_default());
+
 // When true, allow output summaries to be printed in text mode
 pub static HK_SUMMARY_TEXT: LazyLock<bool> = LazyLock::new(|| var_true("HK_SUMMARY_TEXT"));
 

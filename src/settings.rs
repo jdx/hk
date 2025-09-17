@@ -17,6 +17,9 @@ pub struct Settings {
     pub fail_fast: bool,
     pub display_skip_reasons: HashSet<String>,
     pub warnings: IndexSet<String>,
+    pub exclude: IndexSet<String>,
+    pub skip_steps: IndexSet<String>,
+    pub skip_hooks: IndexSet<String>,
 }
 
 static JOBS: LazyLock<Mutex<Option<NonZero<usize>>>> = LazyLock::new(Default::default);
@@ -33,6 +36,9 @@ static DISPLAY_SKIP_REASONS: LazyLock<Mutex<Option<HashSet<String>>>> =
     LazyLock::new(Default::default);
 static WARNINGS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
 static HIDE_WARNINGS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
+static EXCLUDE: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
+static SKIP_STEPS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
+static SKIP_HOOKS: LazyLock<Mutex<Option<IndexSet<String>>>> = LazyLock::new(Default::default);
 
 impl Settings {
     pub fn get() -> Settings {
@@ -99,6 +105,42 @@ impl Settings {
     pub fn set_hide_warnings(hide_warnings: IndexSet<String>) {
         *HIDE_WARNINGS.lock().unwrap() = Some(hide_warnings);
     }
+
+    pub fn add_exclude<I, S>(patterns: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut exclude = EXCLUDE.lock().unwrap();
+        let set = exclude.get_or_insert_with(IndexSet::new);
+        for pattern in patterns {
+            set.insert(pattern.as_ref().to_string());
+        }
+    }
+
+    pub fn add_skip_steps<I, S>(steps: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut skip_steps = SKIP_STEPS.lock().unwrap();
+        let set = skip_steps.get_or_insert_with(IndexSet::new);
+        for step in steps {
+            set.insert(step.as_ref().to_string());
+        }
+    }
+
+    pub fn add_skip_hooks<I, S>(hooks: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let mut skip_hooks = SKIP_HOOKS.lock().unwrap();
+        let set = skip_hooks.get_or_insert_with(IndexSet::new);
+        for hook in hooks {
+            set.insert(hook.as_ref().to_string());
+        }
+    }
 }
 
 impl Default for Settings {
@@ -134,10 +176,10 @@ impl Default for Settings {
                     set.insert("profile-not-enabled".to_string());
                     set
                 });
-        let hide_warnings = HIDE_WARNINGS.lock().unwrap();
-        let hide_warnings = hide_warnings
-            .as_ref()
-            .unwrap_or_else(|| &*env::HK_HIDE_WARNINGS);
+        // Always union hide_warnings from all sources
+        let mut hide_warnings = HIDE_WARNINGS.lock().unwrap().clone().unwrap_or_default();
+        // Always add environment hide_warnings (union semantics)
+        hide_warnings.extend(env::HK_HIDE_WARNINGS.iter().cloned());
         let warnings = WARNINGS
             .lock()
             .unwrap()
@@ -146,6 +188,21 @@ impl Default for Settings {
             .into_iter()
             .filter(|tag| !hide_warnings.contains(tag))
             .collect();
+        // Always union excludes from all sources
+        let mut exclude = EXCLUDE.lock().unwrap().clone().unwrap_or_default();
+        // Always add environment excludes (union semantics)
+        exclude.extend(env::HK_EXCLUDE.iter().cloned());
+
+        // Always union skip_steps from all sources
+        let mut skip_steps = SKIP_STEPS.lock().unwrap().clone().unwrap_or_default();
+        // Always add environment skip_steps (union semantics)
+        skip_steps.extend(env::HK_SKIP_STEPS.iter().cloned());
+
+        // Always union skip_hooks from all sources
+        let mut skip_hooks = SKIP_HOOKS.lock().unwrap().clone().unwrap_or_default();
+        // Always add environment skip_hooks (union semantics)
+        skip_hooks.extend(env::HK_SKIP_HOOK.iter().cloned());
+
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,
@@ -154,6 +211,9 @@ impl Default for Settings {
                 .unwrap_or_else(|| FAIL_FAST.lock().unwrap().unwrap_or(true)),
             display_skip_reasons,
             warnings,
+            exclude,
+            skip_steps,
+            skip_hooks,
         }
     }
 }

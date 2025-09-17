@@ -91,6 +91,11 @@ pub async fn run() -> Result<()> {
     };
     Settings::set_user_config_path(config_path);
 
+    // Read git config settings (will be overridden by CLI args/env if set)
+    if let Err(e) = crate::git_cfg::read_git_config() {
+        debug!("Failed to read git config: {}", e);
+    }
+
     if !console::user_attended_stderr() || args.no_progress {
         clx::progress::set_output(ProgressOutput::Text);
     }

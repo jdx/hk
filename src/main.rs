@@ -12,6 +12,7 @@ mod env;
 mod error;
 mod file_rw_locks;
 mod git;
+mod git_cfg;
 mod glob;
 mod hash;
 mod hook;
