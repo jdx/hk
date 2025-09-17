@@ -88,7 +88,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: pkl-packages
-          path: .out/**/*
+          path: .out/
           retention-days: 1
 
   create-release:
