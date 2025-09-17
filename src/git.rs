@@ -144,6 +144,16 @@ pub enum StashMethod {
 }
 
 impl Git {
+    fn to_repo_relative(path: &PathBuf) -> PathBuf {
+        if path.is_absolute() {
+            if let Ok(cwd) = std::env::current_dir() {
+                if let Ok(rel) = path.strip_prefix(&cwd) {
+                    return rel.to_path_buf();
+                }
+            }
+        }
+        path.clone()
+    }
     pub fn new() -> Result<Self> {
         let cwd = std::env::current_dir()?;
         let root = xx::file::find_up(&cwd, &[".git"])
@@ -540,7 +550,12 @@ impl Git {
                     "--ignore-submodules".into(),
                 ];
                 args.push("--".into());
-                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+                args.extend(
+                    paths
+                        .iter()
+                        .map(Self::to_repo_relative)
+                        .map(|p| OsString::from(p.as_os_str())),
+                );
                 let out = git_read(args).unwrap_or_default();
                 any_unstaged |= out.split('\0').any(|s| !s.is_empty());
             }
@@ -548,7 +563,12 @@ impl Git {
             if !any_unstaged {
                 let mut args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
                 args.push("--".into());
-                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+                args.extend(
+                    paths
+                        .iter()
+                        .map(Self::to_repo_relative)
+                        .map(|p| OsString::from(p.as_os_str())),
+                );
                 let out = git_read(args).unwrap_or_default();
                 any_unstaged |= out.split('\0').any(|s| !s.is_empty());
             }
@@ -741,10 +761,14 @@ impl Git {
                 cmd = cmd.arg("--include-untracked");
             }
             if let Some(paths) = tracked_subset.as_deref() {
-                let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
+                let utf8_paths: Vec<String> = paths
+                    .iter()
+                    .map(Self::to_repo_relative)
+                    .filter_map(|p| p.to_str().map(|s| s.to_string()))
+                    .collect();
                 if !utf8_paths.is_empty() {
                     cmd = cmd.arg("--");
-                    cmd = cmd.args(utf8_paths);
+                    cmd = cmd.args(utf8_paths.iter().map(|s| s.as_str()));
                 }
             }
             cmd.run()?;
