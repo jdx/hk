@@ -800,7 +800,8 @@ impl Git {
             if !p.exists() {
                 continue;
             }
-            let path_str = match p.to_str() {
+            let rel = Self::to_repo_relative(p);
+            let path_str = match rel.to_str() {
                 Some(s) => s.to_string(),
                 None => continue,
             };
