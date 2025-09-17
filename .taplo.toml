@@ -1,6 +1,7 @@
 [[rule]]
 include = ["settings.toml"]
-formatting.align_entries = true
+formatting.align_entries = false
+formatting.reorder_keys = false
 schema.path = "settings-schema.json"
 schema.enabled = true
 [formatting]
