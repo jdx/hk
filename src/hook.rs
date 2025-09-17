@@ -489,6 +489,12 @@ impl Hook {
             }
         }
 
+        // Capture the post-step index entries for the files under consideration so we can
+        // restore them exactly after applying the stash. This preserves Prettier-fixed staged
+        // content even if `git stash apply` touches the index.
+        if let Err(err) = repo.lock().await.capture_index(&hook_ctx.files()) {
+            warn!("Failed to capture index before applying stash: {err}");
+        }
         if let Err(err) = repo.lock().await.pop_stash() {
             if result.is_ok() {
                 result = Err(err);
