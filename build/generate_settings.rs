@@ -13,8 +13,10 @@ pub struct SettingsRegistry {
 pub struct OptionConfig {
     #[serde(rename = "type")]
     pub typ: String,
+    #[serde(default)]
     #[allow(dead_code)]
-    pub default: toml::Value,
+    pub default: Option<toml::Value>,
+    #[serde(default = "default_merge")]
     #[allow(dead_code)]
     pub merge: String,
     pub sources: Sources,
@@ -22,6 +24,10 @@ pub struct OptionConfig {
     #[serde(default)]
     #[allow(dead_code)]
     pub validate: Validate,
+}
+
+fn default_merge() -> String {
+    "replace".to_string()
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -211,10 +217,7 @@ fn rust_type(typ: &str, name: &str) -> String {
 }
 
 fn is_nullable(opt: &OptionConfig) -> bool {
-    match &opt.default {
-        toml::Value::String(s) if s.is_empty() => true,
-        _ => false,
-    }
+    opt.default.is_none()
 }
 
 fn clap_type(typ: &str) -> String {
