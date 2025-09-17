@@ -57,6 +57,24 @@ Run only specific step(s)
 
 Skip specific step(s)
 
+### `--fail-fast`
+
+Abort on first failure
+
+### `--no-fail-fast`
+
+Continue on failures (opposite of --fail-fast)
+
+### `--stash <STASH>`
+
+Stash method to use for git hooks
+
+**Choices:**
+
+- `git`
+- `patch-file`
+- `none`
+
 ## Subcommands
 
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)

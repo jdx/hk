@@ -2,6 +2,11 @@ use crate::{Result, config::Config as HKConfig, settings::Settings};
 use serde_json::json;
 
 /// Configuration introspection and management
+///
+/// View and inspect hk's configuration from all sources.
+/// Configuration is merged from multiple sources in precedence order:
+/// CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >
+/// Git config (global) > Project config (hk.pkl) > Built-in defaults.
 #[derive(Debug, clap::Args)]
 #[clap(visible_alias = "cfg")]
 pub struct Config {
@@ -12,18 +17,27 @@ pub struct Config {
 #[derive(Debug, clap::Subcommand)]
 enum ConfigCommand {
     /// Print effective runtime settings (JSON format)
+    ///
+    /// Shows the merged configuration from all sources including CLI flags,
+    /// environment variables, git config, user config, and project config.
     Dump(ConfigDump),
     /// Get a specific configuration value
+    ///
+    /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
+    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks
     Get(ConfigGet),
-    /// Show the source of each configuration value
+    /// Show the configuration source precedence order
+    ///
+    /// Lists all configuration sources in order of precedence to help
+    /// understand where configuration values come from.
     Sources(ConfigSources),
-    /// Show the configuration file (deprecated - use without subcommand instead)
+    /// Show the raw configuration file (deprecated - use 'dump' instead)
     Show,
 }
 
 #[derive(Debug, clap::Args)]
 struct ConfigDump {
-    /// Output format
+    /// Output format (json or toml)
     #[clap(long, value_parser = ["json", "toml"], default_value = "json")]
     format: String,
 }
@@ -31,6 +45,9 @@ struct ConfigDump {
 #[derive(Debug, clap::Args)]
 struct ConfigGet {
     /// Configuration key to retrieve
+    ///
+    /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
+    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks
     key: String,
 }
 
