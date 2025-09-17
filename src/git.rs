@@ -129,6 +129,7 @@ pub struct Git {
 enum StashType {
     LibGit,
     Git,
+    PatchFile(PathBuf),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
@@ -568,9 +569,53 @@ impl Git {
         //         return Ok(());
         //     }
         // }
-        job.prop("message", "Running git stash");
-        job.update();
-        self.stash = self.push_stash(None, status)?;
+        if method == StashMethod::PatchFile {
+            job.prop(
+                "message",
+                &format!(
+                    "Creating git diff patch – {}",
+                    display_path(self.patch_file())
+                ),
+            );
+            job.update();
+            // Build patch of worktree vs index (exclude untracked content), limited to affected paths
+            let mut args: Vec<OsString> = vec![
+                "diff".into(),
+                "--no-color".into(),
+                "--no-ext-diff".into(),
+                "--binary".into(),
+                "--ignore-submodules".into(),
+            ];
+            if !files_to_stash.is_empty() {
+                args.push("--".into());
+                args.extend(files_to_stash.iter().map(|p| OsString::from(p.as_os_str())));
+            }
+            let out = git_read(args)?;
+            if out.is_empty() {
+                job.prop("message", "No unstaged files to stash");
+                job.set_status(ProgressStatus::Done);
+                return Ok(());
+            }
+            let patch_file = self.patch_file().to_path_buf();
+            if let Err(err) = xx::file::write(&patch_file, &out) {
+                warn!("failed to write patch file: {err:?}");
+                job.set_status(ProgressStatus::Done);
+                return Ok(());
+            }
+            self.stash = Some(StashType::PatchFile(patch_file));
+            // Reset worktree to the index for the affected files so fixes operate on staged content only
+            if !files_to_stash.is_empty() {
+                let args = vec!["restore", "--worktree", "--"]
+                    .into_iter()
+                    .chain(files_to_stash.iter().map(|p| p.to_str().unwrap()))
+                    .collect::<Vec<_>>();
+                let _ = git_run(args);
+            }
+        } else {
+            job.prop("message", "Running git stash");
+            job.update();
+            self.stash = self.push_stash(None, status)?;
+        }
         if self.stash.is_none() {
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
@@ -580,7 +625,7 @@ impl Git {
         job.prop("message", "Removing unstaged changes");
         job.update();
 
-        job.prop("message", "Stashed unstaged changes with git stash");
+        job.prop("message", "Stashed unstaged changes");
         job.set_status(ProgressStatus::Done);
         Ok(())
     }
@@ -830,6 +875,52 @@ impl Git {
                     if let Err(err) = git_cmd(["stash", "drop"]).run() {
                         warn!("failed to drop stash after successful apply: {err:?}");
                     }
+                }
+            }
+            StashType::PatchFile(patch_file) => {
+                job = ProgressJobBuilder::new()
+                    .prop(
+                        "message",
+                        &format!(
+                            "stash – Applying git diff patch – {}",
+                            display_path(&patch_file)
+                        ),
+                    )
+                    .start();
+                // Try 3-way apply with index updates so staged state stays coherent
+                let apply_res = git_cmd([
+                    "apply",
+                    "--index",
+                    "--3way",
+                    "--recount",
+                    "--whitespace=nowarn",
+                ])
+                .arg(&patch_file)
+                .run();
+                let mut had_conflicts = false;
+                // Detect conflicts via status
+                let status = git_read([
+                    "status",
+                    "--porcelain",
+                    "-z",
+                    "--no-renames",
+                    "--untracked-files=all",
+                ])
+                .unwrap_or_default();
+                for entry in status.split('\0').filter(|s| !s.is_empty()) {
+                    if entry.starts_with("UU") {
+                        had_conflicts = true;
+                        break;
+                    }
+                }
+                if apply_res.is_err() && !had_conflicts {
+                    // fallback to plain apply (still updating index)
+                    git_cmd(["apply", "--index", "--recount", "--whitespace=nowarn"])
+                        .arg(&patch_file)
+                        .run()?;
+                }
+                if let Err(err) = xx::file::remove_file(&patch_file) {
+                    debug!("failed to remove patch file: {err:?}");
                 }
             }
         }
