@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.4](https://github.com/jdx/hk/compare/v1.13.3..v1.13.4) - 2025-09-17
+
+### 🐛 Bug Fixes
+
+- explicitly install pkl and run package command directly by [@jdx](https://github.com/jdx) in [#276](https://github.com/jdx/hk/pull/276)
+
 ## [1.13.3](https://github.com/jdx/hk/compare/v1.13.2..v1.13.3) - 2025-09-17
 
 ### 🔍 Other Changes
