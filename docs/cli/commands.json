@@ -229,6 +229,46 @@
               "double_dash": "Optional",
               "hide": false
             }
+          },
+          {
+            "name": "fail-fast",
+            "usage": "--fail-fast",
+            "help": "Abort on first failure",
+            "help_first_line": "Abort on first failure",
+            "short": [],
+            "long": ["fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "no-fail-fast",
+            "usage": "--no-fail-fast",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "short": [],
+            "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "stash",
+            "usage": "--stash <STASH>",
+            "help": "Stash method to use for git hooks",
+            "help_first_line": "Stash method to use for git hooks",
+            "short": [],
+            "long": ["stash"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "STASH",
+              "usage": "<STASH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false,
+              "choices": {
+                "choices": ["git", "patch-file", "none"]
+              }
+            }
           }
         ],
         "mounts": [],
@@ -265,13 +305,106 @@
       },
       "config": {
         "full_cmd": ["config"],
-        "usage": "config",
-        "subcommands": {},
+        "usage": "config <SUBCOMMAND>",
+        "subcommands": {
+          "dump": {
+            "full_cmd": ["config", "dump"],
+            "usage": "config dump [--format <FORMAT>]",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Output format (json or toml)",
+                "help_first_line": "Output format (json or toml)",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["json", "toml"]
+                  }
+                }
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Print effective runtime settings (JSON format)",
+            "help_long": "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config.",
+            "name": "dump",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "get": {
+            "full_cmd": ["config", "get"],
+            "usage": "config get <KEY>",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "KEY",
+                "usage": "<KEY>",
+                "help": "Configuration key to retrieve",
+                "help_long": "Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks",
+                "help_first_line": "Configuration key to retrieve",
+                "required": true,
+                "double_dash": "Optional",
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Get a specific configuration value",
+            "help_long": "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks",
+            "name": "get",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "sources": {
+            "full_cmd": ["config", "sources"],
+            "usage": "config sources",
+            "subcommands": {},
+            "args": [],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Show the configuration source precedence order",
+            "help_long": "Show the configuration source precedence order\n\nLists all configuration sources in order of precedence to help understand where configuration values come from.",
+            "name": "sources",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "show": {
+            "full_cmd": ["config", "show"],
+            "usage": "config show",
+            "subcommands": {},
+            "args": [],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Show the raw configuration file (deprecated - use 'dump' instead)",
+            "name": "show",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          }
+        },
         "args": [],
         "flags": [],
         "mounts": [],
         "hide": false,
-        "help": "Generate a default hk.toml configuration file",
+        "help": "Configuration introspection and management",
+        "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.",
         "name": "config",
         "aliases": ["cfg"],
         "hidden_aliases": [],
@@ -456,6 +589,46 @@
               "required": true,
               "double_dash": "Optional",
               "hide": false
+            }
+          },
+          {
+            "name": "fail-fast",
+            "usage": "--fail-fast",
+            "help": "Abort on first failure",
+            "help_first_line": "Abort on first failure",
+            "short": [],
+            "long": ["fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "no-fail-fast",
+            "usage": "--no-fail-fast",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "short": [],
+            "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "stash",
+            "usage": "--stash <STASH>",
+            "help": "Stash method to use for git hooks",
+            "help_first_line": "Stash method to use for git hooks",
+            "short": [],
+            "long": ["stash"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "STASH",
+              "usage": "<STASH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false,
+              "choices": {
+                "choices": ["git", "patch-file", "none"]
+              }
             }
           }
         ],
@@ -722,6 +895,46 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "stash",
+                "usage": "--stash <STASH>",
+                "help": "Stash method to use for git hooks",
+                "help_first_line": "Stash method to use for git hooks",
+                "short": [],
+                "long": ["stash"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STASH",
+                  "usage": "<STASH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["git", "patch-file", "none"]
+                  }
+                }
               }
             ],
             "mounts": [],
@@ -910,6 +1123,46 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
+                }
+              },
+              {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "stash",
+                "usage": "--stash <STASH>",
+                "help": "Stash method to use for git hooks",
+                "help_first_line": "Stash method to use for git hooks",
+                "short": [],
+                "long": ["stash"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STASH",
+                  "usage": "<STASH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["git", "patch-file", "none"]
+                  }
                 }
               }
             ],
@@ -1118,6 +1371,46 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
+                }
+              },
+              {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "stash",
+                "usage": "--stash <STASH>",
+                "help": "Stash method to use for git hooks",
+                "help_first_line": "Stash method to use for git hooks",
+                "short": [],
+                "long": ["stash"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STASH",
+                  "usage": "<STASH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["git", "patch-file", "none"]
+                  }
                 }
               }
             ],
@@ -1335,6 +1628,46 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "stash",
+                "usage": "--stash <STASH>",
+                "help": "Stash method to use for git hooks",
+                "help_first_line": "Stash method to use for git hooks",
+                "short": [],
+                "long": ["stash"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STASH",
+                  "usage": "<STASH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["git", "patch-file", "none"]
+                  }
+                }
               }
             ],
             "mounts": [],
@@ -1527,6 +1860,46 @@
               "required": true,
               "double_dash": "Optional",
               "hide": false
+            }
+          },
+          {
+            "name": "fail-fast",
+            "usage": "--fail-fast",
+            "help": "Abort on first failure",
+            "help_first_line": "Abort on first failure",
+            "short": [],
+            "long": ["fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "no-fail-fast",
+            "usage": "--no-fail-fast",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "short": [],
+            "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "stash",
+            "usage": "--stash <STASH>",
+            "help": "Stash method to use for git hooks",
+            "help_first_line": "Stash method to use for git hooks",
+            "short": [],
+            "long": ["stash"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "STASH",
+              "usage": "<STASH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false,
+              "choices": {
+                "choices": ["git", "patch-file", "none"]
+              }
             }
           }
         ],
@@ -1760,6 +2133,26 @@
         "help_first_line": "Suppresses all output",
         "short": [],
         "long": ["silent"],
+        "hide": false,
+        "global": true
+      },
+      {
+        "name": "trace",
+        "usage": "--trace",
+        "help": "Enable tracing spans and performance diagnostics",
+        "help_first_line": "Enable tracing spans and performance diagnostics",
+        "short": [],
+        "long": ["trace"],
+        "hide": false,
+        "global": true
+      },
+      {
+        "name": "json",
+        "usage": "--json",
+        "help": "Output in JSON format",
+        "help_first_line": "Output in JSON format",
+        "short": [],
+        "long": ["json"],
         "hide": false,
         "global": true
       }

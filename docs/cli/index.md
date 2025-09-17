@@ -40,13 +40,25 @@ Suppresses output
 
 Suppresses all output
 
+### `--trace`
+
+Enable tracing spans and performance diagnostics
+
+### `--json`
+
+Output in JSON format
+
 ## Subcommands
 
 - [`hk builtins`](/cli/builtins.md)
 - [`hk cache clear`](/cli/cache/clear.md)
 - [`hk check [FLAGS] [FILES]…`](/cli/check.md)
 - [`hk completion <SHELL>`](/cli/completion.md)
-- [`hk config`](/cli/config.md)
+- [`hk config <SUBCOMMAND>`](/cli/config.md)
+- [`hk config dump [--format <FORMAT>]`](/cli/config/dump.md)
+- [`hk config get <KEY>`](/cli/config/get.md)
+- [`hk config sources`](/cli/config/sources.md)
+- [`hk config show`](/cli/config/show.md)
 - [`hk fix [FLAGS] [FILES]…`](/cli/fix.md)
 - [`hk init [-f --force] [--mise]`](/cli/init.md)
 - [`hk install [--mise]`](/cli/install.md)
