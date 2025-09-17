@@ -273,7 +273,7 @@ impl Git {
             let mut cmd = git_cmd(["ls-files", "-z"]);
             if let Some(pathspec) = pathspec {
                 cmd = cmd.arg("--");
-                cmd = cmd.args(pathspec.iter().map(|p| p.to_str().unwrap()));
+                cmd = cmd.args(pathspec.iter().filter_map(|p| p.to_str()));
             }
             let output = cmd.read()?;
             Ok(output
@@ -645,8 +645,12 @@ impl Git {
                     debug!("libgit2 stash failed, falling back to shell git: {e}");
                     let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
                     if let Some(paths) = paths {
-                        cmd = cmd.arg("--");
-                        cmd = cmd.args(paths.iter().map(|p| p.to_str().unwrap()));
+                        let utf8_paths: Vec<&str> =
+                            paths.iter().filter_map(|p| p.to_str()).collect();
+                        if !utf8_paths.is_empty() {
+                            cmd = cmd.arg("--");
+                            cmd = cmd.args(utf8_paths);
+                        }
                     }
                     if *env::HK_STASH_UNTRACKED {
                         cmd = cmd.arg("--include-untracked");
@@ -658,8 +662,11 @@ impl Git {
         } else {
             let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
             if let Some(paths) = paths {
-                cmd = cmd.arg("--");
-                cmd = cmd.args(paths.iter().map(|p| p.to_str().unwrap()));
+                let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
+                if !utf8_paths.is_empty() {
+                    cmd = cmd.arg("--");
+                    cmd = cmd.args(utf8_paths);
+                }
             }
             if *env::HK_STASH_UNTRACKED {
                 cmd = cmd.arg("--include-untracked");
