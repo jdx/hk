@@ -80,11 +80,52 @@ jobs:
       - uses: jdx/mise-action@v2
       - name: Package Pkl
         run: |
+          set -x  # Enable command tracing
           TAG_NAME="${{ github.ref_name }}"
           if [ -z "$TAG_NAME" ]; then
             TAG_NAME="v${{ inputs.version }}"
           fi
-          VERSION="${TAG_NAME#v}" mise run package-pkl
+          echo "::notice::Tag name is: $TAG_NAME"
+          VERSION="${TAG_NAME#v}"
+          echo "::notice::Version is: $VERSION"
+
+          # Check environment
+          echo "::group::Environment check"
+          echo "Current directory: $(pwd)"
+          echo "Directory listing:"
+          ls -la
+          echo "Pkl directory:"
+          ls -la pkl/ || echo "ERROR: No pkl directory found!"
+          echo "Mise tasks directory:"
+          ls -la mise-tasks/ || echo "ERROR: No mise-tasks directory!"
+          echo "Package pkl script:"
+          cat mise-tasks/package-pkl.sh || echo "ERROR: No package-pkl.sh script!"
+          echo "::endgroup::"
+
+          # Run the package command with explicit error handling
+          echo "::group::Running pkl package"
+          if VERSION="${VERSION}" mise run package-pkl; then
+            echo "::notice::Package command succeeded"
+          else
+            EXIT_CODE=$?
+            echo "::error::Package command failed with exit code $EXIT_CODE"
+            # Try running the command directly to see more output
+            echo "Trying direct command: pkl project package pkl"
+            VERSION="${VERSION}" pkl project package pkl || true
+          fi
+          echo "::endgroup::"
+
+          # Check results
+          echo "::group::Checking output"
+          if [ -d ".out" ]; then
+            echo "Found .out directory:"
+            ls -laR .out/
+          else
+            echo "::warning::No .out directory created"
+          fi
+          echo "Looking for any zip or sha256 files:"
+          find . -type f \( -name "*.zip" -o -name "*.sha256" \) 2>/dev/null | head -20 || echo "No files found"
+          echo "::endgroup::"
       - uses: actions/upload-artifact@v4
         with:
           name: pkl-packages
