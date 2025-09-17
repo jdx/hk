@@ -304,7 +304,15 @@ impl Hook {
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
-        let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
+
+        // Handle stash CLI option
+        let stash_method = if let Some(stash_str) = &opts.stash {
+            stash_str
+                .parse::<StashMethod>()
+                .unwrap_or(StashMethod::None)
+        } else {
+            env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None)
+        };
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -326,6 +334,13 @@ impl Hook {
 
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
+        // Handle fail_fast CLI flags
+        if opts.fail_fast {
+            crate::settings::Settings::set_fail_fast(true);
+        } else if opts.no_fail_fast {
+            crate::settings::Settings::set_fail_fast(false);
+        }
+
         let settings = Settings::get();
         if env::HK_SKIP_HOOK.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
@@ -335,7 +350,15 @@ impl Hook {
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
         let groups = self.get_step_groups(&opts);
-        let stash_method = env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None);
+
+        // Handle stash CLI option
+        let stash_method = if let Some(stash_str) = &opts.stash {
+            stash_str
+                .parse::<StashMethod>()
+                .unwrap_or(StashMethod::None)
+        } else {
+            env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None)
+        };
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         let hk_progress = self.start_hk_progress(run_type, total_steps);
         let file_progress = ProgressJobBuilder::new().body(
@@ -619,13 +642,34 @@ impl Hook {
                 .cloned()
                 .collect()
         };
-        for exclude in opts.exclude.as_ref().unwrap_or(&vec![]) {
-            let exclude = Path::new(&exclude);
-            files.retain(|f| !f.starts_with(exclude));
+        // Union excludes from Settings with CLI options
+        let settings = crate::settings::Settings::get();
+        let mut all_excludes = settings.exclude.clone();
+
+        // Add CLI --exclude patterns
+        if let Some(cli_excludes) = &opts.exclude {
+            all_excludes.extend(cli_excludes.iter().cloned());
         }
-        if let Some(exclude_glob) = &opts.exclude_glob {
+
+        // Add CLI --exclude-glob patterns (they're all globs now)
+        if let Some(cli_exclude_globs) = &opts.exclude_glob {
+            all_excludes.extend(cli_exclude_globs.iter().cloned());
+        }
+
+        if !all_excludes.is_empty() {
+            // Process excludes - handle both directory patterns and glob patterns
+            let mut expanded_excludes = Vec::new();
+            for exclude in &all_excludes {
+                expanded_excludes.push(exclude.clone());
+                // If the pattern doesn't contain glob characters, also add patterns for directory contents
+                if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
+                    expanded_excludes.push(format!("{}/*", exclude));
+                    expanded_excludes.push(format!("{}/**", exclude));
+                }
+            }
+
             let f = files.iter().collect::<Vec<_>>();
-            let exclude_files = glob::get_matches(exclude_glob, &f)?
+            let exclude_files = glob::get_matches(&expanded_excludes, &f)?
                 .into_iter()
                 .collect::<HashSet<_>>();
             files.retain(|f| !exclude_files.contains(f));

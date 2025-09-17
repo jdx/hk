@@ -39,6 +39,15 @@ pub(crate) struct HookOptions {
     /// Skip specific step(s)
     #[clap(long, value_name = "STEP")]
     pub skip_step: Vec<String>,
+    /// Abort on first failure
+    #[clap(long, overrides_with = "no_fail_fast")]
+    pub fail_fast: bool,
+    /// Continue on failures (opposite of --fail-fast)
+    #[clap(long, overrides_with = "fail_fast")]
+    pub no_fail_fast: bool,
+    /// Stash method to use for git hooks
+    #[clap(long, value_parser = ["git", "patch-file", "none"])]
+    pub stash: Option<String>,
     /// Prefilled tera context
     #[clap(skip)]
     pub tctx: Context,
