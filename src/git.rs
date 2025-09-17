@@ -556,7 +556,13 @@ impl Git {
                     .iter()
                     .any(|p| status.unstaged_modified_files.contains(p));
             }
-
+            // If nothing to stash for these paths, skip invoking git entirely
+            if !any_unstaged {
+                job.prop("message", "No unstaged changes to stash");
+                job.prop("files", &0);
+                job.set_status(ProgressStatus::Done);
+                return Ok(());
+            }
             job.prop("message", "Running git stash for selected paths");
             job.update();
             self.stash = self.push_stash(Some(paths), status, method)?;
