@@ -75,15 +75,15 @@ impl ConfigDump {
         let settings = Settings::get();
 
         let output = json!({
-            "jobs": settings.jobs,
-            "enabled_profiles": settings.enabled_profiles,
-            "disabled_profiles": settings.disabled_profiles,
-            "fail_fast": settings.fail_fast,
-            "display_skip_reasons": settings.display_skip_reasons,
-            "warnings": settings.warnings,
-            "exclude": settings.exclude,
-            "skip_steps": settings.skip_steps,
-            "skip_hooks": settings.skip_hooks,
+            "jobs": settings.jobs(),
+            "enabled_profiles": settings.enabled_profiles(),
+            "disabled_profiles": settings.disabled_profiles(),
+            "fail_fast": settings.fail_fast(),
+            "display_skip_reasons": settings.display_skip_reasons(),
+            "warnings": settings.warnings(),
+            "exclude": settings.exclude(),
+            "skip_steps": settings.skip_steps(),
+            "skip_hooks": settings.skip_hooks(),
         });
 
         match self.format.as_str() {
@@ -103,15 +103,15 @@ impl ConfigGet {
         let settings = Settings::get();
 
         let value = match self.key.as_str() {
-            "jobs" => json!(settings.jobs),
-            "enabled_profiles" => json!(settings.enabled_profiles),
-            "disabled_profiles" => json!(settings.disabled_profiles),
-            "fail_fast" => json!(settings.fail_fast),
-            "display_skip_reasons" => json!(settings.display_skip_reasons),
-            "warnings" => json!(settings.warnings),
-            "exclude" => json!(settings.exclude),
-            "skip_steps" => json!(settings.skip_steps),
-            "skip_hooks" => json!(settings.skip_hooks),
+            "jobs" => json!(settings.jobs()),
+            "enabled_profiles" => json!(settings.enabled_profiles()),
+            "disabled_profiles" => json!(settings.disabled_profiles()),
+            "fail_fast" => json!(settings.fail_fast()),
+            "display_skip_reasons" => json!(settings.display_skip_reasons()),
+            "warnings" => json!(settings.warnings()),
+            "exclude" => json!(settings.exclude()),
+            "skip_steps" => json!(settings.skip_steps()),
+            "skip_hooks" => json!(settings.skip_hooks()),
             _ => return Err(eyre::eyre!("Unknown configuration key: {}", self.key)),
         };
 

@@ -31,16 +31,67 @@ pub mod generated {
 
 #[derive(Debug)]
 pub struct Settings {
-    pub jobs: NonZero<usize>,
-    pub enabled_profiles: IndexSet<String>,
-    pub disabled_profiles: IndexSet<String>,
-    pub fail_fast: bool,
-    pub display_skip_reasons: HashSet<String>,
-    pub warnings: IndexSet<String>,
-    pub exclude: IndexSet<String>,
-    pub skip_steps: IndexSet<String>,
-    pub skip_hooks: IndexSet<String>,
-    pub all: bool,
+    inner: generated::settings::GeneratedSettings,
+}
+
+impl Settings {
+    // Expose commonly used fields with computed logic where needed
+    pub fn jobs(&self) -> NonZero<usize> {
+        NonZero::new(self.inner.jobs).unwrap_or(NonZero::new(1).unwrap())
+    }
+
+    pub fn enabled_profiles(&self) -> IndexSet<String> {
+        // Extract enabled profiles (those not starting with '!')
+        self.inner
+            .profiles
+            .iter()
+            .filter(|p| !p.starts_with('!'))
+            .cloned()
+            .collect()
+    }
+
+    pub fn disabled_profiles(&self) -> IndexSet<String> {
+        // Extract disabled profiles (those starting with '!')
+        self.inner
+            .profiles
+            .iter()
+            .filter(|p| p.starts_with('!'))
+            .map(|p| p.strip_prefix('!').unwrap().to_string())
+            .collect()
+    }
+
+    pub fn fail_fast(&self) -> bool {
+        self.inner.fail_fast
+    }
+
+    pub fn display_skip_reasons(&self) -> HashSet<String> {
+        self.inner.display_skip_reasons.iter().cloned().collect()
+    }
+
+    pub fn warnings(&self) -> &IndexSet<String> {
+        &self.inner.warnings
+    }
+
+    pub fn exclude(&self) -> &IndexSet<String> {
+        &self.inner.exclude
+    }
+
+    pub fn skip_steps(&self) -> &IndexSet<String> {
+        &self.inner.skip_steps
+    }
+
+    pub fn skip_hooks(&self) -> &IndexSet<String> {
+        &self.inner.skip_hooks
+    }
+
+    pub fn all(&self) -> bool {
+        self.inner.all
+    }
+
+    // Provide access to the full generated settings
+    pub fn inner(&self) -> &generated::settings::GeneratedSettings {
+        &self.inner
+    }
 }
 
 // Global storage for programmatically set settings
@@ -174,6 +225,9 @@ impl Default for Settings {
     fn default() -> Self {
         let override_settings = SETTINGS_OVERRIDE.lock().unwrap();
 
+        // Start with the generated default
+        let mut inner = generated::settings::GeneratedSettings::default();
+
         // Handle profiles with proper precedence: CLI > env > defaults
         let mut all_profiles: IndexSet<String> = IndexSet::new();
 
@@ -184,32 +238,12 @@ impl Default for Settings {
         if let Some(ref cli_profiles) = override_settings.profiles {
             all_profiles.extend(cli_profiles.iter().cloned());
         }
-
-        // Separate enabled and disabled profiles
-        let disabled_profiles: IndexSet<String> = all_profiles
-            .iter()
-            .filter(|p| p.starts_with('!'))
-            .map(|p| p.strip_prefix('!').unwrap().to_string())
-            .collect();
-
-        let enabled_profiles: IndexSet<String> = all_profiles
-            .iter()
-            .filter(|p| !p.starts_with('!'))
-            .filter(|p| !disabled_profiles.contains(*p))
-            .map(|p| p.to_string())
-            .collect();
+        inner.profiles = all_profiles;
 
         // Handle display_skip_reasons with precedence
-        let display_skip_reasons: HashSet<String> = override_settings
-            .display_skip_reasons
-            .as_ref()
-            .map(|set| set.iter().cloned().collect())
-            .unwrap_or_else(|| {
-                // Default: only profile-not-enabled is shown
-                let mut set = HashSet::new();
-                set.insert("profile-not-enabled".to_string());
-                set
-            });
+        if let Some(ref reasons) = override_settings.display_skip_reasons {
+            inner.display_skip_reasons = reasons.clone();
+        }
 
         // Handle hide_warnings with union semantics
         let mut hide_warnings = override_settings
@@ -219,16 +253,16 @@ impl Default for Settings {
             .unwrap_or_default();
         // Always add environment hide_warnings (union semantics)
         hide_warnings.extend(env::HK_HIDE_WARNINGS.iter().cloned());
+        inner.hide_warnings = hide_warnings;
 
         // Handle warnings, filtering out hidden ones
-        let warnings = override_settings
+        let mut warnings = override_settings
             .warnings
             .as_ref()
             .cloned()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|tag| !hide_warnings.contains(tag))
-            .collect();
+            .unwrap_or_default();
+        warnings.retain(|tag| !inner.hide_warnings.contains(tag));
+        inner.warnings = warnings;
 
         // Handle exclude with union semantics
         let mut exclude = override_settings
@@ -238,6 +272,7 @@ impl Default for Settings {
             .unwrap_or_default();
         // Always add environment excludes (union semantics)
         exclude.extend(env::HK_EXCLUDE.iter().cloned());
+        inner.exclude = exclude;
 
         // Handle skip_steps with union semantics
         let mut skip_steps = override_settings
@@ -247,6 +282,7 @@ impl Default for Settings {
             .unwrap_or_default();
         // Always add environment skip_steps (union semantics)
         skip_steps.extend(env::HK_SKIP_STEPS.iter().cloned());
+        inner.skip_steps = skip_steps;
 
         // Handle skip_hooks with union semantics
         let mut skip_hooks = override_settings
@@ -256,33 +292,22 @@ impl Default for Settings {
             .unwrap_or_default();
         // Always add environment skip_hooks (union semantics)
         skip_hooks.extend(env::HK_SKIP_HOOK.iter().cloned());
+        inner.skip_hooks = skip_hooks;
 
         // Handle jobs with precedence: CLI > env > default
-        let jobs = override_settings
-            .jobs
-            .map(|j| NonZero::new(j).unwrap_or(*env::HK_JOBS))
-            .unwrap_or(*env::HK_JOBS);
+        let jobs_value = override_settings.jobs.unwrap_or_else(|| env::HK_JOBS.get());
+        inner.jobs = jobs_value;
 
         // Handle fail_fast with precedence: CLI > env > default
-        let fail_fast = override_settings
-            .fail_fast
-            .or_else(|| *env::HK_FAIL_FAST)
-            .unwrap_or(true);
+        if let Some(fail_fast) = override_settings.fail_fast.or_else(|| *env::HK_FAIL_FAST) {
+            inner.fail_fast = fail_fast;
+        }
 
         // Handle all with precedence: CLI > default
-        let all = override_settings.all.unwrap_or(false);
-
-        Self {
-            jobs,
-            enabled_profiles,
-            disabled_profiles,
-            fail_fast,
-            display_skip_reasons,
-            warnings,
-            exclude,
-            skip_steps,
-            skip_hooks,
-            all,
+        if let Some(all) = override_settings.all {
+            inner.all = all;
         }
+
+        Self { inner }
     }
 }

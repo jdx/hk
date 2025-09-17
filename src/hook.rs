@@ -76,7 +76,7 @@ impl SkipReason {
         let settings = Settings::get();
         // Use strum's Display trait to get the kebab-case string
         let key = self.to_string();
-        settings.display_skip_reasons.contains(&key)
+        settings.display_skip_reasons().contains(&key)
     }
 }
 
@@ -173,7 +173,7 @@ impl HookContext {
             run_type,
             step_contexts: StdMutex::new(Default::default()),
             files_in_contention: StdMutex::new(Default::default()),
-            semaphore: Arc::new(Semaphore::new(settings.jobs.get())),
+            semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
             failed: CancellationToken::new(),
             expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
@@ -367,7 +367,7 @@ impl Hook {
         }
 
         let settings = Settings::get();
-        if settings.skip_hooks.contains(&self.name) {
+        if settings.skip_hooks().contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
             return Ok(());
         }
@@ -402,9 +402,9 @@ impl Hook {
         let skip_steps = {
             let mut m: IndexMap<String, SkipReason> = IndexMap::new();
             // Use settings for skip_steps which includes env vars, git config, etc.
-            for s in settings.skip_steps.iter() {
+            for s in settings.skip_steps().iter() {
                 // Check if this skip came from the environment variable
-                let reason = if env::HK_SKIP_STEPS.contains(s) {
+                let reason = if env::HK_SKIP_STEPS.contains(s as &str) {
                     SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string())
                 } else {
                     SkipReason::DisabledByConfig
@@ -480,7 +480,7 @@ impl Hook {
                 }
             }
             result = result.and(group.run(ctx).await);
-            if settings.fail_fast && result.is_err() {
+            if settings.fail_fast() && result.is_err() {
                 break;
             }
         }
@@ -527,7 +527,7 @@ impl Hook {
 
         // Display summary of profile-skipped steps
         // Only show summary if user has enabled the generic warning tag
-        if Settings::get().warnings.contains("missing-profiles") {
+        if Settings::get().warnings().contains("missing-profiles") {
             let skipped_steps = hook_ctx.get_skipped_steps();
             let mut profile_skipped: Vec<String> = vec![];
             let mut missing_profiles = indexmap::IndexSet::new();
@@ -681,7 +681,7 @@ impl Hook {
         };
         // Union excludes from Settings with CLI options
         let settings = crate::settings::Settings::get();
-        let mut all_excludes = settings.exclude.clone();
+        let mut all_excludes = settings.exclude().clone();
 
         // Add CLI --exclude patterns
         if let Some(cli_excludes) = &opts.exclude {

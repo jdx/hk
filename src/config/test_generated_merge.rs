@@ -41,14 +41,14 @@ mod tests {
         let (settings, _sources) = builder.build();
 
         // Check union merge happened correctly
-        assert!(settings.skip_steps.contains("default_step"));
-        assert!(settings.skip_steps.contains("pkl_step"));
-        assert!(settings.skip_steps.contains("git_step"));
-        assert!(settings.skip_steps.contains("env_step"));
-        assert!(settings.skip_steps.contains("cli_step"));
+        assert!(settings.skip_steps().contains("default_step"));
+        assert!(settings.skip_steps().contains("pkl_step"));
+        assert!(settings.skip_steps().contains("git_step"));
+        assert!(settings.skip_steps().contains("env_step"));
+        assert!(settings.skip_steps().contains("cli_step"));
 
         // Check no duplicates (IndexSet deduplicates)
-        assert_eq!(settings.skip_steps.len(), 5);
+        assert_eq!(settings.skip_steps().len(), 5);
     }
 
     #[test]
@@ -65,7 +65,7 @@ mod tests {
         let (settings, _sources) = builder.build();
 
         // CLI value should win (highest precedence)
-        assert_eq!(settings.fail_fast, true);
+        assert_eq!(settings.fail_fast(), true);
     }
 
     #[test]
@@ -82,7 +82,7 @@ mod tests {
         let (settings, _sources) = builder.build();
 
         // CLI value (5) should win
-        assert_eq!(settings.jobs.get(), 5);
+        assert_eq!(settings.jobs().get(), 5);
     }
 
     #[test]
@@ -99,7 +99,7 @@ mod tests {
         let (settings, _sources) = builder.build();
 
         // Git value (3) should win as highest set precedence
-        assert_eq!(settings.jobs.get(), 3);
+        assert_eq!(settings.jobs().get(), 3);
     }
 
     #[test]
@@ -137,12 +137,12 @@ mod tests {
         let (settings, _sources) = builder.build();
 
         // All patterns should be included (union)
-        assert!(settings.exclude.contains("*.tmp"));
-        assert!(settings.exclude.contains("*.log"));
-        assert!(settings.exclude.contains("*.bak"));
+        assert!(settings.exclude().contains("*.tmp"));
+        assert!(settings.exclude().contains("*.log"));
+        assert!(settings.exclude().contains("*.bak"));
 
         // No duplicates
-        assert_eq!(settings.exclude.len(), 3);
+        assert_eq!(settings.exclude().len(), 3);
     }
 
     #[test]
@@ -153,7 +153,7 @@ mod tests {
         let (settings, _sources) = builder.build();
 
         // Should get the special default
-        assert!(settings.display_skip_reasons.contains("profile-not-enabled"));
+        assert!(settings.display_skip_reasons().contains("profile-not-enabled"));
     }
 
     #[test]
@@ -177,10 +177,10 @@ mod tests {
         let (settings, _sources) = builder.build();
 
         // Only env value should be present (replace, not union)
-        assert!(settings.warnings.contains("warning4"));
-        assert!(!settings.warnings.contains("warning1"));
-        assert!(!settings.warnings.contains("warning2"));
-        assert!(!settings.warnings.contains("warning3"));
-        assert_eq!(settings.warnings.len(), 1);
+        assert!(settings.warnings().contains("warning4"));
+        assert!(!settings.warnings().contains("warning1"));
+        assert!(!settings.warnings().contains("warning2"));
+        assert!(!settings.warnings().contains("warning3"));
+        assert_eq!(settings.warnings().len(), 1);
     }
 }

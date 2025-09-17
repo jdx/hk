@@ -169,9 +169,8 @@ impl Step {
     pub fn profile_skip_reason(&self) -> Option<SkipReason> {
         let settings = Settings::get();
         if let Some(enabled) = self.enabled_profiles() {
-            let missing_profiles = enabled
-                .difference(&settings.enabled_profiles)
-                .collect::<Vec<_>>();
+            let enabled_profiles = settings.enabled_profiles();
+            let missing_profiles = enabled.difference(&enabled_profiles).collect::<Vec<_>>();
             if !missing_profiles.is_empty() {
                 let profiles = missing_profiles
                     .into_iter()
@@ -179,18 +178,15 @@ impl Step {
                     .collect();
                 return Some(SkipReason::ProfileNotEnabled(profiles));
             }
-            let disabled_profiles = settings
-                .disabled_profiles
-                .intersection(&enabled)
-                .collect_vec();
+            let disabled_profiles_set = settings.disabled_profiles();
+            let disabled_profiles = disabled_profiles_set.intersection(&enabled).collect_vec();
             if !disabled_profiles.is_empty() {
                 return Some(SkipReason::ProfileExplicitlyDisabled);
             }
         }
         if let Some(disabled) = self.disabled_profiles() {
-            let disabled_profiles = disabled
-                .intersection(&settings.enabled_profiles)
-                .collect::<Vec<_>>();
+            let enabled_profiles = settings.enabled_profiles();
+            let disabled_profiles = disabled.intersection(&enabled_profiles).collect::<Vec<_>>();
             if !disabled_profiles.is_empty() {
                 return Some(SkipReason::ProfileExplicitlyDisabled);
             }
@@ -335,7 +331,7 @@ impl Step {
                 .collect()
         } else if self.batch {
             files
-                .chunks((files.len() / Settings::get().jobs.get()).max(1))
+                .chunks((files.len() / Settings::get().jobs().get()).max(1))
                 .map(|chunk| StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_type))
                 .collect()
         } else {
