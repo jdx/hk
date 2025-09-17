@@ -88,6 +88,9 @@ pub struct Hook {
     pub steps: IndexMap<String, StepOrGroup>,
     pub fix: Option<bool>,
     pub stash: Option<StashMethod>,
+    /// Backward-compatible alias: patch = true behaves like stash = "patch-file"
+    #[serde(default)]
+    pub patch: Option<bool>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
 }

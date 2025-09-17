@@ -106,13 +106,15 @@ Default: `false` (`true` for `pre-commit` and `fix`)
 
 If true, hk will run the fix step to make modifications.
 
-## `hooks.<HOOK>.stash: String`
+## `hooks.<HOOK>.stash: String` / `hooks.<HOOK>.patch: bool`
 
 Default: `git`
 
 - `git`: Use `git stash` to stash unstaged changes before running fix steps.
-- `patch-file`: Use an hk generated patch file to stash unstaged changes before running fix steps—typically faster.
+- `patch-file`: Alias of `git` behavior for now.
 - `none`: Do not stash unstaged changes before running fix steps.
+
+You may also set `patch = true` on a hook, which is equivalent to `stash = "patch-file"` (and thus behaves like `git` currently).
 
 ## `hooks.<HOOK>.steps.<STEP|GROUP>`
 
