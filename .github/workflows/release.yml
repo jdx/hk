@@ -109,7 +109,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: pkl-packages
-          path: .out/**
+          path: .out/
           if-no-files-found: error
           retention-days: 1
 
