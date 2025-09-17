@@ -1031,13 +1031,7 @@ impl Git {
             );
             let _ = self.reset_paths(&to_unstage);
         }
-        // Re-stage any files explicitly staged by steps so their fixer content remains in the index
-        if !self.restaged_paths.is_empty() {
-            let restaged: Vec<PathBuf> = self.restaged_paths.iter().cloned().collect();
-            let _ = git_cmd(["add", "--"])
-                .args(restaged.iter().map(|p| p.as_path()))
-                .run();
-        }
+        // Do not restage here; preserve only what was staged before apply + step-intended stages
         // Debug: show staged files after cleanup
         let out_clean = git_read([
             "status",
