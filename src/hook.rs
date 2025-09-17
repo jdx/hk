@@ -343,7 +343,7 @@ impl Hook {
 
         let settings = Settings::get();
         if settings.skip_hooks.contains(&self.name) {
-            warn!("{}: skipping hook due to skip configuration", &self.name);
+            warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
             return Ok(());
         }
         let run_type = self.run_type(&opts);
@@ -382,7 +382,7 @@ impl Hook {
             for s in settings.skip_steps.iter() {
                 m.insert(
                     s.clone(),
-                    SkipReason::DisabledByEnv("skip configuration".to_string()),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
                 );
             }
             for s in opts.skip_step.iter() {
