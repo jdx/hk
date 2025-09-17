@@ -841,10 +841,6 @@ impl Git {
             return Ok(());
         }
         for (mode, oid, path) in entries {
-            // Preserve staged content created by hook steps (e.g., prettier --write + git add)
-            if self.restaged_paths.contains(&path) {
-                continue;
-            }
             let mode_str = format!("{:o}", mode);
             git_cmd(["update-index", "--cacheinfo"])
                 .arg(mode_str)
