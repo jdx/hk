@@ -233,6 +233,34 @@ EOF
     echo "$output" | jq -r '.skip_hooks[]' | grep -q "test-hook"
 }
 
+@test "config get skip_steps works" {
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
+EOF
+
+    git config --local hk.skipSteps "step1"
+    git config --local --add hk.skipSteps "step2"
+
+    run hk config get skip_steps
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -r '.[]' | grep -q "step1"
+    echo "$output" | jq -r '.[]' | grep -q "step2"
+}
+
+@test "config get skip_hooks works" {
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
+EOF
+
+    git config --local hk.skipHook "pre-commit"
+    git config --local --add hk.skipHook "pre-push"
+
+    run hk config get skip_hooks
+    [ "$status" -eq 0 ]
+    echo "$output" | jq -r '.[]' | grep -q "pre-commit"
+    echo "$output" | jq -r '.[]' | grep -q "pre-push"
+}
+
 @test "backward compatibility: hk.skipStep singular form" {
     cat > hk.pkl << EOF
 amends "$PKL_PATH/Config.pkl"

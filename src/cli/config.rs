@@ -93,6 +93,8 @@ impl ConfigGet {
             "display_skip_reasons" => json!(settings.display_skip_reasons),
             "warnings" => json!(settings.warnings),
             "exclude" => json!(settings.exclude),
+            "skip_steps" => json!(settings.skip_steps),
+            "skip_hooks" => json!(settings.skip_hooks),
             _ => return Err(eyre::eyre!("Unknown configuration key: {}", self.key)),
         };
 
