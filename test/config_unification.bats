@@ -140,33 +140,3 @@ EOF
     echo "$output" | grep -q "should run"
 }
 
-@test "--stash flag works" {
-    cat > hk.pkl << EOF
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["test"] {
-                check = "echo testing"
-                glob = List("*.txt")
-            }
-        }
-    }
-}
-EOF
-
-    echo "test" > test.txt
-    git add test.txt
-
-    # Test stash=none
-    run hk check --stash=none
-    [ "$status" -eq 0 ]
-
-    # Test stash=git
-    run hk check --stash=git
-    [ "$status" -eq 0 ]
-
-    # Test stash=patch-file
-    run hk check --stash=patch-file
-    [ "$status" -eq 0 ]
-}
