@@ -310,12 +310,13 @@ impl Hook {
     }
 
     fn resolve_stash_method(&self, env_stash: Option<StashMethod>) -> StashMethod {
+        if let Some(env_val) = env_stash {
+            return env_val;
+        }
         match &self.stash {
-            Some(StashSetting::Method(m)) => env::HK_STASH.or(Some(*m)).unwrap_or(StashMethod::None),
-            Some(StashSetting::Bool(b)) => {
-                if *b { StashMethod::Git } else { StashMethod::None }
-            }
-            None => env_stash.unwrap_or(StashMethod::None),
+            Some(StashSetting::Method(m)) => *m,
+            Some(StashSetting::Bool(b)) => if *b { StashMethod::Git } else { StashMethod::None },
+            None => StashMethod::None,
         }
     }
 
