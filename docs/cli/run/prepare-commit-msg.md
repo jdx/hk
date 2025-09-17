@@ -66,3 +66,21 @@ Run only specific step(s)
 ### `--skip-step… <STEP>`
 
 Skip specific step(s)
+
+### `--fail-fast`
+
+Abort on first failure
+
+### `--no-fail-fast`
+
+Continue on failures (opposite of --fail-fast)
+
+### `--stash <STASH>`
+
+Stash method to use for git hooks
+
+**Choices:**
+
+- `git`
+- `patch-file`
+- `none`

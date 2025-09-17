@@ -17,6 +17,8 @@ flag "-v --verbose" help="Enables verbose output" var=#true global=#true count=#
 flag "-n --no-progress" help="Disables progress output" global=#true
 flag "-q --quiet" help="Suppresses output" global=#true
 flag --silent help="Suppresses all output" global=#true
+flag --trace help="Enable tracing spans and performance diagnostics" global=#true
+flag --json help="Output in JSON format" global=#true
 cmd builtins help="Lists all available builtin linters"
 cmd cache hide=#true subcommand_required=#true help="Manage hk internal cache" {
     cmd clear help="Clear the cache directory"
@@ -48,13 +50,37 @@ cmd check help="Fixes code" {
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --fail-fast help="Abort on first failure"
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+    flag --stash help="Stash method to use for git hooks" {
+        arg <STASH> {
+            choices git patch-file none
+        }
+    }
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
 }
 cmd completion help="Generates shell completion scripts" {
     arg <SHELL> help="The shell to generate completion for"
 }
-cmd config help="Generate a default hk.toml configuration file" {
+cmd config help="Configuration introspection and management" {
     alias cfg
+    long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults."
+    cmd dump help="Print effective runtime settings (JSON format)" {
+        long_help "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config."
+        flag --format help="Output format (json or toml)" {
+            arg <FORMAT> {
+                choices json toml
+            }
+        }
+    }
+    cmd get help="Get a specific configuration value" {
+        long_help "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks"
+        arg <KEY> help="Configuration key to retrieve" help_long="Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks"
+    }
+    cmd sources help="Show the configuration source precedence order" {
+        long_help "Show the configuration source precedence order\n\nLists all configuration sources in order of precedence to help understand where configuration values come from."
+    }
+    cmd show help="Show the raw configuration file (deprecated - use 'dump' instead)"
 }
 cmd fix help="Fixes code" {
     alias f
@@ -82,6 +108,13 @@ cmd fix help="Fixes code" {
     }
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
+    }
+    flag --fail-fast help="Abort on first failure"
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+    flag --stash help="Stash method to use for git hooks" {
+        arg <STASH> {
+            choices git patch-file none
+        }
     }
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
 }
@@ -125,6 +158,13 @@ cmd run help="Run a hook" {
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --fail-fast help="Abort on first failure"
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+    flag --stash help="Stash method to use for git hooks" {
+        arg <STASH> {
+            choices git patch-file none
+        }
+    }
     arg "[OTHER]" required=#false hide=#true
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
     cmd commit-msg {
@@ -153,6 +193,13 @@ cmd run help="Run a hook" {
         }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
         }
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
@@ -184,6 +231,13 @@ cmd run help="Run a hook" {
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --fail-fast help="Abort on first failure"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
+        }
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
     cmd pre-push {
@@ -212,6 +266,13 @@ cmd run help="Run a hook" {
         }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
         }
         arg "[REMOTE]" help="Remote name" required=#false
         arg "[URL]" help="Remote URL" required=#false
@@ -243,6 +304,13 @@ cmd run help="Run a hook" {
         }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
         }
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message so far"
         arg "[SOURCE]" help="The source of the commit message (e.g., \"message\", \"template\", \"merge\")" required=#false

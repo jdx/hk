@@ -55,6 +55,95 @@ hooks {
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
+## Configuration Sources and Precedence
+
+hk supports configuration from multiple sources, with clear precedence rules. Settings from higher-precedence sources override or union with lower-precedence sources.
+
+### Precedence Order (highest to lowest)
+
+1. **CLI flags** - Command-line arguments (e.g., `--fail-fast`, `--exclude`)
+2. **Environment variables** - `HK_*` variables (e.g., `HK_JOBS`, `HK_EXCLUDE`)
+3. **Git config (local repository)** - Repository-specific settings (e.g., `git config --local hk.jobs 5`)
+4. **User config** - User-level configuration in `~/.hkrc.pkl`
+5. **Git config (global/system)** - Global git settings (e.g., `git config --global hk.failFast false`)
+6. **Project config** - Project-level `hk.pkl` file
+7. **Built-in defaults** - hk's default values
+
+### Union Semantics
+
+Some configuration values use **union semantics**, meaning values from all sources are combined rather than overridden:
+
+- **`exclude`** - File exclusion patterns are merged from all sources
+- **`skip_steps`** - Step skip configurations are merged
+- **`skip_hooks`** - Hook skip configurations are merged
+- **`hide_warnings`** - Warning suppression tags are merged
+
+Example: If you have `exclude = ["node_modules"]` in your project config and set `HK_EXCLUDE=dist`, both `node_modules` and `dist` will be excluded.
+
+### Git Configuration
+
+hk can be configured through git config. All git config keys use the `hk.` prefix:
+
+```bash
+# Set number of parallel jobs
+git config --local hk.jobs 5
+
+# Disable fail-fast behavior
+git config --local hk.failFast false
+
+# Add profiles
+git config --local hk.profile slow
+git config --local --add hk.profile fast
+
+# Add exclude patterns (union semantics)
+git config --local hk.exclude "node_modules"
+git config --local --add hk.exclude "**/*.min.js"
+
+# Skip specific steps
+git config --local hk.skipSteps "slow-test,flaky-test"
+
+# Skip entire hooks
+git config --local hk.skipHook "pre-push"
+
+# Configure warnings
+git config --local hk.warnings "missing-profiles"
+git config --local hk.hideWarnings "missing-profiles"
+```
+
+Git config supports both multivar entries (multiple values with the same key) and comma-separated values in a single entry.
+
+### User Configuration (`.hkrc.pkl`)
+
+User-specific defaults can be set in `~/.hkrc.pkl`:
+
+```pkl
+amends "package://github.com/jdx/hk/releases/latest/hk#/UserConfig.pkl"
+
+defaults {
+    jobs = 4
+    fail_fast = false
+    exclude = List("node_modules", "dist", "build")
+    skip_steps = List("slow-test")
+    skip_hooks = List("pre-push")
+}
+```
+
+### Configuration Introspection
+
+Use the `hk config` commands to inspect your configuration:
+
+```bash
+# Show effective configuration (all sources merged)
+hk config dump
+
+# Get a specific configuration value
+hk config get exclude
+hk config get skip_steps
+
+# Show configuration source precedence
+hk config sources
+```
+
 ## `default_branch: String`
 
 Default: auto-detected
@@ -86,6 +175,28 @@ env {
     ["NODE_ENV"] = "production"
 }
 ```
+
+## `exclude: (String | List<String>)`
+
+Default: `(empty)`
+
+Global exclude patterns that apply to all hooks and steps. Files matching these patterns will be skipped from processing. Supports both directory names and glob patterns.
+
+```pkl
+// Exclude specific directories
+exclude = List("node_modules", "dist", "build")
+
+// Exclude using glob patterns
+exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
+
+// Single pattern
+exclude = "node_modules"
+```
+
+Notes:
+- Patterns from all configuration sources are unioned together
+- Simple directory names automatically match their contents (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
+- Can be overridden per-step with `<STEP>.exclude`
 
 ## `fail_fast: Boolean`
 

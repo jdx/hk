@@ -25,6 +25,22 @@ the same file as we want without them interfering with each other—however we c
 
 If this is disabled hk will have simpler logic that just uses fix commands in series in this situation.
 
+## `HK_EXCLUDE`
+
+Type: `string[]` (comma-separated list)
+Default: `(empty)`
+
+A comma-separated list of glob patterns to exclude from processing. These patterns are unioned with exclude patterns from other configuration sources (git config, user config, project config). Supports both directory names and glob patterns.
+
+Examples:
+```bash
+# Exclude specific directories
+HK_EXCLUDE=node_modules,dist
+
+# Exclude using glob patterns
+HK_EXCLUDE="**/*.min.js,**/*.map"
+```
+
 ## `HK_PROFILE`
 
 Type: `string[]` (comma-separated list)
@@ -90,6 +106,12 @@ Type: `string[]` (comma-separated list)
 A comma-separated list of step names to skip when running pre-commit and pre-push hooks.
 For example: `HK_SKIP_STEPS=lint,test` would skip any steps named "lint" or "test".
 
+This setting can also be configured via:
+- Git config: `git config hk.skipSteps "step1,step2"`
+- User config (`.hkrc.pkl`): `skip_steps = List("step1", "step2")`
+
+All skip configurations from different sources are unioned together.
+
 ## `HK_SKIP_HOOK`
 
 Type: `string[]` (comma-separated list)
@@ -100,6 +122,12 @@ For example: `HK_SKIP_HOOK=pre-commit,pre-push` would skip running those hooks c
 
 This is useful when you want to temporarily disable certain hooks while still keeping them configured in your `hk.pkl` file.
 Unlike `HK_SKIP_STEPS` which skips individual steps, this skips the entire hook and all its steps.
+
+This setting can also be configured via:
+- Git config: `git config hk.skipHook "pre-commit"`
+- User config (`.hkrc.pkl`): `skip_hooks = List("pre-commit")`
+
+All skip configurations from different sources are unioned together.
 
 ## `HK_STASH`
 
