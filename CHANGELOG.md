@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.2](https://github.com/jdx/hk/compare/v1.13.1..v1.13.2) - 2025-09-17
+
+### 🐛 Bug Fixes
+
+- use simple directory path for pkl artifact upload by [@jdx](https://github.com/jdx) in [#272](https://github.com/jdx/hk/pull/272)
+
 ## [1.13.1](https://github.com/jdx/hk/compare/v1.13.0..v1.13.1) - 2025-09-17
 
 ### 🐛 Bug Fixes
