@@ -532,26 +532,86 @@ impl Git {
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
         job.prop("message", "Fetching unstaged files");
         job.set_status(ProgressStatus::Running);
-        // Prefer an authoritative diff to detect worktree-only changes, including partially staged files
-        let mut diff_args: Vec<OsString> = vec!["diff".into(), "--name-only".into(), "-z".into()];
-        if let Some(paths) = files_subset {
-            diff_args.push("--".into());
-            diff_args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
-        }
-        let diff_names = git_read(diff_args).unwrap_or_default();
+        // Hardened detection of worktree-only changes (including partially staged files)
         let mut files_to_stash: BTreeSet<PathBuf> = BTreeSet::new();
-        for name in diff_names.split('\0') {
-            if name.is_empty() {
-                continue;
+        // 1) git diff --name-only (worktree vs index)
+        {
+            let mut args: Vec<OsString> = vec![
+                "diff".into(),
+                "--name-only".into(),
+                "-z".into(),
+                "--no-ext-diff".into(),
+                "--ignore-submodules".into(),
+            ];
+            if let Some(paths) = files_subset {
+                args.push("--".into());
+                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
             }
-            let p = PathBuf::from(name);
-            if p.exists() {
-                files_to_stash.insert(p);
+            let out = git_read(args).unwrap_or_default();
+            for name in out.split('\0') {
+                if name.is_empty() {
+                    continue;
+                }
+                let p = PathBuf::from(name);
+                if p.exists() {
+                    files_to_stash.insert(p);
+                }
             }
         }
-        // Fallback to computed status if diff returned nothing
-        if files_to_stash.is_empty() {
-            files_to_stash = status.unstaged_files.clone();
+        // 2) git ls-files -m (modified in worktree)
+        {
+            let mut args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
+            if let Some(paths) = files_subset {
+                args.push("--".into());
+                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+            }
+            let out = git_read(args).unwrap_or_default();
+            for name in out.split('\0') {
+                if name.is_empty() {
+                    continue;
+                }
+                let p = PathBuf::from(name);
+                if p.exists() {
+                    files_to_stash.insert(p);
+                }
+            }
+        }
+        // 3) Parse porcelain to catch nuanced mixed states
+        {
+            let mut args: Vec<OsString> = vec![
+                "status".into(),
+                "--porcelain".into(),
+                "--no-renames".into(),
+                "--untracked-files=all".into(),
+                "-z".into(),
+            ];
+            if let Some(paths) = files_subset {
+                args.push("--".into());
+                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+            }
+            let out = git_read(args).unwrap_or_default();
+            for entry in out.split('\0').filter(|s| !s.is_empty()) {
+                let mut chars = entry.chars();
+                let _x = chars.next().unwrap_or_default();
+                let y = chars.next().unwrap_or_default();
+                let path = chars.skip(1).collect::<String>();
+                if y == 'M' || y == 'T' || y == 'R' {
+                    // worktree side has changes
+                    let p = PathBuf::from(&path);
+                    if p.exists() {
+                        files_to_stash.insert(p);
+                    }
+                }
+            }
+        }
+        // 4) Union with computed status for safety
+        for p in status.unstaged_files.iter() {
+            files_to_stash.insert(p.clone());
+        }
+        // If a subset was provided, filter down to it explicitly (defense-in-depth)
+        if let Some(paths) = files_subset {
+            let allow: BTreeSet<PathBuf> = paths.iter().cloned().collect();
+            files_to_stash.retain(|p| allow.contains(p));
         }
         let files_count = files_to_stash.len();
         job.prop("files", &files_count);
@@ -572,45 +632,10 @@ impl Git {
         if method == StashMethod::PatchFile {
             job.prop(
                 "message",
-                &format!(
-                    "Creating git diff patch – {}",
-                    display_path(self.patch_file())
-                ),
+                "Running git stash (keep-index, excluding untracked)",
             );
             job.update();
-            // Build patch of worktree vs index (exclude untracked content), limited to affected paths
-            let mut args: Vec<OsString> = vec![
-                "diff".into(),
-                "--no-color".into(),
-                "--no-ext-diff".into(),
-                "--binary".into(),
-                "--ignore-submodules".into(),
-            ];
-            if !files_to_stash.is_empty() {
-                args.push("--".into());
-                args.extend(files_to_stash.iter().map(|p| OsString::from(p.as_os_str())));
-            }
-            let out = git_read(args)?;
-            if out.is_empty() {
-                job.prop("message", "No unstaged files to stash");
-                job.set_status(ProgressStatus::Done);
-                return Ok(());
-            }
-            let patch_file = self.patch_file().to_path_buf();
-            if let Err(err) = xx::file::write(&patch_file, &out) {
-                warn!("failed to write patch file: {err:?}");
-                job.set_status(ProgressStatus::Done);
-                return Ok(());
-            }
-            self.stash = Some(StashType::PatchFile(patch_file));
-            // Reset worktree to the index for the affected files so fixes operate on staged content only
-            if !files_to_stash.is_empty() {
-                let args = vec!["restore", "--worktree", "--"]
-                    .into_iter()
-                    .chain(files_to_stash.iter().map(|p| p.to_str().unwrap()))
-                    .collect::<Vec<_>>();
-                let _ = git_run(args);
-            }
+            self.stash = self.push_stash_keep_index_no_untracked()?;
         } else {
             job.prop("message", "Running git stash");
             job.update();
@@ -715,6 +740,26 @@ impl Git {
                 cmd = cmd.arg("--include-untracked");
             }
             cmd.run()?;
+            Ok(Some(StashType::Git))
+        }
+    }
+
+    fn push_stash_keep_index_no_untracked(&mut self) -> Result<Option<StashType>> {
+        if let Some(repo) = &mut self.repo {
+            let sig = repo.signature()?;
+            let mut flags = git2::StashFlags::default();
+            // Do not include untracked here
+            flags.set(git2::StashFlags::KEEP_INDEX, true);
+            match repo.stash_save(&sig, "hk", Some(flags)) {
+                Ok(_) => Ok(Some(StashType::LibGit)),
+                Err(e) => {
+                    debug!("libgit2 stash failed, falling back to shell git: {e}");
+                    git_cmd(["stash", "push", "--keep-index", "-m", "hk"]).run()?;
+                    Ok(Some(StashType::Git))
+                }
+            }
+        } else {
+            git_cmd(["stash", "push", "--keep-index", "-m", "hk"]).run()?;
             Ok(Some(StashType::Git))
         }
     }

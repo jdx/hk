@@ -89,7 +89,7 @@ TS
 }
 
 @test "pre-commit with stash=patch-file commits staged hunk and preserves unstaged hunk" {
-    skip "patch-file mode: re-apply of binary diff still WIP; tracked in PR"
+    # ensure patch-file path is exercised
     create_precommit_prettier_with_stash patch-file
     prepare_partially_staged_ts_file
 
