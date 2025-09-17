@@ -171,8 +171,8 @@ impl ConfigSources {
         println!("1. CLI flags");
         println!("2. Environment variables (HK_*)");
         println!("3. Git config (local repo)");
-        println!("4. User rc (.hkrc.pkl)");
-        println!("5. Git config (global/system)");
+        println!("4. Git config (global/system)");
+        println!("5. User rc (.hkrc.pkl)");
         println!("6. Project config (hk.pkl)");
         println!("7. Built-in defaults");
         println!();

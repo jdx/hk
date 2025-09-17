@@ -64,9 +64,6 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Also generate merge/types
     generate_settings_merge(out_dir, &registry)?;
 
-    // Generate the CLI flags struct
-    // generate_cli_flags_struct(out_dir, &registry)?;
-
     // Generate the settings meta
     generate_settings_meta(out_dir, &registry)?;
 

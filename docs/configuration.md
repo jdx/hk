@@ -64,8 +64,8 @@ hk supports configuration from multiple sources, with clear precedence rules. Se
 1. **CLI flags** - Command-line arguments (e.g., `--fail-fast`, `--exclude`)
 2. **Environment variables** - `HK_*` variables (e.g., `HK_JOBS`, `HK_EXCLUDE`)
 3. **Git config (local repository)** - Repository-specific settings (e.g., `git config --local hk.jobs 5`)
-4. **User config** - User-level configuration in `~/.hkrc.pkl`
-5. **Git config (global/system)** - Global git settings (e.g., `git config --global hk.failFast false`)
+4. **Git config (global/system)** - Global git settings (e.g., `git config --global hk.failFast false`)
+5. **User config** - User-level configuration in `~/.hkrc.pkl`
 6. **Project config** - Project-level `hk.pkl` file
 7. **Built-in defaults** - hk's default values
 

@@ -183,7 +183,7 @@ impl Settings {
             }
         }
 
-        // Apply layers in precedence order
+        // Apply layers in precedence order (low to high): defaults < pkl < git < env < cli
         for (name, meta) in generated::SETTINGS_META.iter() {
             let field = *name;
             let merge_is_union = meta.merge == Some("union");
@@ -196,9 +196,10 @@ impl Settings {
                     }
                 }
             };
-            apply(env);
-            apply(git);
+            // Lowest precedence first; last applied wins
             apply(pkl);
+            apply(git);
+            apply(env);
             apply(cli);
         }
 
@@ -273,6 +274,7 @@ impl Settings {
             info.entry(field).or_default().last = Some(SettingSource::Defaults);
         }
 
+        // Apply layers in precedence order (low to high): defaults < pkl < git < env < cli
         for (name, meta) in generated::SETTINGS_META.iter() {
             let field = *name;
             let merge_is_union = meta.merge == Some("union");
@@ -284,9 +286,10 @@ impl Settings {
                     }
                 }
             };
-            apply(env, SettingSource::Env);
-            apply(git, SettingSource::Git);
+            // Lowest precedence first; last applied wins
             apply(pkl, SettingSource::Pkl);
+            apply(git, SettingSource::Git);
+            apply(env, SettingSource::Env);
             apply(cli, SettingSource::Cli);
         }
 
