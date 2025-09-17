@@ -691,33 +691,9 @@ impl Git {
                 flags.set(git2::StashFlags::INCLUDE_UNTRACKED, true);
             }
             flags.set(git2::StashFlags::KEEP_INDEX, true);
-            // If partial paths requested, force shell git path since libgit2 does not support it
+            // If partial paths requested, prefer a targeted patch-file stash for reliability
             if let Some(paths) = tracked_subset.as_deref() {
-                // Detect stash creation by comparing refs/stash before and after
-                let before = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
-                    .read()
-                    .ok();
-                let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
-                if *env::HK_STASH_UNTRACKED {
-                    cmd = cmd.arg("--include-untracked");
-                }
-                let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
-                if !utf8_paths.is_empty() {
-                    cmd = cmd.arg("--");
-                    cmd = cmd.args(utf8_paths);
-                }
-                cmd.run()?;
-                let after = git_cmd(["rev-parse", "-q", "--verify", "refs/stash"])
-                    .read()
-                    .ok();
-                if before != after {
-                    Ok(Some(StashType::Git))
-                } else if matches!(method, StashMethod::PatchFile | StashMethod::Git) {
-                    // Fallback to patch-file method when shell git did not create a stash
-                    self.create_patch_stash(paths)
-                } else {
-                    Ok(None)
-                }
+                self.create_patch_stash(paths)
             } else {
                 match repo.stash_save(&sig, "hk", Some(flags)) {
                     Ok(_) => Ok(Some(StashType::LibGit)),
@@ -825,7 +801,7 @@ impl Git {
         let mut entries: Vec<(u32, String, PathBuf)> = vec![];
         for rec in out.split('\0').filter(|s| !s.is_empty()) {
             // format: mode SP oid SP stage TAB path
-            // example: 100644 0123456789abcdef... 0	path/to/file
+            // example: 100644 0123456789abcdef... 0\tpath/to/file
             if let Some((left, path)) = rec.split_once('\t') {
                 let mut parts = left.split_whitespace();
                 let mode = parts.next().unwrap_or("100644");
