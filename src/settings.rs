@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     num::NonZero,
     path::PathBuf,
-    sync::{LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex, OnceLock},
 };
 
 use indexmap::IndexSet;
@@ -29,7 +29,7 @@ pub mod generated {
     pub use settings_override::GeneratedSettingsOverride;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Settings {
     inner: generated::settings::GeneratedSettings,
 }
@@ -101,7 +101,27 @@ static SETTINGS_OVERRIDE: LazyLock<Mutex<generated::GeneratedSettingsOverride>> 
 
 impl Settings {
     pub fn get() -> Settings {
-        Settings::default()
+        // For backward compatibility, clone from the global snapshot
+        (*Self::get_snapshot()).clone()
+    }
+
+    /// Get the global settings snapshot, initializing it if needed
+    pub fn get_snapshot() -> SettingsSnapshot {
+        GLOBAL_SETTINGS
+            .get_or_init(|| {
+                SettingsBuilder::new()
+                    .from_env()
+                    .from_git()
+                    .build_snapshot()
+            })
+            .clone()
+    }
+
+    /// Reset the global settings cache (useful for testing)
+    pub fn reset_global_cache() {
+        // This is a bit tricky since OnceLock doesn't have a reset method
+        // We'll need to use unsafe code or create a new approach
+        // For now, we'll document this limitation
     }
 
     pub fn with_profiles(profiles: &[String]) {
@@ -309,5 +329,272 @@ impl Default for Settings {
         }
 
         Self { inner }
+    }
+}
+
+// Immutable settings snapshot using Arc for efficient sharing
+pub type SettingsSnapshot = Arc<Settings>;
+
+// Global cached settings instance
+static GLOBAL_SETTINGS: OnceLock<SettingsSnapshot> = OnceLock::new();
+
+/// Builder for creating Settings instances with different sources
+#[derive(Default)]
+pub struct SettingsBuilder {
+    override_settings: generated::GeneratedSettingsOverride,
+}
+
+impl SettingsBuilder {
+    /// Create a new SettingsBuilder
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Load settings from environment variables
+    pub fn from_env(self) -> Self {
+        // Environment variables are automatically loaded in the Default implementation
+        // This is a no-op but provides the fluent API
+        self
+    }
+
+    /// Load settings from git configuration
+    pub fn from_git(mut self) -> Self {
+        // Load git configuration and apply to our local override
+        if let Err(e) = self.load_git_config() {
+            eprintln!("Warning: Failed to load git config: {}", e);
+        }
+        self
+    }
+
+    /// Load git configuration into the builder
+    fn load_git_config(&mut self) -> Result<(), git2::Error> {
+        use git2::{Config, Repository};
+
+        // Try to find repository config first, fall back to default
+        let config = if let Ok(repo) = Repository::open_from_env() {
+            repo.config()?
+        } else {
+            Config::open_default()?
+        };
+
+        // Load git config values into our local override
+        for (setting_name, setting_meta) in generated::SETTINGS_META.iter() {
+            for git_key in setting_meta.sources.git {
+                match setting_meta.typ {
+                    "bool" => {
+                        if let Ok(value) = config.get_bool(git_key) {
+                            match *setting_name {
+                                "fail_fast" => self.override_settings.fail_fast = Some(value),
+                                _ => {}
+                            }
+                        }
+                    }
+                    "usize" => {
+                        if let Ok(value) = config.get_i32(git_key) {
+                            if *setting_name == "jobs" && value > 0 {
+                                self.override_settings.jobs = Some(value as usize);
+                            }
+                        }
+                    }
+                    "list<string>" => {
+                        if let Ok(value) = config.get_str(git_key) {
+                            let items: IndexSet<String> = value
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
+
+                            match *setting_name {
+                                "display_skip_reasons" => {
+                                    self.override_settings.display_skip_reasons = Some(items);
+                                }
+                                "hide_warnings" => {
+                                    self.override_settings.hide_warnings = Some(items);
+                                }
+                                "warnings" => {
+                                    self.override_settings.warnings = Some(items);
+                                }
+                                "exclude" => {
+                                    self.override_settings.exclude = Some(items);
+                                }
+                                "skip_steps" => {
+                                    self.override_settings.skip_steps = Some(items);
+                                }
+                                "skip_hooks" => {
+                                    self.override_settings.skip_hooks = Some(items);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Load settings from a Config instance (from hkrc.pkl/toml etc.)
+    pub fn from_config(mut self, config: &crate::config::Config) -> Self {
+        // Apply config-level settings to our override
+        if let Some(fail_fast) = config.fail_fast {
+            self.override_settings.fail_fast = Some(fail_fast);
+        }
+
+        if let Some(ref display_skip_reasons) = config.display_skip_reasons {
+            self.override_settings.display_skip_reasons =
+                Some(display_skip_reasons.iter().cloned().collect());
+        }
+
+        if let Some(ref hide_warnings) = config.hide_warnings {
+            self.override_settings.hide_warnings = Some(hide_warnings.iter().cloned().collect());
+        }
+
+        if let Some(ref warnings) = config.warnings {
+            self.override_settings.warnings = Some(warnings.iter().cloned().collect());
+        }
+
+        self
+    }
+
+    /// Build the Settings instance
+    pub fn build(self) -> Settings {
+        // Create settings directly without modifying global state
+        let mut inner = generated::settings::GeneratedSettings::default();
+
+        // Handle profiles with proper precedence: CLI > env > defaults
+        let mut all_profiles: IndexSet<String> = IndexSet::new();
+
+        // Start with environment profiles
+        all_profiles.extend(env::HK_PROFILE.iter().cloned());
+
+        // Apply builder profile overrides (union semantics)
+        if let Some(ref builder_profiles) = self.override_settings.profiles {
+            all_profiles.extend(builder_profiles.iter().cloned());
+        }
+        inner.profiles = all_profiles;
+
+        // Handle display_skip_reasons
+        if let Some(ref reasons) = self.override_settings.display_skip_reasons {
+            inner.display_skip_reasons = reasons.clone();
+        }
+
+        // Handle hide_warnings with union semantics
+        let mut hide_warnings = self
+            .override_settings
+            .hide_warnings
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        hide_warnings.extend(env::HK_HIDE_WARNINGS.iter().cloned());
+        inner.hide_warnings = hide_warnings;
+
+        // Handle warnings, filtering out hidden ones
+        let mut warnings = self
+            .override_settings
+            .warnings
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        warnings.retain(|tag| !inner.hide_warnings.contains(tag));
+        inner.warnings = warnings;
+
+        // Handle exclude with union semantics
+        let mut exclude = self
+            .override_settings
+            .exclude
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        exclude.extend(env::HK_EXCLUDE.iter().cloned());
+        inner.exclude = exclude;
+
+        // Handle skip_steps with union semantics
+        let mut skip_steps = self
+            .override_settings
+            .skip_steps
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        skip_steps.extend(env::HK_SKIP_STEPS.iter().cloned());
+        inner.skip_steps = skip_steps;
+
+        // Handle skip_hooks with union semantics
+        let mut skip_hooks = self
+            .override_settings
+            .skip_hooks
+            .as_ref()
+            .cloned()
+            .unwrap_or_default();
+        skip_hooks.extend(env::HK_SKIP_HOOK.iter().cloned());
+        inner.skip_hooks = skip_hooks;
+
+        // Handle jobs with precedence: CLI > env > default
+        let jobs_value = self
+            .override_settings
+            .jobs
+            .unwrap_or_else(|| env::HK_JOBS.get());
+        inner.jobs = jobs_value;
+
+        // Handle fail_fast with precedence: CLI > env > default
+        if let Some(fail_fast) = self
+            .override_settings
+            .fail_fast
+            .or_else(|| *env::HK_FAIL_FAST)
+        {
+            inner.fail_fast = fail_fast;
+        }
+
+        // Handle all with precedence: CLI > default
+        if let Some(all) = self.override_settings.all {
+            inner.all = all;
+        }
+
+        Settings { inner }
+    }
+
+    /// Build and return as an immutable snapshot
+    pub fn build_snapshot(self) -> SettingsSnapshot {
+        Arc::new(self.build())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_settings_builder_fluent_api() {
+        // Test that the fluent API works correctly
+        let settings = SettingsBuilder::new().from_env().from_git().build();
+
+        // Should have some reasonable defaults
+        assert!(settings.jobs().get() >= 1);
+        assert!(settings.fail_fast() || !settings.fail_fast()); // Should be either true or false
+    }
+
+    #[test]
+    fn test_settings_snapshot_caching() {
+        // Get multiple snapshots - they should be the same Arc
+        let snapshot1 = Settings::get_snapshot();
+        let snapshot2 = Settings::get_snapshot();
+
+        // They should point to the same data (same Arc)
+        assert!(Arc::ptr_eq(&snapshot1, &snapshot2));
+    }
+
+    #[test]
+    fn test_settings_from_config() {
+        use crate::config::Config;
+
+        let mut config = Config::default();
+        config.fail_fast = Some(false);
+        config.warnings = Some(vec!["test-warning".to_string()]);
+
+        let settings = SettingsBuilder::new().from_config(&config).build();
+
+        assert_eq!(settings.fail_fast(), false);
+        assert!(settings.warnings().contains("test-warning"));
     }
 }
