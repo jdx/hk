@@ -74,9 +74,6 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Generate git config keys
     generate_git_keys(&registry, out_dir)?;
 
-    // Generate documentation
-    generate_docs(&registry)?;
-
     Ok(())
 }
 
@@ -647,65 +644,6 @@ fn generate_git_keys(
     scope.raw(&const_init);
 
     fs::write(out_dir.join("generated_git_keys.rs"), scope.to_string())?;
-    Ok(())
-}
-
-fn generate_docs(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::Error>> {
-    let mut doc = String::new();
-
-    doc.push_str("# HK Configuration Reference\n\n");
-    doc.push_str("This document is auto-generated from `settings.toml`.\n\n");
-
-    for (name, opt) in &registry.option {
-        doc.push_str(&format!("## `{}`\n\n", name));
-        doc.push_str(&format!("{}\n\n", opt.docs));
-        doc.push_str(&format!("- **Type**: `{}`\n", opt.typ));
-        doc.push_str(&format!("- **Default**: `{:?}`\n", opt.default));
-        doc.push_str(&format!("- **Merge Policy**: `{}`\n\n", opt.merge));
-
-        if !opt.sources.pkl.as_vec().is_empty() {
-            doc.push_str("### PKL Sources\n");
-            for src in opt.sources.pkl.as_vec() {
-                doc.push_str(&format!("- `{}`\n", src));
-            }
-            doc.push('\n');
-        }
-
-        if !opt.sources.env.is_empty() {
-            doc.push_str("### Environment Variables\n");
-            for src in &opt.sources.env {
-                doc.push_str(&format!("- `{}`\n", src));
-            }
-            doc.push('\n');
-        }
-
-        if !opt.sources.git.is_empty() {
-            doc.push_str("### Git Config Keys\n");
-            for src in &opt.sources.git {
-                doc.push_str(&format!("- `{}`\n", src));
-            }
-            doc.push('\n');
-        }
-
-        if !opt.sources.cli.is_empty() {
-            doc.push_str("### CLI Flags\n");
-            for src in &opt.sources.cli {
-                doc.push_str(&format!("- `{}`\n", src));
-            }
-            doc.push('\n');
-        }
-
-        if !opt.validate.enum_values.is_empty() {
-            doc.push_str("### Valid Values\n");
-            for val in &opt.validate.enum_values {
-                doc.push_str(&format!("- `{}`\n", val));
-            }
-            doc.push('\n');
-        }
-    }
-
-    fs::create_dir_all("docs")?;
-    fs::write("docs/config_reference.md", doc)?;
     Ok(())
 }
 
