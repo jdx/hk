@@ -496,6 +496,14 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
+        // Re-assert step-restaged files into the index so HEAD gets fixer changes
+        if let Err(err) = repo.lock().await.finalize_restaged() {
+            if result.is_ok() {
+                result = Err(err);
+            } else {
+                warn!("Failed to finalize restaged files: {err}");
+            }
+        }
         if let Err(err) = hook_ctx.timing.write_json() {
             warn!("Failed to write timing JSON: {err}");
         }

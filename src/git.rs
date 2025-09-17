@@ -1092,6 +1092,20 @@ impl Git {
         Ok(())
     }
 
+    /// Ensure any paths explicitly restaged by steps remain staged in the index.
+    /// This is called at the end of a hook run to guarantee fixer changes are committed.
+    pub fn finalize_restaged(&mut self) -> Result<()> {
+        if self.restaged_paths.is_empty() {
+            return Ok(());
+        }
+        let restaged: Vec<PathBuf> = self.restaged_paths.iter().cloned().collect();
+        git_cmd(["add", "--"])
+            .args(restaged.iter().map(|p| p.as_path()))
+            .run()?;
+        self.restaged_paths.clear();
+        Ok(())
+    }
+
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {
         let to_ref = to_ref.unwrap_or("HEAD");
         if let Some(repo) = &self.repo {
