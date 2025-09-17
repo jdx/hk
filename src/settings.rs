@@ -6,8 +6,8 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-
 use indexmap::IndexSet;
+use log::debug;
 
 // Include the generated settings structs from the build
 pub mod generated {
@@ -23,14 +23,346 @@ pub mod generated {
     pub mod settings_meta {
         include!(concat!(env!("OUT_DIR"), "/generated_settings_meta.rs"));
     }
-    pub mod settings_merge {
-        include!(concat!(env!("OUT_DIR"), "/generated_settings_merge.rs"));
-    }
 
     // Re-export the main types for convenience
-    pub use settings_merge::SettingsMerger;
     pub use settings_meta::*;
     pub use settings_override::GeneratedSettingsOverride;
+}
+
+/// Dynamic settings merger using metadata-driven approach
+#[derive(Debug, Default)]
+pub struct SettingsMerger;
+
+impl SettingsMerger {
+    /// Create a new settings merger
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Merge settings from all sources with systematic precedence: defaults → env → git → pkl → CLI → programmatic
+    pub fn merge_sources(
+        &self,
+        defaults: &generated::settings::GeneratedSettings,
+        env_overrides: &generated::GeneratedSettingsOverride,
+        git_overrides: &generated::GeneratedSettingsOverride,
+        pkl_overrides: &generated::GeneratedSettingsOverride,
+        cli_overrides: &generated::GeneratedSettingsOverride,
+        programmatic_overrides: &generated::GeneratedSettingsOverride,
+    ) -> generated::settings::GeneratedSettings {
+        let mut result = defaults.clone();
+
+        // Apply each override layer in precedence order: env → git → pkl → CLI → programmatic
+        for (field_name, meta) in generated::SETTINGS_META.iter() {
+            let merge_strategy = meta.merge.unwrap_or("replace");
+
+            match merge_strategy {
+                "union" => {
+                    self.merge_union_field(&mut result, field_name, env_overrides, git_overrides, pkl_overrides, cli_overrides, programmatic_overrides);
+                }
+                _ => {
+                    // Default to "replace" strategy
+                    self.merge_replace_field(&mut result, field_name, meta, env_overrides, git_overrides, pkl_overrides, cli_overrides, programmatic_overrides);
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Merge a field using union strategy (for list fields)
+    fn merge_union_field(
+        &self,
+        result: &mut generated::settings::GeneratedSettings,
+        field_name: &str,
+        env_overrides: &generated::GeneratedSettingsOverride,
+        git_overrides: &generated::GeneratedSettingsOverride,
+        pkl_overrides: &generated::GeneratedSettingsOverride,
+        cli_overrides: &generated::GeneratedSettingsOverride,
+        programmatic_overrides: &generated::GeneratedSettingsOverride,
+    ) {
+        match field_name {
+            "exclude" => {
+                let mut merged = result.exclude.clone();
+                if let Some(ref val) = env_overrides.exclude { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = git_overrides.exclude { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = pkl_overrides.exclude { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = cli_overrides.exclude { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = programmatic_overrides.exclude { merged.extend(val.iter().cloned()); }
+                result.exclude = merged;
+            }
+            "hide_warnings" => {
+                let mut merged = result.hide_warnings.clone();
+                if let Some(ref val) = env_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = git_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = pkl_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = cli_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = programmatic_overrides.hide_warnings { merged.extend(val.iter().cloned()); }
+                result.hide_warnings = merged;
+            }
+            "skip_hooks" => {
+                let mut merged = result.skip_hooks.clone();
+                if let Some(ref val) = env_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = git_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = pkl_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = cli_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = programmatic_overrides.skip_hooks { merged.extend(val.iter().cloned()); }
+                result.skip_hooks = merged;
+            }
+            "skip_steps" => {
+                let mut merged = result.skip_steps.clone();
+                if let Some(ref val) = env_overrides.skip_steps { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = git_overrides.skip_steps { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = pkl_overrides.skip_steps { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = cli_overrides.skip_steps { merged.extend(val.iter().cloned()); }
+                if let Some(ref val) = programmatic_overrides.skip_steps { merged.extend(val.iter().cloned()); }
+                result.skip_steps = merged;
+            }
+            _ => {
+                // Unknown union field - this shouldn't happen with current schema but handle gracefully
+                debug!("Unknown union field: {}", field_name);
+            }
+        }
+    }
+
+    /// Merge a field using replace strategy (highest precedence wins)
+    fn merge_replace_field(
+        &self,
+        result: &mut generated::settings::GeneratedSettings,
+        field_name: &str,
+        _meta: &generated::SettingMeta,
+        env_overrides: &generated::GeneratedSettingsOverride,
+        git_overrides: &generated::GeneratedSettingsOverride,
+        pkl_overrides: &generated::GeneratedSettingsOverride,
+        cli_overrides: &generated::GeneratedSettingsOverride,
+        programmatic_overrides: &generated::GeneratedSettingsOverride,
+    ) {
+        // Define macros for nullable and non-nullable fields
+        macro_rules! apply_override_nullable {
+            ($overrides:expr, $field:ident) => {
+                if let Some(ref val) = $overrides.$field {
+                    result.$field = Some(val.clone());
+                }
+            };
+        }
+
+        macro_rules! apply_override_non_nullable {
+            ($overrides:expr, $field:ident) => {
+                if let Some(ref val) = $overrides.$field {
+                    result.$field = val.clone();
+                }
+            };
+        }
+
+        match field_name {
+            "all" => {
+                apply_override_non_nullable!(env_overrides, all);
+                apply_override_non_nullable!(git_overrides, all);
+                apply_override_non_nullable!(pkl_overrides, all);
+                apply_override_non_nullable!(cli_overrides, all);
+                apply_override_non_nullable!(programmatic_overrides, all);
+            }
+            "cache_dir" => {
+                apply_override_nullable!(env_overrides, cache_dir);
+                apply_override_nullable!(git_overrides, cache_dir);
+                apply_override_nullable!(pkl_overrides, cache_dir);
+                apply_override_nullable!(cli_overrides, cache_dir);
+                apply_override_nullable!(programmatic_overrides, cache_dir);
+            }
+            "check" => {
+                apply_override_non_nullable!(env_overrides, check);
+                apply_override_non_nullable!(git_overrides, check);
+                apply_override_non_nullable!(pkl_overrides, check);
+                apply_override_non_nullable!(cli_overrides, check);
+                apply_override_non_nullable!(programmatic_overrides, check);
+            }
+            "check_first" => {
+                apply_override_non_nullable!(env_overrides, check_first);
+                apply_override_non_nullable!(git_overrides, check_first);
+                apply_override_non_nullable!(pkl_overrides, check_first);
+                apply_override_non_nullable!(cli_overrides, check_first);
+                apply_override_non_nullable!(programmatic_overrides, check_first);
+            }
+            "display_skip_reasons" => {
+                apply_override_non_nullable!(env_overrides, display_skip_reasons);
+                apply_override_non_nullable!(git_overrides, display_skip_reasons);
+                apply_override_non_nullable!(pkl_overrides, display_skip_reasons);
+                apply_override_non_nullable!(cli_overrides, display_skip_reasons);
+                apply_override_non_nullable!(programmatic_overrides, display_skip_reasons);
+            }
+            "fail_fast" => {
+                apply_override_non_nullable!(env_overrides, fail_fast);
+                apply_override_non_nullable!(git_overrides, fail_fast);
+                apply_override_non_nullable!(pkl_overrides, fail_fast);
+                apply_override_non_nullable!(cli_overrides, fail_fast);
+                apply_override_non_nullable!(programmatic_overrides, fail_fast);
+            }
+            "fix" => {
+                apply_override_non_nullable!(env_overrides, fix);
+                apply_override_non_nullable!(git_overrides, fix);
+                apply_override_non_nullable!(pkl_overrides, fix);
+                apply_override_non_nullable!(cli_overrides, fix);
+                apply_override_non_nullable!(programmatic_overrides, fix);
+            }
+            "hide_when_done" => {
+                apply_override_non_nullable!(env_overrides, hide_when_done);
+                apply_override_non_nullable!(git_overrides, hide_when_done);
+                apply_override_non_nullable!(pkl_overrides, hide_when_done);
+                apply_override_non_nullable!(cli_overrides, hide_when_done);
+                apply_override_non_nullable!(programmatic_overrides, hide_when_done);
+            }
+            "hkrc" => {
+                apply_override_non_nullable!(env_overrides, hkrc);
+                apply_override_non_nullable!(git_overrides, hkrc);
+                apply_override_non_nullable!(pkl_overrides, hkrc);
+                apply_override_non_nullable!(cli_overrides, hkrc);
+                apply_override_non_nullable!(programmatic_overrides, hkrc);
+            }
+            "jobs" => {
+                apply_override_non_nullable!(env_overrides, jobs);
+                apply_override_non_nullable!(git_overrides, jobs);
+                apply_override_non_nullable!(pkl_overrides, jobs);
+                apply_override_non_nullable!(cli_overrides, jobs);
+                apply_override_non_nullable!(programmatic_overrides, jobs);
+            }
+            "json" => {
+                apply_override_non_nullable!(env_overrides, json);
+                apply_override_non_nullable!(git_overrides, json);
+                apply_override_non_nullable!(pkl_overrides, json);
+                apply_override_non_nullable!(cli_overrides, json);
+                apply_override_non_nullable!(programmatic_overrides, json);
+            }
+            "libgit2" => {
+                apply_override_non_nullable!(env_overrides, libgit2);
+                apply_override_non_nullable!(git_overrides, libgit2);
+                apply_override_non_nullable!(pkl_overrides, libgit2);
+                apply_override_non_nullable!(cli_overrides, libgit2);
+                apply_override_non_nullable!(programmatic_overrides, libgit2);
+            }
+            "log_file" => {
+                apply_override_nullable!(env_overrides, log_file);
+                apply_override_nullable!(git_overrides, log_file);
+                apply_override_nullable!(pkl_overrides, log_file);
+                apply_override_nullable!(cli_overrides, log_file);
+                apply_override_nullable!(programmatic_overrides, log_file);
+            }
+            "log_file_level" => {
+                apply_override_non_nullable!(env_overrides, log_file_level);
+                apply_override_non_nullable!(git_overrides, log_file_level);
+                apply_override_non_nullable!(pkl_overrides, log_file_level);
+                apply_override_non_nullable!(cli_overrides, log_file_level);
+                apply_override_non_nullable!(programmatic_overrides, log_file_level);
+            }
+            "log_level" => {
+                apply_override_non_nullable!(env_overrides, log_level);
+                apply_override_non_nullable!(git_overrides, log_level);
+                apply_override_non_nullable!(pkl_overrides, log_level);
+                apply_override_non_nullable!(cli_overrides, log_level);
+                apply_override_non_nullable!(programmatic_overrides, log_level);
+            }
+            "mise" => {
+                apply_override_non_nullable!(env_overrides, mise);
+                apply_override_non_nullable!(git_overrides, mise);
+                apply_override_non_nullable!(pkl_overrides, mise);
+                apply_override_non_nullable!(cli_overrides, mise);
+                apply_override_non_nullable!(programmatic_overrides, mise);
+            }
+            "no_progress" => {
+                apply_override_non_nullable!(env_overrides, no_progress);
+                apply_override_non_nullable!(git_overrides, no_progress);
+                apply_override_non_nullable!(pkl_overrides, no_progress);
+                apply_override_non_nullable!(cli_overrides, no_progress);
+                apply_override_non_nullable!(programmatic_overrides, no_progress);
+            }
+            "profiles" => {
+                apply_override_non_nullable!(env_overrides, profiles);
+                apply_override_non_nullable!(git_overrides, profiles);
+                apply_override_non_nullable!(pkl_overrides, profiles);
+                apply_override_non_nullable!(cli_overrides, profiles);
+                apply_override_non_nullable!(programmatic_overrides, profiles);
+            }
+            "quiet" => {
+                apply_override_non_nullable!(env_overrides, quiet);
+                apply_override_non_nullable!(git_overrides, quiet);
+                apply_override_non_nullable!(pkl_overrides, quiet);
+                apply_override_non_nullable!(cli_overrides, quiet);
+                apply_override_non_nullable!(programmatic_overrides, quiet);
+            }
+            "silent" => {
+                apply_override_non_nullable!(env_overrides, silent);
+                apply_override_non_nullable!(git_overrides, silent);
+                apply_override_non_nullable!(pkl_overrides, silent);
+                apply_override_non_nullable!(cli_overrides, silent);
+                apply_override_non_nullable!(programmatic_overrides, silent);
+            }
+            "slow" => {
+                apply_override_non_nullable!(env_overrides, slow);
+                apply_override_non_nullable!(git_overrides, slow);
+                apply_override_non_nullable!(pkl_overrides, slow);
+                apply_override_non_nullable!(cli_overrides, slow);
+                apply_override_non_nullable!(programmatic_overrides, slow);
+            }
+            "stash" => {
+                apply_override_non_nullable!(env_overrides, stash);
+                apply_override_non_nullable!(git_overrides, stash);
+                apply_override_non_nullable!(pkl_overrides, stash);
+                apply_override_non_nullable!(cli_overrides, stash);
+                apply_override_non_nullable!(programmatic_overrides, stash);
+            }
+            "stash_untracked" => {
+                apply_override_non_nullable!(env_overrides, stash_untracked);
+                apply_override_non_nullable!(git_overrides, stash_untracked);
+                apply_override_non_nullable!(pkl_overrides, stash_untracked);
+                apply_override_non_nullable!(cli_overrides, stash_untracked);
+                apply_override_non_nullable!(programmatic_overrides, stash_untracked);
+            }
+            "state_dir" => {
+                apply_override_nullable!(env_overrides, state_dir);
+                apply_override_nullable!(git_overrides, state_dir);
+                apply_override_nullable!(pkl_overrides, state_dir);
+                apply_override_nullable!(cli_overrides, state_dir);
+                apply_override_nullable!(programmatic_overrides, state_dir);
+            }
+            "summary_text" => {
+                apply_override_non_nullable!(env_overrides, summary_text);
+                apply_override_non_nullable!(git_overrides, summary_text);
+                apply_override_non_nullable!(pkl_overrides, summary_text);
+                apply_override_non_nullable!(cli_overrides, summary_text);
+                apply_override_non_nullable!(programmatic_overrides, summary_text);
+            }
+            "timing_json" => {
+                apply_override_nullable!(env_overrides, timing_json);
+                apply_override_nullable!(git_overrides, timing_json);
+                apply_override_nullable!(pkl_overrides, timing_json);
+                apply_override_nullable!(cli_overrides, timing_json);
+                apply_override_nullable!(programmatic_overrides, timing_json);
+            }
+            "trace" => {
+                apply_override_non_nullable!(env_overrides, trace);
+                apply_override_non_nullable!(git_overrides, trace);
+                apply_override_non_nullable!(pkl_overrides, trace);
+                apply_override_non_nullable!(cli_overrides, trace);
+                apply_override_non_nullable!(programmatic_overrides, trace);
+            }
+            "verbose" => {
+                apply_override_non_nullable!(env_overrides, verbose);
+                apply_override_non_nullable!(git_overrides, verbose);
+                apply_override_non_nullable!(pkl_overrides, verbose);
+                apply_override_non_nullable!(cli_overrides, verbose);
+                apply_override_non_nullable!(programmatic_overrides, verbose);
+            }
+            "warnings" => {
+                apply_override_non_nullable!(env_overrides, warnings);
+                apply_override_non_nullable!(git_overrides, warnings);
+                apply_override_non_nullable!(pkl_overrides, warnings);
+                apply_override_non_nullable!(cli_overrides, warnings);
+                apply_override_non_nullable!(programmatic_overrides, warnings);
+            }
+            _ => {
+                // Unknown field - this shouldn't happen with current schema but handle gracefully
+                debug!("Unknown field: {}", field_name);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -753,8 +1085,8 @@ impl SettingsBuilder {
 
     /// Build the Settings instance
     pub fn build(self) -> Settings {
-        // Use the generated systematic merge logic
-        let merger = generated::SettingsMerger::default();
+        // Use the new dynamic merge logic
+        let merger = SettingsMerger::new();
 
         // Apply systematic precedence: defaults → env → git → pkl → CLI → programmatic
         let defaults = generated::settings::GeneratedSettings::default();
