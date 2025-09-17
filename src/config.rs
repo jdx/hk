@@ -285,8 +285,61 @@ impl UserConfig {
 }
 
 fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
-    let json = xx::process::sh(&format!("{bin} eval -f json {}", path.display()))?;
+    use std::process::{Command, Stdio};
+
+    // Run pkl with captured stderr to check for specific error patterns
+    let output = Command::new("sh")
+        .arg("-c")
+        .arg(format!("{bin} eval -f json {}", path.display()))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .wrap_err("failed to execute pkl command")?;
+
+    if !output.status.success() {
+        handle_pkl_error(&output, path)?;
+    }
+
+    let json = String::from_utf8_lossy(&output.stdout);
     serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
+}
+
+fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    // Check for common Pkl errors and provide helpful messages
+    if stderr.contains("Cannot find type `Hook`") || stderr.contains("Cannot find type `Step`") {
+        bail!(
+            "Missing 'amends' declaration in {}. \n\n\
+            Your hk.pkl file should start with one of:\n\
+            • amends \"pkl/Config.pkl\" (for local development)\n\
+            • amends \"package://github.com/jdx/hk/releases/download/vX.Y.Z/hk@X.Y.Z#/Config.pkl\" (for released versions)\n\n\
+            See https://github.com/jdx/hk for more information.",
+            path.display()
+        );
+    } else if stderr.contains("Module URI") && stderr.contains("has invalid syntax") {
+        bail!(
+            "Invalid module URI in {}. \n\n\
+            Make sure your 'amends' declaration uses a valid path or package URL.\n\
+            Examples:\n\
+            • amends \"pkl/Config.pkl\" (for local development)\n\
+            • amends \"package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl\"",
+            path.display()
+        );
+    }
+
+    // Return the full error if it's not a known pattern
+    let code = output
+        .status
+        .code()
+        .map_or("unknown".to_string(), |c| c.to_string());
+    bail!(
+        "Failed to evaluate Pkl config at {}\n\nExit code: {}\n\nError output:\n{}",
+        path.display(),
+        code,
+        stderr
+    );
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
