@@ -1,10 +1,15 @@
 use crate::settings::Settings;
-use git2::Config;
+use git2::{Config, Repository};
 use indexmap::IndexSet;
 use std::num::NonZero;
 
 pub fn read_git_config() -> Result<(), git2::Error> {
-    let config = Config::open_default()?;
+    // Try to find repository config first, fall back to default
+    let config = if let Ok(repo) = Repository::open_from_env() {
+        repo.config()?
+    } else {
+        Config::open_default()?
+    };
 
     // Read jobs
     if let Ok(jobs) = config.get_i32("hk.jobs") {
