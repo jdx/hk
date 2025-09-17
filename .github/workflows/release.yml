@@ -107,10 +107,16 @@ jobs:
           # List the output
           echo "Contents of .out:"
           ls -laR .out/ || echo "No .out directory found"
+
+          # Debug: check current directory
+          echo "Current directory: $(pwd)"
+          echo "Files in current directory:"
+          ls -la
       - uses: actions/upload-artifact@v4
         with:
           name: pkl-packages
-          path: .out/
+          path: .out/**
+          if-no-files-found: error
           retention-days: 1
 
   create-release:
