@@ -401,15 +401,21 @@ impl Hook {
 
         let skip_steps = {
             let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-            // Use settings for skip_steps which includes env vars, git config, etc.
+
+            // First, check environment variable skips directly
+            for s in env::HK_SKIP_STEPS.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                );
+            }
+
+            // Then add any additional skips from config/git that aren't from env
             for s in settings.skip_steps().iter() {
-                // Check if this skip came from the environment variable
-                let reason = if env::HK_SKIP_STEPS.contains(s as &str) {
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string())
-                } else {
-                    SkipReason::DisabledByConfig
-                };
-                m.insert(s.clone(), reason);
+                // Only add if not already marked as env skip
+                if !m.contains_key(s) {
+                    m.insert(s.clone(), SkipReason::DisabledByConfig);
+                }
             }
             for s in opts.skip_step.iter() {
                 m.insert(

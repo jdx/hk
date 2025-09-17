@@ -2,12 +2,12 @@ use std::{
     collections::HashSet,
     num::NonZero,
     path::PathBuf,
-    sync::{Arc, LazyLock, Mutex, OnceLock},
+    sync::{Arc, LazyLock, Mutex},
 };
 
-use indexmap::IndexSet;
+use arc_swap::ArcSwap;
 
-use crate::env;
+use indexmap::IndexSet;
 
 // Include the generated settings structs from the build
 pub mod generated {
@@ -109,23 +109,29 @@ impl Settings {
         (*Self::get_snapshot()).clone()
     }
 
-    /// Get the global settings snapshot, initializing it if needed
+    /// Get the global settings snapshot
     pub fn get_snapshot() -> SettingsSnapshot {
-        GLOBAL_SETTINGS
-            .get_or_init(|| {
-                SettingsBuilder::new()
-                    .from_env()
-                    .from_git()
-                    .build_snapshot()
-            })
-            .clone()
+        GLOBAL_SETTINGS.load_full()
     }
 
     /// Reset the global settings cache (useful for testing)
+    #[allow(dead_code)]
     pub fn reset_global_cache() {
-        // This is a bit tricky since OnceLock doesn't have a reset method
-        // We'll need to use unsafe code or create a new approach
-        // For now, we'll document this limitation
+        // Rebuild settings from scratch with current overrides
+        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
+
+        let mut builder = SettingsBuilder::new().from_env().from_git();
+        builder.programmatic_overrides = programmatic_overrides;
+
+        let new_settings = builder.build_snapshot();
+        GLOBAL_SETTINGS.store(new_settings);
+    }
+
+    /// Reload settings from all sources (useful for config file changes)
+    #[allow(dead_code)]
+    pub fn reload() -> SettingsSnapshot {
+        Self::reset_global_cache();
+        Self::get_snapshot()
     }
 
     pub fn with_profiles(profiles: &[String]) {
@@ -260,8 +266,16 @@ impl Default for Settings {
 // Immutable settings snapshot using Arc for efficient sharing
 pub type SettingsSnapshot = Arc<Settings>;
 
-// Global cached settings instance
-static GLOBAL_SETTINGS: OnceLock<SettingsSnapshot> = OnceLock::new();
+// Global cached settings instance using ArcSwap for safe reloading
+static GLOBAL_SETTINGS: LazyLock<ArcSwap<Settings>> = LazyLock::new(|| {
+    // Initialize with settings built from all sources
+    let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
+
+    let mut builder = SettingsBuilder::new().from_env().from_git();
+    builder.programmatic_overrides = programmatic_overrides;
+
+    ArcSwap::from_pointee(builder.build())
+});
 
 /// Builder for creating Settings instances with different sources
 #[derive(Default)]

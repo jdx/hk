@@ -27,6 +27,7 @@ build = "build.rs"
 rust-version = "1.85"
 
 [dependencies]
+arc-swap = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 clap_usage = "2"
