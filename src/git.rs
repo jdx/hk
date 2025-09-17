@@ -556,13 +556,8 @@ impl Git {
                     .iter()
                     .any(|p| status.unstaged_modified_files.contains(p));
             }
-            // If nothing to stash for these paths, skip invoking git entirely
-            if !any_unstaged {
-                job.prop("message", "No unstaged changes to stash");
-                job.prop("files", &0);
-                job.set_status(ProgressStatus::Done);
-                return Ok(());
-            }
+            // Do not skip here; even if detection is flaky, attempting a stash
+            // will fall back to a patch-based stash for partial hunks.
             job.prop("message", "Running git stash for selected paths");
             job.update();
             self.stash = self.push_stash(Some(paths), status, method)?;
@@ -1025,9 +1020,10 @@ impl Git {
                 staged_after.insert(path);
             }
         }
+        // Only unstage files that were not previously staged AND not explicitly restaged by steps
         let to_unstage: Vec<_> = staged_after
             .iter()
-            .filter(|p| !previously_staged.contains(*p))
+            .filter(|p| !previously_staged.contains(*p) && !self.restaged_paths.contains(*p))
             .cloned()
             .collect();
         if !to_unstage.is_empty() {
