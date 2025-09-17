@@ -1,11 +1,37 @@
 # Changelog
 
+## [1.13.0](https://github.com/jdx/hk/compare/v1.12.1..v1.13.0) - 2025-09-17
+
+### 🚀 Features
+
+- add tracing and performance diagnostics support by [@jdx](https://github.com/jdx) in [3045a38](https://github.com/jdx/hk/commit/3045a3826e4b1c4213dbccadb7dc1ce442a814fa)
+- add tracing and performance diagnostics support by [@jdx](https://github.com/jdx) in [#259](https://github.com/jdx/hk/pull/259)
+- comprehensive configuration unification with proper precedence and union semantics by [@jdx](https://github.com/jdx) in [#266](https://github.com/jdx/hk/pull/266)
+- centralized skip configuration for steps and hooks by [@jdx](https://github.com/jdx) in [#268](https://github.com/jdx/hk/pull/268)
+
+### 📚 Documentation
+
+- add comprehensive schema reference and built-in linters documentation by [@jdx](https://github.com/jdx) in [#261](https://github.com/jdx/hk/pull/261)
+- add comprehensive logging and debugging guide by [@jdx](https://github.com/jdx) in [#263](https://github.com/jdx/hk/pull/263)
+- add glossary and update sidebar navigation by [@jdx](https://github.com/jdx) in [#264](https://github.com/jdx/hk/pull/264)
+- document configuration unification and skip configuration features by [@jdx](https://github.com/jdx) in [#269](https://github.com/jdx/hk/pull/269)
+
+### 🔍 Other Changes
+
+- **(ci)** include Pkl artifacts in releases; support manual version input by [@jdx](https://github.com/jdx) in [#265](https://github.com/jdx/hk/pull/265)
+- mise.lock by [@bhanuprasad14](https://github.com/bhanuprasad14) in [5a5a5d0](https://github.com/jdx/hk/commit/5a5a5d03727a72a260383f67eb7696857894d664)
+
+### New Contributors
+
+- @bhanuprasad14 made their first contribution
+
 ## [1.12.1](https://github.com/jdx/hk/compare/v1.12.0..v1.12.1) - 2025-09-13
 
 ### 🐛 Bug Fixes
 
 - include pkl packages in releases by [@jdx](https://github.com/jdx) in [#227](https://github.com/jdx/hk/pull/227)
 - improve stashing error handling and robustness by [@jdx](https://github.com/jdx) in [#229](https://github.com/jdx/hk/pull/229)
+- only show fix help message when running in check mode by [@jdx](https://github.com/jdx) in [#230](https://github.com/jdx/hk/pull/230)
 
 ## [1.12.0](https://github.com/jdx/hk/compare/v1.11.2..v1.12.0) - 2025-09-07
 
