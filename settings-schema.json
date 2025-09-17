@@ -1,71 +1,501 @@
 {
+  "$comment": "This schema is auto-generated from settings.toml by build/generate_settings.rs",
   "$schema": "https://json-schema.org/draft-07/schema#",
-  "title": "HK Settings Registry",
-  "description": "Internal options registry used for codegen (not user-edited config)",
-  "type": "object",
-  "patternProperties": {
-    "^[a-z][a-z0-9_]*$": {
-      "type": "object",
-      "required": ["type", "docs"],
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": ["bool", "int", "usize", "u8", "string", "path", "enum", "list<string>"],
-          "description": "The data type of the option"
-        },
-        "default": {
-          "description": "Default value for the option. Absence indicates nullable/optional."
-        },
-        "merge": {
-          "type": "string",
-          "enum": ["replace", "union"],
-          "default": "replace",
-          "description": "Merge strategy when values come from multiple sources"
-        },
-        "sources": {
-          "type": "object",
-          "description": "Configuration sources for this option",
-          "properties": {
-            "pkl": {
-              "oneOf": [
-                { "type": "string" },
-                { "type": "array", "items": { "type": "string" } }
-              ],
-              "description": "PKL configuration path(s)"
-            },
-            "env": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Environment variable names"
-            },
-            "git": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Git config keys"
-            },
-            "cli": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "CLI flag names"
-            }
-          }
-        },
-        "validate": {
-          "type": "object",
-          "properties": {
-            "enum": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Valid enum values for enum types"
-            }
-          }
-        },
-        "docs": {
-          "type": "string",
-          "description": "Documentation for this option"
-        }
+  "additionalProperties": false,
+  "description": "Configuration schema for hk - A tool for managing git hooks",
+  "properties": {
+    "all": {
+      "default": false,
+      "description": "Enables running all available steps, including those that might be disabled by default or require specific profiles.\n\nWhen enabled, hk will run all configured steps regardless of their profile requirements or other filtering criteria.\nThis is useful for comprehensive checking or when you want to run every possible linting/formatting task.\n\nExample: `hk check --all` to run all available checks.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--all"
+        ]
+      }
+    },
+    "cache_dir": {
+      "description": "Directory where hk stores cache files for improved performance.\n\nDefault location: `~/.cache/hk`\n\nCache includes tool binary locations, parsed configurations, and other performance optimizations.",
+      "format": "path",
+      "type": "string",
+      "x-hk-metadata": {
+        "env": [
+          "HK_CACHE_DIR"
+        ]
+      }
+    },
+    "check": {
+      "default": false,
+      "description": "Forces hk to run only check commands (read-only) instead of fix commands.\n\nThis is the opposite of the `fix` setting. When enabled, hk will report issues without attempting to fix them.\n\nUseful for CI environments where you want to verify code quality without making changes.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--check",
+          "-c"
+        ],
+        "env": [
+          "HK_CHECK"
+        ],
+        "git": [
+          "hk.check"
+        ]
+      }
+    },
+    "check_first": {
+      "default": true,
+      "description": "If enabled, hk will run check commands first, then run fix commands only if the check fails when there are multiple linters with the same file in matching glob patterns.\n\nThe reason for this optimization is to maximize parallelization. We can have multiple check commands running in parallel against the same file without interference, but we can't have 2 fix commands potentially writing to the same file simultaneously.\n\nIf disabled, hk will use simpler logic that just runs fix commands in series in this situation.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "env": [
+          "HK_CHECK_FIRST"
+        ],
+        "git": [
+          "hk.checkFirst"
+        ]
+      }
+    },
+    "display_skip_reasons": {
+      "default": [
+        "profile-not-enabled"
+      ],
+      "description": "Controls which skip reasons are displayed when steps are skipped.\n\nAvailable options:\n- `all`: Show all skip reasons\n- `none`: Hide all skip reasons\n- `disabled-by-config`: Show when steps are skipped due to configuration\n- `profile-not-enabled`: Show when steps are skipped due to missing profiles (default)\n\nExample: `HK_DISPLAY_SKIP_REASONS=all` to see all skip reasons.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-hk-metadata": {
+        "env": [
+          "HK_DISPLAY_SKIP_REASONS"
+        ],
+        "git": [
+          "hk.displaySkipReasons"
+        ]
+      }
+    },
+    "exclude": {
+      "description": "Glob patterns to exclude from processing. These patterns are **unioned** with exclude patterns from other configuration sources (git config, user config, project config). Supports both directory names and glob patterns.\n\nExamples:\n- Exclude specific directories: `node_modules,dist`\n- Exclude using glob patterns: `**/*.min.js,**/*.map`\n\nAll exclude patterns from different sources are combined.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-hk-metadata": {
+        "cli": [
+          "--exclude",
+          "--exclude-glob",
+          "-e"
+        ],
+        "env": [
+          "HK_EXCLUDE"
+        ],
+        "git": [
+          "hk.exclude",
+          "hk.excludeGlob"
+        ],
+        "merge": "union"
+      }
+    },
+    "fail_fast": {
+      "default": true,
+      "description": "Controls whether hk aborts running steps after the first one fails.\n\nWhen enabled (default), hk will stop execution immediately when a step fails, providing quicker feedback.\nWhen disabled, hk will continue running all steps even if some fail, useful for seeing all issues at once.\n\nCan be toggled with `--fail-fast` / `--no-fail-fast` CLI flags.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--fail-fast",
+          "--no-fail-fast"
+        ],
+        "env": [
+          "HK_FAIL_FAST"
+        ],
+        "git": [
+          "hk.failFast"
+        ]
+      }
+    },
+    "fix": {
+      "default": true,
+      "description": "Controls whether hk runs fix commands (that modify files) or check commands (read-only).\n\nWhen enabled (default), runs fix commands to automatically resolve issues.\nWhen disabled, only runs check commands to report issues without making changes.\n\nCan be toggled with `--fix` / `--check` CLI flags.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--fix",
+          "-f"
+        ],
+        "env": [
+          "HK_FIX"
+        ],
+        "git": [
+          "hk.fix"
+        ]
+      }
+    },
+    "hide_warnings": {
+      "description": "Warning tags to suppress. Allows hiding specific warning messages that you don't want to see.\n\nAvailable warning tags:\n- `missing-profiles`: Suppresses warnings about steps being skipped due to missing profiles\n\nExample: `HK_HIDE_WARNINGS=missing-profiles`\n\nAll hide configurations from different sources are **unioned** together.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-hk-metadata": {
+        "env": [
+          "HK_HIDE_WARNINGS"
+        ],
+        "git": [
+          "hk.hideWarnings"
+        ],
+        "merge": "union"
+      }
+    },
+    "hide_when_done": {
+      "default": false,
+      "description": "Controls whether hk hides the progress output when the hook finishes successfully.\n\nWhen enabled, successful runs will clear their output to reduce visual clutter.\nFailed runs will always show their output regardless of this setting.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "env": [
+          "HK_HIDE_WHEN_DONE"
+        ]
+      }
+    },
+    "hkrc": {
+      "default": ".hkrc.pkl",
+      "description": "Path to the user configuration file.\n\nDefault: `.hkrc.pkl` in the current directory or parent directories.\n\nThis file can override project-level settings and is useful for personal preferences.",
+      "format": "path",
+      "type": "string",
+      "x-hk-metadata": {
+        "cli": [
+          "--hkrc"
+        ]
+      }
+    },
+    "jobs": {
+      "default": 0,
+      "description": "The number of parallel processes that hk will use to execute steps concurrently. This affects performance by controlling how many linting/formatting tasks can run simultaneously.\n\nSet to `0` (default) to auto-detect based on CPU cores.\n\nExample usage:\n- `hk check --jobs 4` - Run with 4 parallel jobs\n- `HK_JOBS=8 hk fix` - Set via environment variable",
+      "examples": [
+        "hk check --jobs 4",
+        "HK_JOBS=1 hk fix",
+        "hk check -j 8"
+      ],
+      "type": "integer",
+      "x-hk-metadata": {
+        "cli": [
+          "--jobs",
+          "-j"
+        ],
+        "env": [
+          "HK_JOBS",
+          "HK_JOB"
+        ],
+        "git": [
+          "hk.jobs"
+        ],
+        "since": "1.0.0"
+      }
+    },
+    "json": {
+      "default": false,
+      "description": "Enables JSON output format for structured data.\n\nWhen enabled, hk outputs machine-readable JSON instead of human-readable text.\nUseful for integration with other tools or for programmatic processing of results.\n\nExample: `hk check --json | jq '.steps[] | select(.failed)'`",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--json"
+        ],
+        "env": [
+          "HK_JSON"
+        ],
+        "git": [
+          "hk.json"
+        ]
+      }
+    },
+    "libgit2": {
+      "default": true,
+      "description": "Controls whether hk uses libgit2 (a Git library) or shells out to git CLI commands.\n\nWhen enabled (default), uses libgit2 for better performance in most cases.\nWhen disabled, uses git CLI commands which may provide better performance in some cases such as when using `fsmonitor` to watch for changes.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "env": [
+          "HK_LIBGIT2"
+        ]
+      }
+    },
+    "log_file": {
+      "description": "Path to the log file where hk writes detailed execution logs.\n\nDefault location: `~/.local/state/hk/hk.log`\n\nUseful for debugging issues or keeping an audit trail of hook executions.",
+      "format": "path",
+      "type": "string",
+      "x-hk-metadata": {
+        "env": [
+          "HK_LOG_FILE"
+        ]
+      }
+    },
+    "log_file_level": {
+      "default": "info",
+      "description": "Controls the verbosity of file logging output.\n\nUses the same levels as `log_level` but specifically for the log file.\nDefaults to the same level as `log_level` if not specified.\n\nThis allows you to have different verbosity levels for console and file output.",
+      "enum": [
+        "off",
+        "error",
+        "warn",
+        "info",
+        "debug",
+        "trace"
+      ],
+      "type": "string",
+      "x-hk-metadata": {
+        "env": [
+          "HK_LOG_FILE_LEVEL"
+        ]
+      }
+    },
+    "log_level": {
+      "default": "info",
+      "description": "Controls the verbosity of console output.\n\nAvailable levels (from least to most verbose):\n- `off`: No logging\n- `error`: Only errors\n- `warn`: Errors and warnings\n- `info`: Normal output (default)\n- `debug`: Detailed debugging information\n- `trace`: Very detailed trace information\n\nExample: `HK_LOG_LEVEL=debug hk check`",
+      "enum": [
+        "off",
+        "error",
+        "warn",
+        "info",
+        "debug",
+        "trace"
+      ],
+      "type": "string",
+      "x-hk-metadata": {
+        "env": [
+          "HK_LOG",
+          "HK_LOG_LEVEL"
+        ]
+      }
+    },
+    "mise": {
+      "default": false,
+      "description": "Enables deep integration with [mise](https://mise.jdx.dev) for tool management.\n\nWhen enabled:\n- `hk install` will use `mise x` to execute hooks, ensuring mise tools are available without activation\n- `hk init` will create a `mise.toml` file with hk configured\n- Tool discovery will use mise shims automatically",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "env": [
+          "HK_MISE"
+        ]
+      }
+    },
+    "no_progress": {
+      "default": false,
+      "description": "Disables progress bars and real-time status updates.\n\nWhen enabled, hk will use simpler text output instead of dynamic progress indicators.\nUseful for CI environments or when output is being logged to a file.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--no-progress"
+        ]
+      }
+    },
+    "profiles": {
+      "description": "Profiles to enable or disable. Profiles allow you to group steps that should run only in certain contexts (e.g., CI, slow tests).\n\nPrefix with `!` to explicitly disable a profile.\n\nExample usage:\n- `HK_PROFILE=ci` - Enable the CI profile\n- `HK_PROFILE=slow,ci` - Enable multiple profiles\n- `--profile=!slow` - Explicitly disable the slow profile",
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-hk-metadata": {
+        "cli": [
+          "--profile",
+          "-p"
+        ],
+        "env": [
+          "HK_PROFILE",
+          "HK_PROFILES"
+        ],
+        "git": [
+          "hk.profile"
+        ]
+      }
+    },
+    "quiet": {
+      "default": false,
+      "description": "Suppresses non-essential output.\n\nWhen enabled, only errors and critical information will be displayed.\nUseful for scripting or when you only care about the exit code.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--quiet",
+          "-q"
+        ]
+      }
+    },
+    "silent": {
+      "default": false,
+      "description": "Completely suppresses all output, including errors.\n\nMore extreme than `quiet` - absolutely no output will be displayed.\nUseful when only the exit code matters.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--silent"
+        ]
+      }
+    },
+    "skip_hooks": {
+      "description": "A list of hook names to skip entirely. This allows you to disable specific git hooks from running.\n\nFor example: `HK_SKIP_HOOK=pre-commit,pre-push` would skip running those hooks completely.\n\nThis is useful when you want to temporarily disable certain hooks while still keeping them configured in your `hk.pkl` file.\nUnlike `skip_steps` which skips individual steps, this skips the entire hook and all its steps.\n\nThis setting can also be configured via:\n- Git config: `git config hk.skipHook \"pre-commit\"`\n- User config (`.hkrc.pkl`): `skip_hooks = List(\"pre-commit\")`\n\n**All skip configurations from different sources are unioned together.**",
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-hk-metadata": {
+        "env": [
+          "HK_SKIP_HOOK",
+          "HK_SKIP_HOOKS"
+        ],
+        "git": [
+          "hk.skipHooks",
+          "hk.skipHook"
+        ],
+        "merge": "union"
+      }
+    },
+    "skip_steps": {
+      "description": "A list of step names to skip when running hooks. This allows you to bypass specific linting or formatting tasks.\n\nFor example: `HK_SKIP_STEPS=lint,test` would skip any steps named \"lint\" or \"test\".\n\nThis setting can also be configured via:\n- Git config: `git config hk.skipSteps \"step1,step2\"`\n- User config (`.hkrc.pkl`): `skip_steps = List(\"step1\", \"step2\")`\n\n**All skip configurations from different sources are unioned together.**",
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-hk-metadata": {
+        "cli": [
+          "--skip-step"
+        ],
+        "env": [
+          "HK_SKIP_STEPS",
+          "HK_SKIP_STEP"
+        ],
+        "git": [
+          "hk.skipSteps",
+          "hk.skipStep"
+        ],
+        "merge": "union"
+      }
+    },
+    "slow": {
+      "default": false,
+      "description": "Enables the \"slow\" profile for running additional checks that may take longer.\n\nThis is a convenience flag equivalent to `--profile=slow`.\n\nUseful for thorough checking in CI or before major releases.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "cli": [
+          "--slow",
+          "-s"
+        ]
+      }
+    },
+    "stash": {
+      "default": "auto",
+      "description": "Strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.\n\nAvailable strategies:\n- `auto`: Automatically choose the best strategy (default)\n- `git`: Use `git stash` to stash changes\n- `patch-file`: Use hk-generated patch files (typically faster, avoids \"index is locked\" errors)\n- `none`: No stashing (fastest, but may cause staging conflicts if fixes modify unstaged changes in the same file)",
+      "enum": [
+        "auto",
+        "git",
+        "patch-file",
+        "none"
+      ],
+      "type": "string",
+      "x-hk-metadata": {
+        "cli": [
+          "--stash"
+        ],
+        "env": [
+          "HK_STASH"
+        ],
+        "git": [
+          "hk.stash"
+        ]
+      }
+    },
+    "stash_untracked": {
+      "default": true,
+      "description": "Controls whether untracked files are included when stashing before running hooks.\n\nWhen enabled (default), untracked files will be temporarily stashed along with tracked changes.\nThis ensures a clean working directory for hook execution.",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "env": [
+          "HK_STASH_UNTRACKED"
+        ],
+        "git": [
+          "hk.stashUntracked"
+        ]
+      }
+    },
+    "state_dir": {
+      "description": "Directory where hk stores persistent state files.\n\nDefault location: `~/.local/state/hk`\n\nIncludes logs, temporary patch files for stashing, and other state information.",
+      "format": "path",
+      "type": "string",
+      "x-hk-metadata": {
+        "env": [
+          "HK_STATE_DIR"
+        ]
+      }
+    },
+    "summary_text": {
+      "default": false,
+      "description": "Controls whether per-step output summaries are printed in plain text mode.\n\nBy default, summaries are only shown when hk is rendering progress bars (non-text mode).\nSet to `true` to force summaries to appear in text mode, useful for CI environments.\n\nExample: `HK_SUMMARY_TEXT=1 hk check`",
+      "type": "boolean",
+      "x-hk-metadata": {
+        "env": [
+          "HK_SUMMARY_TEXT"
+        ]
+      }
+    },
+    "timing_json": {
+      "description": "Path to write a JSON timing report after a hook finishes. The report includes total wall time and per-step wall time, with overlapping intervals merged so time isn't double-counted across parallel step parts.\n\nThe `steps` field maps step names to objects containing:\n- `wall_time_ms`: merged wall time in milliseconds\n- `profiles` (optional): list of profiles required for that step\n\nExample usage: `HK_TIMING_JSON=/tmp/hk-timing.json hk check`\n\nExample output:\n```json\n{\n  \"total\": { \"wall_time_ms\": 12456 },\n  \"steps\": {\n    \"lint\": { \"wall_time_ms\": 4321, \"profiles\": [\"ci\", \"fast\"] },\n    \"fmt\": { \"wall_time_ms\": 2100 }\n  }\n}\n```\n\nWhen a hook-level `report` command is configured in `hk.pkl`, hk will set `HK_REPORT_JSON` to the same timing JSON content and execute the command after the hook finishes.",
+      "format": "path",
+      "type": "string",
+      "x-hk-metadata": {
+        "env": [
+          "HK_TIMING_JSON"
+        ]
+      }
+    },
+    "trace": {
+      "default": "off",
+      "description": "Enables tracing spans and performance diagnostics for detailed execution analysis.\n\nAvailable formats:\n- `off`: No tracing (default)\n- `text`: Human-readable trace output\n- `json`: Machine-readable JSON trace output\n- `1` or `true`: Enable text tracing (aliases)\n\nUseful for debugging performance issues or understanding execution flow.\n\nExample: `HK_TRACE=text hk check` to see detailed execution traces.",
+      "enum": [
+        "off",
+        "text",
+        "json",
+        "1",
+        "true"
+      ],
+      "type": "string",
+      "x-hk-metadata": {
+        "cli": [
+          "--trace"
+        ],
+        "env": [
+          "HK_TRACE"
+        ],
+        "git": [
+          "hk.trace"
+        ]
+      }
+    },
+    "verbose": {
+      "default": 0,
+      "description": "Controls the verbosity of output.\n\nCan be specified multiple times to increase verbosity:\n- `-v`: Basic verbose output\n- `-vv`: More detailed output\n- `-vvv`: Very detailed output\n\nExample: `hk check -vv` for detailed debugging output.",
+      "type": "integer",
+      "x-hk-metadata": {
+        "cli": [
+          "--verbose",
+          "-v"
+        ]
+      }
+    },
+    "warnings": {
+      "description": "Warning tags to enable or show. Controls which warning messages are displayed during execution.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-hk-metadata": {
+        "env": [
+          "HK_WARNINGS"
+        ],
+        "git": [
+          "hk.warnings"
+        ]
       }
     }
   },
-  "additionalProperties": false
+  "required": [
+    "exclude",
+    "hide_warnings",
+    "profiles",
+    "skip_hooks",
+    "skip_steps",
+    "warnings"
+  ],
+  "title": "HK Settings",
+  "type": "object"
 }

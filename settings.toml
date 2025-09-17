@@ -175,6 +175,8 @@ Example usage:
 - `hk check --jobs 4` - Run with 4 parallel jobs
 - `HK_JOBS=8 hk fix` - Set via environment variable
 """
+examples = ["hk check --jobs 4", "HK_JOBS=1 hk fix", "hk check -j 8"]
+since = "1.0.0"
 
 [json]
 type = "bool"

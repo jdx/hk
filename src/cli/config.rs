@@ -1,4 +1,4 @@
-use crate::{Result, config::Config as HKConfig, settings::Settings};
+use crate::{Result, settings::Settings};
 use serde_json::json;
 
 /// Configuration introspection and management
@@ -21,6 +21,11 @@ enum ConfigCommand {
     /// Shows the merged configuration from all sources including CLI flags,
     /// environment variables, git config, user config, and project config.
     Dump(ConfigDump),
+    /// Explain where a configuration value comes from
+    ///
+    /// Shows the resolved value, its source (env/git/cli/default), and
+    /// the full precedence chain showing all layers that could affect it.
+    Explain(ConfigExplain),
     /// Get a specific configuration value
     ///
     /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
@@ -31,8 +36,6 @@ enum ConfigCommand {
     /// Lists all configuration sources in order of precedence to help
     /// understand where configuration values come from.
     Sources(ConfigSources),
-    /// Show the raw configuration file (deprecated - use 'dump' instead)
-    Show,
 }
 
 #[derive(Debug, clap::Args)]
@@ -52,21 +55,29 @@ struct ConfigGet {
 }
 
 #[derive(Debug, clap::Args)]
+struct ConfigExplain {
+    /// Configuration key to explain
+    key: String,
+}
+
+#[derive(Debug, clap::Args)]
 struct ConfigSources {}
 
 impl Config {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
-            None | Some(ConfigCommand::Show) => {
+            Some(ConfigCommand::Dump(cmd)) => cmd.run(),
+            Some(ConfigCommand::Get(cmd)) => cmd.run(),
+            Some(ConfigCommand::Explain(cmd)) => cmd.run(),
+            Some(ConfigCommand::Sources(cmd)) => cmd.run(),
+            None => {
                 warn!("this output is almost certain to change in a future version");
-                let cfg = HKConfig::get()?;
-                println!("{cfg}");
+                let dump = ConfigDump {
+                    format: "toml".to_string(),
+                };
+                dump.run()
             }
-            Some(ConfigCommand::Dump(cmd)) => cmd.run()?,
-            Some(ConfigCommand::Get(cmd)) => cmd.run()?,
-            Some(ConfigCommand::Sources(cmd)) => cmd.run()?,
         }
-        Ok(())
     }
 }
 
@@ -116,6 +127,68 @@ impl ConfigGet {
         };
 
         println!("{}", serde_json::to_string(&value)?);
+        Ok(())
+    }
+}
+
+impl ConfigExplain {
+    fn run(&self) -> Result<()> {
+        use crate::settings::SettingsBuilder;
+
+        // Get the current value
+        let settings = Settings::get();
+        let inner = settings.inner();
+
+        let current_value = match self.key.as_str() {
+            // Use existing accessor methods where available
+            "jobs" => json!(settings.jobs()),
+            "enabled_profiles" => json!(settings.enabled_profiles()),
+            "disabled_profiles" => json!(settings.disabled_profiles()),
+            "fail_fast" => json!(settings.fail_fast()),
+            "display_skip_reasons" => json!(settings.display_skip_reasons()),
+            "warnings" => json!(settings.warnings()),
+            "exclude" => json!(settings.exclude()),
+            "skip_steps" => json!(settings.skip_steps()),
+            "skip_hooks" => json!(settings.skip_hooks()),
+            "all" => json!(settings.all()),
+
+            // Access inner struct fields directly for everything else
+            "quiet" => json!(inner.quiet),
+            "silent" => json!(inner.silent),
+            "no_progress" => json!(inner.no_progress),
+            "slow" => json!(inner.slow),
+            "json" => json!(inner.json),
+            "libgit2" => json!(inner.libgit2),
+            "fix" => json!(inner.fix),
+            "check" => json!(inner.check),
+            "mise" => json!(inner.mise),
+            "stash" => json!(inner.stash),
+            "stash_untracked" => json!(inner.stash_untracked),
+            "hide_when_done" => json!(inner.hide_when_done),
+            "summary_text" => json!(inner.summary_text),
+            "check_first" => json!(inner.check_first),
+            "log_level" => json!(inner.log_level),
+            "log_file_level" => json!(inner.log_file_level),
+            "trace" => json!(inner.trace),
+            "verbose" => json!(inner.verbose),
+            "cache_dir" => json!(inner.cache_dir.as_ref().map(|p| p.display().to_string())),
+            "hkrc" => json!(inner.hkrc.display().to_string()),
+            "log_file" => json!(inner.log_file.as_ref().map(|p| p.display().to_string())),
+            "state_dir" => json!(inner.state_dir.as_ref().map(|p| p.display().to_string())),
+            "timing_json" => json!(inner.timing_json.as_ref().map(|p| p.display().to_string())),
+            "profiles" => json!(inner.profiles),
+
+            _ => return Err(eyre::eyre!("Unknown configuration key: {}", self.key)),
+        };
+
+        // Build a resolution report
+        let resolution_info = SettingsBuilder::explain_value(&self.key)?;
+
+        println!("Configuration key: {}", self.key);
+        println!("Current value: {}", serde_json::to_string(&current_value)?);
+        println!();
+        println!("{}", resolution_info);
+
         Ok(())
     }
 }

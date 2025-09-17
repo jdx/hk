@@ -20,6 +20,12 @@ pub struct OptionConfig {
     pub sources: SourcesConfig,
     pub validate: Option<ValidateConfig>,
     pub docs: String,
+    #[serde(default)]
+    pub examples: Vec<String>,
+    #[serde(default)]
+    pub deprecated: Option<String>,
+    #[serde(default)]
+    pub since: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,7 +62,7 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let settings_content = fs::read_to_string("settings.toml")?;
     let registry: SettingsRegistry = toml::from_str(&settings_content)?;
 
-    // Generate the settings struct
+    // Generate the settings struct with documentation
     generate_settings_struct(out_dir, &registry)?;
 
     // Generate the settings override struct
@@ -70,6 +76,9 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
     // Generate the settings merge logic
     generate_settings_merge(out_dir, &registry)?;
+
+    // Generate JSON Schema for external tooling
+    generate_json_schema(&registry)?;
 
     Ok(())
 }
@@ -91,7 +100,7 @@ fn generate_settings_struct(
         .derive("Clone")
         .doc("Auto-generated settings struct from settings.toml");
 
-    // Add fields to the struct
+    // Add fields to the struct with documentation
     for (name, opt) in &registry.options {
         let field_name = name.replace('-', "_");
         let base_type = rust_type(&opt.typ);
@@ -102,7 +111,70 @@ fn generate_settings_struct(
             base_type
         };
 
-        settings_struct.field(&format!("pub {}", field_name), field_type);
+        // Build comprehensive documentation
+        let mut doc_lines = vec![];
+
+        // Main documentation
+        doc_lines.extend(opt.docs.lines().map(|l| l.to_string()));
+
+        // Add deprecation notice if present
+        if let Some(deprecated) = &opt.deprecated {
+            doc_lines.push(String::new());
+            doc_lines.push(format!("# Deprecated"));
+            doc_lines.push(deprecated.clone());
+        }
+
+        // Add since version if present
+        if let Some(since) = &opt.since {
+            doc_lines.push(String::new());
+            doc_lines.push(format!("Since: v{}", since));
+        }
+
+        // Add examples if present
+        if !opt.examples.is_empty() {
+            doc_lines.push(String::new());
+            doc_lines.push("# Examples".to_string());
+            for example in &opt.examples {
+                doc_lines.push(format!("- {}", example));
+            }
+        }
+
+        // Add default value info
+        if let Some(default) = &opt.default {
+            doc_lines.push(String::new());
+            doc_lines.push(format!("Default: `{}`", default));
+        }
+
+        // Add type info
+        doc_lines.push(String::new());
+        doc_lines.push(format!("Type: `{}`", opt.typ));
+
+        // Add source info
+        let mut sources = vec![];
+        if !opt.sources.cli.is_empty() {
+            sources.push(format!("CLI: {}", opt.sources.cli.join(", ")));
+        }
+        if !opt.sources.env.is_empty() {
+            sources.push(format!("ENV: {}", opt.sources.env.join(", ")));
+        }
+        if !opt.sources.git.is_empty() {
+            sources.push(format!("Git: {}", opt.sources.git.join(", ")));
+        }
+
+        if !sources.is_empty() {
+            doc_lines.push(String::new());
+            doc_lines.push("Configuration sources:".to_string());
+            for source in sources {
+                doc_lines.push(format!("- {}", source));
+            }
+        }
+
+        // Create a field with documentation
+        let mut field = codegen::Field::new(&format!("pub {}", field_name), field_type);
+        if !doc_lines.is_empty() {
+            field.doc(&doc_lines.join("\n"));
+        }
+        settings_struct.push_field(field);
     }
 
     scope.push_struct(settings_struct);
@@ -609,4 +681,139 @@ fn generate_settings_merge(
     )?;
 
     Ok(())
+}
+
+fn generate_json_schema(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::Error>> {
+    use serde_json::{Value, json};
+
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+
+    for (name, opt) in &registry.options {
+        let field_name = name.replace('-', "_");
+
+        let mut field_schema = serde_json::Map::new();
+
+        // Add type
+        let (json_type, format) = match opt.typ.as_str() {
+            "bool" => ("boolean", None),
+            "int" | "usize" | "u8" => ("integer", None),
+            "string" | "enum" => ("string", None),
+            "path" => ("string", Some("path")),
+            "list<string>" => ("array", None),
+            _ => ("string", None),
+        };
+
+        if opt.typ == "list<string>" {
+            field_schema.insert("type".to_string(), json!("array"));
+            field_schema.insert("items".to_string(), json!({"type": "string"}));
+        } else {
+            field_schema.insert("type".to_string(), json!(json_type));
+        }
+
+        if let Some(fmt) = format {
+            field_schema.insert("format".to_string(), json!(fmt));
+        }
+
+        // Add description (docs)
+        field_schema.insert("description".to_string(), json!(opt.docs.trim()));
+
+        // Add default value
+        if let Some(default) = &opt.default {
+            field_schema.insert("default".to_string(), toml_to_json(default)?);
+        } else if !is_nullable(opt) {
+            required.push(field_name.clone());
+        }
+
+        // Add enum values if present
+        if let Some(validate) = &opt.validate {
+            if let Some(enum_values) = &validate.enum_values {
+                field_schema.insert("enum".to_string(), json!(enum_values));
+            }
+        }
+
+        // Add examples
+        if !opt.examples.is_empty() {
+            field_schema.insert("examples".to_string(), json!(opt.examples));
+        }
+
+        // Add deprecation info
+        if let Some(deprecated) = &opt.deprecated {
+            field_schema.insert("deprecated".to_string(), json!(true));
+            field_schema.insert("deprecatedMessage".to_string(), json!(deprecated));
+        }
+
+        // Add metadata as x-properties (custom properties)
+        let mut metadata = serde_json::Map::new();
+
+        // Add source information
+        if !opt.sources.cli.is_empty() {
+            metadata.insert("cli".to_string(), json!(opt.sources.cli));
+        }
+        if !opt.sources.env.is_empty() {
+            metadata.insert("env".to_string(), json!(opt.sources.env));
+        }
+        if !opt.sources.git.is_empty() {
+            metadata.insert("git".to_string(), json!(opt.sources.git));
+        }
+
+        // Add merge strategy
+        if let Some(merge) = &opt.merge {
+            metadata.insert("merge".to_string(), json!(merge));
+        }
+
+        // Add since version
+        if let Some(since) = &opt.since {
+            metadata.insert("since".to_string(), json!(since));
+        }
+
+        if !metadata.is_empty() {
+            field_schema.insert("x-hk-metadata".to_string(), json!(metadata));
+        }
+
+        properties.insert(field_name, Value::Object(field_schema));
+    }
+
+    // Build the complete schema
+    let schema = json!({
+        "$schema": "https://json-schema.org/draft-07/schema#",
+        "title": "HK Settings",
+        "description": "Configuration schema for hk - A tool for managing git hooks",
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": false,
+        "$comment": "This schema is auto-generated from settings.toml by build/generate_settings.rs"
+    });
+
+    // Write the schema to file
+    let schema_str = serde_json::to_string_pretty(&schema)?;
+    fs::write("settings-schema.json", schema_str)?;
+
+    println!("Generated settings-schema.json");
+
+    Ok(())
+}
+
+fn toml_to_json(value: &toml::Value) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    use serde_json::json;
+
+    Ok(match value {
+        toml::Value::String(s) => json!(s),
+        toml::Value::Integer(i) => json!(i),
+        toml::Value::Float(f) => json!(f),
+        toml::Value::Boolean(b) => json!(b),
+        toml::Value::Array(arr) => {
+            let json_arr: Result<Vec<_>, _> = arr.iter().map(toml_to_json).collect();
+            json!(json_arr?)
+        }
+        toml::Value::Table(table) => {
+            let mut json_obj = serde_json::Map::new();
+            for (k, v) in table {
+                json_obj.insert(k.clone(), toml_to_json(v)?);
+            }
+            json!(json_obj)
+        }
+        toml::Value::Datetime(dt) => json!(dt.to_string()),
+    })
 }

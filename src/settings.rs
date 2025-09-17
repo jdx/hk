@@ -541,6 +541,192 @@ impl SettingsBuilder {
         }
     }
 
+    /// Explain where a configuration value comes from
+    pub fn explain_value(key: &str) -> Result<String, eyre::Error> {
+        use std::fmt::Write;
+
+        // Convert key to rust field name
+        let field_name = key.replace('-', "_");
+
+        // Get metadata for this setting
+        let meta = generated::SETTINGS_META
+            .get(field_name.as_str())
+            .ok_or_else(|| eyre::eyre!("Unknown configuration key: {}", key))?;
+
+        let mut output = String::new();
+
+        // Build a new SettingsBuilder to check each layer
+        let mut builder = Self::new();
+
+        writeln!(
+            &mut output,
+            "Source resolution for '{}' (in precedence order):",
+            key
+        )?;
+        writeln!(
+            &mut output,
+            "================================================"
+        )?;
+
+        // Check programmatic overrides (highest precedence)
+        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
+        if Self::has_value(&programmatic_overrides, &field_name) {
+            writeln!(&mut output, "✓ PROGRAMMATIC (via Settings::set_* methods)")?;
+            if let Some(val) = Self::get_override_value(&programmatic_overrides, &field_name) {
+                writeln!(&mut output, "  Value: {}", val)?;
+            }
+        }
+
+        // Check CLI flags
+        if !meta.sources.cli.is_empty() {
+            writeln!(&mut output, "  CLI FLAGS: {}", meta.sources.cli.join(", "))?;
+            // Note: CLI values are set via programmatic overrides, checked above
+        }
+
+        // Check environment variables
+        builder = builder.from_env();
+        if !meta.sources.env.is_empty() {
+            writeln!(
+                &mut output,
+                "  ENVIRONMENT: {}",
+                meta.sources.env.join(", ")
+            )?;
+            if Self::has_value(&builder.env_overrides, &field_name) {
+                if let Some(val) = Self::get_override_value(&builder.env_overrides, &field_name) {
+                    writeln!(&mut output, "    ✓ Set to: {}", val)?;
+                }
+            }
+        }
+
+        // Check git config
+        builder = builder.from_git();
+        if !meta.sources.git.is_empty() {
+            writeln!(&mut output, "  GIT CONFIG: {}", meta.sources.git.join(", "))?;
+            if Self::has_value(&builder.git_overrides, &field_name) {
+                if let Some(val) = Self::get_override_value(&builder.git_overrides, &field_name) {
+                    writeln!(&mut output, "    ✓ Set to: {}", val)?;
+                }
+            }
+        }
+
+        // Check pkl sources (would be in config layer)
+        if !meta.sources.pkl.is_empty() {
+            writeln!(&mut output, "  PKL CONFIG: {}", meta.sources.pkl.join(", "))?;
+        }
+
+        // Show default value
+        writeln!(&mut output, "  DEFAULT:")?;
+        if let Some(default) = &meta.default_value {
+            writeln!(&mut output, "    Value: {}", default)?;
+        } else {
+            writeln!(&mut output, "    Value: (type default)")?;
+        }
+
+        writeln!(&mut output)?;
+        writeln!(
+            &mut output,
+            "Merge strategy: {}",
+            meta.merge.unwrap_or("replace")
+        )?;
+
+        Ok(output)
+    }
+
+    /// Check if an override struct has a value for a field
+    fn has_value(overrides: &generated::GeneratedSettingsOverride, field_name: &str) -> bool {
+        match field_name {
+            "all" => overrides.all.is_some(),
+            "cache_dir" => overrides.cache_dir.is_some(),
+            "check" => overrides.check.is_some(),
+            "check_first" => overrides.check_first.is_some(),
+            "display_skip_reasons" => overrides.display_skip_reasons.is_some(),
+            "exclude" => overrides.exclude.is_some(),
+            "fail_fast" => overrides.fail_fast.is_some(),
+            "fix" => overrides.fix.is_some(),
+            "hide_warnings" => overrides.hide_warnings.is_some(),
+            "hide_when_done" => overrides.hide_when_done.is_some(),
+            "hkrc" => overrides.hkrc.is_some(),
+            "jobs" => overrides.jobs.is_some(),
+            "json" => overrides.json.is_some(),
+            "libgit2" => overrides.libgit2.is_some(),
+            "log_file" => overrides.log_file.is_some(),
+            "log_file_level" => overrides.log_file_level.is_some(),
+            "log_level" => overrides.log_level.is_some(),
+            "mise" => overrides.mise.is_some(),
+            "no_progress" => overrides.no_progress.is_some(),
+            "profiles" => overrides.profiles.is_some(),
+            "quiet" => overrides.quiet.is_some(),
+            "silent" => overrides.silent.is_some(),
+            "skip_hooks" => overrides.skip_hooks.is_some(),
+            "skip_steps" => overrides.skip_steps.is_some(),
+            "slow" => overrides.slow.is_some(),
+            "stash" => overrides.stash.is_some(),
+            "stash_untracked" => overrides.stash_untracked.is_some(),
+            "state_dir" => overrides.state_dir.is_some(),
+            "summary_text" => overrides.summary_text.is_some(),
+            "timing_json" => overrides.timing_json.is_some(),
+            "trace" => overrides.trace.is_some(),
+            "verbose" => overrides.verbose.is_some(),
+            "warnings" => overrides.warnings.is_some(),
+            _ => false,
+        }
+    }
+
+    /// Get the override value as a string for display
+    fn get_override_value(
+        overrides: &generated::GeneratedSettingsOverride,
+        field_name: &str,
+    ) -> Option<String> {
+        match field_name {
+            "all" => overrides.all.map(|v| v.to_string()),
+            "cache_dir" => overrides
+                .cache_dir
+                .as_ref()
+                .map(|p| p.display().to_string()),
+            "check" => overrides.check.map(|v| v.to_string()),
+            "check_first" => overrides.check_first.map(|v| v.to_string()),
+            "display_skip_reasons" => overrides
+                .display_skip_reasons
+                .as_ref()
+                .map(|v| format!("{:?}", v)),
+            "exclude" => overrides.exclude.as_ref().map(|v| format!("{:?}", v)),
+            "fail_fast" => overrides.fail_fast.map(|v| v.to_string()),
+            "fix" => overrides.fix.map(|v| v.to_string()),
+            "hide_warnings" => overrides.hide_warnings.as_ref().map(|v| format!("{:?}", v)),
+            "hide_when_done" => overrides.hide_when_done.map(|v| v.to_string()),
+            "hkrc" => overrides.hkrc.as_ref().map(|p| p.display().to_string()),
+            "jobs" => overrides.jobs.map(|v| v.to_string()),
+            "json" => overrides.json.map(|v| v.to_string()),
+            "libgit2" => overrides.libgit2.map(|v| v.to_string()),
+            "log_file" => overrides.log_file.as_ref().map(|p| p.display().to_string()),
+            "log_file_level" => overrides.log_file_level.clone(),
+            "log_level" => overrides.log_level.clone(),
+            "mise" => overrides.mise.map(|v| v.to_string()),
+            "no_progress" => overrides.no_progress.map(|v| v.to_string()),
+            "profiles" => overrides.profiles.as_ref().map(|v| format!("{:?}", v)),
+            "quiet" => overrides.quiet.map(|v| v.to_string()),
+            "silent" => overrides.silent.map(|v| v.to_string()),
+            "skip_hooks" => overrides.skip_hooks.as_ref().map(|v| format!("{:?}", v)),
+            "skip_steps" => overrides.skip_steps.as_ref().map(|v| format!("{:?}", v)),
+            "slow" => overrides.slow.map(|v| v.to_string()),
+            "stash" => overrides.stash.clone(),
+            "stash_untracked" => overrides.stash_untracked.map(|v| v.to_string()),
+            "state_dir" => overrides
+                .state_dir
+                .as_ref()
+                .map(|p| p.display().to_string()),
+            "summary_text" => overrides.summary_text.map(|v| v.to_string()),
+            "timing_json" => overrides
+                .timing_json
+                .as_ref()
+                .map(|p| p.display().to_string()),
+            "trace" => overrides.trace.clone(),
+            "verbose" => overrides.verbose.map(|v| v.to_string()),
+            "warnings" => overrides.warnings.as_ref().map(|v| format!("{:?}", v)),
+            _ => None,
+        }
+    }
+
     /// Load settings from a Config instance (from hkrc.pkl/toml etc.)
     #[allow(dead_code)]
     pub fn from_config(mut self, config: &crate::config::Config) -> Self {
