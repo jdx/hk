@@ -524,6 +524,8 @@ impl Git {
         // partially staged files are handled correctly even when detection is flaky
         // under pre-commit environments.
         if let Some(paths) = files_subset {
+            // Refresh index stat info to avoid stale mtime/size causing mis-detection
+            let _ = git_run(["update-index", "-q", "--refresh"]);
             // Detect whether there are any worktree-only changes limited to the requested paths.
             // This guards against cases where `git stash --keep-index -- <paths>` prints
             // "No unstaged changes to stash" even though there are partially-staged hunks.
