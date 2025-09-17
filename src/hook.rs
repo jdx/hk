@@ -502,6 +502,15 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
+        // Ensure the post-step index entries (e.g., Prettier-fixed blobs) are restored
+        // even when no stash was created/applied. This preserves formatted content in HEAD.
+        if let Err(err) = repo.lock().await.restore_index() {
+            if result.is_ok() {
+                result = Err(err);
+            } else {
+                warn!("Failed to restore index: {err}");
+            }
+        }
         // Re-assert step-restaged files into the index so HEAD gets fixer changes
         if let Err(err) = repo.lock().await.finalize_restaged() {
             if result.is_ok() {
