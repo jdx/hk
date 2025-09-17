@@ -364,8 +364,14 @@ impl Git {
                     if st == git2::Status::WT_RENAMED {
                         unstaged_renamed_files.insert(path.clone());
                     }
-                    if exists {
-                        unstaged_files.insert(path);
+                    // Only include in aggregated `unstaged_files` when there is a worktree-side change
+                    let worktree_changed = st == git2::Status::WT_NEW
+                        || st == git2::Status::WT_MODIFIED
+                        || st == git2::Status::WT_TYPECHANGE
+                        || st == git2::Status::WT_DELETED
+                        || st == git2::Status::WT_RENAMED;
+                    if worktree_changed && exists {
+                        unstaged_files.insert(path.clone());
                     }
                 }
             }
@@ -958,7 +964,8 @@ impl Git {
                     .prop("message", "stash – Applying patch")
                     .start();
                 // Try to apply the patch back to the worktree; do not modify the index
-                let res = git_cmd(["apply", "--recount", "--whitespace=nowarn", "-p1"]) // strip a/ b/
+                // Apply as-is; patch from `git diff --binary` does not require -p1 for path stripping
+                let res = git_cmd(["apply", "--recount", "--whitespace=nowarn"])
                     .arg(patch_path.to_string_lossy().as_ref())
                     .run();
                 if let Err(err) = res {
