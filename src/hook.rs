@@ -325,7 +325,7 @@ impl Hook {
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
-        let mut stash_method = if let Some(stash_str) = &opts.stash {
+        let stash_method = if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
                 .unwrap_or(StashMethod::None)
@@ -369,7 +369,7 @@ impl Hook {
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
         let groups = self.get_step_groups(&opts);
-        let mut stash_method = if let Some(stash_str) = &opts.stash {
+        let stash_method = if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
                 .unwrap_or(StashMethod::None)
@@ -450,7 +450,7 @@ impl Hook {
             {
                 let mut r = repo.lock().await;
                 r.capture_index(&files_vec)?;
-                r.stash_unstaged(&file_progress, stash_method, &git_status, None)?;
+                r.stash_unstaged(&file_progress, stash_method, &git_status, Some(&files_vec[..]))?;
             }
         }
 

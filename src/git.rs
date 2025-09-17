@@ -120,7 +120,6 @@ fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
-    root: PathBuf,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
 }
 
@@ -159,7 +158,6 @@ impl Git {
             None
         };
         Ok(Self {
-            root,
             repo,
             stash: None,
             saved_index: None,
