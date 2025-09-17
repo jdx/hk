@@ -160,11 +160,10 @@ impl Default for Settings {
             .into_iter()
             .filter(|tag| !hide_warnings.contains(tag))
             .collect();
-        let exclude = EXCLUDE
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_else(|| env::HK_EXCLUDE.clone());
+        // Always union excludes from all sources
+        let mut exclude = EXCLUDE.lock().unwrap().clone().unwrap_or_default();
+        // Always add environment excludes (union semantics)
+        exclude.extend(env::HK_EXCLUDE.iter().cloned());
         Self {
             jobs: JOBS.lock().unwrap().unwrap_or(*env::HK_JOBS),
             enabled_profiles,

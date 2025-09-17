@@ -97,6 +97,7 @@ hooks {
             ["step2"] {
                 check = "echo should not run"
                 glob = List("*.txt")
+                depends = List("step1")
             }
         }
     }
@@ -114,9 +115,9 @@ EOF
 @test "--no-fail-fast flag works" {
     cat > hk.pkl << EOF
 amends "$PKL_PATH/Config.pkl"
+fail_fast = true
 hooks {
     ["check"] {
-        fail_fast = true
         steps {
             ["step1"] {
                 check = "exit 1"
