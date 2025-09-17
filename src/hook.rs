@@ -532,8 +532,11 @@ impl Hook {
         }
 
         // Display summary of profile-skipped steps
-        // Only show summary if user has enabled the generic warning tag
-        if Settings::get().warnings().contains("missing-profiles") {
+        // Only show summary if user has enabled the warning tag and it's not hidden
+        let settings = Settings::get();
+        if settings.warnings().contains("missing-profiles")
+            && !settings.hide_warnings().contains("missing-profiles")
+        {
             let skipped_steps = hook_ctx.get_skipped_steps();
             let mut profile_skipped: Vec<String> = vec![];
             let mut missing_profiles = indexmap::IndexSet::new();

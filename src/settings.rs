@@ -76,6 +76,10 @@ impl Settings {
         &self.inner.warnings
     }
 
+    pub fn hide_warnings(&self) -> &IndexSet<String> {
+        &self.inner.hide_warnings
+    }
+
     pub fn exclude(&self) -> &IndexSet<String> {
         &self.inner.exclude
     }
@@ -111,20 +115,39 @@ impl Settings {
 
     /// Get the global settings snapshot
     pub fn get_snapshot() -> SettingsSnapshot {
+        // Check if we need to initialize
+        let mut initialized = INITIALIZED.lock().unwrap();
+        if !*initialized {
+            // First access - initialize with all sources including programmatic overrides
+            let new_settings = Arc::new(Self::build_from_all_sources());
+            GLOBAL_SETTINGS.store(new_settings.clone());
+            *initialized = true;
+            return new_settings;
+        }
+        drop(initialized); // Release the lock early
+
+        // Already initialized - return the cached value
         GLOBAL_SETTINGS.load_full()
+    }
+
+    /// Build settings from all sources using the canonical path
+    fn build_from_all_sources() -> Settings {
+        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
+
+        SettingsBuilder::new()
+            .from_env()
+            .from_git()
+            .with_programmatic(programmatic_overrides)
+            .build()
     }
 
     /// Reset the global settings cache (useful for testing)
     #[allow(dead_code)]
     pub fn reset_global_cache() {
-        // Rebuild settings from scratch with current overrides
-        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
-
-        let mut builder = SettingsBuilder::new().from_env().from_git();
-        builder.programmatic_overrides = programmatic_overrides;
-
-        let new_settings = builder.build_snapshot();
+        let new_settings = Arc::new(Self::build_from_all_sources());
         GLOBAL_SETTINGS.store(new_settings);
+        let mut initialized = INITIALIZED.lock().unwrap();
+        *initialized = true; // Mark as initialized with the new settings
     }
 
     /// Reload settings from all sources (useful for config file changes)
@@ -253,13 +276,8 @@ impl Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        // Use the systematic merge logic via SettingsBuilder with programmatic overrides
-        let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
-
-        let mut builder = SettingsBuilder::new().from_env().from_git();
-        builder.programmatic_overrides = programmatic_overrides;
-
-        builder.build()
+        // Use the single canonical build path
+        Self::build_from_all_sources()
     }
 }
 
@@ -267,15 +285,16 @@ impl Default for Settings {
 pub type SettingsSnapshot = Arc<Settings>;
 
 // Global cached settings instance using ArcSwap for safe reloading
+// Initially contains a dummy value that will be replaced on first access
 static GLOBAL_SETTINGS: LazyLock<ArcSwap<Settings>> = LazyLock::new(|| {
-    // Initialize with settings built from all sources
-    let programmatic_overrides = SETTINGS_OVERRIDE.lock().unwrap().clone();
-
-    let mut builder = SettingsBuilder::new().from_env().from_git();
-    builder.programmatic_overrides = programmatic_overrides;
-
-    ArcSwap::from_pointee(builder.build())
+    // Initial dummy value - will be replaced on first real access
+    ArcSwap::from_pointee(Settings {
+        inner: generated::settings::GeneratedSettings::default(),
+    })
 });
+
+// Track whether we've initialized with real settings
+static INITIALIZED: LazyLock<Mutex<bool>> = LazyLock::new(|| Mutex::new(false));
 
 /// Builder for creating Settings instances with different sources
 #[derive(Default)]
@@ -303,7 +322,7 @@ impl SettingsBuilder {
     pub fn from_git(mut self) -> Self {
         // Load git configuration and apply to our git overrides
         if let Err(e) = self.load_git_config() {
-            eprintln!("Warning: Failed to load git config: {}", e);
+            debug!("Failed to load git config: {}", e);
         }
         self
     }
@@ -314,74 +333,210 @@ impl SettingsBuilder {
 
         // Try to find repository config first, fall back to default
         let config = if let Ok(repo) = Repository::open_from_env() {
+            debug!("Git config: Using repository from env");
+            repo.config()?
+        } else if let Ok(repo) = Repository::discover(".") {
+            // Also try discovering from current directory
+            debug!("Git config: Using repository from current directory");
             repo.config()?
         } else {
+            debug!("Git config: Using default config");
             Config::open_default()?
         };
 
-        // Load git config values into our git overrides
+        // Load git config values into our git overrides using metadata
         for (setting_name, setting_meta) in generated::SETTINGS_META.iter() {
             for git_key in setting_meta.sources.git {
-                match setting_meta.typ {
-                    "bool" => {
-                        if let Ok(value) = config.get_bool(git_key) {
-                            match *setting_name {
-                                "fail_fast" => self.git_overrides.fail_fast = Some(value),
-                                "check" => self.git_overrides.check = Some(value),
-                                "fix" => self.git_overrides.fix = Some(value),
-                                "json" => self.git_overrides.json = Some(value),
-                                "check_first" => self.git_overrides.check_first = Some(value),
-                                "stash_untracked" => {
-                                    self.git_overrides.stash_untracked = Some(value)
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    "usize" => {
-                        if let Ok(value) = config.get_i32(git_key) {
-                            if *setting_name == "jobs" && value > 0 {
-                                self.git_overrides.jobs = Some(value as usize);
-                            }
-                        }
-                    }
-                    "list<string>" => {
-                        if let Ok(value) = config.get_str(git_key) {
-                            let items: IndexSet<String> = value
-                                .split(',')
-                                .map(|s| s.trim().to_string())
-                                .filter(|s| !s.is_empty())
-                                .collect();
-
-                            match *setting_name {
-                                "profiles" => self.git_overrides.profiles = Some(items),
-                                "display_skip_reasons" => {
-                                    self.git_overrides.display_skip_reasons = Some(items)
-                                }
-                                "hide_warnings" => self.git_overrides.hide_warnings = Some(items),
-                                "warnings" => self.git_overrides.warnings = Some(items),
-                                "exclude" => self.git_overrides.exclude = Some(items),
-                                "skip_steps" => self.git_overrides.skip_steps = Some(items),
-                                "skip_hooks" => self.git_overrides.skip_hooks = Some(items),
-                                _ => {}
-                            }
-                        }
-                    }
-                    "enum" => {
-                        if let Ok(value) = config.get_str(git_key) {
-                            match *setting_name {
-                                "stash" => self.git_overrides.stash = Some(value.to_string()),
-                                "trace" => self.git_overrides.trace = Some(value.to_string()),
-                                _ => {}
-                            }
-                        }
-                    }
-                    _ => {}
-                }
+                self.apply_git_setting(&config, setting_name, setting_meta, git_key);
             }
         }
 
         Ok(())
+    }
+
+    /// Apply a single git config setting based on metadata
+    fn apply_git_setting(
+        &mut self,
+        config: &git2::Config,
+        setting_name: &str,
+        setting_meta: &generated::SettingMeta,
+        git_key: &str,
+    ) {
+        match setting_meta.typ {
+            "bool" => {
+                if let Ok(value) = config.get_bool(git_key) {
+                    Self::set_bool_field(&mut self.git_overrides, setting_name, value);
+                }
+            }
+            "usize" => {
+                if let Ok(value) = config.get_i32(git_key) {
+                    if value > 0 {
+                        Self::set_usize_field(
+                            &mut self.git_overrides,
+                            setting_name,
+                            value as usize,
+                        );
+                    }
+                }
+            }
+            "u8" => {
+                if let Ok(value) = config.get_i32(git_key) {
+                    if value >= 0 && value <= 255 {
+                        Self::set_u8_field(&mut self.git_overrides, setting_name, value as u8);
+                    }
+                }
+            }
+            "list<string>" => {
+                if let Ok(value) = Self::read_string_list(config, git_key) {
+                    if !value.is_empty() {
+                        debug!("Git config: {} = {:?}", git_key, value);
+                        Self::set_string_list_field(&mut self.git_overrides, setting_name, value);
+                    }
+                }
+            }
+            "string" | "enum" => {
+                if let Ok(value) = config.get_str(git_key) {
+                    Self::set_string_field(
+                        &mut self.git_overrides,
+                        setting_name,
+                        value.to_string(),
+                    );
+                }
+            }
+            "path" => {
+                if let Ok(value) = config.get_str(git_key) {
+                    Self::set_path_field(
+                        &mut self.git_overrides,
+                        setting_name,
+                        PathBuf::from(value),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Read a string list from git config (handles both multivar and comma-separated)
+    fn read_string_list(config: &git2::Config, key: &str) -> Result<IndexSet<String>, git2::Error> {
+        let mut result = IndexSet::new();
+
+        // Try to read as multivar (multiple entries with same key)
+        match config.multivar(key, None) {
+            Ok(mut entries) => {
+                while let Some(entry) = entries.next() {
+                    if let Some(value) = entry?.value() {
+                        // Support comma-separated values too
+                        for item in value.split(',').map(|s| s.trim()) {
+                            if !item.is_empty() {
+                                result.insert(item.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                // If multivar fails, try single value
+                if let Ok(value) = config.get_string(key) {
+                    for item in value.split(',').map(|s| s.trim()) {
+                        if !item.is_empty() {
+                            result.insert(item.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    // Helper methods to set fields on GeneratedSettingsOverride by name
+    fn set_bool_field(
+        overrides: &mut generated::GeneratedSettingsOverride,
+        name: &str,
+        value: bool,
+    ) {
+        match name {
+            "all" => overrides.all = Some(value),
+            "check" => overrides.check = Some(value),
+            "check_first" => overrides.check_first = Some(value),
+            "fail_fast" => overrides.fail_fast = Some(value),
+            "fix" => overrides.fix = Some(value),
+            "hide_when_done" => overrides.hide_when_done = Some(value),
+            "json" => overrides.json = Some(value),
+            "libgit2" => overrides.libgit2 = Some(value),
+            "mise" => overrides.mise = Some(value),
+            "no_progress" => overrides.no_progress = Some(value),
+            "quiet" => overrides.quiet = Some(value),
+            "silent" => overrides.silent = Some(value),
+            "slow" => overrides.slow = Some(value),
+            "stash_untracked" => overrides.stash_untracked = Some(value),
+            "summary_text" => overrides.summary_text = Some(value),
+            _ => {}
+        }
+    }
+
+    fn set_usize_field(
+        overrides: &mut generated::GeneratedSettingsOverride,
+        name: &str,
+        value: usize,
+    ) {
+        match name {
+            "jobs" => overrides.jobs = Some(value),
+            _ => {}
+        }
+    }
+
+    fn set_u8_field(overrides: &mut generated::GeneratedSettingsOverride, name: &str, value: u8) {
+        match name {
+            "verbose" => overrides.verbose = Some(value),
+            _ => {}
+        }
+    }
+
+    fn set_string_field(
+        overrides: &mut generated::GeneratedSettingsOverride,
+        name: &str,
+        value: String,
+    ) {
+        match name {
+            "log_file_level" => overrides.log_file_level = Some(value),
+            "log_level" => overrides.log_level = Some(value),
+            "stash" => overrides.stash = Some(value),
+            "trace" => overrides.trace = Some(value),
+            _ => {}
+        }
+    }
+
+    fn set_path_field(
+        overrides: &mut generated::GeneratedSettingsOverride,
+        name: &str,
+        value: PathBuf,
+    ) {
+        match name {
+            "cache_dir" => overrides.cache_dir = Some(value),
+            "hkrc" => overrides.hkrc = Some(value),
+            "log_file" => overrides.log_file = Some(value),
+            "state_dir" => overrides.state_dir = Some(value),
+            "timing_json" => overrides.timing_json = Some(value),
+            _ => {}
+        }
+    }
+
+    fn set_string_list_field(
+        overrides: &mut generated::GeneratedSettingsOverride,
+        name: &str,
+        value: IndexSet<String>,
+    ) {
+        match name {
+            "display_skip_reasons" => overrides.display_skip_reasons = Some(value),
+            "exclude" => overrides.exclude = Some(value),
+            "hide_warnings" => overrides.hide_warnings = Some(value),
+            "profiles" => overrides.profiles = Some(value),
+            "skip_hooks" => overrides.skip_hooks = Some(value),
+            "skip_steps" => overrides.skip_steps = Some(value),
+            "warnings" => overrides.warnings = Some(value),
+            _ => {}
+        }
     }
 
     /// Load settings from a Config instance (from hkrc.pkl/toml etc.)
@@ -433,107 +588,73 @@ impl SettingsBuilder {
         // Collect environment variables following the generated settings metadata
         for (setting_name, setting_meta) in generated::SETTINGS_META.iter() {
             for env_var in setting_meta.sources.env {
-                match setting_meta.typ {
-                    "bool" => {
-                        if let Ok(value) = std::env::var(env_var) {
-                            let bool_value = match value.to_lowercase().as_str() {
-                                "true" | "1" | "yes" | "on" => true,
-                                "false" | "0" | "no" | "off" => false,
-                                _ => continue,
-                            };
-                            match *setting_name {
-                                "fail_fast" => env_overrides.fail_fast = Some(bool_value),
-                                "check" => env_overrides.check = Some(bool_value),
-                                "fix" => env_overrides.fix = Some(bool_value),
-                                "all" => env_overrides.all = Some(bool_value),
-                                "json" => env_overrides.json = Some(bool_value),
-                                "libgit2" => env_overrides.libgit2 = Some(bool_value),
-                                "mise" => env_overrides.mise = Some(bool_value),
-                                "quiet" => env_overrides.quiet = Some(bool_value),
-                                "silent" => env_overrides.silent = Some(bool_value),
-                                "slow" => env_overrides.slow = Some(bool_value),
-                                "stash_untracked" => {
-                                    env_overrides.stash_untracked = Some(bool_value)
-                                }
-                                "summary_text" => env_overrides.summary_text = Some(bool_value),
-                                "check_first" => env_overrides.check_first = Some(bool_value),
-                                "hide_when_done" => env_overrides.hide_when_done = Some(bool_value),
-                                "no_progress" => env_overrides.no_progress = Some(bool_value),
-                                _ => {}
-                            }
-                        }
-                    }
-                    "usize" => {
-                        if let Ok(value) = std::env::var(env_var) {
-                            if let Ok(usize_value) = value.parse::<usize>() {
-                                match *setting_name {
-                                    "jobs" => env_overrides.jobs = Some(usize_value),
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                    "u8" => {
-                        if let Ok(value) = std::env::var(env_var) {
-                            if let Ok(u8_value) = value.parse::<u8>() {
-                                match *setting_name {
-                                    "verbose" => env_overrides.verbose = Some(u8_value),
-                                    _ => {}
-                                }
-                            }
-                        }
-                    }
-                    "list<string>" => {
-                        if let Ok(value) = std::env::var(env_var) {
-                            let items: IndexSet<String> = value
-                                .split(',')
-                                .map(|s| s.trim().to_string())
-                                .filter(|s| !s.is_empty())
-                                .collect();
-
-                            match *setting_name {
-                                "profiles" => env_overrides.profiles = Some(items),
-                                "display_skip_reasons" => {
-                                    env_overrides.display_skip_reasons = Some(items)
-                                }
-                                "hide_warnings" => env_overrides.hide_warnings = Some(items),
-                                "warnings" => env_overrides.warnings = Some(items),
-                                "exclude" => env_overrides.exclude = Some(items),
-                                "skip_steps" => env_overrides.skip_steps = Some(items),
-                                "skip_hooks" => env_overrides.skip_hooks = Some(items),
-                                _ => {}
-                            }
-                        }
-                    }
-                    "path" => {
-                        if let Ok(value) = std::env::var(env_var) {
-                            let path_value = PathBuf::from(value);
-                            match *setting_name {
-                                "cache_dir" => env_overrides.cache_dir = Some(path_value),
-                                "state_dir" => env_overrides.state_dir = Some(path_value),
-                                "log_file" => env_overrides.log_file = Some(path_value),
-                                "timing_json" => env_overrides.timing_json = Some(path_value),
-                                _ => {}
-                            }
-                        }
-                    }
-                    "enum" => {
-                        if let Ok(value) = std::env::var(env_var) {
-                            match *setting_name {
-                                "log_level" => env_overrides.log_level = Some(value),
-                                "log_file_level" => env_overrides.log_file_level = Some(value),
-                                "stash" => env_overrides.stash = Some(value),
-                                "trace" => env_overrides.trace = Some(value),
-                                _ => {}
-                            }
-                        }
-                    }
-                    _ => {}
-                }
+                Self::apply_env_setting(&mut env_overrides, setting_name, setting_meta, env_var);
             }
         }
 
         env_overrides
+    }
+
+    /// Apply a single environment variable setting based on metadata
+    fn apply_env_setting(
+        overrides: &mut generated::GeneratedSettingsOverride,
+        setting_name: &str,
+        setting_meta: &generated::SettingMeta,
+        env_var: &str,
+    ) {
+        match setting_meta.typ {
+            "bool" => {
+                if let Ok(value) = std::env::var(env_var) {
+                    let bool_value = match value.to_lowercase().as_str() {
+                        "true" | "1" | "yes" | "on" => true,
+                        "false" | "0" | "no" | "off" => false,
+                        _ => return,
+                    };
+                    Self::set_bool_field(overrides, setting_name, bool_value);
+                }
+            }
+            "usize" => {
+                if let Ok(value) = std::env::var(env_var) {
+                    if let Ok(usize_value) = value.parse::<usize>() {
+                        Self::set_usize_field(overrides, setting_name, usize_value);
+                    }
+                }
+            }
+            "u8" => {
+                if let Ok(value) = std::env::var(env_var) {
+                    if let Ok(u8_value) = value.parse::<u8>() {
+                        Self::set_u8_field(overrides, setting_name, u8_value);
+                    }
+                }
+            }
+            "list<string>" => {
+                if let Ok(value) = std::env::var(env_var) {
+                    let items: IndexSet<String> = value
+                        .split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    Self::set_string_list_field(overrides, setting_name, items);
+                }
+            }
+            "path" => {
+                if let Ok(value) = std::env::var(env_var) {
+                    Self::set_path_field(overrides, setting_name, PathBuf::from(value));
+                }
+            }
+            "string" | "enum" => {
+                if let Ok(value) = std::env::var(env_var) {
+                    Self::set_string_field(overrides, setting_name, value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Set programmatic overrides
+    pub fn with_programmatic(mut self, overrides: generated::GeneratedSettingsOverride) -> Self {
+        self.programmatic_overrides = overrides;
+        self
     }
 
     /// Build and return as an immutable snapshot
