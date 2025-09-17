@@ -135,6 +135,7 @@ enum StashType {
 #[strum(serialize_all = "kebab-case")]
 pub enum StashMethod {
     Git,
+    PatchFile,
     None,
 }
 
@@ -606,6 +607,8 @@ impl Git {
         // }
         job.prop("message", "Running git stash");
         job.update();
+        // Treat PatchFile as an alias of Git for now
+        let _alias = method == StashMethod::PatchFile;
         self.stash = self.push_stash(None, status)?;
         if self.stash.is_none() {
             job.prop("message", "No unstaged files to stash");
