@@ -148,10 +148,10 @@ impl Default for Settings {
                     set.insert("profile-not-enabled".to_string());
                     set
                 });
-        let hide_warnings = HIDE_WARNINGS.lock().unwrap();
-        let hide_warnings = hide_warnings
-            .as_ref()
-            .unwrap_or_else(|| &*env::HK_HIDE_WARNINGS);
+        // Always union hide_warnings from all sources
+        let mut hide_warnings = HIDE_WARNINGS.lock().unwrap().clone().unwrap_or_default();
+        // Always add environment hide_warnings (union semantics)
+        hide_warnings.extend(env::HK_HIDE_WARNINGS.iter().cloned());
         let warnings = WARNINGS
             .lock()
             .unwrap()
