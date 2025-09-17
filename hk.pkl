@@ -35,7 +35,7 @@ local linters = new Mapping<String, Step | Group> {
     ["taplo"] = new Step {
         glob = "settings.toml"
         check = "taplo fmt --check {{files}} && taplo lint {{files}}"
-        fix = "taplo fmt {{files}}"
+        fix = "taplo fmt {{files}} && taplo lint {{files}}"
     }
     ["docs"] = new Step {
         glob = "docs/**"

@@ -1,4 +1,4 @@
-use codegen::{Impl, Scope, Struct};
+use codegen::{Enum, Function, Impl, Scope, Struct, Variant};
 use indexmap::IndexMap;
 use serde::Deserialize;
 use std::fs;
@@ -207,13 +207,71 @@ fn generate_settings_merge(
     scope.import("indexmap", "IndexSet");
     scope.import("std::path", "PathBuf");
 
-    // Define SettingValue and SourceMap types
-    scope.raw("#[derive(Clone)]\npub enum SettingValue {\n    Bool(bool),\n    Usize(usize),\n    U8(u8),\n    String(String),\n    Path(PathBuf),\n    StringList(IndexSet<String>),\n}");
+    // Define SettingValue enum
+    let mut setting_value = Enum::new("SettingValue");
+    setting_value
+        .vis("pub")
+        .derive("Clone");
+
+    {
+        let mut v = Variant::new("Bool");
+        v.tuple("bool");
+        setting_value.push_variant(v);
+    }
+    {
+        let mut v = Variant::new("Usize");
+        v.tuple("usize");
+        setting_value.push_variant(v);
+    }
+    {
+        let mut v = Variant::new("U8");
+        v.tuple("u8");
+        setting_value.push_variant(v);
+    }
+    {
+        let mut v = Variant::new("String");
+        v.tuple("String");
+        setting_value.push_variant(v);
+    }
+    {
+        let mut v = Variant::new("Path");
+        v.tuple("PathBuf");
+        setting_value.push_variant(v);
+    }
+    {
+        let mut v = Variant::new("StringList");
+        v.tuple("IndexSet<String>");
+        setting_value.push_variant(v);
+    }
+    scope.push_enum(setting_value);
+
+    // Type alias for map of settings values
     scope.raw("pub type SourceMap = IndexMap<&'static str, SettingValue>;");
 
     // Provenance tracking types
-    scope.raw("#[derive(Clone, Debug)]\npub enum SettingSource { Defaults, Env, Git, Pkl, Cli }");
-    scope.raw("#[derive(Clone, Debug, Default)]\npub struct SourceInfoEntry {\n    pub last: Option<SettingSource>,\n    pub list_items: Option<IndexMap<String, Vec<SettingSource>>>,\n}");
+    let mut setting_source = Enum::new("SettingSource");
+    setting_source
+        .vis("pub")
+        .derive("Clone")
+        .derive("Debug");
+    setting_source.push_variant(Variant::new("Defaults"));
+    setting_source.push_variant(Variant::new("Env"));
+    setting_source.push_variant(Variant::new("Git"));
+    setting_source.push_variant(Variant::new("Pkl"));
+    setting_source.push_variant(Variant::new("Cli"));
+    scope.push_enum(setting_source);
+
+    let mut source_info_entry = Struct::new("SourceInfoEntry");
+    source_info_entry
+        .vis("pub")
+        .derive("Clone")
+        .derive("Debug")
+        .derive("Default")
+        .field("pub last", "Option<SettingSource>")
+        .field("pub list_items", "Option<IndexMap<String, Vec<SettingSource>>>");
+    scope.push_struct(source_info_entry);
+
+    // Type alias for per-field provenance
     scope.raw("pub type SourceInfoMap = IndexMap<&'static str, SourceInfoEntry>;");
 
     // Only types are generated; merge logic implemented in src/settings.rs
@@ -256,40 +314,44 @@ fn generate_settings_meta(
 
     scope.push_struct(sources_meta_struct);
 
-    // Generate the static SETTINGS_META
-    let mut static_entries = Vec::new();
+    // Build a function to construct SETTINGS_META using typed codegen
+    let mut build_fn = Function::new("build_settings_meta");
+    build_fn.ret("IndexMap<&'static str, SettingMeta>");
+    build_fn.line("let mut m: IndexMap<&'static str, SettingMeta> = IndexMap::new();");
     for (name, opt) in &registry.options {
         let cli_sources = format_string_array(&opt.sources.cli);
         let env_sources = format_string_array(&opt.sources.env);
         let git_sources = format_string_array(&opt.sources.git);
-
         let pkl_sources = match &opt.sources.pkl {
             PklSource::None => "&[]".to_string(),
             PklSource::Single(s) => format!("&[{:?}]", s),
             PklSource::Multiple(v) => format_string_array(v),
         };
-
         let default_value = match &opt.default {
             Some(v) => format!("Some({:?})", v.as_str().unwrap_or(&v.to_string())),
             None => "None".to_string(),
         };
-
         let merge = match &opt.merge {
             Some(m) => format!("Some({:?})", m),
             None => "None".to_string(),
         };
-
-        static_entries.push(format!(
-            "        ({:?}, SettingMeta {{\n            typ: {:?},\n            default_value: {},\n            merge: {},\n            sources: SettingSourcesMeta {{\n                cli: {},\n                env: {},\n                git: {},\n                pkl: {},\n            }},\n        }})",
-            name, opt.typ, default_value, merge, cli_sources, env_sources, git_sources, pkl_sources
-        ));
+        build_fn.line(format!("m.insert({:?}, SettingMeta {{", name));
+        build_fn.line(format!("    typ: {:?},", opt.typ));
+        build_fn.line(format!("    default_value: {},", default_value));
+        build_fn.line(format!("    merge: {},", merge));
+        build_fn.line("    sources: SettingSourcesMeta {");
+        build_fn.line(format!("        cli: {},", cli_sources));
+        build_fn.line(format!("        env: {},", env_sources));
+        build_fn.line(format!("        git: {},", git_sources));
+        build_fn.line(format!("        pkl: {},", pkl_sources));
+        build_fn.line("    },");
+        build_fn.line("});");
     }
+    build_fn.line("m");
+    scope.push_fn(build_fn);
 
-    // Create the static variable using raw code since codegen doesn't have great support for complex statics
-    scope.raw(format!(
-        "pub static SETTINGS_META: Lazy<IndexMap<&'static str, SettingMeta>> =\n    Lazy::new(|| {{\n        IndexMap::from([\n{}\n        ])\n    }});",
-        static_entries.join(",\n")
-    ));
+    // Define the static using the builder function
+    scope.raw("pub static SETTINGS_META: Lazy<IndexMap<&'static str, SettingMeta>> = Lazy::new(build_settings_meta);");
 
     // Write the scope to file
     fs::write(out_dir.join("generated_settings_meta.rs"), scope.to_string())?;
