@@ -606,7 +606,13 @@ impl Git {
         // }
         job.prop("message", "Running git stash");
         job.update();
-        self.stash = self.push_stash(None, status)?;
+        let subset_vec: Vec<PathBuf> = files_to_stash.iter().cloned().collect();
+        let subset_opt: Option<&[PathBuf]> = if subset_vec.is_empty() {
+            None
+        } else {
+            Some(&subset_vec[..])
+        };
+        self.stash = self.push_stash(subset_opt, status)?;
         if self.stash.is_none() {
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
@@ -637,39 +643,44 @@ impl Git {
                 flags.set(git2::StashFlags::INCLUDE_UNTRACKED, true);
             }
             flags.set(git2::StashFlags::KEEP_INDEX, true);
-            match repo.stash_save(&sig, "hk", Some(flags)) {
-                Ok(_) => Ok(Some(StashType::LibGit)),
-                Err(e) => {
-                    // libgit2 sometimes fails with "attempt to merge diffs created with conflicting options"
-                    // when there are both staged and unstaged changes. Fall back to shell git command.
-                    debug!("libgit2 stash failed, falling back to shell git: {e}");
-                    let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
-                    if let Some(paths) = paths {
-                        let utf8_paths: Vec<&str> =
-                            paths.iter().filter_map(|p| p.to_str()).collect();
-                        if !utf8_paths.is_empty() {
-                            cmd = cmd.arg("--");
-                            cmd = cmd.args(utf8_paths);
+            // If partial paths requested, force shell git path since libgit2 does not support it
+            if let Some(paths) = paths {
+                let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
+                if *env::HK_STASH_UNTRACKED {
+                    cmd = cmd.arg("--include-untracked");
+                }
+                let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
+                if !utf8_paths.is_empty() {
+                    cmd = cmd.arg("--");
+                    cmd = cmd.args(utf8_paths);
+                }
+                cmd.run()?;
+                Ok(Some(StashType::Git))
+            } else {
+                match repo.stash_save(&sig, "hk", Some(flags)) {
+                    Ok(_) => Ok(Some(StashType::LibGit)),
+                    Err(e) => {
+                        debug!("libgit2 stash failed, falling back to shell git: {e}");
+                        let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
+                        if *env::HK_STASH_UNTRACKED {
+                            cmd = cmd.arg("--include-untracked");
                         }
+                        cmd.run()?;
+                        Ok(Some(StashType::Git))
                     }
-                    if *env::HK_STASH_UNTRACKED {
-                        cmd = cmd.arg("--include-untracked");
-                    }
-                    cmd.run()?;
-                    Ok(Some(StashType::Git))
                 }
             }
         } else {
             let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
+            if *env::HK_STASH_UNTRACKED {
+                cmd = cmd.arg("--include-untracked");
+            }
             if let Some(paths) = paths {
                 let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
                 if !utf8_paths.is_empty() {
                     cmd = cmd.arg("--");
                     cmd = cmd.args(utf8_paths);
                 }
-            }
-            if *env::HK_STASH_UNTRACKED {
-                cmd = cmd.arg("--include-untracked");
             }
             cmd.run()?;
             Ok(Some(StashType::Git))
