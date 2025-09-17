@@ -130,7 +130,8 @@ pub struct Git {
 enum StashType {
     LibGit,
     Git,
-    PatchFile(PathBuf),
+    // (patch_path, backup_worktree_path, file_path)
+    PatchFiles(Vec<(PathBuf, PathBuf, PathBuf)>),
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
@@ -764,33 +765,42 @@ impl Git {
     }
 
     fn create_patch_stash(&mut self, paths: &[PathBuf]) -> Result<Option<StashType>> {
-        // Create a patch representing worktree-only changes vs index for the given paths
-        let mut cmd = git_cmd(["diff", "--binary", "--no-color"]);
-        cmd = cmd.arg("--");
-        let utf8_paths: Vec<String> = paths
-            .iter()
-            .filter_map(|p| p.to_str().map(|s| s.to_string()))
-            .collect();
-        let patch = cmd
-            .args(utf8_paths.iter().map(|s| s.as_str()))
-            .read()
-            .unwrap_or_default();
-        if patch.trim().is_empty() {
-            return Ok(None);
-        }
-        // Write patch to a temp file
-        let mut patch_path = std::env::temp_dir();
+        // Create per-file patches and back up current worktree content for safety.
+        let mut entries: Vec<(PathBuf, PathBuf, PathBuf)> = Vec::new();
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis();
-        patch_path.push(format!("hk-stash-{}.patch", ts));
-        xx::file::write(&patch_path, patch)?;
-        // Remove the unstaged changes from worktree by checking out the index version
-        let _ = git_cmd(["checkout", "--"])
-            .args(utf8_paths.iter().map(|s| s.as_str()))
-            .run();
-        Ok(Some(StashType::PatchFile(patch_path)))
+        for (idx, p) in paths.iter().enumerate() {
+            if !p.exists() {
+                continue;
+            }
+            let path_str = match p.to_str() {
+                Some(s) => s.to_string(),
+                None => continue,
+            };
+            let patch = git_cmd(["diff", "--binary", "--no-color", "--", &path_str])
+                .read()
+                .unwrap_or_default();
+            if patch.trim().is_empty() {
+                continue;
+            }
+            // Write per-file patch
+            let mut patch_path = std::env::temp_dir();
+            patch_path.push(format!("hk-stash-{}-{}.patch", ts, idx));
+            xx::file::write(&patch_path, &patch)?;
+            // Backup current worktree content to allow clean fallback restore
+            let mut backup_path = std::env::temp_dir();
+            backup_path.push(format!("hk-stash-backup-{}-{}.bak", ts, idx));
+            let _ = std::fs::copy(p, &backup_path);
+            entries.push((patch_path, backup_path, p.clone()));
+            // Remove the unstaged changes from worktree by checking out the index version per-file
+            let _ = git_cmd(["checkout", "--"]).arg(&path_str).run();
+        }
+        if entries.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(StashType::PatchFiles(entries)))
     }
 
     // removed: push_stash_keep_index_no_untracked helper
@@ -959,20 +969,32 @@ impl Git {
                     }
                 }
             }
-            StashType::PatchFile(patch_path) => {
+            StashType::PatchFiles(entries) => {
                 job = ProgressJobBuilder::new()
                     .prop("message", "stash – Applying patch")
                     .start();
-                // Try to apply the patch back to the worktree; do not modify the index
-                // Apply as-is; patch from `git diff --binary` does not require -p1 for path stripping
-                let res = git_cmd(["apply", "--recount", "--whitespace=nowarn"])
-                    .arg(patch_path.to_string_lossy().as_ref())
-                    .run();
-                if let Err(err) = res {
-                    warn!("failed to apply patch stash: {err:?}");
+                // Apply each file's patch with a 3-way attempt and clean fallback on failure
+                for (patch_path, backup_path, file_path) in entries.iter() {
+                    let apply_res =
+                        git_cmd(["apply", "--3way", "--recount", "--whitespace=nowarn"])
+                            .arg(patch_path.clone())
+                            .run();
+                    if let Err(err) = apply_res {
+                        warn!(
+                            "3-way patch apply failed for {}: {err:?}",
+                            display_path(file_path)
+                        );
+                        // Fallback: restore exact backed-up worktree content
+                        if let Err(copy_err) = std::fs::copy(backup_path, file_path) {
+                            warn!(
+                                "failed to restore backup for {}: {copy_err:?}",
+                                display_path(file_path)
+                            );
+                        }
+                    }
+                    let _ = std::fs::remove_file(patch_path);
+                    let _ = std::fs::remove_file(backup_path);
                 }
-                // Clean up
-                let _ = std::fs::remove_file(&patch_path);
             }
         }
         // After applying the stash (with or without conflicts), ensure we don't leave
