@@ -27,9 +27,6 @@ jobs:
           submodules: recursive
           token: ${{ secrets.HK_GH_TOKEN }}
       - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: test
-          save-if: false
       - uses: jdx/mise-action@v2
         with:
           experimental: true
