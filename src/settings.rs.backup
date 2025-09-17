@@ -9,20 +9,6 @@ use indexmap::IndexSet;
 
 use crate::env;
 
-// Include the generated settings structs from the build
-mod generated {
-    pub mod settings {
-        include!(concat!(env!("OUT_DIR"), "/generated_settings.rs"));
-    }
-    pub mod cli {
-        include!(concat!(env!("OUT_DIR"), "/generated_cli_flags.rs"));
-    }
-
-    // Re-export the main types for convenience
-    pub use cli::GeneratedCliFlags;
-    pub use settings::GeneratedSettings;
-}
-
 #[derive(Debug)]
 pub struct Settings {
     pub jobs: NonZero<usize>,

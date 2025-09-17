@@ -1,5 +1,3 @@
-pub mod generated;
-
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
