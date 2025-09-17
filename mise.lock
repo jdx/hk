@@ -1,8 +1,13 @@
-[tools.actionlint]
+[[tools.actionlint]]
 version = "1.7.7"
 backend = "aqua:rhysd/actionlint"
 
-[tools.bun]
+[tools.actionlint.platforms.linux-x64]
+checksum = "sha256:023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+size = 2080472
+url = "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz"
+
+[[tools.bun]]
 version = "1.2.20"
 backend = "core:bun"
 
@@ -14,7 +19,7 @@ size = 38849822
 checksum = "blake3:d5f7acc00f0fefc647a50cdfce5a0a20a311ca61f82709d60ae1d627e40b2573"
 size = 21788202
 
-[tools.cargo-binstall]
+[[tools.cargo-binstall]]
 version = "1.14.4"
 backend = "aqua:cargo-bins/cargo-binstall"
 
@@ -28,19 +33,19 @@ checksum = "blake3:86599ab2c99d951d1700a564616926d40efde0014a5306b68df335749135b
 size = 5938563
 url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-aarch64-apple-darwin.zip"
 
-[tools."cargo:cargo-edit"]
+[[tools."cargo:cargo-edit"]]
 version = "0.13.7"
 backend = "cargo:cargo-edit"
 
-[tools."cargo:cargo-msrv"]
+[[tools."cargo:cargo-msrv"]]
 version = "0.18.4"
 backend = "cargo:cargo-msrv"
 
-[tools."cargo:cargo-release"]
+[[tools."cargo:cargo-release"]]
 version = "0.25.18"
 backend = "cargo:cargo-release"
 
-[tools.git-cliff]
+[[tools.git-cliff]]
 version = "2.10.0"
 backend = "aqua:orhun/git-cliff"
 
@@ -54,7 +59,7 @@ checksum = "sha512:349a6d47b41cd57462148ce94ff1c1b0b0f8eba3f0abfce4af4e5164f74ac
 size = 6638495
 url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-apple-darwin.tar.gz"
 
-[tools.hadolint]
+[[tools.hadolint]]
 version = "2.12.0"
 backend = "ubi:hadolint/hadolint"
 
@@ -64,7 +69,7 @@ checksum = "blake3:35f56b2a62d2a03084500dd1a6de5fd56ac35219d29f45e915940add0da39
 [tools.hadolint.platforms.macos-arm64-hadolint]
 checksum = "blake3:8be7ee4645cf6f43c8046be07b77caef5d7cf2ab9cc50ee4e965be20350f2dad"
 
-[tools.ktlint]
+[[tools.ktlint]]
 version = "1.7.1"
 backend = "aqua:pinterest/ktlint"
 
@@ -78,7 +83,7 @@ checksum = "blake3:bf2916c0929214315774f53f82c6ef40937b36109b69ee55dc3ab8671a190
 size = 64558883
 url = "https://github.com/pinterest/ktlint/releases/download/1.7.1/ktlint-1.7.1.zip"
 
-[tools.node]
+[[tools.node]]
 version = "24.6.0"
 backend = "core:node"
 
@@ -92,15 +97,15 @@ checksum = "sha256:768f14952403e3025fed8e2887500dfa63eeb55628a9b203e4b8ebb0fb09c
 size = 51024329
 url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-darwin-arm64.tar.gz"
 
-[tools."npm:prettier"]
+[[tools."npm:prettier"]]
 version = "3.6.2"
 backend = "npm:prettier"
 
-[tools."npm:stylelint"]
+[[tools."npm:stylelint"]]
 version = "16.23.1"
 backend = "npm:stylelint"
 
-[tools.pkl]
+[[tools.pkl]]
 version = "0.29.0"
 backend = "aqua:apple/pkl"
 
@@ -114,13 +119,23 @@ checksum = "blake3:b70836a640dc8ff41aa19f3edd7748a6ba7a281fb85335a48e59cd29c796b
 size = 104891168
 url = "https://github.com/apple/pkl/releases/download/0.29.0/pkl-macos-aarch64"
 
-[tools.ripgrep]
+[[tools.ripgrep]]
 version = "14.1.1"
 backend = "aqua:BurntSushi/ripgrep"
 
-[tools.shellcheck]
+[tools.ripgrep.platforms.linux-x64]
+checksum = "sha256:4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e"
+size = 2566310
+url = "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz"
+
+[[tools.shellcheck]]
 version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
+
+[tools.shellcheck.platforms.linux-x64]
+checksum = "blake3:0ad9524f3f16ad030f8350e7b970c62c24aeff3d813f2565665aecc5a8b79644"
+size = 2559196
+url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz"
 
 [tools.shellcheck.platforms.macos-arm64]
 checksum = "blake3:ad4957ed937da4e876d19e3500fc31d104e43b6e4e11d57a7b7c40140bc870d6"
@@ -130,7 +145,7 @@ url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellche
 [tools.shellcheck.platforms.macos-arm64-shellcheck]
 checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829f45"
 
-[tools.swiftlint]
+[[tools.swiftlint]]
 version = "0.59.1"
 backend = "asdf:swiftlint"
 
@@ -139,7 +154,7 @@ checksum = "blake3:6164196a72866dbd8b324acd6fc73099e2d128d1a996b6807b8bae28f1817
 size = 11034974
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
-[tools.usage]
+[[tools.usage]]
 version = "2.2.2"
 backend = "aqua:jdx/usage"
 
@@ -153,7 +168,7 @@ checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01
 size = 5008766
 url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-apple-darwin.tar.gz"
 
-[tools.vhs]
+[[tools.vhs]]
 version = "0.10.0"
 backend = "aqua:charmbracelet/vhs"
 
@@ -167,7 +182,7 @@ checksum = "sha256:dc256c403305ac8ba623563d0ef3241a38024f35b27c705f79d523e9da618
 size = 9127691
 url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Darwin_arm64.tar.gz"
 
-[tools.yq]
+[[tools.yq]]
 version = "4.47.1"
 backend = "aqua:mikefarah/yq"
 

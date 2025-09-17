@@ -400,9 +400,14 @@ impl Hook {
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
         if stash_method != StashMethod::None {
-            repo.lock()
-                .await
-                .stash_unstaged(&file_progress, stash_method, &git_status)?;
+            // Capture exact staged index entries for files under consideration so we can
+            // ensure index hunks survive formatting and stash apply.
+            let files_vec = hook_ctx.files();
+            {
+                let mut r = repo.lock().await;
+                r.capture_index(&files_vec)?;
+                r.stash_unstaged(&file_progress, stash_method, &git_status, None)?;
+            }
         }
 
         if hook_ctx.groups.is_empty() {
