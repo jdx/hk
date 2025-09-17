@@ -11,6 +11,8 @@ class Defaults {
     fix: Boolean?
     check: Boolean?
     exclude: (String | List<String>)?
+    skip_steps: (String | List<String>)?
+    skip_hooks: (String | List<String>)?
 }
 
 class HookConfig {
