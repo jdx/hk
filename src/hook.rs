@@ -90,9 +90,16 @@ pub struct Hook {
     #[serde(default)]
     pub steps: IndexMap<String, StepOrGroup>,
     pub fix: Option<bool>,
-    pub stash: Option<StashMethod>,
+    pub stash: Option<StashSetting>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
+#[serde(untagged)]
+pub enum StashSetting {
+    Method(StashMethod),
+    Bool(bool),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
@@ -302,19 +309,34 @@ impl Hook {
         StepGroup::build_all(steps)
     }
 
+    fn resolve_stash_method(&self, env_stash: Option<StashMethod>) -> StashMethod {
+        if let Some(env_val) = env_stash {
+            return env_val;
+        }
+        match &self.stash {
+            Some(StashSetting::Method(m)) => *m,
+            Some(StashSetting::Bool(b)) => {
+                if *b {
+                    StashMethod::Git
+                } else {
+                    StashMethod::None
+                }
+            }
+            None => StashMethod::None,
+        }
+    }
+
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
         let run_type = self.run_type(&opts);
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
-
-        // Handle stash CLI option
         let stash_method = if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
                 .unwrap_or(StashMethod::None)
         } else {
-            env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None)
+            self.resolve_stash_method(*env::HK_STASH)
         };
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
@@ -353,14 +375,12 @@ impl Hook {
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
         let groups = self.get_step_groups(&opts);
-
-        // Handle stash CLI option
         let stash_method = if let Some(stash_str) = &opts.stash {
             stash_str
                 .parse::<StashMethod>()
                 .unwrap_or(StashMethod::None)
         } else {
-            env::HK_STASH.or(self.stash).unwrap_or(StashMethod::None)
+            self.resolve_stash_method(*env::HK_STASH)
         };
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         let hk_progress = self.start_hk_progress(run_type, total_steps);
@@ -430,9 +450,19 @@ impl Hook {
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
         if stash_method != StashMethod::None {
-            repo.lock()
-                .await
-                .stash_unstaged(&file_progress, stash_method, &git_status)?;
+            // Capture exact staged index entries for files under consideration so we can
+            // ensure index hunks survive formatting and stash apply.
+            let files_vec = hook_ctx.files();
+            {
+                let mut r = repo.lock().await;
+                r.capture_index(&files_vec)?;
+                r.stash_unstaged(
+                    &file_progress,
+                    stash_method,
+                    &git_status,
+                    Some(&files_vec[..]),
+                )?;
+            }
         }
 
         if hook_ctx.groups.is_empty() {

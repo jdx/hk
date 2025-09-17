@@ -217,13 +217,33 @@ Default: `false` (`true` for `pre-commit` and `fix`)
 
 If true, hk will run the fix step to make modifications.
 
-## `hooks.<HOOK>.stash: String`
+## `hooks.<HOOK>.stash: (String | Boolean)`
 
 Default: `git`
 
 - `git`: Use `git stash` to stash unstaged changes before running fix steps.
-- `patch-file`: Use an hk generated patch file to stash unstaged changes before running fix steps—typically faster.
+- `patch-file`: Alias of `git` behavior for now.
 - `none`: Do not stash unstaged changes before running fix steps.
+- `true` (boolean): Alias of `git`.
+- `false` (boolean): Alias of `none`.
+
+Examples:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = true        // boolean shorthand for git
+    steps = linters
+  }
+
+  ["fix"] {
+    fix = true
+    stash = "none"      // disable stashing
+    steps = linters
+  }
+}
+```
 
 ## `hooks.<HOOK>.steps.<STEP|GROUP>`
 
