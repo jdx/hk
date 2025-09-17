@@ -634,8 +634,22 @@ impl Git {
     fn push_stash(
         &mut self,
         paths: Option<&[PathBuf]>,
-        _status: &GitStatus,
+        status: &GitStatus,
     ) -> Result<Option<StashType>> {
+        // When a subset of paths is provided, filter out untracked paths. Passing untracked
+        // paths as pathspecs to `git stash push` can fail with "did not match any file(s) known to git".
+        let tracked_subset: Option<Vec<PathBuf>> = paths.map(|ps| {
+            ps.iter()
+                .filter(|p| !status.untracked_files.contains(*p))
+                .cloned()
+                .collect()
+        });
+        // If after filtering there are no tracked paths left, do not attempt a partial stash.
+        if let Some(ref ts) = tracked_subset {
+            if ts.is_empty() {
+                return Ok(None);
+            }
+        }
         if let Some(repo) = &mut self.repo {
             let sig = repo.signature()?;
             let mut flags = git2::StashFlags::default();
@@ -644,7 +658,7 @@ impl Git {
             }
             flags.set(git2::StashFlags::KEEP_INDEX, true);
             // If partial paths requested, force shell git path since libgit2 does not support it
-            if let Some(paths) = paths {
+            if let Some(paths) = tracked_subset.as_deref() {
                 let mut cmd = git_cmd(["stash", "push", "--keep-index", "-m", "hk"]);
                 if *env::HK_STASH_UNTRACKED {
                     cmd = cmd.arg("--include-untracked");
@@ -675,7 +689,7 @@ impl Git {
             if *env::HK_STASH_UNTRACKED {
                 cmd = cmd.arg("--include-untracked");
             }
-            if let Some(paths) = paths {
+            if let Some(paths) = tracked_subset.as_deref() {
                 let utf8_paths: Vec<&str> = paths.iter().filter_map(|p| p.to_str()).collect();
                 if !utf8_paths.is_empty() {
                     cmd = cmd.arg("--");
