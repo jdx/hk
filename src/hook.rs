@@ -37,6 +37,8 @@ pub enum SkipReason {
     DisabledByEnv(String),
     #[strum(serialize = "disabled-by-cli")]
     DisabledByCli(String),
+    #[strum(serialize = "disabled-by-config")]
+    DisabledByConfig,
     ProfileNotEnabled(Vec<String>),
     ProfileExplicitlyDisabled,
     #[strum(serialize = "no-command-for-run-type")]
@@ -51,6 +53,7 @@ impl SkipReason {
             SkipReason::DisabledByEnv(src) | SkipReason::DisabledByCli(src) => {
                 format!("skipped: disabled via {src}")
             }
+            SkipReason::DisabledByConfig => "skipped: disabled via skip configuration".to_string(),
             SkipReason::ProfileNotEnabled(profiles) => {
                 if profiles.is_empty() {
                     "skipped: disabled by profile".to_string()
@@ -380,10 +383,13 @@ impl Hook {
             let mut m: IndexMap<String, SkipReason> = IndexMap::new();
             // Use settings for skip_steps which includes env vars, git config, etc.
             for s in settings.skip_steps.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
+                // Check if this skip came from the environment variable
+                let reason = if env::HK_SKIP_STEPS.contains(s) {
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string())
+                } else {
+                    SkipReason::DisabledByConfig
+                };
+                m.insert(s.clone(), reason);
             }
             for s in opts.skip_step.iter() {
                 m.insert(
