@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.3](https://github.com/jdx/hk/compare/v1.13.2..v1.13.3) - 2025-09-17
+
+### 🔍 Other Changes
+
+- diagnose pkl package failure in release workflow by [@jdx](https://github.com/jdx) in [#274](https://github.com/jdx/hk/pull/274)
+
 ## [1.13.2](https://github.com/jdx/hk/compare/v1.13.1..v1.13.2) - 2025-09-17
 
 ### 🐛 Bug Fixes
