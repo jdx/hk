@@ -843,175 +843,64 @@ impl Git {
         let Some(diff) = self.stash.take() else {
             return Ok(());
         };
-        let job: Arc<ProgressJob>;
-        // Capture currently staged files (using porcelain to align with shell git operations)
-        // so we can preserve the user's intent. After applying the stash, we'll only re-stage
-        // files that were already staged before the apply. This prevents unrelated files from
-        // getting staged due to conflict handling side-effects.
-        let previously_staged: BTreeSet<PathBuf> = {
-            let out = git_read([
-                "status",
-                "--porcelain",
-                "--no-renames",
-                "--untracked-files=all",
-                "-z",
-            ])
-            .unwrap_or_default();
-            let mut staged = BTreeSet::new();
-            for entry in out.split('\0').filter(|s| !s.is_empty()) {
-                let mut chars = entry.chars();
-                let x = chars.next().unwrap_or_default();
-                let _y = chars.next().unwrap_or_default();
-                let path = PathBuf::from(chars.skip(1).collect::<String>());
-                let is_modified =
-                    |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-                if is_modified(x) {
-                    staged.insert(path);
-                }
-            }
-            staged
-        };
-
+        let job = ProgressJobBuilder::new()
+            .prop("message", "stash – Restoring unstaged changes (manual)")
+            .start();
         match diff {
-            // TODO: this does not work with untracked files
-            // StashType::LibGit(_oid) => {
-            //     job = ProgressJobBuilder::new()
-            //         .prop("message", "stash – Applying git stash")
-            //         .start();
-            //         let repo =  self.repo.as_mut().unwrap();
-            //         let mut opts = git2::StashApplyOptions::new();
-            //         let mut checkout_opts = git2::build::CheckoutBuilder::new();
-            //         checkout_opts.allow_conflicts(true);
-            //         checkout_opts.update_index(true);
-            //         checkout_opts.force();
-            //         opts.checkout_options(checkout_opts);
-            //         opts.reinstantiate_index();
-            //         repo.stash_pop(0, Some(&mut opts))
-            //         .wrap_err("failed to pop stash")?;
-            // }
             StashType::LibGit | StashType::Git => {
-                job = ProgressJobBuilder::new()
-                    .prop("message", "stash – Applying git stash")
-                    .start();
-                // Apply the stash first; if there are conflicts, prefer the stash (unstaged) side.
-                let apply_res = git_cmd(["stash", "apply"]).run();
+                // Build a map of saved index (post-step) entries to re-stage Fixer blobs
+                let fixer_map: std::collections::HashMap<PathBuf, (u32, String)> = self
+                    .saved_index
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(m, oid, p)| (p, (m, oid)))
+                    .collect();
 
-                // Check git status after apply attempt to understand the state
-                let status = match git_cmd([
-                    "status",
-                    "--porcelain",
-                    "-z",
-                    "--no-renames",
-                    "--untracked-files=all",
-                ])
-                .read()
-                {
-                    Ok(s) => s,
-                    Err(err) => {
-                        warn!("failed to read git status: {err:?}");
-                        String::new()
-                    }
-                };
-                let conflicted = conflicted_files_from_porcelain(&status);
+                // List paths in the top stash
+                let show = git_cmd(["stash", "show", "--name-only", "-z", "stash@{0}"]) // top of stack
+                    .read()
+                    .unwrap_or_default();
+                for p in show.split('\0').filter(|s| !s.is_empty()) {
+                    let path = PathBuf::from(p);
+                    let path_str = p;
+                    // Worktree content before stash
+                    let work_pre = git_cmd(["show", &format!("stash@{{0}}:{}", path_str)])
+                        .read()
+                        .ok();
+                    // Base (index at stash time)
+                    let base_pre = git_cmd(["show", &format!("stash@{{0}}^2:{}", path_str)])
+                        .read()
+                        .ok();
+                    // Fixer (post-step index) content if present
+                    let fixer = fixer_map.get(&path).and_then(|(_, oid)| {
+                        git_cmd(["cat-file", "-p", oid]).read().ok()
+                    });
 
-                // Handle different scenarios based on apply result and conflicts
-                if !conflicted.is_empty() {
-                    // Case 1: There are conflicts - resolve them preferring stash content
-                    debug!("resolving {} conflicted files", conflicted.len());
-                    for f in conflicted.iter() {
-                        if let Err(err) = resolve_conflict_markers_preferring_theirs(f) {
-                            warn!(
-                                "failed to resolve conflict markers in {}: {err:?}",
-                                display_path(f)
-                            );
-                        }
-                        // Only re-stage files that were previously staged to clear unmerged state
-                        if previously_staged.contains(f) {
-                            if let Err(err) = git_cmd(["add", "--"]).arg(f).run() {
-                                warn!(
-                                    "failed to stage {} after resolving conflicts: {err:?}",
-                                    display_path(f)
-                                );
-                            }
+                    // Restore worktree with pre-stash content if we have it
+                    if let Some(w) = work_pre.as_deref() {
+                        if let Err(err) = xx::file::write(&path, w) {
+                            warn!("failed to restore worktree for {}: {err:?}", display_path(&path));
                         }
                     }
-                    // Drop the stash since we've applied it (even with conflicts)
-                    if let Err(err) = git_cmd(["stash", "drop"]).run() {
-                        warn!("failed to drop stash after conflict resolution: {err:?}");
-                    }
-                } else if apply_res.is_err() {
-                    // Case 2: Apply failed but no conflicts detected - stash is likely intact
-                    warn!("git stash apply failed: {:?}", apply_res.unwrap_err());
-                    // Don't try git stash pop here, as the stash is likely still intact
-                    // and the error might be due to a non-conflicting issue
-                    debug!("stash apply failed without conflicts - leaving stash intact");
-                } else {
-                    // Case 3: Apply succeeded - drop the stash
-                    if let Err(err) = git_cmd(["stash", "drop"]).run() {
-                        warn!("failed to drop stash after successful apply: {err:?}");
+                    // Re-stage fixer blob so commit includes formatted content
+                    if let Some((mode, oid)) = fixer_map.get(&path) {
+                        let mode_str = format!("{:o}", mode);
+                        if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob
+                            .arg(mode_str)
+                            .arg(oid)
+                            .arg(&path)
+                            .run()
+                        {
+                            warn!("failed to set index for {}: {err:?}", display_path(&path));
+                        }
                     }
                 }
-            } // no-op: removed PatchFile path
-        }
-        // After applying the stash (with or without conflicts), ensure we don't leave
-        // any newly staged files that the user hadn't staged before. This can happen
-        // when `git stash apply` reports an error but partially applies changes.
-        let out_after = git_read([
-            "status",
-            "--porcelain",
-            "--no-renames",
-            "--untracked-files=all",
-            "-z",
-        ])
-        .unwrap_or_default();
-        let mut staged_after: BTreeSet<PathBuf> = BTreeSet::new();
-        for entry in out_after.split('\0').filter(|s| !s.is_empty()) {
-            let mut chars = entry.chars();
-            let x = chars.next().unwrap_or_default();
-            let _y = chars.next().unwrap_or_default();
-            let path = PathBuf::from(chars.skip(1).collect::<String>());
-            let is_modified = |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-            if is_modified(x) {
-                staged_after.insert(path);
+                // Drop the stash we manually consumed
+                if let Err(err) = git_cmd(["stash", "drop"]).run() {
+                    warn!("failed to drop stash: {err:?}");
+                }
             }
-        }
-        let to_unstage: Vec<_> = staged_after
-            .iter()
-            .filter(|p| !previously_staged.contains(*p))
-            .cloned()
-            .collect();
-        if !to_unstage.is_empty() {
-            trace!(
-                "resetting unintended staged files after stash: {:?}",
-                &to_unstage
-            );
-            let _ = self.reset_paths(&to_unstage);
-        }
-        // Debug: show staged files after cleanup
-        let out_clean = git_read([
-            "status",
-            "--porcelain",
-            "--no-renames",
-            "--untracked-files=all",
-            "-z",
-        ])
-        .unwrap_or_default();
-        let mut staged_clean = BTreeSet::new();
-        for entry in out_clean.split('\0').filter(|s| !s.is_empty()) {
-            let mut chars = entry.chars();
-            let x = chars.next().unwrap_or_default();
-            let _y = chars.next().unwrap_or_default();
-            let path = PathBuf::from(chars.skip(1).collect::<String>());
-            let is_modified = |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-            if is_modified(x) {
-                staged_clean.insert(path);
-            }
-        }
-        let staged: Vec<_> = staged_clean.into_iter().collect();
-        trace!("staged after stash: {:?}", staged);
-        // Ensure index entries for originally staged paths remain exactly as before
-        if let Err(err) = self.restore_index() {
-            warn!("failed to restore exact index entries: {err:?}");
         }
         job.set_status(ProgressStatus::Done);
         Ok(())
