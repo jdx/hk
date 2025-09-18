@@ -885,6 +885,8 @@ impl Git {
                 .arg(path)
                 .run()?;
         }
+        // Clear after restoration; a subsequent hook run will rebuild this set
+        self.restaged_paths.clear();
         Ok(())
     }
 
@@ -1090,10 +1092,6 @@ impl Git {
         // Ensure index entries for originally staged paths remain exactly as before
         if let Err(err) = self.restore_index() {
             warn!("failed to restore exact index entries: {err:?}");
-        }
-        // Re-assert step-restaged files so HEAD includes fixer changes
-        if let Err(err) = self.finalize_restaged() {
-            warn!("failed to finalize restaged after stash: {err:?}");
         }
         job.set_status(ProgressStatus::Done);
         Ok(())

@@ -505,24 +505,28 @@ impl Hook {
             warn!("Failed to capture index before applying stash: {err}");
         }
         if let Err(err) = repo.lock().await.pop_stash() {
-            warn!("Failed to pop stash: {err}");
+            if result.is_ok() {
+                result = Err(err);
+            } else {
+                warn!("Failed to pop stash: {err}");
+            }
         }
         // Ensure the post-step index entries (e.g., Prettier-fixed blobs) are restored
         // even when no stash was created/applied. This preserves formatted content in HEAD.
         if let Err(err) = repo.lock().await.restore_index() {
-            warn!("Failed to restore index: {err}");
-        }
-        // Re-assert the final intended staged paths so HEAD includes fixer changes
-        // for all files considered in this hook run
-        let files_vec = hook_ctx.files();
-        if !files_vec.is_empty() {
-            if let Err(err) = repo.lock().await.add(&files_vec) {
-                warn!("Failed to re-stage files after index restore: {err}");
+            if result.is_ok() {
+                result = Err(err);
+            } else {
+                warn!("Failed to restore index: {err}");
             }
         }
         // Re-assert step-restaged files into the index so HEAD gets fixer changes
         if let Err(err) = repo.lock().await.finalize_restaged() {
-            warn!("Failed to finalize restaged files: {err}");
+            if result.is_ok() {
+                result = Err(err);
+            } else {
+                warn!("Failed to finalize restaged files: {err}");
+            }
         }
         if let Err(err) = hook_ctx.timing.write_json() {
             warn!("Failed to write timing JSON: {err}");

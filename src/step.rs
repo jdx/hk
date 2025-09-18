@@ -694,14 +694,7 @@ impl Step {
                             OutputSummary::Combined,
                             &e.3.combined_output,
                         ),
-                        OutputSummary::Hide => {
-                            // Force-show failing step output to aid debugging during hooks/tests
-                            ctx.hook_ctx.append_step_output(
-                                &self.name,
-                                OutputSummary::Combined,
-                                &e.3.combined_output,
-                            )
-                        }
+                        OutputSummary::Hide => {}
                     }
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
