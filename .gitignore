@@ -7,3 +7,4 @@ node_modules
 /lefthook.yml
 .hkrc.pkl
 *.log
+!/build

@@ -173,7 +173,7 @@ impl HookContext {
             run_type,
             step_contexts: StdMutex::new(Default::default()),
             files_in_contention: StdMutex::new(Default::default()),
-            semaphore: Arc::new(Semaphore::new(settings.jobs.get())),
+            semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
             failed: CancellationToken::new(),
             expr_ctx: StdMutex::new(expr_ctx),
             timing: Arc::new(timing),
@@ -359,12 +359,15 @@ impl Hook {
 
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
-        // Handle fail_fast CLI flags
-        if opts.fail_fast {
-            crate::settings::Settings::set_fail_fast(true);
+        // Handle fail_fast effective value locally (no global mutation)
+        let base_settings = Settings::get();
+        let fail_fast_effective = if opts.fail_fast {
+            true
         } else if opts.no_fail_fast {
-            crate::settings::Settings::set_fail_fast(false);
-        }
+            false
+        } else {
+            base_settings.fail_fast
+        };
 
         let settings = Settings::get();
         if settings.skip_hooks.contains(&self.name) {
@@ -401,15 +404,21 @@ impl Hook {
 
         let skip_steps = {
             let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-            // Use settings for skip_steps which includes env vars, git config, etc.
+
+            // First, check environment variable skips directly
+            for s in env::HK_SKIP_STEPS.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                );
+            }
+
+            // Then add any additional skips from config/git that aren't from env
             for s in settings.skip_steps.iter() {
-                // Check if this skip came from the environment variable
-                let reason = if env::HK_SKIP_STEPS.contains(s) {
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string())
-                } else {
-                    SkipReason::DisabledByConfig
-                };
-                m.insert(s.clone(), reason);
+                // Only add if not already marked as env skip
+                if !m.contains_key::<str>(s) {
+                    m.insert(s.clone(), SkipReason::DisabledByConfig);
+                }
             }
             for s in opts.skip_step.iter() {
                 m.insert(
@@ -473,14 +482,14 @@ impl Hook {
         let multiple_groups = hook_ctx.groups.len() > 1;
         for (i, group) in hook_ctx.groups.iter().enumerate() {
             debug!("running group: {i}");
-            let mut ctx = StepGroupContext::new(hook_ctx.clone());
+            let mut ctx = StepGroupContext::new(hook_ctx.clone(), fail_fast_effective);
             if multiple_groups {
                 if let Some(name) = &group.name {
                     ctx = ctx.with_progress(group.build_group_progress(name));
                 }
             }
             result = result.and(group.run(ctx).await);
-            if settings.fail_fast && result.is_err() {
+            if fail_fast_effective && result.is_err() {
                 break;
             }
         }
@@ -526,8 +535,11 @@ impl Hook {
         }
 
         // Display summary of profile-skipped steps
-        // Only show summary if user has enabled the generic warning tag
-        if Settings::get().warnings.contains("missing-profiles") {
+        // Only show summary if user has enabled the warning tag and it's not hidden
+        let settings = Settings::get();
+        if settings.warnings.contains("missing-profiles")
+            && !settings.hide_warnings.contains("missing-profiles")
+        {
             let skipped_steps = hook_ctx.get_skipped_steps();
             let mut profile_skipped: Vec<String> = vec![];
             let mut missing_profiles = indexmap::IndexSet::new();

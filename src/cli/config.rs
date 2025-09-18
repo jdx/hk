@@ -1,4 +1,5 @@
-use crate::{Result, config::Config as HKConfig, settings::Settings};
+use crate::settings::generated::SETTINGS_META;
+use crate::{Result, settings::Settings};
 use serde_json::json;
 
 /// Configuration introspection and management
@@ -21,6 +22,11 @@ enum ConfigCommand {
     /// Shows the merged configuration from all sources including CLI flags,
     /// environment variables, git config, user config, and project config.
     Dump(ConfigDump),
+    /// Explain where a configuration value comes from
+    ///
+    /// Shows the resolved value, its source (env/git/cli/default), and
+    /// the full precedence chain showing all layers that could affect it.
+    Explain(ConfigExplain),
     /// Get a specific configuration value
     ///
     /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
@@ -31,8 +37,6 @@ enum ConfigCommand {
     /// Lists all configuration sources in order of precedence to help
     /// understand where configuration values come from.
     Sources(ConfigSources),
-    /// Show the raw configuration file (deprecated - use 'dump' instead)
-    Show,
 }
 
 #[derive(Debug, clap::Args)]
@@ -52,39 +56,60 @@ struct ConfigGet {
 }
 
 #[derive(Debug, clap::Args)]
+struct ConfigExplain {
+    /// Configuration key to explain
+    key: String,
+}
+
+#[derive(Debug, clap::Args)]
 struct ConfigSources {}
 
 impl Config {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
-            None | Some(ConfigCommand::Show) => {
+            Some(ConfigCommand::Dump(cmd)) => cmd.run(),
+            Some(ConfigCommand::Get(cmd)) => cmd.run(),
+            Some(ConfigCommand::Explain(cmd)) => cmd.run(),
+            Some(ConfigCommand::Sources(cmd)) => cmd.run(),
+            None => {
                 warn!("this output is almost certain to change in a future version");
-                let cfg = HKConfig::get()?;
-                println!("{cfg}");
+                let dump = ConfigDump {
+                    format: "toml".to_string(),
+                };
+                dump.run()
             }
-            Some(ConfigCommand::Dump(cmd)) => cmd.run()?,
-            Some(ConfigCommand::Get(cmd)) => cmd.run()?,
-            Some(ConfigCommand::Sources(cmd)) => cmd.run()?,
         }
-        Ok(())
     }
 }
 
 impl ConfigDump {
     fn run(&self) -> Result<()> {
         let settings = Settings::get();
-
-        let output = json!({
-            "jobs": settings.jobs,
-            "enabled_profiles": settings.enabled_profiles,
-            "disabled_profiles": settings.disabled_profiles,
-            "fail_fast": settings.fail_fast,
-            "display_skip_reasons": settings.display_skip_reasons,
-            "warnings": settings.warnings,
-            "exclude": settings.exclude,
-            "skip_steps": settings.skip_steps,
-            "skip_hooks": settings.skip_hooks,
-        });
+        // Start from full settings based on meta to reduce boilerplate
+        let mut map = serde_json::Map::new();
+        // Serialize full settings once for generic lookups
+        let full = serde_json::to_value(settings.clone())?;
+        for (key, _meta) in SETTINGS_META.iter() {
+            let k = (*key).to_string();
+            // Special-case computed values that differ from raw fields
+            if k == "jobs" {
+                map.insert(k, json!(settings.jobs()));
+                continue;
+            }
+            if let Some(v) = full.get(key) {
+                map.insert(k, v.clone());
+            }
+        }
+        // Include derived convenience fields expected by CLI/tests
+        map.insert(
+            "enabled_profiles".to_string(),
+            json!(settings.enabled_profiles()),
+        );
+        map.insert(
+            "disabled_profiles".to_string(),
+            json!(settings.disabled_profiles()),
+        );
+        let output = serde_json::Value::Object(map);
 
         match self.format.as_str() {
             "json" => println!("{}", serde_json::to_string_pretty(&output)?),
@@ -101,21 +126,56 @@ impl ConfigDump {
 impl ConfigGet {
     fn run(&self) -> Result<()> {
         let settings = Settings::get();
-
-        let value = match self.key.as_str() {
-            "jobs" => json!(settings.jobs),
-            "enabled_profiles" => json!(settings.enabled_profiles),
-            "disabled_profiles" => json!(settings.disabled_profiles),
-            "fail_fast" => json!(settings.fail_fast),
-            "display_skip_reasons" => json!(settings.display_skip_reasons),
-            "warnings" => json!(settings.warnings),
-            "exclude" => json!(settings.exclude),
-            "skip_steps" => json!(settings.skip_steps),
-            "skip_hooks" => json!(settings.skip_hooks),
-            _ => return Err(eyre::eyre!("Unknown configuration key: {}", self.key)),
+        // Derived and computed keys
+        let value = if self.key == "jobs" {
+            json!(settings.jobs())
+        } else if self.key == "enabled_profiles" {
+            json!(settings.enabled_profiles())
+        } else if self.key == "disabled_profiles" {
+            json!(settings.disabled_profiles())
+        } else if SETTINGS_META.contains_key(self.key.as_str()) {
+            // Generic lookup via serialization
+            let full = serde_json::to_value(settings.clone())?;
+            full.get(&self.key).cloned().ok_or_else(|| {
+                eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
+            })?
+        } else {
+            return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
         };
 
         println!("{}", serde_json::to_string(&value)?);
+        Ok(())
+    }
+}
+
+impl ConfigExplain {
+    fn run(&self) -> Result<()> {
+        // Get the current value
+        let settings = Settings::get();
+        // Current value (computed for special keys, generic via meta for the rest)
+        let current_value = if self.key == "jobs" {
+            json!(settings.jobs())
+        } else if self.key == "enabled_profiles" {
+            json!(settings.enabled_profiles())
+        } else if self.key == "disabled_profiles" {
+            json!(settings.disabled_profiles())
+        } else if SETTINGS_META.contains_key(self.key.as_str()) {
+            let full = serde_json::to_value(settings.clone())?;
+            full.get(&self.key).cloned().ok_or_else(|| {
+                eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
+            })?
+        } else {
+            return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
+        };
+
+        // Build a resolution report
+        let resolution_info = Settings::explain_value(&self.key)?;
+
+        println!("Configuration key: {}", self.key);
+        println!("Current value: {}", serde_json::to_string(&current_value)?);
+        println!();
+        println!("{}", resolution_info);
+
         Ok(())
     }
 }
@@ -128,8 +188,8 @@ impl ConfigSources {
         println!("1. CLI flags");
         println!("2. Environment variables (HK_*)");
         println!("3. Git config (local repo)");
-        println!("4. User rc (.hkrc.pkl)");
-        println!("5. Git config (global/system)");
+        println!("4. Git config (global/system)");
+        println!("5. User rc (.hkrc.pkl)");
         println!("6. Project config (hk.pkl)");
         println!("7. Built-in defaults");
         println!();

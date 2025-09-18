@@ -67,7 +67,7 @@ impl Test {
             return Ok(());
         }
         // Execute tests in parallel up to configured jobs
-        let jobs = crate::settings::Settings::get().jobs.get();
+        let jobs = crate::settings::Settings::get().jobs().get();
         let semaphore = std::sync::Arc::new(Semaphore::new(jobs));
         let mut handles = vec![];
         for (step_name, step, test_name, test) in to_run {

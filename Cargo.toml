@@ -11,11 +11,22 @@ license = "MIT"
 repository = "https://github.com/jdx/hk"
 documentation = "https://hk.jdx.dev"
 homepage = "https://hk.jdx.dev"
-include = ["/src/**/*", "/Cargo.toml", "/Cargo.lock", "/README.md", "/LICENSE", "/CHANGELOG.md", "/pkl", "/build.rs"]
-build = "build.rs"
+include = [
+    "/src/**/*",
+    "/Cargo.toml",
+    "/Cargo.lock",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/pkl",
+    "/build/**/*",
+    "/settings.toml",
+]
+build = "build/mod.rs"
 rust-version = "1.85"
 
 [dependencies]
+arc-swap = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 clap_usage = "2"
@@ -55,6 +66,13 @@ tracing-serde = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 which = "8"
 xx = { path = "xx", features = ["http", "hash", "rustls"] }
+
+[build-dependencies]
+toml = "0.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+indexmap = { version = "2", features = ["serde"] }
+codegen = "0.2"
 
 [profile.serious]
 inherits = "release"
