@@ -67,9 +67,6 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Generate the settings meta
     generate_settings_meta(out_dir, &registry)?;
 
-    // Generate JSON Schema for external tooling
-    generate_json_schema(&registry)?;
-
     Ok(())
 }
 
@@ -374,72 +371,6 @@ fn format_string_array(strings: &[String]) -> String {
             .join(", ");
         format!("&[{}]", items)
     }
-}
-
-fn generate_json_schema(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::Error>> {
-    use serde_json::json;
-
-    let mut properties = serde_json::Map::new();
-
-    for (name, _opt) in &registry.options {
-        let field_name = name.replace('-', "_");
-
-        // Schema for a single option definition object in settings.toml
-        let option_schema = json!({
-            "type": "object",
-            "required": ["type", "sources", "docs"],
-            "additionalProperties": false,
-            "properties": {
-                "type": { "type": "string", "enum": ["bool","usize","u8","string","path","enum","list<string>"] },
-                "default": {},
-                "merge": { "type": "string", "enum": ["union","replace"] },
-                "sources": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "cli": { "type": "array", "items": {"type": "string"} },
-                        "env": { "type": "array", "items": {"type": "string"} },
-                        "git": { "type": "array", "items": {"type": "string"} },
-                        "pkl": { "type": "array", "items": {"type": "string"} }
-                    }
-                },
-                "validate": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "enum": { "type": "array", "items": {"type": "string"} }
-                    }
-                },
-                "docs": { "type": "string" },
-                "examples": { "type": "array", "items": {"type": "string"} },
-                "deprecated": { "type": "string" },
-                "since": { "type": "string" }
-            }
-        });
-
-        properties.insert(field_name, option_schema);
-        // Each option name is required in registry? keep not required to allow partials; skip.
-    }
-
-    // Build the complete schema
-    let schema = json!({
-        "$schema": "https://json-schema.org/draft-07/schema#",
-        "title": "HK Settings Registry",
-        "description": "Schema for settings.toml (settings registry)",
-        "type": "object",
-        "properties": properties,
-        "required": [],
-        "additionalProperties": false,
-        "$comment": "This schema is auto-generated from settings.toml by build/generate_settings.rs"
-    });
-
-    // Write the schema to file
-    let schema_str = serde_json::to_string_pretty(&schema)?;
-    fs::write("settings-schema.json", schema_str)?;
-
-    println!("Generated settings-schema.json");
-
-    Ok(())
 }
 
 fn rust_type(typ: &str) -> String {
