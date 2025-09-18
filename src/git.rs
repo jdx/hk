@@ -137,7 +137,100 @@ pub enum StashMethod {
     None,
 }
 
+/// Represents a text blob of a file from different sources at hook time.
+#[derive(Debug, Clone)]
+pub struct TextBlobs {
+    pub path: PathBuf,
+    pub base: Option<String>,    // from index/HEAD at hook start
+    pub fixer: Option<String>,   // from post-step index (formatted)
+    pub worktree: Option<String> // from pre-stash worktree
+}
+
+#[derive(Debug, Clone)]
+pub struct Hunk {
+    pub start_line: usize,
+    pub end_line: usize,
+    pub content: String,
+    pub source: HunkSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HunkSource {
+    Base,
+    Fixer,
+    Worktree,
+}
+
 impl Git {
+
+    /// Build per-file text blobs that we can diff/merge in-memory.
+    pub fn collect_text_blobs(
+        &self,
+        paths: &[PathBuf],
+        base_from_index: bool,
+    ) -> Result<Vec<TextBlobs>> {
+        let mut out = Vec::with_capacity(paths.len());
+        for p in paths {
+            let base = if base_from_index {
+                // Read from index/HEAD version
+                let s = git_cmd(["show", &format!("HEAD:{}", p.display())]).read().ok();
+                s
+            } else {
+                None
+            };
+            let fixer = None; // to be filled after steps run (capture_index)
+            let worktree = xx::file::read_to_string(p).ok();
+            out.push(TextBlobs {
+                path: p.clone(),
+                base,
+                fixer,
+                worktree,
+            });
+        }
+        Ok(out)
+    }
+
+    /// Compute diff hunks Base->Fixer and Base->Worktree.
+    pub fn compute_hunks(base: &str, other: &str, source: HunkSource) -> Vec<Hunk> {
+        // Minimal scaffold: whole-file replacement as a single hunk if different.
+        if base == other {
+            return vec![];
+        }
+        vec![Hunk {
+            start_line: 0,
+            end_line: usize::MAX,
+            content: other.to_string(),
+            source,
+        }]
+    }
+
+    /// Merge hunks with policy: prefer Worktree on conflicts, otherwise take the present side.
+    pub fn merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&str>) -> String {
+        match (fixer, worktree) {
+            (Some(f), Some(w)) => {
+                if f == base && w == base {
+                    base.to_string()
+                } else if f == w {
+                    w.to_string()
+                } else {
+                    // conflict: prefer worktree
+                    w.to_string()
+                }
+            }
+            (Some(f), None) => f.to_string(),
+            (None, Some(w)) => w.to_string(),
+            (None, None) => base.to_string(),
+        }
+    }
+
+    /// Apply merged content back to worktree and (optionally) to index.
+    pub fn apply_merge_result(&self, path: &Path, merged: &str, stage_in_index: bool) -> Result<()> {
+        xx::file::write(path, merged)?;
+        if stage_in_index {
+            git_cmd(["add", "--"]).arg(path).run()?;
+        }
+        Ok(())
+    }
     pub fn new() -> Result<Self> {
         let cwd = std::env::current_dir()?;
         let root = xx::file::find_up(&cwd, &[".git"])
