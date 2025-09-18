@@ -343,6 +343,31 @@
             "hidden_aliases": [],
             "examples": []
           },
+          "explain": {
+            "full_cmd": ["config", "explain"],
+            "usage": "config explain <KEY>",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "KEY",
+                "usage": "<KEY>",
+                "help": "Configuration key to explain",
+                "help_first_line": "Configuration key to explain",
+                "required": true,
+                "double_dash": "Optional",
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Explain where a configuration value comes from",
+            "help_long": "Explain where a configuration value comes from\n\nShows the resolved value, its source (env/git/cli/default), and the full precedence chain showing all layers that could affect it.",
+            "name": "explain",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
           "get": {
             "full_cmd": ["config", "get"],
             "usage": "config get <KEY>",
@@ -383,20 +408,6 @@
             "aliases": [],
             "hidden_aliases": [],
             "examples": []
-          },
-          "show": {
-            "full_cmd": ["config", "show"],
-            "usage": "config show",
-            "subcommands": {},
-            "args": [],
-            "flags": [],
-            "mounts": [],
-            "hide": false,
-            "help": "Show the raw configuration file (deprecated - use 'dump' instead)",
-            "name": "show",
-            "aliases": [],
-            "hidden_aliases": [],
-            "examples": []
           }
         },
         "args": [],
@@ -404,7 +415,7 @@
         "mounts": [],
         "hide": false,
         "help": "Configuration introspection and management",
-        "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > Git config (global/system) > User config (.hkrc.pkl) > Project config (hk.pkl) > Built-in defaults.",
+        "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.",
         "name": "config",
         "aliases": ["cfg"],
         "hidden_aliases": [],
@@ -2167,7 +2178,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.13.7",
+  "version": "1.14.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
