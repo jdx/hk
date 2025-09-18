@@ -109,6 +109,17 @@ impl Config {
 
     fn apply_user_config(&mut self, user_config: &Option<UserConfig>) -> Result<()> {
         if let Some(user_config) = user_config {
+            // Top-level user settings that map to Settings should be copied so pkl map sees them
+            if user_config.display_skip_reasons.is_some() {
+                self.display_skip_reasons = user_config.display_skip_reasons.clone();
+            }
+            if user_config.hide_warnings.is_some() {
+                self.hide_warnings = user_config.hide_warnings.clone();
+            }
+            if user_config.warnings.is_some() {
+                self.warnings = user_config.warnings.clone();
+            }
+
             for (key, value) in &user_config.environment {
                 // User config takes precedence over project config
                 self.env.insert(key.clone(), value.clone());
