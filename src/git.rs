@@ -553,7 +553,7 @@ impl Git {
                 args.extend(
                     paths
                         .iter()
-                        .map(Self::to_repo_relative)
+                        .map(|p| Self::to_repo_relative(p.as_path()))
                         .map(|p| OsString::from(p.as_os_str())),
                 );
                 let out = git_read(args).unwrap_or_default();
@@ -566,7 +566,7 @@ impl Git {
                 args.extend(
                     paths
                         .iter()
-                        .map(Self::to_repo_relative)
+                        .map(|p| Self::to_repo_relative(p.as_path()))
                         .map(|p| OsString::from(p.as_os_str())),
                 );
                 let out = git_read(args).unwrap_or_default();
@@ -763,7 +763,7 @@ impl Git {
             if let Some(paths) = tracked_subset.as_deref() {
                 let utf8_paths: Vec<String> = paths
                     .iter()
-                    .map(Self::to_repo_relative)
+                    .map(|p| Self::to_repo_relative(p.as_path()))
                     .filter_map(|p| p.to_str().map(|s| s.to_string()))
                     .collect();
                 if !utf8_paths.is_empty() {
