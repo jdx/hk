@@ -1,11 +1,11 @@
 use std::{
     collections::BTreeSet,
     ffi::{CString, OsString},
-    path::{Path, PathBuf},
-    sync::Arc,
+    path::PathBuf,
 };
 
 use crate::Result;
+use crate::merge;
 use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
@@ -50,73 +50,6 @@ where
     Ok(git_cmd(args).read()?)
 }
 
-// removed: parse_paths_from_patch
-
-fn conflicted_files_from_porcelain(status_z: &str) -> Vec<PathBuf> {
-    // In porcelain v1 short format: lines start with two status letters.
-    // Unmerged statuses include: UU, AA, AU, UA, DU, UD
-    let mut files = BTreeSet::new();
-    for entry in status_z.split('\0').filter(|s| !s.is_empty()) {
-        let mut chars = entry.chars();
-        let x = chars.next().unwrap_or(' ');
-        let y = chars.next().unwrap_or(' ');
-        let path: String = chars.skip(1).collect();
-        let is_unmerged = matches!(
-            (x, y),
-            ('U', 'U') | ('A', 'A') | ('A', 'U') | ('U', 'A') | ('D', 'U') | ('U', 'D')
-        );
-        if is_unmerged {
-            let p = PathBuf::from(path);
-            if p.exists() {
-                files.insert(p);
-            }
-        }
-    }
-    files.into_iter().collect()
-}
-
-fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
-    let content = xx::file::read_to_string(path).unwrap_or_default();
-    if !content.contains("<<<<<<<") || !content.contains(">>>>>>>") {
-        return Ok(());
-    }
-
-    // Process as UTF-8 text, preserving original Unicode outside conflict blocks
-    // and keeping exact line endings by using split_inclusive.
-    let mut output = String::with_capacity(content.len());
-    let parts: Vec<&str> = content.split_inclusive('\n').collect();
-    let mut idx = 0usize;
-    while idx < parts.len() {
-        let line = parts[idx];
-        if line.starts_with("<<<<<<<") {
-            // Advance past our side until the separator '======='
-            idx += 1;
-            while idx < parts.len() && !parts[idx].starts_with("=======") {
-                idx += 1;
-            }
-            // Skip the separator line if present
-            if idx < parts.len() && parts[idx].starts_with("=======") {
-                idx += 1;
-            }
-            // Capture the 'theirs' side until the closing '>>>>>>>'
-            while idx < parts.len() && !parts[idx].starts_with(">>>>>>>") {
-                output.push_str(parts[idx]);
-                idx += 1;
-            }
-            // Skip the closing marker if present
-            if idx < parts.len() && parts[idx].starts_with(">>>>>>>") {
-                idx += 1;
-            }
-        } else {
-            output.push_str(line);
-            idx += 1;
-        }
-    }
-
-    xx::file::write(path, output)?;
-    Ok(())
-}
-
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
@@ -137,100 +70,7 @@ pub enum StashMethod {
     None,
 }
 
-/// Represents a text blob of a file from different sources at hook time.
-#[derive(Debug, Clone)]
-pub struct TextBlobs {
-    pub path: PathBuf,
-    pub base: Option<String>,    // from index/HEAD at hook start
-    pub fixer: Option<String>,   // from post-step index (formatted)
-    pub worktree: Option<String> // from pre-stash worktree
-}
-
-#[derive(Debug, Clone)]
-pub struct Hunk {
-    pub start_line: usize,
-    pub end_line: usize,
-    pub content: String,
-    pub source: HunkSource,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HunkSource {
-    Base,
-    Fixer,
-    Worktree,
-}
-
 impl Git {
-
-    /// Build per-file text blobs that we can diff/merge in-memory.
-    pub fn collect_text_blobs(
-        &self,
-        paths: &[PathBuf],
-        base_from_index: bool,
-    ) -> Result<Vec<TextBlobs>> {
-        let mut out = Vec::with_capacity(paths.len());
-        for p in paths {
-            let base = if base_from_index {
-                // Read from index/HEAD version
-                let s = git_cmd(["show", &format!("HEAD:{}", p.display())]).read().ok();
-                s
-            } else {
-                None
-            };
-            let fixer = None; // to be filled after steps run (capture_index)
-            let worktree = xx::file::read_to_string(p).ok();
-            out.push(TextBlobs {
-                path: p.clone(),
-                base,
-                fixer,
-                worktree,
-            });
-        }
-        Ok(out)
-    }
-
-    /// Compute diff hunks Base->Fixer and Base->Worktree.
-    pub fn compute_hunks(base: &str, other: &str, source: HunkSource) -> Vec<Hunk> {
-        // Minimal scaffold: whole-file replacement as a single hunk if different.
-        if base == other {
-            return vec![];
-        }
-        vec![Hunk {
-            start_line: 0,
-            end_line: usize::MAX,
-            content: other.to_string(),
-            source,
-        }]
-    }
-
-    /// Merge hunks with policy: prefer Worktree on conflicts, otherwise take the present side.
-    pub fn merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&str>) -> String {
-        match (fixer, worktree) {
-            (Some(f), Some(w)) => {
-                if f == base && w == base {
-                    base.to_string()
-                } else if f == w {
-                    w.to_string()
-                } else {
-                    // conflict: prefer worktree
-                    w.to_string()
-                }
-            }
-            (Some(f), None) => f.to_string(),
-            (None, Some(w)) => w.to_string(),
-            (None, None) => base.to_string(),
-        }
-    }
-
-    /// Apply merged content back to worktree and (optionally) to index.
-    pub fn apply_merge_result(&self, path: &Path, merged: &str, stage_in_index: bool) -> Result<()> {
-        xx::file::write(path, merged)?;
-        if stage_in_index {
-            git_cmd(["add", "--"]).arg(path).run()?;
-        }
-        Ok(())
-    }
     pub fn new() -> Result<Self> {
         let cwd = std::env::current_dir()?;
         let root = xx::file::find_up(&cwd, &[".git"])
@@ -598,6 +438,23 @@ impl Git {
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
         job.prop("message", "Fetching unstaged files");
         job.set_status(ProgressStatus::Running);
+
+        // Fast path: if a file subset is provided, always attempt a partial-path stash.
+        if let Some(paths) = files_subset {
+            let _ = git_run(["update-index", "-q", "--refresh"]);
+            job.prop("message", "Running git stash for selected paths");
+            job.prop("files", &paths.len());
+            job.update();
+            self.stash = self.push_stash(Some(paths), status)?;
+            if self.stash.is_some() {
+                job.prop("message", "Stashed unstaged changes");
+            } else {
+                job.prop("message", "No unstaged changes to stash");
+                job.prop("files", &0);
+            }
+            job.set_status(ProgressStatus::Done);
+            return Ok(());
+        }
         // Hardened detection of worktree-only changes (including partially staged files)
         let mut files_to_stash: BTreeSet<PathBuf> = BTreeSet::new();
         // 1) git diff --name-only (worktree vs index)
@@ -821,24 +678,6 @@ impl Git {
         Ok(())
     }
 
-    pub fn restore_index(&mut self) -> Result<()> {
-        let Some(entries) = self.saved_index.take() else {
-            return Ok(());
-        };
-        if entries.is_empty() {
-            return Ok(());
-        }
-        for (mode, oid, path) in entries {
-            let mode_str = format!("{:o}", mode);
-            git_cmd(["update-index", "--cacheinfo"])
-                .arg(mode_str)
-                .arg(&oid)
-                .arg(path)
-                .run()?;
-        }
-        Ok(())
-    }
-
     pub fn pop_stash(&mut self) -> Result<()> {
         let Some(diff) = self.stash.take() else {
             return Ok(());
@@ -848,42 +687,109 @@ impl Git {
             .start();
         match diff {
             StashType::LibGit | StashType::Git => {
-                // Build a map of saved index (post-step) entries to re-stage Fixer blobs
-                let fixer_map: std::collections::HashMap<PathBuf, (u32, String)> = self
-                    .saved_index
-                    .clone()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .map(|(m, oid, p)| (p, (m, oid)))
-                    .collect();
-
                 // List paths in the top stash
                 let show = git_cmd(["stash", "show", "--name-only", "-z", "stash@{0}"]) // top of stack
                     .read()
                     .unwrap_or_default();
-                for p in show.split('\0').filter(|s| !s.is_empty()) {
+                let stash_paths: Vec<PathBuf> = show
+                    .split('\0')
+                    .filter(|s| !s.is_empty())
+                    .map(PathBuf::from)
+                    .collect();
+
+                // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs
+                let mut fixer_map: std::collections::HashMap<PathBuf, (u32, String)> =
+                    std::collections::HashMap::new();
+                if !stash_paths.is_empty() {
+                    let mut args: Vec<OsString> =
+                        vec!["ls-files".into(), "-s".into(), "-z".into(), "--".into()];
+                    args.extend(
+                        stash_paths
+                            .iter()
+                            .filter_map(|p| p.to_str())
+                            .map(OsString::from),
+                    );
+                    if let Ok(list) = git_read(args) {
+                        for rec in list.split('\0').filter(|s| !s.is_empty()) {
+                            // format: mode SP oid SP stage TAB path
+                            if let Some((left, path)) = rec.split_once('\t') {
+                                let mut parts = left.split_whitespace();
+                                let mode = parts.next().unwrap_or("100644");
+                                let oid = parts.next().unwrap_or("");
+                                if !oid.is_empty() {
+                                    if let Ok(mode_num) = u32::from_str_radix(mode, 8) {
+                                        fixer_map.insert(
+                                            PathBuf::from(path),
+                                            (mode_num, oid.to_string()),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
-                    let path_str = p;
-                    // Worktree content before stash
+                    let path_str = p.to_string_lossy();
+                    // Worktree and Base content from stash
                     let work_pre = git_cmd(["show", &format!("stash@{{0}}:{}", path_str)])
                         .read()
                         .ok();
-                    // Base (index at stash time)
                     let base_pre = git_cmd(["show", &format!("stash@{{0}}^2:{}", path_str)])
                         .read()
                         .ok();
-                    // Fixer (post-step index) content if present
-                    let fixer = fixer_map.get(&path).and_then(|(_, oid)| {
-                        git_cmd(["cat-file", "-p", oid]).read().ok()
-                    });
+                    // Fixer content from saved index blob
+                    let fixer = fixer_map
+                        .get(&path)
+                        .and_then(|(_, oid)| git_cmd(["cat-file", "-p", oid]).read().ok());
 
-                    // Restore worktree with pre-stash content if we have it
+                    // Current base if stash didn't have it
+                    let base_now = if base_pre.is_none() {
+                        git_cmd(["show", &format!("HEAD:{}", path_str)]).read().ok()
+                    } else {
+                        None
+                    };
+                    let base = base_pre.as_deref().or(base_now.as_deref()).unwrap_or("");
+                    let has_base = base_pre.is_some() || base_now.is_some();
+                    let has_fixer = fixer.is_some();
+                    let has_work = work_pre.is_some();
+                    let merged =
+                        merge::three_way_merge_hunks(base, fixer.as_deref(), work_pre.as_deref());
+
+                    // Determine which side the merged result matches
+                    let mut chosen = "mixed";
                     if let Some(w) = work_pre.as_deref() {
-                        if let Err(err) = xx::file::write(&path, w) {
-                            warn!("failed to restore worktree for {}: {err:?}", display_path(&path));
+                        if merged == w {
+                            chosen = "worktree";
                         }
                     }
-                    // Re-stage fixer blob so commit includes formatted content
+                    if chosen == "mixed" {
+                        if let Some(f) = fixer.as_deref() {
+                            if merged == f {
+                                chosen = "fixer";
+                            }
+                        }
+                    }
+                    if chosen == "mixed" && merged == base {
+                        chosen = "base";
+                    }
+
+                    debug!(
+                        "manual-unstash: merge decision path={} has_base={} has_fixer={} has_work={} chosen={}",
+                        display_path(&path),
+                        has_base,
+                        has_fixer,
+                        has_work,
+                        chosen
+                    );
+                    if let Err(err) = xx::file::write(&path, &merged) {
+                        warn!(
+                            "failed to write merged worktree for {}: {err:?}",
+                            display_path(&path)
+                        );
+                    }
+                    // If fixer differs from base, ensure index has fixer blob
                     if let Some((mode, oid)) = fixer_map.get(&path) {
                         let mode_str = format!("{:o}", mode);
                         if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob
@@ -893,7 +799,17 @@ impl Git {
                             .run()
                         {
                             warn!("failed to set index for {}: {err:?}", display_path(&path));
+                        } else {
+                            debug!(
+                                "manual-unstash: set index cacheinfo path={} mode={mode:o} oid={oid}",
+                                display_path(&path),
+                            );
                         }
+                    } else {
+                        debug!(
+                            "manual-unstash: no fixer entry in saved index; leaving index as-is path={}",
+                            display_path(&path)
+                        );
                     }
                 }
                 // Drop the stash we manually consumed
@@ -920,14 +836,6 @@ impl Git {
             git_cmd(["add", "--"]).args(pathspecs).run()?;
             Ok(())
         }
-    }
-
-    pub fn reset_paths(&self, pathspecs: &[PathBuf]) -> Result<()> {
-        let pathspecs = pathspecs.iter().collect_vec();
-        trace!("resetting (unstaging) files: {:?}", &pathspecs);
-        // Use shell git to ensure consistent behavior with HEAD
-        git_cmd(["reset", "--"]).args(pathspecs).run()?;
-        Ok(())
     }
 
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {

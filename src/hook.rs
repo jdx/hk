@@ -6,6 +6,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use std::{
     collections::{BTreeSet, HashSet},
     ffi::OsString,
+    fmt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex as StdMutex},
 };
@@ -508,6 +509,16 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
+        // Capture final git state for diagnostics
+        match repo.lock().await.status(None) {
+            Ok(s) => {
+                debug!(
+                    "final git state: staged={:?} unstaged={:?}",
+                    s.staged_files, s.unstaged_files
+                );
+            }
+            Err(e) => warn!("failed to read final git status: {e:?}"),
+        }
         if let Err(err) = hook_ctx.timing.write_json() {
             warn!("Failed to write timing JSON: {err}");
         }
@@ -617,6 +628,11 @@ impl Hook {
             for s in suggestions {
                 error!("{}", s);
             }
+        }
+        if let Err(err) = &result {
+            error!("{self}: hook finished with error: {err:?}");
+        } else {
+            debug!("{self}: hook finished successfully");
         }
         result
     }
@@ -762,6 +778,12 @@ impl Hook {
             hk_progress = hk_progress.prop("message", &style::edim(" – check").to_string());
         }
         Some(hk_progress.start())
+    }
+}
+
+impl fmt::Display for Hook {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }
 

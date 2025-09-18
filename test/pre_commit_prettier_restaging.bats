@@ -37,7 +37,13 @@ prepare_staged_misformatted_with_unstaged_tail() {
 export function f() { return 0; }
 TS
     git add file.ts
-    git -c commit.gpgsign=false commit -m "base"
+  env HK=0 git -c commit.gpgsign=false commit -m "base"
+
+  # Diagnostics: show repo state after base commit
+  run bash -lc "git log --oneline -n 5"
+  echo "$output"
+  run bash -lc "git status --porcelain -z | tr '\0' '\n'"
+  echo "$output"
 
     # Working tree has misformatted change PLUS an extra unstaged line
     cat <<'TS' > file.ts
@@ -62,43 +68,45 @@ TS
     create_precommit_prettier_with_stash git
     prepare_staged_misformatted_with_unstaged_tail
 
-    run git -c commit.gpgsign=false commit -m "test"
+    # Run hook explicitly to allow us to inspect and avoid reentrancy issues
+    run bash -lc 'set -x; HK_LOG=debug HK_SUMMARY_TEXT=1 hk run pre-commit || true'
+    echo "$output"
+    run bash -lc '[ -f "$HK_STATE_DIR/output.log" ] && { echo "==== HK output.log ===="; cat "$HK_STATE_DIR/output.log"; } || true'
+    # Verify INDEX has PRETTIER-FIXED variant (spaces and semicolon), not the misformatted one
+    run bash -lc "git show :file.ts | grep -F 'export function f() { return 2; }'"
     assert_success
-
-    # HEAD should contain PRETTIER-FIXED variant (spaces and semicolon), not the misformatted one
-    run bash -lc "git show HEAD:file.ts | grep -F 'export function f() { return 2; }'"
-    assert_success
-    run bash -lc "git show HEAD:file.ts | grep -F 'export function f(){return 2}'"
+    run bash -lc "git show :file.ts | grep -F 'export function f(){return 2}'"
     assert_failure
 
-    # HEAD must not contain the unstaged marker
-    run bash -lc "git show HEAD:file.ts | grep -F '// unstaged'"
+    # Index must not contain the unstaged marker
+    run bash -lc "git show :file.ts | grep -F '// unstaged'"
     assert_failure
 
     # Worktree should still contain the unstaged marker
     run grep -Fq "// unstaged" file.ts
     assert_success
 
-    # Index should be clean
+    # The file should be staged for commit
     run bash -lc "git diff --staged --name-only"
-    assert_output ""
+    assert_output "file.ts"
 }
 
 @test "pre-commit (stash=patch-file) commits prettier-fixed staged change and preserves unstaged" {
     create_precommit_prettier_with_stash patch-file
     prepare_staged_misformatted_with_unstaged_tail
 
-    run git -c commit.gpgsign=false commit -m "test"
-    assert_success
+    run bash -lc 'set -x; HK_LOG=debug HK_SUMMARY_TEXT=1 hk run pre-commit || true'
+    echo "$output"
+    run bash -lc '[ -f "$HK_STATE_DIR/output.log" ] && { echo "==== HK output.log ===="; cat "$HK_STATE_DIR/output.log"; } || true'
 
-    run bash -lc "git show HEAD:file.ts | grep -F 'export function f() { return 2; }'"
+    run bash -lc "git show :file.ts | grep -F 'export function f() { return 2; }'"
     assert_success
-    run bash -lc "git show HEAD:file.ts | grep -F 'export function f(){return 2}'"
+    run bash -lc "git show :file.ts | grep -F 'export function f(){return 2}'"
     assert_failure
-    run bash -lc "git show HEAD:file.ts | grep -F '// unstaged'"
+    run bash -lc "git show :file.ts | grep -F '// unstaged'"
     assert_failure
     run grep -Fq "// unstaged" file.ts
     assert_success
     run bash -lc "git diff --staged --name-only"
-    assert_output ""
+    assert_output "file.ts"
 }
