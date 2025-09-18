@@ -363,7 +363,9 @@ fn generate_settings_meta(
     Ok(())
 }
 
-fn generate_configuration_docs(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::Error>> {
+fn generate_configuration_docs(
+    registry: &SettingsRegistry,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Build a concise markdown section summarizing settings
     // We either replace content between markers in docs/configuration.md
     // or append to the end if markers are not present.
@@ -433,7 +435,8 @@ fn generate_configuration_docs(registry: &SettingsRegistry) -> Result<(), Box<dy
                 }
             }
             PklSource::Multiple(v) => {
-                let filtered: Vec<&String> = v.iter().filter(|s| !s.starts_with("defaults.")).collect();
+                let filtered: Vec<&String> =
+                    v.iter().filter(|s| !s.starts_with("defaults.")).collect();
                 if !filtered.is_empty() {
                     any_sources = true;
                     let items = filtered
