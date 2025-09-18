@@ -77,7 +77,7 @@ merge = "union"
 sources.cli = ["--exclude", "--exclude-glob", "-e"]
 sources.env = ["HK_EXCLUDE"]
 sources.git = ["hk.exclude", "hk.excludeGlob"]
-sources.pkl = ["defaults.exclude"]
+sources.pkl = ["exclude", "defaults.exclude"]
 docs = """
 Glob patterns to exclude from processing. These patterns are **unioned** with exclude patterns from other configuration sources (git config, user config, project config). Supports both directory names and glob patterns.
 
@@ -165,7 +165,7 @@ default = 0 # 0 means auto-detect from environment or CPU count
 sources.cli = ["--jobs", "-j"]
 sources.env = ["HK_JOBS", "HK_JOB"]
 sources.git = ["hk.jobs"]
-sources.pkl = ["defaults.jobs"]
+sources.pkl = ["jobs", "defaults.jobs"]
 docs = """
 The number of parallel processes that hk will use to execute steps concurrently. This affects performance by controlling how many linting/formatting tasks can run simultaneously.
 
@@ -277,7 +277,7 @@ type = "list<string>"
 sources.cli = ["--profile", "-p"]
 sources.env = ["HK_PROFILE", "HK_PROFILES"]
 sources.git = ["hk.profile"]
-sources.pkl = ["defaults.profiles"]
+sources.pkl = ["profiles", "defaults.profiles"]
 docs = """
 Profiles to enable or disable. Profiles allow you to group steps that should run only in certain contexts (e.g., CI, slow tests).
 
@@ -314,7 +314,7 @@ Useful when only the exit code matters.
 [skip_hooks]
 type = "list<string>"
 merge = "union"
-sources.pkl = ["defaults.skip_hooks"]
+sources.pkl = ["skip_hooks", "defaults.skip_hooks"]
 sources.env = ["HK_SKIP_HOOK", "HK_SKIP_HOOKS"]
 sources.git = ["hk.skipHooks", "hk.skipHook"]
 docs = """
@@ -338,7 +338,7 @@ merge = "union"
 sources.cli = ["--skip-step"]
 sources.env = ["HK_SKIP_STEPS", "HK_SKIP_STEP"]
 sources.git = ["hk.skipSteps", "hk.skipStep"]
-sources.pkl = ["defaults.skip_steps"]
+sources.pkl = ["skip_steps", "defaults.skip_steps"]
 docs = """
 A list of step names to skip when running hooks. This allows you to bypass specific linting or formatting tasks.
 
