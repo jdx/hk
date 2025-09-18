@@ -1,10 +1,21 @@
 # Changelog
 
+## [1.14.0](https://github.com/jdx/hk/compare/v1.13.7..v1.14.0) - 2025-09-18
+
+### 🚀 Features
+
+- centralized settings registry with codegen by [@jdx](https://github.com/jdx) in [#284](https://github.com/jdx/hk/pull/284)
+
+### 🔍 Other Changes
+
+- removed snapshot file by [@bhanuprasad14](https://github.com/bhanuprasad14) in [0952af5](https://github.com/jdx/hk/commit/0952af5dc4516a309d93da74155935c48eed81d1)
+- Extract Pkl error handling into separate method by [@jdx](https://github.com/jdx) in [e62cb24](https://github.com/jdx/hk/commit/e62cb2490c6917fe70836b543e532348cd3722f4)
+
 ## [1.13.7](https://github.com/jdx/hk/compare/v1.13.6..v1.13.7) - 2025-09-17
 
 ### 🔍 Other Changes
 
-- include all Pkl package files (zip, sha256, and raw) in artifact and release by jdx in [1df62e0](https://github.com/jdx/hk/commit/1df62e0031efaaeca780a9e1c7e05c1cda635fd1)
+- include all Pkl package files (zip, sha256, and raw) in artifact and release by [@jdx](https://github.com/jdx) in [fbea8ff](https://github.com/jdx/hk/commit/fbea8ff4591e9ed6f63abd0cff3fd640f9e860d3)
 
 ## [1.13.6](https://github.com/jdx/hk/compare/v1.13.5..v1.13.6) - 2025-09-17
 

@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.13.7"
+version "1.14.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -64,7 +64,7 @@ cmd completion help="Generates shell completion scripts" {
 }
 cmd config help="Configuration introspection and management" {
     alias cfg
-    long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > Git config (global/system) > User config (.hkrc.pkl) > Project config (hk.pkl) > Built-in defaults."
+    long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults."
     cmd dump help="Print effective runtime settings (JSON format)" {
         long_help "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config."
         flag --format help="Output format (json or toml)" {
@@ -73,6 +73,10 @@ cmd config help="Configuration introspection and management" {
             }
         }
     }
+    cmd explain help="Explain where a configuration value comes from" {
+        long_help "Explain where a configuration value comes from\n\nShows the resolved value, its source (env/git/cli/default), and the full precedence chain showing all layers that could affect it."
+        arg <KEY> help="Configuration key to explain"
+    }
     cmd get help="Get a specific configuration value" {
         long_help "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks"
         arg <KEY> help="Configuration key to retrieve" help_long="Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks"
@@ -80,7 +84,6 @@ cmd config help="Configuration introspection and management" {
     cmd sources help="Show the configuration source precedence order" {
         long_help "Show the configuration source precedence order\n\nLists all configuration sources in order of precedence to help understand where configuration values come from."
     }
-    cmd show help="Show the raw configuration file (deprecated - use 'dump' instead)"
 }
 cmd fix help="Fixes code" {
     alias f
