@@ -144,7 +144,7 @@ pub enum StashMethod {
 }
 
 impl Git {
-    fn to_repo_relative(path: &PathBuf) -> PathBuf {
+    fn to_repo_relative(path: &Path) -> PathBuf {
         if path.is_absolute() {
             if let Ok(cwd) = std::env::current_dir() {
                 if let Ok(rel) = path.strip_prefix(&cwd) {
@@ -152,7 +152,7 @@ impl Git {
                 }
             }
         }
-        path.clone()
+        path.to_path_buf()
     }
     pub fn new() -> Result<Self> {
         let cwd = std::env::current_dir()?;
