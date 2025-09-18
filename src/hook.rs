@@ -482,7 +482,7 @@ impl Hook {
         let multiple_groups = hook_ctx.groups.len() > 1;
         for (i, group) in hook_ctx.groups.iter().enumerate() {
             debug!("running group: {i}");
-            let mut ctx = StepGroupContext::new(hook_ctx.clone());
+            let mut ctx = StepGroupContext::new(hook_ctx.clone(), fail_fast_effective);
             if multiple_groups {
                 if let Some(name) = &group.name {
                     ctx = ctx.with_progress(group.build_group_progress(name));

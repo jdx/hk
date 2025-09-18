@@ -4,7 +4,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Result, glob, hook::StepOrGroup, settings::Settings, step::RunType, step_context::StepContext,
+    Result, glob, hook::StepOrGroup, step::RunType, step_context::StepContext,
     step_depends::StepDepends,
 };
 use crate::{hook::HookContext, step::Step};
@@ -26,13 +26,15 @@ pub struct StepGroup {
 pub struct StepGroupContext {
     pub hook_ctx: Arc<HookContext>,
     pub progress: Option<Arc<ProgressJob>>,
+    pub fail_fast: bool,
 }
 
 impl StepGroupContext {
-    pub fn new(hook_ctx: Arc<HookContext>) -> Self {
+    pub fn new(hook_ctx: Arc<HookContext>, fail_fast: bool) -> Self {
         Self {
             hook_ctx,
             progress: None,
+            fail_fast,
         }
     }
     pub fn with_progress(mut self, progress: Arc<ProgressJob>) -> Self {
@@ -96,7 +98,6 @@ impl StepGroup {
     }
 
     pub async fn run(&self, ctx: StepGroupContext) -> Result<()> {
-        let settings = Settings::get();
         // timing metadata already pre-populated in HookContext::new
         let depends = Arc::new(StepDepends::new(
             &self
@@ -162,7 +163,7 @@ impl StepGroup {
             match res {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
-                    if settings.fail_fast {
+                    if ctx.fail_fast {
                         ctx.hook_ctx.failed.cancel();
                         // Mark remaining steps as aborted
                         for step_ctx in ctx.hook_ctx.step_contexts.lock().unwrap().values() {
