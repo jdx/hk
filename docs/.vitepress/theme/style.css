@@ -1,0 +1,397 @@
+/**
+ * Custom HK Theme Styles
+ * A unique, modern theme for the hk git hook manager
+ */
+
+/* Import VitePress default theme styles */
+@import 'vitepress/dist/client/theme-default/styles/vars.css';
+@import 'vitepress/dist/client/theme-default/styles/base.css';
+@import 'vitepress/dist/client/theme-default/styles/utils.css';
+@import 'vitepress/dist/client/theme-default/styles/components/custom-block.css';
+@import 'vitepress/dist/client/theme-default/styles/components/vp-code.css';
+@import 'vitepress/dist/client/theme-default/styles/components/vp-code-group.css';
+@import 'vitepress/dist/client/theme-default/styles/components/vp-doc.css';
+@import 'vitepress/dist/client/theme-default/styles/components/vp-sponsor.css';
+
+/* Import fonts */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+/* Custom properties */
+:root {
+  /* Brand colors */
+  --hk-purple-primary: #667eea;
+  --hk-purple-secondary: #764ba2;
+  --hk-accent: #f093fb;
+
+  /* Override VitePress defaults */
+  --vp-font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  --vp-font-family-display: 'Bebas Neue', 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Light theme colors */
+  --vp-c-brand-1: var(--hk-purple-primary);
+  --vp-c-brand-2: var(--hk-purple-secondary);
+  --vp-c-brand-3: #8b5cf6;
+  --vp-c-brand-soft: rgba(102, 126, 234, 0.14);
+
+  /* Custom accent colors */
+  --vp-c-tip-1: var(--hk-purple-primary);
+  --vp-c-tip-2: rgba(102, 126, 234, 0.14);
+  --vp-c-tip-3: var(--hk-purple-secondary);
+
+  /* Button styling - removed global overrides that may affect other components */
+
+  /* Home hero - removed to prevent bleeding */
+
+  /* Code block styling */
+  --vp-code-block-bg: #f6f6f7;
+  --vp-code-line-highlight-color: rgba(102, 126, 234, 0.1);
+  --vp-code-copy-code-bg: rgba(102, 126, 234, 0.9);
+  --vp-code-copy-code-hover-bg: var(--hk-purple-secondary);
+  --vp-code-color: #383a42;
+  --vp-code-link-color: #0969da;
+  --vp-code-link-hover-color: var(--hk-purple-primary);
+}
+
+/* Dark theme overrides */
+.dark {
+  --vp-c-bg: #0f0f23;
+  --vp-c-bg-soft: #161629;
+  --vp-c-bg-mute: #1a1a2e;
+
+  --vp-c-brand-1: var(--hk-accent);
+  --vp-c-brand-2: var(--hk-purple-primary);
+  --vp-c-brand-3: var(--hk-purple-secondary);
+
+  --vp-code-block-bg: #1a1a2e;
+  --vp-code-color: #e4e4e7;
+}
+
+/* Navigation bar - ensure full width and proper background */
+.VPNav {
+  width: 100% !important;
+  background: var(--vp-c-bg) !important;
+  position: relative;
+  z-index: 1000 !important;
+}
+
+.dark .VPNav {
+  background: var(--vp-c-bg) !important;
+}
+
+.VPNavBar {
+  width: 100% !important;
+  background: var(--vp-c-bg) !important;
+  position: relative;
+  z-index: 1000 !important;
+}
+
+.dark .VPNavBar {
+  background: var(--vp-c-bg) !important;
+}
+
+/* Ensure nav screen (mobile menu) also has proper background */
+.VPNavScreen {
+  background: var(--vp-c-bg) !important;
+  z-index: 1000 !important;
+}
+
+/* Sidebar - match header background in dark mode */
+.dark .VPSidebar {
+  background: var(--vp-c-bg) !important;
+}
+
+.dark .VPSidebarNav {
+  background: var(--vp-c-bg) !important;
+}
+
+/* Search box - darker background in dark mode */
+.dark .VPNavBarSearch .DocSearch-Button {
+  background: var(--vp-c-bg-mute) !important;
+}
+
+.dark .VPNavBarSearch .DocSearch-Button:hover {
+  background: var(--vp-c-bg-soft) !important;
+}
+
+/* Custom nav brand styling */
+.VPNavBarTitle .title {
+  font-family: 'Bebas Neue', sans-serif !important;
+  font-weight: 400;
+  font-size: 1.8rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: all 0.4s ease;
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+}
+
+.VPNavBarTitle:hover .title {
+  background: linear-gradient(135deg, #f093fb, #f5576c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transform: none;
+}
+
+/* Enhanced buttons */
+.VPButton {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  font-family: var(--vp-font-family-display);
+  font-weight: 400;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* Only apply gradient to brand buttons on specific pages, not globally */
+.home-page .VPButton.brand {
+  background: linear-gradient(135deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  border: none;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.home-page .VPButton.brand:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Code blocks with custom styling */
+.vp-code-group .tabs {
+  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  padding: 2px;
+  border-radius: 8px 8px 0 0;
+}
+
+.vp-code-group .tabs label {
+  background: var(--vp-c-bg);
+  color: var(--vp-c-text-2);
+  margin: 2px;
+  border-radius: 6px 6px 0 0;
+  transition: all 0.3s ease;
+}
+
+.vp-code-group .tabs label:hover {
+  color: var(--hk-purple-primary);
+}
+
+.vp-code-group input:checked + label {
+  background: var(--vp-code-block-bg);
+  color: var(--hk-accent);
+}
+
+/* Sidebar enhancements */
+/* Removed sidebar gradient to fix dark mode appearance */
+
+.VPSidebarItem.is-active > .item > .link > .text {
+  color: var(--hk-purple-primary);
+  font-weight: 600;
+  position: relative;
+}
+
+.VPSidebarItem.is-active > .item > .link::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  background: var(--hk-purple-primary);
+  border-radius: 2px;
+}
+
+/* Removed pulse animation */
+
+/* Custom tip/warning/danger blocks */
+.custom-block.tip {
+  border-color: var(--hk-purple-primary);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+}
+
+.custom-block.tip .custom-block-title {
+  color: var(--hk-purple-primary);
+  font-weight: 700;
+}
+
+/* Enhanced tables */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+thead tr {
+  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+}
+
+thead th {
+  color: white !important;
+  font-weight: 600;
+  padding: 12px 16px;
+}
+
+tbody tr:hover {
+  background: rgba(102, 126, 234, 0.05);
+  transition: background 0.2s ease;
+}
+
+/* Code blocks - ensure good contrast */
+.vp-doc div[class*='language-'] {
+  background-color: #f8f8f8;
+}
+
+.dark .vp-doc div[class*='language-'] {
+  background-color: #1a1a2e;
+}
+
+.vp-doc div[class*='language-'] code {
+  color: #383a42;
+  font-weight: 500;
+}
+
+.dark .vp-doc div[class*='language-'] code {
+  color: #e4e4e7;
+}
+
+/* Terminal-style code blocks */
+pre.language-bash,
+pre.language-shell,
+pre.language-sh {
+  position: relative;
+  padding-top: 36px;
+}
+
+pre.language-bash::before,
+pre.language-shell::before,
+pre.language-sh::before {
+  content: 'Terminal';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 16px;
+  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--vp-font-family-base);
+}
+
+/* Feature cards - removed animated gradient to prevent issues */
+.VPFeature {
+  position: relative;
+  background: var(--vp-c-bg-soft);
+  padding: 24px;
+  border-radius: 12px;
+  border: 1px solid var(--vp-c-divider);
+  transition: all 0.3s ease;
+}
+
+.VPFeature:hover {
+  border-color: var(--hk-purple-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+/* Removed gradient-rotate animation */
+
+/* Search modal styling */
+.VPLocalSearchBox {
+  --vp-local-search-highlight-bg: rgba(102, 126, 234, 0.2);
+  --vp-local-search-highlight-text: var(--hk-purple-primary);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--vp-c-bg-soft);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--hk-purple-secondary);
+}
+
+/* Smooth transitions */
+* {
+  transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Custom link styling */
+a {
+  color: var(--hk-purple-primary);
+  text-decoration: none;
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: var(--hk-purple-secondary);
+}
+
+.vp-doc a {
+  font-weight: 500;
+}
+
+.vp-doc a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  transition: width 0.3s ease;
+}
+
+.vp-doc a:hover::after {
+  width: 100%;
+}
+
+/* Badge styling - removed gradient to prevent issues */
+
+/* Use Bebas Neue for main headings */
+h1, .vp-doc h1 {
+  font-family: var(--vp-font-family-display);
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Large section titles */
+.home-page .section-title {
+  font-family: 'Bebas Neue', sans-serif !important;
+  font-weight: 400 !important;
+  letter-spacing: 2px !important;
+  text-transform: uppercase !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Hero section titles */
+.hero-title, .title-main {
+  font-family: var(--vp-font-family-display);
+  font-weight: 400;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
