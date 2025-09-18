@@ -154,6 +154,10 @@ checksum = "blake3:6164196a72866dbd8b324acd6fc73099e2d128d1a996b6807b8bae28f1817
 size = 11034974
 url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swiftlint.zip"
 
+[[tools.taplo]]
+version = "0.10.0"
+backend = "aqua:tamasfe/taplo"
+
 [[tools.usage]]
 version = "2.2.2"
 backend = "aqua:jdx/usage"

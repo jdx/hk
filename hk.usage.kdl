@@ -64,7 +64,7 @@ cmd completion help="Generates shell completion scripts" {
 }
 cmd config help="Configuration introspection and management" {
     alias cfg
-    long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults."
+    long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > Git config (global/system) > User config (.hkrc.pkl) > Project config (hk.pkl) > Built-in defaults."
     cmd dump help="Print effective runtime settings (JSON format)" {
         long_help "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config."
         flag --format help="Output format (json or toml)" {

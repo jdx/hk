@@ -106,6 +106,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "assert-json-diff"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -350,6 +356,15 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "unicode-width 0.2.1",
+]
+
+[[package]]
+name = "codegen"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff61280aed771c3070e7dcc9e050c66f1eb1e3b96431ba66f9f74641d02fc41d"
+dependencies = [
+ "indexmap 1.9.3",
 ]
 
 [[package]]
@@ -1084,10 +1099,12 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 name = "hk"
 version = "1.13.7"
 dependencies = [
+ "arc-swap",
  "chrono",
  "clap",
  "clap_usage",
  "clx",
+ "codegen",
  "color-eyre",
  "console 0.16.1",
  "dirs",

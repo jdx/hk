@@ -18,8 +18,15 @@ _common_setup() {
     export HK_JOBS=2
     export HOME="$TEST_TEMP_DIR"
     git config --global init.defaultBranch main
-    git config --global user.email "test@example.com"
-    git config --global user.name "Test User"
+
+    # Only set user config if not already set (to avoid overriding existing config)
+    if ! git config --global user.email >/dev/null 2>&1; then
+        git config --global user.email "test@example.com"
+    fi
+    if ! git config --global user.name >/dev/null 2>&1; then
+        git config --global user.name "Test User"
+    fi
+
     git init .
 
     # Add hk to PATH (assuming it's installed)

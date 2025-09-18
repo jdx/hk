@@ -21,6 +21,7 @@ ripgrep = "latest"
 "cargo:cargo-edit" = "latest"
 usage = "latest"
 vhs = "latest"
+taplo = "latest"
 
 [tasks.init]
 run = '''

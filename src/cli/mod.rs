@@ -89,12 +89,14 @@ pub async fn run() -> Result<()> {
     } else {
         PathBuf::from(".hkrc.pkl")
     };
-    Settings::set_user_config_path(config_path);
-
-    // Read git config settings (will be overridden by CLI args/env if set)
-    if let Err(e) = crate::git_cfg::read_git_config() {
-        debug!("Failed to read git config: {}", e);
-    }
+    Settings::set_cli_snapshot(crate::settings::CliSnapshot {
+        hkrc: Some(config_path),
+        jobs: args.jobs.map(|n| n.get()),
+        profiles: args.profile.clone(),
+        slow: args.slow,
+        quiet: args.quiet,
+        silent: args.silent,
+    });
 
     if !console::user_attended_stderr() || args.no_progress {
         clx::progress::set_output(ProgressOutput::Text);
@@ -140,15 +142,7 @@ pub async fn run() -> Result<()> {
         crate::trace::init_tracing(json_output)?;
     }
 
-    if let Some(jobs) = args.jobs {
-        Settings::set_jobs(jobs);
-    }
-    if !args.profile.is_empty() {
-        Settings::with_profiles(&args.profile);
-    }
-    if args.slow {
-        Settings::with_profiles(&["slow".to_string()]);
-    }
+    // CLI settings snapshot applied above; settings are built from snapshot
     match args.command {
         Commands::Builtins(cmd) => cmd.run().await,
         Commands::Cache(cmd) => cmd.run().await,

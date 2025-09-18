@@ -11,8 +11,8 @@ mod tests {
         Settings::add_exclude(vec!["target".to_string()]);
 
         let settings = Settings::get();
-        assert!(settings.exclude.contains("node_modules"));
-        assert!(settings.exclude.contains("target"));
+        assert!(settings.exclude().contains("node_modules"));
+        assert!(settings.exclude().contains("target"));
     }
 
     #[test]
@@ -22,8 +22,8 @@ mod tests {
         Settings::add_exclude(vec!["**/*.map".to_string()]);
 
         let settings = Settings::get();
-        assert!(settings.exclude.contains("**/*.min.js"));
-        assert!(settings.exclude.contains("**/*.map"));
+        assert!(settings.exclude().contains("**/*.min.js"));
+        assert!(settings.exclude().contains("**/*.map"));
     }
 
     #[test]
@@ -33,7 +33,7 @@ mod tests {
         Settings::add_exclude(vec!["dist".to_string()]); // Add same pattern twice
 
         let settings = Settings::get();
-        let count = settings.exclude.iter()
+        let count = settings.exclude().iter()
             .filter(|p| *p == "dist")
             .count();
         assert_eq!(count, 1, "Should not have duplicate patterns");
