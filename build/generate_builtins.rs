@@ -43,8 +43,8 @@ fn collect_builtin_files(builtins_dir: &Path) -> Result<BTreeSet<String>, std::i
 fn generate_builtins_array(builtins: &BTreeSet<String>) -> String {
     let items: Vec<String> = builtins.iter().map(|b| format!("    \"{}\"", b)).collect();
 
-        format!(
-            "/// List of all available builtin configurations\npub const BUILTINS: &[&str] = &[\n{},\n];",
-            items.join(",\n")
-        )
+    format!(
+        "/// List of all available builtin configurations\npub const BUILTINS: &[&str] = &[\n{},\n];",
+        items.join(",\n")
+    )
 }

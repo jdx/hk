@@ -1,5 +1,5 @@
-use crate::{Result, settings::Settings};
 use crate::settings::generated::SETTINGS_META;
+use crate::{Result, settings::Settings};
 use serde_json::json;
 
 /// Configuration introspection and management
@@ -100,6 +100,15 @@ impl ConfigDump {
                 map.insert(k, v.clone());
             }
         }
+        // Include derived convenience fields expected by CLI/tests
+        map.insert(
+            "enabled_profiles".to_string(),
+            json!(settings.enabled_profiles()),
+        );
+        map.insert(
+            "disabled_profiles".to_string(),
+            json!(settings.disabled_profiles()),
+        );
         let output = serde_json::Value::Object(map);
 
         match self.format.as_str() {
@@ -120,12 +129,16 @@ impl ConfigGet {
         // Derived and computed keys
         let value = if self.key == "jobs" {
             json!(settings.jobs())
+        } else if self.key == "enabled_profiles" {
+            json!(settings.enabled_profiles())
+        } else if self.key == "disabled_profiles" {
+            json!(settings.disabled_profiles())
         } else if SETTINGS_META.contains_key(self.key.as_str()) {
             // Generic lookup via serialization
             let full = serde_json::to_value(settings.clone())?;
-            full.get(&self.key)
-                .cloned()
-                .ok_or_else(|| eyre::eyre!("Key present in meta but missing in settings: {}", self.key))?
+            full.get(&self.key).cloned().ok_or_else(|| {
+                eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
+            })?
         } else {
             return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
         };
@@ -142,11 +155,15 @@ impl ConfigExplain {
         // Current value (computed for special keys, generic via meta for the rest)
         let current_value = if self.key == "jobs" {
             json!(settings.jobs())
+        } else if self.key == "enabled_profiles" {
+            json!(settings.enabled_profiles())
+        } else if self.key == "disabled_profiles" {
+            json!(settings.disabled_profiles())
         } else if SETTINGS_META.contains_key(self.key.as_str()) {
             let full = serde_json::to_value(settings.clone())?;
-            full.get(&self.key)
-                .cloned()
-                .ok_or_else(|| eyre::eyre!("Key present in meta but missing in settings: {}", self.key))?
+            full.get(&self.key).cloned().ok_or_else(|| {
+                eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
+            })?
         } else {
             return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
         };

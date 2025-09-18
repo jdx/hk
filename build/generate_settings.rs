@@ -209,9 +209,7 @@ fn generate_settings_merge(
 
     // Define SettingValue enum
     let mut setting_value = Enum::new("SettingValue");
-    setting_value
-        .vis("pub")
-        .derive("Clone");
+    setting_value.vis("pub").derive("Clone");
 
     {
         let mut v = Variant::new("Bool");
@@ -250,10 +248,7 @@ fn generate_settings_merge(
 
     // Provenance tracking types
     let mut setting_source = Enum::new("SettingSource");
-    setting_source
-        .vis("pub")
-        .derive("Clone")
-        .derive("Debug");
+    setting_source.vis("pub").derive("Clone").derive("Debug");
     setting_source.push_variant(Variant::new("Defaults"));
     setting_source.push_variant(Variant::new("Env"));
     setting_source.push_variant(Variant::new("Git"));
@@ -268,7 +263,10 @@ fn generate_settings_merge(
         .derive("Debug")
         .derive("Default")
         .field("pub last", "Option<SettingSource>")
-        .field("pub list_items", "Option<IndexMap<String, Vec<SettingSource>>>");
+        .field(
+            "pub list_items",
+            "Option<IndexMap<String, Vec<SettingSource>>>",
+        );
     scope.push_struct(source_info_entry);
 
     // Type alias for per-field provenance
@@ -276,7 +274,10 @@ fn generate_settings_merge(
 
     // Only types are generated; merge logic implemented in src/settings.rs
     // Write the scope to file
-    fs::write(out_dir.join("generated_settings_merge.rs"), scope.to_string())?;
+    fs::write(
+        out_dir.join("generated_settings_merge.rs"),
+        scope.to_string(),
+    )?;
     Ok(())
 }
 
@@ -354,7 +355,10 @@ fn generate_settings_meta(
     scope.raw("pub static SETTINGS_META: Lazy<IndexMap<&'static str, SettingMeta>> = Lazy::new(build_settings_meta);");
 
     // Write the scope to file
-    fs::write(out_dir.join("generated_settings_meta.rs"), scope.to_string())?;
+    fs::write(
+        out_dir.join("generated_settings_meta.rs"),
+        scope.to_string(),
+    )?;
 
     Ok(())
 }
@@ -373,7 +377,7 @@ fn format_string_array(strings: &[String]) -> String {
 }
 
 fn generate_json_schema(registry: &SettingsRegistry) -> Result<(), Box<dyn std::error::Error>> {
-    use serde_json::{json};
+    use serde_json::json;
 
     let mut properties = serde_json::Map::new();
 

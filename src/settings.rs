@@ -1,13 +1,14 @@
 use std::{
     num::NonZero,
     path::PathBuf,
-    sync::{Arc, LazyLock, Mutex}, thread,
+    sync::{Arc, LazyLock, Mutex},
+    thread,
 };
 
 use arc_swap::ArcSwap;
+use generated::merge::{SettingValue, SourceMap};
 use indexmap::IndexSet;
 use once_cell::sync::Lazy;
-use generated::merge::{SourceMap, SettingValue};
 use serde_json::json;
 
 // Include the generated settings structs from the build
@@ -170,13 +171,14 @@ impl Settings {
         }
         // helper to union list<string>
         fn union_list(val: &mut serde_json::Value, field: &str, list: &indexmap::IndexSet<String>) {
-            let mut current: indexmap::IndexSet<String> = if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect()
-            } else {
-                indexmap::IndexSet::new()
-            };
+            let mut current: indexmap::IndexSet<String> =
+                if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                } else {
+                    indexmap::IndexSet::new()
+                };
             current.extend(list.iter().cloned());
             if let Some(obj) = val.as_object_mut() {
                 obj.insert(field.to_string(), json!(current.iter().collect::<Vec<_>>()));
@@ -191,7 +193,9 @@ impl Settings {
             let mut apply = |map: &SourceMap| {
                 if let Some(sv) = map.get(field) {
                     match sv {
-                        SettingValue::StringList(set) if merge_is_union => union_list(&mut val, field, set),
+                        SettingValue::StringList(set) if merge_is_union => {
+                            union_list(&mut val, field, set)
+                        }
                         _ => set_value(&mut val, field, sv),
                     }
                 }
@@ -219,7 +223,13 @@ impl Settings {
         let mut val = serde_json::to_value(defaults.clone()).unwrap_or_else(|_| json!({}));
         let mut info: generated::merge::SourceInfoMap = indexmap::IndexMap::new();
 
-        fn set_value2(val: &mut serde_json::Value, info: &mut generated::merge::SourceInfoMap, field: &'static str, v: &SettingValue, src: SettingSource) {
+        fn set_value2(
+            val: &mut serde_json::Value,
+            info: &mut generated::merge::SourceInfoMap,
+            field: &'static str,
+            v: &SettingValue,
+            src: SettingSource,
+        ) {
             let new_v = match v {
                 SettingValue::Bool(b) => json!(b),
                 SettingValue::Usize(n) => json!(n),
@@ -234,12 +244,21 @@ impl Settings {
             info.entry(field).or_default().last = Some(src);
         }
 
-        fn union_list2(val: &mut serde_json::Value, info: &mut generated::merge::SourceInfoMap, field: &'static str, list: &indexmap::IndexSet<String>, src: SettingSource) {
-            let mut current: indexmap::IndexSet<String> = if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
-                arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()
-            } else {
-                indexmap::IndexSet::new()
-            };
+        fn union_list2(
+            val: &mut serde_json::Value,
+            info: &mut generated::merge::SourceInfoMap,
+            field: &'static str,
+            list: &indexmap::IndexSet<String>,
+            src: SettingSource,
+        ) {
+            let mut current: indexmap::IndexSet<String> =
+                if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                } else {
+                    indexmap::IndexSet::new()
+                };
             for item in list.iter() {
                 let inserted = current.insert(item.clone());
                 let entry = info.entry(field).or_default();
@@ -263,7 +282,8 @@ impl Settings {
             if meta.typ.starts_with("list<string>") {
                 if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
                     if !arr.is_empty() {
-                        let mut m: indexmap::IndexMap<String, Vec<SettingSource>> = indexmap::IndexMap::new();
+                        let mut m: indexmap::IndexMap<String, Vec<SettingSource>> =
+                            indexmap::IndexMap::new();
                         for it in arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())) {
                             m.insert(it, vec![SettingSource::Defaults]);
                         }
@@ -281,7 +301,9 @@ impl Settings {
             let mut apply = |map: &SourceMap, src: SettingSource| {
                 if let Some(sv) = map.get(field) {
                     match sv {
-                        SettingValue::StringList(set) if merge_is_union => union_list2(&mut val, &mut info, field, set, src),
+                        SettingValue::StringList(set) if merge_is_union => {
+                            union_list2(&mut val, &mut info, field, set, src)
+                        }
                         _ => set_value2(&mut val, &mut info, field, sv, src),
                     }
                 }
@@ -293,7 +315,10 @@ impl Settings {
             apply(cli, SettingSource::Cli);
         }
 
-        (serde_json::from_value(val).unwrap_or_else(|_| defaults.clone()), info)
+        (
+            serde_json::from_value(val).unwrap_or_else(|_| defaults.clone()),
+            info,
+        )
     }
 
     fn collect_env_map() -> SourceMap {
@@ -304,7 +329,7 @@ impl Settings {
                     match meta.typ {
                         "bool" => {
                             let s = val.to_lowercase();
-                            let parsed = matches!(s.as_str(), "1"|"true"|"yes"|"on");
+                            let parsed = matches!(s.as_str(), "1" | "true" | "yes" | "on");
                             map.insert(setting_name, SettingValue::Bool(parsed));
                         }
                         "usize" => {
@@ -318,7 +343,11 @@ impl Settings {
                             }
                         }
                         t if t.starts_with("list<string>") => {
-                            let items: IndexSet<String> = val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                            let items: IndexSet<String> = val
+                                .split(',')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect();
                             map.insert(setting_name, SettingValue::StringList(items));
                         }
                         "path" => {
@@ -340,38 +369,69 @@ impl Settings {
         let mut map: SourceMap = SourceMap::new();
         if let Ok(cfg) = {
             use git2::{Config, Repository};
-            if let Ok(repo) = Repository::open_from_env() { repo.config() } else if let Ok(repo) = Repository::discover(".") { repo.config() } else { Config::open_default() }
+            if let Ok(repo) = Repository::open_from_env() {
+                repo.config()
+            } else if let Ok(repo) = Repository::discover(".") {
+                repo.config()
+            } else {
+                Config::open_default()
+            }
         } {
             for (setting_name, meta) in generated::SETTINGS_META.iter() {
                 let mut merged: Option<IndexSet<String>> = None;
                 for key in meta.sources.git {
                     match meta.typ {
                         "bool" => {
-                            if let Ok(v) = cfg.get_bool(key) { map.insert(setting_name, SettingValue::Bool(v)); break; }
+                            if let Ok(v) = cfg.get_bool(key) {
+                                map.insert(setting_name, SettingValue::Bool(v));
+                                break;
+                            }
                         }
                         "usize" => {
-                            if let Ok(v) = cfg.get_i32(key) { if v > 0 { map.insert(setting_name, SettingValue::Usize(v as usize)); break; } }
+                            if let Ok(v) = cfg.get_i32(key) {
+                                if v > 0 {
+                                    map.insert(setting_name, SettingValue::Usize(v as usize));
+                                    break;
+                                }
+                            }
                         }
                         "u8" => {
-                            if let Ok(v) = cfg.get_i32(key) { if (0..=255).contains(&v) { map.insert(setting_name, SettingValue::U8(v as u8)); break; } }
+                            if let Ok(v) = cfg.get_i32(key) {
+                                if (0..=255).contains(&v) {
+                                    map.insert(setting_name, SettingValue::U8(v as u8));
+                                    break;
+                                }
+                            }
                         }
                         t if t.starts_with("list<string>") => {
                             if let Ok(list) = read_git_string_list(&cfg, key) {
                                 if !list.is_empty() {
-                                    if let Some(acc) = &mut merged { acc.extend(list.into_iter()); } else { merged = Some(list); }
+                                    if let Some(acc) = &mut merged {
+                                        acc.extend(list.into_iter());
+                                    } else {
+                                        merged = Some(list);
+                                    }
                                 }
                             }
                         }
                         "string" | "enum" => {
-                            if let Ok(v) = cfg.get_str(key) { map.insert(setting_name, SettingValue::String(v.to_string())); break; }
+                            if let Ok(v) = cfg.get_str(key) {
+                                map.insert(setting_name, SettingValue::String(v.to_string()));
+                                break;
+                            }
                         }
                         "path" => {
-                            if let Ok(v) = cfg.get_str(key) { map.insert(setting_name, SettingValue::Path(PathBuf::from(v))); break; }
+                            if let Ok(v) = cfg.get_str(key) {
+                                map.insert(setting_name, SettingValue::Path(PathBuf::from(v)));
+                                break;
+                            }
                         }
                         _ => {}
                     }
                 }
-                if let Some(set) = merged { map.insert(setting_name, SettingValue::StringList(set)); }
+                if let Some(set) = merged {
+                    map.insert(setting_name, SettingValue::StringList(set));
+                }
             }
         }
         map
@@ -381,7 +441,9 @@ impl Settings {
         let mut map: SourceMap = SourceMap::new();
         if let Ok(cfg) = crate::config::Config::get() {
             // Direct fields available on Config
-            if let Some(v) = cfg.fail_fast { map.insert("fail_fast", SettingValue::Bool(v)); }
+            if let Some(v) = cfg.fail_fast {
+                map.insert("fail_fast", SettingValue::Bool(v));
+            }
             if let Some(v) = cfg.display_skip_reasons {
                 let set: IndexSet<String> = v.into_iter().collect();
                 map.insert("display_skip_reasons", SettingValue::StringList(set));
@@ -403,22 +465,35 @@ impl Settings {
     fn collect_cli_map() -> SourceMap {
         let mut map: SourceMap = SourceMap::new();
         if let Some(snapshot) = CLI_SNAPSHOT.lock().unwrap().clone() {
-            if let Some(p) = snapshot.hkrc { map.insert("hkrc", SettingValue::Path(p)); }
-            if let Some(j) = snapshot.jobs { map.insert("jobs", SettingValue::Usize(j)); }
+            if let Some(p) = snapshot.hkrc {
+                map.insert("hkrc", SettingValue::Path(p));
+            }
+            if let Some(j) = snapshot.jobs {
+                map.insert("jobs", SettingValue::Usize(j));
+            }
             if !snapshot.profiles.is_empty() {
                 let set: IndexSet<String> = snapshot.profiles.into_iter().collect();
                 map.insert("profiles", SettingValue::StringList(set));
             }
-            if snapshot.slow { map.insert("slow", SettingValue::Bool(true)); }
-            if snapshot.quiet { map.insert("quiet", SettingValue::Bool(true)); }
-            if snapshot.silent { map.insert("silent", SettingValue::Bool(true)); }
+            if snapshot.slow {
+                map.insert("slow", SettingValue::Bool(true));
+            }
+            if snapshot.quiet {
+                map.insert("quiet", SettingValue::Bool(true));
+            }
+            if snapshot.silent {
+                map.insert("silent", SettingValue::Bool(true));
+            }
         }
         // Apply programmatic map on top (highest precedence)
         {
             let prog = PROGRAMMATIC_MAP.lock().unwrap();
             for (k, v) in prog.iter() {
                 match (map.get(k), v) {
-                    (Some(SettingValue::StringList(existing)), SettingValue::StringList(additional)) => {
+                    (
+                        Some(SettingValue::StringList(existing)),
+                        SettingValue::StringList(additional),
+                    ) => {
                         let mut merged = existing.clone();
                         merged.extend(additional.iter().cloned());
                         map.insert(*k, SettingValue::StringList(merged));
@@ -479,12 +554,18 @@ impl Settings {
             use git2::{Config, Repository};
             let cfg: Option<git2::Config> = if let Ok(repo) = Repository::open_from_env() {
                 repo.config().ok()
-        } else if let Ok(repo) = Repository::discover(".") {
+            } else if let Ok(repo) = Repository::discover(".") {
                 repo.config().ok()
-        } else {
+            } else {
                 Config::open_default().ok()
             };
-            cfg.and_then(|c| meta.sources.git.iter().copied().find(|k| c.get_entry(k).is_ok()))
+            cfg.and_then(|c| {
+                meta.sources
+                    .git
+                    .iter()
+                    .copied()
+                    .find(|k| c.get_entry(k).is_ok())
+            })
         };
 
         let pkl_id: Option<&'static str> = if pkl_map.get(field_name.as_str()).is_some() {
@@ -502,27 +583,33 @@ impl Settings {
         let source_to_string = |s: &generated::merge::SettingSource| -> String {
             match s {
                 generated::merge::SettingSource::Defaults => "defaults".to_string(),
-                generated::merge::SettingSource::Env => match env_id { Some(id) => format!("env({})", id), None => "env".to_string() },
-                generated::merge::SettingSource::Git => match git_id { Some(id) => format!("git({})", id), None => "git".to_string() },
-                generated::merge::SettingSource::Pkl => match pkl_id { Some(id) => format!("pkl({})", id), None => "pkl".to_string() },
-                generated::merge::SettingSource::Cli => match cli_id { Some(id) => format!("cli({})", id), None => "cli".to_string() },
+                generated::merge::SettingSource::Env => match env_id {
+                    Some(id) => format!("env({})", id),
+                    None => "env".to_string(),
+                },
+                generated::merge::SettingSource::Git => match git_id {
+                    Some(id) => format!("git({})", id),
+                    None => "git".to_string(),
+                },
+                generated::merge::SettingSource::Pkl => match pkl_id {
+                    Some(id) => format!("pkl({})", id),
+                    None => "pkl".to_string(),
+                },
+                generated::merge::SettingSource::Cli => match cli_id {
+                    Some(id) => format!("cli({})", id),
+                    None => "cli".to_string(),
+                },
             }
         };
 
         fn display_value(v: &SettingValue) -> String {
             match v {
-                SettingValue::Bool(b) => b.to_string()
-                    ,
-                SettingValue::Usize(n) => n.to_string()
-                    ,
-                SettingValue::U8(n) => n.to_string()
-                    ,
-                SettingValue::String(s) => s.clone()
-                    ,
-                SettingValue::Path(p) => p.display().to_string()
-                    ,
-                SettingValue::StringList(list) => format!("{:?}", list)
-                    ,
+                SettingValue::Bool(b) => b.to_string(),
+                SettingValue::Usize(n) => n.to_string(),
+                SettingValue::U8(n) => n.to_string(),
+                SettingValue::String(s) => s.clone(),
+                SettingValue::Path(p) => p.display().to_string(),
+                SettingValue::StringList(list) => format!("{:?}", list),
             }
         }
 
@@ -532,7 +619,10 @@ impl Settings {
             "Source resolution for '{}' (in precedence order):",
             key
         )?;
-        writeln!(&mut output, "================================================")?;
+        writeln!(
+            &mut output,
+            "================================================"
+        )?;
 
         // CLI
         if !meta.sources.cli.is_empty() {
@@ -541,18 +631,26 @@ impl Settings {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
             }
             if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
+                if let Some(src) = &info.last {
+                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
+                }
             }
         }
 
         // ENV
         if !meta.sources.env.is_empty() {
-            writeln!(&mut output, "  ENVIRONMENT: {}", meta.sources.env.join(", "))?;
+            writeln!(
+                &mut output,
+                "  ENVIRONMENT: {}",
+                meta.sources.env.join(", ")
+            )?;
             if let Some(v) = env_map.get(field_name.as_str()) {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
             }
             if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
+                if let Some(src) = &info.last {
+                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
+                }
             }
         }
 
@@ -561,9 +659,11 @@ impl Settings {
             writeln!(&mut output, "  GIT CONFIG: {}", meta.sources.git.join(", "))?;
             if let Some(v) = git_map.get(field_name.as_str()) {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
-                }
+            }
             if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
+                if let Some(src) = &info.last {
+                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
+                }
             }
         }
 
@@ -574,7 +674,9 @@ impl Settings {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
             }
             if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last { writeln!(&mut output, "    Source: {}", source_to_string(src))?; }
+                if let Some(src) = &info.last {
+                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
+                }
             }
         }
 
@@ -592,10 +694,7 @@ impl Settings {
                 if let Some(items) = &info.list_items {
                     writeln!(&mut output, "\n  Items and their sources:")?;
                     for (item, srcs) in items.iter() {
-                        let parts: Vec<String> = srcs
-                            .iter()
-                            .map(&source_to_string)
-                            .collect();
+                        let parts: Vec<String> = srcs.iter().map(&source_to_string).collect();
                         writeln!(&mut output, "    - {}: {}", item, parts.join(", "))?;
                     }
                 }
@@ -618,12 +717,14 @@ mod tests {
     use super::*;
     // --- generated merge tests moved from config/test_generated_merge.rs ---
     use crate::settings::generated;
-    use crate::settings::generated::merge::{SourceMap, SettingValue};
-
+    use crate::settings::generated::merge::{SettingValue, SourceMap};
 
     #[test]
     fn test_settings_builder_fluent_api() {
-        Settings::set_cli_snapshot(CliSnapshot { hkrc: Some(PathBuf::from(".hkrc.pkl")), ..Default::default() });
+        Settings::set_cli_snapshot(CliSnapshot {
+            hkrc: Some(PathBuf::from(".hkrc.pkl")),
+            ..Default::default()
+        });
         // Test that the fluent API works correctly
         let settings = Settings::get();
 
@@ -633,7 +734,10 @@ mod tests {
 
     #[test]
     fn test_settings_snapshot_caching() {
-        Settings::set_cli_snapshot(CliSnapshot { hkrc: Some(PathBuf::from(".hkrc.pkl")), ..Default::default() });
+        Settings::set_cli_snapshot(CliSnapshot {
+            hkrc: Some(PathBuf::from(".hkrc.pkl")),
+            ..Default::default()
+        });
         // Get multiple snapshots - they should be the same Arc
         let snapshot1 = Settings::get_snapshot();
         let snapshot2 = Settings::get_snapshot();
@@ -644,7 +748,10 @@ mod tests {
 
     #[test]
     fn test_settings_from_config() {
-        Settings::set_cli_snapshot(CliSnapshot { hkrc: Some(PathBuf::from(".hkrc.pkl")), ..Default::default() });
+        Settings::set_cli_snapshot(CliSnapshot {
+            hkrc: Some(PathBuf::from(".hkrc.pkl")),
+            ..Default::default()
+        });
         // Backwards-compatible behavior validated at higher level; smoke test get()
         let _settings = Settings::get();
     }
