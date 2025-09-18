@@ -723,6 +723,11 @@ impl Hook {
 
         if !all_excludes.is_empty() {
             // Process excludes - handle both directory patterns and glob patterns
+            debug!(
+                "files.exclude: patterns from settings/CLI: {:?}",
+                &all_excludes
+            );
+            let files_before = files.len();
             let mut expanded_excludes = Vec::new();
             for exclude in &all_excludes {
                 expanded_excludes.push(exclude.clone());
@@ -732,12 +737,22 @@ impl Hook {
                     expanded_excludes.push(format!("{}/**", exclude));
                 }
             }
+            debug!("files.exclude: expanded patterns: {:?}", &expanded_excludes);
 
             let f = files.iter().collect::<Vec<_>>();
             let exclude_files = glob::get_matches(&expanded_excludes, &f)?
                 .into_iter()
                 .collect::<HashSet<_>>();
+            debug!(
+                "files.exclude: matched and will exclude {} file(s)",
+                exclude_files.len()
+            );
             files.retain(|f| !exclude_files.contains(f));
+            debug!(
+                "files.exclude: filtered files from {} to {}",
+                files_before,
+                files.len()
+            );
         }
         file_progress.prop("files", &files.len());
         file_progress.set_status(ProgressStatus::Done);
