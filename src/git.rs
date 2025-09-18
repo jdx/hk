@@ -578,6 +578,12 @@ impl Git {
                     .iter()
                     .any(|p| status.unstaged_modified_files.contains(p));
             }
+            if !any_unstaged {
+                job.prop("message", "No unstaged changes to stash");
+                job.prop("files", &0);
+                job.set_status(ProgressStatus::Done);
+                return Ok(());
+            }
             job.prop("message", "Running git stash for selected paths");
             job.update();
             self.stash = self.push_stash(Some(paths), status, method)?;
@@ -592,6 +598,7 @@ impl Git {
                         "detected unstaged changes for selected paths but could not create stash/patch"
                     ));
                 }
+                // unreachable due to early return above, but keep for safety
                 job.prop("message", "No unstaged changes to stash");
                 job.prop("files", &0);
                 job.set_status(ProgressStatus::Done);
@@ -838,7 +845,12 @@ impl Git {
         }
         let mut args: Vec<OsString> = vec!["ls-files".into(), "-s".into(), "-z".into()];
         args.push("--".into());
-        args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+        args.extend(
+            paths
+                .iter()
+                .map(|p| Self::to_repo_relative(p.as_path()))
+                .map(|p| OsString::from(p.as_os_str())),
+        );
         let out = git_read(args)?;
         let mut entries: Vec<(u32, String, PathBuf)> = vec![];
         for rec in out.split('\0').filter(|s| !s.is_empty()) {
@@ -1086,7 +1098,10 @@ impl Git {
     }
 
     pub fn add(&mut self, pathspecs: &[PathBuf]) -> Result<()> {
-        let pathspecs = pathspecs.iter().collect_vec();
+        let pathspecs = pathspecs
+            .iter()
+            .map(|p| Self::to_repo_relative(p.as_path()))
+            .collect_vec();
         // Record for index-restore preservation
         for p in &pathspecs {
             self.restaged_paths.insert((*p).clone());
@@ -1100,16 +1115,23 @@ impl Git {
             index.write().wrap_err("failed to write index")?;
             Ok(())
         } else {
-            git_cmd(["add", "--"]).args(pathspecs).run()?;
+            git_cmd(["add", "--"])
+                .args(pathspecs.iter().map(|p| p.as_path()))
+                .run()?;
             Ok(())
         }
     }
 
     pub fn reset_paths(&self, pathspecs: &[PathBuf]) -> Result<()> {
-        let pathspecs = pathspecs.iter().collect_vec();
+        let pathspecs = pathspecs
+            .iter()
+            .map(|p| Self::to_repo_relative(p.as_path()))
+            .collect_vec();
         trace!("resetting (unstaging) files: {:?}", &pathspecs);
         // Use shell git to ensure consistent behavior with HEAD
-        git_cmd(["reset", "--"]).args(pathspecs).run()?;
+        git_cmd(["reset", "--"])
+            .args(pathspecs.iter().map(|p| p.as_path()))
+            .run()?;
         Ok(())
     }
 
