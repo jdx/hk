@@ -459,9 +459,12 @@ impl Hook {
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
         if stash_method != StashMethod::None {
+            // Capture exact staged index entries for files under consideration so we can
+            // ensure index hunks survive formatting and stash apply.
             let files_vec = hook_ctx.files();
             {
                 let mut r = repo.lock().await;
+                r.capture_index(&files_vec)?;
                 r.stash_unstaged(
                     &file_progress,
                     stash_method,
@@ -498,34 +501,11 @@ impl Hook {
             }
         }
 
-        // Capture the post-step index entries for the files under consideration so we can
-        // restore them exactly after applying the stash. This preserves Prettier-fixed staged
-        // content even if `git stash apply` touches the index.
-        if let Err(err) = repo.lock().await.capture_index(&hook_ctx.files()) {
-            warn!("Failed to capture index before applying stash: {err}");
-        }
         if let Err(err) = repo.lock().await.pop_stash() {
             if result.is_ok() {
                 result = Err(err);
             } else {
                 warn!("Failed to pop stash: {err}");
-            }
-        }
-        // Ensure the post-step index entries (e.g., Prettier-fixed blobs) are restored
-        // even when no stash was created/applied. This preserves formatted content in HEAD.
-        if let Err(err) = repo.lock().await.restore_index() {
-            if result.is_ok() {
-                result = Err(err);
-            } else {
-                warn!("Failed to restore index: {err}");
-            }
-        }
-        // Re-assert step-restaged files into the index so HEAD gets fixer changes
-        if let Err(err) = repo.lock().await.finalize_restaged() {
-            if result.is_ok() {
-                result = Err(err);
-            } else {
-                warn!("Failed to finalize restaged files: {err}");
             }
         }
         if let Err(err) = hook_ctx.timing.write_json() {
