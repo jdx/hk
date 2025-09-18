@@ -467,7 +467,7 @@ fn generate_configuration_docs(
 
     // Read docs/configuration.md and replace/append
     let path = "docs/configuration.md";
-    let mut existing = fs::read_to_string(path).unwrap_or_else(|_| String::new());
+    let existing = fs::read_to_string(path).unwrap_or_else(|_| String::new());
     let s = existing.find(START_MARKER).unwrap();
     let e = existing.find(END_MARKER).unwrap();
     let e_end = e + END_MARKER.len();
@@ -475,8 +475,12 @@ fn generate_configuration_docs(
     new_content.push_str(&existing[..s]);
     new_content.push_str(&md);
     new_content.push_str(&existing[e_end..]);
-    existing = new_content;
-    fs::write(path, existing)?;
+
+    // Ensure exactly one newline at the end of the file
+    new_content = new_content.trim_end().to_string();
+    new_content.push('\n');
+
+    fs::write(path, new_content)?;
 
     Ok(())
 }
