@@ -534,71 +534,12 @@ impl Git {
         // partially staged files are handled correctly even when detection is flaky
         // under pre-commit environments.
         if let Some(paths) = files_subset {
-            // Refresh index stat info to avoid stale mtime/size causing mis-detection
+            // Refresh index stat information to avoid stale detections
             let _ = git_run(["update-index", "-q", "--refresh"]);
-            // Detect whether there are any worktree-only changes limited to the requested paths.
-            // This guards against cases where `git stash --keep-index -- <paths>` prints
-            // "No unstaged changes to stash" even though there are partially-staged hunks.
-            let mut any_unstaged = false;
-            // 1) diff (worktree vs index)
-            {
-                let mut args: Vec<OsString> = vec![
-                    "diff".into(),
-                    "--name-only".into(),
-                    "-z".into(),
-                    "--no-ext-diff".into(),
-                    "--ignore-submodules".into(),
-                ];
-                args.push("--".into());
-                args.extend(
-                    paths
-                        .iter()
-                        .map(|p| Self::to_repo_relative(p.as_path()))
-                        .map(|p| OsString::from(p.as_os_str())),
-                );
-                let out = git_read(args).unwrap_or_default();
-                any_unstaged |= out.split('\0').any(|s| !s.is_empty());
-            }
-            // 2) ls-files -m (modified in worktree)
-            if !any_unstaged {
-                let mut args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
-                args.push("--".into());
-                args.extend(
-                    paths
-                        .iter()
-                        .map(|p| Self::to_repo_relative(p.as_path()))
-                        .map(|p| OsString::from(p.as_os_str())),
-                );
-                let out = git_read(args).unwrap_or_default();
-                any_unstaged |= out.split('\0').any(|s| !s.is_empty());
-            }
-            // 3) Intersect with previously computed status for extra safety
-            if !any_unstaged {
-                any_unstaged = paths
-                    .iter()
-                    .any(|p| status.unstaged_modified_files.contains(p));
-            }
-            if !any_unstaged {
-                job.prop("message", "No unstaged changes to stash");
-                job.prop("files", &0);
-                job.set_status(ProgressStatus::Done);
-                return Ok(());
-            }
             job.prop("message", "Running git stash for selected paths");
             job.update();
             self.stash = self.push_stash(Some(paths), status, method)?;
-
             if self.stash.is_none() {
-                // If we detected worktree-only changes but couldn't form either a real stash
-                // or a patch-file fallback, abort to avoid committing unintended hunks.
-                if any_unstaged {
-                    job.prop("message", "Failed to isolate unstaged changes; aborting");
-                    job.set_status(ProgressStatus::Failed);
-                    return Err(eyre!(
-                        "detected unstaged changes for selected paths but could not create stash/patch"
-                    ));
-                }
-                // unreachable due to early return above, but keep for safety
                 job.prop("message", "No unstaged changes to stash");
                 job.prop("files", &0);
                 job.set_status(ProgressStatus::Done);
