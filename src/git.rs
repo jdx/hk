@@ -740,6 +740,11 @@ impl Git {
                     let base_pre = git_cmd(["show", &format!("stash@{{0}}^1:{}", path_str)])
                         .read()
                         .ok();
+                    // Parent ^2 is the index at stash time. Use this to detect whether the path had
+                    // any unstaged changes then (worktree vs index).
+                    let index_pre = git_cmd(["show", &format!("stash@{{0}}^2:{}", path_str)])
+                        .read()
+                        .ok();
                     // Fixer content from saved index blob
                     let fixer = fixer_map
                         .get(&path)
@@ -750,8 +755,19 @@ impl Git {
                     let has_base = base_pre.is_some();
                     let has_fixer = fixer.is_some();
                     let has_work = work_pre.is_some();
-                    let merged =
+                    let mut merged =
                         merge::three_way_merge_hunks(base, fixer.as_deref(), work_pre.as_deref());
+
+                    // If there were no unstaged changes at stash time for this path
+                    // (worktree identical to index), prefer writing the fixer result to the worktree
+                    // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
+                    if let (Some(wc), Some(ic), Some(fc)) =
+                        (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
+                    {
+                        if wc == ic {
+                            merged = fc.clone();
+                        }
+                    }
 
                     // Determine which side the merged result matches
                     let mut chosen = "mixed";
