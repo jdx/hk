@@ -140,11 +140,11 @@ pub fn three_way_merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&
                 } else {
                     fi += 1;
                 }
-                // Consider hunks whose affected base range ends at or before idx as covered
-                while fi < fixer_hunks.len() && fixer_hunks[fi].end <= idx {
+                // Skip any hunks that begin before the current position to avoid partial re-application
+                while fi < fixer_hunks.len() && fixer_hunks[fi].start < idx {
                     fi += 1;
                 }
-                while wi < work_hunks.len() && work_hunks[wi].end <= idx {
+                while wi < work_hunks.len() && work_hunks[wi].start < idx {
                     wi += 1;
                 }
             }
