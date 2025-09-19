@@ -6,6 +6,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use std::{
     collections::{BTreeSet, HashSet},
     ffi::OsString,
+    fmt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex as StdMutex},
 };
@@ -508,6 +509,21 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
+        // Capture final git state for diagnostics (counts at debug, names at trace)
+        match repo.lock().await.status(None) {
+            Ok(s) => {
+                debug!(
+                    "final git state: staged={} unstaged={}",
+                    s.staged_files.len(),
+                    s.unstaged_files.len()
+                );
+                trace!(
+                    "final git files: staged={:?} unstaged={:?}",
+                    s.staged_files, s.unstaged_files
+                );
+            }
+            Err(e) => warn!("failed to read final git status: {e:?}"),
+        }
         if let Err(err) = hook_ctx.timing.write_json() {
             warn!("Failed to write timing JSON: {err}");
         }
@@ -618,6 +634,11 @@ impl Hook {
                 error!("{}", s);
             }
         }
+        if let Err(err) = &result {
+            error!("{self}: hook finished with error: {err:?}");
+        } else {
+            debug!("{self}: hook finished successfully");
+        }
         result
     }
 
@@ -707,6 +728,11 @@ impl Hook {
 
         if !all_excludes.is_empty() {
             // Process excludes - handle both directory patterns and glob patterns
+            debug!(
+                "files.exclude: patterns from settings/CLI: {:?}",
+                &all_excludes
+            );
+            let files_before = files.len();
             let mut expanded_excludes = Vec::new();
             for exclude in &all_excludes {
                 expanded_excludes.push(exclude.clone());
@@ -716,12 +742,22 @@ impl Hook {
                     expanded_excludes.push(format!("{}/**", exclude));
                 }
             }
+            debug!("files.exclude: expanded patterns: {:?}", &expanded_excludes);
 
             let f = files.iter().collect::<Vec<_>>();
             let exclude_files = glob::get_matches(&expanded_excludes, &f)?
                 .into_iter()
                 .collect::<HashSet<_>>();
+            debug!(
+                "files.exclude: matched and will exclude {} file(s)",
+                exclude_files.len()
+            );
             files.retain(|f| !exclude_files.contains(f));
+            debug!(
+                "files.exclude: filtered files from {} to {}",
+                files_before,
+                files.len()
+            );
         }
         file_progress.prop("files", &files.len());
         file_progress.set_status(ProgressStatus::Done);
@@ -762,6 +798,12 @@ impl Hook {
             hk_progress = hk_progress.prop("message", &style::edim(" – check").to_string());
         }
         Some(hk_progress.start())
+    }
+}
+
+impl fmt::Display for Hook {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
     }
 }
 

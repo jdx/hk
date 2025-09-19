@@ -1,11 +1,11 @@
 use std::{
     collections::BTreeSet,
     ffi::{CString, OsString},
-    path::{Path, PathBuf},
-    sync::Arc,
+    path::PathBuf,
 };
 
 use crate::Result;
+use crate::merge;
 use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
@@ -48,73 +48,6 @@ where
     S: Into<OsString>,
 {
     Ok(git_cmd(args).read()?)
-}
-
-// removed: parse_paths_from_patch
-
-fn conflicted_files_from_porcelain(status_z: &str) -> Vec<PathBuf> {
-    // In porcelain v1 short format: lines start with two status letters.
-    // Unmerged statuses include: UU, AA, AU, UA, DU, UD
-    let mut files = BTreeSet::new();
-    for entry in status_z.split('\0').filter(|s| !s.is_empty()) {
-        let mut chars = entry.chars();
-        let x = chars.next().unwrap_or(' ');
-        let y = chars.next().unwrap_or(' ');
-        let path: String = chars.skip(1).collect();
-        let is_unmerged = matches!(
-            (x, y),
-            ('U', 'U') | ('A', 'A') | ('A', 'U') | ('U', 'A') | ('D', 'U') | ('U', 'D')
-        );
-        if is_unmerged {
-            let p = PathBuf::from(path);
-            if p.exists() {
-                files.insert(p);
-            }
-        }
-    }
-    files.into_iter().collect()
-}
-
-fn resolve_conflict_markers_preferring_theirs(path: &Path) -> Result<()> {
-    let content = xx::file::read_to_string(path).unwrap_or_default();
-    if !content.contains("<<<<<<<") || !content.contains(">>>>>>>") {
-        return Ok(());
-    }
-
-    // Process as UTF-8 text, preserving original Unicode outside conflict blocks
-    // and keeping exact line endings by using split_inclusive.
-    let mut output = String::with_capacity(content.len());
-    let parts: Vec<&str> = content.split_inclusive('\n').collect();
-    let mut idx = 0usize;
-    while idx < parts.len() {
-        let line = parts[idx];
-        if line.starts_with("<<<<<<<") {
-            // Advance past our side until the separator '======='
-            idx += 1;
-            while idx < parts.len() && !parts[idx].starts_with("=======") {
-                idx += 1;
-            }
-            // Skip the separator line if present
-            if idx < parts.len() && parts[idx].starts_with("=======") {
-                idx += 1;
-            }
-            // Capture the 'theirs' side until the closing '>>>>>>>'
-            while idx < parts.len() && !parts[idx].starts_with(">>>>>>>") {
-                output.push_str(parts[idx]);
-                idx += 1;
-            }
-            // Skip the closing marker if present
-            if idx < parts.len() && parts[idx].starts_with(">>>>>>>") {
-                idx += 1;
-            }
-        } else {
-            output.push_str(line);
-            idx += 1;
-        }
-    }
-
-    xx::file::write(path, output)?;
-    Ok(())
 }
 
 pub struct Git {
@@ -505,6 +438,23 @@ impl Git {
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
         job.prop("message", "Fetching unstaged files");
         job.set_status(ProgressStatus::Running);
+
+        // Fast path: if a file subset is provided, always attempt a partial-path stash.
+        if let Some(paths) = files_subset {
+            let _ = git_run(["update-index", "-q", "--refresh"]);
+            job.prop("message", "Running git stash for selected paths");
+            job.prop("files", &paths.len());
+            job.update();
+            self.stash = self.push_stash(Some(paths), status)?;
+            if self.stash.is_some() {
+                job.prop("message", "Stashed unstaged changes");
+            } else {
+                job.prop("message", "No unstaged changes to stash");
+                job.prop("files", &0);
+            }
+            job.set_status(ProgressStatus::Done);
+            return Ok(());
+        }
         // Hardened detection of worktree-only changes (including partially staged files)
         let mut files_to_stash: BTreeSet<PathBuf> = BTreeSet::new();
         // 1) git diff --name-only (worktree vs index)
@@ -728,197 +678,157 @@ impl Git {
         Ok(())
     }
 
-    pub fn restore_index(&mut self) -> Result<()> {
-        let Some(entries) = self.saved_index.take() else {
-            return Ok(());
-        };
-        if entries.is_empty() {
-            return Ok(());
-        }
-        for (mode, oid, path) in entries {
-            let mode_str = format!("{:o}", mode);
-            git_cmd(["update-index", "--cacheinfo"])
-                .arg(mode_str)
-                .arg(&oid)
-                .arg(path)
-                .run()?;
-        }
-        Ok(())
-    }
-
     pub fn pop_stash(&mut self) -> Result<()> {
         let Some(diff) = self.stash.take() else {
             return Ok(());
         };
-        let job: Arc<ProgressJob>;
-        // Capture currently staged files (using porcelain to align with shell git operations)
-        // so we can preserve the user's intent. After applying the stash, we'll only re-stage
-        // files that were already staged before the apply. This prevents unrelated files from
-        // getting staged due to conflict handling side-effects.
-        let previously_staged: BTreeSet<PathBuf> = {
-            let out = git_read([
-                "status",
-                "--porcelain",
-                "--no-renames",
-                "--untracked-files=all",
-                "-z",
-            ])
-            .unwrap_or_default();
-            let mut staged = BTreeSet::new();
-            for entry in out.split('\0').filter(|s| !s.is_empty()) {
-                let mut chars = entry.chars();
-                let x = chars.next().unwrap_or_default();
-                let _y = chars.next().unwrap_or_default();
-                let path = PathBuf::from(chars.skip(1).collect::<String>());
-                let is_modified =
-                    |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-                if is_modified(x) {
-                    staged.insert(path);
-                }
-            }
-            staged
-        };
-
+        let job = ProgressJobBuilder::new()
+            .prop("message", "stash – Restoring unstaged changes (manual)")
+            .start();
         match diff {
-            // TODO: this does not work with untracked files
-            // StashType::LibGit(_oid) => {
-            //     job = ProgressJobBuilder::new()
-            //         .prop("message", "stash – Applying git stash")
-            //         .start();
-            //         let repo =  self.repo.as_mut().unwrap();
-            //         let mut opts = git2::StashApplyOptions::new();
-            //         let mut checkout_opts = git2::build::CheckoutBuilder::new();
-            //         checkout_opts.allow_conflicts(true);
-            //         checkout_opts.update_index(true);
-            //         checkout_opts.force();
-            //         opts.checkout_options(checkout_opts);
-            //         opts.reinstantiate_index();
-            //         repo.stash_pop(0, Some(&mut opts))
-            //         .wrap_err("failed to pop stash")?;
-            // }
             StashType::LibGit | StashType::Git => {
-                job = ProgressJobBuilder::new()
-                    .prop("message", "stash – Applying git stash")
-                    .start();
-                // Apply the stash first; if there are conflicts, prefer the stash (unstaged) side.
-                let apply_res = git_cmd(["stash", "apply"]).run();
+                // List paths in the top stash
+                let show = git_cmd(["stash", "show", "--name-only", "-z", "stash@{0}"]) // top of stack
+                    .read()
+                    .unwrap_or_default();
+                let stash_paths: Vec<PathBuf> = show
+                    .split('\0')
+                    .filter(|s| !s.is_empty())
+                    .map(PathBuf::from)
+                    .collect();
 
-                // Check git status after apply attempt to understand the state
-                let status = match git_cmd([
-                    "status",
-                    "--porcelain",
-                    "-z",
-                    "--no-renames",
-                    "--untracked-files=all",
-                ])
-                .read()
-                {
-                    Ok(s) => s,
-                    Err(err) => {
-                        warn!("failed to read git status: {err:?}");
-                        String::new()
-                    }
-                };
-                let conflicted = conflicted_files_from_porcelain(&status);
-
-                // Handle different scenarios based on apply result and conflicts
-                if !conflicted.is_empty() {
-                    // Case 1: There are conflicts - resolve them preferring stash content
-                    debug!("resolving {} conflicted files", conflicted.len());
-                    for f in conflicted.iter() {
-                        if let Err(err) = resolve_conflict_markers_preferring_theirs(f) {
-                            warn!(
-                                "failed to resolve conflict markers in {}: {err:?}",
-                                display_path(f)
-                            );
-                        }
-                        // Only re-stage files that were previously staged to clear unmerged state
-                        if previously_staged.contains(f) {
-                            if let Err(err) = git_cmd(["add", "--"]).arg(f).run() {
-                                warn!(
-                                    "failed to stage {} after resolving conflicts: {err:?}",
-                                    display_path(f)
-                                );
+                // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs
+                let mut fixer_map: std::collections::HashMap<PathBuf, (u32, String)> =
+                    std::collections::HashMap::new();
+                if !stash_paths.is_empty() {
+                    let mut args: Vec<OsString> =
+                        vec!["ls-files".into(), "-s".into(), "-z".into(), "--".into()];
+                    args.extend(
+                        stash_paths
+                            .iter()
+                            .filter_map(|p| p.to_str())
+                            .map(OsString::from),
+                    );
+                    if let Ok(list) = git_read(args) {
+                        for rec in list.split('\0').filter(|s| !s.is_empty()) {
+                            // format: mode SP oid SP stage TAB path
+                            if let Some((left, path)) = rec.split_once('\t') {
+                                let mut parts = left.split_whitespace();
+                                let mode = parts.next().unwrap_or("100644");
+                                let oid = parts.next().unwrap_or("");
+                                if !oid.is_empty() {
+                                    if let Ok(mode_num) = u32::from_str_radix(mode, 8) {
+                                        fixer_map.insert(
+                                            PathBuf::from(path),
+                                            (mode_num, oid.to_string()),
+                                        );
+                                    }
+                                }
                             }
                         }
                     }
-                    // Drop the stash since we've applied it (even with conflicts)
-                    if let Err(err) = git_cmd(["stash", "drop"]).run() {
-                        warn!("failed to drop stash after conflict resolution: {err:?}");
+                }
+
+                for p in stash_paths.iter() {
+                    let path = PathBuf::from(p);
+                    let path_str = p.to_string_lossy();
+                    // Worktree content and Base (HEAD at stash time) from stash
+                    let work_pre = git_cmd(["show", &format!("stash@{{0}}:{}", path_str)])
+                        .read()
+                        .ok();
+                    // Parent ^1 of the stash commit points to the HEAD commit at stash time
+                    let base_pre = git_cmd(["show", &format!("stash@{{0}}^1:{}", path_str)])
+                        .read()
+                        .ok();
+                    // Parent ^2 is the index at stash time. Use this to detect whether the path had
+                    // any unstaged changes then (worktree vs index).
+                    let index_pre = git_cmd(["show", &format!("stash@{{0}}^2:{}", path_str)])
+                        .read()
+                        .ok();
+                    // Fixer content from saved index blob
+                    let fixer = fixer_map
+                        .get(&path)
+                        .and_then(|(_, oid)| git_cmd(["cat-file", "-p", oid]).read().ok());
+
+                    // If base is absent (file did not exist in HEAD at stash time), treat as empty
+                    let base = base_pre.as_deref().unwrap_or("");
+                    let has_base = base_pre.is_some();
+                    let has_fixer = fixer.is_some();
+                    let has_work = work_pre.is_some();
+                    let mut merged =
+                        merge::three_way_merge_hunks(base, fixer.as_deref(), work_pre.as_deref());
+
+                    // If there were no unstaged changes at stash time for this path
+                    // (worktree identical to index), prefer writing the fixer result to the worktree
+                    // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
+                    if let (Some(wc), Some(ic), Some(fc)) =
+                        (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
+                    {
+                        if wc == ic {
+                            merged = fc.clone();
+                        }
                     }
-                } else if apply_res.is_err() {
-                    // Case 2: Apply failed but no conflicts detected - stash is likely intact
-                    warn!("git stash apply failed: {:?}", apply_res.unwrap_err());
-                    // Don't try git stash pop here, as the stash is likely still intact
-                    // and the error might be due to a non-conflicting issue
-                    debug!("stash apply failed without conflicts - leaving stash intact");
-                } else {
-                    // Case 3: Apply succeeded - drop the stash
-                    if let Err(err) = git_cmd(["stash", "drop"]).run() {
-                        warn!("failed to drop stash after successful apply: {err:?}");
+
+                    // Determine which side the merged result matches
+                    let mut chosen = "mixed";
+                    if let Some(w) = work_pre.as_deref() {
+                        if merged == w {
+                            chosen = "worktree";
+                        }
+                    }
+                    if chosen == "mixed" {
+                        if let Some(f) = fixer.as_deref() {
+                            if merged == f {
+                                chosen = "fixer";
+                            }
+                        }
+                    }
+                    if chosen == "mixed" && merged == base {
+                        chosen = "base";
+                    }
+
+                    debug!(
+                        "manual-unstash: merge decision path={} has_base={} has_fixer={} has_work={} chosen={}",
+                        display_path(&path),
+                        has_base,
+                        has_fixer,
+                        has_work,
+                        chosen
+                    );
+                    if let Err(err) = xx::file::write(&path, &merged) {
+                        warn!(
+                            "failed to write merged worktree for {}: {err:?}",
+                            display_path(&path)
+                        );
+                    }
+                    // If fixer differs from base, ensure index has fixer blob
+                    if let Some((mode, oid)) = fixer_map.get(&path) {
+                        let mode_str = format!("{:o}", mode);
+                        if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob
+                            .arg(mode_str)
+                            .arg(oid)
+                            .arg(&path)
+                            .run()
+                        {
+                            warn!("failed to set index for {}: {err:?}", display_path(&path));
+                        } else {
+                            debug!(
+                                "manual-unstash: set index cacheinfo path={} mode={mode:o} oid={oid}",
+                                display_path(&path),
+                            );
+                        }
+                    } else {
+                        debug!(
+                            "manual-unstash: no fixer entry in saved index; leaving index as-is path={}",
+                            display_path(&path)
+                        );
                     }
                 }
-            } // no-op: removed PatchFile path
-        }
-        // After applying the stash (with or without conflicts), ensure we don't leave
-        // any newly staged files that the user hadn't staged before. This can happen
-        // when `git stash apply` reports an error but partially applies changes.
-        let out_after = git_read([
-            "status",
-            "--porcelain",
-            "--no-renames",
-            "--untracked-files=all",
-            "-z",
-        ])
-        .unwrap_or_default();
-        let mut staged_after: BTreeSet<PathBuf> = BTreeSet::new();
-        for entry in out_after.split('\0').filter(|s| !s.is_empty()) {
-            let mut chars = entry.chars();
-            let x = chars.next().unwrap_or_default();
-            let _y = chars.next().unwrap_or_default();
-            let path = PathBuf::from(chars.skip(1).collect::<String>());
-            let is_modified = |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-            if is_modified(x) {
-                staged_after.insert(path);
+                // Drop the stash we manually consumed
+                if let Err(err) = git_cmd(["stash", "drop"]).run() {
+                    warn!("failed to drop stash: {err:?}");
+                }
             }
-        }
-        let to_unstage: Vec<_> = staged_after
-            .iter()
-            .filter(|p| !previously_staged.contains(*p))
-            .cloned()
-            .collect();
-        if !to_unstage.is_empty() {
-            trace!(
-                "resetting unintended staged files after stash: {:?}",
-                &to_unstage
-            );
-            let _ = self.reset_paths(&to_unstage);
-        }
-        // Debug: show staged files after cleanup
-        let out_clean = git_read([
-            "status",
-            "--porcelain",
-            "--no-renames",
-            "--untracked-files=all",
-            "-z",
-        ])
-        .unwrap_or_default();
-        let mut staged_clean = BTreeSet::new();
-        for entry in out_clean.split('\0').filter(|s| !s.is_empty()) {
-            let mut chars = entry.chars();
-            let x = chars.next().unwrap_or_default();
-            let _y = chars.next().unwrap_or_default();
-            let path = PathBuf::from(chars.skip(1).collect::<String>());
-            let is_modified = |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-            if is_modified(x) {
-                staged_clean.insert(path);
-            }
-        }
-        let staged: Vec<_> = staged_clean.into_iter().collect();
-        trace!("staged after stash: {:?}", staged);
-        // Ensure index entries for originally staged paths remain exactly as before
-        if let Err(err) = self.restore_index() {
-            warn!("failed to restore exact index entries: {err:?}");
         }
         job.set_status(ProgressStatus::Done);
         Ok(())
@@ -938,14 +848,6 @@ impl Git {
             git_cmd(["add", "--"]).args(pathspecs).run()?;
             Ok(())
         }
-    }
-
-    pub fn reset_paths(&self, pathspecs: &[PathBuf]) -> Result<()> {
-        let pathspecs = pathspecs.iter().collect_vec();
-        trace!("resetting (unstaging) files: {:?}", &pathspecs);
-        // Use shell git to ensure consistent behavior with HEAD
-        git_cmd(["reset", "--"]).args(pathspecs).run()?;
-        Ok(())
     }
 
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {

@@ -57,10 +57,10 @@ TS
     git update-index --cacheinfo 100644 "$blob" file.ts
 
     # Sanity checks: staged diff has return 2, unstaged diff has // foo
-    run bash -lc "git diff --staged -- file.ts | grep -F 'return 2'"
-    assert_success
-    run bash -lc "git diff -- file.ts | grep -F '// foo'"
-    assert_success
+    run bash -lc "git diff --staged -- file.ts"
+    assert_line --partial 'return 2'
+    run bash -lc "git diff -- file.ts"
+    assert_line --partial '// foo'
 }
 
 @test "pre-commit with stash=git commits staged hunk and preserves unstaged hunk" {
@@ -72,16 +72,15 @@ TS
     assert_success
 
     # HEAD should include the staged change (return 2)
-    run bash -lc "git show HEAD:file.ts | grep -F 'return 2'"
-    assert_success
+    run bash -lc "git show HEAD:file.ts"
+    assert_line --partial 'return 2'
 
     # HEAD should NOT include the unstaged line
-    run bash -lc "git show HEAD:file.ts | grep -F '// foo'"
-    assert_failure
+    refute_line --partial '// foo'
 
     # Worktree should still contain the unstaged line
-    run grep -Fq "// foo" file.ts
-    assert_success
+    run bash -lc "cat file.ts"
+    assert_line --partial '// foo'
 
     # Index should be clean for this path post-commit
     run bash -lc "git diff --staged --name-only"
@@ -98,16 +97,15 @@ TS
     assert_success
 
     # HEAD should include the staged change (return 2)
-    run bash -lc "git show HEAD:file.ts | grep -F 'return 2'"
-    assert_success
+    run bash -lc "git show HEAD:file.ts"
+    assert_line --partial 'return 2'
 
     # HEAD should NOT include the unstaged line
-    run bash -lc "git show HEAD:file.ts | grep -F '// foo'"
-    assert_failure
+    refute_line --partial '// foo'
 
     # Worktree should still contain the unstaged line
-    run grep -Fq "// foo" file.ts
-    assert_success
+    run bash -lc "cat file.ts"
+    assert_line --partial '// foo'
 
     # Index should be clean for this path post-commit
     run bash -lc "git diff --staged --name-only"
