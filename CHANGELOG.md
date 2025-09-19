@@ -1,10 +1,20 @@
 # Changelog
 
+## [1.15.1](https://github.com/jdx/hk/compare/v1.15.0..v1.15.1) - 2025-09-19
+
+### 🐛 Bug Fixes
+
+- Skip any hunks that begin before the current position to avoid partial re-application by [@jdx](https://github.com/jdx) in [8325a66](https://github.com/jdx/hk/commit/8325a66d7b6b85b672c8780b6f5a0e10af5dc0ce)
+
 ## [1.15.0](https://github.com/jdx/hk/compare/v1.14.0..v1.15.0) - 2025-09-19
 
 ### 🚀 Features
 
 - **(docs)** add custom VitePress theme with unique branding by [@jdx](https://github.com/jdx) in [#287](https://github.com/jdx/hk/pull/287)
+
+### 🐛 Bug Fixes
+
+- handle fixes and unstaged hunks in the same file by [@jdx](https://github.com/jdx) in [#283](https://github.com/jdx/hk/pull/283)
 
 ### 📦️ Dependency Updates
 
