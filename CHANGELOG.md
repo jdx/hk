@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.15.0](https://github.com/jdx/hk/compare/v1.14.0..v1.15.0) - 2025-09-19
+
+### 🚀 Features
+
+- **(docs)** add custom VitePress theme with unique branding by [@jdx](https://github.com/jdx) in [#287](https://github.com/jdx/hk/pull/287)
+
+### 📦️ Dependency Updates
+
+- pin dependencies by [@renovate[bot]](https://github.com/renovate[bot]) in [#288](https://github.com/jdx/hk/pull/288)
+- update actions/checkout action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#289](https://github.com/jdx/hk/pull/289)
+- update actions/download-artifact action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#290](https://github.com/jdx/hk/pull/290)
+- update actions/upload-pages-artifact action to v4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#291](https://github.com/jdx/hk/pull/291)
+
 ## [1.14.0](https://github.com/jdx/hk/compare/v1.13.7..v1.14.0) - 2025-09-18
 
 ### 🚀 Features
