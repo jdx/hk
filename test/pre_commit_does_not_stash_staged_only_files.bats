@@ -3,6 +3,7 @@
 setup() {
     load 'test_helper/common_setup'
     _common_setup
+    export HK_SUMMARY_TEXT=1
 }
 
 teardown() {
@@ -52,12 +53,11 @@ prepare_only_staged_change() {
     prepare_only_staged_change
 
     # Run hook and capture verbose output
-    run bash -lc 'HK_LOG=debug HK_SUMMARY_TEXT=1 hk run pre-commit || true'
+    run bash -lc 'HK_LOG=debug hk run pre-commit || true'
     echo "$output"
 
     # Expectation: hk should detect no unstaged changes and avoid stashing
     # Current buggy behavior stashes anyway; assert the correct behavior so this fails now.
-    run bash -lc 'echo "$HK_SUMMARY_TEXT" 1>/dev/null; true'  # ensure var access ok
     # Use status as ground truth: no worktree changes should have been introduced either
     run bash -lc 'git status --porcelain --untracked-files=all'
     assert_success
