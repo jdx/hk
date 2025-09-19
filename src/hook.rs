@@ -509,11 +509,16 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
-        // Capture final git state for diagnostics
+        // Capture final git state for diagnostics (counts at debug, names at trace)
         match repo.lock().await.status(None) {
             Ok(s) => {
                 debug!(
-                    "final git state: staged={:?} unstaged={:?}",
+                    "final git state: staged={} unstaged={}",
+                    s.staged_files.len(),
+                    s.unstaged_files.len()
+                );
+                trace!(
+                    "final git files: staged={:?} unstaged={:?}",
                     s.staged_files, s.unstaged_files
                 );
             }

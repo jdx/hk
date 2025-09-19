@@ -732,11 +732,12 @@ impl Git {
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
-                    // Worktree and Base content from stash
+                    // Worktree content and Base (HEAD at stash time) from stash
                     let work_pre = git_cmd(["show", &format!("stash@{{0}}:{}", path_str)])
                         .read()
                         .ok();
-                    let base_pre = git_cmd(["show", &format!("stash@{{0}}^2:{}", path_str)])
+                    // Parent ^1 of the stash commit points to the HEAD commit at stash time
+                    let base_pre = git_cmd(["show", &format!("stash@{{0}}^1:{}", path_str)])
                         .read()
                         .ok();
                     // Fixer content from saved index blob
@@ -744,14 +745,9 @@ impl Git {
                         .get(&path)
                         .and_then(|(_, oid)| git_cmd(["cat-file", "-p", oid]).read().ok());
 
-                    // Current base if stash didn't have it
-                    let base_now = if base_pre.is_none() {
-                        git_cmd(["show", &format!("HEAD:{}", path_str)]).read().ok()
-                    } else {
-                        None
-                    };
-                    let base = base_pre.as_deref().or(base_now.as_deref()).unwrap_or("");
-                    let has_base = base_pre.is_some() || base_now.is_some();
+                    // If base is absent (file did not exist in HEAD at stash time), treat as empty
+                    let base = base_pre.as_deref().unwrap_or("");
+                    let has_base = base_pre.is_some();
                     let has_fixer = fixer.is_some();
                     let has_work = work_pre.is_some();
                     let merged =
