@@ -447,6 +447,38 @@ impl Git {
             job.prop("message", "Running git stash for selected paths");
             job.prop("files", &paths.len());
             job.update();
+            // Avoid stashing if there are no unstaged hunks for the given subset
+            let mut has_unstaged = false;
+            // Check diff (worktree vs index) scoped to the subset
+            {
+                let mut args: Vec<OsString> = vec![
+                    "diff".into(),
+                    "--name-only".into(),
+                    "-z".into(),
+                    "--no-ext-diff".into(),
+                    "--ignore-submodules".into(),
+                    "--".into(),
+                ];
+                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+                let out = git_read(args).unwrap_or_default();
+                has_unstaged = out.split('\0').any(|s| !s.is_empty());
+            }
+            // If configured to stash untracked, treat untracked files in subset as unstaged
+            if !has_unstaged && *env::HK_STASH_UNTRACKED {
+                let allow: BTreeSet<PathBuf> = paths.iter().cloned().collect();
+                if let Ok(cur_status) = self.status(None) {
+                    has_unstaged = cur_status
+                        .untracked_files
+                        .iter()
+                        .any(|p| allow.contains(p));
+                }
+            }
+            if !has_unstaged {
+                job.prop("message", "No unstaged changes to stash");
+                job.prop("files", &0);
+                job.set_status(ProgressStatus::Done);
+                return Ok(());
+            }
             self.stash = self.push_stash(Some(paths), status)?;
             if self.stash.is_some() {
                 job.prop("message", "Stashed unstaged changes");

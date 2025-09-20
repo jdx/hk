@@ -61,6 +61,6 @@ prepare_only_staged_change() {
     # Use status as ground truth: no worktree changes should have been introduced either
     run bash -lc 'git status --porcelain --untracked-files=all'
     assert_success
-    assert_output --partial "A  a.txt"
+    assert_output --partial "M  a.txt"
     refute_output --partial " M a.txt"
 }
