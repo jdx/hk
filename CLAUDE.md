@@ -52,9 +52,9 @@ hk is a git hook manager and project linting tool written in Rust with emphasis 
 ### Core Components
 
 **Configuration System (src/config.rs):**
-- Supports multiple config formats: `.pkl` (primary), `.toml`, `.yaml`, `.json`
+- Uses `.pkl` configuration format
 - Main config file: `hk.pkl` in project root
-- Uses Pkl (github.com/apple/pkl) as the primary configuration language
+- Uses Pkl (github.com/apple/pkl) as the configuration language
 - Config amends a base schema from `pkl/Config.pkl`
 
 **Hook System (src/hook.rs):**
