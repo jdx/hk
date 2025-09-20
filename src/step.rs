@@ -28,6 +28,8 @@ use crate::step_test::StepTest;
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct Step {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub _type: Option<String>,
     #[serde(default)]
     pub name: String,
     pub profiles: Option<Vec<String>>,

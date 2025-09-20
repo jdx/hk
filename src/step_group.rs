@@ -17,8 +17,8 @@ use std::{
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
 pub struct StepGroup {
-    #[serde(default = "default_step_group_type")]
-    pub _type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub _type: Option<String>,
     pub name: Option<String>,
     pub steps: IndexMap<String, Step>,
 }
@@ -57,7 +57,7 @@ impl StepGroup {
             .fold(vec![], |mut groups, step| {
                 match step {
                     StepOrGroup::Group(group) => {
-                        groups.push(group.steps);
+                        groups.push((*group).steps);
                     }
                     StepOrGroup::Step(step) => {
                         if step.exclusive || groups.is_empty() {
@@ -75,7 +75,7 @@ impl StepGroup {
             .into_iter()
             .filter(|steps| !steps.is_empty())
             .map(|steps| Self {
-                _type: "group".to_string(),
+                _type: None,
                 name: None,
                 steps,
             })
@@ -226,8 +226,4 @@ impl StepGroup {
 
         Ok(files_in_contention)
     }
-}
-
-fn default_step_group_type() -> String {
-    "group".to_string()
 }
