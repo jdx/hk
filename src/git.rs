@@ -54,6 +54,7 @@ pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
+    saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
 }
 
 enum StashType {
@@ -94,6 +95,7 @@ impl Git {
             repo,
             stash: None,
             saved_index: None,
+            saved_worktree: None,
         })
     }
 
@@ -445,6 +447,43 @@ impl Git {
             job.prop("message", "Running git stash for selected paths");
             job.prop("files", &paths.len());
             job.update();
+            // Avoid stashing if there are no unstaged hunks for the given subset
+            // Check diff (worktree vs index) scoped to the subset
+            let mut has_unstaged = {
+                let mut args: Vec<OsString> = vec![
+                    "diff".into(),
+                    "--name-only".into(),
+                    "-z".into(),
+                    "--no-ext-diff".into(),
+                    "--ignore-submodules".into(),
+                    "--".into(),
+                ];
+                args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
+                let out = git_read(args).unwrap_or_default();
+                out.split('\0').any(|s| !s.is_empty())
+            };
+            // Cross-check porcelain-scoped status for robustness
+            if !has_unstaged {
+                let pathspecs: Vec<OsString> = paths.iter().map(|p| p.as_os_str().into()).collect();
+                if let Ok(status) = self.status(Some(&pathspecs)) {
+                    has_unstaged = status.unstaged_files.iter().any(|p| paths.contains(p));
+                }
+            }
+            // If configured to stash untracked, treat untracked files in subset as unstaged
+            if !has_unstaged && *env::HK_STASH_UNTRACKED {
+                let allow: BTreeSet<PathBuf> = paths.iter().cloned().collect();
+                let pathspecs: Vec<OsString> =
+                    allow.iter().cloned().map(|p| p.into_os_string()).collect();
+                if let Ok(cur_status) = self.status(Some(&pathspecs)) {
+                    has_unstaged = cur_status.untracked_files.iter().any(|p| allow.contains(p));
+                }
+            }
+            if !has_unstaged {
+                job.prop("message", "No unstaged changes to stash");
+                job.prop("files", &0);
+                job.set_status(ProgressStatus::Done);
+                return Ok(());
+            }
             self.stash = self.push_stash(Some(paths), status)?;
             if self.stash.is_some() {
                 job.prop("message", "Stashed unstaged changes");
@@ -654,6 +693,7 @@ impl Git {
     pub fn capture_index(&mut self, paths: &[PathBuf]) -> Result<()> {
         if paths.is_empty() {
             self.saved_index = Some(vec![]);
+            self.saved_worktree = Some(std::collections::HashMap::new());
             return Ok(());
         }
         let mut args: Vec<OsString> = vec!["ls-files".into(), "-s".into(), "-z".into()];
@@ -661,6 +701,8 @@ impl Git {
         args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
         let out = git_read(args)?;
         let mut entries: Vec<(u32, String, PathBuf)> = vec![];
+        let mut wt_map: std::collections::HashMap<PathBuf, String> =
+            std::collections::HashMap::new();
         for rec in out.split('\0').filter(|s| !s.is_empty()) {
             // format: mode SP oid SP stage TAB path
             // example: 100644 0123456789abcdef... 0	path/to/file
@@ -670,11 +712,19 @@ impl Git {
                 let oid = parts.next().unwrap_or("");
                 if !oid.is_empty() {
                     let mode = u32::from_str_radix(mode, 8).unwrap_or(0o100644);
-                    entries.push((mode, oid.to_string(), PathBuf::from(path)));
+                    let p = PathBuf::from(path);
+                    entries.push((mode, oid.to_string(), p.clone()));
+                    // Capture current worktree contents to preserve exact EOF newline state
+                    if p.exists() {
+                        if let Ok(contents) = xx::file::read_to_string(&p) {
+                            wt_map.insert(p.clone(), contents);
+                        }
+                    }
                 }
             }
         }
         self.saved_index = Some(entries);
+        self.saved_worktree = Some(wt_map);
         Ok(())
     }
 
@@ -697,7 +747,8 @@ impl Git {
                     .map(PathBuf::from)
                     .collect();
 
-                // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs
+                // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs.
+                // This ensures formatter outputs that were staged by steps are preserved in the index.
                 let mut fixer_map: std::collections::HashMap<PathBuf, (u32, String)> =
                     std::collections::HashMap::new();
                 if !stash_paths.is_empty() {
@@ -733,22 +784,60 @@ impl Git {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
                     // Worktree content and Base (HEAD at stash time) from stash
-                    let work_pre = git_cmd(["show", &format!("stash@{{0}}:{}", path_str)])
-                        .read()
-                        .ok();
+                    // Prefer saved worktree snapshot captured before stashing; fallback to stash blob
+                    let work_pre = if let Some(map) = &self.saved_worktree {
+                        map.get(&path).cloned()
+                    } else {
+                        None
+                    }
+                    .or_else(|| {
+                        // Use `git cat-file -p` to preserve exact blob bytes, including EOF newline state
+                        git_cmd(["cat-file", "-p", &format!("stash@{{0}}:{}", path_str)])
+                            .read()
+                            .ok()
+                    });
                     // Parent ^1 of the stash commit points to the HEAD commit at stash time
-                    let base_pre = git_cmd(["show", &format!("stash@{{0}}^1:{}", path_str)])
-                        .read()
-                        .ok();
+                    let base_pre =
+                        git_cmd(["cat-file", "-p", &format!("stash@{{0}}^1:{}", path_str)])
+                            .read()
+                            .ok();
                     // Parent ^2 is the index at stash time. Use this to detect whether the path had
                     // any unstaged changes then (worktree vs index).
-                    let index_pre = git_cmd(["show", &format!("stash@{{0}}^2:{}", path_str)])
-                        .read()
-                        .ok();
+                    let index_pre =
+                        git_cmd(["cat-file", "-p", &format!("stash@{{0}}^2:{}", path_str)])
+                            .read()
+                            .ok();
                     // Fixer content from saved index blob
                     let fixer = fixer_map
                         .get(&path)
                         .and_then(|(_, oid)| git_cmd(["cat-file", "-p", oid]).read().ok());
+
+                    // Trace summaries of inputs for diagnostics (trace-level only)
+                    {
+                        let summarize = |name: &str, s: Option<&str>| {
+                            if let Some(v) = s {
+                                let len = v.len();
+                                let hash = xx::hash::hash_to_str(&v);
+                                let head = v
+                                    .lines()
+                                    .find(|l| !l.trim().is_empty())
+                                    .unwrap_or("")
+                                    .trim();
+                                trace!(
+                                    "manual-unstash: {name} len={} hash={} head={:?}",
+                                    len,
+                                    &hash[..8],
+                                    head
+                                );
+                            } else {
+                                trace!("manual-unstash: {name} NONE");
+                            }
+                        };
+                        summarize("base", base_pre.as_deref());
+                        summarize("index", index_pre.as_deref());
+                        summarize("work", work_pre.as_deref());
+                        summarize("fixer", fixer.as_deref());
+                    }
 
                     // If base is absent (file did not exist in HEAD at stash time), treat as empty
                     let base = base_pre.as_deref().unwrap_or("");
@@ -758,14 +847,65 @@ impl Git {
                     let mut merged =
                         merge::three_way_merge_hunks(base, fixer.as_deref(), work_pre.as_deref());
 
+                    // Preserve newline-only difference between worktree and index from stash time
+                    // Compare the worktree snapshot against the INDEX snapshot from stash time
+                    let newline_only_change = match (work_pre.as_deref(), index_pre.as_deref()) {
+                        (Some(w), Some(i)) => {
+                            let case1 = w.len() + 1 == i.len()
+                                && i.ends_with('\n')
+                                && &i[..i.len() - 1] == w;
+                            let case2 = i.len() + 1 == w.len()
+                                && w.ends_with('\n')
+                                && &w[..w.len() - 1] == i;
+                            if case1 || case2 {
+                                debug!(
+                                    "manual-unstash: newline-only change detected path={} w_len={} i_len={} case1={} case2={}",
+                                    display_path(&path),
+                                    w.len(),
+                                    i.len(),
+                                    case1,
+                                    case2
+                                );
+                            } else {
+                                debug!(
+                                    "manual-unstash: newline-only change NOT detected path={} w_len={} i_len={} ends_w={} ends_i={} equal_trim_w={} equal_trim_i={}",
+                                    display_path(&path),
+                                    w.len(),
+                                    i.len(),
+                                    w.ends_with('\n'),
+                                    i.ends_with('\n'),
+                                    if w.ends_with('\n') {
+                                        &w[..w.len() - 1] == i
+                                    } else {
+                                        false
+                                    },
+                                    if i.ends_with('\n') {
+                                        &i[..i.len() - 1] == w
+                                    } else {
+                                        false
+                                    }
+                                );
+                            }
+                            case1 || case2
+                        }
+                        _ => false,
+                    };
+                    if newline_only_change {
+                        if let Some(w) = work_pre.as_ref() {
+                            merged = w.clone();
+                        }
+                    }
+
                     // If there were no unstaged changes at stash time for this path
                     // (worktree identical to index), prefer writing the fixer result to the worktree
                     // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
-                    if let (Some(wc), Some(ic), Some(fc)) =
-                        (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
-                    {
-                        if wc == ic {
-                            merged = fc.clone();
+                    if !newline_only_change {
+                        if let (Some(wc), Some(ic), Some(fc)) =
+                            (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
+                        {
+                            if wc == ic {
+                                merged = fc.clone();
+                            }
                         }
                     }
 
@@ -795,14 +935,24 @@ impl Git {
                         has_work,
                         chosen
                     );
+                    trace!(
+                        "manual-unstash: merged len={} hash={}",
+                        merged.len(),
+                        &xx::hash::hash_to_str(&merged)[..8]
+                    );
                     if let Err(err) = xx::file::write(&path, &merged) {
                         warn!(
                             "failed to write merged worktree for {}: {err:?}",
                             display_path(&path)
                         );
                     }
-                    // If fixer differs from base, ensure index has fixer blob
-                    if let Some((mode, oid)) = fixer_map.get(&path) {
+                    // If fixer differs from base, ensure index has fixer blob unless newline-only change
+                    if newline_only_change {
+                        debug!(
+                            "manual-unstash: newline-only change; leaving index untouched path={}",
+                            display_path(&path)
+                        );
+                    } else if let Some((mode, oid)) = fixer_map.get(&path) {
                         let mode_str = format!("{:o}", mode);
                         if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob
                             .arg(mode_str)
@@ -831,6 +981,8 @@ impl Git {
             }
         }
         job.set_status(ProgressStatus::Done);
+        // Clear saved snapshots now that we've restored
+        self.saved_worktree = None;
         Ok(())
     }
 
