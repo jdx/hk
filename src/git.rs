@@ -54,7 +54,7 @@ pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
-    saved_worktree: Option<std::collections::HashMap<PathBuf, String>>, 
+    saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
 }
 
 enum StashType {
@@ -466,21 +466,16 @@ impl Git {
             if !has_unstaged {
                 let pathspecs: Vec<OsString> = paths.iter().map(|p| p.as_os_str().into()).collect();
                 if let Ok(status) = self.status(Some(&pathspecs)) {
-                    has_unstaged = status
-                        .unstaged_files
-                        .iter()
-                        .any(|p| paths.contains(p));
+                    has_unstaged = status.unstaged_files.iter().any(|p| paths.contains(p));
                 }
             }
             // If configured to stash untracked, treat untracked files in subset as unstaged
             if !has_unstaged && *env::HK_STASH_UNTRACKED {
                 let allow: BTreeSet<PathBuf> = paths.iter().cloned().collect();
-                let pathspecs: Vec<OsString> = allow.iter().cloned().map(|p| p.into_os_string()).collect();
+                let pathspecs: Vec<OsString> =
+                    allow.iter().cloned().map(|p| p.into_os_string()).collect();
                 if let Ok(cur_status) = self.status(Some(&pathspecs)) {
-                    has_unstaged = cur_status
-                        .untracked_files
-                        .iter()
-                        .any(|p| allow.contains(p));
+                    has_unstaged = cur_status.untracked_files.iter().any(|p| allow.contains(p));
                 }
             }
             if !has_unstaged {
@@ -774,7 +769,10 @@ impl Git {
                                 let oid = parts.next().unwrap_or("");
                                 if !oid.is_empty() {
                                     if let Ok(mode_num) = u32::from_str_radix(mode, 8) {
-                                        fixer_map.insert(PathBuf::from(path), (mode_num, oid.to_string()));
+                                        fixer_map.insert(
+                                            PathBuf::from(path),
+                                            (mode_num, oid.to_string()),
+                                        );
                                     }
                                 }
                             }
@@ -876,8 +874,16 @@ impl Git {
                                     i.len(),
                                     w.ends_with('\n'),
                                     i.ends_with('\n'),
-                                    if w.ends_with('\n') { &w[..w.len()-1] == i } else { false },
-                                    if i.ends_with('\n') { &i[..i.len()-1] == w } else { false }
+                                    if w.ends_with('\n') {
+                                        &w[..w.len() - 1] == i
+                                    } else {
+                                        false
+                                    },
+                                    if i.ends_with('\n') {
+                                        &i[..i.len() - 1] == w
+                                    } else {
+                                        false
+                                    }
                                 );
                             }
                             case1 || case2
