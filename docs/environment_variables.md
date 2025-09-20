@@ -50,7 +50,7 @@ The profile(s) to use.
 ## `HK_FILE`
 
 Type: `string`
-Default: `hk.pkl` | `hk.toml` | `hk.yaml` | `hk.yml` | `hk.json`
+Default: `hk.pkl`
 
 The file to use for the configuration.
 
