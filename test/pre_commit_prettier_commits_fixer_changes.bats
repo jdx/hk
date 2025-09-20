@@ -149,7 +149,7 @@ TS
 
     # EXPECTATION: HEAD contains the semicolon added by Prettier
     run bash -lc "git show HEAD:file.ts"
-    assert_line --partial "import x from 'a';"
+    assert_line "import x from \"a\";"
 
     # And HEAD should not include the unstaged tail
     refute_line --partial '// unstaged'
@@ -163,6 +163,6 @@ TS
     assert_success
 
     run bash -lc "git show HEAD:file.ts"
-    assert_line --partial "import x from 'a';"
+    assert_line "import x from \"a\";"
     refute_line --partial '// unstaged'
 }

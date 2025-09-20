@@ -97,6 +97,10 @@ pub fn three_way_merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&
         (Some(f), None) => f.to_string(),
         (None, Some(w)) => w.to_string(),
         (Some(f), Some(w)) => {
+            // If worktree hasn't changed relative to base, prefer fixer entirely
+            if w == base {
+                return f.to_string();
+            }
             let a: Vec<&str> = base.split_inclusive('\n').collect();
             let mut result: Vec<String> = Vec::new();
             let mut idx = 0usize;

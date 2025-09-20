@@ -462,10 +462,21 @@ impl Git {
                 let out = git_read(args).unwrap_or_default();
                 out.split('\0').any(|s| !s.is_empty())
             };
+            // Cross-check porcelain-scoped status for robustness
+            if !has_unstaged {
+                let pathspecs: Vec<OsString> = paths.iter().map(|p| p.as_os_str().into()).collect();
+                if let Ok(status) = self.status(Some(&pathspecs)) {
+                    has_unstaged = status
+                        .unstaged_files
+                        .iter()
+                        .any(|p| paths.contains(p));
+                }
+            }
             // If configured to stash untracked, treat untracked files in subset as unstaged
             if !has_unstaged && *env::HK_STASH_UNTRACKED {
                 let allow: BTreeSet<PathBuf> = paths.iter().cloned().collect();
-                if let Ok(cur_status) = self.status(None) {
+                let pathspecs: Vec<OsString> = allow.iter().cloned().map(|p| p.into_os_string()).collect();
+                if let Ok(cur_status) = self.status(Some(&pathspecs)) {
                     has_unstaged = cur_status
                         .untracked_files
                         .iter()
@@ -741,14 +752,32 @@ impl Git {
                     .map(PathBuf::from)
                     .collect();
 
-                // Build a map of PRE-STASH index entries (captured before steps) to re-stage Fixer blobs
-                // This ensures we do not accidentally stage pre-existing unstaged changes during stash/apply.
+                // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs.
+                // This ensures formatter outputs that were staged by steps are preserved in the index.
                 let mut fixer_map: std::collections::HashMap<PathBuf, (u32, String)> =
                     std::collections::HashMap::new();
-                if let Some(saved) = &self.saved_index {
-                    for (mode, oid, path) in saved {
-                        if stash_paths.contains(path) {
-                            fixer_map.insert(path.clone(), (*mode, oid.clone()));
+                if !stash_paths.is_empty() {
+                    let mut args: Vec<OsString> =
+                        vec!["ls-files".into(), "-s".into(), "-z".into(), "--".into()];
+                    args.extend(
+                        stash_paths
+                            .iter()
+                            .filter_map(|p| p.to_str())
+                            .map(OsString::from),
+                    );
+                    if let Ok(list) = git_read(args) {
+                        for rec in list.split('\0').filter(|s| !s.is_empty()) {
+                            // format: mode SP oid SP stage TAB path
+                            if let Some((left, path)) = rec.split_once('\t') {
+                                let mut parts = left.split_whitespace();
+                                let mode = parts.next().unwrap_or("100644");
+                                let oid = parts.next().unwrap_or("");
+                                if !oid.is_empty() {
+                                    if let Ok(mode_num) = u32::from_str_radix(mode, 8) {
+                                        fixer_map.insert(PathBuf::from(path), (mode_num, oid.to_string()));
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -784,6 +813,33 @@ impl Git {
                     let fixer = fixer_map
                         .get(&path)
                         .and_then(|(_, oid)| git_cmd(["cat-file", "-p", oid]).read().ok());
+
+                    // Trace summaries of inputs for diagnostics (trace-level only)
+                    {
+                        let summarize = |name: &str, s: Option<&str>| {
+                            if let Some(v) = s {
+                                let len = v.len();
+                                let hash = xx::hash::hash_to_str(&v);
+                                let head = v
+                                    .lines()
+                                    .find(|l| !l.trim().is_empty())
+                                    .unwrap_or("")
+                                    .trim();
+                                trace!(
+                                    "manual-unstash: {name} len={} hash={} head={:?}",
+                                    len,
+                                    &hash[..8],
+                                    head
+                                );
+                            } else {
+                                trace!("manual-unstash: {name} NONE");
+                            }
+                        };
+                        summarize("base", base_pre.as_deref());
+                        summarize("index", index_pre.as_deref());
+                        summarize("work", work_pre.as_deref());
+                        summarize("fixer", fixer.as_deref());
+                    }
 
                     // If base is absent (file did not exist in HEAD at stash time), treat as empty
                     let base = base_pre.as_deref().unwrap_or("");
@@ -872,6 +928,11 @@ impl Git {
                         has_fixer,
                         has_work,
                         chosen
+                    );
+                    trace!(
+                        "manual-unstash: merged len={} hash={}",
+                        merged.len(),
+                        &xx::hash::hash_to_str(&merged)[..8]
                     );
                     if let Err(err) = xx::file::write(&path, &merged) {
                         warn!(
