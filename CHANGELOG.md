@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.2](https://github.com/jdx/hk/compare/v1.15.1..v1.15.2) - 2025-09-20
+
+### 📚 Documentation
+
+- remove references to alternative config formats by [@jdx](https://github.com/jdx) in [5e497b6](https://github.com/jdx/hk/commit/5e497b6a9babdddeb78ed0de58a5167c541b6128)
+
 ## [1.15.1](https://github.com/jdx/hk/compare/v1.15.0..v1.15.1) - 2025-09-19
 
 ### 🐛 Bug Fixes
