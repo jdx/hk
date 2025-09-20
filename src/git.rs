@@ -448,9 +448,8 @@ impl Git {
             job.prop("files", &paths.len());
             job.update();
             // Avoid stashing if there are no unstaged hunks for the given subset
-            let mut has_unstaged = false;
             // Check diff (worktree vs index) scoped to the subset
-            {
+            let mut has_unstaged = {
                 let mut args: Vec<OsString> = vec![
                     "diff".into(),
                     "--name-only".into(),
@@ -461,8 +460,8 @@ impl Git {
                 ];
                 args.extend(paths.iter().map(|p| OsString::from(p.as_os_str())));
                 let out = git_read(args).unwrap_or_default();
-                has_unstaged = out.split('\0').any(|s| !s.is_empty());
-            }
+                out.split('\0').any(|s| !s.is_empty())
+            };
             // If configured to stash untracked, treat untracked files in subset as unstaged
             if !has_unstaged && *env::HK_STASH_UNTRACKED {
                 let allow: BTreeSet<PathBuf> = paths.iter().cloned().collect();
@@ -795,7 +794,8 @@ impl Git {
                         merge::three_way_merge_hunks(base, fixer.as_deref(), work_pre.as_deref());
 
                     // Preserve newline-only difference between worktree and index from stash time
-                    let newline_only_change = match (work_pre.as_deref(), fixer.as_deref()) {
+                    // Compare the worktree snapshot against the INDEX snapshot from stash time
+                    let newline_only_change = match (work_pre.as_deref(), index_pre.as_deref()) {
                         (Some(w), Some(i)) => {
                             let case1 = w.len() + 1 == i.len()
                                 && i.ends_with('\n')
@@ -837,11 +837,13 @@ impl Git {
                     // If there were no unstaged changes at stash time for this path
                     // (worktree identical to index), prefer writing the fixer result to the worktree
                     // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
-                    if let (Some(wc), Some(ic), Some(fc)) =
-                        (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
-                    {
-                        if wc == ic {
-                            merged = fc.clone();
+                    if !newline_only_change {
+                        if let (Some(wc), Some(ic), Some(fc)) =
+                            (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
+                        {
+                            if wc == ic {
+                                merged = fc.clone();
+                            }
                         }
                     }
 
