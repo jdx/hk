@@ -108,7 +108,7 @@ where
     {
         let val = self.cache.get_or_try_init(|| {
             let path = &self.cache_file_path;
-            if self.is_fresh() && !cfg!(debug_assertions) {
+            if self.is_fresh() && *crate::env::HK_CACHE {
                 match self.parse() {
                     Ok(val) => {
                         tracing::event!(tracing::Level::INFO, "cache.hit");
