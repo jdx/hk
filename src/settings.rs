@@ -89,6 +89,11 @@ impl Settings {
         (*Self::get_snapshot().expect("Failed to load configuration")).clone()
     }
 
+    /// Try to get settings, returning Result instead of panicking on config errors
+    pub fn try_get() -> Result<Settings, eyre::Error> {
+        Ok((*Self::get_snapshot()?).clone())
+    }
+
     /// Get the global settings snapshot
     fn get_snapshot() -> Result<SettingsSnapshot, eyre::Error> {
         // Check if we need to initialize

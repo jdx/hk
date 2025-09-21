@@ -84,7 +84,7 @@ impl Config {
 
 impl ConfigDump {
     fn run(&self) -> Result<()> {
-        let settings = Settings::get();
+        let settings = Settings::try_get()?;
         // Start from full settings based on meta to reduce boilerplate
         let mut map = serde_json::Map::new();
         // Serialize full settings once for generic lookups
@@ -125,7 +125,7 @@ impl ConfigDump {
 
 impl ConfigGet {
     fn run(&self) -> Result<()> {
-        let settings = Settings::get();
+        let settings = Settings::try_get()?;
         // Derived and computed keys
         let value = if self.key == "jobs" {
             json!(settings.jobs())
@@ -151,7 +151,7 @@ impl ConfigGet {
 impl ConfigExplain {
     fn run(&self) -> Result<()> {
         // Get the current value
-        let settings = Settings::get();
+        let settings = Settings::try_get()?;
         // Current value (computed for special keys, generic via meta for the rest)
         let current_value = if self.key == "jobs" {
             json!(settings.jobs())
