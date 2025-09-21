@@ -4,6 +4,7 @@ _common_setup() {
     load 'test_helper/bats-support/load'
     load 'test_helper/bats-assert/load'
     load 'test_helper/bats-file/load'
+    load 'test_helper/cache_setup'
 
     export PROJECT_ROOT="$BATS_TEST_DIRNAME/.."
     export PKL_PATH="$PROJECT_ROOT/pkl"
@@ -31,6 +32,10 @@ _common_setup() {
 
     # Add hk to PATH (assuming it's installed)
     PATH="$(dirname $BATS_TEST_DIRNAME)/target/debug:$PATH"
+
+    # Enable persistent test cache by default for better performance
+    # Individual tests can override this by calling _disable_test_cache or _enable_isolated_test_cache
+    _enable_persistent_test_cache
 }
 
 _common_teardown() {
