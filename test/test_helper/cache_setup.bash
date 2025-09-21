@@ -1,19 +1,33 @@
 #!/usr/bin/env bash
 
 # Helper functions for managing cache in tests
+#
+# Environment variables:
+#   HK_TEST_CACHE_DISABLED=1     - Disable test caching entirely (forces fresh pkl evaluation)
+#   HK_TEST_CACHE_DIR=/path      - Override the test cache directory location
+#   HK_TEST_CACHE_NO_CLEANUP=1   - Disable automatic cleanup of stale cache entries
+#
+# By default, caching is enabled and uses /tmp/hk-test-cache
 
 # Enable persistent cache for tests (shared across test runs)
 # This significantly speeds up tests by reusing parsed pkl configs
 _enable_persistent_test_cache() {
+    # Check if caching should be disabled via environment variable
+    if [ "${HK_TEST_CACHE_DISABLED:-}" = "1" ] || [ "${HK_TEST_CACHE_DISABLED:-}" = "true" ]; then
+        _disable_test_cache
+        return
+    fi
+
     # Use a persistent cache directory in the system temp folder
     # This survives between test runs but is still in a temp location
-    export HK_CACHE_DIR="${BATS_TEST_TMPDIR:-/tmp}/hk-test-cache"
+    export HK_CACHE_DIR="${HK_TEST_CACHE_DIR:-${BATS_TEST_TMPDIR:-/tmp}/hk-test-cache}"
 
     # Create the cache directory if it doesn't exist
     mkdir -p "$HK_CACHE_DIR"
 
     # Optionally clear stale cache entries (older than 1 day)
-    if command -v find >/dev/null 2>&1; then
+    # Can be disabled with HK_TEST_CACHE_NO_CLEANUP=1
+    if [ "${HK_TEST_CACHE_NO_CLEANUP:-}" != "1" ] && command -v find >/dev/null 2>&1; then
         find "$HK_CACHE_DIR" -type f -mtime +1 -delete 2>/dev/null || true
     fi
 }
