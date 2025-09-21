@@ -173,17 +173,11 @@ impl Config {
             }
 
             if let Some(glob) = &step_config.glob {
-                step.glob = Some(match glob {
-                    StringOrList::String(s) => vec![s.clone()],
-                    StringOrList::List(list) => list.clone(),
-                });
+                step.glob = Some(glob.iter().cloned().collect());
             }
 
             if let Some(exclude) = &step_config.exclude {
-                step.exclude = Some(match exclude {
-                    StringOrList::String(s) => vec![s.clone()],
-                    StringOrList::List(list) => list.clone(),
-                });
+                step.exclude = Some(exclude.iter().cloned().collect());
             }
 
             if let Some(profiles) = &step_config.profiles {
@@ -371,4 +365,26 @@ pub struct UserStepConfig {
 pub enum StringOrList {
     String(String),
     List(Vec<String>),
+}
+
+impl StringOrList {
+    /// Returns an iterator over the strings in this StringOrList
+    pub fn iter(&self) -> std::slice::Iter<'_, String> {
+        match self {
+            StringOrList::String(s) => std::slice::from_ref(s).iter(),
+            StringOrList::List(list) => list.iter(),
+        }
+    }
+}
+
+impl IntoIterator for StringOrList {
+    type Item = String;
+    type IntoIter = std::vec::IntoIter<String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            StringOrList::String(s) => vec![s].into_iter(),
+            StringOrList::List(list) => list.into_iter(),
+        }
+    }
 }
