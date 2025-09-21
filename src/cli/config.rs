@@ -88,7 +88,7 @@ impl ConfigDump {
         // Start from full settings based on meta to reduce boilerplate
         let mut map = serde_json::Map::new();
         // Serialize full settings once for generic lookups
-        let full = serde_json::to_value(settings.clone())?;
+        let full = serde_json::to_value(settings.as_ref())?;
         for (key, _meta) in SETTINGS_META.iter() {
             let k = (*key).to_string();
             // Special-case computed values that differ from raw fields
@@ -135,7 +135,7 @@ impl ConfigGet {
             json!(settings.disabled_profiles())
         } else if SETTINGS_META.contains_key(self.key.as_str()) {
             // Generic lookup via serialization
-            let full = serde_json::to_value(settings.clone())?;
+            let full = serde_json::to_value(settings.as_ref())?;
             full.get(&self.key).cloned().ok_or_else(|| {
                 eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
             })?
@@ -160,7 +160,7 @@ impl ConfigExplain {
         } else if self.key == "disabled_profiles" {
             json!(settings.disabled_profiles())
         } else if SETTINGS_META.contains_key(self.key.as_str()) {
-            let full = serde_json::to_value(settings.clone())?;
+            let full = serde_json::to_value(settings.as_ref())?;
             full.get(&self.key).cloned().ok_or_else(|| {
                 eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
             })?

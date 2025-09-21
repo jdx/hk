@@ -84,14 +84,14 @@ impl Settings {
             .as_ref()
             .and_then(|s| s.hkrc.clone())
     }
-    pub fn get() -> Settings {
-        // Clone from the global snapshot, panic on config errors
-        (*Self::get_snapshot().expect("Failed to load configuration")).clone()
+    pub fn get() -> Arc<Settings> {
+        // Return Arc directly, panic on config errors
+        Self::get_snapshot().expect("Failed to load configuration")
     }
 
     /// Try to get settings, returning Result instead of panicking on config errors
-    pub fn try_get() -> Result<Settings, eyre::Error> {
-        Ok((*Self::get_snapshot()?).clone())
+    pub fn try_get() -> Result<Arc<Settings>, eyre::Error> {
+        Self::get_snapshot()
     }
 
     /// Get the global settings snapshot
