@@ -10,23 +10,20 @@ teardown() {
 }
 
 @test "hk test surfaces failing tests with non-zero exit" {
-    cat <<PKL > hk.pkl
-amends "$PKL_PATH/Config.pkl"
+    setup_with_config 'amends "'"$PKL_PATH"'/Config.pkl"
 hooks {
   ["check"] {
     steps {
       ["demo"] {
-        check = "sh -c 'echo failing >&2; exit 2'"
+        check = "sh -c '"'"'echo failing >&2; exit 2'"'"'"
         tests {
           ["fails exits nonzero"] { run = "check" }
         }
       }
     }
   }
-}
-PKL
+}'
 
-    run hk test --step demo
-    assert_failure
+    assert_hk_failure test --step demo
     assert_output --partial "not ok - demo :: fails exits nonzero"
 }

@@ -16,19 +16,17 @@ teardown() {
 
 create_precommit_prettier_with_stash() {
     local method="$1"
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Builtins.pkl"
+    setup_with_config 'amends "'"$PKL_PATH"'/Config.pkl"
+import "'"$PKL_PATH"'/Builtins.pkl"
 hooks {
   ["pre-commit"] {
     fix = true
-    stash = "$method"
+    stash = "'"$method"'"
     steps {
       ["prettier"] = Builtins.prettier
     }
   }
-}
-EOF
+}'
     git add hk.pkl
     git commit -m "init hk"
     hk install

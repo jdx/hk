@@ -25,16 +25,16 @@ setup_with_builtin() {
     local builtin="$1"
     local additional_config="${2:-}"
 
-    local config="amends \"$PKL_PATH/Config.pkl\"
-import \"$PKL_PATH/builtins/Builtins.pkl\"
+    local config='amends "'"$PKL_PATH"'/Config.pkl"
+import "'"$PKL_PATH"'/builtins/Builtins.pkl"
 
 hooks {
-  [\"check\"] {
+  ["check"] {
     steps {
-      [\"$builtin\"] = Builtins.$builtin
+      ["'"$builtin"'"] = Builtins.'"$builtin"'
     }
   }
-}"
+}'
 
     if [[ -n "$additional_config" ]]; then
         config="$config
@@ -200,15 +200,15 @@ setup_with_hook() {
     local hook_name="$1"
     local step_config="$2"
 
-    local config="amends \"$PKL_PATH/Config.pkl\"
+    local config='amends "'"$PKL_PATH"'/Config.pkl"
 
 hooks {
-  [\"$hook_name\"] {
+  ["'"$hook_name"'"] {
     steps {
       $step_config
     }
   }
-}"
+}'
 
     setup_with_config "$config"
 }
@@ -216,10 +216,10 @@ hooks {
 # Set up test with multiple steps and dependencies
 # Usage: setup_with_dependent_steps
 setup_with_dependent_steps() {
-    local config="amends \"$PKL_PATH/Config.pkl\"
+    local config='amends "'"$PKL_PATH"'/Config.pkl"
 
 hooks {
-  [\"check\"] {
+  ["check"] {
     steps {
       ["step1"] {
         shell = "echo step1"
@@ -234,7 +234,7 @@ hooks {
       }
     }
   }
-}"
+}'
 
     setup_with_config "$config"
 }
@@ -245,18 +245,18 @@ setup_with_profile() {
     local profile_name="$1"
     local active="${2:-false}"
 
-    local config="amends \"$PKL_PATH/Config.pkl\"
+    local config='amends "'"$PKL_PATH"'/Config.pkl"
 
 hooks {
   [\"check\"] {
     steps {
-      [\"test_step\"] {
-        shell = \"echo test\"
-        profiles = [\"$profile_name\"]
+      ["test_step"] {
+        shell = "echo test"
+        profiles = ["'"$profile_name"'"]
       }
     }
   }
-}"
+}'
 
     setup_with_config "$config"
 
@@ -271,17 +271,17 @@ setup_with_failing_step() {
     local step_name="${1:-failing_step}"
     local error_msg="${2:-Error occurred}"
 
-    local config="amends \"$PKL_PATH/Config.pkl\"
+    local config='amends "'"$PKL_PATH"'/Config.pkl"
 
 hooks {
   [\"check\"] {
     steps {
-      [\"$step_name\"] {
-        shell = \"echo '$error_msg' >&2; exit 1\"
+      ["'"$step_name"'"] {
+        shell = "echo '"'"'$error_msg'"'"' >&2; exit 1"
       }
     }
   }
-}"
+}'
 
     setup_with_config "$config"
 }

@@ -10,9 +10,8 @@ teardown() {
 }
 
 @test "builtin: shellcheck" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Builtins.pkl"
+    setup_with_config 'amends "'"$PKL_PATH"'/Config.pkl"
+import "'"$PKL_PATH"'/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
@@ -21,8 +20,7 @@ hooks {
             ["shellcheck"] = Builtins.shellcheck
         }
     }
-}
-EOF
+}'
     cat <<EOF > test.sh
 #!/bin/bash
 cat \$1
@@ -30,7 +28,7 @@ EOF
     git add hk.pkl
     git commit -m "init"
     git add test.sh
-    run hk run pre-commit
-    assert_failure
+
+    assert_hk_failure run pre-commit
     assert_output --partial "SC2086"
 } 

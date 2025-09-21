@@ -16,20 +16,18 @@ teardown() {
 
     mkdir -p ml/py
 
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
+    setup_with_config 'amends "'"$PKL_PATH"'/Config.pkl"
 hooks {
   ["pre-commit"] {
     stash = "git"
     steps {
       ["list"] {
         // capture the list of files hk passes to the step
-        check = "printf '%s\n' {{files}} > files_list.txt"
+        check = "printf '"'"'%s\n'"'"' {{files}} > files_list.txt"
       }
     }
   }
-}
-EOF
+}'
     git add hk.pkl
     git commit -m "init"
 
@@ -48,8 +46,8 @@ EOF
     assert_output --partial "AD ml/py/a.py"
 
     # Run pre-commit; 'list' step will write files_list.txt with the files hk selected
+    # Run pre-commit; don't assert success/failure as we only care it ran
     run hk run pre-commit
-    # Whether hk succeeds depends on tool config; we only care that it ran
 
     assert_file_exists files_list.txt
     # The deleted file should NOT be included in the files list

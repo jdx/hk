@@ -9,9 +9,8 @@ teardown() {
 }
 
 @test "dir" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/builtins/prettier.pkl"
+    setup_with_config 'amends "'"$PKL_PATH"'/Config.pkl"
+import "'"$PKL_PATH"'/builtins/prettier.pkl"
 hooks {
     ["check"] {
         steps {
@@ -22,17 +21,18 @@ hooks {
             }
         }
     }
-}
-EOF
+}'
     git add hk.pkl
     git commit -m "initial commit"
+
+    # Create test directory structure
     mkdir -p ui/subdir
     echo "<html><body>test</body></html>" > ui/subdir/test.html
     echo "console.log('test')" > ui/test.ts
     echo "console.log('test')" > root.ts
     git add ui/subdir/test.html ui/test.ts root.ts
-    run hk check -v
-    assert_failure
+
+    assert_hk_failure check -v
     assert_output --partial '[warn] subdir/test.html'
     assert_output --partial '[warn] test.ts'
     assert_output --partial '[warn] Code style issues found in 2 files.'

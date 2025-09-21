@@ -10,17 +10,17 @@ teardown() {
 }
 
 @test "helper demo: assert_hk_success simplifies success checks" {
-    setup_with_config "amends \"$PKL_PATH/Config.pkl\"
+    setup_with_config 'amends "'"$PKL_PATH"'/Config.pkl"
 hooks {
-  [\"check\"] {
+  ["check"] {
     steps {
-      [\"echo\"] {
-        shell = \"echo hello\"
-        glob = List(\"*\")
+      ["echo"] {
+        shell = "echo hello"
+        glob = List("*")
       }
     }
   }
-}"
+}'
     # Create a file so the step has something to process
     echo "test" > test.txt
 
@@ -116,16 +116,16 @@ hooks {
 }
 
 @test "helper demo: assert_output_matches with regex" {
-    setup_with_config "amends \"$PKL_PATH/Config.pkl\"
+    setup_with_config 'amends "'"$PKL_PATH"'/Config.pkl"
 hooks {
-  [\"check\"] {
+  ["check"] {
     steps {
-      [\"timestamp\"] {
-        shell = \"date +%Y-%m-%d\"
+      ["timestamp"] {
+        shell = "date +%Y-%m-%d"
       }
     }
   }
-}"
+}'
 
     assert_hk_success check --all
     # Check output matches date format YYYY-MM-DD

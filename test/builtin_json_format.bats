@@ -10,26 +10,26 @@ teardown() {
 }
 
 @test "builtin: json format" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Builtins.pkl"
+    setup_with_builtin jq "
 hooks {
-    ["pre-commit"] {
+    [\"pre-commit\"] {
         fix = true
-        stash = "git"
+        stash = \"git\"
         steps {
-            ["jq"] = Builtins.jq
+            [\"jq\"] = Builtins.jq
         }
     }
-}
-EOF
+}"
+
     git add hk.pkl
     git commit -m "init"
+
     cat <<EOF > test.json
 {"test": 123}
 EOF
     git add test.json
-    hk run pre-commit
+
+    assert_hk_success run pre-commit
     assert_file_contains test.json '{
   "test": 123
 }'
