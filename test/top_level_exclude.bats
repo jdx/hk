@@ -8,7 +8,42 @@ teardown() {
     _common_teardown
 }
 
-@test "top-level exclude - single pattern" {
+@test "top-level exclude - single pattern as string" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = "*.test.js"
+hooks {
+    ["check"] {
+        steps {
+            ["prettier"] {
+                glob = List("*.js", "*.ts")
+                check = "prettier --no-color --check {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # Create files that should be checked
+    echo "console.log('test1')" > test1.js
+    echo "console.log('test2')" > test2.ts
+
+    # Create files that should be excluded by top-level exclude
+    echo "console.log('test3')" > test3.test.js
+
+    git add test1.js test2.ts test3.test.js
+    run hk check -v
+    assert_failure
+    # Should only check test1.js and test2.ts, not test3.test.js
+    assert_output --partial 'DEBUG $ prettier --no-color --check test1.js test2.ts
+'
+    refute_output --partial 'test3.test.js'
+    assert_output --partial '[warn] Code style issues found in 2 files.'
+}
+
+@test "top-level exclude - single pattern as list" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 exclude = List("*.test.js")

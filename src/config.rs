@@ -1,5 +1,5 @@
 use indexmap::IndexMap;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Deserializer, Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
@@ -290,12 +290,31 @@ pub struct Config {
     pub hide_warnings: Option<Vec<String>>,
     pub warnings: Option<Vec<String>>,
     /// Global file patterns to exclude from all steps
+    #[serde(default, deserialize_with = "deserialize_string_or_vec")]
     pub exclude: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", toml::to_string(self).unwrap())
+    }
+}
+
+fn deserialize_string_or_vec<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrVec {
+        String(String),
+        Vec(Vec<String>),
+    }
+
+    match Option::<StringOrVec>::deserialize(deserializer)? {
+        Some(StringOrVec::String(s)) => Ok(Some(vec![s])),
+        Some(StringOrVec::Vec(v)) => Ok(Some(v)),
+        None => Ok(None),
     }
 }
 
