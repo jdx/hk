@@ -31,14 +31,6 @@ pub use generated::settings::Settings;
 
 use crate::settings::generated::merge::SettingSource;
 
-#[macro_export]
-macro_rules! setting {
-    ($field:ident) => {{
-        let __s = $crate::settings::Settings::get();
-        __s.inner().$field.clone()
-    }};
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct CliSnapshot {
     pub hkrc: Option<PathBuf>,
@@ -93,28 +85,25 @@ impl Settings {
             .and_then(|s| s.hkrc.clone())
     }
     pub fn get() -> Settings {
-        // For backward compatibility, clone from the global snapshot
-        (*Self::get_snapshot()).clone()
+        // Clone from the global snapshot, panic on config errors
+        (*Self::get_snapshot().expect("Failed to load configuration")).clone()
     }
 
     /// Get the global settings snapshot
-    fn get_snapshot() -> SettingsSnapshot {
+    fn get_snapshot() -> Result<SettingsSnapshot, eyre::Error> {
         // Check if we need to initialize
         let mut initialized = INITIALIZED.lock().unwrap();
         if !*initialized {
             // First access - initialize with all sources including programmatic overrides
-            let new_settings = Arc::new(Self::build_from_all_sources().unwrap_or_else(|err| {
-                eprintln!("Warning: Failed to load configuration: {}", err);
-                generated::settings::Settings::default()
-            }));
+            let new_settings = Arc::new(Self::build_from_all_sources()?);
             GLOBAL_SETTINGS.store(new_settings.clone());
             *initialized = true;
-            return new_settings;
+            return Ok(new_settings);
         }
         drop(initialized); // Release the lock early
 
         // Already initialized - return the cached value
-        GLOBAL_SETTINGS.load_full()
+        Ok(GLOBAL_SETTINGS.load_full())
     }
 
     // Expose commonly used fields with computed logic where needed
@@ -777,8 +766,8 @@ mod tests {
             ..Default::default()
         });
         // Get multiple snapshots - they should be the same Arc
-        let snapshot1 = Settings::get_snapshot();
-        let snapshot2 = Settings::get_snapshot();
+        let snapshot1 = Settings::get_snapshot().unwrap();
+        let snapshot2 = Settings::get_snapshot().unwrap();
 
         // They should point to the same data (same Arc)
         assert!(Arc::ptr_eq(&snapshot1, &snapshot2));
