@@ -5,6 +5,8 @@ _common_setup() {
     load 'test_helper/bats-assert/load'
     load 'test_helper/bats-file/load'
     load 'test_helper/cache_setup'
+    load 'test_helper/assertions'
+    load 'test_helper/setup_helpers'
 
     export PROJECT_ROOT="$BATS_TEST_DIRNAME/.."
     export PKL_PATH="$PROJECT_ROOT/pkl"
