@@ -289,6 +289,8 @@ pub struct Config {
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
     pub warnings: Option<Vec<String>>,
+    /// Global file patterns to exclude from all steps
+    pub exclude: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {

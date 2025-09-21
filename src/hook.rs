@@ -712,9 +712,16 @@ impl Hook {
                 .cloned()
                 .collect()
         };
-        // Union excludes from Settings with CLI options
+        // Union excludes from Settings, Config, and CLI options
         let settings = crate::settings::Settings::get();
         let mut all_excludes = settings.exclude.clone();
+
+        // Add config exclude patterns
+        if let Ok(config) = crate::config::Config::get() {
+            if let Some(config_excludes) = &config.exclude {
+                all_excludes.extend(config_excludes.iter().cloned());
+            }
+        }
 
         // Add CLI --exclude patterns
         if let Some(cli_excludes) = &opts.exclude {
