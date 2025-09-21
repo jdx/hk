@@ -141,6 +141,8 @@ env: Mapping<String, String> = new Mapping<String, String>{}
 default_branch: String?
 /// If true, abort remaining steps/groups after the first failure
 fail_fast: Boolean?
+/// Global file patterns to exclude from all steps
+exclude: (String | List<String>)?
 
 output {
   renderer {

@@ -68,6 +68,16 @@ import "package://github.com/jdx/hk/releases/download/v{{version}}/hk@{{version}
   warnings = List("missing-profiles")
   ```
 
+### `exclude`
+- **Type:** `String | List<String>?` (optional)
+- **Default:** `List()` (empty - no files excluded)
+- **Description:** Global exclude patterns applied to all hooks and steps
+- **Example:**
+  ```pkl
+  exclude = "*.test.js"  // Single pattern as string
+  exclude = List("*.test.js", "node_modules", "dist")  // Multiple patterns
+  ```
+
 ### `env`
 - **Type:** `Mapping<String, String>`
 - **Default:** Empty mapping

@@ -124,18 +124,6 @@ EOF
     echo "$output" | jq -r '.exclude[]' | grep -q "*.min.js"
 }
 
-@test "git config: hk.excludeGlob backward compatibility" {
-    cat > hk.pkl << EOF
-amends "$PKL_PATH/Config.pkl"
-EOF
-
-    # Test backward compatibility with excludeGlob
-    git config --local hk.excludeGlob "**/*.backup"
-
-    run hk config dump
-    [ "$status" -eq 0 ]
-    echo "$output" | jq -r '.exclude[]' | grep -q "**/*.backup"
-}
 
 @test "git config: hk.warnings adds warning tags" {
     cat > hk.pkl << EOF

@@ -31,9 +31,6 @@ cmd check help="Fixes code" {
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag --exclude-glob help="Exclude files that match these glob patterns that otherwise would have been selected" var=#true {
-        arg <EXCLUDE_GLOB>
-    }
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -93,9 +90,6 @@ cmd fix help="Fixes code" {
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag --exclude-glob help="Exclude files that match these glob patterns that otherwise would have been selected" var=#true {
-        arg <EXCLUDE_GLOB>
-    }
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -142,9 +136,6 @@ cmd run help="Run a hook" {
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag --exclude-glob help="Exclude files that match these glob patterns that otherwise would have been selected" var=#true {
-        arg <EXCLUDE_GLOB>
-    }
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -177,9 +168,6 @@ cmd run help="Run a hook" {
         flag "-c --check" help="Run run command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
-        }
-        flag --exclude-glob help="Exclude files that match these glob patterns that otherwise would have been selected" var=#true {
-            arg <EXCLUDE_GLOB>
         }
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -215,9 +203,6 @@ cmd run help="Run a hook" {
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag --exclude-glob help="Exclude files that match these glob patterns that otherwise would have been selected" var=#true {
-            arg <EXCLUDE_GLOB>
-        }
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -250,9 +235,6 @@ cmd run help="Run a hook" {
         flag "-c --check" help="Run run command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
-        }
-        flag --exclude-glob help="Exclude files that match these glob patterns that otherwise would have been selected" var=#true {
-            arg <EXCLUDE_GLOB>
         }
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -288,9 +270,6 @@ cmd run help="Run a hook" {
         flag "-c --check" help="Run run command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
-        }
-        flag --exclude-glob help="Exclude files that match these glob patterns that otherwise would have been selected" var=#true {
-            arg <EXCLUDE_GLOB>
         }
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
