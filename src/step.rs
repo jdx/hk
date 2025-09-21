@@ -79,17 +79,6 @@ impl fmt::Display for Step {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FileKind {
-    Text,
-    Binary,
-    Executable,
-    NotExecutable,
-    Symlink,
-    NotSymlink,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunType {
     Check(CheckType),

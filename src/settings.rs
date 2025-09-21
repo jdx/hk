@@ -440,28 +440,63 @@ impl Settings {
     fn collect_pkl_map() -> SourceMap {
         let mut map: SourceMap = SourceMap::new();
         if let Ok(cfg) = crate::config::Config::get() {
-            // Direct fields available on Config
-            if let Some(v) = cfg.fail_fast {
-                map.insert("fail_fast", SettingValue::Bool(v));
+            // Convert config to JSON for dynamic field access
+            if let Ok(config_json) = serde_json::to_value(&cfg) {
+                // Iterate over all settings that have PKL sources
+                for (setting_name, meta) in generated::SETTINGS_META.iter() {
+                    if !meta.sources.pkl.is_empty() {
+                        // Convert setting_name from kebab-case to snake_case for JSON field lookup
+                        let field_name = setting_name.replace('-', "_");
+
+                        if let Some(value) = config_json.get(&field_name) {
+                            // Convert JSON value to SettingValue based on type
+                            match (meta.typ, value) {
+                                ("bool", serde_json::Value::Bool(b)) => {
+                                    map.insert(setting_name, SettingValue::Bool(*b));
+                                }
+                                ("usize", serde_json::Value::Number(n)) => {
+                                    if let Some(u) =
+                                        n.as_u64().and_then(|u| usize::try_from(u).ok())
+                                    {
+                                        map.insert(setting_name, SettingValue::Usize(u));
+                                    }
+                                }
+                                ("u8", serde_json::Value::Number(n)) => {
+                                    if let Some(u) = n.as_u64().and_then(|u| u8::try_from(u).ok()) {
+                                        map.insert(setting_name, SettingValue::U8(u));
+                                    }
+                                }
+                                ("string" | "enum", serde_json::Value::String(s)) => {
+                                    map.insert(setting_name, SettingValue::String(s.clone()));
+                                }
+                                ("path", serde_json::Value::String(s)) => {
+                                    map.insert(setting_name, SettingValue::Path(s.into()));
+                                }
+                                (typ, serde_json::Value::Array(arr))
+                                    if typ.starts_with("list<string>") =>
+                                {
+                                    let strings: IndexSet<String> = arr
+                                        .iter()
+                                        .filter_map(|v| v.as_str())
+                                        .map(|s| s.to_string())
+                                        .collect();
+                                    map.insert(setting_name, SettingValue::StringList(strings));
+                                }
+                                (typ, serde_json::Value::String(s))
+                                    if typ.starts_with("list<string>") =>
+                                {
+                                    // Handle StringOrList serialized as a single string
+                                    let strings: IndexSet<String> = IndexSet::from([s.clone()]);
+                                    map.insert(setting_name, SettingValue::StringList(strings));
+                                }
+                                _ => {
+                                    // Skip values that don't match expected types or are null
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            if let Some(v) = cfg.display_skip_reasons {
-                let set: IndexSet<String> = v.into_iter().collect();
-                map.insert("display_skip_reasons", SettingValue::StringList(set));
-            }
-            if let Some(v) = cfg.hide_warnings {
-                let set: IndexSet<String> = v.into_iter().collect();
-                map.insert("hide_warnings", SettingValue::StringList(set));
-            }
-            if let Some(v) = cfg.warnings {
-                let set: IndexSet<String> = v.into_iter().collect();
-                map.insert("warnings", SettingValue::StringList(set));
-            }
-            if let Some(v) = cfg.exclude {
-                let set: IndexSet<String> = v.into_iter().collect();
-                map.insert("exclude", SettingValue::StringList(set));
-            }
-            // Project defaults or other nested values could be handled via serde_json path lookup if needed in future
-            let _ = cfg; // suppress unused warning in some builds
         }
         map
     }

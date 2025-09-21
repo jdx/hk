@@ -57,7 +57,7 @@ impl StepGroup {
             .fold(vec![], |mut groups, step| {
                 match step {
                     StepOrGroup::Group(group) => {
-                        groups.push((*group).steps);
+                        groups.push(group.steps);
                     }
                     StepOrGroup::Step(step) => {
                         if step.exclusive || groups.is_empty() {
