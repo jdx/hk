@@ -137,7 +137,7 @@ impl Settings {
     /// Build settings from all sources using the canonical path
     fn build_from_all_sources() -> Result<Settings, eyre::Error> {
         let defaults = generated::settings::Settings::default();
-        let env_map = Self::collect_env_map();
+        let env_map = Self::collect_env_map()?;
         let git_map = Self::collect_git_map()?;
         let pkl_map = Self::collect_pkl_map()?;
         let cli_map = Self::collect_cli_map();
@@ -320,7 +320,7 @@ impl Settings {
         )
     }
 
-    fn collect_env_map() -> SourceMap {
+    fn collect_env_map() -> Result<SourceMap, eyre::Error> {
         let mut map: SourceMap = SourceMap::new();
         for (setting_name, meta) in generated::SETTINGS_META.iter() {
             for env_var in meta.sources.env {
@@ -332,14 +332,24 @@ impl Settings {
                             map.insert(setting_name, SettingValue::Bool(parsed));
                         }
                         "usize" => {
-                            if let Ok(n) = val.parse::<usize>() {
-                                map.insert(setting_name, SettingValue::Usize(n));
-                            }
+                            let n = val.parse::<usize>().map_err(|_| {
+                                eyre::eyre!(
+                                    "Invalid value for {}: '{}' (expected positive integer)",
+                                    env_var,
+                                    val
+                                )
+                            })?;
+                            map.insert(setting_name, SettingValue::Usize(n));
                         }
                         "u8" => {
-                            if let Ok(n) = val.parse::<u8>() {
-                                map.insert(setting_name, SettingValue::U8(n));
-                            }
+                            let n = val.parse::<u8>().map_err(|_| {
+                                eyre::eyre!(
+                                    "Invalid value for {}: '{}' (expected integer 0-255)",
+                                    env_var,
+                                    val
+                                )
+                            })?;
+                            map.insert(setting_name, SettingValue::U8(n));
                         }
                         t if t.starts_with("list<string>") => {
                             let items: IndexSet<String> = val
@@ -361,7 +371,7 @@ impl Settings {
                 }
             }
         }
-        map
+        Ok(map)
     }
 
     fn collect_git_map() -> Result<SourceMap, eyre::Error> {
@@ -560,7 +570,7 @@ impl Settings {
             .get(field_name.as_str())
             .ok_or_else(|| eyre::eyre!("Unknown configuration key: {}", key))?;
 
-        let env_map = Self::collect_env_map();
+        let env_map = Self::collect_env_map()?;
         let git_map = Self::collect_git_map()?;
         let pkl_map = Self::collect_pkl_map()?;
         let cli_map = Self::collect_cli_map();
