@@ -76,8 +76,8 @@ hooks {
 EOF
 }
 
-@test "cache can be disabled for specific tests" {
-    _disable_test_cache
+@test "cache can be disabled with HK_CACHE=0" {
+    export HK_CACHE=0
 
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -90,12 +90,14 @@ hooks {
 }
 EOF
 
+    # Clear any existing cache
+    rm -rf "$HK_CACHE_DIR" 2>/dev/null || true
+
     run hk validate
     assert_success
 
-    # Note: Cache directory may exist but should be empty or minimal
-    # Since disabling cache in our implementation just points to a temp location
-    # that gets cleared, we can't fully prevent cache creation
+    # With HK_CACHE=0, cache should not be used (but file may still be written)
+    # The key test is that changes aren't cached
 }
 
 

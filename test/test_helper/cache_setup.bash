@@ -2,47 +2,30 @@
 
 # Helper functions for managing cache in tests
 #
-# Environment variables:
-#   HK_TEST_CACHE_DISABLED=1     - Disable test caching entirely (forces fresh pkl evaluation)
-#   HK_TEST_CACHE_DIR=/path      - Override the test cache directory location
-#   HK_TEST_CACHE_NO_CLEANUP=1   - Disable automatic cleanup of stale cache entries
-#
-# By default, caching is enabled and uses /tmp/hk-test-cache
+# The test framework enables caching by setting HK_CACHE=1
+# This overrides the default behavior (cache disabled in debug builds)
 
-# Enable persistent cache for tests (shared across test runs)
-# This significantly speeds up tests by reusing parsed pkl configs
-_enable_persistent_test_cache() {
-    # Check if caching should be disabled via environment variable
-    if [ "${HK_TEST_CACHE_DISABLED:-}" = "1" ] || [ "${HK_TEST_CACHE_DISABLED:-}" = "true" ]; then
-        _disable_test_cache
-        return
-    fi
-
-    # Enable caching even in debug builds (for tests)
-    export HK_TEST_CACHE_ENABLED=1
+# Enable cache for tests
+_enable_test_cache() {
+    # Enable caching (overrides debug build default)
+    export HK_CACHE=1
 
     # Use a persistent cache directory in the system temp folder
-    # This survives between test runs but is still in a temp location
-    export HK_CACHE_DIR="${HK_TEST_CACHE_DIR:-${BATS_TEST_TMPDIR:-/tmp}/hk-test-cache}"
+    # This survives between test runs for performance
+    export HK_CACHE_DIR="${BATS_TEST_TMPDIR:-/tmp}/hk-test-cache"
 
     # Create the cache directory if it doesn't exist
     mkdir -p "$HK_CACHE_DIR"
 
-    # Optionally clear stale cache entries (older than 1 day)
-    # Can be disabled with HK_TEST_CACHE_NO_CLEANUP=1
-    if [ "${HK_TEST_CACHE_NO_CLEANUP:-}" != "1" ] && command -v find >/dev/null 2>&1; then
+    # Clear stale cache entries (older than 1 day)
+    if command -v find >/dev/null 2>&1; then
         find "$HK_CACHE_DIR" -type f -mtime +1 -delete 2>/dev/null || true
     fi
 }
 
-# Note: Isolated cache function was removed as it's redundant
-# BATS_TEST_TMPDIR is already unique per test run, providing isolation
-
-# Disable cache completely (force fresh pkl evaluation every time)
+# Disable cache for specific tests
 _disable_test_cache() {
-    # Point cache to /dev/null or a directory we immediately delete
-    export HK_CACHE_DIR="$TEST_TEMP_DIR/.no-cache"
-    rm -rf "$HK_CACHE_DIR" 2>/dev/null || true
+    export HK_CACHE=0
 }
 
 # Clear the test cache

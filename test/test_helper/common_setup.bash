@@ -33,9 +33,9 @@ _common_setup() {
     # Add hk to PATH (assuming it's installed)
     PATH="$(dirname $BATS_TEST_DIRNAME)/target/debug:$PATH"
 
-    # Enable persistent test cache by default for better performance
-    # Individual tests can override this by calling _disable_test_cache or _enable_isolated_test_cache
-    _enable_persistent_test_cache
+    # Enable test cache by default for better performance
+    # Individual tests can override this by calling _disable_test_cache
+    _enable_test_cache
 }
 
 _common_teardown() {

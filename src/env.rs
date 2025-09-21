@@ -62,6 +62,14 @@ pub static HK_SKIP_STEPS: LazyLock<IndexSet<String>> = LazyLock::new(|| {
 // When true, allow output summaries to be printed in text mode
 pub static HK_SUMMARY_TEXT: LazyLock<bool> = LazyLock::new(|| var_true("HK_SUMMARY_TEXT"));
 
+// Cache control - defaults to enabled in release builds, disabled in debug builds
+// Can be overridden with HK_CACHE=1 or HK_CACHE=0
+pub static HK_CACHE: LazyLock<bool> = LazyLock::new(|| {
+    var("HK_CACHE")
+        .map(|_| !var_false("HK_CACHE"))
+        .unwrap_or(!cfg!(debug_assertions)) // Default: enabled in release, disabled in debug
+});
+
 // Tracing configuration
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TraceMode {

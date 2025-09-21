@@ -20,48 +20,44 @@ bats test/check.bats --filter "check files"
 
 ## Test Caching
 
-To improve test performance, the test suite uses a persistent cache for parsed PKL configurations. This cache survives between test runs and significantly speeds up test execution.
+To improve test performance, the test suite enables caching for parsed PKL configurations. The test framework automatically sets `HK_CACHE=1` to enable caching (which is disabled by default in debug builds).
+
+### How It Works
+
+- `HK_CACHE` environment variable controls caching behavior
+- In release builds: caching is enabled by default
+- In debug builds: caching is disabled by default
+- Tests override this by setting `HK_CACHE=1`
 
 ### Cache Location
 
-By default, the cache is stored in `/tmp/hk-test-cache`. This location:
+The cache is stored in `/tmp/hk-test-cache` by default. This location:
 - Persists between test runs for performance
 - Gets cleared on system reboot
 - Automatically removes entries older than 1 day
 
-### Environment Variables
-
-You can control caching behavior with these environment variables:
-
-- `HK_TEST_CACHE_DISABLED=1` - Disable test caching entirely (forces fresh PKL evaluation every time)
-- `HK_TEST_CACHE_DIR=/custom/path` - Use a custom cache directory location
-- `HK_TEST_CACHE_NO_CLEANUP=1` - Disable automatic cleanup of stale cache entries
-- `HK_TEST_CACHE_ENABLED=1` - Automatically set by the test framework to enable caching in debug builds
-
-### Examples
+### Manual Control
 
 ```bash
 # Run tests without cache (useful for debugging)
-HK_TEST_CACHE_DISABLED=1 mise run test:bats
+HK_CACHE=0 mise run test:bats
 
-# Use a custom cache directory
-HK_TEST_CACHE_DIR=/tmp/my-cache mise run test:bats
+# Run hk with cache enabled in debug build
+HK_CACHE=1 hk validate
 
-# Keep all cache entries (no cleanup)
-HK_TEST_CACHE_NO_CLEANUP=1 mise run test:bats
+# Clear the cache manually
+rm -rf /tmp/hk-test-cache
 ```
 
 ### Per-Test Cache Control
 
-Individual tests can also control caching:
+Individual tests can control caching:
 
 ```bash
 # In a test file
-_disable_test_cache           # Disable cache for this test
-_clear_test_cache             # Clear the cache
+_disable_test_cache   # Sets HK_CACHE=0 for this test
+_clear_test_cache     # Clear the cache directory
 ```
-
-Note: Test isolation is already provided by BATS - each test run gets its own temporary directory (`BATS_TEST_TMPDIR`).
 
 ## Writing Tests
 
