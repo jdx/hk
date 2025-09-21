@@ -869,9 +869,9 @@ Example: `HK_DISPLAY_SKIP_REASONS=all` to see all skip reasons.
 
 - Type: `list<string>`
 - Sources:
-  - CLI: `--exclude`, `--exclude-glob`, `-e`
+  - CLI: `--exclude`, `-e`
   - ENV: `HK_EXCLUDE`
-  - Git: `hk.exclude`, `hk.excludeGlob`
+  - Git: `hk.exclude`
   - Pkl: `exclude`
 
 Glob patterns to exclude from processing. These patterns are **unioned** with exclude patterns from other configuration sources (git config, user config, project config). Supports both directory names and glob patterns.

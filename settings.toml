@@ -74,9 +74,9 @@ Example: `HK_DISPLAY_SKIP_REASONS=all` to see all skip reasons.
 [exclude]
 type = "list<string>"
 merge = "union"
-sources.cli = ["--exclude", "--exclude-glob", "-e"]
+sources.cli = ["--exclude", "-e"]
 sources.env = ["HK_EXCLUDE"]
-sources.git = ["hk.exclude", "hk.excludeGlob"]
+sources.git = ["hk.exclude"]
 sources.pkl = ["exclude", "defaults.exclude"]
 docs = """
 Glob patterns to exclude from processing. These patterns are **unioned** with exclude patterns from other configuration sources (git config, user config, project config). Supports both directory names and glob patterns.

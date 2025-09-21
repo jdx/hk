@@ -735,11 +735,6 @@ impl Hook {
             all_excludes.extend(cli_excludes.iter().cloned());
         }
 
-        // Add CLI --exclude-glob patterns (they're all globs now)
-        if let Some(cli_exclude_globs) = &opts.exclude_glob {
-            all_excludes.extend(cli_exclude_globs.iter().cloned());
-        }
-
         if !all_excludes.is_empty() {
             // Process excludes - handle both directory patterns and glob patterns
             debug!(

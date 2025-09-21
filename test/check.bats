@@ -128,7 +128,7 @@ EOF
     git init
     git add .
     git commit -m "initial commit"
-    run hk check --all --exclude-glob "*.ts" --exclude-glob "hk.pkl"
+    run hk check --all --exclude "*.ts" --exclude "hk.pkl"
     assert_success
     assert_output --partial "checking test.js"
 }

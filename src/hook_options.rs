@@ -18,9 +18,6 @@ pub(crate) struct HookOptions {
     /// Exclude files that otherwise would have been selected
     #[clap(short, long, value_hint = clap::ValueHint::FilePath)]
     pub exclude: Option<Vec<String>>,
-    /// Exclude files that match these glob patterns that otherwise would have been selected
-    #[clap(long, value_hint = clap::ValueHint::FilePath)]
-    pub exclude_glob: Option<Vec<String>>,
     /// Start reference for checking files (requires --to-ref)
     #[clap(long)]
     pub from_ref: Option<String>,
