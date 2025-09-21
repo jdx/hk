@@ -31,10 +31,6 @@ Run run command instead of fix command
 
 Exclude files that otherwise would have been selected
 
-### `--exclude-glob… <EXCLUDE_GLOB>`
-
-Exclude files that match these glob patterns that otherwise would have been selected
-
 ### `--from-ref <FROM_REF>`
 
 Start reference for checking files (requires --to-ref)

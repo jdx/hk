@@ -115,24 +115,6 @@
             }
           },
           {
-            "name": "exclude-glob",
-            "usage": "--exclude-glob… <EXCLUDE_GLOB>",
-            "help": "Exclude files that match these glob patterns that otherwise would have been selected",
-            "help_first_line": "Exclude files that match these glob patterns that otherwise would have been selected",
-            "short": [],
-            "long": ["exclude-glob"],
-            "var": true,
-            "hide": false,
-            "global": false,
-            "arg": {
-              "name": "EXCLUDE_GLOB",
-              "usage": "<EXCLUDE_GLOB>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
-          },
-          {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
             "help": "Start reference for checking files (requires --to-ref)",
@@ -487,24 +469,6 @@
             }
           },
           {
-            "name": "exclude-glob",
-            "usage": "--exclude-glob… <EXCLUDE_GLOB>",
-            "help": "Exclude files that match these glob patterns that otherwise would have been selected",
-            "help_first_line": "Exclude files that match these glob patterns that otherwise would have been selected",
-            "short": [],
-            "long": ["exclude-glob"],
-            "var": true,
-            "hide": false,
-            "global": false,
-            "arg": {
-              "name": "EXCLUDE_GLOB",
-              "usage": "<EXCLUDE_GLOB>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
-          },
-          {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
             "help": "Start reference for checking files (requires --to-ref)",
@@ -792,24 +756,6 @@
                 }
               },
               {
-                "name": "exclude-glob",
-                "usage": "--exclude-glob… <EXCLUDE_GLOB>",
-                "help": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "help_first_line": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "short": [],
-                "long": ["exclude-glob"],
-                "var": true,
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "EXCLUDE_GLOB",
-                  "usage": "<EXCLUDE_GLOB>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
                 "help": "Start reference for checking files (requires --to-ref)",
@@ -1015,24 +961,6 @@
                 "arg": {
                   "name": "EXCLUDE",
                   "usage": "<EXCLUDE>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
-                "name": "exclude-glob",
-                "usage": "--exclude-glob… <EXCLUDE_GLOB>",
-                "help": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "help_first_line": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "short": [],
-                "long": ["exclude-glob"],
-                "var": true,
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "EXCLUDE_GLOB",
-                  "usage": "<EXCLUDE_GLOB>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -1263,24 +1191,6 @@
                 "arg": {
                   "name": "EXCLUDE",
                   "usage": "<EXCLUDE>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
-                "name": "exclude-glob",
-                "usage": "--exclude-glob… <EXCLUDE_GLOB>",
-                "help": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "help_first_line": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "short": [],
-                "long": ["exclude-glob"],
-                "var": true,
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "EXCLUDE_GLOB",
-                  "usage": "<EXCLUDE_GLOB>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -1525,24 +1435,6 @@
                 }
               },
               {
-                "name": "exclude-glob",
-                "usage": "--exclude-glob… <EXCLUDE_GLOB>",
-                "help": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "help_first_line": "Exclude files that match these glob patterns that otherwise would have been selected",
-                "short": [],
-                "long": ["exclude-glob"],
-                "var": true,
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "EXCLUDE_GLOB",
-                  "usage": "<EXCLUDE_GLOB>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
                 "help": "Start reference for checking files (requires --to-ref)",
@@ -1752,24 +1644,6 @@
             "arg": {
               "name": "EXCLUDE",
               "usage": "<EXCLUDE>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
-          },
-          {
-            "name": "exclude-glob",
-            "usage": "--exclude-glob… <EXCLUDE_GLOB>",
-            "help": "Exclude files that match these glob patterns that otherwise would have been selected",
-            "help_first_line": "Exclude files that match these glob patterns that otherwise would have been selected",
-            "short": [],
-            "long": ["exclude-glob"],
-            "var": true,
-            "hide": false,
-            "global": false,
-            "arg": {
-              "name": "EXCLUDE_GLOB",
-              "usage": "<EXCLUDE_GLOB>",
               "required": true,
               "double_dash": "Optional",
               "hide": false
@@ -2178,7 +2052,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.15.2",
+  "version": "1.15.3",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

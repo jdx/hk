@@ -1,6 +1,17 @@
 # Changelog
 
+## [1.15.3](https://github.com/jdx/hk/compare/v1.15.2..v1.15.3) - 2025-09-21
+
+### 🐛 Bug Fixes
+
+- prevent duplicate _type fields in JSON cache for groups by [@jdx](https://github.com/jdx) in [#297](https://github.com/jdx/hk/pull/297)
+- add top-level exclude property to hk.pkl by [@jdx](https://github.com/jdx) in [#299](https://github.com/jdx/hk/pull/299)
+
 ## [1.15.2](https://github.com/jdx/hk/compare/v1.15.1..v1.15.2) - 2025-09-20
+
+### 🐛 Bug Fixes
+
+- prettier bugs; stash/unstash robustness; preserve EOF newline by [@jdx](https://github.com/jdx) in [#293](https://github.com/jdx/hk/pull/293)
 
 ### 📚 Documentation
 
