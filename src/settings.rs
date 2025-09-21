@@ -456,6 +456,13 @@ impl Settings {
                 let set: IndexSet<String> = v.into_iter().collect();
                 map.insert("warnings", SettingValue::StringList(set));
             }
+            if let Some(v) = &cfg.exclude {
+                let set: IndexSet<String> = match v {
+                    crate::config::StringOrList::String(s) => IndexSet::from([s.clone()]),
+                    crate::config::StringOrList::List(list) => list.iter().cloned().collect(),
+                };
+                map.insert("exclude", SettingValue::StringList(set));
+            }
             // Project defaults or other nested values could be handled via serde_json path lookup if needed in future
             let _ = cfg; // suppress unused warning in some builds
         }
