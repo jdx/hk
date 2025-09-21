@@ -108,7 +108,13 @@ where
     {
         let val = self.cache.get_or_try_init(|| {
             let path = &self.cache_file_path;
-            if self.is_fresh() && !cfg!(debug_assertions) {
+            // Allow caching in tests if HK_TEST_CACHE_ENABLED is set, even with debug assertions
+            let cache_enabled = if cfg!(debug_assertions) {
+                std::env::var("HK_TEST_CACHE_ENABLED").is_ok()
+            } else {
+                true
+            };
+            if self.is_fresh() && cache_enabled {
                 match self.parse() {
                     Ok(val) => {
                         tracing::event!(tracing::Level::INFO, "cache.hit");

@@ -36,6 +36,7 @@ You can control caching behavior with these environment variables:
 - `HK_TEST_CACHE_DISABLED=1` - Disable test caching entirely (forces fresh PKL evaluation every time)
 - `HK_TEST_CACHE_DIR=/custom/path` - Use a custom cache directory location
 - `HK_TEST_CACHE_NO_CLEANUP=1` - Disable automatic cleanup of stale cache entries
+- `HK_TEST_CACHE_ENABLED=1` - Automatically set by the test framework to enable caching in debug builds
 
 ### Examples
 
@@ -57,9 +58,10 @@ Individual tests can also control caching:
 ```bash
 # In a test file
 _disable_test_cache           # Disable cache for this test
-_enable_isolated_test_cache   # Use isolated cache for this test file
 _clear_test_cache             # Clear the cache
 ```
+
+Note: Test isolation is already provided by BATS - each test run gets its own temporary directory (`BATS_TEST_TMPDIR`).
 
 ## Writing Tests
 

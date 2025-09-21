@@ -18,6 +18,9 @@ _enable_persistent_test_cache() {
         return
     fi
 
+    # Enable caching even in debug builds (for tests)
+    export HK_TEST_CACHE_ENABLED=1
+
     # Use a persistent cache directory in the system temp folder
     # This survives between test runs but is still in a temp location
     export HK_CACHE_DIR="${HK_TEST_CACHE_DIR:-${BATS_TEST_TMPDIR:-/tmp}/hk-test-cache}"
@@ -32,14 +35,8 @@ _enable_persistent_test_cache() {
     fi
 }
 
-# Enable isolated cache for a specific test file
-# Useful when tests might interfere with each other's cache
-_enable_isolated_test_cache() {
-    # Use a cache directory specific to this test file
-    local test_file_hash=$(echo "$BATS_TEST_FILENAME" | shasum -a 256 | cut -d' ' -f1 | head -c 8)
-    export HK_CACHE_DIR="${TEST_TEMP_DIR:-/tmp}/hk-cache-${test_file_hash}"
-    mkdir -p "$HK_CACHE_DIR"
-}
+# Note: Isolated cache function was removed as it's redundant
+# BATS_TEST_TMPDIR is already unique per test run, providing isolation
 
 # Disable cache completely (force fresh pkl evaluation every time)
 _disable_test_cache() {

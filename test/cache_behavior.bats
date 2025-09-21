@@ -12,15 +12,13 @@ teardown() {
 }
 
 @test "cache is enabled and speeds up repeated config loads" {
-    # Create a complex pkl config that takes time to parse
+    # Create a pkl config
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["step1"] { shell = "echo step1" }
-            ["step2"] { shell = "echo step2" }
-            ["step3"] { shell = "echo step3" }
         }
     }
 }
@@ -32,34 +30,50 @@ EOF
 
     # Check that cache was created
     [ -d "$HK_CACHE_DIR" ]
-    [ -n "$(find "$HK_CACHE_DIR" -name "*.json" -type f 2>/dev/null)" ]
+    cache_file=$(find "$HK_CACHE_DIR" -name "*.json" -type f 2>/dev/null | head -1)
+    [ -n "$cache_file" ]
 
-    # Get cache stats for debugging
-    _test_cache_stats >&2
+    # Save the original mtime of hk.pkl
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        orig_mtime=$(stat -f %m hk.pkl)
+    else
+        orig_mtime=$(stat -c %Y hk.pkl)
+    fi
 
-    # Second run - should use cache (much faster)
+    # Temporarily rename the pkl file - cache should still work
+    mv hk.pkl hk.pkl.moved
+    run hk validate
+    assert_failure  # Should fail - no pkl file found
+
+    # Restore the file with original content but broken
+    echo "BROKEN SYNTAX" > hk.pkl
+
+    # Set mtime back to original (cache thinks file unchanged)
+    touch -t $(date -r "$orig_mtime" "+%Y%m%d%H%M.%S" 2>/dev/null || date -d "@$orig_mtime" "+%Y%m%d%H%M.%S") hk.pkl 2>/dev/null || true
+
+    # Should succeed using cache (ignoring broken file content)
     run hk validate
     assert_success
 
-    # Verify the config is actually being used from cache
-    # by checking that it still works even if we temporarily break the pkl file
-    # (the cache should still be valid since the file hasn't been modified)
-    cp hk.pkl hk.pkl.backup
-    echo "INVALID PKL SYNTAX" > hk.pkl.tmp
-    # Don't actually overwrite yet, just prepare
+    # Now update mtime to current time
+    touch hk.pkl
 
-    # The cache should still work with the original mtime
-    run hk validate
-    assert_success
-
-    # Now actually modify the file (changes mtime) with invalid content
-    mv hk.pkl.tmp hk.pkl
+    # Should fail now - cache invalidated, reads broken file
     run hk validate
     assert_failure
     assert_output --partial "Failed to read config file"
 
-    # Restore the file
-    mv hk.pkl.backup hk.pkl
+    # Restore valid content
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["step1"] { shell = "echo step1" }
+        }
+    }
+}
+EOF
 }
 
 @test "cache can be disabled for specific tests" {
@@ -84,27 +98,6 @@ EOF
     # that gets cleared, we can't fully prevent cache creation
 }
 
-@test "isolated cache works for test-specific caching" {
-    _enable_isolated_test_cache
-
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["test"] { shell = "echo isolated" }
-        }
-    }
-}
-EOF
-
-    run hk validate
-    assert_success
-
-    # Check that isolated cache was created
-    [[ "$HK_CACHE_DIR" == *"hk-cache-"* ]]
-    [ -d "$HK_CACHE_DIR" ]
-}
 
 @test "cache correctly invalidates when pkl file changes" {
     cat <<EOF > hk.pkl
