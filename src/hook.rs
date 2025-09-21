@@ -719,7 +719,14 @@ impl Hook {
         // Add config exclude patterns
         if let Ok(config) = crate::config::Config::get() {
             if let Some(config_excludes) = &config.exclude {
-                all_excludes.extend(config_excludes.iter().cloned());
+                match config_excludes {
+                    crate::config::StringOrList::String(s) => {
+                        all_excludes.insert(s.clone());
+                    }
+                    crate::config::StringOrList::List(list) => {
+                        all_excludes.extend(list.iter().cloned())
+                    }
+                }
             }
         }
 
