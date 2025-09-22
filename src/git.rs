@@ -766,7 +766,7 @@ impl Git {
                     let path_str = p.to_string_lossy();
                     // Lightweight size probe for the worktree snapshot stored in the stash
                     let work_size: Option<usize> =
-                        git_cmd(["cat-file", "-s", &format!("stash@{{0}}:{}", path_str)])
+                        git_cmd(["cat-file", "-s", &format!("{}:{}", &stash_ref, path_str)])
                             .read()
                             .ok()
                             .and_then(|s| s.trim().parse::<usize>().ok());
@@ -778,7 +778,8 @@ impl Git {
                             work_size.unwrap_or(0)
                         );
                         if let Ok(contents) =
-                            git_cmd(["cat-file", "-p", &format!("stash@{{0}}:{}", path_str)]).read()
+                            git_cmd(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
+                                .read()
                         {
                             if let Err(err) = xx::file::write(&path, &contents) {
                                 warn!(
@@ -799,7 +800,7 @@ impl Git {
                     }
                     .or_else(|| {
                         // Use `git cat-file -p` to preserve exact blob bytes, including EOF newline state
-                        git_cmd(["cat-file", "-p", &format!("stash@{{0}}:{}", path_str)])
+                        git_cmd(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
                             .read()
                             .ok()
                     });
