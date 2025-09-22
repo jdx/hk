@@ -71,4 +71,9 @@ prepare_repo_with_staged_ts_and_unstaged_lockfile() {
     # The unstaged lockfile change should remain in the worktree
     run bash -lc "git diff --name-only"
     assert_line 'pnpm-lock.yaml'
+
+    # Ensure no stash remains after pre-commit completes
+    run bash -lc 'git stash list'
+    assert_success
+    assert_output ""
 }
