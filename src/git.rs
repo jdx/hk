@@ -852,8 +852,36 @@ impl Git {
                     let has_base = base_pre.is_some();
                     let has_fixer = fixer.is_some();
                     let has_work = work_pre.is_some();
-                    let mut merged =
-                        merge::three_way_merge_hunks(base, fixer.as_deref(), work_pre.as_deref());
+                    // Merge relative to the INDEX snapshot at stash time when available.
+                    // This ensures that fixer changes applied to staged content are preserved,
+                    // while unstaged changes (worktree-only diffs relative to index) are kept.
+                    let base_for_merge = index_pre.as_deref().unwrap_or(base);
+                    let mut merged = merge::three_way_merge_hunks(
+                        base_for_merge,
+                        fixer.as_deref(),
+                        work_pre.as_deref(),
+                    );
+
+                    // Special-case: if the only worktree difference relative to the index snapshot
+                    // is a pure tail insertion, prefer the fixer result and append the tail.
+                    if let (Some(f), Some(w), Some(i)) =
+                        (fixer.as_deref(), work_pre.as_deref(), index_pre.as_deref())
+                    {
+                        // Try strict prefix first
+                        let mut tail_opt = w.strip_prefix(i);
+                        // If that fails, allow a single trailing newline discrepancy
+                        if tail_opt.is_none() && i.ends_with('\n') {
+                            tail_opt = w.strip_prefix(&i[..i.len().saturating_sub(1)]);
+                        }
+                        if let Some(tail) = tail_opt {
+                            // If w == i (no tail), tail is empty; otherwise append tail to fixer
+                            let mut combined = f.to_string();
+                            if !tail.is_empty() {
+                                combined.push_str(tail);
+                            }
+                            merged = combined;
+                        }
+                    }
 
                     // Preserve newline-only difference between worktree and index from stash time
                     // Compare the worktree snapshot against the INDEX snapshot from stash time
@@ -898,9 +926,20 @@ impl Git {
                         }
                         _ => false,
                     };
+                    // Preserve EOF newline-only differences without discarding fixer changes.
                     if newline_only_change {
-                        if let Some(w) = work_pre.as_ref() {
-                            merged = w.clone();
+                        if let (Some(w), Some(i)) = (work_pre.as_deref(), index_pre.as_deref()) {
+                            let w_has_nl = w.ends_with('\n');
+                            let i_has_nl = i.ends_with('\n');
+                            if w_has_nl && !i_has_nl {
+                                if !merged.ends_with('\n') {
+                                    merged.push('\n');
+                                }
+                            } else if !w_has_nl && i_has_nl {
+                                while merged.ends_with('\n') {
+                                    merged.pop();
+                                }
+                            }
                         }
                     }
 
