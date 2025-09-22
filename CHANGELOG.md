@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.4](https://github.com/jdx/hk/compare/v1.15.3..v1.15.4) - 2025-09-22
+
+### 🐛 Bug Fixes
+
+- scope staging to step job files to avoid unrelated file commits; add lockfile regression test by [@jdx](https://github.com/jdx) in [#300](https://github.com/jdx/hk/pull/300)
+
 ## [1.15.3](https://github.com/jdx/hk/compare/v1.15.2..v1.15.3) - 2025-09-21
 
 ### 🐛 Bug Fixes
