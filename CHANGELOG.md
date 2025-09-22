@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.5](https://github.com/jdx/hk/compare/v1.15.4..v1.15.5) - 2025-09-22
+
+### 🐛 Bug Fixes
+
+- ensure stash cleanup by [@jdx](https://github.com/jdx) in [#302](https://github.com/jdx/hk/pull/302)
+
 ## [1.15.4](https://github.com/jdx/hk/compare/v1.15.3..v1.15.4) - 2025-09-22
 
 ### 🐛 Bug Fixes
