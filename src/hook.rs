@@ -466,12 +466,9 @@ impl Hook {
             {
                 let mut r = repo.lock().await;
                 r.capture_index(&files_vec)?;
-                r.stash_unstaged(
-                    &file_progress,
-                    stash_method,
-                    &git_status,
-                    Some(&files_vec[..]),
-                )?;
+                // Stash ALL unstaged changes in the repository (not only files under consideration)
+                // so that unrelated worktree changes do not affect or get affected by fixers.
+                r.stash_unstaged(&file_progress, stash_method, &git_status)?;
             }
         }
 
