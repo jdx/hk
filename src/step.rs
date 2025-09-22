@@ -380,6 +380,12 @@ impl Step {
             // for the step so the total does not exceed the number of completions.
             ctx.hook_ctx.dec_total_jobs(1);
         }
+        // Capture the full set of files this step will actually operate on across all jobs.
+        // We'll use this to scope staging so that broad stage globs (e.g., prettier's *.yaml)
+        // cannot rope unrelated, non-job files into the index.
+        let all_job_files: indexmap::IndexSet<PathBuf> =
+            jobs.iter().flat_map(|j| j.files.clone()).collect();
+
         let mut set = tokio::task::JoinSet::new();
         for job in jobs {
             let ctx = ctx.clone();
@@ -499,11 +505,36 @@ impl Step {
                     .lock()
                     .await
                     .status(Some(&stage_pathspecs))?;
-                let files = status.unstaged_files.into_iter().collect_vec();
-                trace!("{}: unstaged files from status: {:?}", self, &files);
-                // Post-filter using our glob matcher to be robust across git backends
-                let filtered = glob::get_matches(&stage_globs, &files)?;
-                trace!("{}: files to stage after filtering: {:?}", self, &filtered);
+
+                // Build a scoped candidate set:
+                //  - Include only files that this step actually operated on (union of job files)
+                //  - Additionally include any explicit, non-glob stage paths (to allow generators)
+                let is_globlike = |s: &str| s.contains('*') || s.contains('?') || s.contains('[');
+                let mut candidates: indexmap::IndexSet<PathBuf> = all_job_files.clone();
+                for pat in &stage_globs {
+                    if !is_globlike(pat) {
+                        let p = PathBuf::from(pat);
+                        if p.exists() {
+                            candidates.insert(p);
+                        }
+                    }
+                }
+
+                // Intersect candidates with currently-unstaged files for this pathspec set
+                let unstaged_vec = status.unstaged_files.into_iter().collect_vec();
+                let candidate_vec = candidates.into_iter().collect_vec();
+                let matched_candidates = glob::get_matches(&stage_globs, &candidate_vec)?;
+                // Now keep only those that are actually unstaged
+                let unstaged_set: indexmap::IndexSet<PathBuf> = unstaged_vec.into_iter().collect();
+                let filtered = matched_candidates
+                    .into_iter()
+                    .filter(|p| unstaged_set.contains(p))
+                    .collect_vec();
+
+                trace!(
+                    "{}: files to stage after filtering/scoping: {:?}",
+                    self, &filtered
+                );
                 if !filtered.is_empty() {
                     // Only stage matched files; do NOT unstage other previously-staged files.
                     // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
