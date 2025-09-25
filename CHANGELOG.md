@@ -1,10 +1,17 @@
 # Changelog
 
+## [1.15.6](https://github.com/jdx/hk/compare/v1.15.5..v1.15.6) - 2025-09-25
+
+### 🐛 Bug Fixes
+
+- issue with generated file staging by [@jdx](https://github.com/jdx) in [#307](https://github.com/jdx/hk/pull/307)
+
 ## [1.15.5](https://github.com/jdx/hk/compare/v1.15.4..v1.15.5) - 2025-09-22
 
 ### 🐛 Bug Fixes
 
 - ensure stash cleanup by [@jdx](https://github.com/jdx) in [#302](https://github.com/jdx/hk/pull/302)
+- restore unstaged over fixer regression by [@jdx](https://github.com/jdx) in [#304](https://github.com/jdx/hk/pull/304)
 
 ## [1.15.4](https://github.com/jdx/hk/compare/v1.15.3..v1.15.4) - 2025-09-22
 
