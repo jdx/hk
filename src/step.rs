@@ -522,6 +522,9 @@ impl Step {
 
                 // Intersect candidates with currently-unstaged files for this pathspec set
                 let unstaged_vec = status.unstaged_files.into_iter().collect_vec();
+                for path in &unstaged_vec {
+                    candidates.insert(path.clone());
+                }
                 let candidate_vec = candidates.into_iter().collect_vec();
                 let matched_candidates = glob::get_matches(&stage_globs, &candidate_vec)?;
                 // Now keep only those that are actually unstaged
