@@ -342,7 +342,7 @@ name = "clx"
 version = "0.2.19"
 dependencies = [
  "console 0.16.1",
- "indicatif 0.18.0",
+ "indicatif",
  "log",
  "nix",
  "serde",
@@ -409,7 +409,6 @@ dependencies = [
  "encode_unicode",
  "libc",
  "once_cell",
- "unicode-width 0.2.1",
  "windows-sys 0.59.0",
 ]
 
@@ -714,9 +713,9 @@ name = "ensembler"
 version = "0.2.11"
 dependencies = [
  "clx",
- "console 0.15.11",
+ "console 0.16.1",
  "indexmap 2.11.4",
- "indicatif 0.17.11",
+ "indicatif",
  "itertools",
  "log",
  "nix",
@@ -1485,19 +1484,6 @@ dependencies = [
 
 [[package]]
 name = "indicatif"
-version = "0.17.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "183b3088984b400f4cfac3620d5e076c84da5364016b4f49473de574b2586235"
-dependencies = [
- "console 0.15.11",
- "number_prefix",
- "portable-atomic",
- "unicode-width 0.2.1",
- "web-time",
-]
-
-[[package]]
-name = "indicatif"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a646d946d06bedbbc4cac4c218acf4bbf2d87757a784857025f4d447e4e1cd"
@@ -1963,12 +1949,6 @@ dependencies = [
  "hermit-abi",
  "libc",
 ]
-
-[[package]]
-name = "number_prefix"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "object"

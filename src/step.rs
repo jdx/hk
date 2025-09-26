@@ -669,10 +669,12 @@ impl Step {
         } else {
             CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
         };
-        // If output_summary is *_on_fail, buffer output instead of showing it immediately
-        let silent_until_error = self.output_summary.is_on_fail();
         // In text mode, stderr_to_progress doesn't work (no progress bar to update)
         let is_text_mode = clx::progress::output() == clx::progress::ProgressOutput::Text;
+        // If output_summary is *_on_fail, we want to suppress output:
+        // - In text mode: always suppress (via silent_until_error) to avoid duplicates
+        // - In non-text mode: output goes to progress bar which gets overwritten, so no need to suppress
+        let silent_until_error = self.output_summary.is_on_fail() && is_text_mode;
         cmd = cmd
             .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
