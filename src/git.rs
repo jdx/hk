@@ -50,6 +50,15 @@ where
     Ok(git_cmd(args).read()?)
 }
 
+fn git_read_raw<I, S>(args: I) -> Result<String>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let output = git_cmd(args).stdout_capture().run()?;
+    String::from_utf8(output.stdout).map_err(|err| eyre!("git output is not valid UTF-8: {err}"))
+}
+
 pub struct Git {
     repo: Option<Repository>,
     stash: Option<StashType>,
@@ -799,26 +808,18 @@ impl Git {
                         None
                     }
                     .or_else(|| {
-                        // Use `git cat-file -p` to preserve exact blob bytes, including EOF newline state
-                        git_cmd(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
-                            .read()
+                        git_read_raw(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
                             .ok()
                     });
-                    // Parent ^1 of the stash commit points to the HEAD commit at stash time
                     let base_pre =
-                        git_cmd(["cat-file", "-p", &format!("{}^1:{}", &stash_ref, path_str)])
-                            .read()
+                        git_read_raw(["cat-file", "-p", &format!("{}^1:{}", &stash_ref, path_str)])
                             .ok();
-                    // Parent ^2 is the index at stash time. Use this to detect whether the path had
-                    // any unstaged changes then (worktree vs index).
                     let index_pre =
-                        git_cmd(["cat-file", "-p", &format!("{}^2:{}", &stash_ref, path_str)])
-                            .read()
+                        git_read_raw(["cat-file", "-p", &format!("{}^2:{}", &stash_ref, path_str)])
                             .ok();
-                    // Fixer content from saved index blob
                     let fixer = fixer_map
                         .get(&path)
-                        .and_then(|(_, oid)| git_cmd(["cat-file", "-p", oid]).read().ok());
+                        .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok());
 
                     // Trace summaries of inputs for diagnostics (trace-level only)
                     {
