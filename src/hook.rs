@@ -537,9 +537,9 @@ impl Hook {
                     continue;
                 }
                 let label = match mode {
-                    OutputSummary::Stdout => "stdout",
-                    OutputSummary::Stderr => "stderr",
-                    OutputSummary::Combined => "output",
+                    OutputSummary::Stdout | OutputSummary::StdoutOnFail => "stdout",
+                    OutputSummary::Stderr | OutputSummary::StderrOnFail => "stderr",
+                    OutputSummary::Combined | OutputSummary::CombinedOnFail => "output",
                     OutputSummary::Hide => continue,
                 };
                 eprintln!("\n{}", style::ebold(format!("{} {}:", step_name, label)));

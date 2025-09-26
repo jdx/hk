@@ -71,8 +71,9 @@ class Step {
     hide = false
     
     /// Controls which stream(s) to include in the end-of-run summary for this step
-    /// One of: "stdout", "stderr", "combined", "hide"
-    output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
+    /// One of: "stdout", "stderr", "combined", "combined_on_fail", "stderr_on_fail", "stdout_on_fail", "hide"
+    /// *_on_fail options only show output when the command fails (default: combined_on_fail)
+    output_summary: "stdout" | "stderr" | "combined" | "combined_on_fail" | "stderr_on_fail" | "stdout_on_fail" | "hide" = "combined_on_fail"
     
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}

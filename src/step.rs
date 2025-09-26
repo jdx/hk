@@ -92,14 +92,39 @@ pub enum CheckType {
     Diff,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputSummary {
-    #[default]
     Stderr,
     Stdout,
     Combined,
+    #[default]
+    CombinedOnFail,
+    StderrOnFail,
+    StdoutOnFail,
     Hide,
+}
+
+impl OutputSummary {
+    /// Returns true if output should only be shown on failure
+    pub fn is_on_fail(&self) -> bool {
+        matches!(
+            self,
+            OutputSummary::StderrOnFail
+                | OutputSummary::StdoutOnFail
+                | OutputSummary::CombinedOnFail
+        )
+    }
+
+    /// Returns the base output mode (what to capture)
+    pub fn base_mode(&self) -> OutputSummary {
+        match self {
+            OutputSummary::StderrOnFail => OutputSummary::Stderr,
+            OutputSummary::StdoutOnFail => OutputSummary::Stdout,
+            OutputSummary::CombinedOnFail => OutputSummary::Combined,
+            other => *other,
+        }
+    }
 }
 
 impl Step {
@@ -644,12 +669,17 @@ impl Step {
         } else {
             CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
         };
+        // If output_summary is *_on_fail, buffer output instead of showing it immediately
+        let silent_until_error = self.output_summary.is_on_fail();
+        // In text mode, stderr_to_progress doesn't work (no progress bar to update)
+        let is_text_mode = clx::progress::output() == clx::progress::ProgressOutput::Text;
         cmd = cmd
             .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
-            .stderr_to_progress(true);
+            .stderr_to_progress(!is_text_mode)
+            .silent_until_error(silent_until_error);
         if self.interactive {
             clx::progress::pause();
             cmd = cmd
@@ -672,24 +702,29 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
-                // Save output for end-of-run summary based on configured mode
-                match self.output_summary {
-                    OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
-                        &self.name,
-                        OutputSummary::Stderr,
-                        &result.stderr,
-                    ),
-                    OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
-                        &self.name,
-                        OutputSummary::Stdout,
-                        &result.stdout,
-                    ),
-                    OutputSummary::Combined => ctx.hook_ctx.append_step_output(
-                        &self.name,
-                        OutputSummary::Combined,
-                        &result.combined_output,
-                    ),
-                    OutputSummary::Hide => {}
+                // For *_on_fail modes, don't save output on success
+                // For regular modes, save output for end-of-run summary
+                if !self.output_summary.is_on_fail() {
+                    match self.output_summary {
+                        OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Stderr,
+                            &result.stderr,
+                        ),
+                        OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Stdout,
+                            &result.stdout,
+                        ),
+                        OutputSummary::Combined => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Combined,
+                            &result.combined_output,
+                        ),
+                        OutputSummary::Hide => {}
+                        // *_on_fail modes are handled by is_on_fail() check above
+                        _ => {}
+                    }
                 }
             }
             Err(err) => {
@@ -702,8 +737,20 @@ impl Step {
                             stdout,
                         })?;
                     }
-                    // Save output from a failed command as well
-                    match self.output_summary {
+                    // If we were buffering output for *_on_fail, display it now since we failed
+                    if self.output_summary.is_on_fail() {
+                        // Display buffered stderr immediately on failure
+                        if let Some(pr) = &job.progress {
+                            for line in e.3.stderr.lines() {
+                                pr.println(line);
+                            }
+                        }
+                    }
+
+                    // Save output from a failed command
+                    // For *_on_fail modes, use the base mode to determine what to capture
+                    let mode = self.output_summary.base_mode();
+                    match mode {
                         OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
                             &self.name,
                             OutputSummary::Stderr,
@@ -720,6 +767,7 @@ impl Step {
                             &e.3.combined_output,
                         ),
                         OutputSummary::Hide => {}
+                        _ => {}
                     }
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
