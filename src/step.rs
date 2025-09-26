@@ -669,19 +669,13 @@ impl Step {
         } else {
             CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
         };
-        // In text mode, stderr_to_progress doesn't work (no progress bar to update)
-        let is_text_mode = clx::progress::output() == clx::progress::ProgressOutput::Text;
-        // If output_summary is *_on_fail, we want to suppress output:
-        // - In text mode: always suppress (via silent_until_error) to avoid duplicates
-        // - In non-text mode: output goes to progress bar which gets overwritten, so no need to suppress
-        let silent_until_error = self.output_summary.is_on_fail() && is_text_mode;
+        // Always show output as it comes in
+        // Using ensembler defaults (stderr_to_progress=false) which prints output
         cmd = cmd
             .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())
-            .show_stderr_on_error(false)
-            .stderr_to_progress(!is_text_mode)
-            .silent_until_error(silent_until_error);
+            .show_stderr_on_error(false);
         if self.interactive {
             clx::progress::pause();
             cmd = cmd
