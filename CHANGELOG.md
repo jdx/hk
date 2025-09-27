@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.15.7](https://github.com/jdx/hk/compare/v1.15.6..v1.15.7) - 2025-09-27
+
+### 🐛 Bug Fixes
+
+- preserve unstaged content and trailing newlines in git stash operations by [@jdx](https://github.com/jdx) in [#310](https://github.com/jdx/hk/pull/310)
+
 ## [1.15.6](https://github.com/jdx/hk/compare/v1.15.5..v1.15.6) - 2025-09-25
 
 ### 🐛 Bug Fixes
