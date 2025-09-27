@@ -77,7 +77,8 @@ PY'
 
     assert_preserves_newline
 
-    run bash -lc "git show HEAD:sample.txt | tail -n1 | sed -n '\$p'"
+    # Check that the staged file has been formatted (not HEAD which hasn't been committed)
+    run bash -lc "git show :sample.txt"
     assert_success
     assert_output --partial "formatted"
 }
@@ -91,7 +92,8 @@ PY'
 
     assert_preserves_newline
 
-    run bash -lc "git show HEAD:sample.txt | tail -n1 | sed -n '\$p'"
+    # Check that the staged file has been formatted (not HEAD which hasn't been committed)
+    run bash -lc "git show :sample.txt"
     assert_success
     assert_output --partial "formatted"
 }

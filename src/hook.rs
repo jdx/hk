@@ -499,7 +499,7 @@ impl Hook {
             }
         }
 
-        if let Err(err) = repo.lock().await.pop_stash() {
+        if let Err(err) = repo.lock().await.pop_stash(&self.name) {
             if result.is_ok() {
                 result = Err(err);
             } else {
