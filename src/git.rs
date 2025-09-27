@@ -688,7 +688,7 @@ impl Git {
         Ok(())
     }
 
-    pub fn pop_stash(&mut self, hook_name: &str) -> Result<()> {
+    pub fn pop_stash(&mut self) -> Result<()> {
         let Some(diff) = self.stash.take() else {
             return Ok(());
         };
@@ -867,7 +867,6 @@ impl Git {
 
                     // Special-case: if the only worktree difference relative to the index snapshot
                     // is a pure tail insertion, prefer the fixer result and append the tail.
-                    let mut is_tail_append = false;
                     if let (Some(f), Some(w), Some(i)) =
                         (fixer.as_deref(), work_pre.as_deref(), index_pre.as_deref())
                     {
@@ -882,7 +881,6 @@ impl Git {
                             let mut combined = f.to_string();
                             if !tail.is_empty() {
                                 combined.push_str(tail);
-                                is_tail_append = true;
                             }
                             merged = combined;
                         }
@@ -998,51 +996,12 @@ impl Git {
                             display_path(&path)
                         );
                     }
-                    // If fixer differs from base, ensure index has fixer blob unless newline-only change or tail append
+                    // If fixer differs from base, ensure index has fixer blob unless newline-only change
                     if newline_only_change {
                         debug!(
                             "manual-unstash: newline-only change; leaving index untouched path={}",
                             display_path(&path)
                         );
-                    } else if is_tail_append {
-                        // For tail append case in fix/check commands, stage the merged content (with tail)
-                        // so that index and worktree match. For pre-commit hooks, use the fixer result only.
-                        if hook_name == "pre-commit" || hook_name == "pre-push" {
-                            // For git hooks, only stage the fixer result (without tail)
-                            if let Some((mode, oid)) = fixer_map.get(&path) {
-                                let mode_str = format!("{:o}", mode);
-                                if let Err(err) = git_cmd(["update-index", "--cacheinfo"])
-                                    .arg(mode_str)
-                                    .arg(oid)
-                                    .arg(&path)
-                                    .run()
-                                {
-                                    warn!(
-                                        "failed to set index for {}: {err:?}",
-                                        display_path(&path)
-                                    );
-                                } else {
-                                    debug!(
-                                        "manual-unstash: set fixer index for tail append in {} hook path={}",
-                                        hook_name,
-                                        display_path(&path)
-                                    );
-                                }
-                            }
-                        } else {
-                            // For fix/check commands, stage the merged content with tail
-                            if let Err(err) = git_cmd(["add", "--"]).arg(&path).run() {
-                                warn!(
-                                    "failed to stage merged content for {}: {err:?}",
-                                    display_path(&path)
-                                );
-                            } else {
-                                debug!(
-                                    "manual-unstash: staged merged content with tail for path={}",
-                                    display_path(&path)
-                                );
-                            }
-                        }
                     } else if let Some((mode, oid)) = fixer_map.get(&path) {
                         let mode_str = format!("{:o}", mode);
                         if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob

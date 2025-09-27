@@ -54,16 +54,24 @@ import subprocess
 import sys
 
 worktree = pathlib.Path("sample.txt").read_bytes()
-if not worktree.endswith(b"\n"):
+index = subprocess.check_output(["git", "show", ":sample.txt"])
+
+# Check that formatted content is in the index
+if not index.startswith(b"formatted\n"):
+    print(f"Index doesn'\''t start with formatted: {index}")
     sys.exit(1)
 
-index = subprocess.check_output(["git", "show", ":sample.txt"])
-if not index.endswith(b"\n"):
+# Check that worktree preserves the unstaged tail
+if not worktree.startswith(b"formatted\n"):
+    print(f"Worktree doesn'\''t start with formatted: {worktree}")
     sys.exit(2)
 
-# ensure contents match exactly between worktree and index, including newline
-if worktree != index:
+# Check that worktree has the tail appended
+if not worktree.endswith(b"C\n"):
+    print(f"Worktree doesn'\''t end with C newline: {worktree}")
     sys.exit(3)
+
+print("SUCCESS: Index has formatted content, worktree preserves unstaged tail")
 PY'
     assert_success
 }
