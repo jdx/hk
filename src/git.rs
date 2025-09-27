@@ -810,15 +810,20 @@ impl Git {
                         None
                     }
                     .or_else(|| {
+                        // Use `git cat-file -p` to preserve exact blob bytes, including EOF newline state
                         git_read_raw(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
                             .ok()
                     });
+                    // Parent ^1 of the stash commit points to the HEAD commit at stash time
                     let base_pre =
                         git_read_raw(["cat-file", "-p", &format!("{}^1:{}", &stash_ref, path_str)])
                             .ok();
+                    // Parent ^2 is the index at stash time. Use this to detect whether the path had
+                    // any unstaged changes then (worktree vs index).
                     let index_pre =
                         git_read_raw(["cat-file", "-p", &format!("{}^2:{}", &stash_ref, path_str)])
                             .ok();
+                    // Fixer content from saved index blob
                     let fixer = fixer_map
                         .get(&path)
                         .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok());
