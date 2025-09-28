@@ -525,8 +525,25 @@ impl Step {
                     }
                 }
 
-                // Build candidate list strictly from job files plus explicit non-glob stage paths.
-                // Do NOT add arbitrary unstaged files from git status (prevents over-staging).
+                // Build candidate list from job files plus explicit non-glob stage paths.
+                // For anchored globs (e.g., "dir/**"), allow matching against unstaged files too
+                // so that generators can stage new files outside job file set.
+                let is_globlike = |s: &str| s.contains('*') || s.contains('?') || s.contains('[');
+                let is_anchored_glob = |s: &str| {
+                    if s.starts_with("**/") {
+                        return false;
+                    }
+                    let first = s.split('/').next().unwrap_or(s);
+                    if is_globlike(first) {
+                        return false;
+                    }
+                    is_globlike(s)
+                };
+                if stage_globs.iter().any(|g| is_anchored_glob(g)) {
+                    for p in status.unstaged_files.iter() {
+                        candidates.insert(p.clone());
+                    }
+                }
                 let candidate_vec = candidates.into_iter().collect_vec();
                 let matched_candidates = glob::get_matches(&stage_globs, &candidate_vec)?;
                 // Now keep only those that are actually unstaged
