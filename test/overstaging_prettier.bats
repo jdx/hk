@@ -10,7 +10,7 @@ teardown() {
 }
 
 @test "prettier stage globs do not over-stage unrelated files" {
-  cat <<'PKL' > hk.pkl
+  cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
   ["fix"] {
@@ -27,6 +27,7 @@ hooks {
 PKL
   git add hk.pkl
   git -c commit.gpgsign=false commit -m "init hk"
+  hk install
 
   mkdir -p src
   printf 'one\n' > src/changed.ts

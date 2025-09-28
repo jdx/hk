@@ -12,7 +12,12 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, OneOrMany, PickFirst, serde_as};
 use shell_quote::QuoteInto;
 use shell_quote::QuoteRefExt;
-use std::{collections::HashSet, fmt::Display, path::PathBuf, str::FromStr};
+use std::{
+    collections::{BTreeSet, HashSet},
+    fmt::Display,
+    path::PathBuf,
+    str::FromStr,
+};
 use std::{
     ffi::OsString,
     sync::{Arc, LazyLock},
@@ -520,15 +525,13 @@ impl Step {
                     }
                 }
 
-                // Intersect candidates with currently-unstaged files for this pathspec set
-                let unstaged_vec = status.unstaged_files.into_iter().collect_vec();
-                for path in &unstaged_vec {
-                    candidates.insert(path.clone());
-                }
+                // Build candidate list strictly from job files plus explicit non-glob stage paths.
+                // Do NOT add arbitrary unstaged files from git status (prevents over-staging).
                 let candidate_vec = candidates.into_iter().collect_vec();
                 let matched_candidates = glob::get_matches(&stage_globs, &candidate_vec)?;
                 // Now keep only those that are actually unstaged
-                let unstaged_set: indexmap::IndexSet<PathBuf> = unstaged_vec.into_iter().collect();
+                let unstaged_set: indexmap::IndexSet<PathBuf> =
+                    status.unstaged_files.iter().cloned().collect();
                 let filtered = matched_candidates
                     .into_iter()
                     .filter(|p| unstaged_set.contains(p))
@@ -539,10 +542,20 @@ impl Step {
                     self, &filtered
                 );
                 if !filtered.is_empty() {
+                    // Snapshot pre-staging untracked set for classification
+                    let pre_untracked: BTreeSet<PathBuf> = status.untracked_files.clone();
                     // Only stage matched files; do NOT unstage other previously-staged files.
                     // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
                     ctx.hook_ctx.git.lock().await.add(&filtered)?;
-                    ctx.add_files(&filtered);
+                    // Classify staged files using pre-staging untracked snapshot
+                    let filtered_set: BTreeSet<PathBuf> = filtered.iter().cloned().collect();
+                    let created_paths: BTreeSet<PathBuf> =
+                        filtered_set.intersection(&pre_untracked).cloned().collect();
+                    let added_paths: BTreeSet<PathBuf> =
+                        filtered_set.difference(&created_paths).cloned().collect();
+                    let added_paths: Vec<PathBuf> = added_paths.iter().cloned().collect();
+                    let created_paths: Vec<PathBuf> = created_paths.iter().cloned().collect();
+                    ctx.add_files(&added_paths, &created_paths);
                 }
             }
         }
