@@ -735,23 +735,28 @@ impl Step {
                         })?;
                     }
                     // Save output from a failed command as well
-                    match self.output_summary {
-                        OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
-                            &self.name,
-                            OutputSummary::Stderr,
-                            &e.3.stderr,
-                        ),
-                        OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
-                            &self.name,
-                            OutputSummary::Stdout,
-                            &e.3.stdout,
-                        ),
-                        OutputSummary::Combined => ctx.hook_ctx.append_step_output(
-                            &self.name,
-                            OutputSummary::Combined,
-                            &e.3.combined_output,
-                        ),
-                        OutputSummary::Hide => {}
+                    // But skip if this is a check_first check that will be followed by a fix
+                    let is_check_first_check =
+                        job.check_first && matches!(job.run_type, RunType::Check(_));
+                    if !is_check_first_check {
+                        match self.output_summary {
+                            OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
+                                &self.name,
+                                OutputSummary::Stderr,
+                                &e.3.stderr,
+                            ),
+                            OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
+                                &self.name,
+                                OutputSummary::Stdout,
+                                &e.3.stdout,
+                            ),
+                            OutputSummary::Combined => ctx.hook_ctx.append_step_output(
+                                &self.name,
+                                OutputSummary::Combined,
+                                &e.3.combined_output,
+                            ),
+                            OutputSummary::Hide => {}
+                        }
                     }
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
