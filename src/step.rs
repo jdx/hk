@@ -561,9 +561,11 @@ impl Step {
                 if !filtered.is_empty() {
                     // Snapshot pre-staging untracked set for classification
                     let pre_untracked: BTreeSet<PathBuf> = status.untracked_files.clone();
-                    // Only stage matched files; do NOT unstage other previously-staged files.
+                    // Only stage matched files if stage setting is enabled (default: true)
                     // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
-                    ctx.hook_ctx.git.lock().await.add(&filtered)?;
+                    if Settings::get().stage {
+                        ctx.hook_ctx.git.lock().await.add(&filtered)?;
+                    }
                     // Classify staged files using pre-staging untracked snapshot
                     let filtered_set: BTreeSet<PathBuf> = filtered.iter().cloned().collect();
                     let created_paths: BTreeSet<PathBuf> =
