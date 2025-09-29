@@ -705,23 +705,28 @@ impl Step {
         match exec_result {
             Ok(result) => {
                 // Save output for end-of-run summary based on configured mode
-                match self.output_summary {
-                    OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
-                        &self.name,
-                        OutputSummary::Stderr,
-                        &result.stderr,
-                    ),
-                    OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
-                        &self.name,
-                        OutputSummary::Stdout,
-                        &result.stdout,
-                    ),
-                    OutputSummary::Combined => ctx.hook_ctx.append_step_output(
-                        &self.name,
-                        OutputSummary::Combined,
-                        &result.combined_output,
-                    ),
-                    OutputSummary::Hide => {}
+                // But skip if this is a check_first check (any type) that will be followed by a fix
+                let is_check_first_check =
+                    job.check_first && matches!(job.run_type, RunType::Check(_));
+                if !is_check_first_check {
+                    match self.output_summary {
+                        OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Stderr,
+                            &result.stderr,
+                        ),
+                        OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Stdout,
+                            &result.stdout,
+                        ),
+                        OutputSummary::Combined => ctx.hook_ctx.append_step_output(
+                            &self.name,
+                            OutputSummary::Combined,
+                            &result.combined_output,
+                        ),
+                        OutputSummary::Hide => {}
+                    }
                 }
             }
             Err(err) => {
