@@ -44,10 +44,11 @@ impl StepContext {
         }
     }
 
-    pub fn add_files(&self, files: &[PathBuf]) {
+    pub fn add_files(&self, added_paths: &[PathBuf], created_paths: &[PathBuf]) {
         let mut files_added = self.files_added.lock().unwrap();
-        files_added.extend(files.iter().cloned());
-        self.hook_ctx.add_files(files);
+        files_added.extend(added_paths.iter().cloned());
+        files_added.extend(created_paths.iter().cloned());
+        self.hook_ctx.add_files(added_paths, created_paths);
     }
 
     pub fn decrement_job_count(&self) {
