@@ -603,6 +603,37 @@ impl Step {
         }
     }
 
+    fn save_output_summary(
+        &self,
+        ctx: &StepContext,
+        job: &StepJob,
+        stdout: &str,
+        stderr: &str,
+        combined: &str,
+    ) {
+        // Skip if this is a check_first check (any type) that will be followed by a fix
+        let is_check_first_check = job.check_first && matches!(job.run_type, RunType::Check(_));
+        if is_check_first_check {
+            return;
+        }
+
+        match self.output_summary {
+            OutputSummary::Stderr => {
+                ctx.hook_ctx
+                    .append_step_output(&self.name, OutputSummary::Stderr, stderr)
+            }
+            OutputSummary::Stdout => {
+                ctx.hook_ctx
+                    .append_step_output(&self.name, OutputSummary::Stdout, stdout)
+            }
+            OutputSummary::Combined => {
+                ctx.hook_ctx
+                    .append_step_output(&self.name, OutputSummary::Combined, combined)
+            }
+            OutputSummary::Hide => {}
+        }
+    }
+
     pub(crate) async fn run(&self, ctx: &StepContext, job: &mut StepJob) -> Result<()> {
         if ctx.hook_ctx.failed.is_cancelled() {
             trace!("{self}: skipping step due to previous failure");
@@ -705,29 +736,13 @@ impl Step {
         match exec_result {
             Ok(result) => {
                 // Save output for end-of-run summary based on configured mode
-                // But skip if this is a check_first check (any type) that will be followed by a fix
-                let is_check_first_check =
-                    job.check_first && matches!(job.run_type, RunType::Check(_));
-                if !is_check_first_check {
-                    match self.output_summary {
-                        OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
-                            &self.name,
-                            OutputSummary::Stderr,
-                            &result.stderr,
-                        ),
-                        OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
-                            &self.name,
-                            OutputSummary::Stdout,
-                            &result.stdout,
-                        ),
-                        OutputSummary::Combined => ctx.hook_ctx.append_step_output(
-                            &self.name,
-                            OutputSummary::Combined,
-                            &result.combined_output,
-                        ),
-                        OutputSummary::Hide => {}
-                    }
-                }
+                self.save_output_summary(
+                    ctx,
+                    job,
+                    &result.stdout,
+                    &result.stderr,
+                    &result.combined_output,
+                );
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
@@ -740,29 +755,13 @@ impl Step {
                         })?;
                     }
                     // Save output from a failed command as well
-                    // But skip if this is a check_first check that will be followed by a fix
-                    let is_check_first_check =
-                        job.check_first && matches!(job.run_type, RunType::Check(_));
-                    if !is_check_first_check {
-                        match self.output_summary {
-                            OutputSummary::Stderr => ctx.hook_ctx.append_step_output(
-                                &self.name,
-                                OutputSummary::Stderr,
-                                &e.3.stderr,
-                            ),
-                            OutputSummary::Stdout => ctx.hook_ctx.append_step_output(
-                                &self.name,
-                                OutputSummary::Stdout,
-                                &e.3.stdout,
-                            ),
-                            OutputSummary::Combined => ctx.hook_ctx.append_step_output(
-                                &self.name,
-                                OutputSummary::Combined,
-                                &e.3.combined_output,
-                            ),
-                            OutputSummary::Hide => {}
-                        }
-                    }
+                    self.save_output_summary(
+                        ctx,
+                        job,
+                        &e.3.stdout,
+                        &e.3.stderr,
+                        &e.3.combined_output,
+                    );
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
                     self.collect_fix_suggestion(ctx, job, Some(&e.3));
