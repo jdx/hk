@@ -610,10 +610,13 @@ impl Step {
         stdout: &str,
         stderr: &str,
         combined: &str,
+        is_failure: bool,
     ) {
-        // Skip if this is a check_first check (any type) that will be followed by a fix
-        let is_check_first_check = job.check_first && matches!(job.run_type, RunType::Check(_));
-        if is_check_first_check {
+        // Only skip if this is a check_first check that FAILED (will be followed by a fix)
+        // If the check passed, we want to show its output since no fix will run
+        let is_check_first_check_that_failed =
+            job.check_first && matches!(job.run_type, RunType::Check(_)) && is_failure;
+        if is_check_first_check_that_failed {
             return;
         }
 
@@ -742,6 +745,7 @@ impl Step {
                     &result.stdout,
                     &result.stderr,
                     &result.combined_output,
+                    false, // not a failure
                 );
             }
             Err(err) => {
@@ -761,6 +765,7 @@ impl Step {
                         &e.3.stdout,
                         &e.3.stderr,
                         &e.3.combined_output,
+                        true, // is a failure
                     );
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
