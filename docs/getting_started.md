@@ -69,7 +69,7 @@ local linters = new Mapping<String, Step> {
 
 hooks {
     ["pre-commit"] {
-        fix = true           // runs the "fix" step of linters to modify files
+        fix = true    // runs the "fix" step of linters to modify files
         stash = "git" // stashes unstaged changes when running fix steps
         steps {
             ["prelint"] {
