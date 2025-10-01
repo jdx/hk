@@ -54,7 +54,6 @@ local linters = new Mapping<String, Step> {
     // linters can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
-        // this will filter the staged files and return the subset matching these globs
         glob = List("*.js"; "*.ts")
         // a command that returns non-zero to fail the check
         check = "eslint {{files}}"
