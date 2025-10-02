@@ -3,6 +3,7 @@
 setup() {
     load 'test_helper/common_setup'
     _common_setup
+    unset HK_HIDE_WARNINGS
 }
 
 teardown() {
