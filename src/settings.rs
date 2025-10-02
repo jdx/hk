@@ -510,12 +510,12 @@ impl Settings {
             if let Some(j) = snapshot.jobs {
                 map.insert("jobs", SettingValue::Usize(j));
             }
-            if !snapshot.profiles.is_empty() {
-                let set: IndexSet<String> = snapshot.profiles.into_iter().collect();
-                map.insert("profiles", SettingValue::StringList(set));
-            }
+            let mut profiles: IndexSet<String> = snapshot.profiles.into_iter().collect();
             if snapshot.slow {
-                map.insert("slow", SettingValue::Bool(true));
+                profiles.insert("slow".to_string());
+            }
+            if !profiles.is_empty() {
+                map.insert("profiles", SettingValue::StringList(profiles));
             }
             if snapshot.quiet {
                 map.insert("quiet", SettingValue::Bool(true));
