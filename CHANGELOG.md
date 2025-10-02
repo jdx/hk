@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.16.0](https://github.com/jdx/hk/compare/v1.15.7..v1.16.0) - 2025-10-02
+
+### 🚀 Features
+
+- add HK_STAGE setting to control automatic staging of fixed files by [@jdx](https://github.com/jdx) in [#313](https://github.com/jdx/hk/pull/313)
+- suppress check output_summary when fixer runs with check_first by [@jdx](https://github.com/jdx) in [#315](https://github.com/jdx/hk/pull/315)
+
+### 🐛 Bug Fixes
+
+- --slow flag now properly enables slow profile by [@jdx](https://github.com/jdx) in [#317](https://github.com/jdx/hk/pull/317)
+
+### 📚 Documentation
+
+- Update getting_started.md by [@jdx](https://github.com/jdx) in [a8c1a35](https://github.com/jdx/hk/commit/a8c1a355e7770dbbf8a98b16678bef82e7490817)
+
+### 🔍 Other Changes
+
+- Update getting_started.md by [@jdx](https://github.com/jdx) in [58c0564](https://github.com/jdx/hk/commit/58c0564e0197e7cd655a385ff4563e2ccaef6188)
+
 ## [1.15.7](https://github.com/jdx/hk/compare/v1.15.6..v1.15.7) - 2025-09-29
 
 ### 🐛 Bug Fixes
