@@ -473,6 +473,13 @@ You can also customize builtins:
 
 ### Special Purpose
 
+#### `check_case_conflict`
+- **Files:** All files
+- **Features:** Detect case-insensitive filename conflicts
+- **Commands:**
+  - Check: `hk util check-case-conflict {{files}}`
+- **Notes:** Useful for cross-platform projects to avoid conflicts on Windows/macOS
+
 #### `check_executables_have_shebangs`
 - **Files:** All files
 - **Features:** Verify executable files have shebang lines
