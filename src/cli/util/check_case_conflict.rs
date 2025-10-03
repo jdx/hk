@@ -1,6 +1,7 @@
 use crate::Result;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::process::Command;
 
 #[derive(Debug, clap::Args)]
 pub struct CheckCaseConflict {
@@ -11,7 +12,14 @@ pub struct CheckCaseConflict {
 
 impl CheckCaseConflict {
     pub async fn run(&self) -> Result<()> {
-        let conflicts = find_case_conflicts(&self.files);
+        // Get all files from the repo
+        let repo_files = get_repo_files()?;
+
+        // Combine repo files with files being checked
+        let mut all_files = repo_files;
+        all_files.extend(self.files.iter().cloned());
+
+        let conflicts = find_case_conflicts(&all_files);
 
         if !conflicts.is_empty() {
             for conflict_group in conflicts {
@@ -24,6 +32,25 @@ impl CheckCaseConflict {
         }
 
         Ok(())
+    }
+}
+
+fn get_repo_files() -> Result<Vec<PathBuf>> {
+    // Try to get files from git
+    let output = Command::new("git").args(["ls-files"]).output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let files = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(PathBuf::from)
+                .collect();
+            Ok(files)
+        }
+        _ => {
+            // If not in a git repo or git command fails, just return empty
+            Ok(vec![])
+        }
     }
 }
 

@@ -74,6 +74,21 @@ teardown() {
     assert_output --partial "src/main.rs"
 }
 
+@test "util check-case-conflict - detects conflict with committed file" {
+    # Commit README.md
+    echo "original" > README.md
+    git add README.md
+    git commit -m "Add README"
+
+    # Try to add readme.md (should conflict with committed README.md)
+    echo "new" > readme.md
+
+    run hk util check-case-conflict readme.md
+    assert_failure
+    assert_output --partial "README.md"
+    assert_output --partial "readme.md"
+}
+
 @test "util check-case-conflict - builtin integration" {
     cat > hk.pkl <<HK
 amends "$PKL_PATH/Config.pkl"
@@ -92,6 +107,35 @@ HK
     echo "second" > readme.md
 
     run hk check
+    assert_failure
+    assert_output --partial "README.md"
+    assert_output --partial "readme.md"
+}
+
+@test "util check-case-conflict - builtin detects conflict with existing committed file" {
+    cat > hk.pkl <<HK
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["case-conflict"] = Builtins.check_case_conflict
+        }
+    }
+}
+HK
+
+    # Commit README.md
+    echo "original" > README.md
+    git add README.md hk.pkl
+    git commit -m "Add README"
+
+    # Try to commit readme.md (should conflict)
+    echo "new" > readme.md
+    git add readme.md
+
+    run hk run pre-commit
     assert_failure
     assert_output --partial "README.md"
     assert_output --partial "readme.md"
