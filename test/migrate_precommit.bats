@@ -8,7 +8,7 @@ teardown() {
     _common_teardown
 }
 
-@test "migrate from pre-commit - basic config" {
+@test "migrate precommit - basic config" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
@@ -18,7 +18,7 @@ repos:
     -   id: eslint
 PRECOMMIT
 
-    run hk migrate from-precommit
+    run hk migrate precommit
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
     
@@ -33,7 +33,7 @@ PRECOMMIT
     assert_output --partial '["pre-commit"]'
 }
 
-@test "migrate from pre-commit - with exclude" {
+@test "migrate precommit - with exclude" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/asottile/reorder-python-imports
@@ -43,7 +43,7 @@ repos:
         exclude: ^(pre_commit/resources/)
 PRECOMMIT
 
-    run hk migrate from-precommit
+    run hk migrate precommit
     assert_success
     
     # Verify exclude is preserved
@@ -51,7 +51,7 @@ PRECOMMIT
     assert_output --partial 'exclude = "^(pre_commit/resources/)"'
 }
 
-@test "migrate from pre-commit - with args" {
+@test "migrate precommit - with args" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/asottile/pyupgrade
@@ -61,7 +61,7 @@ repos:
         args: [--py39-plus]
 PRECOMMIT
 
-    run hk migrate from-precommit
+    run hk migrate precommit
     assert_success
     
     # Verify args are noted in comments
@@ -69,7 +69,110 @@ PRECOMMIT
     assert_output --partial "args from pre-commit: --py39-plus"
 }
 
-@test "migrate from pre-commit - unknown hook" {
+@test "migrate precommit - with additional_dependencies and mise x" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.0.0
+    hooks:
+    -   id: mypy
+        additional_dependencies: [types-pyyaml, types-requests]
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    # Verify additional_dependencies are handled with mise x
+    run cat hk.pkl
+    assert_output --partial "additional_dependencies: types-pyyaml, types-requests"
+    assert_output --partial 'prefix = "mise x mypy@latest --"'
+}
+
+@test "migrate precommit - with types and type filtering" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+        types: [javascript, typescript]
+        exclude_types: [markdown]
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    # Verify type filtering is documented
+    run cat hk.pkl
+    assert_output --partial "types (AND): javascript, typescript"
+    assert_output --partial "exclude_types: markdown"
+}
+
+@test "migrate precommit - with stages" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+        stages: [pre-push]
+    -   id: eslint
+        stages: [pre-commit]
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    # Verify both stages are created
+    run cat hk.pkl
+    assert_output --partial '["pre-push"]'
+    assert_output --partial '["pre-commit"]'
+}
+
+@test "migrate precommit - local repo" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: local
+    hooks:
+    -   id: my-local-check
+        name: My Local Check
+        entry: ./scripts/check.sh
+        language: system
+        files: \.py$
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    # Verify local hooks are generated
+    run cat hk.pkl
+    assert_output --partial "local_hooks"
+    assert_output --partial "my-local-check"
+    assert_output --partial "TODO: Configure check and/or fix commands from local hook"
+}
+
+@test "migrate precommit - meta repo is skipped" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: meta
+    hooks:
+    -   id: check-hooks-apply
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    # Verify meta hooks are not included
+    run cat hk.pkl
+    refute_output --partial "check-hooks-apply"
+    assert_output --partial "Builtins.prettier"
+}
+
+@test "migrate precommit - unknown hook" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/some/unknown-hook
@@ -78,7 +181,7 @@ repos:
     -   id: unknown-linter
 PRECOMMIT
 
-    run hk migrate from-precommit
+    run hk migrate precommit
     assert_success
     
     # Verify unknown hooks are in custom_steps with TODO
@@ -88,7 +191,7 @@ PRECOMMIT
     assert_output --partial "Repo: https://github.com/some/unknown-hook @ v1.0.0"
 }
 
-@test "migrate from pre-commit - force overwrite" {
+@test "migrate precommit - force overwrite" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
@@ -101,19 +204,19 @@ PRECOMMIT
     echo "existing content" > hk.pkl
     
     # Try without force - should fail
-    run hk migrate from-precommit
+    run hk migrate precommit
     assert_failure
     assert_output --partial "already exists"
     
     # Try with force - should succeed
-    run hk migrate from-precommit --force
+    run hk migrate precommit --force
     assert_success
     
     run cat hk.pkl
     assert_output --partial "Builtins.black"
 }
 
-@test "migrate from pre-commit - custom config path" {
+@test "migrate precommit - custom config path" {
     cat <<PRECOMMIT > custom-precommit.yaml
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
@@ -122,7 +225,7 @@ repos:
     -   id: shellcheck
 PRECOMMIT
 
-    run hk migrate from-precommit --config custom-precommit.yaml --output custom-hk.pkl
+    run hk migrate precommit --config custom-precommit.yaml --output custom-hk.pkl
     assert_success
     
     # Verify custom output was created
@@ -132,13 +235,13 @@ PRECOMMIT
     assert_output --partial "Builtins.shellcheck"
 }
 
-@test "migrate from pre-commit - missing config file" {
-    run hk migrate from-precommit --config nonexistent.yaml
+@test "migrate precommit - missing config file" {
+    run hk migrate precommit --config nonexistent.yaml
     assert_failure
     assert_output --partial "does not exist"
 }
 
-@test "migrate from pre-commit - mixed known and unknown hooks" {
+@test "migrate precommit - mixed known and unknown hooks" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/psf/black
@@ -155,7 +258,7 @@ repos:
     -   id: my-custom-linter
 PRECOMMIT
 
-    run hk migrate from-precommit
+    run hk migrate precommit
     assert_success
     
     run cat hk.pkl
@@ -170,7 +273,7 @@ PRECOMMIT
     assert_output --partial "...custom_steps"
 }
 
-@test "migrate from pre-commit - fail_fast config" {
+@test "migrate precommit - fail_fast config" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 fail_fast: true
 repos:
@@ -180,10 +283,110 @@ repos:
     -   id: black
 PRECOMMIT
 
-    run hk migrate from-precommit
+    run hk migrate precommit
     assert_success
     
     run cat hk.pkl
     assert_output --partial "fail_fast"
-    assert_output --partial "hk uses --fail-fast flag"
+    assert_output --partial "hk uses --fail-fast"
+}
+
+@test "migrate precommit - default_language_version" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+default_language_version:
+    python: python3.11
+    node: 18.0.0
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: black
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    run cat hk.pkl
+    assert_output --partial "default_language_version"
+    assert_output --partial "python: python3.11"
+    assert_output --partial "node: 18.0.0"
+    assert_output --partial "Use mise.toml to manage language versions"
+}
+
+@test "migrate precommit - generate mise.toml" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: black
+    -   id: prettier
+    -   id: shellcheck
+PRECOMMIT
+
+    run hk migrate precommit --mise
+    assert_success
+    
+    # Verify mise.toml was created
+    [ -f mise.toml ]
+    
+    # Verify tools are in mise.toml
+    run cat mise.toml
+    assert_output --partial "[tools]"
+    assert_output --partial "hk = \"latest\""
+    # Tools detected: black, prettier, shellcheck (or node for prettier)
+}
+
+@test "migrate precommit - always_run flag" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+        always_run: true
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    run cat hk.pkl
+    assert_output --partial "always_run: true"
+}
+
+@test "migrate precommit - pass_filenames false" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: black
+        pass_filenames: false
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    run cat hk.pkl
+    assert_output --partial "pass_filenames: false"
+    assert_output --partial "not use {{files}}"
+}
+
+@test "migrate precommit - generates check and fix hooks" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+    
+    run cat hk.pkl
+    # Should have pre-commit, check, and fix hooks
+    assert_output --partial '["pre-commit"]'
+    assert_output --partial '["check"]'
+    assert_output --partial '["fix"]'
 }
