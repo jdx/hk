@@ -1,0 +1,34 @@
+import "../Config.pkl"
+
+mixed_line_ending = new Config.Step {
+    glob = "*"
+    stage = "*"
+    check = "hk util mixed-line-ending {{files}}"
+    fix = "hk util mixed-line-ending --fix {{files}}"
+    tests {
+        ["detects mixed line endings"] {
+            run = "check"
+            write { ["{{tmp}}/a.txt"] = "line1\r\nline2\nline3\r\n" }
+            files = List("{{tmp}}/a.txt")
+            expect { code = 1 }
+        }
+        ["passes LF only"] {
+            run = "check"
+            write { ["{{tmp}}/a.txt"] = "line1\nline2\nline3\n" }
+            files = List("{{tmp}}/a.txt")
+            expect { code = 0 }
+        }
+        ["passes CRLF only"] {
+            run = "check"
+            write { ["{{tmp}}/a.txt"] = "line1\r\nline2\r\nline3\r\n" }
+            files = List("{{tmp}}/a.txt")
+            expect { code = 0 }
+        }
+        ["fixes mixed line endings"] {
+            run = "fix"
+            write { ["{{tmp}}/a.txt"] = "line1\r\nline2\nline3\r\n" }
+            files = List("{{tmp}}/a.txt")
+            expect { files { ["{{tmp}}/a.txt"] = "line1\nline2\nline3\n" } }
+        }
+    }
+}

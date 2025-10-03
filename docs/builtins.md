@@ -473,6 +473,14 @@ You can also customize builtins:
 
 ### Special Purpose
 
+#### `mixed_line_ending`
+- **Files:** All text files
+- **Features:** Detect and fix mixed line endings (CRLF/LF in same file)
+- **Commands:**
+  - Check: `hk util mixed-line-ending {{files}}`
+  - Fix: `hk util mixed-line-ending --fix {{files}}`
+- **Notes:** Normalizes to LF, automatically skips binary files
+
 #### `newlines`
 - **Files:** All text files
 - **Features:** Ensure files end with newline

@@ -6,6 +6,52 @@ Utility commands for file operations
 
 ## Subcommands
 
+### `mixed-line-ending`
+
+Detect and fix mixed line endings
+
+**Usage**: `hk util mixed-line-ending [FLAGS] <FILES>…`
+
+#### Arguments
+
+**`<FILES>…`**
+
+Files to check or fix
+
+#### Flags
+
+**`-f --fix`**
+
+Fix mixed line endings by normalizing to LF
+
+#### Examples
+
+```bash
+# Check for mixed line endings
+hk util mixed-line-ending file.txt
+
+# Fix mixed line endings
+hk util mixed-line-ending --fix *.txt
+
+# Use in hk.pkl via builtin
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["mixed-endings"] = Builtins.mixed_line_ending
+    }
+  }
+}
+```
+
+#### Features
+
+- Detects files with both CRLF and LF line endings
+- Normalizes to LF when fixing
+- Automatically skips binary files
+- Exit codes:
+  - Check mode: Exit 1 if mixed endings found, 0 if clean
+  - Fix mode: Exit 0 on success
+
 ### `trailing-whitespace`
 
 Detect and remove trailing whitespace from files

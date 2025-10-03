@@ -33,6 +33,7 @@ jq = Builtins["builtins/jq.pkl"].jq
 ktlint = Builtins["builtins/ktlint.pkl"].ktlint
 luacheck = Builtins["builtins/luacheck.pkl"].luacheck
 markdown_lint = Builtins["builtins/markdown_lint.pkl"].markdown_lint
+mixed_line_ending = Builtins["builtins/mixed_line_ending.pkl"].mixed_line_ending
 mypy = Builtins["builtins/mypy.pkl"].mypy
 newlines = Builtins["builtins/newlines.pkl"].newlines
 nix_fmt = Builtins["builtins/nix_fmt.pkl"].nix_fmt
