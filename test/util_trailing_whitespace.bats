@@ -86,9 +86,9 @@ more trailing"
 }
 
 @test "util trailing-whitespace - builtin integration" {
-    cat > hk.pkl <<'HK'
-amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.pkl"
+    cat > hk.pkl <<HK
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
 
 hooks {
     ["check"] {
