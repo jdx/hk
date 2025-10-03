@@ -31,7 +31,12 @@ _common_setup() {
     git init .
 
     # Add hk to PATH (assuming it's installed)
-    PATH="$(dirname $BATS_TEST_DIRNAME)/target/debug:$PATH"
+    # Use CARGO_TARGET_DIR if set (e.g., by mise), otherwise use local target
+    if [ -n "$CARGO_TARGET_DIR" ]; then
+        PATH="$CARGO_TARGET_DIR/debug:$PATH"
+    else
+        PATH="$(dirname $BATS_TEST_DIRNAME)/target/debug:$PATH"
+    fi
 
     # Enable test cache by default for better performance
     # Individual tests can override this by calling _disable_test_cache

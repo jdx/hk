@@ -3,7 +3,12 @@
 # Test Pkl configuration error messages
 
 setup() {
-    export HK="${HK:-$BATS_TEST_DIRNAME/../target/debug/hk}"
+    # Use CARGO_TARGET_DIR if set (e.g., by mise), otherwise use local target
+    if [ -n "$CARGO_TARGET_DIR" ]; then
+        export HK="${HK:-$CARGO_TARGET_DIR/debug/hk}"
+    else
+        export HK="${HK:-$BATS_TEST_DIRNAME/../target/debug/hk}"
+    fi
     export TEST_DIR="$(mktemp -d)"
     cd "$TEST_DIR"
 }

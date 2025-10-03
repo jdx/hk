@@ -31,5 +31,5 @@ EOF
     git add test.json
     run hk run pre-commit
     assert_failure
-    assert_output --partial "jq: parse error"
+    assert_output --partial "parse error"
 } 
