@@ -32,7 +32,7 @@ teardown() {
     echo "more trailing	" >> file1.txt
 
     run hk util trailing-whitespace --fix file1.txt
-    assert_failure # exits 1 when changes are made
+    assert_success
 
     # Verify file was fixed
     run cat file1.txt
@@ -56,7 +56,7 @@ more trailing"
     echo "also trailing  " > file2.txt
 
     run hk util trailing-whitespace --fix file1.txt file2.txt
-    assert_failure # exits 1 when changes are made
+    assert_success
 
     # Verify both files were fixed
     run cat file1.txt
@@ -92,6 +92,11 @@ import "$PKL_PATH/Builtins.pkl"
 
 hooks {
     ["check"] {
+        steps {
+            ["trailing-ws"] = Builtins.trailing_whitespace
+        }
+    }
+    ["fix"] {
         steps {
             ["trailing-ws"] = Builtins.trailing_whitespace
         }

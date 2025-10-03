@@ -48,9 +48,8 @@ impl TrailingWhitespace {
 
             if self.fix {
                 // Fix mode: remove trailing whitespace
-                if fix_trailing_whitespace(file_path)? {
-                    found_issues = true;
-                }
+                // Always succeeds - just fixes silently
+                fix_trailing_whitespace(file_path)?;
             } else {
                 // Check mode: report files with trailing whitespace
                 if has_trailing_whitespace(file_path)? {
@@ -60,7 +59,9 @@ impl TrailingWhitespace {
             }
         }
 
-        if found_issues {
+        // Only exit 1 in check mode when issues found
+        // Fix mode always exits 0 on success
+        if !self.fix && found_issues {
             std::process::exit(1);
         }
 
