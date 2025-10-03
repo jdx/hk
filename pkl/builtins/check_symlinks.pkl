@@ -1,7 +1,7 @@
 import "../Config.pkl"
 
 check_symlinks = new Config.Step {
-    glob = "*"
+    glob = "**/*"
     stage = "*"
     check = "hk util check-symlinks {{files}}"
     tests {
