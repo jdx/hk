@@ -48,7 +48,9 @@ hooks {
 - Cross-platform (works on Windows, macOS, Linux)
 - Automatically skips non-text files
 - Detects spaces, tabs, and mixed trailing whitespace
-- Exit code 1 if issues found/fixed, 0 if clean
+- Exit codes:
+  - Check mode: Exit 1 if issues found, 0 if clean
+  - Fix mode: Exit 0 on success
 
 #### Implementation
 
