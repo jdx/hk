@@ -112,6 +112,10 @@ fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
 
 /// Fix trailing whitespace in a file, returns true if file was modified
 fn fix_trailing_whitespace(path: &PathBuf) -> Result<bool> {
+    // Read entire file to check if it ends with newline
+    let content = fs::read_to_string(path)?;
+    let ends_with_newline = content.ends_with('\n');
+
     let file = fs::File::open(path)?;
     let reader = BufReader::new(file);
 
@@ -129,8 +133,18 @@ fn fix_trailing_whitespace(path: &PathBuf) -> Result<bool> {
 
     if modified {
         let mut file = fs::File::create(path)?;
-        for line in lines {
-            writeln!(file, "{}", line)?;
+        for (i, line) in lines.iter().enumerate() {
+            if i < lines.len() - 1 {
+                // Not the last line - always add newline
+                writeln!(file, "{}", line)?;
+            } else {
+                // Last line - only add newline if original had one
+                if ends_with_newline {
+                    writeln!(file, "{}", line)?;
+                } else {
+                    write!(file, "{}", line)?;
+                }
+            }
         }
     }
 
@@ -223,5 +237,41 @@ mod tests {
         let file = NamedTempFile::new().unwrap();
         let path = file.path().to_path_buf();
         assert!(is_text_file(&path).unwrap()); // Empty files are considered text
+    }
+
+    #[test]
+    fn test_fix_preserves_no_final_newline() {
+        let mut file = NamedTempFile::new().unwrap();
+        // Write content without final newline
+        write!(file, "line1  \nline2\t\nline3").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+
+        // Should fix trailing whitespace
+        assert!(fix_trailing_whitespace(&path).unwrap());
+
+        // Verify no final newline was added
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content, "line1\nline2\nline3");
+        assert!(!content.ends_with('\n'));
+    }
+
+    #[test]
+    fn test_fix_preserves_final_newline() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, "line1  ").unwrap();
+        writeln!(file, "line2\t").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+
+        // Should fix trailing whitespace
+        assert!(fix_trailing_whitespace(&path).unwrap());
+
+        // Verify final newline was preserved
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content, "line1\nline2\n");
+        assert!(content.ends_with('\n'));
     }
 }
