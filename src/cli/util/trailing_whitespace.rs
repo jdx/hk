@@ -3,37 +3,16 @@ use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 
-/// Utility commands for file operations
-#[derive(Debug, clap::Args)]
-pub struct Util {
-    #[clap(subcommand)]
-    command: UtilCommands,
-}
-
-#[derive(Debug, clap::Subcommand)]
-enum UtilCommands {
-    /// Check for and optionally fix trailing whitespace
-    TrailingWhitespace(TrailingWhitespace),
-}
-
 /// Check for and optionally fix trailing whitespace in files
 #[derive(Debug, clap::Args)]
 pub struct TrailingWhitespace {
     /// Fix trailing whitespace by removing it
     #[clap(short, long)]
-    fix: bool,
+    pub fix: bool,
 
     /// Files to check/fix
     #[clap(required = true)]
-    files: Vec<PathBuf>,
-}
-
-impl Util {
-    pub async fn run(&self) -> Result<()> {
-        match &self.command {
-            UtilCommands::TrailingWhitespace(cmd) => cmd.run().await,
-        }
-    }
+    pub files: Vec<PathBuf>,
 }
 
 impl TrailingWhitespace {
@@ -155,7 +134,6 @@ fn fix_trailing_whitespace(path: &PathBuf) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
     use tempfile::NamedTempFile;
 
     #[test]
