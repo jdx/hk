@@ -1,6 +1,6 @@
 use crate::Result;
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 
 /// Utility commands for file operations
@@ -69,20 +69,30 @@ impl TrailingWhitespace {
 }
 
 /// Check if a file is a text file
+/// Uses a heuristic: reads the first 8KB and checks if it's valid UTF-8
 fn is_text_file(path: &PathBuf) -> Result<bool> {
     if !path.exists() || !path.is_file() {
         return Ok(false);
     }
 
-    // Try to determine if it's a text file by reading MIME type
-    let output = std::process::Command::new("file")
-        .arg("-b")
-        .arg("--mime-type")
-        .arg(path)
-        .output()?;
+    // Check if file is empty
+    let metadata = fs::metadata(path)?;
+    if metadata.len() == 0 {
+        return Ok(true); // Empty files are text
+    }
 
-    let mime_type = String::from_utf8_lossy(&output.stdout);
-    Ok(mime_type.starts_with("text/"))
+    // Read first 8KB to detect if it's text
+    let mut file = fs::File::open(path)?;
+    let mut buffer = vec![0; 8192.min(metadata.len() as usize)];
+    file.read_exact(&mut buffer)?;
+
+    // Check for null bytes (common in binary files)
+    if buffer.contains(&0) {
+        return Ok(false);
+    }
+
+    // Try to validate as UTF-8
+    Ok(std::str::from_utf8(&buffer).is_ok())
 }
 
 /// Check if a file has trailing whitespace
@@ -185,5 +195,33 @@ mod tests {
 
         // Should not modify
         assert!(!fix_trailing_whitespace(&path).unwrap());
+    }
+
+    #[test]
+    fn test_is_text_file_with_text() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(file, "This is a text file").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(is_text_file(&path).unwrap());
+    }
+
+    #[test]
+    fn test_is_text_file_with_binary() {
+        let mut file = NamedTempFile::new().unwrap();
+        // Write binary data with null bytes
+        file.write_all(&[0x00, 0x01, 0x02, 0x03, 0xFF]).unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(!is_text_file(&path).unwrap());
+    }
+
+    #[test]
+    fn test_is_text_file_with_empty() {
+        let file = NamedTempFile::new().unwrap();
+        let path = file.path().to_path_buf();
+        assert!(is_text_file(&path).unwrap()); // Empty files are considered text
     }
 }
