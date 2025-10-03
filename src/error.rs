@@ -7,5 +7,6 @@ pub enum Error {
         #[source]
         source: eyre::Error,
         stdout: String,
+        stderr: String,
     },
 }

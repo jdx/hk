@@ -414,7 +414,7 @@ impl Step {
                             return Ok(());
                         }
                         Err(e) => {
-                            if let Some(Error::CheckListFailed { source, stdout }) =
+                            if let Some(Error::CheckListFailed { source, stdout, stderr }) =
                                 e.downcast_ref::<Error>()
                             {
                                 debug!("{step}: failed check step first: {source}");
@@ -425,6 +425,13 @@ impl Step {
                                         f.display()
                                     );
                                 }
+
+                                // If no files remain after filtering and stderr is non-empty, fail with the stderr output
+                                if files.is_empty() && !stderr.trim().is_empty() {
+                                    error!("{step}: check_list_files returned no files and produced errors:\n{}", stderr);
+                                    return Err(eyre!("check_list_files failed with errors:\n{}", stderr));
+                                }
+
                                 job.files = files;
                             }
                             debug!("{step}: failed check step first: {e}");
@@ -738,6 +745,22 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
+                // For check_list_files, if stdout is empty but stderr has content, treat as an error
+                if let RunType::Check(CheckType::ListFiles) = job.run_type {
+                    debug!(
+                        "{self}: check_list_files succeeded, stdout len={}, stderr len={}",
+                        result.stdout.len(),
+                        result.stderr.len()
+                    );
+                    if result.stdout.trim().is_empty() && !result.stderr.trim().is_empty() {
+                        error!("{self}: check_list_files returned no files but produced stderr");
+                        return Err(Error::CheckListFailed {
+                            source: eyre!("check_list_files returned no files but produced stderr"),
+                            stdout: result.stdout.clone(),
+                            stderr: result.stderr.clone(),
+                        })?;
+                    }
+                }
                 // Save output for end-of-run summary based on configured mode
                 self.save_output_summary(
                     ctx,
@@ -753,9 +776,11 @@ impl Step {
                     if let RunType::Check(CheckType::ListFiles) = job.run_type {
                         let result = &e.3;
                         let stdout = result.stdout.clone();
+                        let stderr = result.stderr.clone();
                         return Err(Error::CheckListFailed {
                             source: eyre!("{}", err),
                             stdout,
+                            stderr,
                         })?;
                     }
                     // Save output from a failed command as well
