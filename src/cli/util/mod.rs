@@ -1,7 +1,9 @@
+mod check_executables_have_shebangs;
 mod check_symlinks;
 mod mixed_line_ending;
 mod trailing_whitespace;
 
+pub use check_executables_have_shebangs::CheckExecutablesHaveShebangs;
 pub use check_symlinks::CheckSymlinks;
 pub use mixed_line_ending::MixedLineEnding;
 pub use trailing_whitespace::TrailingWhitespace;
@@ -17,6 +19,8 @@ pub struct Util {
 
 #[derive(Debug, clap::Subcommand)]
 enum UtilCommands {
+    /// Check that executable files have shebangs
+    CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),
     /// Check for broken symlinks
     CheckSymlinks(CheckSymlinks),
     /// Detect and fix mixed line endings
@@ -28,6 +32,7 @@ enum UtilCommands {
 impl Util {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
+            UtilCommands::CheckExecutablesHaveShebangs(cmd) => cmd.run().await,
             UtilCommands::CheckSymlinks(cmd) => cmd.run().await,
             UtilCommands::MixedLineEnding(cmd) => cmd.run().await,
             UtilCommands::TrailingWhitespace(cmd) => cmd.run().await,

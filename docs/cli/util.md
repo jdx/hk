@@ -6,6 +6,42 @@ Utility commands for file operations
 
 ## Subcommands
 
+### `check-executables-have-shebangs`
+
+Check that executable files have shebangs
+
+**Usage**: `hk util check-executables-have-shebangs <FILES>…`
+
+#### Arguments
+
+**`<FILES>…`**
+
+Files to check
+
+#### Examples
+
+```bash
+# Check if executables have shebangs
+hk util check-executables-have-shebangs script.sh
+
+# Use in hk.pkl via builtin
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["executable-shebangs"] = Builtins.check_executables_have_shebangs
+    }
+  }
+}
+```
+
+#### Features
+
+- Detects executable files without shebang (`#!`) lines
+- Only checks files with execute permission set
+- Automatically skips binary files
+- Accepts any shebang format (e.g., `#!/bin/bash`, `#!/usr/bin/env python`)
+- Exit code 1 if issues found, 0 if clean
+
 ### `check-symlinks`
 
 Check for broken symlinks
