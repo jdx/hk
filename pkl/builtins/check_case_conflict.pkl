@@ -1,0 +1,26 @@
+import "../Config.pkl"
+
+check_case_conflict = new Config.Step {
+    glob = "**/*"
+    check = "hk util check-case-conflict {{files}}"
+    tests {
+        ["detects case conflicts"] {
+            run = "check"
+            write {
+                ["{{tmp}}/README.md"] = "# First\n"
+                ["{{tmp}}/readme.md"] = "# Second\n"
+            }
+            files = List("{{tmp}}/README.md", "{{tmp}}/readme.md")
+            expect { code = 1 }
+        }
+        ["passes when no conflicts"] {
+            run = "check"
+            write {
+                ["{{tmp}}/file1.txt"] = "content\n"
+                ["{{tmp}}/file2.txt"] = "content\n"
+            }
+            files = List("{{tmp}}/file1.txt", "{{tmp}}/file2.txt")
+            expect { code = 0 }
+        }
+    }
+}

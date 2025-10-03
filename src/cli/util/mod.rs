@@ -1,9 +1,11 @@
+mod check_case_conflict;
 mod check_executables_have_shebangs;
 mod check_merge_conflict;
 mod check_symlinks;
 mod mixed_line_ending;
 mod trailing_whitespace;
 
+pub use check_case_conflict::CheckCaseConflict;
 pub use check_executables_have_shebangs::CheckExecutablesHaveShebangs;
 pub use check_merge_conflict::CheckMergeConflict;
 pub use check_symlinks::CheckSymlinks;
@@ -21,6 +23,8 @@ pub struct Util {
 
 #[derive(Debug, clap::Subcommand)]
 enum UtilCommands {
+    /// Check for case-insensitive filename conflicts
+    CheckCaseConflict(CheckCaseConflict),
     /// Check that executable files have shebangs
     CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),
     /// Check for merge conflict markers
@@ -36,6 +40,7 @@ enum UtilCommands {
 impl Util {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
+            UtilCommands::CheckCaseConflict(cmd) => cmd.run().await,
             UtilCommands::CheckExecutablesHaveShebangs(cmd) => cmd.run().await,
             UtilCommands::CheckMergeConflict(cmd) => cmd.run().await,
             UtilCommands::CheckSymlinks(cmd) => cmd.run().await,

@@ -6,6 +6,41 @@ Utility commands for file operations
 
 ## Subcommands
 
+### `check-case-conflict`
+
+Detect case-insensitive filename conflicts
+
+**Usage**: `hk util check-case-conflict <FILES>…`
+
+#### Arguments
+
+**`<FILES>…`**
+
+Files to check for case conflicts
+
+#### Examples
+
+```bash
+# Check for case conflicts
+hk util check-case-conflict README.md readme.md
+
+# Use in hk.pkl via builtin
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["case-conflict"] = Builtins.check_case_conflict
+    }
+  }
+}
+```
+
+#### Features
+
+- Detects files that would conflict on case-insensitive filesystems (Windows, macOS)
+- Useful for cross-platform projects
+- Groups and displays all conflicting files together
+- Exit code 1 if conflicts found, 0 if clean
+
 ### `check-executables-have-shebangs`
 
 Check that executable files have shebangs
