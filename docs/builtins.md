@@ -473,6 +473,13 @@ You can also customize builtins:
 
 ### Special Purpose
 
+#### `check_executables_have_shebangs`
+- **Files:** All files
+- **Features:** Verify executable files have shebang lines
+- **Commands:**
+  - Check: `hk util check-executables-have-shebangs {{files}}`
+- **Notes:** Only checks files with execute permission, skips binary files
+
 #### `check_symlinks`
 - **Files:** All files
 - **Features:** Detect broken symlinks

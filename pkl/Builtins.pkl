@@ -10,6 +10,7 @@ bundle_audit = Builtins["builtins/bundle_audit.pkl"].bundle_audit
 cargo_check = Builtins["builtins/cargo_check.pkl"].cargo_check
 cargo_clippy = Builtins["builtins/cargo_clippy.pkl"].cargo_clippy
 cargo_fmt = Builtins["builtins/cargo_fmt.pkl"].cargo_fmt
+check_executables_have_shebangs = Builtins["builtins/check_executables_have_shebangs.pkl"].check_executables_have_shebangs
 check_symlinks = Builtins["builtins/check_symlinks.pkl"].check_symlinks
 clang_format = Builtins["builtins/clang_format.pkl"].clang_format
 cpp_lint = Builtins["builtins/cpp_lint.pkl"].cpp_lint
