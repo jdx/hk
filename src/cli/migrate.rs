@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::Result;
+use indexmap::IndexMap;
 use serde::Deserialize;
 
 /// Migrate from other hook managers to hk
@@ -14,18 +15,21 @@ pub struct Migrate {
 #[derive(Debug, clap::Subcommand)]
 enum MigrateCommands {
     /// Migrate from pre-commit to hk
-    FromPrecommit(FromPrecommit),
+    Precommit(Precommit),
 }
 
 /// Migrate from pre-commit to hk
 #[derive(Debug, clap::Args)]
-pub struct FromPrecommit {
+pub struct Precommit {
     /// Path to .pre-commit-config.yaml
     #[clap(short, long, default_value = ".pre-commit-config.yaml")]
     config: PathBuf,
     /// Output path for hk.pkl
     #[clap(short, long, default_value = "hk.pkl")]
     output: PathBuf,
+    /// Also generate mise.toml with tool dependencies
+    #[clap(long)]
+    mise: bool,
     /// Overwrite existing hk.pkl file
     #[clap(short, long)]
     force: bool,
@@ -34,7 +38,7 @@ pub struct FromPrecommit {
 impl Migrate {
     pub async fn run(&self) -> Result<()> {
         match &self.command {
-            MigrateCommands::FromPrecommit(cmd) => cmd.run().await,
+            MigrateCommands::Precommit(cmd) => cmd.run().await,
         }
     }
 }
@@ -48,12 +52,17 @@ struct PrecommitConfig {
     exclude: Option<String>,
     #[serde(default)]
     fail_fast: bool,
+    #[serde(default)]
+    default_language_version: HashMap<String, String>,
+    #[serde(default)]
+    default_stages: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
 struct PrecommitRepo {
     repo: String,
-    rev: String,
+    #[serde(default)]
+    rev: Option<String>,
     hooks: Vec<PrecommitHook>,
 }
 
@@ -67,12 +76,28 @@ struct PrecommitHook {
     #[serde(default)]
     exclude: Option<String>,
     #[serde(default)]
+    types: Vec<String>,
+    #[serde(default)]
+    types_or: Vec<String>,
+    #[serde(default)]
+    exclude_types: Vec<String>,
+    #[serde(default)]
     args: Vec<String>,
     #[serde(default)]
     additional_dependencies: Vec<String>,
+    #[serde(default)]
+    stages: Vec<String>,
+    #[serde(default)]
+    always_run: bool,
+    #[serde(default)]
+    pass_filenames: Option<bool>,
+    #[serde(default)]
+    language_version: Option<String>,
+    #[serde(default)]
+    verbose: bool,
 }
 
-impl FromPrecommit {
+impl Precommit {
     pub async fn run(&self) -> Result<()> {
         if self.output.exists() && !self.force {
             bail!(
@@ -88,22 +113,40 @@ impl FromPrecommit {
         let config_content = xx::file::read_to_string(&self.config)?;
         let precommit_config: PrecommitConfig = serde_yaml::from_str(&config_content)?;
 
-        let hk_config = self.convert_config(&precommit_config)?;
+        let (hk_config, tools) = self.convert_config(&precommit_config)?;
         xx::file::write(&self.output, hk_config)?;
+
+        if self.mise && !tools.is_empty() {
+            self.generate_mise_toml(&tools)?;
+        }
 
         info!("Migrated {} to {}", self.config.display(), self.output.display());
         println!("Successfully migrated to hk.pkl!");
+        
+        if !tools.is_empty() {
+            println!("\nTools detected:");
+            for tool in &tools {
+                println!("  - {}", tool);
+            }
+            if self.mise {
+                println!("\nGenerated mise.toml with tool dependencies.");
+            } else {
+                println!("\nConsider using --mise to generate mise.toml with tool dependencies.");
+            }
+        }
+        
         println!("\nNext steps:");
         println!("1. Review the generated hk.pkl file");
-        println!("2. Install tools referenced in the config (e.g., via mise)");
+        println!("2. Install tools (e.g., mise install)");
         println!("3. Run 'hk install' to install git hooks");
         println!("4. Run 'hk check' to test your configuration");
 
         Ok(())
     }
 
-    fn convert_config(&self, config: &PrecommitConfig) -> Result<String> {
+    fn convert_config(&self, config: &PrecommitConfig) -> Result<(String, HashSet<String>)> {
         let mut output = String::new();
+        let mut tools = HashSet::new();
 
         output.push_str(r#"amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.pkl"
@@ -112,72 +155,168 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
         if config.fail_fast {
             output.push_str("// Migrated from pre-commit fail_fast setting\n");
-            output.push_str("// Note: hk uses --fail-fast flag instead of config setting\n\n");
+            output.push_str("// Note: hk uses --fail-fast CLI flag instead of config setting\n\n");
         }
 
-        let mut steps = Vec::new();
+        if !config.default_language_version.is_empty() {
+            output.push_str("// pre-commit default_language_version:\n");
+            for (lang, version) in &config.default_language_version {
+                output.push_str(&format!("//   {}: {}\n", lang, version));
+            }
+            output.push_str("// Note: Use mise.toml to manage language versions in hk\n\n");
+        }
+
+        let mut steps_by_stage: IndexMap<String, Vec<String>> = IndexMap::new();
         let mut unknown_hooks = Vec::new();
+        let mut local_hooks = Vec::new();
 
         for repo in &config.repos {
+            let is_local = repo.repo == "local";
+            let is_meta = repo.repo == "meta";
+            
             for hook in &repo.hooks {
-                if let Some(step) = self.convert_hook(hook, repo, config) {
-                    steps.push(step);
+                let hook_stages = if !hook.stages.is_empty() {
+                    hook.stages.clone()
+                } else if !config.default_stages.is_empty() {
+                    config.default_stages.clone()
                 } else {
-                    unknown_hooks.push((hook, repo));
+                    vec!["pre-commit".to_string()]
+                };
+
+                if is_local {
+                    local_hooks.push((hook, repo, hook_stages.clone()));
+                    continue;
+                }
+
+                if is_meta {
+                    // Skip meta hooks, they're pre-commit internal
+                    continue;
+                }
+
+                let conversion_result = self.convert_hook(hook, repo, config, &mut tools);
+                
+                for stage in hook_stages {
+                    let steps = steps_by_stage.entry(stage).or_default();
+                    
+                    if let Some(ref step) = conversion_result {
+                        steps.push(step.clone());
+                    } else {
+                        // Track unknown hooks separately
+                        if !unknown_hooks.iter().any(|(h, _, _): &(&PrecommitHook, &PrecommitRepo, _)| h.id == hook.id) {
+                            unknown_hooks.push((hook, repo, stage.clone()));
+                        }
+                    }
                 }
             }
         }
 
-        if !steps.is_empty() {
+        // Generate linters mapping
+        let all_known_steps: Vec<String> = steps_by_stage
+            .values()
+            .flatten()
+            .cloned()
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        if !all_known_steps.is_empty() {
             output.push_str("local linters = new Mapping<String, Step> {\n");
-            for step in steps {
+            for step in all_known_steps {
                 output.push_str(&step);
             }
             output.push_str("}\n\n");
         }
 
+        // Generate local hooks
+        if !local_hooks.is_empty() {
+            output.push_str("// Local hooks from your pre-commit config\n");
+            output.push_str("local local_hooks = new Mapping<String, Step> {\n");
+            for (hook, repo, _) in &local_hooks {
+                output.push_str(&self.generate_local_hook(hook, repo));
+            }
+            output.push_str("}\n\n");
+        }
+
+        // Generate unknown hooks
         if !unknown_hooks.is_empty() {
             output.push_str("// The following hooks could not be automatically converted.\n");
             output.push_str("// Please configure them manually or use equivalent hk builtins.\n");
             output.push_str("local custom_steps = new Mapping<String, Step> {\n");
-            for (hook, repo) in unknown_hooks {
+            for (hook, repo, _) in &unknown_hooks {
                 output.push_str(&self.generate_custom_step(hook, repo));
             }
             output.push_str("}\n\n");
         }
 
+        // Generate hooks configuration
         output.push_str("hooks {\n");
-        output.push_str("    [\"pre-commit\"] {\n");
-        output.push_str("        fix = true\n");
-        output.push_str("        stash = \"git\"\n");
-        output.push_str("        steps {\n");
 
-        if !steps.is_empty() {
-            output.push_str("            ...linters\n");
+        // Group by stage
+        for (stage, _steps) in steps_by_stage {
+            let hk_stage = match stage.as_str() {
+                "commit" | "commit-msg" => "commit-msg",
+                "push" | "pre-push" => "pre-push",
+                "prepare-commit-msg" => "prepare-commit-msg",
+                _ => "pre-commit",
+            };
+
+            output.push_str(&format!("    [\"{}\"] {{\n", hk_stage));
+            
+            if hk_stage == "pre-commit" {
+                output.push_str("        fix = true\n");
+                output.push_str("        stash = \"git\"\n");
+            }
+            
+            output.push_str("        steps {\n");
+
+            if !all_known_steps.is_empty() {
+                output.push_str("            ...linters\n");
+            }
+
+            if !local_hooks.is_empty() && local_hooks.iter().any(|(_, _, stages)| stages.contains(&stage)) {
+                output.push_str("            ...local_hooks\n");
+            }
+
+            if !unknown_hooks.is_empty() && unknown_hooks.iter().any(|(_, _, s)| s == &stage) {
+                output.push_str("            ...custom_steps\n");
+            }
+
+            output.push_str("        }\n");
+            output.push_str("    }\n");
         }
 
-        if !unknown_hooks.is_empty() {
-            output.push_str("            ...custom_steps\n");
+        // Always add check and fix hooks
+        if !all_known_steps.is_empty() || !local_hooks.is_empty() {
+            output.push_str("    [\"check\"] {\n");
+            output.push_str("        steps {\n");
+            if !all_known_steps.is_empty() {
+                output.push_str("            ...linters\n");
+            }
+            if !local_hooks.is_empty() {
+                output.push_str("            ...local_hooks\n");
+            }
+            if !unknown_hooks.is_empty() {
+                output.push_str("            ...custom_steps\n");
+            }
+            output.push_str("        }\n");
+            output.push_str("    }\n");
+            
+            output.push_str("    [\"fix\"] {\n");
+            output.push_str("        fix = true\n");
+            output.push_str("        steps {\n");
+            if !all_known_steps.is_empty() {
+                output.push_str("            ...linters\n");
+            }
+            if !local_hooks.is_empty() {
+                output.push_str("            ...local_hooks\n");
+            }
+            output.push_str("        }\n");
+            output.push_str("    }\n");
         }
 
-        output.push_str("        }\n");
-        output.push_str("    }\n");
-        output.push_str("    [\"check\"] {\n");
-        output.push_str("        steps {\n");
-
-        if !steps.is_empty() {
-            output.push_str("            ...linters\n");
-        }
-
-        if !unknown_hooks.is_empty() {
-            output.push_str("            ...custom_steps\n");
-        }
-
-        output.push_str("        }\n");
-        output.push_str("    }\n");
         output.push_str("}\n");
 
-        Ok(output)
+        Ok((output, tools))
     }
 
     fn convert_hook(
@@ -185,39 +324,79 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         hook: &PrecommitHook,
         repo: &PrecommitRepo,
         _config: &PrecommitConfig,
+        tools: &mut HashSet<String>,
     ) -> Option<String> {
-        // Map of pre-commit hook IDs to hk builtin names
         let builtin_map = self.get_builtin_map();
 
         if let Some(builtin_name) = builtin_map.get(hook.id.as_str()) {
+            tools.insert(self.hook_id_to_tool(&hook.id));
+            
             let mut step = format!("    [\"{}\"] = ", hook.id);
 
-            // Check if we need customization
             let needs_customization = hook.files.is_some()
                 || hook.exclude.is_some()
                 || !hook.args.is_empty()
-                || !hook.additional_dependencies.is_empty();
+                || !hook.additional_dependencies.is_empty()
+                || !hook.types.is_empty()
+                || !hook.types_or.is_empty()
+                || !hook.exclude_types.is_empty()
+                || hook.always_run
+                || hook.pass_filenames == Some(false)
+                || hook.language_version.is_some();
 
             if needs_customization {
                 step.push_str(&format!("(Builtins.{}) {{\n", builtin_name));
 
                 if let Some(ref files) = hook.files {
                     step.push_str(&format!("        // files pattern from pre-commit: {}\n", files));
-                    step.push_str("        // Note: hk uses glob patterns, you may need to adjust this\n");
+                    step.push_str("        // Note: Convert regex to glob pattern for hk\n");
                 }
 
                 if let Some(ref exclude) = hook.exclude {
                     step.push_str(&format!("        exclude = \"{}\"\n", exclude));
                 }
 
+                if !hook.types.is_empty() {
+                    step.push_str(&format!("        // types (AND): {}\n", hook.types.join(", ")));
+                }
+
+                if !hook.types_or.is_empty() {
+                    step.push_str(&format!("        // types_or: {}\n", hook.types_or.join(", ")));
+                }
+
+                if !hook.exclude_types.is_empty() {
+                    step.push_str(&format!("        // exclude_types: {}\n", hook.exclude_types.join(", ")));
+                }
+
+                if hook.always_run {
+                    step.push_str("        // always_run: true - runs even without matching files\n");
+                    step.push_str("        // Note: hk doesn't have direct equivalent, hook will run on all files\n");
+                }
+
+                if hook.pass_filenames == Some(false) {
+                    step.push_str("        // pass_filenames: false\n");
+                    step.push_str("        // Note: Adjust check/fix commands to not use {{files}}\n");
+                }
+
                 if !hook.args.is_empty() {
-                    step.push_str(&format!("        // args from pre-commit: {}\n", hook.args.join(" ")));
-                    step.push_str("        // Note: You may need to adjust the check/fix commands to include these args\n");
+                    let args_str = hook.args.join(" ");
+                    step.push_str(&format!("        // args from pre-commit: {}\n", args_str));
+                    step.push_str("        // Consider updating check/fix commands with these args\n");
                 }
 
                 if !hook.additional_dependencies.is_empty() {
-                    step.push_str(&format!("        // additional_dependencies: {}\n", hook.additional_dependencies.join(", ")));
-                    step.push_str("        // Note: Install these via mise or your package manager\n");
+                    let deps = hook.additional_dependencies.join(", ");
+                    step.push_str(&format!("        // additional_dependencies: {}\n", deps));
+                    
+                    // Generate mise x wrapper
+                    let tool_name = self.hook_id_to_tool(&hook.id);
+                    step.push_str(&format!("        // Use mise x to install dependencies:\n"));
+                    step.push_str(&format!("        prefix = \"mise x {}@latest --\"\n", tool_name));
+                }
+
+                if let Some(ref lang_ver) = hook.language_version {
+                    step.push_str(&format!("        // language_version: {}\n", lang_ver));
+                    step.push_str("        // Configure version in mise.toml\n");
                 }
 
                 step.push_str("    }\n");
@@ -231,8 +410,42 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         }
     }
 
+    fn generate_local_hook(&self, hook: &PrecommitHook, _repo: &PrecommitRepo) -> String {
+        let mut step = format!("    [\"{}\"] {{\n", hook.id);
+
+        if let Some(ref name) = hook.name {
+            step.push_str(&format!("        // Name: {}\n", name));
+        }
+
+        if let Some(ref files) = hook.files {
+            step.push_str(&format!("        glob = \"{}\"\n", files));
+        }
+
+        if let Some(ref exclude) = hook.exclude {
+            step.push_str(&format!("        exclude = \"{}\"\n", exclude));
+        }
+
+        if hook.always_run {
+            step.push_str("        // always_run was true in pre-commit\n");
+        }
+
+        step.push_str("        // TODO: Configure check and/or fix commands from local hook\n");
+        step.push_str("        // check = \"...\"\n");
+
+        if !hook.args.is_empty() {
+            step.push_str(&format!("        // Original args: {}\n", hook.args.join(" ")));
+        }
+
+        step.push_str("    }\n");
+        step
+    }
+
     fn generate_custom_step(&self, hook: &PrecommitHook, repo: &PrecommitRepo) -> String {
-        let mut step = format!("    // Repo: {} @ {}\n", repo.repo, repo.rev);
+        let mut step = format!("    // Repo: {}", repo.repo);
+        if let Some(ref rev) = repo.rev {
+            step.push_str(&format!(" @ {}", rev));
+        }
+        step.push_str("\n");
         step.push_str(&format!("    [\"{}\"] {{\n", hook.id));
 
         if let Some(ref name) = hook.name {
@@ -245,6 +458,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
         if let Some(ref exclude) = hook.exclude {
             step.push_str(&format!("        exclude = \"{}\"\n", exclude));
+        }
+
+        if !hook.types.is_empty() || !hook.types_or.is_empty() {
+            step.push_str("        // File type filtering needed\n");
         }
 
         step.push_str("        // TODO: Configure check and/or fix commands\n");
@@ -263,10 +480,50 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         step
     }
 
+    fn hook_id_to_tool(&self, hook_id: &str) -> String {
+        match hook_id {
+            "black" | "flake8" | "isort" | "mypy" | "pylint" | "ruff" | "ruff-format" => hook_id.to_string(),
+            "prettier" | "eslint" => hook_id.to_string(),
+            "rustfmt" | "cargo-fmt" => "rust".to_string(),
+            "clippy" => "rust".to_string(),
+            "shellcheck" | "shfmt" => hook_id.to_string(),
+            "rubocop" => "ruby".to_string(),
+            "gofmt" | "goimports" | "golangci-lint" | "go-vet" => "go".to_string(),
+            "yamllint" => "yamllint".to_string(),
+            "hadolint" => "hadolint".to_string(),
+            "terraform-fmt" | "tflint" => "terraform".to_string(),
+            "stylelint" => "node".to_string(),
+            "markdownlint" => "node".to_string(),
+            "actionlint" => "actionlint".to_string(),
+            _ => hook_id.to_string(),
+        }
+    }
+
+    fn generate_mise_toml(&self, tools: &HashSet<String>) -> Result<()> {
+        let mise_toml = PathBuf::from("mise.toml");
+        
+        let mut content = String::from("[tools]\n");
+        content.push_str("hk = \"latest\"\n");
+        
+        for tool in tools {
+            if tool != "hk" {
+                content.push_str(&format!("{} = \"latest\"\n", tool));
+            }
+        }
+
+        if mise_toml.exists() {
+            warn!("mise.toml already exists, not overwriting");
+        } else {
+            xx::file::write(mise_toml, content)?;
+            println!("Generated mise.toml");
+        }
+
+        Ok(())
+    }
+
     fn get_builtin_map(&self) -> HashMap<&'static str, &'static str> {
         let mut map = HashMap::new();
 
-        // Common pre-commit hooks to hk builtins mapping
         // Python
         map.insert("black", "black");
         map.insert("flake8", "flake8");
