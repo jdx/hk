@@ -591,3 +591,13 @@ If a builtin doesn't exist for your tool:
 - [Configuration Schema Reference](reference/schema.md)
 - [Configuration Guide](configuration.md)
 - [Getting Started](getting_started.md)
+
+#### `check_byte_order_marker`
+- **Files:** All files
+- **Features:** Detect UTF-8 BOM
+- **Commands:** Check: `hk util check-byte-order-marker {{files}}`
+
+#### `fix_byte_order_marker`
+- **Files:** All files
+- **Features:** Remove UTF-8 BOM
+- **Commands:** Fix: `hk util fix-byte-order-marker {{files}}`
