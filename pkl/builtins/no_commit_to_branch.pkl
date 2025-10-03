@@ -1,0 +1,23 @@
+import "../Config.pkl"
+
+no_commit_to_branch = new Config.Step {
+    check = "hk util no-commit-to-branch"
+    tests {
+        ["passes on feature branch"] {
+            run = "check"
+            before = "git checkout -b feature-branch 2>/dev/null || git checkout feature-branch"
+            expect { code = 0 }
+        }
+        ["fails on main branch"] {
+            run = "check"
+            before = "git checkout main 2>/dev/null || git checkout -b main"
+            expect { code = 1 }
+        }
+        ["respects custom branch list"] {
+            run = "check"
+            before = "git checkout -b production 2>/dev/null || git checkout production"
+            check = "hk util no-commit-to-branch --branch main,master,production"
+            expect { code = 1 }
+        }
+    }
+}
