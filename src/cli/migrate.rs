@@ -69,6 +69,10 @@ struct PrecommitHook {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
+    entry: Option<String>,
+    #[serde(default)]
+    language: Option<String>,
+    #[serde(default)]
     files: Option<String>,
     #[serde(default)]
     exclude: Option<String>,
@@ -410,11 +414,30 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             step.push_str("        // always_run was true in pre-commit\n");
         }
 
-        step.push_str("        // TODO: Configure check and/or fix commands from local hook\n");
-        step.push_str("        // check = \"...\"\n");
+        // Generate check command from entry
+        if let Some(ref entry) = hook.entry {
+            let pass_filenames = hook.pass_filenames.unwrap_or(true);
 
-        if !hook.args.is_empty() {
-            step.push_str(&format!("        // Original args: {}\n", hook.args.join(" ")));
+            if pass_filenames {
+                // Command expects filenames as arguments
+                step.push_str(&format!("        check = \"{} {{{{files}}}}\"\n", entry));
+            } else {
+                // Command doesn't take filenames
+                step.push_str(&format!("        check = \"{}\"\n", entry));
+                step.push_str("        // pass_filenames was false in pre-commit\n");
+            }
+
+            if !hook.args.is_empty() {
+                step.push_str(&format!("        // args from pre-commit: {}\n", hook.args.join(" ")));
+                step.push_str("        // Consider adding args to check command\n");
+            }
+        } else {
+            step.push_str("        // TODO: Configure check and/or fix commands from local hook\n");
+            step.push_str("        // check = \"...\"\n");
+
+            if !hook.args.is_empty() {
+                step.push_str(&format!("        // Original args: {}\n", hook.args.join(" ")));
+            }
         }
 
         step.push_str("    }\n");

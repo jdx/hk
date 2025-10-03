@@ -144,11 +144,35 @@ PRECOMMIT
     run hk migrate precommit
     assert_success
     
-    # Verify local hooks are generated
+    # Verify local hooks are generated with check command
     run cat hk.pkl
     assert_output --partial "local_hooks"
     assert_output --partial "my-local-check"
-    assert_output --partial "TODO: Configure check and/or fix commands from local hook"
+    assert_output --partial 'check = "./scripts/check.sh {{files}}"'
+}
+
+@test "migrate precommit - local hook with pass_filenames false" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: local
+    hooks:
+    -   id: test
+        name: Run tests
+        entry: cargo test
+        language: system
+        files: '\.rs$'
+        pass_filenames: false
+PRECOMMIT
+
+    run hk migrate precommit
+    assert_success
+
+    # Verify local hook without {{files}}
+    run cat hk.pkl
+    assert_output --partial "local_hooks"
+    assert_output --partial 'check = "cargo test"'
+    refute_output --partial "{{files}}"
+    assert_output --partial "pass_filenames was false"
 }
 
 @test "migrate precommit - meta repo is skipped" {
