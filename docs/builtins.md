@@ -4,7 +4,7 @@ outline: "deep"
 
 # Built-in Linters Reference
 
-hk provides 60+ pre-configured linters and formatters through the `Builtins` module. These are production-ready configurations that work out of the box.
+hk provides 70+ pre-configured linters and formatters through the `Builtins` module. These are production-ready configurations that work out of the box.
 
 ## Usage
 
@@ -479,6 +479,14 @@ You can also customize builtins:
 - **Commands:**
   - Check: Shell script to check newlines
   - Fix: Shell script to add newlines
+
+#### `trailing_whitespace`
+- **Files:** All text files
+- **Features:** Detect and remove trailing whitespace from lines
+- **Commands:**
+  - Check: `hk util trailing-whitespace {{files}}`
+  - Fix: `hk util trailing-whitespace --fix {{files}}`
+- **Notes:** Uses cross-platform Rust implementation (works on Windows, macOS, Linux)
 
 ## Customizing Builtins
 

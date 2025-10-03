@@ -69,5 +69,6 @@ Output in JSON format
 - [`hk run prepare-commit-msg [FLAGS] <ARGS>…`](/cli/run/prepare-commit-msg.md)
 - [`hk test [FLAGS]`](/cli/test.md)
 - [`hk uninstall`](/cli/uninstall.md)
+- [`hk util <SUBCOMMAND>`](/cli/util.md)
 - [`hk validate`](/cli/validate.md)
 - [`hk version`](/cli/version.md)
