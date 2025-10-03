@@ -2,7 +2,6 @@ import "../Config.pkl"
 
 check_case_conflict = new Config.Step {
     glob = "**/*"
-    stage = "*"
     check = "hk util check-case-conflict {{files}}"
     tests {
         ["detects case conflicts"] {
