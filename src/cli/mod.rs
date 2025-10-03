@@ -18,6 +18,7 @@ mod run;
 mod test;
 mod uninstall;
 mod usage;
+mod util;
 mod validate;
 mod version;
 
@@ -74,6 +75,7 @@ enum Commands {
     Test(Box<test::Test>),
     Uninstall(Box<uninstall::Uninstall>),
     Usage(Box<usage::Usage>),
+    Util(Box<util::Util>),
     Validate(Box<validate::Validate>),
     Version(Box<version::Version>),
 }
@@ -155,6 +157,7 @@ pub async fn run() -> Result<()> {
         Commands::Run(cmd) => cmd.run().await,
         Commands::Uninstall(cmd) => cmd.run().await,
         Commands::Usage(cmd) => cmd.run().await,
+        Commands::Util(cmd) => cmd.run().await,
         Commands::Validate(cmd) => cmd.run().await,
         Commands::Version(cmd) => cmd.run().await,
         Commands::Test(cmd) => cmd.run().await,

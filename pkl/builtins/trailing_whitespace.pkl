@@ -1,0 +1,28 @@
+import "../Config.pkl"
+
+trailing_whitespace = new Config.Step {
+    glob = "*"
+    stage = "*"
+    check = "hk util trailing-whitespace {{files}}"
+    fix = "hk util trailing-whitespace --fix {{files}}"
+    tests {
+        ["removes trailing whitespace"] {
+            run = "fix"
+            write { ["{{tmp}}/a.txt"] = "trailing  \n" }
+            files = List("{{tmp}}/a.txt")
+            expect { files { ["{{tmp}}/a.txt"] = "trailing\n" } }
+        }
+        ["detects trailing whitespace"] {
+            run = "check"
+            write { ["{{tmp}}/a.txt"] = "trailing  \n" }
+            files = List("{{tmp}}/a.txt")
+            expect { status = 1 }
+        }
+        ["passes clean files"] {
+            run = "check"
+            write { ["{{tmp}}/a.txt"] = "clean\n" }
+            files = List("{{tmp}}/a.txt")
+            expect { status = 0 }
+        }
+    }
+}
