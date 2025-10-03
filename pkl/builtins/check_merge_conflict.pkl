@@ -1,0 +1,20 @@
+import "../Config.pkl"
+
+check_merge_conflict = new Config.Step {
+    glob = "**/*"
+    check = "hk util check-merge-conflict {{files}}"
+    tests {
+        ["detects conflict markers"] {
+            run = "check"
+            write { ["{{tmp}}/a.txt"] = "<<<<<<< HEAD\nconflict\n" }
+            files = List("{{tmp}}/a.txt")
+            expect { code = 1 }
+        }
+        ["passes clean files"] {
+            run = "check"
+            write { ["{{tmp}}/a.txt"] = "normal line\n" }
+            files = List("{{tmp}}/a.txt")
+            expect { code = 0 }
+        }
+    }
+}
