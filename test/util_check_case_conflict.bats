@@ -9,6 +9,10 @@ teardown() {
 }
 
 @test "util check-case-conflict - detects simple conflict" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
     echo "first" > README.md
     echo "second" > readme.md
 
@@ -28,6 +32,10 @@ teardown() {
 }
 
 @test "util check-case-conflict - detects multiple conflicts" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
     echo "1" > File1.txt
     echo "2" > file1.txt
     echo "3" > FILE1.TXT
@@ -44,6 +52,10 @@ teardown() {
 }
 
 @test "util check-case-conflict - detects conflict with different extensions" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
     echo "text" > File.txt
     echo "text" > file.TXT
 
@@ -64,6 +76,10 @@ teardown() {
 }
 
 @test "util check-case-conflict - detects conflict in subdirectory" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
     mkdir -p src
     echo "main" > src/Main.rs
     echo "main" > src/main.rs
@@ -75,6 +91,10 @@ teardown() {
 }
 
 @test "util check-case-conflict - detects conflict with committed file" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
     # Commit README.md
     echo "original" > README.md
     git add README.md
@@ -90,6 +110,10 @@ teardown() {
 }
 
 @test "util check-case-conflict - builtin integration" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
     cat > hk.pkl <<HK
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
@@ -113,6 +137,10 @@ HK
 }
 
 @test "util check-case-conflict - builtin detects conflict with existing committed file" {
+    if [[ "$(uname)" == "Darwin" ]]; then
+        skip "macOS has case-insensitive filesystem by default"
+    fi
+
     cat > hk.pkl <<HK
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
