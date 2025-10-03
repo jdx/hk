@@ -482,7 +482,8 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
     fn hook_id_to_tool(&self, hook_id: &str) -> String {
         match hook_id {
-            "black" | "flake8" | "isort" | "mypy" | "pylint" | "ruff" | "ruff-format" => hook_id.to_string(),
+            "black" | "flake8" | "isort" | "mypy" | "pylint" => hook_id.to_string(),
+            "ruff" | "ruff-check" | "ruff-format" => "ruff".to_string(),
             "prettier" | "eslint" => hook_id.to_string(),
             "rustfmt" | "cargo-fmt" => "rust".to_string(),
             "clippy" => "rust".to_string(),
@@ -531,7 +532,8 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         map.insert("mypy", "mypy");
         map.insert("pylint", "pylint");
         map.insert("ruff", "ruff");
-        map.insert("ruff-format", "ruff");
+        map.insert("ruff-check", "ruff");  // Astral ruff linter
+        map.insert("ruff-format", "ruff"); // Astral ruff formatter
 
         // JavaScript/TypeScript
         map.insert("prettier", "prettier");
