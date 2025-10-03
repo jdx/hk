@@ -42,6 +42,40 @@ hooks {
 - Accepts any shebang format (e.g., `#!/bin/bash`, `#!/usr/bin/env python`)
 - Exit code 1 if issues found, 0 if clean
 
+### `check-merge-conflict`
+
+Detect merge conflict markers in files
+
+**Usage**: `hk util check-merge-conflict <FILES>…`
+
+#### Arguments
+
+**`<FILES>…`**
+
+Files to check
+
+#### Examples
+
+```bash
+# Check for merge conflict markers
+hk util check-merge-conflict file1.txt file2.txt
+
+# Use in hk.pkl via builtin
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["merge-conflict"] = Builtins.check_merge_conflict
+    }
+  }
+}
+```
+
+#### Features
+
+- Detects Git conflict markers: `<<<<<<<`, `=======`, `>>>>>>>`
+- Ignores markers in middle of lines
+- Exit code 1 if conflicts found, 0 if clean
+
 ### `check-symlinks`
 
 Check for broken symlinks

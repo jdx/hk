@@ -480,6 +480,13 @@ You can also customize builtins:
   - Check: `hk util check-executables-have-shebangs {{files}}`
 - **Notes:** Only checks files with execute permission, skips binary files
 
+#### `check_merge_conflict`
+- **Files:** All files
+- **Features:** Detect merge conflict markers
+- **Commands:**
+  - Check: `hk util check-merge-conflict {{files}}`
+- **Notes:** Detects `<<<<<<<`, `=======`, and `>>>>>>>` markers
+
 #### `check_symlinks`
 - **Files:** All files
 - **Features:** Detect broken symlinks
