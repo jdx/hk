@@ -27,9 +27,6 @@ pub struct Precommit {
     /// Output path for hk.pkl
     #[clap(short, long, default_value = "hk.pkl")]
     output: PathBuf,
-    /// Also generate mise.toml with tool dependencies
-    #[clap(long)]
-    mise: bool,
     /// Overwrite existing hk.pkl file
     #[clap(short, long)]
     force: bool,
@@ -113,33 +110,17 @@ impl Precommit {
         let config_content = xx::file::read_to_string(&self.config)?;
         let precommit_config: PrecommitConfig = serde_yaml::from_str(&config_content)?;
 
-        let (hk_config, tools) = self.convert_config(&precommit_config)?;
+        let (hk_config, _tools) = self.convert_config(&precommit_config)?;
         xx::file::write(&self.output, hk_config)?;
-
-        if self.mise && !tools.is_empty() {
-            self.generate_mise_toml(&tools)?;
-        }
 
         info!("Migrated {} to {}", self.config.display(), self.output.display());
         println!("Successfully migrated to hk.pkl!");
-        
-        if !tools.is_empty() {
-            println!("\nTools detected:");
-            for tool in &tools {
-                println!("  - {}", tool);
-            }
-            if self.mise {
-                println!("\nGenerated mise.toml with tool dependencies.");
-            } else {
-                println!("\nConsider using --mise to generate mise.toml with tool dependencies.");
-            }
-        }
-        
+
         println!("\nNext steps:");
         println!("1. Review the generated hk.pkl file");
-        println!("2. Install tools (e.g., mise install)");
+        println!("2. Complete any TODO items for local/unknown hooks");
         println!("3. Run 'hk install' to install git hooks");
-        println!("4. Run 'hk check' to test your configuration");
+        println!("4. Run 'hk check --all' to test your configuration");
 
         Ok(())
     }
@@ -500,28 +481,6 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         }
     }
 
-    fn generate_mise_toml(&self, tools: &HashSet<String>) -> Result<()> {
-        let mise_toml = PathBuf::from("mise.toml");
-        
-        let mut content = String::from("[tools]\n");
-        content.push_str("hk = \"latest\"\n");
-        
-        for tool in tools {
-            if tool != "hk" {
-                content.push_str(&format!("{} = \"latest\"\n", tool));
-            }
-        }
-
-        if mise_toml.exists() {
-            warn!("mise.toml already exists, not overwriting");
-        } else {
-            xx::file::write(mise_toml, content)?;
-            println!("Generated mise.toml");
-        }
-
-        Ok(())
-    }
-
     fn get_builtin_map(&self) -> HashMap<&'static str, &'static str> {
         let mut map = HashMap::new();
 
@@ -544,6 +503,8 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         map.insert("rustfmt", "rustfmt");
         map.insert("cargo-fmt", "cargo_fmt");
         map.insert("clippy", "cargo_clippy");
+        map.insert("cargo-check", "cargo_check");
+        map.insert("fmt", "rustfmt");  // doublify/pre-commit-rust
 
         // Go
         map.insert("gofmt", "go_fmt");
@@ -576,6 +537,25 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
         // GitHub Actions
         map.insert("actionlint", "actionlint");
+
+        // pre-commit-hooks utilities
+        map.insert("trailing-whitespace", "trailing_whitespace");
+        map.insert("end-of-file-fixer", "newlines");
+        map.insert("check-yaml", "yamllint");
+        map.insert("check-json", "jq");
+        map.insert("check-toml", "taplo");
+        map.insert("check-merge-conflict", "check_merge_conflict");
+        map.insert("check-case-conflict", "check_case_conflict");
+        map.insert("mixed-line-ending", "mixed_line_ending");
+        map.insert("check-executables-have-shebangs", "check_executables_have_shebangs");
+        map.insert("check-symlinks", "check_symlinks");
+        map.insert("check-byte-order-marker", "check_byte_order_marker");
+        map.insert("check-added-large-files", "check_added_large_files");
+        map.insert("check-ast", "python_check_ast");
+        map.insert("debug-statements", "python_debug_statements");
+        map.insert("detect-private-key", "detect_private_key");
+        map.insert("no-commit-to-branch", "no_commit_to_branch");
+        map.insert("fix-byte-order-marker", "fix_byte_order_marker");
 
         map
     }

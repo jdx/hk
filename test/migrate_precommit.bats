@@ -313,30 +313,6 @@ PRECOMMIT
     assert_output --partial "Use mise.toml to manage language versions"
 }
 
-@test "migrate precommit - generate mise.toml" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: black
-    -   id: prettier
-    -   id: shellcheck
-PRECOMMIT
-
-    run hk migrate precommit --mise
-    assert_success
-    
-    # Verify mise.toml was created
-    [ -f mise.toml ]
-    
-    # Verify tools are in mise.toml
-    run cat mise.toml
-    assert_output --partial "[tools]"
-    assert_output --partial "hk = \"latest\""
-    # Tools detected: black, prettier, shellcheck (or node for prettier)
-}
-
 @test "migrate precommit - always_run flag" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
