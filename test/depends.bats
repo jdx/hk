@@ -46,7 +46,6 @@ hooks {
             ["c"] { fix = "cat b.txt > c.txt"; depends = List("b"); stage = "c.txt"; glob = "b.txt" }
             ["d"] { fix = "cat c.txt > d.txt"; depends = List("c"); stage = "d.txt"; glob = "c.txt" }
             ["e"] { depends = List("d")
-                    stage = "e.txt"
                     glob = "d.txt"
                     check = """
 if [ \$(cat d.txt) = "ITWORKS" ]; then
