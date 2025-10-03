@@ -2,7 +2,6 @@ import "../Config.pkl"
 
 check_symlinks = new Config.Step {
     glob = "**/*"
-    stage = "*"
     check = "hk util check-symlinks {{files}}"
     tests {
         ["detects broken symlink"] {
