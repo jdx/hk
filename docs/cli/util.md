@@ -6,6 +6,41 @@ Utility commands for file operations
 
 ## Subcommands
 
+### `check-symlinks`
+
+Check for broken symlinks
+
+**Usage**: `hk util check-symlinks <FILES>…`
+
+#### Arguments
+
+**`<FILES>…`**
+
+Files to check
+
+#### Examples
+
+```bash
+# Check for broken symlinks
+hk util check-symlinks link1 link2
+
+# Use in hk.pkl via builtin
+hooks {
+  ["pre-commit"] {
+    steps {
+      ["symlinks"] = Builtins.check_symlinks
+    }
+  }
+}
+```
+
+#### Features
+
+- Detects symlinks that point to non-existent targets
+- Works with both file and directory symlinks
+- Only flags broken symlinks, not regular files
+- Exit code 1 if broken symlinks found, 0 if clean
+
 ### `mixed-line-ending`
 
 Detect and fix mixed line endings

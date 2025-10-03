@@ -473,6 +473,13 @@ You can also customize builtins:
 
 ### Special Purpose
 
+#### `check_symlinks`
+- **Files:** All files
+- **Features:** Detect broken symlinks
+- **Commands:**
+  - Check: `hk util check-symlinks {{files}}`
+- **Notes:** Only flags symlinks that point to non-existent targets
+
 #### `mixed_line_ending`
 - **Files:** All text files
 - **Features:** Detect and fix mixed line endings (CRLF/LF in same file)
