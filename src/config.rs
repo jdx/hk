@@ -11,6 +11,7 @@ impl Config {
         let mut config = Self::load_project_config()?;
         let user_config = UserConfig::load()?;
         config.apply_user_config(&user_config)?;
+        config.validate()?;
         Ok(config)
     }
 
@@ -295,7 +296,36 @@ impl std::fmt::Display for Config {
 
 impl Config {
     pub fn validate(&self) -> Result<()> {
-        // TODO: validate config
+        // Validate that steps with 'stage' attribute also have a 'fix' command
+        for (hook_name, hook) in &self.hooks {
+            for (step_name, step_or_group) in &hook.steps {
+                match step_or_group {
+                    crate::hook::StepOrGroup::Step(step) => {
+                        if step.stage.is_some() && step.fix.is_none() {
+                            bail!(
+                                "Step '{}' in hook '{}' has 'stage' attribute but no 'fix' command. \
+                                Steps that stage files must have a fix command.",
+                                step_name,
+                                hook_name
+                            );
+                        }
+                    }
+                    crate::hook::StepOrGroup::Group(group) => {
+                        for (group_step_name, group_step) in &group.steps {
+                            if group_step.stage.is_some() && group_step.fix.is_none() {
+                                bail!(
+                                    "Step '{}' in group '{}' of hook '{}' has 'stage' attribute but no 'fix' command. \
+                                    Steps that stage files must have a fix command.",
+                                    group_step_name,
+                                    step_name,
+                                    hook_name
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
         Ok(())
     }
 }
