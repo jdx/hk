@@ -3,7 +3,8 @@
   "scripts": {
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
-    "docs:preview": "vitepress preview"
+    "docs:preview": "vitepress preview",
+    "eslint": "eslint"
   },
   "dependencies": {
     "eslint": "^9.21.0",
