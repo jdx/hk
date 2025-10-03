@@ -1,0 +1,28 @@
+import "../Config.pkl"
+
+check_symlinks = new Config.Step {
+    glob = "**/*"
+    check = "hk util check-symlinks {{files}}"
+    tests {
+        ["detects broken symlink"] {
+            run = "check"
+            write { ["{{tmp}}/target.txt"] = "content" }
+            before = "ln -s {{tmp}}/nonexistent {{tmp}}/broken_link"
+            files = List("{{tmp}}/broken_link")
+            expect { code = 1 }
+        }
+        ["passes valid symlink"] {
+            run = "check"
+            write { ["{{tmp}}/target.txt"] = "content" }
+            before = "ln -s {{tmp}}/target.txt {{tmp}}/link"
+            files = List("{{tmp}}/link")
+            expect { code = 0 }
+        }
+        ["passes regular file"] {
+            run = "check"
+            write { ["{{tmp}}/file.txt"] = "content" }
+            files = List("{{tmp}}/file.txt")
+            expect { code = 0 }
+        }
+    }
+}
