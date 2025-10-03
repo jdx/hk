@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 use crate::Result;
+use eyre::bail;
 use indexmap::IndexMap;
 use serde::Deserialize;
 
@@ -181,14 +182,15 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                 let conversion_result = self.convert_hook(hook, repo, config, &mut tools);
                 
                 for stage in hook_stages {
+                    let stage_clone = stage.clone();
                     let steps = steps_by_stage.entry(stage).or_default();
-                    
+
                     if let Some(ref step) = conversion_result {
                         steps.push(step.clone());
                     } else {
                         // Track unknown hooks separately
                         if !unknown_hooks.iter().any(|(h, _, _): &(&PrecommitHook, &PrecommitRepo, _)| h.id == hook.id) {
-                            unknown_hooks.push((hook, repo, stage.clone()));
+                            unknown_hooks.push((hook, repo, stage_clone));
                         }
                     }
                 }
@@ -206,8 +208,8 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
         if !all_known_steps.is_empty() {
             output.push_str("local linters = new Mapping<String, Step> {\n");
-            for step in all_known_steps {
-                output.push_str(&step);
+            for step in &all_known_steps {
+                output.push_str(step);
             }
             output.push_str("}\n\n");
         }
@@ -307,7 +309,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
     fn convert_hook(
         &self,
         hook: &PrecommitHook,
-        repo: &PrecommitRepo,
+        _repo: &PrecommitRepo,
         _config: &PrecommitConfig,
         tools: &mut HashSet<String>,
     ) -> Option<String> {

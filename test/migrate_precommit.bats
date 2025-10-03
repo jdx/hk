@@ -383,10 +383,50 @@ PRECOMMIT
 
     run hk migrate precommit
     assert_success
-    
+
     run cat hk.pkl
     # Should have pre-commit, check, and fix hooks
     assert_output --partial '["pre-commit"]'
     assert_output --partial '["check"]'
     assert_output --partial '["fix"]'
+}
+
+@test "migrate precommit - apache airflow real-world config" {
+    # Test with actual Apache Airflow pre-commit config
+    if ! command -v curl &> /dev/null; then
+        skip "curl not available"
+    fi
+
+    curl -s -o .pre-commit-config.yaml https://raw.githubusercontent.com/apache/airflow/main/.pre-commit-config.yaml || skip "Failed to download Airflow config"
+
+    # Verify we downloaded something
+    [ -f .pre-commit-config.yaml ]
+    [ -s .pre-commit-config.yaml ]
+
+    run hk migrate precommit
+    assert_success
+    assert_output --partial "Successfully migrated to hk.pkl"
+
+    # Verify hk.pkl was created
+    [ -f hk.pkl ]
+
+    # Verify basic structure
+    run cat hk.pkl
+    assert_output --partial 'import "package://github.com/jdx/hk'
+    assert_output --partial 'hooks {'
+
+    # Apache Airflow uses several common pre-commit hooks
+    # These may change over time, so we just check for some basic patterns
+    # rather than specific hooks
+    assert_output --regexp 'Builtins\.(yamllint|check_merge_conflict|mixed_line_ending|trailing_whitespace|detect_private_key|newlines|python_debug_statements|check_executables_have_shebangs)'
+
+    # Verify it has both pre-commit and pre-push stages (Airflow uses default_stages)
+    assert_output --partial '["pre-commit"]'
+    assert_output --partial '["pre-push"]'
+
+    # Verify it has local hooks section
+    assert_output --partial 'local local_hooks'
+
+    # Verify it has custom steps for unmapped hooks
+    assert_output --partial 'local custom_steps'
 }
