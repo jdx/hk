@@ -547,11 +547,11 @@ impl PreCommit {
                 // Convert to grep -E (extended regex) command
                 // Note: pygrep returns 1 on match (problem found), 0 on no match
                 // grep returns 0 on match, 1 on no match
-                // We need to invert the exit code
+                // Use `! grep` to invert: returns 1 on match (error), 0 on no match (success)
                 if pass_filenames {
-                    format!("grep -E {} {{{{files}}}}", entry)
+                    format!("! grep -E {} {{{{files}}}}", entry)
                 } else {
-                    format!("grep -E {}", entry)
+                    format!("! grep -E {}", entry)
                 }
             } else if is_python_script {
                 // Use uv run for local Python scripts
