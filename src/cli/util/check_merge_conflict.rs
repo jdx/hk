@@ -36,7 +36,11 @@ fn has_merge_conflict_markers(path: &PathBuf) -> Result<bool> {
     let reader = BufReader::new(file);
 
     for line in reader.lines() {
-        let line = line?;
+        // Skip lines that contain invalid UTF-8 (likely binary files)
+        let line = match line {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
         let trimmed = line.trim();
 
         // Check for conflict markers at the start of the line
@@ -100,6 +104,18 @@ mod tests {
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();
+        assert!(!has_merge_conflict_markers(&path).unwrap());
+    }
+
+    #[test]
+    fn test_handles_binary_files() {
+        let mut file = NamedTempFile::new().unwrap();
+        // Write some binary data that's not valid UTF-8
+        file.write_all(&[0xFF, 0xFE, 0xFD, 0xFC]).unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        // Should not error, just return false
         assert!(!has_merge_conflict_markers(&path).unwrap());
     }
 }

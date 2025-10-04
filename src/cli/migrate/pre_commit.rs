@@ -529,10 +529,26 @@ impl PreCommit {
         // Set check command
         if let Some(ref entry) = hook.entry {
             let pass_filenames = hook.pass_filenames.unwrap_or(true);
-            if pass_filenames {
-                step.check = Some(format!("{} {{{{files}}}}", entry));
+
+            // Check if this is a Python script that should use uv run
+            let cmd = if hook.language.as_deref() == Some("python") && entry.ends_with(".py") {
+                // Use uv run for local Python scripts
+                if pass_filenames {
+                    format!("uv run {} {{{{files}}}}", entry)
+                } else {
+                    format!("uv run {}", entry)
+                }
             } else {
-                step.check = Some(entry.clone());
+                // Use entry directly for non-Python scripts
+                if pass_filenames {
+                    format!("{} {{{{files}}}}", entry)
+                } else {
+                    entry.clone()
+                }
+            };
+
+            step.check = Some(cmd);
+            if !pass_filenames {
                 step.properties_as_comments
                     .push("pass_filenames was false in pre-commit".to_string());
             }
@@ -1062,34 +1078,51 @@ impl PreCommit {
 
             // For Python hooks, check if there's a Python module to call directly
             let (cmd, needs_prefix) = if hook.language == "python" {
-                // Try to find the Python module based on the entry point
-                let module_name = Self::find_python_module(vendor_path, &hook.entry);
-                if let Some(module) = module_name {
-                    let vendor_name = Self::repo_url_to_vendor_name(repo_url);
-                    // Use uv to install dependencies if needed, then run the module
-                    let install_check = format!(
-                        "[ -d .hk/vendors/{}/.venv ] || (cd .hk/vendors/{} && uv venv && uv pip install -e .)",
-                        vendor_name, vendor_name
+                // Check if this is a local Python script (starts with ./ or ../)
+                let entry_path = vendor_path.join(&hook.entry);
+                if entry_path.exists() && hook.entry.ends_with(".py") {
+                    // Use uv run for local Python scripts - it handles both regular scripts and PEP 723
+                    let relative_entry = format!(
+                        ".hk/vendors/{}/{}",
+                        Self::repo_url_to_vendor_name(repo_url),
+                        hook.entry
                     );
-                    // Use absolute path to python to avoid cd which breaks relative file paths
-                    let python_path = format!(".hk/vendors/{}/.venv/bin/python", vendor_name);
-                    let module_path = if pass_filenames {
-                        format!(
-                            "{} && {} -m {} {{{{files}}}}",
-                            install_check, python_path, module
-                        )
-                    } else {
-                        format!("{} && {} -m {}", install_check, python_path, module)
-                    };
-                    (module_path, false) // No prefix needed, we're calling python directly
-                } else {
-                    // Fallback to entry name with prefix
                     let cmd = if pass_filenames {
-                        format!("{} {{{{files}}}}", hook.entry)
+                        format!("uv run {} {{{{files}}}}", relative_entry)
                     } else {
-                        hook.entry.clone()
+                        format!("uv run {}", relative_entry)
                     };
-                    (cmd, true) // Need mise x prefix
+                    (cmd, false) // No prefix needed, uv run handles dependencies
+                } else {
+                    // Try to find the Python module based on the entry point
+                    let module_name = Self::find_python_module(vendor_path, &hook.entry);
+                    if let Some(module) = module_name {
+                        let vendor_name = Self::repo_url_to_vendor_name(repo_url);
+                        // Use uv to install dependencies if needed, then run the module
+                        let install_check = format!(
+                            "[ -d .hk/vendors/{}/.venv ] || (cd .hk/vendors/{} && uv venv && uv pip install -e .)",
+                            vendor_name, vendor_name
+                        );
+                        // Use absolute path to python to avoid cd which breaks relative file paths
+                        let python_path = format!(".hk/vendors/{}/.venv/bin/python", vendor_name);
+                        let module_path = if pass_filenames {
+                            format!(
+                                "{} && {} -m {} {{{{files}}}}",
+                                install_check, python_path, module
+                            )
+                        } else {
+                            format!("{} && {} -m {}", install_check, python_path, module)
+                        };
+                        (module_path, false) // No prefix needed, we're calling python directly
+                    } else {
+                        // Fallback to entry name with prefix
+                        let cmd = if pass_filenames {
+                            format!("{} {{{{files}}}}", hook.entry)
+                        } else {
+                            hook.entry.clone()
+                        };
+                        (cmd, true) // Need mise x prefix
+                    }
                 }
             } else if hook.language == "node" {
                 // For Node.js hooks, try to find the package and use npx
