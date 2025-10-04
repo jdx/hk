@@ -299,50 +299,15 @@ impl Step {
             // The path stripping should only happen in the command execution context via tera templates
         }
         if let Some(pattern) = &self.glob {
-            // when dir is set, patterns are relative to that dir only
-            if let Some(dir) = &self.dir {
-                match pattern {
-                    Pattern::Globs(globs) => {
-                        let dir_globs = globs
-                            .iter()
-                            .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                            .collect::<Vec<_>>();
-                        files = glob::get_matches(&dir_globs, &files)?;
-                    }
-                    Pattern::Regex { .. } => {
-                        // For regex with dir, match against paths relative to dir
-                        files = glob::get_pattern_matches(pattern, &files, Some(dir))?;
-                    }
-                }
-            } else {
-                files = glob::get_pattern_matches(pattern, &files, None)?;
-            }
+            // Use get_pattern_matches consistently for both globs and regex
+            files = glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?;
         }
         if let Some(pattern) = &self.exclude {
-            // when dir is set, excludes are relative to that dir only
-            let excluded = if let Some(dir) = &self.dir {
-                match pattern {
-                    Pattern::Globs(globs) => {
-                        let dir_excludes = globs
-                            .iter()
-                            .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                            .collect::<Vec<_>>();
-                        glob::get_matches(&dir_excludes, &files)?
-                            .into_iter()
-                            .collect::<HashSet<_>>()
-                    }
-                    Pattern::Regex { .. } => {
-                        // For regex with dir, match against paths relative to dir
-                        glob::get_pattern_matches(pattern, &files, Some(dir))?
-                            .into_iter()
-                            .collect::<HashSet<_>>()
-                    }
-                }
-            } else {
-                glob::get_pattern_matches(pattern, &files, None)?
+            // Use get_pattern_matches consistently for excludes too
+            let excluded: HashSet<_> =
+                glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?
                     .into_iter()
-                    .collect::<HashSet<_>>()
-            };
+                    .collect();
             files.retain(|f| !excluded.contains(f));
         }
         Ok(files)

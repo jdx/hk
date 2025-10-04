@@ -6,10 +6,27 @@ use regex::Regex;
 use std::path::{Path, PathBuf};
 
 pub fn get_matches<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Result<Vec<PathBuf>> {
+    get_matches_with_options(glob, files, false)
+}
+
+pub fn get_matches_strict<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Result<Vec<PathBuf>> {
+    get_matches_with_options(glob, files, true)
+}
+
+fn get_matches_with_options<P: AsRef<Path>>(
+    glob: &[String],
+    files: &[P],
+    literal_separator: bool,
+) -> Result<Vec<PathBuf>> {
     let files = files.iter().map(|f| f.as_ref()).collect_vec();
     let mut gb = GlobSetBuilder::new();
     for g in glob {
-        let g = GlobBuilder::new(g).empty_alternates(true).build()?;
+        let mut builder = GlobBuilder::new(g);
+        builder.empty_alternates(true);
+        if literal_separator {
+            builder.literal_separator(true);
+        }
+        let g = builder.build()?;
         gb.add(g);
     }
     let gs = gb.build()?;
@@ -40,13 +57,14 @@ pub fn get_pattern_matches<P: AsRef<Path>>(
 
     match pattern {
         Pattern::Globs(globs) => {
-            // When dir is set, prefix globs with the directory
+            // When dir is set, prefix globs with the directory and use strict matching
             if let Some(dir) = dir {
                 let dir_globs = globs
                     .iter()
                     .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
                     .collect::<Vec<_>>();
-                get_matches(&dir_globs, &files_vec)
+                // Use strict matching (literal_separator=true) to ensure proper path semantics
+                get_matches_strict(&dir_globs, &files_vec)
             } else {
                 get_matches(globs, &files_vec)
             }

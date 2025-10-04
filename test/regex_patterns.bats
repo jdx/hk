@@ -404,6 +404,73 @@ EOF
     refute_output --partial 'matched:.*src/utils'
 }
 
+@test "{{globs}} template variable is consistent string format for both glob and regex" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["glob-test"] {
+                glob = List("*.yaml", "*.yml")
+                check = "echo 'glob-type={{globs}}' files={{files}}"
+            }
+            ["regex-test"] {
+                glob = Config.Regex(#"^.*\\.json$"#)
+                check = "echo 'regex-type={{globs}}' files={{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    echo "foo: bar" > config.yaml
+    echo "baz: qux" > data.json
+
+    git add config.yaml data.json
+    run hk check -v
+    assert_success
+    # For glob patterns, {{globs}} should be space-separated string like regex
+    assert_output --partial "glob-type=*.yaml *.yml"
+    # For regex patterns, {{globs}} is already a string
+    assert_output --partial "regex-type=^.*\\.json$"
+}
+
+@test "glob patterns with dir should not double-apply directory context" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["check-src"] {
+                dir = "src"
+                glob = List("*.js")
+                check = "echo files={{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p src src/lib
+    echo "code" > src/app.js
+    echo "code" > src/lib/utils.js
+
+    git add src/
+    run hk check -v
+    assert_success
+    # The glob *.js with dir=src should only match files directly in src/
+    # not in subdirectories like src/lib/
+    assert_output --partial 'check-src – 1 file'
+    assert_output --partial 'files=app.js'
+    # lib/utils.js should NOT appear in the command output
+    refute_output --partial 'files=.*lib'
+}
+
 # Note: User config tests with .hkrc.pkl would require a separate Pkl schema for UserConfig
 # which doesn't currently exist. The Rust changes to support Pattern in UserStepConfig
 # are tested implicitly through the API, but end-to-end .hkrc.pkl tests would need
