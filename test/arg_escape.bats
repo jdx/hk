@@ -22,18 +22,20 @@ EOF
     git add hk.pkl
     git status -sb || true
     git commit -m "install hk" --no-verify
+    echo "[debug] hooks before install:"; ls -la .git/hooks || true
     echo "[debug] running hk install (with timeout + tracing)"
     if command -v strace >/dev/null 2>&1; then
-        HK_TRACE=1 GIT_TRACE=1 run timeout 1s strace -f -tt -s 256 -o strace.log hk install
+        HK_LOG_LEVEL=trace HK_TRACE=1 GIT_TRACE=1 GIT_CURL_VERBOSE=1 run timeout 1s strace -f -tt -s 256 -o strace.log hk install
         echo "[debug] strace captured to: $PWD/strace.log"
     else
-        HK_TRACE=1 GIT_TRACE=1 run timeout 1s hk install
+        HK_LOG_LEVEL=trace HK_TRACE=1 GIT_TRACE=1 GIT_CURL_VERBOSE=1 run timeout 1s hk install
     fi
     echo "[debug] hk install status=$status"
     echo "[debug] hk install output:\n$output"
     if [ -f strace.log ]; then
         echo "[debug] tail strace.log:"; tail -n 200 strace.log || true
     fi
+    echo "[debug] hooks after install:"; ls -la .git/hooks || true
     echo 'console.log("test")' > '$test.js'
     git add '$test.js'
     run git commit -m "test"
