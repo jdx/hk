@@ -1054,7 +1054,7 @@ impl PreCommit {
     fn hook_id_to_tool(&self, hook_id: &str) -> String {
         match hook_id {
             "black" | "flake8" | "isort" | "mypy" | "pylint" => hook_id.to_string(),
-            "ruff" | "ruff-check" | "ruff-format" => "ruff".to_string(),
+            "ruff" => "ruff".to_string(),
             "prettier" | "eslint" => hook_id.to_string(),
             "rustfmt" | "cargo-fmt" => "rust".to_string(),
             "clippy" => "rust".to_string(),
@@ -1081,8 +1081,6 @@ impl PreCommit {
         map.insert("mypy", "mypy");
         map.insert("pylint", "pylint");
         map.insert("ruff", "ruff");
-        map.insert("ruff-check", "ruff");
-        map.insert("ruff-format", "ruff");
 
         // JavaScript/TypeScript
         map.insert("prettier", "prettier");
