@@ -17,6 +17,34 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache.outputs.cache-key }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install mise
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+
+      - name: Build hk
+        run: |
+          mise run init
+          mise run build
+
+      - name: Cache build artifacts
+        id: cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            target/
+            test/bats/
+          key: hk-build-${{ github.sha }}
+          upload-chunk-size: 50000000
+
   ci:
     strategy:
       fail-fast: false
@@ -43,6 +71,7 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: "mise run test:cargo ::: lint ::: docs-sync"
+
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -53,9 +82,11 @@ jobs:
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
       - run: mise run msrv
+
   bats:
     name: Bats tests (shard ${{ matrix.shard }} of ${{ matrix.total_shards }})
     runs-on: ubuntu-latest
+    needs: build
     strategy:
       fail-fast: false
       matrix:
@@ -67,18 +98,23 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Restore build artifacts
+        uses: actions/cache/restore@v4
+        with:
+          key: hk-build-${{ github.sha }}
+          path: |
+            target/
+            test/bats/
+
       - name: Install mise
         uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
 
-      - name: Build and run bats for this shard
+      - name: Run bats for this shard
         env:
           HK_LOG_LEVEL: warn
         shell: bash
         run: |
           set -euo pipefail
-          # Initialize submodules and build hk
-          mise run init
-          mise run build
           # Build a null-delimited list of test files and select this shard's slice
           find test -maxdepth 1 -name '*.bats' -print0 | sort -z \
             | awk -v shard='${{ matrix.shard }}' -v total='${{ matrix.total_shards }}' 'BEGIN{RS="\0"; ORS="\0"} { if ((NR-1)%total==shard) print }' \
