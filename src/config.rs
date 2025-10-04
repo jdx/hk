@@ -397,16 +397,6 @@ pub enum StringOrList {
     List(Vec<String>),
 }
 
-impl StringOrList {
-    /// Returns an iterator over the strings in this StringOrList
-    pub fn iter(&self) -> std::slice::Iter<'_, String> {
-        match self {
-            StringOrList::String(s) => std::slice::from_ref(s).iter(),
-            StringOrList::List(list) => list.iter(),
-        }
-    }
-}
-
 impl IntoIterator for StringOrList {
     type Item = String;
     type IntoIter = std::vec::IntoIter<String>;
