@@ -531,7 +531,15 @@ impl PreCommit {
             let pass_filenames = hook.pass_filenames.unwrap_or(true);
 
             // Check if this is a Python script that should use uv run
-            let cmd = if hook.language.as_deref() == Some("python") && entry.ends_with(".py") {
+            // For multi-line entries, check if the first line/word ends with .py
+            let is_python_script = hook.language.as_deref() == Some("python")
+                && (entry.ends_with(".py")
+                    || entry
+                        .split_whitespace()
+                        .next()
+                        .map_or(false, |s| s.ends_with(".py")));
+
+            let cmd = if is_python_script {
                 // Use uv run for local Python scripts
                 if pass_filenames {
                     format!("uv run {} {{{{files}}}}", entry)

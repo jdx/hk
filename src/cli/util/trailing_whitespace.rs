@@ -38,10 +38,10 @@ impl TrailingWhitespace {
             }
         }
 
-        // Only return error in check mode when issues found
+        // In check mode: exit with code 1 if issues found
         // Fix mode always succeeds
         if !self.fix && found_issues {
-            return Err(eyre::eyre!("Files with trailing whitespace found"));
+            std::process::exit(1);
         }
 
         Ok(())

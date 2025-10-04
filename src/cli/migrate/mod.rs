@@ -140,7 +140,12 @@ impl HkConfig {
         // Header comments
         if !self.header_comments.is_empty() {
             for comment in &self.header_comments {
-                output.push_str(&format!("// {}\n", comment));
+                let trimmed = comment.trim_end();
+                if trimmed.is_empty() {
+                    output.push_str("//\n");
+                } else {
+                    output.push_str(&format!("// {}\n", trimmed));
+                }
             }
             output.push('\n');
         }
@@ -177,7 +182,12 @@ impl HkConfig {
 
         // Comments
         for comment in &step.comments {
-            output.push_str(&format!("{}// {}\n", indent, comment));
+            let trimmed = comment.trim_end();
+            if trimmed.is_empty() {
+                output.push_str(&format!("{}//\n", indent));
+            } else {
+                output.push_str(&format!("{}// {}\n", indent, trimmed));
+            }
         }
 
         // Step definition
@@ -260,7 +270,12 @@ impl HkConfig {
 
         // Additional properties as comments
         for comment in &step.properties_as_comments {
-            output.push_str(&format!("{}// {}\n", inner_indent, comment));
+            let trimmed = comment.trim_end();
+            if trimmed.is_empty() {
+                output.push_str(&format!("{}//\n", inner_indent));
+            } else {
+                output.push_str(&format!("{}// {}\n", inner_indent, trimmed));
+            }
         }
 
         output.push_str(&format!("{}}}\n", indent));
