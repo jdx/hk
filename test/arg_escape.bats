@@ -19,6 +19,14 @@ amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
 hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
+    # Provide local mise config so hk install doesn't try to discover tools
+    cat <<'MTOML' > mise.toml
+    [tools]
+    "npm:prettier" = "latest"
+    pkl = "latest"
+MTOML
+    # Ensure tools are ready in this repo; should be a quick no-op after global install
+    mise install || true
     git add hk.pkl
     git status -sb || true
     git commit -m "install hk" --no-verify
