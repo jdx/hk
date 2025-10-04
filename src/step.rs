@@ -28,6 +28,24 @@ use xx::file::display_path;
 
 use crate::step_test::StepTest;
 
+/// Check if a file is binary by reading the first 8KB and looking for null bytes
+fn is_binary_file(path: &PathBuf) -> bool {
+    use std::io::Read;
+
+    let Ok(mut file) = std::fs::File::open(path) else {
+        // If we can't open it, assume it's not binary (might be deleted/renamed)
+        return false;
+    };
+
+    let mut buffer = [0u8; 8192];
+    let Ok(bytes_read) = file.read(&mut buffer) else {
+        return false;
+    };
+
+    // Check for null bytes in the content
+    buffer[..bytes_read].contains(&0)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Pattern {
@@ -129,6 +147,9 @@ pub struct Step {
     pub exclude: Option<Pattern>,
     #[serde(default)]
     pub exclusive: bool,
+    /// Whether to include binary files (default: false)
+    #[serde(default)]
+    pub allow_binary: bool,
     pub root: Option<PathBuf>,
     #[serde(default)]
     pub hide: bool,
@@ -310,6 +331,12 @@ impl Step {
                     .collect();
             files.retain(|f| !excluded.contains(f));
         }
+
+        // Filter out binary files unless allow_binary is true
+        if !self.allow_binary {
+            files.retain(|f| !is_binary_file(f));
+        }
+
         Ok(files)
     }
 
