@@ -87,11 +87,11 @@ env {
 }
 ```
 
-## `exclude: (String | List<String>)`
+## `exclude: (String | List<String> | Regex)`
 
 Default: `(empty)`
 
-Global exclude patterns that apply to all hooks and steps. Files matching these patterns will be skipped from processing. Supports both directory names and glob patterns.
+Global exclude patterns that apply to all hooks and steps. Files matching these patterns will be skipped from processing. Supports directory names, glob patterns, and regex patterns.
 
 ```pkl
 // Exclude specific directories
@@ -102,6 +102,11 @@ exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
 
 // Single pattern
 exclude = "node_modules"
+
+// Exclude using regex pattern (for complex matching)
+// First import Config.pkl to use the Regex helper
+import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+exclude = Config.Regex(#".*\.(test|spec)\.(js|ts)$"#)
 ```
 
 Notes:
@@ -109,6 +114,7 @@ Notes:
 - Patterns from all configuration sources are unioned together
 - Simple directory names automatically match their contents (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
 - Can be overridden per-step with `<STEP>.exclude`
+- Regex patterns use Rust regex syntax and match against full file paths
 
 ## `fail_fast: Boolean`
 
@@ -161,9 +167,29 @@ hooks {
 
 Steps are the individual linters that make up a hook. They are executed in the order they are defined in parallel up to [`HK_JOBS`](/configuration#hk-jobs) at a time.
 
-### `<STEP>.glob: List<String>`
+### `<STEP>.glob: (String | List<String> | Regex)`
 
-Files the step should run on. By default this will only run this step if at least 1 staged file matches the glob patterns. If no patterns are provided, the step will always run.
+Files the step should run on. By default this will only run this step if at least 1 staged file matches the glob or regex patterns. If no patterns are provided, the step will always run.
+
+```pkl
+// Glob patterns
+["prettier"] {
+    glob = List("*.js", "*.ts")
+    check = "prettier --check {{files}}"
+}
+
+// Single glob pattern
+["eslint"] {
+    glob = "*.js"
+    check = "eslint {{files}}"
+}
+
+// Regex pattern for complex matching
+["config-lint"] {
+    glob = Config.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
+    check = "config-lint {{files}}"
+}
+```
 
 ### `<STEP>.check: (String | Script)`
 
@@ -436,16 +462,46 @@ hooks {
 }
 ```
 
-### `<STEP>.exclude: (String | List<String>)`
+### `<STEP>.exclude: (String | List<String> | Regex)`
 
-A list of glob patterns to exclude from the step. Files matching these patterns will be skipped.
+Files to exclude from the step. Supports glob patterns and regex patterns. Files matching these patterns will be skipped.
 
 ```pkl
-local linters = new Mapping<String, Step> {
-    ["prettier"] {
-        exclude = List("*.js", "*.ts")
-    }
+// Exclude with glob patterns
+["prettier"] {
+    glob = List("**/*.yaml")
+    exclude = List("*.test.yaml", "*.fixture.yaml")
+    check = "prettier --check {{files}}"
 }
+
+// Exclude with regex pattern for complex matching
+["linter"] {
+    glob = List("**/*")
+    exclude = Config.Regex(#"""
+(?x)
+^(vendor|dist|build)/.*$|
+.*\.(min|bundle)\.(js|css)$|
+.*\.generated\.(ts|js)$
+"""#)
+    check = "custom-lint {{files}}"
+}
+```
+
+Notes:
+- Regex patterns use Rust regex syntax
+- The `(?x)` flag enables verbose mode for multi-line patterns with comments
+- Use raw strings (`#"..."#` or `#"""..."""#`) to avoid escaping backslashes
+
+**Using the Regex helper**
+
+The `Regex()` helper function is available by importing Config.pkl:
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+
+// Use it like:
+exclude = Config.Regex(#".*\.test\.js$"#)
 ```
 
 ### `<STEP>.interactive: bool`

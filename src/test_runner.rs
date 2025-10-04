@@ -174,9 +174,13 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     let run = crate::tera::render(&run, &tctx)?;
 
     // Run pre-command (before)
+    let mut before_stdout = String::new();
+    let mut before_stderr = String::new();
     if let Some(cmd_str) = &test.before {
         let rendered = crate::tera::render(cmd_str, &tctx)?;
         let (stdout, stderr, code) = execute_cmd(step, &tctx, base_dir, test, &rendered).await?;
+        before_stdout = stdout.clone();
+        before_stderr = stderr.clone();
         if code != 0 {
             return Ok(TestResult {
                 step: step.name.clone(),
@@ -261,12 +265,24 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         }
     }
 
+    // Prepend before output to help with debugging
+    let final_stdout = if before_stdout.is_empty() {
+        stdout
+    } else {
+        format!("[before]\n{}\n[main]\n{}", before_stdout, stdout)
+    };
+    let final_stderr = if before_stderr.is_empty() {
+        stderr
+    } else {
+        format!("[before]\n{}\n[main]\n{}", before_stderr, stderr)
+    };
+
     Ok(TestResult {
         step: step.name.clone(),
         name: name.to_string(),
         ok: pass,
-        stdout,
-        stderr,
+        stdout: final_stdout,
+        stderr: final_stderr,
         code,
         duration_ms: started_at.elapsed().as_millis(),
         reasons,
