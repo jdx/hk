@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 
 _common_setup() {
+    # Optional debug tracing for CI / repro
+    if [ "${BATS_DEBUG:-}" = "1" ]; then
+        set -x
+        export GIT_TRACE=1
+        export GIT_TRACE_SETUP=1
+    fi
     load 'test_helper/bats-support/load'
     load 'test_helper/bats-assert/load'
     load 'test_helper/bats-file/load'
@@ -37,6 +43,11 @@ _common_setup() {
     else
         PATH="$(dirname $BATS_TEST_DIRNAME)/target/debug:$PATH"
     fi
+
+    # Show key env for debugging
+    echo "[bats-debug] PATH=$PATH"
+    echo "[bats-debug] which hk: $(command -v hk || echo 'not found')"
+    hk --version 2>/dev/null || echo "[bats-debug] hk --version failed"
 
     # Enable test cache by default for better performance
     # Individual tests can override this by calling _disable_test_cache
