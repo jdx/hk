@@ -32,6 +32,8 @@ pub struct HkConfig {
     pub amends: String,
     /// Imports (e.g., Builtins.pkl)
     pub imports: Vec<String>,
+    /// Vendored repo imports (name, path)
+    pub vendor_imports: Vec<(String, String)>,
     /// Comments at the top of the file
     pub header_comments: Vec<String>,
     /// Named step collections (e.g., "linters", "local_hooks", "custom_steps")
@@ -127,6 +129,12 @@ impl HkConfig {
         for import in &self.imports {
             output.push_str(&format!("import \"{}\"\n", import));
         }
+
+        // Vendor imports
+        for (name, path) in &self.vendor_imports {
+            output.push_str(&format!("import \"{}\" as {}\n", path, name));
+        }
+
         output.push('\n');
 
         // Header comments

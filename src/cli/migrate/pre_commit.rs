@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::Result;
 use eyre::bail;
@@ -75,7 +75,37 @@ struct PreCommitHook {
     #[serde(default)]
     language_version: Option<String>,
     #[serde(default)]
+    #[allow(dead_code)]
     require_serial: bool,
+    #[serde(default)]
+    language: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PreCommitHookDefinition {
+    id: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    name: Option<String>,
+    #[serde(default)]
+    entry: String,
+    #[serde(default)]
+    language: String,
+    #[serde(default)]
+    files: Option<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    types: Vec<String>,
+    #[serde(default)]
+    pass_filenames: Option<bool>,
+}
+
+struct VendoredRepo {
+    url: String,
+    name: String,
+    #[allow(dead_code)]
+    vendor_path: PathBuf,
+    hooks: Vec<PreCommitHookDefinition>,
 }
 
 impl PreCommit {
@@ -94,6 +124,9 @@ impl PreCommit {
         let config_content = xx::file::read_to_string(&self.config)?;
         let precommit_config: PreCommitConfig = serde_yaml::from_str(&config_content)?;
 
+        // Vendor external repos
+        let vendored_repos = self.vendor_repos(&precommit_config).await?;
+
         let (amends_config_pkl, types_pkl_import, builtins_pkl) =
             if let Some(ref root) = self.hk_pkl_root {
                 (
@@ -107,6 +140,7 @@ impl PreCommit {
 
         let hk_config = self.convert_config(
             &precommit_config,
+            &vendored_repos,
             amends_config_pkl,
             types_pkl_import,
             builtins_pkl,
@@ -134,12 +168,20 @@ impl PreCommit {
     fn convert_config(
         &self,
         config: &PreCommitConfig,
+        vendored_repos: &HashMap<String, VendoredRepo>,
         amends_config_pkl: Option<String>,
         types_pkl_import: Option<String>,
         builtins_pkl: Option<String>,
     ) -> Result<HkConfig> {
         let mut hk_config = HkConfig::new(amends_config_pkl, types_pkl_import, builtins_pkl);
         let mut used_ids = HashSet::new();
+
+        // Add imports for vendored repos
+        for vendor in vendored_repos.values() {
+            let import_name = Self::repo_url_to_import_name(&vendor.url);
+            let import_path = format!(".hk/vendors/{}/hooks.pkl", vendor.name);
+            hk_config.vendor_imports.push((import_name, import_path));
+        }
 
         // Add header comments
         if config.fail_fast {
@@ -226,7 +268,7 @@ impl PreCommit {
                 } else if let Some(step) = self.convert_known_hook(hook, &unique_id) {
                     step
                 } else {
-                    self.convert_unknown_hook(hook, &unique_id, repo)
+                    self.convert_unknown_hook(hook, &unique_id, repo, vendored_repos)
                 };
 
                 // Add to appropriate collection
@@ -309,8 +351,8 @@ impl PreCommit {
                 .unwrap_or_default();
 
             // Only include non-manual collections in git hooks
-            for collection in &["linters", "local_hooks", "custom_steps"] {
-                if collections_in_stage.contains(*collection) {
+            for collection in ["linters", "local_hooks", "custom_steps"] {
+                if collections_in_stage.contains(collection) {
                     hook.step_spreads.push(collection.to_string());
                 }
             }
@@ -369,6 +411,7 @@ impl PreCommit {
                 check: None,
                 fix: None,
                 shell: None,
+                exclusive: false,
                 properties_as_comments: Vec::new(),
             };
 
@@ -465,6 +508,7 @@ impl PreCommit {
             check: None,
             fix: None,
             shell: None,
+            exclusive: false,
             properties_as_comments: Vec::new(),
         };
 
@@ -521,7 +565,56 @@ impl PreCommit {
         hook: &PreCommitHook,
         unique_id: &str,
         repo: &PreCommitRepo,
+        vendored_repos: &HashMap<String, VendoredRepo>,
     ) -> HkStep {
+        // Check if this hook is from a vendored repo
+        if let Some(vendored) = vendored_repos.get(&repo.repo) {
+            // Find the hook definition in the vendored repo
+            if let Some(_hook_def) = vendored.hooks.iter().find(|h| h.id == hook.id) {
+                let import_name = Self::repo_url_to_import_name(&repo.repo);
+                let hook_id_snake = hook.id.replace('-', "_");
+
+                let mut step = HkStep {
+                    builtin: Some(format!("{}.{}", import_name, hook_id_snake)),
+                    comments: Vec::new(),
+                    glob: None,
+                    exclude: hook.exclude.clone(),
+                    prefix: None,
+                    check: None,
+                    fix: None,
+                    shell: None,
+                    exclusive: false,
+                    properties_as_comments: Vec::new(),
+                };
+
+                // Add comment if ID was changed
+                if unique_id != hook.id {
+                    step.comments.push(format!("Original ID: {}", hook.id));
+                }
+
+                // Add property comments for things we can't directly map
+                if hook.files.is_some() {
+                    if let Some(ref files) = hook.files {
+                        step.properties_as_comments
+                            .push(format!("files pattern from pre-commit: {}", files));
+                    }
+                }
+
+                if !hook.types.is_empty() {
+                    step.properties_as_comments
+                        .push(format!("types (AND): {}", hook.types.join(", ")));
+                }
+
+                if !hook.args.is_empty() {
+                    step.properties_as_comments
+                        .push(format!("args from pre-commit: {}", hook.args.join(" ")));
+                }
+
+                return step;
+            }
+        }
+
+        // Fallback to unknown hook generation
         let mut step = HkStep {
             builtin: None,
             comments: Vec::new(),
@@ -531,6 +624,7 @@ impl PreCommit {
             check: None,
             fix: None,
             shell: None,
+            exclusive: false,
             properties_as_comments: Vec::new(),
         };
 
@@ -762,5 +856,444 @@ impl PreCommit {
         map.insert("fix-byte-order-marker", "fix_byte_order_marker");
 
         map
+    }
+
+    /// Vendor external repositories referenced in the config
+    async fn vendor_repos(
+        &self,
+        config: &PreCommitConfig,
+    ) -> Result<HashMap<String, VendoredRepo>> {
+        let mut vendored = HashMap::new();
+
+        for repo in &config.repos {
+            // Skip local and meta repos, and repos that don't need vendoring
+            if repo.repo == "local"
+                || repo.repo == "meta"
+                || Self::is_github_precommit_hooks(&repo.repo)
+            {
+                continue;
+            }
+
+            // Check if we need to vendor this repo (if it has unknown hooks)
+            let needs_vendoring = repo.hooks.iter().any(|h| !self.is_known_hook(&h.id));
+
+            if !needs_vendoring {
+                continue;
+            }
+
+            // Create vendor directory structure
+            let vendor_name = Self::repo_url_to_vendor_name(&repo.repo);
+            let vendor_path = PathBuf::from(".hk/vendors").join(&vendor_name);
+
+            // Create the vendor directory
+            std::fs::create_dir_all(&vendor_path)?;
+
+            info!("Vendoring repository: {}", repo.repo);
+
+            // Clone or download the repo
+            if let Err(e) = self
+                .download_repo(&repo.repo, repo.rev.as_deref(), &vendor_path)
+                .await
+            {
+                warn!(
+                    "Failed to vendor {}: {}. Hooks will need manual configuration.",
+                    repo.repo, e
+                );
+                // Clean up partial clone
+                let _ = std::fs::remove_dir_all(&vendor_path);
+                continue;
+            }
+
+            // Remove .git directory to save space
+            let git_dir = vendor_path.join(".git");
+            if git_dir.exists() {
+                let _ = std::fs::remove_dir_all(&git_dir);
+            }
+
+            // Make scripts executable
+            Self::make_scripts_executable(&vendor_path)?;
+
+            // Parse the .pre-commit-hooks.yaml file
+            let hooks_yaml_path = vendor_path.join(".pre-commit-hooks.yaml");
+            let hooks = if hooks_yaml_path.exists() {
+                let yaml_content = xx::file::read_to_string(&hooks_yaml_path)?;
+                serde_yaml::from_str::<Vec<PreCommitHookDefinition>>(&yaml_content)?
+            } else {
+                warn!(
+                    "No .pre-commit-hooks.yaml found in {}, generating basic wrappers",
+                    repo.repo
+                );
+                // Generate basic hook definitions from the config
+                repo.hooks
+                    .iter()
+                    .map(|h| PreCommitHookDefinition {
+                        id: h.id.clone(),
+                        name: h.name.clone(),
+                        entry: h.entry.clone().unwrap_or_else(|| h.id.clone()),
+                        language: h.language.clone().unwrap_or_else(|| "system".to_string()),
+                        files: h.files.clone(),
+                        types: h.types.clone(),
+                        pass_filenames: h.pass_filenames,
+                    })
+                    .collect()
+            };
+
+            // Generate the hooks.pkl file for this vendor
+            self.generate_vendor_pkl(&vendor_path, &hooks, &repo.repo)?;
+
+            vendored.insert(
+                repo.repo.clone(),
+                VendoredRepo {
+                    url: repo.repo.clone(),
+                    name: vendor_name,
+                    vendor_path,
+                    hooks,
+                },
+            );
+        }
+
+        Ok(vendored)
+    }
+
+    /// Check if this is the standard pre-commit hooks repo
+    fn is_github_precommit_hooks(url: &str) -> bool {
+        url.contains("github.com/pre-commit/pre-commit-hooks")
+            || url.contains("github.com/pre-commit/mirrors-")
+            || url.contains("github.com/psf/")
+            || url.contains("github.com/PyCQA/")
+            || url.contains("github.com/asottile/")
+    }
+
+    /// Download a repository to the vendor path
+    async fn download_repo(&self, url: &str, rev: Option<&str>, dest: &Path) -> Result<()> {
+        // Use git clone for GitHub URLs
+        if url.starts_with("https://") || url.starts_with("git@") {
+            let mut cmd = std::process::Command::new("git");
+            cmd.arg("clone");
+            cmd.arg("--depth=1");
+
+            if let Some(rev) = rev {
+                cmd.arg("--branch").arg(rev);
+            }
+
+            cmd.arg(url).arg(dest);
+
+            let output = cmd.output()?;
+            if !output.status.success() {
+                bail!(
+                    "Failed to clone repository {}: {}",
+                    url,
+                    String::from_utf8_lossy(&output.stderr)
+                );
+            }
+        } else {
+            bail!("Unsupported repository URL format: {}", url);
+        }
+
+        Ok(())
+    }
+
+    /// Convert a repository URL to a vendor directory name
+    fn repo_url_to_vendor_name(url: &str) -> String {
+        // Extract repo name from URL
+        // e.g., https://github.com/Lucas-C/pre-commit-hooks -> Lucas-C-pre-commit-hooks
+        url.trim_end_matches('/')
+            .split('/')
+            .rev()
+            .take(2)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>()
+            .join("-")
+            .replace('.', "-")
+    }
+
+    /// Convert a repository URL to an import name
+    fn repo_url_to_import_name(url: &str) -> String {
+        // Convert to valid Pkl identifier
+        // e.g., https://github.com/Lucas-C/pre-commit-hooks -> Vendors_Lucas_C_pre_commit_hooks
+        let vendor_name = Self::repo_url_to_vendor_name(url).replace(['-', '.'], "_");
+        format!(
+            "Vendors_{}",
+            vendor_name
+                .chars()
+                .filter(|c| c.is_alphanumeric() || *c == '_')
+                .collect::<String>()
+        )
+    }
+
+    /// Generate a hooks.pkl file for a vendored repository
+    fn generate_vendor_pkl(
+        &self,
+        vendor_path: &Path,
+        hooks: &[PreCommitHookDefinition],
+        repo_url: &str,
+    ) -> Result<()> {
+        let version = env!("CARGO_PKG_VERSION");
+        let mut pkl_content = String::new();
+        pkl_content.push_str("// Auto-generated hooks from vendored repository\n");
+        pkl_content.push_str(&format!("// Source: {}\n\n", repo_url));
+
+        // Use package URL for Config.pkl to match the main hk.pkl
+        if let Some(ref root) = self.hk_pkl_root {
+            pkl_content.push_str(&format!("import \"{}/Config.pkl\"\n\n", root));
+        } else {
+            pkl_content.push_str(&format!(
+                "import \"package://github.com/jdx/hk/releases/download/v{}/hk@{}#/Config.pkl\"\n\n",
+                version, version
+            ));
+        }
+
+        for hook in hooks {
+            let hook_id_snake = hook.id.replace('-', "_");
+            pkl_content.push_str(&format!("{} = new Config.Step {{\n", hook_id_snake));
+
+            // Add glob pattern if specified
+            if let Some(ref files) = hook.files {
+                pkl_content.push_str(&format!("    glob = \"{}\"\n", files));
+            }
+
+            // Build command path
+            let pass_filenames = hook.pass_filenames.unwrap_or(true);
+
+            // For Python hooks, check if there's a Python module to call directly
+            let (cmd, needs_prefix) = if hook.language == "python" {
+                // Try to find the Python module based on the entry point
+                let module_name = Self::find_python_module(vendor_path, &hook.entry);
+                if let Some(module) = module_name {
+                    let vendor_name = Self::repo_url_to_vendor_name(repo_url);
+                    let module_path = if pass_filenames {
+                        format!(
+                            "cd .hk/vendors/{} && python -m {} {{{{files}}}}",
+                            vendor_name, module
+                        )
+                    } else {
+                        format!("cd .hk/vendors/{} && python -m {}", vendor_name, module)
+                    };
+                    (module_path, false) // No prefix needed, we're calling python directly
+                } else {
+                    // Fallback to entry name with prefix
+                    let cmd = if pass_filenames {
+                        format!("{} {{{{files}}}}", hook.entry)
+                    } else {
+                        hook.entry.clone()
+                    };
+                    (cmd, true) // Need mise x prefix
+                }
+            } else {
+                // For non-Python hooks, use the entry directly
+                let entry_path = vendor_path.join(&hook.entry);
+                let relative_entry = if entry_path.exists() {
+                    format!(
+                        ".hk/vendors/{}/{}",
+                        Self::repo_url_to_vendor_name(repo_url),
+                        hook.entry
+                    )
+                } else {
+                    hook.entry.clone()
+                };
+
+                let cmd = if pass_filenames {
+                    format!("{} {{{{files}}}}", relative_entry)
+                } else {
+                    relative_entry.clone()
+                };
+
+                // Determine if prefix is needed based on language
+                let needs_prefix = matches!(hook.language.as_str(), "node" | "ruby" | "rust");
+                (cmd, needs_prefix)
+            };
+
+            // Add prefix if needed
+            if needs_prefix {
+                match hook.language.as_str() {
+                    "python" => {
+                        pkl_content.push_str("    prefix = \"mise x python@latest --\"\n");
+                    }
+                    "node" => {
+                        pkl_content.push_str("    prefix = \"mise x node@latest --\"\n");
+                    }
+                    _ => {}
+                }
+            }
+
+            // Detect if this is a fixer or checker based on hook name/description
+            let is_fixer = Self::is_fixer_hook(&hook.id, hook.name.as_deref());
+
+            if is_fixer {
+                // Fixers get both check and fix commands
+                pkl_content.push_str(&format!("    check = \"{}\"\n", cmd));
+                pkl_content.push_str(&format!("    fix = \"{}\"\n", cmd));
+            } else {
+                // Checkers only get check command
+                pkl_content.push_str(&format!("    check = \"{}\"\n", cmd));
+            }
+
+            pkl_content.push_str("}\n\n");
+        }
+
+        let pkl_path = vendor_path.join("hooks.pkl");
+        xx::file::write(pkl_path, pkl_content)?;
+
+        Ok(())
+    }
+
+    /// Detect if a hook is a fixer (modifies files) or a checker (read-only)
+    /// based on naming conventions
+    fn is_fixer_hook(id: &str, name: Option<&str>) -> bool {
+        // Common patterns indicating a fixer
+        let fixer_patterns = [
+            "remove-",
+            "fix-",
+            "format-",
+            "sort-",
+            "insert-",
+            "add-",
+            "delete-",
+            "replace-",
+            "reorder-",
+            "normalize-",
+            "trim-",
+            "strip-",
+            "clean-",
+            "update-",
+            "transform-",
+        ];
+
+        let checker_patterns = [
+            "forbid-",
+            "check-",
+            "detect-",
+            "validate-",
+            "verify-",
+            "lint-",
+            "scan-",
+            "find-",
+        ];
+
+        // Check ID for patterns
+        for pattern in &fixer_patterns {
+            if id.starts_with(pattern) {
+                return true;
+            }
+        }
+
+        for pattern in &checker_patterns {
+            if id.starts_with(pattern) {
+                return false;
+            }
+        }
+
+        // Check name if available
+        if let Some(name_str) = name {
+            let name_lower = name_str.to_lowercase();
+            if name_lower.contains("remover")
+                || name_lower.contains("fixer")
+                || name_lower.contains("formatter")
+                || name_lower.contains("replace")
+                || name_lower.contains("format ")
+            {
+                return true;
+            }
+
+            if name_lower.contains("checker")
+                || name_lower.contains("validator")
+                || name_lower.contains("linter")
+            {
+                return false;
+            }
+        }
+
+        // Default to checker (safer - doesn't modify files)
+        false
+    }
+
+    /// Make Python scripts and other executable files in the vendor directory executable
+    fn make_scripts_executable(vendor_path: &Path) -> Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Find all Python files and shell scripts
+        if let Ok(entries) = std::fs::read_dir(vendor_path) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(ext) = path.extension() {
+                        if ext == "py" || ext == "sh" {
+                            // Make executable
+                            if let Ok(metadata) = std::fs::metadata(&path) {
+                                let mut perms = metadata.permissions();
+                                perms.set_mode(perms.mode() | 0o111); // Add execute permission
+                                let _ = std::fs::set_permissions(&path, perms);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Also check pre_commit_hooks subdirectory if it exists
+        let hooks_dir = vendor_path.join("pre_commit_hooks");
+        if hooks_dir.exists() {
+            if let Ok(entries) = std::fs::read_dir(&hooks_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() {
+                        if let Some(ext) = path.extension() {
+                            if ext == "py" {
+                                if let Ok(metadata) = std::fs::metadata(&path) {
+                                    let mut perms = metadata.permissions();
+                                    perms.set_mode(perms.mode() | 0o111);
+                                    let _ = std::fs::set_permissions(&path, perms);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Find the Python module name for a given entry point
+    /// E.g., "forbid_crlf" -> Some("pre_commit_hooks.forbid_crlf")
+    fn find_python_module(vendor_path: &Path, entry: &str) -> Option<String> {
+        // Check if there's a pre_commit_hooks directory with the module
+        let hooks_dir = vendor_path.join("pre_commit_hooks");
+        if hooks_dir.exists() {
+            // Convert entry to potential module name
+            let module_file = format!("{}.py", entry);
+            if hooks_dir.join(&module_file).exists() {
+                return Some(format!("pre_commit_hooks.{}", entry));
+            }
+        }
+
+        // Check for other common Python package structures
+        // Look for setup.py to parse entry_points (basic parsing)
+        let setup_py = vendor_path.join("setup.py");
+        if setup_py.exists() {
+            if let Ok(content) = std::fs::read_to_string(&setup_py) {
+                // Look for entry_points console_scripts
+                if let Some(start) = content.find("\"console_scripts\"") {
+                    let after_start = &content[start..];
+                    // Look for the entry pattern
+                    let entry_pattern = format!("{} = ", entry);
+                    if let Some(entry_pos) = after_start.find(&entry_pattern) {
+                        let after_entry = &after_start[entry_pos + entry_pattern.len()..];
+                        // Extract module:function
+                        if let Some(end_quote) = after_entry.find('"') {
+                            let module_func = &after_entry[..end_quote];
+                            // Split on : to get module name
+                            if let Some(module) = module_func.split(':').next() {
+                                return Some(module.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
