@@ -413,7 +413,7 @@ impl PreCommit {
                 check: None,
                 fix: None,
                 shell: None,
-                exclusive: false,
+                exclusive: hook.require_serial,
                 properties_as_comments: Vec::new(),
             };
 
@@ -510,7 +510,7 @@ impl PreCommit {
             check: None,
             fix: None,
             shell: None,
-            exclusive: false,
+            exclusive: hook.require_serial,
             properties_as_comments: Vec::new(),
         };
 
@@ -666,7 +666,7 @@ impl PreCommit {
                     check: None,
                     fix: None,
                     shell: None,
-                    exclusive: false,
+                    exclusive: hook.require_serial,
                     properties_as_comments: Vec::new(),
                 };
 
@@ -707,7 +707,7 @@ impl PreCommit {
             check: None,
             fix: None,
             shell: None,
-            exclusive: false,
+            exclusive: hook.require_serial,
             properties_as_comments: Vec::new(),
         };
 
