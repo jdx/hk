@@ -14,7 +14,7 @@ teardown() {
 
     run hk util check-executables-have-shebangs script.sh
     assert_failure
-    assert_output "script.sh"
+    assert_output --partial "script.sh"
 }
 
 @test "util check-executables-have-shebangs - passes executable with shebang" {

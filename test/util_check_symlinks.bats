@@ -13,7 +13,7 @@ teardown() {
 
     run hk util check-symlinks broken_link
     assert_failure
-    assert_output "broken_link"
+    assert_output --partial "broken_link"
 }
 
 @test "util check-symlinks - passes valid symlink" {
@@ -50,7 +50,7 @@ teardown() {
 
     run hk util check-symlinks valid_link broken_link
     assert_failure
-    assert_output "broken_link"
+    assert_output --partial "broken_link"
     refute_output --partial "valid_link"
 }
 

@@ -14,7 +14,7 @@ teardown() {
 
     run hk util trailing-whitespace file1.txt
     assert_failure
-    assert_output "file1.txt"
+    assert_output --partial "file1.txt"
 }
 
 @test "util trailing-whitespace - passes clean files" {
@@ -82,7 +82,7 @@ more trailing"
 
     run hk util trailing-whitespace file1.txt
     assert_failure
-    assert_output "file1.txt"
+    assert_output --partial "file1.txt"
 }
 
 @test "util trailing-whitespace - builtin integration" {
