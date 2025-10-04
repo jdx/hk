@@ -9,7 +9,13 @@ class Script {
     other: String?
 }
 
-typealias Regex = Mapping<"_type"|"pattern", String>
+typealias RegexPattern = Mapping<"_type"|"pattern", String>
+
+/// Helper function to create regex patterns with clean syntax
+function Regex(pattern: String): RegexPattern = new Mapping {
+    ["_type"] = "regex"
+    ["pattern"] = pattern
+}
 
 class Step {
     _type = "step"
@@ -144,7 +150,7 @@ default_branch: String?
 /// If true, abort remaining steps/groups after the first failure
 fail_fast: Boolean?
 /// Global file patterns to exclude from all steps
-exclude: (String | List<String> | Regex)?
+exclude: (String | List<String> | RegexPattern)?
 
 output {
   renderer {

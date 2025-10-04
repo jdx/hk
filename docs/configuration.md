@@ -499,6 +499,20 @@ Notes:
 - The `(?x)` flag enables verbose mode for multi-line patterns with comments
 - Use raw strings (`#"..."#` or `#"""..."""#`) to avoid escaping backslashes
 
+**Optional: Creating a helper function**
+
+To simplify the syntax, you can define a helper function in your `hk.pkl`:
+
+```pkl
+local Regex = (pattern) -> new Mapping {
+    ["_type"] = "regex"
+    ["pattern"] = pattern
+}
+
+// Then use it like:
+exclude = Regex(#".*\.test\.js$"#)
+```
+
 ### `<STEP>.interactive: bool`
 
 Default: `false`
