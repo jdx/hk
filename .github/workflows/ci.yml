@@ -147,20 +147,36 @@ jobs:
         env:
           HK_LOG_LEVEL: warn
           HK_LIBGIT2: ${{ matrix.hk_libgit2 }}
+        shell: bash
         run: |
           # Select test files for this shard using simple math
           shard=${{ matrix.shard }}
           total=${{ matrix.total_shards }}
 
           echo "Starting shard $shard of $total"
-          count=0
-          for test_file in test/*.bats; do
-            if [ $((count % total)) -eq $shard ]; then
-              echo "Running: $test_file"
-              timeout 5m ./test/bats/bin/bats "$test_file" || echo "FAILED or TIMEOUT: $test_file"
-            fi
-            count=$((count + 1))
-          done
+          mapfile -t shard_files < <(find test -maxdepth 1 -name '*.bats' -type f | sort | awk -v shard="$shard" -v total="$total" '(NR-1)%total==shard')
+          echo "Shard has ${#shard_files[@]} files"
+          printf '%s\n' "${shard_files[@]}" | head -5
+          [ ${#shard_files[@]} -gt 5 ] && echo "..."
+
+          # Use GNU parallel if available, else xargs -P; ensure timeout exists (gtimeout on macOS)
+          TIMEOUT_BIN=timeout
+          if command -v gtimeout >/dev/null 2>&1; then TIMEOUT_BIN=gtimeout; fi
+
+          run_one() {
+            file="$1"
+            echo "Running: $file"
+            "$TIMEOUT_BIN" 5m ./test/bats/bin/bats "$file" || echo "FAILED or TIMEOUT: $file"
+          }
+          export -f run_one
+          export TIMEOUT_BIN
+
+          if command -v parallel >/dev/null 2>&1; then
+            printf '%s\n' "${shard_files[@]}" | parallel -j 4 --halt now,fail=1 run_one {}
+          else
+            printf '%s\n' "${shard_files[@]}" | xargs -I{} -P 4 bash -lc 'run_one "$@"' _ {}
+          fi
+
           echo "Shard $shard completed"
 
   finish:
