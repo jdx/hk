@@ -188,7 +188,7 @@ impl HkConfig {
             output.push_str(&format!(
                 "{}glob = {}\n",
                 inner_indent,
-                format_pkl_string(glob)
+                format_pkl_value(glob)
             ));
         }
 
@@ -196,7 +196,7 @@ impl HkConfig {
             output.push_str(&format!(
                 "{}exclude = {}\n",
                 inner_indent,
-                format_pkl_string(exclude)
+                format_pkl_value(exclude)
             ));
         }
 
@@ -274,6 +274,63 @@ impl HkConfig {
         output.push_str(&format!("{}}}\n", indent));
         output
     }
+}
+
+/// Try to parse a regex pattern as a simple list of literal paths
+/// Returns Some(paths) if the pattern is like ^path1$|^path2$|^path3$
+/// Returns None if it's a complex regex pattern
+fn parse_as_path_list(pattern: &str) -> Option<Vec<String>> {
+    let trimmed = pattern.trim();
+
+    // Split by | and check if each part is a simple ^...$ pattern
+    let parts: Vec<&str> = trimmed.split('|').collect();
+
+    // Need at least 2 parts to make a list worthwhile
+    if parts.len() < 2 {
+        return None;
+    }
+
+    let mut paths = Vec::new();
+
+    for part in parts {
+        let part = part.trim();
+
+        // Check if it's a simple ^literal$ pattern
+        if !part.starts_with('^') || !part.ends_with('$') {
+            return None;
+        }
+
+        // Extract the middle part
+        let middle = &part[1..part.len() - 1];
+
+        // Check if it contains regex metacharacters (except for escaped dots)
+        // Allow: escaped dots (\.), escaped backslashes (\\), forward slashes, alphanumeric, dash, underscore
+        for ch in middle.chars() {
+            match ch {
+                'a'..='z' | 'A'..='Z' | '0'..='9' | '/' | '-' | '_' | '.' => continue,
+                '\\' => continue, // Will handle escaping below
+                _ => return None, // Other regex metacharacters
+            }
+        }
+
+        // Unescape the path (primarily \. -> .)
+        let unescaped = middle.replace("\\.", ".");
+        paths.push(unescaped);
+    }
+
+    Some(paths)
+}
+
+/// Format a value for Pkl - either as a List() or as a string
+pub fn format_pkl_value(value: &str) -> String {
+    // Try to parse as a simple path list first
+    if let Some(paths) = parse_as_path_list(value) {
+        let formatted_paths: Vec<String> = paths.iter().map(|p| format!("\"{}\"", p)).collect();
+        return format!("List({})", formatted_paths.join(", "));
+    }
+
+    // Otherwise format as a string
+    format_pkl_string(value)
 }
 
 /// Format a string value for Pkl, using custom delimiters if needed
