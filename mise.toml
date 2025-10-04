@@ -23,7 +23,6 @@ usage = "latest"
 vhs = "latest"
 taplo = "latest"
 uv = "latest"
-go = "latest"
 
 [tasks.init]
 run = '''
