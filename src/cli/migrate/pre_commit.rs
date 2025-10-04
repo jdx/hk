@@ -408,7 +408,7 @@ impl PreCommit {
                 builtin: Some(format!("Builtins.{}", builtin_name)),
                 comments: Vec::new(),
                 glob: None,
-                exclude: hook.exclude.clone(),
+                exclude: Self::add_default_exclude(hook.exclude.clone()),
                 prefix: None,
                 check: None,
                 fix: None,
@@ -505,7 +505,7 @@ impl PreCommit {
             builtin: None,
             comments: Vec::new(),
             glob: hook.files.clone(),
-            exclude: hook.exclude.clone(),
+            exclude: Self::add_default_exclude(hook.exclude.clone()),
             prefix: None,
             check: None,
             fix: None,
@@ -696,7 +696,7 @@ impl PreCommit {
                     builtin: Some(format!("{}.{}", import_name, hook_id_snake)),
                     comments: Vec::new(),
                     glob: None,
-                    exclude: hook.exclude.clone(),
+                    exclude: Self::add_default_exclude(hook.exclude.clone()),
                     prefix: None,
                     check: None,
                     fix: None,
@@ -737,7 +737,7 @@ impl PreCommit {
             builtin: None,
             comments: Vec::new(),
             glob: None,
-            exclude: hook.exclude.clone(),
+            exclude: Self::add_default_exclude(hook.exclude.clone()),
             prefix: None,
             check: None,
             fix: None,
@@ -1048,6 +1048,18 @@ impl PreCommit {
                 return unique_id;
             }
             counter += 1;
+        }
+    }
+
+    /// Add default exclude pattern (.hk/) to an existing exclude pattern
+    fn add_default_exclude(existing_exclude: Option<String>) -> Option<String> {
+        const DEFAULT_EXCLUDE: &str = r"^\.hk/";
+
+        match existing_exclude {
+            Some(existing) if !existing.is_empty() => {
+                Some(format!("{}|{}", existing, DEFAULT_EXCLUDE))
+            }
+            _ => Some(DEFAULT_EXCLUDE.to_string()),
         }
     }
 
