@@ -514,12 +514,34 @@ impl PreCommit {
             properties_as_comments: Vec::new(),
         };
 
+        // Apply types/types_or as exclude patterns
+        if let Some(types_exclude) =
+            Self::types_to_exclude_pattern(&hook.types, &hook.types_or, &hook.exclude_types)
+        {
+            // Combine with existing exclude pattern
+            if let Some(ref existing_exclude) = step.exclude {
+                step.exclude = Some(format!("{}|{}", existing_exclude, types_exclude));
+            } else {
+                step.exclude = Some(types_exclude);
+            }
+        }
+
         // Add comments
         if unique_id != hook.id {
             step.comments.push(format!("Original ID: {}", hook.id));
         }
         if let Some(ref name) = hook.name {
             step.comments.push(format!("Name: {}", name));
+        }
+
+        // Add comment about type filtering if present
+        if !hook.types.is_empty() {
+            step.properties_as_comments
+                .push(format!("types (AND): {}", hook.types.join(", ")));
+        }
+        if !hook.types_or.is_empty() {
+            step.properties_as_comments
+                .push(format!("types (OR): {}", hook.types_or.join(", ")));
         }
 
         // Handle additional_dependencies with mise x
@@ -818,6 +840,118 @@ impl PreCommit {
             "manual" => "manual",
             _ => "pre-commit",
         }
+    }
+
+    /// Convert pre-commit types/types_or to exclude patterns
+    /// This creates a negative pattern to exclude files that don't match the specified types
+    fn types_to_exclude_pattern(
+        types: &[String],
+        types_or: &[String],
+        _exclude_types: &[String],
+    ) -> Option<String> {
+        // Build the list of types to match
+        let mut match_types = Vec::new();
+
+        if !types_or.is_empty() {
+            // types_or: match any of these types
+            match_types.extend(types_or.iter().cloned());
+        } else if !types.is_empty() {
+            // types: must match all of these (we'll use AND logic)
+            match_types.extend(types.iter().cloned());
+        } else {
+            // No type filtering
+            return None;
+        }
+
+        // Map common pre-commit types to file extensions
+        let mut extensions = Vec::new();
+        for type_name in &match_types {
+            match type_name.as_str() {
+                "python" => extensions.push("py"),
+                "pyi" => extensions.push("pyi"),
+                "yaml" => {
+                    extensions.push("yaml");
+                    extensions.push("yml");
+                }
+                "json" => extensions.push("json"),
+                "toml" => extensions.push("toml"),
+                "markdown" => {
+                    extensions.push("md");
+                    extensions.push("markdown");
+                    extensions.push("mdown");
+                }
+                "javascript" => extensions.push("js"),
+                "jsx" => extensions.push("jsx"),
+                "typescript" => extensions.push("ts"),
+                "tsx" => extensions.push("tsx"),
+                "rust" => extensions.push("rs"),
+                "go" => extensions.push("go"),
+                "shell" => {
+                    extensions.push("sh");
+                    extensions.push("bash");
+                }
+                "text" => return None, // text matches everything, no exclude needed
+                _ => {
+                    // Unknown type, can't filter
+                    return None;
+                }
+            }
+        }
+
+        if extensions.is_empty() {
+            return None;
+        }
+
+        // Create a regex pattern that matches files we want to EXCLUDE
+        // Since regex doesn't support lookahead, we'll list common file extensions to EXCLUDE
+        // that are NOT in our allowed list
+
+        // Common file extensions that might be in a repo
+        let all_common_extensions = vec![
+            "py", "pyi", "js", "jsx", "ts", "tsx", "json", "yaml", "yml", "toml", "md", "markdown",
+            "mdown", "txt", "rst", "xml", "html", "css", "scss", "sh", "bash", "zsh", "fish", "c",
+            "cpp", "h", "hpp", "rs", "go", "java", "kt", "rb", "php", "pl", "lua", "r", "sql",
+            "proto", "graphql", "vue", "svelte",
+        ];
+
+        // Filter out extensions that are in our allowed list
+        let excluded_extensions: Vec<&&str> = all_common_extensions
+            .iter()
+            .filter(|ext| !extensions.contains(&ext.to_string().as_str()))
+            .collect();
+
+        if excluded_extensions.is_empty() {
+            // If we'd exclude nothing, don't add an exclude pattern
+            return None;
+        }
+
+        // Build pattern to match files with extensions NOT in our list
+        let mut patterns: Vec<String> = excluded_extensions
+            .iter()
+            .map(|ext| format!(r"\.{}$", ext))
+            .collect();
+
+        // Add common lock/config files that don't have standard extensions
+        // These are typically not source code files
+        let special_files = vec![
+            r"uv\.lock$",
+            r"Cargo\.lock$",
+            r"package-lock\.json$",
+            r"yarn\.lock$",
+            r"pnpm-lock\.yaml$",
+            r"poetry\.lock$",
+            r"Gemfile\.lock$",
+            r"Pipfile\.lock$",
+        ];
+
+        // Only add special files if they would be excluded (not in our allowed extensions)
+        for special in special_files {
+            patterns.push(special.to_string());
+        }
+
+        let exclude_pattern = patterns.join("|");
+
+        Some(exclude_pattern)
     }
 
     /// Ensure hook IDs are unique by adding suffixes for duplicates
