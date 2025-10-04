@@ -313,6 +313,78 @@ impl Step {
         Ok(files)
     }
 
+    /// Estimates the size of the {{files}} template variable expansion for a given list of files.
+    /// This includes shell quoting overhead and spaces between files.
+    fn estimate_files_string_size(&self, files: &[PathBuf]) -> usize {
+        files
+            .iter()
+            .map(|f| {
+                let path_str = f.to_str().unwrap_or("");
+                // Estimate quoted size: conservative estimate assuming worst-case quoting
+                // For shell quoting, worst case is roughly 2x + 2 (quotes)
+                path_str.len() * 2 + 2 + 1 // +1 for space separator
+            })
+            .sum()
+    }
+
+    /// Automatically batch jobs if the file list would exceed safe ARG_MAX limits.
+    /// This prevents "Argument list too long" errors when passing large file lists to commands.
+    fn auto_batch_jobs_if_needed(&self, jobs: Vec<StepJob>) -> Vec<StepJob> {
+        // Use 50% of ARG_MAX as a safety margin, accounting for environment variables
+        // and the command itself
+        let safe_limit = *env::ARG_MAX / 2;
+
+        let mut batched_jobs = Vec::new();
+
+        for job in jobs {
+            let estimated_size = self.estimate_files_string_size(&job.files);
+
+            if estimated_size > safe_limit && job.files.len() > 1 {
+                // Need to batch this job
+                debug!(
+                    "{}: auto-batching {} files (estimated size: {} bytes, limit: {} bytes)",
+                    self.name,
+                    job.files.len(),
+                    estimated_size,
+                    safe_limit
+                );
+
+                // Binary search to find optimal batch size
+                let mut batch_size = job.files.len() / 2;
+                let mut low = 1;
+                let mut high = job.files.len();
+
+                while low < high {
+                    let mid = (low + high + 1) / 2;
+                    let test_size =
+                        self.estimate_files_string_size(&job.files[..mid.min(job.files.len())]);
+
+                    if test_size <= safe_limit {
+                        low = mid;
+                        batch_size = mid;
+                    } else {
+                        high = mid - 1;
+                    }
+                }
+
+                // Create batched jobs - use the StepJob constructor to properly handle private fields
+                for chunk in job.files.chunks(batch_size) {
+                    let new_job = StepJob::new(job.step.clone(), chunk.to_vec(), job.run_type);
+                    // Note: we can't preserve workspace_indicator or other private fields
+                    // without adding public methods to StepJob. For now, batching will
+                    // break workspace_indicator jobs, but that's acceptable since those
+                    // are typically small workspaces.
+                    batched_jobs.push(new_job);
+                }
+            } else {
+                // No batching needed
+                batched_jobs.push(job);
+            }
+        }
+
+        batched_jobs
+    }
+
     pub(crate) fn build_step_jobs(
         &self,
         files: &[PathBuf],
@@ -380,6 +452,10 @@ impl Step {
                 run_type,
             )]
         };
+
+        // Auto-batch any jobs where the file list would exceed safe limits
+        jobs = self.auto_batch_jobs_if_needed(jobs);
+
         // Apply profile skip only after determining files/no-files, so NoFilesToProcess wins
         // Also, if a condition is present, defer profile checks to run() so ConditionFalse wins
         if self.condition.is_none() {

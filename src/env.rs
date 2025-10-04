@@ -89,6 +89,25 @@ pub static HK_JSON: LazyLock<bool> = LazyLock::new(|| var_true("HK_JSON"));
 
 pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));
 
+/// System's ARG_MAX value, memoized for performance
+pub static ARG_MAX: LazyLock<usize> = LazyLock::new(|| {
+    #[cfg(unix)]
+    {
+        // Try to get the system's ARG_MAX using sysconf
+        unsafe {
+            let value = libc::sysconf(libc::_SC_ARG_MAX);
+            if value > 0 {
+                return value as usize;
+            }
+        }
+    }
+
+    // Fallback: Use a conservative 128KB limit that works on most systems
+    // This is much smaller than typical ARG_MAX values (often 256KB-2MB)
+    // but safe for portability
+    128 * 1024
+});
+
 fn var_path(name: &str) -> Option<PathBuf> {
     var(name).map(PathBuf::from).ok()
 }

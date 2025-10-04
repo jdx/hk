@@ -1116,6 +1116,7 @@ dependencies = [
  "globset",
  "indexmap 2.11.4",
  "itertools",
+ "libc",
  "log",
  "once_cell",
  "regex",
