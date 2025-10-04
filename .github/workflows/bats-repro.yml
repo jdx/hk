@@ -1,0 +1,77 @@
+name: bats-repro
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bats-repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          submodules: recursive
+
+      - name: Install mise
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+
+      - name: Install tools (mise install)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mise install
+          which pkl && pkl --version || true
+          which prettier && prettier --version || true
+
+      - name: Build hk
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mise run init
+          mise run build
+          echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
+          which hk || true
+          hk --version || true
+
+      - name: Verify bats
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -e ./test/bats/bin/bats || { echo "bats missing"; exit 1; }
+          chmod +x ./test/bats/bin/bats || true
+          ./test/bats/bin/bats --version || true
+
+      - name: Reproduce hang with single test
+        env:
+          HK_LOG_LEVEL: warn
+          HK_LIBGIT2: 0
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "Running bats with verbose output"
+          # Ensure hk is available in PATH for this step immediately
+          export PATH="$GITHUB_WORKSPACE/target/debug:$PATH"
+          echo "which hk: $(command -v hk || echo not-found)"
+          hk --version || true
+          # Best-effort install of strace for deeper diagnostics under act
+          if command -v apt-get >/dev/null 2>&1; then
+            apt-get update -y >/dev/null 2>&1 || true
+            apt-get install -y strace >/dev/null 2>&1 || true
+          fi
+          # Use runner temp for bats tmp to avoid container tmpfs quirks under act
+          export TMPDIR="$RUNNER_TEMP"
+          export BATS_TMPDIR="$RUNNER_TEMP"
+          echo "TMPDIR=$TMPDIR BATS_TMPDIR=$BATS_TMPDIR"
+          # Keep tempdir for inspection and avoid cleanup races
+          timeout 5s bash -x ./test/bats/bin/bats --no-tempdir-cleanup --verbose-run --formatter tap test/arg_escape.bats
+
+      - name: Upload strace logs (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bats-repro-strace
+          path: |
+            **/strace.log
+            /tmp/bats-run-*/**/strace.log
+          if-no-files-found: ignore
