@@ -162,6 +162,8 @@ jobs:
           # Use GNU parallel if available, else xargs -P; ensure timeout exists (gtimeout on macOS)
           TIMEOUT_BIN=timeout
           if command -v gtimeout >/dev/null 2>&1; then TIMEOUT_BIN=gtimeout; fi
+          ./test/bats/bin/bats --version
+          ./test/bats/bin/bats --verbose-run --formatter tap test/arg_escape.bats
 
           run_one() {
             file="$1"
