@@ -91,7 +91,7 @@ jobs:
   bats:
     name: Bats tests (shard ${{ matrix.shard }} of ${{ matrix.total_shards }}, ${{ matrix.os }}, HK_LIBGIT2=${{ matrix.hk_libgit2 }})
     needs: build
-    timeout-minutes: 30
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -131,19 +131,27 @@ jobs:
           HK_LIBGIT2: ${{ matrix.hk_libgit2 }}
         shell: bash
         run: |
-          set -euo pipefail
-          # Build a null-delimited list of test files and select this shard's slice
+          set -euxo pipefail
+          # Build a list of test files for this shard
           echo "Running shard ${{ matrix.shard }} of ${{ matrix.total_shards }}"
-          test_files=$(find test -maxdepth 1 -name '*.bats' | sort | awk -v shard='${{ matrix.shard }}' -v total='${{ matrix.total_shards }}' '(NR-1)%total==shard')
-          if [ -z "$test_files" ]; then
+          all_tests=$(find test -maxdepth 1 -name '*.bats' -type f | sort)
+          total_tests=$(echo "$all_tests" | wc -l)
+          echo "Total test files available: $total_tests"
+
+          # Select tests for this shard
+          shard_tests=$(echo "$all_tests" | awk -v shard='${{ matrix.shard }}' -v total='${{ matrix.total_shards }}' '(NR-1) % total == shard')
+
+          if [ -z "$shard_tests" ]; then
             echo "No tests for this shard"
             exit 0
           fi
-          test_count=$(echo "$test_files" | wc -l)
-          echo "Running $test_count tests:"
-          echo "$test_files" | head -5
-          [ "$test_count" -gt 5 ] && echo "..."
-          echo "$test_files" | xargs ./test/bats/bin/bats --jobs 8 --formatter tap
+
+          shard_count=$(echo "$shard_tests" | wc -l)
+          echo "Running $shard_count tests in this shard:"
+          echo "$shard_tests"
+
+          # Run bats on each file
+          echo "$shard_tests" | xargs -n 1 ./test/bats/bin/bats
 
   finish:
     needs:
