@@ -578,3 +578,55 @@ MARKDOWN
     assert_output --partial "Section One"
     assert_output --partial "Section Two"
 }
+
+@test "migrate precommit - vendor golang hooks" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+    -   id: go-fmt
+        args: [-w]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+PRECOMMIT
+
+    run hk migrate pre-commit
+    assert_success
+    assert_output --partial "Successfully migrated to hk.pkl"
+    
+    # Verify .hk directory was created with vendored repo
+    [ -d .hk/vendors ]
+    [ -d .hk/vendors/TekWizely-pre-commit-golang ]
+    [ -f .hk/vendors/TekWizely-pre-commit-golang/.pre-commit-hooks.yaml ]
+    
+    # Verify .git directory was removed
+    [ ! -d .hk/vendors/TekWizely-pre-commit-golang/.git ]
+    
+    # Verify hk.pkl references vendored hooks
+    run cat hk.pkl
+    assert_output --partial 'import ".hk/vendors/TekWizely-pre-commit-golang/hooks.pkl"'
+    assert_output --partial "go-fmt"
+    assert_output --partial "Builtins.prettier"
+    
+    # Verify vendored PKL file was created
+    [ -f .hk/vendors/TekWizely-pre-commit-golang/hooks.pkl ]
+    
+    # Verify the generated PKL file has correct structure
+    run cat .hk/vendors/TekWizely-pre-commit-golang/hooks.pkl
+    assert_output --partial "go_fmt"
+    # Note: TekWizely hooks use language: system, not language: golang
+    # so they won't have .gopath/bin or go install commands
+    
+    # Verify hooks use the vendored scripts and are in linters
+    run cat hk.pkl
+    assert_output --partial "local linters"
+    assert_output --partial "Vendors_TekWizely_pre_commit_golang.go_fmt"
+    refute_output --partial "custom_steps"
+    
+    # Note: TekWizely hooks use shell scripts that call go tools
+    # They don't use language: golang so we just verify the vendoring structure worked
+    # The actual Go formatting would require go tools to be installed
+}

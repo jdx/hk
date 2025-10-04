@@ -1122,8 +1122,28 @@ impl PreCommit {
                     }
                 };
                 (node_cmd, false) // No prefix needed, we're calling npx directly
+            } else if hook.language == "golang" {
+                // For Go hooks, install via go install and use the binary from GOPATH/bin
+                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
+                // Create isolated GOPATH in the vendor directory
+                let gopath = format!(".hk/vendors/{}/.gopath", vendor_name);
+                let install_check = format!(
+                    "[ -d {}/bin ] || (export GOPATH=$(pwd)/{} && cd .hk/vendors/{} && go install ./...)",
+                    gopath, gopath, vendor_name
+                );
+                // Use the binary name from entry, which should be in GOPATH/bin
+                let binary_name = hook.entry.split('/').last().unwrap_or(&hook.entry);
+                let go_cmd = if pass_filenames {
+                    format!(
+                        "{} && {}/bin/{} {{{{files}}}}",
+                        install_check, gopath, binary_name
+                    )
+                } else {
+                    format!("{} && {}/bin/{}", install_check, gopath, binary_name)
+                };
+                (go_cmd, false) // No prefix needed, we're calling the binary directly
             } else {
-                // For non-Python hooks, use the entry directly
+                // For non-Python/Node/Go hooks, use the entry directly
                 let entry_path = vendor_path.join(&hook.entry);
                 let relative_entry = if entry_path.exists() {
                     format!(
