@@ -1,0 +1,32 @@
+name: bats-repro
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bats-repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          submodules: recursive
+
+      - name: Verify bats
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -e ./test/bats/bin/bats || { echo "bats missing"; exit 1; }
+          chmod +x ./test/bats/bin/bats || true
+          ./test/bats/bin/bats --version || true
+
+      - name: Reproduce hang with single test
+        env:
+          HK_LOG_LEVEL: warn
+          HK_LIBGIT2: 0
+        shell: bash
+        run: |
+          set -euxo pipefail
+          echo "Running bats with verbose output"
+          bash -x ./test/bats/bin/bats --verbose-run --formatter tap test/arg_escape.bats
