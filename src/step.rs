@@ -349,23 +349,30 @@ impl Step {
                     safe_limit
                 );
 
-                // Binary search to find optimal batch size
-                let mut batch_size = job.files.len() / 2;
+                // Binary search to find the largest batch_size where files fit within safe_limit
                 let mut low = 1;
                 let mut high = job.files.len();
 
                 while low < high {
                     let mid = (low + high).div_ceil(2);
-                    let test_size =
-                        self.estimate_files_string_size(&job.files[..mid.min(job.files.len())]);
+                    let test_size = self.estimate_files_string_size(&job.files[..mid]);
 
                     if test_size <= safe_limit {
+                        // mid files fit, try larger
                         low = mid;
-                        batch_size = mid;
                     } else {
+                        // mid files don't fit, try smaller
                         high = mid - 1;
                     }
                 }
+
+                // After binary search, low contains the largest batch size that fits
+                let batch_size = low.max(1); // Ensure at least 1 file per batch
+
+                debug!(
+                    "{}: using batch size of {} files per batch",
+                    self.name, batch_size
+                );
 
                 // Create batched jobs - use the StepJob constructor to properly handle private fields
                 for chunk in job.files.chunks(batch_size) {
