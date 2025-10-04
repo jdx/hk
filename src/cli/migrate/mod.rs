@@ -38,6 +38,8 @@ pub struct HkConfig {
     pub step_collections: IndexMap<String, IndexMap<String, HkStep>>,
     /// Hook configurations
     pub hooks: IndexMap<String, HkHook>,
+    /// Global exclude patterns to apply to all steps
+    pub global_excludes: Vec<String>,
 }
 
 /// Represents a single step in hk configuration
@@ -121,6 +123,16 @@ impl HkConfig {
                 output.push_str(&format!("// {}\n", comment));
             }
             output.push('\n');
+        }
+
+        // Global excludes
+        if !self.global_excludes.is_empty() {
+            let quoted: Vec<String> = self
+                .global_excludes
+                .iter()
+                .map(|e| format!("\"{}\"", e))
+                .collect();
+            output.push_str(&format!("exclude = List({})\n\n", quoted.join(", ")));
         }
 
         // Step collections

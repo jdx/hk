@@ -35,6 +35,8 @@ struct PreCommitConfig {
     default_language_version: HashMap<String, String>,
     #[serde(default)]
     default_stages: Vec<String>,
+    #[serde(default)]
+    exclude: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,7 +103,15 @@ impl PreCommit {
             (None, None)
         };
 
-        let hk_config = self.convert_config(&precommit_config, config_pkl, builtins_pkl)?;
+        let mut hk_config = self.convert_config(&precommit_config, config_pkl, builtins_pkl)?;
+
+        // Map pre-commit top-level exclude to hk global excludes
+        if let Some(ref exclude) = precommit_config.exclude {
+            // If the pattern looks like a verbose regex (?x), collapse spaces/comments (handled upstream already),
+            // but for now just carry the pattern verbatim and let PKL config use regex strings where needed.
+            // Since hk excludes are glob-based, when regex cannot be converted we still include as-is for now.
+            hk_config.global_excludes.push(exclude.clone());
+        }
         let pkl_content = hk_config.to_pkl();
 
         xx::file::write(&self.output, pkl_content)?;
