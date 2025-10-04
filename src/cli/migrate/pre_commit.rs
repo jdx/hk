@@ -1163,8 +1163,48 @@ impl PreCommit {
                     )
                 };
                 (ruby_cmd, false) // No prefix needed, we're calling the binary directly
+            } else if hook.language == "swift" {
+                // For Swift hooks, build the package and use the binary from .build/release
+                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
+                let build_dir = format!(".hk/vendors/{}/.swift_env/.build/release", vendor_name);
+                let install_check = format!(
+                    "[ -d {} ] || (cd .hk/vendors/{} && swift build -c release --build-path .swift_env/.build)",
+                    build_dir, vendor_name
+                );
+                // Extract the binary name from entry (e.g., "swift-format format --in-place" -> "swift-format")
+                let binary_name = hook.entry.split_whitespace().next().unwrap_or(&hook.entry);
+                // Get any additional arguments from entry
+                let entry_args = hook
+                    .entry
+                    .split_whitespace()
+                    .skip(1)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let swift_cmd = if pass_filenames {
+                    if entry_args.is_empty() {
+                        format!(
+                            "{} && {}/{} {{{{files}}}}",
+                            install_check, build_dir, binary_name
+                        )
+                    } else {
+                        format!(
+                            "{} && {}/{} {} {{{{files}}}}",
+                            install_check, build_dir, binary_name, entry_args
+                        )
+                    }
+                } else {
+                    if entry_args.is_empty() {
+                        format!("{} && {}/{}", install_check, build_dir, binary_name)
+                    } else {
+                        format!(
+                            "{} && {}/{} {}",
+                            install_check, build_dir, binary_name, entry_args
+                        )
+                    }
+                };
+                (swift_cmd, false) // No prefix needed, we're calling the binary directly
             } else {
-                // For non-Python/Node/Go hooks, use the entry directly
+                // For non-Python/Node/Go/Ruby/Swift hooks, use the entry directly
                 let entry_path = vendor_path.join(&hook.entry);
                 let relative_entry = if entry_path.exists() {
                     format!(

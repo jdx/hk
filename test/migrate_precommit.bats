@@ -709,3 +709,58 @@ RUBY
     assert_output --partial "IrresponsibleModule"
     assert_output --partial "UncommunicativeVariableName"
 }
+
+@test "migrate precommit - vendor swift hooks (swift-format)" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/swiftlang/swift-format
+    rev: main
+    hooks:
+    -   id: swift-format
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+PRECOMMIT
+
+    run hk migrate pre-commit
+    assert_success
+    assert_output --partial "Successfully migrated to hk.pkl"
+    
+    # Verify .hk directory was created with vendored repo
+    [ -d .hk/vendors ]
+    [ -d .hk/vendors/swiftlang-swift-format ]
+    [ -f .hk/vendors/swiftlang-swift-format/.pre-commit-hooks.yaml ]
+    
+    # Verify .git directory was removed
+    [ ! -d .hk/vendors/swiftlang-swift-format/.git ]
+    
+    # Verify Package.swift exists (swift-format is a Swift package)
+    [ -f .hk/vendors/swiftlang-swift-format/Package.swift ]
+    
+    # Verify hk.pkl references vendored hooks
+    run cat hk.pkl
+    assert_output --partial 'import ".hk/vendors/swiftlang-swift-format/hooks.pkl"'
+    assert_output --partial "swift-format"
+    assert_output --partial "Builtins.prettier"
+    
+    # Verify vendored PKL file was created
+    [ -f .hk/vendors/swiftlang-swift-format/hooks.pkl ]
+    
+    # Verify the generated PKL file has correct structure for language: swift
+    run cat .hk/vendors/swiftlang-swift-format/hooks.pkl
+    assert_output --partial "swift_format ="
+    assert_output --partial ".swift_env/.build/release"
+    assert_output --partial "swift build"
+    assert_output --partial "format --in-place --recursive --parallel"
+    
+    # Verify hooks use the vendored Swift binaries and are in linters
+    run cat hk.pkl
+    assert_output --partial "local linters"
+    assert_output --partial "Vendors_swiftlang_swift_format.swift_format"
+    refute_output --partial "custom_steps"
+    
+    # Note: swift uses language: swift so it will build via swift build
+    # The actual swift-format execution would require Swift to be installed
+    # and takes ~3 minutes to build, so we only verify the vendoring structure
+}
