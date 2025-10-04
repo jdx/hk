@@ -1564,13 +1564,16 @@ impl PreCommit {
             // Detect if this is a fixer or checker based on hook name/description
             let is_fixer = Self::is_fixer_hook(&hook.id, hook.name.as_deref());
 
+            // Escape the command for Pkl string literals
+            let escaped_cmd = Self::escape_for_pkl(&cmd);
+
             if is_fixer {
                 // Fixers get both check and fix commands
-                pkl_content.push_str(&format!("    check = \"{}\"\n", cmd));
-                pkl_content.push_str(&format!("    fix = \"{}\"\n", cmd));
+                pkl_content.push_str(&format!("    check = \"{}\"\n", escaped_cmd));
+                pkl_content.push_str(&format!("    fix = \"{}\"\n", escaped_cmd));
             } else {
                 // Checkers only get check command
-                pkl_content.push_str(&format!("    check = \"{}\"\n", cmd));
+                pkl_content.push_str(&format!("    check = \"{}\"\n", escaped_cmd));
             }
 
             pkl_content.push_str("}\n\n");
@@ -1580,6 +1583,13 @@ impl PreCommit {
         xx::file::write(pkl_path, pkl_content)?;
 
         Ok(())
+    }
+
+    /// Escape a string for use in Pkl string literals
+    /// Pkl supports these escape sequences: \n \r \t \" \\
+    /// We need to escape backslashes so that regex patterns like \[ become \\[
+    fn escape_for_pkl(s: &str) -> String {
+        s.replace('\\', "\\\\").replace('"', "\\\"")
     }
 
     /// Detect if a hook is a fixer (modifies files) or a checker (read-only)
