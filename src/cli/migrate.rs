@@ -45,10 +45,6 @@ impl Migrate {
 struct PrecommitConfig {
     repos: Vec<PrecommitRepo>,
     #[serde(default)]
-    files: Option<String>,
-    #[serde(default)]
-    exclude: Option<String>,
-    #[serde(default)]
     fail_fast: bool,
     #[serde(default)]
     default_language_version: HashMap<String, String>,
@@ -72,8 +68,6 @@ struct PrecommitHook {
     #[serde(default)]
     entry: Option<String>,
     #[serde(default)]
-    language: Option<String>,
-    #[serde(default)]
     files: Option<String>,
     #[serde(default)]
     exclude: Option<String>,
@@ -95,8 +89,6 @@ struct PrecommitHook {
     pass_filenames: Option<bool>,
     #[serde(default)]
     language_version: Option<String>,
-    #[serde(default)]
-    verbose: bool,
 }
 
 impl Precommit {
@@ -118,7 +110,11 @@ impl Precommit {
         let (hk_config, _tools) = self.convert_config(&precommit_config)?;
         xx::file::write(&self.output, hk_config)?;
 
-        info!("Migrated {} to {}", self.config.display(), self.output.display());
+        info!(
+            "Migrated {} to {}",
+            self.config.display(),
+            self.output.display()
+        );
         println!("Successfully migrated to hk.pkl!");
 
         println!("\nNext steps:");
@@ -134,10 +130,12 @@ impl Precommit {
         let mut output = String::new();
         let mut tools = HashSet::new();
 
-        output.push_str(r#"amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+        output.push_str(
+            r#"amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.pkl"
 
-"#);
+"#,
+        );
 
         if config.fail_fast {
             output.push_str("// Migrated from pre-commit fail_fast setting\n");
@@ -159,7 +157,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         for repo in &config.repos {
             let is_local = repo.repo == "local";
             let is_meta = repo.repo == "meta";
-            
+
             for hook in &repo.hooks {
                 let hook_stages = if !hook.stages.is_empty() {
                     hook.stages.clone()
@@ -180,7 +178,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                 }
 
                 let conversion_result = self.convert_hook(hook, repo, config, &mut tools);
-                
+
                 for stage in hook_stages {
                     let stage_clone = stage.clone();
                     let steps = steps_by_stage.entry(stage).or_default();
@@ -189,7 +187,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                         steps.push(step.clone());
                     } else {
                         // Track unknown hooks separately
-                        if !unknown_hooks.iter().any(|(h, _, _): &(&PrecommitHook, &PrecommitRepo, _)| h.id == hook.id) {
+                        if !unknown_hooks
+                            .iter()
+                            .any(|(h, _, _): &(&PrecommitHook, &PrecommitRepo, _)| h.id == hook.id)
+                        {
                             unknown_hooks.push((hook, repo, stage_clone));
                         }
                     }
@@ -248,19 +249,23 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             };
 
             output.push_str(&format!("    [\"{}\"] {{\n", hk_stage));
-            
+
             if hk_stage == "pre-commit" {
                 output.push_str("        fix = true\n");
                 output.push_str("        stash = \"git\"\n");
             }
-            
+
             output.push_str("        steps {\n");
 
             if !all_known_steps.is_empty() {
                 output.push_str("            ...linters\n");
             }
 
-            if !local_hooks.is_empty() && local_hooks.iter().any(|(_, _, stages)| stages.contains(&stage)) {
+            if !local_hooks.is_empty()
+                && local_hooks
+                    .iter()
+                    .any(|(_, _, stages)| stages.contains(&stage))
+            {
                 output.push_str("            ...local_hooks\n");
             }
 
@@ -287,7 +292,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             }
             output.push_str("        }\n");
             output.push_str("    }\n");
-            
+
             output.push_str("    [\"fix\"] {\n");
             output.push_str("        fix = true\n");
             output.push_str("        steps {\n");
@@ -317,7 +322,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
         if let Some(builtin_name) = builtin_map.get(hook.id.as_str()) {
             tools.insert(self.hook_id_to_tool(&hook.id));
-            
+
             let mut step = format!("    [\"{}\"] = ", hook.id);
 
             let needs_customization = hook.files.is_some()
@@ -335,7 +340,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                 step.push_str(&format!("(Builtins.{}) {{\n", builtin_name));
 
                 if let Some(ref files) = hook.files {
-                    step.push_str(&format!("        // files pattern from pre-commit: {}\n", files));
+                    step.push_str(&format!(
+                        "        // files pattern from pre-commit: {}\n",
+                        files
+                    ));
                     step.push_str("        // Note: Convert regex to glob pattern for hk\n");
                 }
 
@@ -344,41 +352,59 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                 }
 
                 if !hook.types.is_empty() {
-                    step.push_str(&format!("        // types (AND): {}\n", hook.types.join(", ")));
+                    step.push_str(&format!(
+                        "        // types (AND): {}\n",
+                        hook.types.join(", ")
+                    ));
                 }
 
                 if !hook.types_or.is_empty() {
-                    step.push_str(&format!("        // types_or: {}\n", hook.types_or.join(", ")));
+                    step.push_str(&format!(
+                        "        // types_or: {}\n",
+                        hook.types_or.join(", ")
+                    ));
                 }
 
                 if !hook.exclude_types.is_empty() {
-                    step.push_str(&format!("        // exclude_types: {}\n", hook.exclude_types.join(", ")));
+                    step.push_str(&format!(
+                        "        // exclude_types: {}\n",
+                        hook.exclude_types.join(", ")
+                    ));
                 }
 
                 if hook.always_run {
-                    step.push_str("        // always_run: true - runs even without matching files\n");
+                    step.push_str(
+                        "        // always_run: true - runs even without matching files\n",
+                    );
                     step.push_str("        // Note: hk doesn't have direct equivalent, hook will run on all files\n");
                 }
 
                 if hook.pass_filenames == Some(false) {
                     step.push_str("        // pass_filenames: false\n");
-                    step.push_str("        // Note: Adjust check/fix commands to not use {{files}}\n");
+                    step.push_str(
+                        "        // Note: Adjust check/fix commands to not use {{files}}\n",
+                    );
                 }
 
                 if !hook.args.is_empty() {
                     let args_str = hook.args.join(" ");
                     step.push_str(&format!("        // args from pre-commit: {}\n", args_str));
-                    step.push_str("        // Consider updating check/fix commands with these args\n");
+                    step.push_str(
+                        "        // Consider updating check/fix commands with these args\n",
+                    );
                 }
 
                 if !hook.additional_dependencies.is_empty() {
                     let deps = hook.additional_dependencies.join(", ");
                     step.push_str(&format!("        // additional_dependencies: {}\n", deps));
-                    
+
                     // Generate mise x wrapper
                     let tool_name = self.hook_id_to_tool(&hook.id);
                     step.push_str(&format!("        // Use mise x to install dependencies:\n"));
-                    step.push_str(&format!("        prefix = \"mise x {}@latest --\"\n", tool_name));
+                    step.push_str(&format!(
+                        "        prefix = \"mise x {}@latest --\"\n",
+                        tool_name
+                    ));
                 }
 
                 if let Some(ref lang_ver) = hook.language_version {
@@ -430,7 +456,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             }
 
             if !hook.args.is_empty() {
-                step.push_str(&format!("        // args from pre-commit: {}\n", hook.args.join(" ")));
+                step.push_str(&format!(
+                    "        // args from pre-commit: {}\n",
+                    hook.args.join(" ")
+                ));
                 step.push_str("        // Consider adding args to check command\n");
             }
         } else {
@@ -438,7 +467,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             step.push_str("        // check = \"...\"\n");
 
             if !hook.args.is_empty() {
-                step.push_str(&format!("        // Original args: {}\n", hook.args.join(" ")));
+                step.push_str(&format!(
+                    "        // Original args: {}\n",
+                    hook.args.join(" ")
+                ));
             }
         }
 
@@ -475,11 +507,17 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         step.push_str("        // fix = \"...\"\n");
 
         if !hook.args.is_empty() {
-            step.push_str(&format!("        // Original args: {}\n", hook.args.join(" ")));
+            step.push_str(&format!(
+                "        // Original args: {}\n",
+                hook.args.join(" ")
+            ));
         }
 
         if !hook.additional_dependencies.is_empty() {
-            step.push_str(&format!("        // Dependencies: {}\n", hook.additional_dependencies.join(", ")));
+            step.push_str(&format!(
+                "        // Dependencies: {}\n",
+                hook.additional_dependencies.join(", ")
+            ));
         }
 
         step.push_str("    }\n");
@@ -516,7 +554,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         map.insert("mypy", "mypy");
         map.insert("pylint", "pylint");
         map.insert("ruff", "ruff");
-        map.insert("ruff-check", "ruff");  // Astral ruff linter
+        map.insert("ruff-check", "ruff"); // Astral ruff linter
         map.insert("ruff-format", "ruff"); // Astral ruff formatter
 
         // JavaScript/TypeScript
@@ -529,7 +567,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         map.insert("cargo-fmt", "cargo_fmt");
         map.insert("clippy", "cargo_clippy");
         map.insert("cargo-check", "cargo_check");
-        map.insert("fmt", "rustfmt");  // doublify/pre-commit-rust
+        map.insert("fmt", "rustfmt"); // doublify/pre-commit-rust
 
         // Go
         map.insert("gofmt", "go_fmt");
@@ -572,7 +610,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         map.insert("check-merge-conflict", "check_merge_conflict");
         map.insert("check-case-conflict", "check_case_conflict");
         map.insert("mixed-line-ending", "mixed_line_ending");
-        map.insert("check-executables-have-shebangs", "check_executables_have_shebangs");
+        map.insert(
+            "check-executables-have-shebangs",
+            "check_executables_have_shebangs",
+        );
         map.insert("check-symlinks", "check_symlinks");
         map.insert("check-byte-order-marker", "check_byte_order_marker");
         map.insert("check-added-large-files", "check_added_large_files");
