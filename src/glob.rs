@@ -44,54 +44,41 @@ pub fn get_pattern_matches<P: AsRef<Path>>(
     dir: Option<&str>,
 ) -> Result<Vec<PathBuf>> {
     // Pre-filter files by dir if specified
-    let files_in_dir: Vec<&Path> = if let Some(dir) = dir {
+    let files_vec: Vec<PathBuf> = if let Some(dir) = dir {
         files
             .iter()
             .map(|f| f.as_ref())
             .filter(|f| f.starts_with(dir))
+            .map(|f| f.to_path_buf())
             .collect()
     } else {
-        files.iter().map(|f| f.as_ref()).collect()
+        files.iter().map(|f| f.as_ref().to_path_buf()).collect()
     };
 
     match pattern {
         Pattern::Globs(globs) => {
+            // When dir is set, prefix globs with the directory and use strict matching
             if let Some(dir) = dir {
-                // For globs with dir, match against paths relative to dir (like regex)
-                // This avoids the double-application of dir context
-                let relative_paths: Vec<PathBuf> = files_in_dir
+                let dir_globs = globs
                     .iter()
-                    .map(|f| f.strip_prefix(dir).unwrap_or(f).to_path_buf())
-                    .collect();
-
-                // Use strict matching to ensure proper path semantics
-                let matched_relative = get_matches_strict(globs, &relative_paths)?;
-
-                // Convert back to full paths
-                Ok(matched_relative
-                    .into_iter()
-                    .map(|rel| {
-                        let dir_path = Path::new(dir);
-                        dir_path.join(rel)
-                    })
-                    .collect())
+                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
+                    .collect::<Vec<_>>();
+                // Use strict matching (literal_separator=true) to ensure proper path semantics
+                get_matches_strict(&dir_globs, &files_vec)
             } else {
-                // Without dir, match against full paths as before
-                let full_paths: Vec<PathBuf> =
-                    files_in_dir.iter().map(|f| f.to_path_buf()).collect();
-                get_matches(globs, &full_paths)
+                get_matches(globs, &files_vec)
             }
         }
         Pattern::Regex { pattern, .. } => {
             let re = Regex::new(pattern)?;
-            let matches = files_in_dir
+            let matches = files_vec
                 .iter()
                 .filter(|f| {
                     // For regex patterns, if dir is set, match against the path relative to dir
                     let path_to_match = if let Some(dir) = dir {
-                        f.strip_prefix(dir).unwrap_or(f)
+                        f.strip_prefix(dir).unwrap_or(f.as_path())
                     } else {
-                        f
+                        f.as_path()
                     };
 
                     if let Some(path_str) = path_to_match.to_str() {
