@@ -29,21 +29,36 @@ use xx::file::display_path;
 use crate::step_test::StepTest;
 
 /// Check if a file is binary by reading the first 8KB and looking for null bytes
-fn is_binary_file(path: &PathBuf) -> bool {
+/// Returns None if the file cannot be read (error), Some(true/false) otherwise
+fn is_binary_file(path: &PathBuf) -> Option<bool> {
+    use std::collections::HashMap;
     use std::io::Read;
+    use std::sync::Mutex;
 
-    let Ok(mut file) = std::fs::File::open(path) else {
-        // If we can't open it, assume it's not binary (might be deleted/renamed)
-        return false;
-    };
+    // Memoize results (only cache successful reads, not errors)
+    static CACHE: LazyLock<Mutex<HashMap<PathBuf, bool>>> =
+        LazyLock::new(|| Mutex::new(HashMap::new()));
 
+    // Check cache first
+    if let Ok(cache) = CACHE.lock() {
+        if let Some(&result) = cache.get(path) {
+            return Some(result);
+        }
+    }
+
+    let mut file = std::fs::File::open(path).ok()?;
     let mut buffer = [0u8; 8192];
-    let Ok(bytes_read) = file.read(&mut buffer) else {
-        return false;
-    };
+    let bytes_read = file.read(&mut buffer).ok()?;
 
     // Check for null bytes in the content
-    buffer[..bytes_read].contains(&0)
+    let is_binary = buffer[..bytes_read].contains(&0);
+
+    // Cache the result
+    if let Ok(mut cache) = CACHE.lock() {
+        cache.insert(path.clone(), is_binary);
+    }
+
+    Some(is_binary)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -334,7 +349,11 @@ impl Step {
 
         // Filter out binary files unless allow_binary is true
         if !self.allow_binary {
-            files.retain(|f| !is_binary_file(f));
+            files.retain(|f| {
+                // Keep file if we can't determine if it's binary (might be deleted/renamed)
+                // or if it's definitely not binary
+                is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
+            });
         }
 
         Ok(files)
