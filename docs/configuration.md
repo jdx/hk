@@ -106,7 +106,7 @@ exclude = "node_modules"
 // Exclude using regex pattern (for complex matching)
 exclude = new Mapping {
     ["_type"] = "regex"
-    ["pattern"] = #".*\.(test|spec)\.js$"#
+    ["pattern"] = #".*\.(test|spec)\.(js|ts)$"#
 }
 ```
 
@@ -186,12 +186,12 @@ Files the step should run on. By default this will only run this step if at leas
 }
 
 // Regex pattern for complex matching
-["yaml-lint"] {
+["config-lint"] {
     glob = new Mapping {
         ["_type"] = "regex"
-        ["pattern"] = #"^(config|settings).*\.yaml$"#
+        ["pattern"] = #"^(config|settings).*\.(json|yaml|yml)$"#
     }
-    check = "yamllint {{files}}"
+    check = "config-lint {{files}}"
 }
 ```
 
@@ -479,18 +479,18 @@ Files to exclude from the step. Supports glob patterns and regex patterns. Files
 }
 
 // Exclude with regex pattern for complex matching
-["yaml-check"] {
-    glob = List("**/*.yaml")
+["linter"] {
+    glob = List("**/*")
     exclude = new Mapping {
         ["_type"] = "regex"
         ["pattern"] = #"""
 (?x)
-^.*airflow\.template\.yaml$|
-^chart/(?:templates|files)/.*\.yaml$|
-^.*openapi.*\.yaml$
+^(vendor|dist|build)/.*$|
+.*\.(min|bundle)\.(js|css)$|
+.*\.generated\.(ts|js)$
 """#
     }
-    check = "yamllint {{files}}"
+    check = "custom-lint {{files}}"
 }
 ```
 
