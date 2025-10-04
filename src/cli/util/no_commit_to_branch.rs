@@ -18,13 +18,10 @@ impl NoCommitToBranch {
         let current_branch = get_current_branch()?;
 
         if protected_branches.contains(&current_branch) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "Cannot commit directly to protected branch '{}'",
-                    current_branch
-                ),
-            )
+            return Err(std::io::Error::other(format!(
+                "Cannot commit directly to protected branch '{}'",
+                current_branch
+            ))
             .into());
         }
 
@@ -35,15 +32,11 @@ impl NoCommitToBranch {
 fn get_current_branch() -> Result<String> {
     // Use symbolic-ref instead of rev-parse to work in repos without commits
     let output = Command::new("git")
-        .args(&["symbolic-ref", "--short", "HEAD"])
+        .args(["symbolic-ref", "--short", "HEAD"])
         .output()?;
 
     if !output.status.success() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Failed to get current git branch",
-        )
-        .into());
+        return Err(std::io::Error::other("Failed to get current git branch").into());
     }
 
     let branch = String::from_utf8(output.stdout)?.trim().to_string();
