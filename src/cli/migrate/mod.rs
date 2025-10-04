@@ -59,6 +59,8 @@ pub struct HkStep {
     pub fix: Option<String>,
     /// Shell command
     pub shell: Option<String>,
+    /// If true, this step runs exclusively (waits for previous, blocks next)
+    pub exclusive: bool,
     /// Additional properties as comments (for now)
     pub properties_as_comments: Vec<String>,
 }
@@ -78,22 +80,34 @@ pub struct HkHook {
 
 impl HkConfig {
     /// Create a new HkConfig with specified or default amends and imports
-    pub fn new(config_pkl: Option<String>, builtins_pkl: Option<String>) -> Self {
+    pub fn new(
+        amends_config_pkl: Option<String>,
+        types_pkl_import: Option<String>,
+        builtins_pkl: Option<String>,
+    ) -> Self {
         let version = env!("CARGO_PKG_VERSION");
 
-        let amends = config_pkl.unwrap_or_else(|| {
+        let amends = amends_config_pkl.unwrap_or_else(|| {
             format!(
                 "package://github.com/jdx/hk/releases/download/v{}/hk@{}#/Config.pkl",
                 version, version
             )
         });
 
-        let imports = vec![builtins_pkl.unwrap_or_else(|| {
+        let mut imports = vec![];
+
+        // Add Types.pkl import if specified
+        if let Some(types_import) = types_pkl_import {
+            imports.push(types_import);
+        }
+
+        // Add Builtins.pkl import
+        imports.push(builtins_pkl.unwrap_or_else(|| {
             format!(
                 "package://github.com/jdx/hk/releases/download/v{}/hk@{}#/Builtins.pkl",
                 version, version
             )
-        })];
+        }));
 
         Self {
             amends,
@@ -230,6 +244,10 @@ impl HkConfig {
                 inner_indent,
                 format_pkl_string(shell)
             ));
+        }
+
+        if step.exclusive {
+            output.push_str(&format!("{}exclusive = true\n", inner_indent));
         }
 
         // Additional properties as comments
@@ -375,11 +393,11 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
     Some(result)
 }
 
-/// Format a value for Pkl - either as a List(), Regex(), or as a string
+/// Format a value for Pkl - either as a List(), Types.Regex(), or as a string
 pub fn format_pkl_value(value: &str) -> String {
     // Check if this looks like a regex pattern
     if is_regex_pattern(value) {
-        return format!("Regex({})", format_pkl_string(value));
+        return format!("Types.Regex({})", format_pkl_string(value));
     }
 
     // Skip path list parsing for multiline patterns to preserve formatting
