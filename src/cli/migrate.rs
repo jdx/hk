@@ -348,7 +348,15 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                 }
 
                 if let Some(ref exclude) = hook.exclude {
-                    step.push_str(&format!("        exclude = \"{}\"\n", exclude));
+                    // Use Pkl custom delimiter strings for regex patterns
+                    // Check if string contains newlines - if so, use triple quotes
+                    if exclude.contains('\n') {
+                        step.push_str("        exclude = #\"\"\"\n");
+                        step.push_str(exclude);
+                        step.push_str("\n\"\"\"#\n");
+                    } else {
+                        step.push_str(&format!("        exclude = #\"{}\"#\n", exclude));
+                    }
                 }
 
                 if !hook.types.is_empty() {
@@ -431,11 +439,27 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         }
 
         if let Some(ref files) = hook.files {
-            step.push_str(&format!("        glob = \"{}\"\n", files));
+            // Use Pkl custom delimiter strings for regex patterns
+            // Check if string contains newlines - if so, use triple quotes
+            if files.contains('\n') {
+                step.push_str("        glob = #\"\"\"\n");
+                step.push_str(files);
+                step.push_str("\n\"\"\"#\n");
+            } else {
+                step.push_str(&format!("        glob = #\"{}\"#\n", files));
+            }
         }
 
         if let Some(ref exclude) = hook.exclude {
-            step.push_str(&format!("        exclude = \"{}\"\n", exclude));
+            // Use Pkl custom delimiter strings for regex patterns
+            // Check if string contains newlines - if so, use triple quotes
+            if exclude.contains('\n') {
+                step.push_str("        exclude = #\"\"\"\n");
+                step.push_str(exclude);
+                step.push_str("\n\"\"\"#\n");
+            } else {
+                step.push_str(&format!("        exclude = #\"{}\"#\n", exclude));
+            }
         }
 
         if hook.always_run {
@@ -448,10 +472,30 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
             if pass_filenames {
                 // Command expects filenames as arguments
-                step.push_str(&format!("        check = \"{} {{{{files}}}}\"\n", entry));
+                // Use custom delimiter strings if the command contains backslashes, quotes, or newlines
+                if entry.contains('\n') {
+                    // Multi-line command, use triple quotes
+                    step.push_str("        check = #\"\"\"\n");
+                    step.push_str(entry);
+                    step.push_str(" {{files}}\n\"\"\"#\n");
+                } else if entry.contains('\\') || entry.contains('"') {
+                    step.push_str(&format!("        check = #\"{} {{{{files}}}}\"#\n", entry));
+                } else {
+                    step.push_str(&format!("        check = \"{} {{{{files}}}}\"\n", entry));
+                }
             } else {
                 // Command doesn't take filenames
-                step.push_str(&format!("        check = \"{}\"\n", entry));
+                // Use custom delimiter strings if the command contains backslashes, quotes, or newlines
+                if entry.contains('\n') {
+                    // Multi-line command, use triple quotes
+                    step.push_str("        check = #\"\"\"\n");
+                    step.push_str(entry);
+                    step.push_str("\n\"\"\"#\n");
+                } else if entry.contains('\\') || entry.contains('"') {
+                    step.push_str(&format!("        check = #\"{}\"#\n", entry));
+                } else {
+                    step.push_str(&format!("        check = \"{}\"\n", entry));
+                }
                 step.push_str("        // pass_filenames was false in pre-commit\n");
             }
 
@@ -495,7 +539,15 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         }
 
         if let Some(ref exclude) = hook.exclude {
-            step.push_str(&format!("        exclude = \"{}\"\n", exclude));
+            // Use Pkl custom delimiter strings for regex patterns
+            // Check if string contains newlines - if so, use triple quotes
+            if exclude.contains('\n') {
+                step.push_str("        exclude = #\"\"\"\n");
+                step.push_str(exclude);
+                step.push_str("\n\"\"\"#\n");
+            } else {
+                step.push_str(&format!("        exclude = #\"{}\"#\n", exclude));
+            }
         }
 
         if !hook.types.is_empty() || !hook.types_or.is_empty() {
