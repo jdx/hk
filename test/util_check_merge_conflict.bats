@@ -20,7 +20,7 @@ EOF
 
     run hk util check-merge-conflict file1.txt
     assert_failure
-    assert_output "file1.txt"
+    assert_output --partial "file1.txt"
 }
 
 @test "util check-merge-conflict - passes clean files" {
@@ -41,7 +41,7 @@ EOF
 
     run hk util check-merge-conflict file1.txt
     assert_failure
-    assert_output "file1.txt"
+    assert_output --partial "file1.txt"
 }
 
 @test "util check-merge-conflict - detects middle marker" {
@@ -53,7 +53,7 @@ EOF
 
     run hk util check-merge-conflict file1.txt
     assert_failure
-    assert_output "file1.txt"
+    assert_output --partial "file1.txt"
 }
 
 @test "util check-merge-conflict - detects end marker" {
@@ -64,7 +64,7 @@ EOF
 
     run hk util check-merge-conflict file1.txt
     assert_failure
-    assert_output "file1.txt"
+    assert_output --partial "file1.txt"
 }
 
 @test "util check-merge-conflict - multiple files" {
@@ -96,7 +96,7 @@ EOF
 
     run hk util check-merge-conflict file1.txt
     assert_failure
-    assert_output "file1.txt"
+    assert_output --partial "file1.txt"
 }
 
 @test "util check-merge-conflict - builtin integration" {

@@ -13,7 +13,7 @@ teardown() {
 
     run hk util mixed-line-ending file.txt
     assert_failure
-    assert_output "file.txt"
+    assert_output --partial "file.txt"
 }
 
 @test "util mixed-line-ending - passes LF only" {

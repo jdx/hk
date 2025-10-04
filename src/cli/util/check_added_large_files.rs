@@ -28,7 +28,7 @@ impl CheckAddedLargeFiles {
         }
 
         if found_large {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Large files found"));
         }
 
         Ok(())

@@ -21,7 +21,7 @@ impl PythonCheckAst {
         }
 
         if found_invalid {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Files with invalid Python syntax found"));
         }
 
         Ok(())

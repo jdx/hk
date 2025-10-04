@@ -28,7 +28,7 @@ impl CheckCaseConflict {
                     println!("  {}", file.display());
                 }
             }
-            std::process::exit(1);
+            return Err(eyre::eyre!("Case conflicts found in file paths"));
         }
 
         Ok(())

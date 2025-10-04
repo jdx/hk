@@ -21,7 +21,7 @@ impl DetectPrivateKey {
         }
 
         if found_key {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Private keys detected in files"));
         }
 
         Ok(())

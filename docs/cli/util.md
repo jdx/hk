@@ -245,3 +245,19 @@ Uses pure Rust implementation instead of shell scripts for:
 - Improved testability with unit tests
 - Consistent behavior across platforms
 - No external dependencies
+
+### `check-byte-order-marker`
+
+Check for UTF-8 byte order marker (BOM)
+
+**Usage**: `hk util check-byte-order-marker <FILES>…`
+
+Detects UTF-8 BOM (EF BB BF) at start of files. Exit code 1 if BOM found, 0 if clean.
+
+### `fix-byte-order-marker`
+
+Remove UTF-8 byte order marker (BOM)
+
+**Usage**: `hk util fix-byte-order-marker <FILES>…`
+
+Removes UTF-8 BOM from files. Only modifies files that have a BOM.

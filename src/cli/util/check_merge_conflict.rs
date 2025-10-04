@@ -23,7 +23,7 @@ impl CheckMergeConflict {
         }
 
         if found_conflicts {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Merge conflict markers found in files"));
         }
 
         Ok(())
