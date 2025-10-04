@@ -172,3 +172,54 @@ EOF
     # utils/ files should NOT be in the command
     refute_output --partial '$ echo.*utils/'
 }
+
+@test "glob pattern scoping with dir" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["check-frontend"] {
+                dir = "frontend"
+                glob = List("**/*.ts")
+                check = "echo {{files}}"
+            }
+            ["check-backend"] {
+                dir = "backend"
+                glob = List("**/*.ts")
+                check = "echo {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p frontend backend
+    # Create TypeScript files in different directories
+    echo "frontend" > frontend/app.ts
+    echo "frontend" > frontend/utils.ts
+    echo "backend" > backend/server.ts
+    echo "backend" > backend/db.ts
+
+    # Create a root-level TS file that shouldn't match either step
+    echo "root" > main.ts
+
+    git add frontend/ backend/ main.ts
+    run hk check -v
+    assert_success
+    # Frontend step should only see frontend files
+    assert_output --partial 'check-frontend'
+    assert_output --partial 'echo app.ts utils.ts'
+    # Backend step should only see backend files
+    assert_output --partial 'check-backend'
+    assert_output --partial 'echo db.ts server.ts'
+    # Root file should not appear in either step's command
+    refute_output --partial 'echo.*main.ts'
+}
+
+# Note: User config tests with .hkrc.pkl would require a separate Pkl schema for UserConfig
+# which doesn't currently exist. The Rust changes to support Pattern in UserStepConfig
+# are tested implicitly through the API, but end-to-end .hkrc.pkl tests would need
+# additional schema work.
