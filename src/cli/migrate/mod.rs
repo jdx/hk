@@ -292,11 +292,6 @@ fn parse_as_path_list(pattern: &str) -> Option<Vec<String>> {
     // Split by | and check if each part is a convertible pattern
     let parts: Vec<&str> = working_pattern.split('|').collect();
 
-    // Need at least 2 parts to make a list worthwhile
-    if parts.len() < 2 {
-        return None;
-    }
-
     let mut globs = Vec::new();
 
     for part in parts {
