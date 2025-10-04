@@ -534,6 +534,9 @@ impl PreCommit {
             // Check if this is a pygrep hook - convert to grep command
             let is_pygrep = hook.language.as_deref() == Some("pygrep");
 
+            // Check if this is a docker_image hook - convert to docker run command
+            let is_docker_image = hook.language.as_deref() == Some("docker_image");
+
             // Check if this is a Python script that should use uv run
             // For multi-line entries, check if the first line/word ends with .py
             let is_python_script = hook.language.as_deref() == Some("python")
@@ -554,6 +557,37 @@ impl PreCommit {
                     format!("! grep -P {} {{{{files}}}}", quoted_pattern)
                 } else {
                     format!("! grep -P {}", quoted_pattern)
+                }
+            } else if is_docker_image {
+                // docker_image hooks use the entry as: <image_name> <args...>
+                // Example: koalaman/shellcheck:v0.8.0 -x -a
+                // We convert to: docker run --rm -v $(pwd):/src -w /src <image_name> <args...> {{files}}
+                // The image name is the first token, the rest are arguments
+                let parts: Vec<&str> = entry.split_whitespace().collect();
+                let image_name = parts.first().unwrap_or(&"");
+                let docker_args = parts[1..].join(" ");
+
+                if pass_filenames {
+                    if docker_args.is_empty() {
+                        format!(
+                            "docker run --rm -v $(pwd):/src -w /src {} {{{{files}}}}",
+                            image_name
+                        )
+                    } else {
+                        format!(
+                            "docker run --rm -v $(pwd):/src -w /src {} {} {{{{files}}}}",
+                            image_name, docker_args
+                        )
+                    }
+                } else {
+                    if docker_args.is_empty() {
+                        format!("docker run --rm -v $(pwd):/src -w /src {}", image_name)
+                    } else {
+                        format!(
+                            "docker run --rm -v $(pwd):/src -w /src {} {}",
+                            image_name, docker_args
+                        )
+                    }
                 }
             } else if is_python_script {
                 // Use uv run for local Python scripts
