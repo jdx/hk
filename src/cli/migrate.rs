@@ -92,6 +92,34 @@ struct PrecommitHook {
 }
 
 impl Precommit {
+    /// Format a string value for Pkl, using custom delimiters if needed
+    fn format_pkl_string(value: &str) -> String {
+        if value.contains('\n') {
+            // Multi-line string, use triple quotes
+            format!("#\"\"\"\n{}\n\"\"\"#", value)
+        } else if value.contains('\\') || value.contains('"') {
+            // String with backslashes or quotes, use custom delimiters
+            format!("#\"{}\"#", value)
+        } else {
+            // Simple string, use regular quotes
+            format!("\"{}\"", value)
+        }
+    }
+
+    /// Format a string value with {{files}} placeholder for Pkl
+    fn format_pkl_string_with_files(value: &str) -> String {
+        if value.contains('\n') {
+            // Multi-line string, use triple quotes
+            format!("#\"\"\"\n{} {{{{files}}}}\n\"\"\"#", value)
+        } else if value.contains('\\') || value.contains('"') {
+            // String with backslashes or quotes, use custom delimiters
+            format!("#\"{} {{{{files}}}}\"#", value)
+        } else {
+            // Simple string, use regular quotes
+            format!("\"{} {{{{files}}}}\"", value)
+        }
+    }
+
     pub async fn run(&self) -> Result<()> {
         if self.output.exists() && !self.force {
             bail!(
@@ -126,6 +154,25 @@ impl Precommit {
         Ok(())
     }
 
+    /// Ensure hook IDs are unique by adding suffixes for duplicates
+    fn make_unique_hook_id(id: &str, existing_ids: &mut HashSet<String>) -> String {
+        if !existing_ids.contains(id) {
+            existing_ids.insert(id.to_string());
+            return id.to_string();
+        }
+
+        // Find a unique suffix
+        let mut counter = 2;
+        loop {
+            let unique_id = format!("{}-{}", id, counter);
+            if !existing_ids.contains(&unique_id) {
+                existing_ids.insert(unique_id.clone());
+                return unique_id;
+            }
+            counter += 1;
+        }
+    }
+
     fn convert_config(&self, config: &PrecommitConfig) -> Result<(String, HashSet<String>)> {
         let mut output = String::new();
         let mut tools = HashSet::new();
@@ -153,12 +200,15 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         let mut steps_by_stage: IndexMap<String, Vec<String>> = IndexMap::new();
         let mut unknown_hooks = Vec::new();
         let mut local_hooks = Vec::new();
+        let mut used_ids = HashSet::new();
 
         for repo in &config.repos {
             let is_local = repo.repo == "local";
             let is_meta = repo.repo == "meta";
 
             for hook in &repo.hooks {
+                let unique_id = Self::make_unique_hook_id(&hook.id, &mut used_ids);
+
                 let hook_stages = if !hook.stages.is_empty() {
                     hook.stages.clone()
                 } else if !config.default_stages.is_empty() {
@@ -168,7 +218,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                 };
 
                 if is_local {
-                    local_hooks.push((hook, repo, hook_stages.clone()));
+                    local_hooks.push((hook, repo, hook_stages.clone(), unique_id.clone()));
                     continue;
                 }
 
@@ -177,7 +227,8 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                     continue;
                 }
 
-                let conversion_result = self.convert_hook(hook, repo, config, &mut tools);
+                let conversion_result =
+                    self.convert_hook(hook, &unique_id, repo, config, &mut tools);
 
                 for stage in hook_stages {
                     let stage_clone = stage.clone();
@@ -187,11 +238,12 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                         steps.push(step.clone());
                     } else {
                         // Track unknown hooks separately
-                        if !unknown_hooks
-                            .iter()
-                            .any(|(h, _, _): &(&PrecommitHook, &PrecommitRepo, _)| h.id == hook.id)
-                        {
-                            unknown_hooks.push((hook, repo, stage_clone));
+                        if !unknown_hooks.iter().any(
+                            |(h, _, _, _): &(&PrecommitHook, &PrecommitRepo, _, String)| {
+                                h.id == hook.id
+                            },
+                        ) {
+                            unknown_hooks.push((hook, repo, stage_clone, unique_id.clone()));
                         }
                     }
                 }
@@ -219,8 +271,8 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         if !local_hooks.is_empty() {
             output.push_str("// Local hooks from your pre-commit config\n");
             output.push_str("local local_hooks = new Mapping<String, Step> {\n");
-            for (hook, repo, _) in &local_hooks {
-                output.push_str(&self.generate_local_hook(hook, repo));
+            for (hook, repo, _, unique_id) in &local_hooks {
+                output.push_str(&self.generate_local_hook(hook, unique_id, repo));
             }
             output.push_str("}\n\n");
         }
@@ -230,8 +282,8 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             output.push_str("// The following hooks could not be automatically converted.\n");
             output.push_str("// Please configure them manually or use equivalent hk builtins.\n");
             output.push_str("local custom_steps = new Mapping<String, Step> {\n");
-            for (hook, repo, _) in &unknown_hooks {
-                output.push_str(&self.generate_custom_step(hook, repo));
+            for (hook, repo, _, unique_id) in &unknown_hooks {
+                output.push_str(&self.generate_custom_step(hook, unique_id, repo));
             }
             output.push_str("}\n\n");
         }
@@ -264,12 +316,12 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             if !local_hooks.is_empty()
                 && local_hooks
                     .iter()
-                    .any(|(_, _, stages)| stages.contains(&stage))
+                    .any(|(_, _, stages, _)| stages.contains(&stage))
             {
                 output.push_str("            ...local_hooks\n");
             }
 
-            if !unknown_hooks.is_empty() && unknown_hooks.iter().any(|(_, _, s)| s == &stage) {
+            if !unknown_hooks.is_empty() && unknown_hooks.iter().any(|(_, _, s, _)| s == &stage) {
                 output.push_str("            ...custom_steps\n");
             }
 
@@ -314,6 +366,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
     fn convert_hook(
         &self,
         hook: &PrecommitHook,
+        unique_id: &str,
         _repo: &PrecommitRepo,
         _config: &PrecommitConfig,
         tools: &mut HashSet<String>,
@@ -323,7 +376,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         if let Some(builtin_name) = builtin_map.get(hook.id.as_str()) {
             tools.insert(self.hook_id_to_tool(&hook.id));
 
-            let mut step = format!("    [\"{}\"] = ", hook.id);
+            let mut step = format!("    [\"{}\"] = ", unique_id);
 
             let needs_customization = hook.files.is_some()
                 || hook.exclude.is_some()
@@ -348,15 +401,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
                 }
 
                 if let Some(ref exclude) = hook.exclude {
-                    // Use Pkl custom delimiter strings for regex patterns
-                    // Check if string contains newlines - if so, use triple quotes
-                    if exclude.contains('\n') {
-                        step.push_str("        exclude = #\"\"\"\n");
-                        step.push_str(exclude);
-                        step.push_str("\n\"\"\"#\n");
-                    } else {
-                        step.push_str(&format!("        exclude = #\"{}\"#\n", exclude));
-                    }
+                    step.push_str(&format!(
+                        "        exclude = {}\n",
+                        Self::format_pkl_string(exclude)
+                    ));
                 }
 
                 if !hook.types.is_empty() {
@@ -431,35 +479,36 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         }
     }
 
-    fn generate_local_hook(&self, hook: &PrecommitHook, _repo: &PrecommitRepo) -> String {
-        let mut step = format!("    [\"{}\"] {{\n", hook.id);
+    fn generate_local_hook(
+        &self,
+        hook: &PrecommitHook,
+        unique_id: &str,
+        _repo: &PrecommitRepo,
+    ) -> String {
+        // Add comment if ID was changed
+        let mut step = String::new();
+        if unique_id != hook.id {
+            step.push_str(&format!("    // Original ID: {}\n", hook.id));
+        }
+
+        step.push_str(&format!("    [\"{}\"] {{\n", unique_id));
 
         if let Some(ref name) = hook.name {
             step.push_str(&format!("        // Name: {}\n", name));
         }
 
         if let Some(ref files) = hook.files {
-            // Use Pkl custom delimiter strings for regex patterns
-            // Check if string contains newlines - if so, use triple quotes
-            if files.contains('\n') {
-                step.push_str("        glob = #\"\"\"\n");
-                step.push_str(files);
-                step.push_str("\n\"\"\"#\n");
-            } else {
-                step.push_str(&format!("        glob = #\"{}\"#\n", files));
-            }
+            step.push_str(&format!(
+                "        glob = {}\n",
+                Self::format_pkl_string(files)
+            ));
         }
 
         if let Some(ref exclude) = hook.exclude {
-            // Use Pkl custom delimiter strings for regex patterns
-            // Check if string contains newlines - if so, use triple quotes
-            if exclude.contains('\n') {
-                step.push_str("        exclude = #\"\"\"\n");
-                step.push_str(exclude);
-                step.push_str("\n\"\"\"#\n");
-            } else {
-                step.push_str(&format!("        exclude = #\"{}\"#\n", exclude));
-            }
+            step.push_str(&format!(
+                "        exclude = {}\n",
+                Self::format_pkl_string(exclude)
+            ));
         }
 
         if hook.always_run {
@@ -471,31 +520,15 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
             let pass_filenames = hook.pass_filenames.unwrap_or(true);
 
             if pass_filenames {
-                // Command expects filenames as arguments
-                // Use custom delimiter strings if the command contains backslashes, quotes, or newlines
-                if entry.contains('\n') {
-                    // Multi-line command, use triple quotes
-                    step.push_str("        check = #\"\"\"\n");
-                    step.push_str(entry);
-                    step.push_str(" {{files}}\n\"\"\"#\n");
-                } else if entry.contains('\\') || entry.contains('"') {
-                    step.push_str(&format!("        check = #\"{} {{{{files}}}}\"#\n", entry));
-                } else {
-                    step.push_str(&format!("        check = \"{} {{{{files}}}}\"\n", entry));
-                }
+                step.push_str(&format!(
+                    "        check = {}\n",
+                    Self::format_pkl_string_with_files(entry)
+                ));
             } else {
-                // Command doesn't take filenames
-                // Use custom delimiter strings if the command contains backslashes, quotes, or newlines
-                if entry.contains('\n') {
-                    // Multi-line command, use triple quotes
-                    step.push_str("        check = #\"\"\"\n");
-                    step.push_str(entry);
-                    step.push_str("\n\"\"\"#\n");
-                } else if entry.contains('\\') || entry.contains('"') {
-                    step.push_str(&format!("        check = #\"{}\"#\n", entry));
-                } else {
-                    step.push_str(&format!("        check = \"{}\"\n", entry));
-                }
+                step.push_str(&format!(
+                    "        check = {}\n",
+                    Self::format_pkl_string(entry)
+                ));
                 step.push_str("        // pass_filenames was false in pre-commit\n");
             }
 
@@ -522,13 +555,24 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         step
     }
 
-    fn generate_custom_step(&self, hook: &PrecommitHook, repo: &PrecommitRepo) -> String {
+    fn generate_custom_step(
+        &self,
+        hook: &PrecommitHook,
+        unique_id: &str,
+        repo: &PrecommitRepo,
+    ) -> String {
         let mut step = format!("    // Repo: {}", repo.repo);
         if let Some(ref rev) = repo.rev {
             step.push_str(&format!(" @ {}", rev));
         }
         step.push('\n');
-        step.push_str(&format!("    [\"{}\"] {{\n", hook.id));
+
+        // Add comment if ID was changed
+        if unique_id != hook.id {
+            step.push_str(&format!("    // Original ID: {}\n", hook.id));
+        }
+
+        step.push_str(&format!("    [\"{}\"] {{\n", unique_id));
 
         if let Some(ref name) = hook.name {
             step.push_str(&format!("        // Name: {}\n", name));
@@ -539,15 +583,10 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         }
 
         if let Some(ref exclude) = hook.exclude {
-            // Use Pkl custom delimiter strings for regex patterns
-            // Check if string contains newlines - if so, use triple quotes
-            if exclude.contains('\n') {
-                step.push_str("        exclude = #\"\"\"\n");
-                step.push_str(exclude);
-                step.push_str("\n\"\"\"#\n");
-            } else {
-                step.push_str(&format!("        exclude = #\"{}\"#\n", exclude));
-            }
+            step.push_str(&format!(
+                "        exclude = {}\n",
+                Self::format_pkl_string(exclude)
+            ));
         }
 
         if !hook.types.is_empty() || !hook.types_or.is_empty() {
