@@ -206,7 +206,7 @@ impl StepGroup {
             .values()
             .map(|step| {
                 let files = if let Some(pattern) = &step.glob {
-                    glob::get_pattern_matches(pattern, &files)?
+                    glob::get_pattern_matches(pattern, &files, step.dir.as_deref())?
                 } else {
                     files.clone()
                 };

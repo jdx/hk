@@ -23,10 +23,10 @@ class Step {
     profiles: List<String>?
     
     /// Which file patterns to run the step on
-    glob: (String | List<String> | Regex)?
+    glob: (String | List<String> | RegexPattern)?
 
     /// Which file patterns to exclude from the step
-    exclude: (String | List<String> | Regex)?
+    exclude: (String | List<String> | RegexPattern)?
 
     /// files to stage after running the fix step
     stage: (String | List<String>)?

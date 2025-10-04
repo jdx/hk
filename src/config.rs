@@ -239,7 +239,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
         bail!(
             "Missing 'amends' declaration in {}. \n\n\
             Your hk.pkl file should start with one of:\n\
-            • amends \"pkl/Config.pkl\" (for local development)\n\
+            • amends \"pkl/Config.pkl\" (if vendored)\n\
             • amends \"package://github.com/jdx/hk/releases/download/vX.Y.Z/hk@X.Y.Z#/Config.pkl\" (for released versions)\n\n\
             See https://github.com/jdx/hk for more information.",
             path.display()
@@ -249,7 +249,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
             "Invalid module URI in {}. \n\n\
             Make sure your 'amends' declaration uses a valid path or package URL.\n\
             Examples:\n\
-            • amends \"pkl/Config.pkl\" (for local development)\n\
+            • amends \"pkl/Config.pkl\" (if vendored)\n\
             • amends \"package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl\"",
             path.display()
         );

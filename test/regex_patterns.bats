@@ -140,3 +140,43 @@ EOF
     # The files should be excluded - they won't show up in the command at all
     # The regex matched and excluded them successfully
 }
+
+@test "regex pattern with dir and nested paths" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["check-src"] {
+                dir = "src"
+                glob = List("**/*.js")
+                exclude = new Mapping {
+                    ["_type"] = "regex"
+                    ["pattern"] = #"^utils/.*$"#
+                }
+                check = "echo {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p src/utils src/components
+    # Create files that should be checked
+    echo "code" > src/app.js
+    echo "code" > src/components/button.js
+
+    # Create files that should be excluded (in utils/)
+    echo "util" > src/utils/helper.js
+    echo "util" > src/utils/format.js
+
+    git add src/
+    run hk check -v
+    assert_success
+    # Should only include app.js and components/button.js
+    assert_output --partial '$ echo app.js components/button.js'
+    # utils/ files should NOT be in the command
+    refute_output --partial '$ echo.*utils/'
+}

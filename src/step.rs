@@ -310,13 +310,12 @@ impl Step {
                         files = glob::get_matches(&dir_globs, &files)?;
                     }
                     Pattern::Regex { .. } => {
-                        // For regex with dir, prefix paths are already in the files
-                        // Just use the regex as-is
-                        files = glob::get_pattern_matches(pattern, &files)?;
+                        // For regex with dir, match against paths relative to dir
+                        files = glob::get_pattern_matches(pattern, &files, Some(dir))?;
                     }
                 }
             } else {
-                files = glob::get_pattern_matches(pattern, &files)?;
+                files = glob::get_pattern_matches(pattern, &files, None)?;
             }
         }
         if let Some(pattern) = &self.exclude {
@@ -332,12 +331,15 @@ impl Step {
                             .into_iter()
                             .collect::<HashSet<_>>()
                     }
-                    Pattern::Regex { .. } => glob::get_pattern_matches(pattern, &files)?
-                        .into_iter()
-                        .collect::<HashSet<_>>(),
+                    Pattern::Regex { .. } => {
+                        // For regex with dir, match against paths relative to dir
+                        glob::get_pattern_matches(pattern, &files, Some(dir))?
+                            .into_iter()
+                            .collect::<HashSet<_>>()
+                    }
                 }
             } else {
-                glob::get_pattern_matches(pattern, &files)?
+                glob::get_pattern_matches(pattern, &files, None)?
                     .into_iter()
                     .collect::<HashSet<_>>()
             };

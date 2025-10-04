@@ -21,7 +21,11 @@ pub fn get_matches<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Result<Vec<P
     Ok(matches)
 }
 
-pub fn get_pattern_matches<P: AsRef<Path>>(pattern: &Pattern, files: &[P]) -> Result<Vec<PathBuf>> {
+pub fn get_pattern_matches<P: AsRef<Path>>(
+    pattern: &Pattern,
+    files: &[P],
+    dir: Option<&str>,
+) -> Result<Vec<PathBuf>> {
     match pattern {
         Pattern::Globs(globs) => get_matches(globs, files),
         Pattern::Regex { pattern, .. } => {
@@ -30,8 +34,14 @@ pub fn get_pattern_matches<P: AsRef<Path>>(pattern: &Pattern, files: &[P]) -> Re
                 .iter()
                 .map(|f| f.as_ref())
                 .filter(|f| {
-                    // Try to match against the path as a string
-                    if let Some(path_str) = f.to_str() {
+                    // For regex patterns, if dir is set, match against the path relative to dir
+                    let path_to_match = if let Some(dir) = dir {
+                        f.strip_prefix(dir).unwrap_or(f)
+                    } else {
+                        f
+                    };
+
+                    if let Some(path_str) = path_to_match.to_str() {
                         re.is_match(path_str)
                     } else {
                         false
