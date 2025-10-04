@@ -156,10 +156,12 @@ impl PreCommit {
                     .header_comments
                     .push(format!("  {}: {}", lang, version));
 
+                let normalized_version = Self::normalize_language_version(version);
+
                 // Print warning with mise use command
                 println!(
                     "  {}: {} -> Run: mise use {}@{}",
-                    lang, version, lang, version
+                    lang, version, lang, normalized_version
                 );
             }
 
@@ -169,9 +171,10 @@ impl PreCommit {
                 .push("To set these versions with mise, run:".to_string());
 
             for (lang, version) in &config.default_language_version {
+                let normalized_version = Self::normalize_language_version(version);
                 hk_config
                     .header_comments
-                    .push(format!("  mise use {}@{}", lang, version));
+                    .push(format!("  mise use {}@{}", lang, normalized_version));
             }
         }
 
@@ -572,6 +575,18 @@ impl PreCommit {
 
     fn is_known_hook(&self, id: &str) -> bool {
         self.get_builtin_map().contains_key(id)
+    }
+
+    /// Normalize language version strings for mise
+    /// Example: "python3" -> "3", "3.11" -> "3.11"
+    fn normalize_language_version(version: &str) -> String {
+        // Handle common pre-commit language version formats
+        match version {
+            "python3" => "3".to_string(),
+            "python2" => "2".to_string(),
+            v if v.starts_with("python") => v.strip_prefix("python").unwrap_or(v).to_string(),
+            v => v.to_string(),
+        }
     }
 
     /// Generate a mise x prefix from additional_dependencies
