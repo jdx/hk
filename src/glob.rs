@@ -27,7 +27,18 @@ pub fn get_pattern_matches<P: AsRef<Path>>(
     dir: Option<&str>,
 ) -> Result<Vec<PathBuf>> {
     match pattern {
-        Pattern::Globs(globs) => get_matches(globs, files),
+        Pattern::Globs(globs) => {
+            // When dir is set, prefix globs with the directory
+            if let Some(dir) = dir {
+                let dir_globs = globs
+                    .iter()
+                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
+                    .collect::<Vec<_>>();
+                get_matches(&dir_globs, files)
+            } else {
+                get_matches(globs, files)
+            }
+        }
         Pattern::Regex { pattern, .. } => {
             let re = Regex::new(pattern)?;
             let matches = files

@@ -174,13 +174,11 @@ impl Config {
             }
 
             if let Some(glob) = &step_config.glob {
-                step.glob = Some(crate::step::Pattern::Globs(glob.iter().cloned().collect()));
+                step.glob = Some(glob.clone());
             }
 
             if let Some(exclude) = &step_config.exclude {
-                step.exclude = Some(crate::step::Pattern::Globs(
-                    exclude.iter().cloned().collect(),
-                ));
+                step.exclude = Some(exclude.clone());
             }
 
             if let Some(profiles) = &step_config.profiles {
@@ -388,8 +386,8 @@ pub struct UserStepConfig {
     pub all: Option<bool>,
     pub fix: Option<bool>,
     pub check: Option<bool>,
-    pub glob: Option<StringOrList>,
-    pub exclude: Option<StringOrList>,
+    pub glob: Option<crate::step::Pattern>,
+    pub exclude: Option<crate::step::Pattern>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
