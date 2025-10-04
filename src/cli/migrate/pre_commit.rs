@@ -324,7 +324,7 @@ impl PreCommit {
 
         // Create hooks for each stage (except manual, which goes to check/fix)
         let mut stages_used = HashSet::new();
-        for (stage, _) in &steps_by_stage {
+        for stage in steps_by_stage.keys() {
             // Skip manual stage - those steps will be added to check/fix hooks
             if stage == "manual" {
                 continue;
@@ -532,6 +532,8 @@ impl PreCommit {
                 step.check = Some(format!("{} {{{{files}}}}", entry));
             } else {
                 step.check = Some(entry.clone());
+                step.properties_as_comments
+                    .push("pass_filenames was false in pre-commit".to_string());
             }
 
             if !hook.args.is_empty() {

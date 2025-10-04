@@ -309,8 +309,8 @@ fn parse_as_path_list(pattern: &str) -> Option<Vec<String>> {
     let trimmed = pattern.trim();
 
     // Check if this is a (?x) verbose mode pattern
-    let working_pattern = if trimmed.starts_with("(?x)") {
-        trimmed[4..].trim()
+    let working_pattern = if let Some(stripped) = trimmed.strip_prefix("(?x)") {
+        stripped.trim()
     } else {
         trimmed
     };
@@ -356,15 +356,10 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
             }
             // Escaped dot becomes literal dot
             '\\' => {
-                if let Some(next) = chars.next() {
-                    match next {
-                        '.' => {
-                            result.push('.');
-                        }
-                        _ => return None, // Other escapes not supported
-                    }
+                if let Some('.') = chars.next() {
+                    result.push('.');
                 } else {
-                    return None;
+                    return None; // Other escapes not supported or no char after backslash
                 }
             }
             // .* becomes **

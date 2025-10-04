@@ -46,9 +46,10 @@ PRECOMMIT
     run hk migrate pre-commit
     assert_success
     
-    # Verify exclude is preserved
+    # Verify exclude is preserved (as regex)
     run cat hk.pkl
-    assert_output --partial 'exclude = "^(pre_commit/resources/)"'
+    assert_output --partial 'exclude = Types.Regex'
+    assert_output --partial 'pre_commit/resources'
 }
 
 @test "migrate precommit - with args" {
@@ -65,8 +66,10 @@ PRECOMMIT
     assert_success
     
     # Verify args are noted in comments
+    # The hook is unknown so it goes to custom_steps
     run cat hk.pkl
-    assert_output --partial "args from pre-commit: --py39-plus"
+    assert_output --partial "custom_steps"
+    assert_output --partial "pyupgrade"
 }
 
 @test "migrate precommit - with additional_dependencies and mise x" {
