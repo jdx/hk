@@ -1358,7 +1358,8 @@ impl PreCommit {
 
             // Add glob pattern if specified
             if let Some(ref files) = hook.files {
-                pkl_content.push_str(&format!("    glob = \"{}\"\n", files));
+                let escaped_files = Self::escape_for_pkl(files);
+                pkl_content.push_str(&format!("    glob = \"{}\"\n", escaped_files));
             }
 
             // Build command path
@@ -1588,8 +1589,13 @@ impl PreCommit {
     /// Escape a string for use in Pkl string literals
     /// Pkl supports these escape sequences: \n \r \t \" \\
     /// We need to escape backslashes so that regex patterns like \[ become \\[
+    /// Also escape newlines as \n since Pkl strings must be on a single line
     fn escape_for_pkl(s: &str) -> String {
-        s.replace('\\', "\\\\").replace('"', "\\\"")
+        s.replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
     }
 
     /// Detect if a hook is a fixer (modifies files) or a checker (read-only)
