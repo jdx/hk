@@ -19,8 +19,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    outputs:
-      cache-key: ${{ steps.cache.outputs.cache-key }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,7 +34,6 @@ jobs:
           mise run build
 
       - name: Cache build artifacts
-        id: cache
         uses: actions/cache/save@v4
         with:
           path: |
