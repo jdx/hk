@@ -1363,8 +1363,17 @@ impl PreCommit {
             // Build command path
             let pass_filenames = hook.pass_filenames.unwrap_or(true);
 
-            // For Python hooks, check if there's a Python module to call directly
-            let (cmd, needs_prefix) = if hook.language == "python" {
+            // For pygrep hooks, use grep with the pattern
+            let (cmd, needs_prefix) = if hook.language == "pygrep" {
+                // The entry is a regex pattern - use rg (ripgrep) with PCRE2 for advanced regex features
+                let pattern = &hook.entry;
+                let cmd = if pass_filenames {
+                    format!("rg --color=never --pcre2 -n '{}' {{{{files}}}}", pattern)
+                } else {
+                    format!("rg --color=never --pcre2 -n '{}'", pattern)
+                };
+                (cmd, false) // No prefix needed
+            } else if hook.language == "python" {
                 // Check if this is a local Python script (starts with ./ or ../)
                 let entry_path = vendor_path.join(&hook.entry);
                 if entry_path.exists() && hook.entry.ends_with(".py") {
