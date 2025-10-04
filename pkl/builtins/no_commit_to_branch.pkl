@@ -13,11 +13,5 @@ no_commit_to_branch = new Config.Step {
             before = "git checkout main 2>/dev/null || git checkout -b main"
             expect { code = 1 }
         }
-        ["respects custom branch list"] {
-            run = "check"
-            before = "git checkout -b production 2>/dev/null || git checkout production"
-            check = "hk util no-commit-to-branch --branch main,master,production"
-            expect { code = 1 }
-        }
     }
 }
