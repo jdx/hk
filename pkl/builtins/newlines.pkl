@@ -8,9 +8,6 @@ newlines = new Config.Step {
     check_list_files = """
 status=0
 for file in {{files}}; do
-    if [[ "$(file -b --mime-type "$file")" != text/* ]]; then
-        continue
-    fi
     if [[ "$(tail -c1 "$file")" != '' ]]; then
         echo "$file"
         status=1
@@ -22,9 +19,6 @@ exit $status
         linux = "sed -i -e '$a\\' {{files}}"
         macos = """
 for file in {{files}}; do
-    if [[ "$(file -b --mime-type "$file")" != text/* ]]; then
-        continue
-    fi
     if [[ "$(tail -c1 "$file")" != '' ]]; then
         echo >> "$file"
     fi
