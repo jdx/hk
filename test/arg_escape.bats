@@ -22,7 +22,10 @@ EOF
     git add hk.pkl
     git status -sb || true
     git commit -m "install hk"
-    echo "[debug] running hk install"; hk install; echo "[debug] hk install done"
+    echo "[debug] running hk install (with timeout)"
+    HK_LOG_LEVEL=debug run timeout 1s hk install
+    echo "[debug] hk install status=$status"
+    echo "[debug] hk install output:\n$output"
     echo 'console.log("test")' > '$test.js'
     git add '$test.js'
     run git commit -m "test"
