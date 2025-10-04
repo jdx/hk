@@ -605,17 +605,23 @@ impl PreCommit {
                 }
             };
 
-            step.check = Some(cmd);
+            // Add args to the command if present
+            let final_cmd = if !hook.args.is_empty() {
+                let args_str = hook.args.join(" ");
+                // Insert args between the command and {{files}}
+                if pass_filenames {
+                    cmd.replace(" {{files}}", &format!(" {} {{{{files}}}}", args_str))
+                } else {
+                    format!("{} {}", cmd, args_str)
+                }
+            } else {
+                cmd
+            };
+
+            step.check = Some(final_cmd);
             if !pass_filenames {
                 step.properties_as_comments
                     .push("pass_filenames was false in pre-commit".to_string());
-            }
-
-            if !hook.args.is_empty() {
-                step.properties_as_comments
-                    .push(format!("args from pre-commit: {}", hook.args.join(" ")));
-                step.properties_as_comments
-                    .push("Consider adding args to check command".to_string());
             }
         } else {
             step.properties_as_comments
