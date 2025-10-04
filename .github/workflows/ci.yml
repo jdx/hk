@@ -33,14 +33,14 @@ jobs:
           mise run init
           mise run build
 
-      - name: Cache build artifacts
-        uses: actions/cache/save@v4
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
         with:
+          name: hk-build-artifacts
           path: |
             target/
             test/bats/
-          key: hk-build-${{ github.sha }}
-          upload-chunk-size: 50000000
+          retention-days: 1
 
   ci:
     strategy:
@@ -98,13 +98,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Restore build artifacts
-        uses: actions/cache/restore@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          key: hk-build-${{ github.sha }}
-          path: |
-            target/
-            test/bats/
+          name: hk-build-artifacts
 
       - name: Install mise
         uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
