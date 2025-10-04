@@ -530,6 +530,9 @@ impl PreCommit {
         if let Some(ref entry) = hook.entry {
             let pass_filenames = hook.pass_filenames.unwrap_or(true);
 
+            // Check if this is a pygrep hook - convert to grep command
+            let is_pygrep = hook.language.as_deref() == Some("pygrep");
+
             // Check if this is a Python script that should use uv run
             // For multi-line entries, check if the first line/word ends with .py
             let is_python_script = hook.language.as_deref() == Some("python")
@@ -539,7 +542,18 @@ impl PreCommit {
                         .next()
                         .map_or(false, |s| s.ends_with(".py")));
 
-            let cmd = if is_python_script {
+            let cmd = if is_pygrep {
+                // pygrep hooks use the entry as a regex pattern
+                // Convert to grep -E (extended regex) command
+                // Note: pygrep returns 1 on match (problem found), 0 on no match
+                // grep returns 0 on match, 1 on no match
+                // We need to invert the exit code
+                if pass_filenames {
+                    format!("grep -E {} {{{{files}}}}", entry)
+                } else {
+                    format!("grep -E {}", entry)
+                }
+            } else if is_python_script {
                 // Use uv run for local Python scripts
                 if pass_filenames {
                     format!("uv run {} {{{{files}}}}", entry)
