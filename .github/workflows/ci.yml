@@ -39,8 +39,7 @@ jobs:
           name: hk-build-artifacts
           path: |
             target/
-            test/bats/
-          retention-days: 1
+            test/bats/bin/
 
   ci:
     strategy:
