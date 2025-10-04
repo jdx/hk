@@ -146,14 +146,33 @@ impl PreCommit {
             hk_config
                 .header_comments
                 .push("pre-commit default_language_version:".to_string());
+
+            // Warn user about language versions
+            warn!("Detected default_language_version in pre-commit config");
+            println!("\nLanguage versions detected in .pre-commit-config.yaml:");
+
             for (lang, version) in &config.default_language_version {
                 hk_config
                     .header_comments
                     .push(format!("  {}: {}", lang, version));
+
+                // Print warning with mise use command
+                println!(
+                    "  {}: {} -> Run: mise use {}@{}",
+                    lang, version, lang, version
+                );
             }
+
+            hk_config.header_comments.push("".to_string());
             hk_config
                 .header_comments
-                .push("Note: Use mise.toml to manage language versions in hk".to_string());
+                .push("To set these versions with mise, run:".to_string());
+
+            for (lang, version) in &config.default_language_version {
+                hk_config
+                    .header_comments
+                    .push(format!("  mise use {}@{}", lang, version));
+            }
         }
 
         // Initialize step collections
