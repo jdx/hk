@@ -33,10 +33,10 @@ MTOML
     echo "[debug] hooks before install:"; ls -la .git/hooks || true
     echo "[debug] running hk install (with timeout + tracing)"
     if command -v strace >/dev/null 2>&1; then
-        HK_LOG_LEVEL=trace HK_TRACE=1 GIT_TRACE=1 GIT_CURL_VERBOSE=1 run timeout 1s strace -f -tt -s 256 -o strace.log hk install
+        HK_LOG=trace HK_LOG_LEVEL=trace HK_TRACE=1 GIT_TRACE=1 GIT_CURL_VERBOSE=1 run timeout 1s strace -f -tt -s 256 -o strace.log hk install
         echo "[debug] strace captured to: $PWD/strace.log"
     else
-        HK_LOG_LEVEL=trace HK_TRACE=1 GIT_TRACE=1 GIT_CURL_VERBOSE=1 run timeout 1s hk install
+        HK_LOG=trace HK_LOG_LEVEL=trace HK_TRACE=1 GIT_TRACE=1 GIT_CURL_VERBOSE=1 run timeout 1s hk install
     fi
     echo "[debug] hk install status=$status"
     echo "[debug] hk install output:\n$output"
