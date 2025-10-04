@@ -174,11 +174,11 @@ impl Config {
             }
 
             if let Some(glob) = &step_config.glob {
-                step.glob = Some(glob.iter().cloned().collect());
+                step.glob = Some(glob.clone());
             }
 
             if let Some(exclude) = &step_config.exclude {
-                step.exclude = Some(exclude.iter().cloned().collect());
+                step.exclude = Some(exclude.clone());
             }
 
             if let Some(profiles) = &step_config.profiles {
@@ -237,7 +237,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
         bail!(
             "Missing 'amends' declaration in {}. \n\n\
             Your hk.pkl file should start with one of:\n\
-            • amends \"pkl/Config.pkl\" (for local development)\n\
+            • amends \"pkl/Config.pkl\" (if vendored)\n\
             • amends \"package://github.com/jdx/hk/releases/download/vX.Y.Z/hk@X.Y.Z#/Config.pkl\" (for released versions)\n\n\
             See https://github.com/jdx/hk for more information.",
             path.display()
@@ -247,7 +247,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
             "Invalid module URI in {}. \n\n\
             Make sure your 'amends' declaration uses a valid path or package URL.\n\
             Examples:\n\
-            • amends \"pkl/Config.pkl\" (for local development)\n\
+            • amends \"pkl/Config.pkl\" (if vendored)\n\
             • amends \"package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl\"",
             path.display()
         );
@@ -386,8 +386,8 @@ pub struct UserStepConfig {
     pub all: Option<bool>,
     pub fix: Option<bool>,
     pub check: Option<bool>,
-    pub glob: Option<StringOrList>,
-    pub exclude: Option<StringOrList>,
+    pub glob: Option<crate::step::Pattern>,
+    pub exclude: Option<crate::step::Pattern>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -395,16 +395,6 @@ pub struct UserStepConfig {
 pub enum StringOrList {
     String(String),
     List(Vec<String>),
-}
-
-impl StringOrList {
-    /// Returns an iterator over the strings in this StringOrList
-    pub fn iter(&self) -> std::slice::Iter<'_, String> {
-        match self {
-            StringOrList::String(s) => std::slice::from_ref(s).iter(),
-            StringOrList::List(list) => list.iter(),
-        }
-    }
 }
 
 impl IntoIterator for StringOrList {

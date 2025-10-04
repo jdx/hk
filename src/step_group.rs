@@ -205,8 +205,22 @@ impl StepGroup {
             .steps
             .values()
             .map(|step| {
-                let files = glob::get_matches(step.glob.as_ref().unwrap_or(&vec![]), &files)?;
-                Ok((step.name.as_str(), files))
+                let step_files = if let Some(pattern) = &step.glob {
+                    // Use get_pattern_matches which handles dir filtering internally
+                    glob::get_pattern_matches(pattern, &files, step.dir.as_deref())?
+                } else if let Some(dir) = &step.dir {
+                    // If dir is set without glob, filter files to that directory
+                    files
+                        .iter()
+                        .filter(|f| f.starts_with(dir))
+                        .cloned()
+                        .collect()
+                } else {
+                    // No dir and no glob, use all files
+                    files.clone()
+                };
+
+                Ok((step.name.as_str(), step_files))
             })
             .collect::<Result<_>>()?;
         let mut steps_per_file: HashMap<&Path, Vec<&Step>> = Default::default();

@@ -601,3 +601,28 @@ If a builtin doesn't exist for your tool:
 - **Files:** All files
 - **Features:** Remove UTF-8 BOM
 - **Commands:** Fix: `hk util fix-byte-order-marker {{files}}`
+
+#### `check_added_large_files`
+- **Files:** All files
+- **Features:** Prevent committing large files (default limit: 500KB)
+- **Commands:** Check: `hk util check-added-large-files {{files}}`
+
+#### `detect_private_key`
+- **Files:** All files
+- **Features:** Detect accidentally committed private keys (RSA, OpenSSH, etc.)
+- **Commands:** Check: `hk util detect-private-key {{files}}`
+
+#### `no_commit_to_branch`
+- **Files:** N/A (git branch check)
+- **Features:** Prevent direct commits to protected branches (main, master)
+- **Commands:** Check: `hk util no-commit-to-branch`
+
+#### `python_check_ast`
+- **Files:** `*.py`
+- **Features:** Validate Python syntax by parsing the AST
+- **Commands:** Check: `hk util python-check-ast {{files}}`
+
+#### `python_debug_statements`
+- **Files:** `*.py`
+- **Features:** Detect debug statements (pdb, breakpoint) in Python code
+- **Commands:** Check: `hk util python-debug-statements {{files}}`

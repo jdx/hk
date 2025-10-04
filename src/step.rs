@@ -9,7 +9,7 @@ use eyre::{WrapErr, eyre};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use serde_with::{DisplayFromStr, OneOrMany, PickFirst, serde_as};
+use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use shell_quote::QuoteInto;
 use shell_quote::QuoteRefExt;
 use std::{
@@ -28,6 +28,67 @@ use xx::file::display_path;
 
 use crate::step_test::StepTest;
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(untagged)]
+pub enum Pattern {
+    Regex {
+        #[serde(skip_serializing)]
+        _type: String,
+        pattern: String,
+    },
+    Globs(Vec<String>),
+}
+
+impl<'de> Deserialize<'de> for Pattern {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+        use serde_json::Value;
+
+        let value = Value::deserialize(deserializer)?;
+
+        // Check if it's a regex object with _type field
+        if let Value::Object(ref map) = value {
+            if let Some(Value::String(type_str)) = map.get("_type") {
+                if type_str == "regex" {
+                    if let Some(Value::String(pattern)) = map.get("pattern") {
+                        return Ok(Pattern::Regex {
+                            _type: "regex".to_string(),
+                            pattern: pattern.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        // Try to deserialize as a string
+        if let Value::String(s) = value {
+            return Ok(Pattern::Globs(vec![s]));
+        }
+
+        // Try to deserialize as array of strings
+        if let Value::Array(arr) = value {
+            let globs: Result<Vec<String>, _> = arr
+                .into_iter()
+                .map(|v| {
+                    if let Value::String(s) = v {
+                        Ok(s)
+                    } else {
+                        Err(D::Error::custom("array elements must be strings"))
+                    }
+                })
+                .collect();
+            return Ok(Pattern::Globs(globs?));
+        }
+
+        Err(D::Error::custom(
+            "expected regex object, string, or array of strings",
+        ))
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -38,9 +99,8 @@ pub struct Step {
     #[serde(default)]
     pub name: String,
     pub profiles: Option<Vec<String>>,
-    #[serde_as(as = "Option<OneOrMany<_>>")]
     #[serde(default)]
-    pub glob: Option<Vec<String>>,
+    pub glob: Option<Pattern>,
     #[serde(default)]
     pub interactive: bool,
     pub depends: Vec<String>,
@@ -66,7 +126,7 @@ pub struct Step {
     pub stomp: bool,
     pub env: IndexMap<String, String>,
     pub stage: Option<Vec<String>>,
-    pub exclude: Option<Vec<String>>,
+    pub exclude: Option<Pattern>,
     #[serde(default)]
     pub exclusive: bool,
     pub root: Option<PathBuf>,
@@ -238,33 +298,16 @@ impl Step {
             // Don't strip the dir prefix here - it causes issues when steps have different working directories
             // The path stripping should only happen in the command execution context via tera templates
         }
-        if let Some(glob) = &self.glob {
-            // when dir is set, globs are relative to that dir only
-            if let Some(dir) = &self.dir {
-                let dir_globs = glob
-                    .iter()
-                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                    .collect::<Vec<_>>();
-                files = glob::get_matches(&dir_globs, &files)?;
-            } else {
-                files = glob::get_matches(glob, &files)?;
-            }
+        if let Some(pattern) = &self.glob {
+            // Use get_pattern_matches consistently for both globs and regex
+            files = glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?;
         }
-        if let Some(exclude) = &self.exclude {
-            // when dir is set, excludes are relative to that dir only
-            let excluded = if let Some(dir) = &self.dir {
-                let dir_excludes = exclude
-                    .iter()
-                    .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
-                    .collect::<Vec<_>>();
-                glob::get_matches(&dir_excludes, &files)?
+        if let Some(pattern) = &self.exclude {
+            // Use get_pattern_matches consistently for excludes too
+            let excluded: HashSet<_> =
+                glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?
                     .into_iter()
-                    .collect::<HashSet<_>>()
-            } else {
-                glob::get_matches(exclude, &files)?
-                    .into_iter()
-                    .collect::<HashSet<_>>()
-            };
+                    .collect();
             files.retain(|f| !excluded.contains(f));
         }
         Ok(files)
@@ -675,7 +718,19 @@ impl Step {
         };
         job.status_start(ctx, semaphore).await?;
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
-        tctx.with_globs(self.glob.as_ref().unwrap_or(&vec![]));
+        // Set {{globs}} template variable based on pattern type
+        match self.glob.as_ref() {
+            Some(Pattern::Globs(g)) => {
+                tctx.with_globs(g.as_slice());
+            }
+            Some(Pattern::Regex { pattern, .. }) => {
+                // For regex patterns, provide the pattern string so templates can use it
+                tctx.insert("globs", pattern);
+            }
+            None => {
+                tctx.with_globs(&[] as &[&str]);
+            }
+        }
         let file_msg = |files: &[PathBuf]| {
             format!(
                 "{} file{}",
@@ -691,14 +746,14 @@ impl Step {
         }
         let run = tera::render(&run, &tctx)
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
+        let pattern_display = match &self.glob {
+            Some(Pattern::Globs(g)) => g.join(" "),
+            Some(Pattern::Regex { pattern, .. }) => format!("regex: {}", pattern),
+            None => String::new(),
+        };
         job.progress.as_ref().unwrap().prop(
             "message",
-            &format!(
-                "{} – {} – {}",
-                file_msg(&job.files),
-                self.glob.as_ref().unwrap_or(&vec![]).join(" "),
-                run
-            ),
+            &format!("{} – {} – {}", file_msg(&job.files), pattern_display, run),
         );
         job.progress.as_ref().unwrap().update();
         if log::log_enabled!(log::Level::Trace) {
