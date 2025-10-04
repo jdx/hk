@@ -129,29 +129,19 @@ jobs:
         env:
           HK_LOG_LEVEL: warn
           HK_LIBGIT2: ${{ matrix.hk_libgit2 }}
-        shell: bash
         run: |
-          set -euxo pipefail
-          # Build a list of test files for this shard
-          echo "Running shard ${{ matrix.shard }} of ${{ matrix.total_shards }}"
-          all_tests=$(find test -maxdepth 1 -name '*.bats' -type f | sort)
-          total_tests=$(echo "$all_tests" | wc -l)
-          echo "Total test files available: $total_tests"
+          # Select test files for this shard using simple math
+          shard=${{ matrix.shard }}
+          total=${{ matrix.total_shards }}
 
-          # Select tests for this shard
-          shard_tests=$(echo "$all_tests" | awk -v shard='${{ matrix.shard }}' -v total='${{ matrix.total_shards }}' '(NR-1) % total == shard')
-
-          if [ -z "$shard_tests" ]; then
-            echo "No tests for this shard"
-            exit 0
-          fi
-
-          shard_count=$(echo "$shard_tests" | wc -l)
-          echo "Running $shard_count tests in this shard:"
-          echo "$shard_tests"
-
-          # Run bats on each file
-          echo "$shard_tests" | xargs -n 1 ./test/bats/bin/bats
+          count=0
+          for test_file in test/*.bats; do
+            if [ $((count % total)) -eq $shard ]; then
+              echo "Running: $test_file"
+              ./test/bats/bin/bats "$test_file"
+            fi
+            count=$((count + 1))
+          done
 
   finish:
     needs:
