@@ -5,6 +5,7 @@ use crate::Result;
 use eyre::bail;
 use indexmap::IndexMap;
 use serde::Deserialize;
+use shell_quote::Quote;
 
 use super::{HkConfig, HkHook, HkStep};
 
@@ -544,14 +545,15 @@ impl PreCommit {
 
             let cmd = if is_pygrep {
                 // pygrep hooks use the entry as a regex pattern
-                // Convert to grep -E (extended regex) command
-                // Note: pygrep returns 1 on match (problem found), 0 on no match
-                // grep returns 0 on match, 1 on no match
-                // Use `! grep` to invert: returns 1 on match (error), 0 on no match (success)
+                // pre-commit's pygrep is a simple Python regex grep that works on any file
+                // It returns 1 on match (problem found), 0 on no match (success)
+                // We use grep -P for Perl-compatible regex (similar to Python regex)
+                // and invert with ! so that finding a match returns an error
+                let quoted_pattern: String = shell_quote::Bash::quote(entry);
                 if pass_filenames {
-                    format!("! grep -E {} {{{{files}}}}", entry)
+                    format!("! grep -P {} {{{{files}}}}", quoted_pattern)
                 } else {
-                    format!("! grep -E {}", entry)
+                    format!("! grep -P {}", quoted_pattern)
                 }
             } else if is_python_script {
                 // Use uv run for local Python scripts
