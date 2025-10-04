@@ -47,4 +47,4 @@ jobs:
           export BATS_TMPDIR="$RUNNER_TEMP"
           echo "TMPDIR=$TMPDIR BATS_TMPDIR=$BATS_TMPDIR"
           # Keep tempdir for inspection and avoid cleanup races
-          bash -x ./test/bats/bin/bats --no-tempdir-cleanup --verbose-run --formatter tap test/arg_escape.bats
+          timeout 1s bash -x ./test/bats/bin/bats --no-tempdir-cleanup --verbose-run --formatter tap test/arg_escape.bats
