@@ -438,8 +438,6 @@ impl PreCommit {
                 step.check = Some(format!("{} {{{{files}}}}", entry));
             } else {
                 step.check = Some(entry.clone());
-                step.properties_as_comments
-                    .push("pass_filenames was false in pre-commit".to_string());
             }
 
             if !hook.args.is_empty() {
