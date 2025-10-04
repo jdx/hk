@@ -375,8 +375,13 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
     Some(result)
 }
 
-/// Format a value for Pkl - either as a List() or as a string
+/// Format a value for Pkl - either as a List(), Regex(), or as a string
 pub fn format_pkl_value(value: &str) -> String {
+    // Check if this looks like a regex pattern
+    if is_regex_pattern(value) {
+        return format!("Regex({})", format_pkl_string(value));
+    }
+
     // Skip path list parsing for multiline patterns to preserve formatting
     if !value.contains('\n') {
         // Try to parse as a simple path list first (only for single-line patterns)
@@ -388,6 +393,24 @@ pub fn format_pkl_value(value: &str) -> String {
 
     // Otherwise format as a string
     format_pkl_string(value)
+}
+
+/// Detect if a pattern looks like a regex (vs a simple glob)
+fn is_regex_pattern(pattern: &str) -> bool {
+    let trimmed = pattern.trim();
+
+    // Check for regex indicators
+    trimmed.starts_with("(?x)")      // Verbose regex mode
+        || trimmed.starts_with("(?i")  // Case-insensitive regex mode
+        || trimmed.starts_with("(?")   // Other regex flags
+        || trimmed.starts_with('^')    // Regex anchor
+        || trimmed.contains("\\b")     // Word boundary
+        || trimmed.contains("\\s")     // Whitespace class
+        || trimmed.contains("\\d")     // Digit class
+        || trimmed.contains("\\w")     // Word class
+        || trimmed.contains(".*")      // Regex any sequence
+        || trimmed.contains(".+")      // Regex one-or-more sequence
+        || (trimmed.contains('|') && trimmed.contains('^')) // Regex alternation with anchors
 }
 
 /// Format a string value for Pkl, using custom delimiters if needed
