@@ -278,14 +278,36 @@ impl HkConfig {
 
 /// Format a string value for Pkl, using custom delimiters if needed
 pub fn format_pkl_string(value: &str) -> String {
-    if value.contains('\n') {
-        // Multi-line string, use triple quotes
-        format!("#\"\"\"\n{}\n\"\"\"#", value)
-    } else if value.contains('\\') || value.contains('"') {
-        // String with backslashes or quotes, use custom delimiters
-        format!("#\"{}\"#", value)
+    let trimmed = value.trim();
+
+    // For regex patterns and strings with special characters, use custom delimiters
+    if trimmed.contains('\\') || trimmed.contains('"') {
+        // If it contains newlines, collapse to single line
+        // For regex patterns with (?x) verbose mode, newlines are just for readability
+        let collapsed = if trimmed.contains('\n') {
+            // Join lines, trimming each line
+            // No space needed since regex alternations (|) don't need spacing
+            trimmed
+                .lines()
+                .map(|line| line.trim())
+                .filter(|line| !line.is_empty())
+                .collect::<Vec<_>>()
+                .join("")
+        } else {
+            trimmed.to_string()
+        };
+        format!("#\"{}\"#", collapsed)
+    } else if trimmed.contains('\n') {
+        // Multi-line string without special chars, join with space
+        let collapsed = trimmed
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!("\"{}\"", collapsed)
     } else {
         // Simple string, use regular quotes
-        format!("\"{}\"", value)
+        format!("\"{}\"", trimmed)
     }
 }
