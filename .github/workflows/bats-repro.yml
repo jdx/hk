@@ -42,4 +42,9 @@ jobs:
         run: |
           set -euxo pipefail
           echo "Running bats with verbose output"
-          bash -x ./test/bats/bin/bats --verbose-run --formatter tap test/arg_escape.bats
+          # Use runner temp for bats tmp to avoid container tmpfs quirks under act
+          export TMPDIR="$RUNNER_TEMP"
+          export BATS_TMPDIR="$RUNNER_TEMP"
+          echo "TMPDIR=$TMPDIR BATS_TMPDIR=$BATS_TMPDIR"
+          # Keep tempdir for inspection and avoid cleanup races
+          bash -x ./test/bats/bin/bats --no-tempdir-cleanup --verbose-run --formatter tap test/arg_escape.bats
