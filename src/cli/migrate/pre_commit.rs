@@ -1332,7 +1332,19 @@ impl PreCommit {
 
         // Use package URL for Config.pkl to match the main hk.pkl
         if let Some(ref root) = self.hk_pkl_root {
-            pkl_content.push_str(&format!("import \"{}/Config.pkl\"\n\n", root));
+            // Vendor hooks.pkl is at .hk/vendors/<vendor-name>/hooks.pkl
+            // So we need to go up 3 levels (../../..) to reach project root
+            // then apply the hk_pkl_root path
+            let vendor_path = if root.starts_with("../") {
+                // Convert ../pkl to ../../../../pkl (3 more ../ for vendor directory depth)
+                // Remove the leading ../ and add ../../../../
+                let without_prefix = root.strip_prefix("../").unwrap_or(root);
+                format!("../../../../{}", without_prefix)
+            } else {
+                // If absolute or package URL, use as-is
+                root.clone()
+            };
+            pkl_content.push_str(&format!("import \"{}/Config.pkl\"\n\n", vendor_path));
         } else {
             pkl_content.push_str(&format!(
                 "import \"package://github.com/jdx/hk/releases/download/v{}/hk@{}#/Config.pkl\"\n\n",
