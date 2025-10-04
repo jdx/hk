@@ -1,6 +1,5 @@
 use crate::Result;
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
 /// Check for merge conflict markers in files
@@ -13,6 +12,12 @@ pub struct CheckMergeConflict {
 
 impl CheckMergeConflict {
     pub async fn run(&self) -> Result<()> {
+        // Only check for merge conflicts if we're actually in a merge
+        // This matches pre-commit behavior
+        if !is_in_merge() {
+            return Ok(());
+        }
+
         let mut found_conflicts = false;
 
         for file_path in &self.files {
@@ -30,23 +35,37 @@ impl CheckMergeConflict {
     }
 }
 
+/// Check if we're currently in a merge
+fn is_in_merge() -> bool {
+    let Ok(output) = xx::process::cmd("git", ["rev-parse", "--git-dir"]).read() else {
+        return false;
+    };
+    let git_dir = output.trim();
+
+    let merge_msg = std::path::Path::new(git_dir).join("MERGE_MSG");
+    let merge_head = std::path::Path::new(git_dir).join("MERGE_HEAD");
+    let rebase_apply = std::path::Path::new(git_dir).join("rebase-apply");
+    let rebase_merge = std::path::Path::new(git_dir).join("rebase-merge");
+
+    merge_msg.exists() && (merge_head.exists() || rebase_apply.exists() || rebase_merge.exists())
+}
+
 /// Check if a file has merge conflict markers
 fn has_merge_conflict_markers(path: &PathBuf) -> Result<bool> {
-    let file = fs::File::open(path)?;
-    let reader = BufReader::new(file);
+    use std::io::Read;
 
-    for line in reader.lines() {
-        // Skip lines that contain invalid UTF-8 (likely binary files)
-        let line = match line {
-            Ok(l) => l,
-            Err(_) => continue,
-        };
-        let trimmed = line.trim();
+    let mut file = fs::File::open(path)?;
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer)?;
 
-        // Check for conflict markers at the start of the line
-        if trimmed.starts_with("<<<<<<<")
-            || trimmed.starts_with("=======")
-            || trimmed.starts_with(">>>>>>>")
+    // Check for conflict markers at the start of lines
+    // Patterns from pre-commit: '<<<<<<< ', '======= ', '=======\n', '=======\r\n', '>>>>>>> '
+    for line in buffer.split(|&b| b == b'\n') {
+        if line.starts_with(b"<<<<<<< ")
+            || line.starts_with(b">>>>>>> ")
+            || line == b"======="
+            || line == b"=======\r"
+            || line.starts_with(b"======= ")
         {
             return Ok(true);
         }
@@ -88,13 +107,20 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_conflict_markers_with_whitespace() {
+    fn test_ignores_indented_markers() {
         let mut file = NamedTempFile::new().unwrap();
+        // Indented markers should not be detected (not actual conflicts)
         writeln!(file, "  <<<<<<< HEAD  ").unwrap();
+        writeln!(file, "    =======").unwrap();
+        writeln!(
+            file,
+            "            ================================================================="
+        )
+        .unwrap();
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();
-        assert!(has_merge_conflict_markers(&path).unwrap());
+        assert!(!has_merge_conflict_markers(&path).unwrap());
     }
 
     #[test]

@@ -59,15 +59,6 @@ checksum = "sha512:349a6d47b41cd57462148ce94ff1c1b0b0f8eba3f0abfce4af4e5164f74ac
 size = 6638495
 url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.10.0-x86_64-apple-darwin.tar.gz"
 
-[[tools.go]]
-version = "1.25.1"
-backend = "core:go"
-
-[tools.go.platforms.linux-x64]
-checksum = "sha256:7716a0d940a0f6ae8e1f3b3f4f36299dc53e31b16840dbd171254312c41ca12e"
-size = 59660846
-url = "https://dl.google.com/go/go1.25.1.linux-amd64.tar.gz"
-
 [[tools.hadolint]]
 version = "2.12.0"
 backend = "ubi:hadolint/hadolint"
@@ -153,6 +144,14 @@ url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellche
 
 [tools.shellcheck.platforms.macos-arm64-shellcheck]
 checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829f45"
+
+[[tools.swift]]
+version = "6.2"
+backend = "core:swift"
+
+[tools.swift.platforms.macos-arm64]
+checksum = "blake3:d9e22fb7495996e43d1565e61b9bd3009d8e72de9cdf73cd07d93acfaeed5abe"
+size = 1726141935
 
 [[tools.swiftlint]]
 version = "0.59.1"
