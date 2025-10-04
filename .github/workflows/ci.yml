@@ -18,7 +18,10 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -34,8 +37,8 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: hk-build-artifacts
-          path: target/
+          name: hk-build-${{ matrix.os }}
+          path: target/debug/hk
 
   ci:
     needs: build
@@ -60,18 +63,12 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: hk-build-artifacts
+          name: hk-build-${{ matrix.os }}
       - name: Setup hk binary
         run: |
-          # Move downloaded artifacts to correct location
-          if [ -d "hk-build-artifacts" ]; then
-            mkdir -p target/debug
-            cp -r hk-build-artifacts/* target/debug/
-            chmod +x target/debug/hk
-          fi
-          # Rebuild for current OS if needed
-          mise run init
-          mise run build
+          mkdir -p target/debug
+          mv hk target/debug/hk
+          chmod +x target/debug/hk
       - run: mise x -- bun i
       - name: mise run ci
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -116,22 +113,13 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: hk-build-artifacts
+          name: hk-build-${{ matrix.os }}
 
-      - name: Install mise
-        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
-
-      - name: Build hk for current OS
+      - name: Setup hk binary
         run: |
-          # Move downloaded artifacts to correct location
-          if [ -d "hk-build-artifacts" ]; then
-            mkdir -p target/debug
-            cp -r hk-build-artifacts/* target/debug/
-            chmod +x target/debug/hk
-          fi
-          # Rebuild for current OS if needed
-          mise run init
-          mise run build
+          mkdir -p target/debug
+          mv hk target/debug/hk
+          chmod +x target/debug/hk
 
       - name: Run bats for this shard
         env:
