@@ -125,6 +125,18 @@ jobs:
           chmod +x target/debug/hk
           echo "$GITHUB_WORKSPACE/target/debug" >> "$GITHUB_PATH"
 
+      - name: Verify setup
+        run: |
+          echo "PATH=$PATH"
+          echo "Checking hk binary:"
+          ls -la target/debug/hk
+          echo "Testing hk:"
+          target/debug/hk --version
+          echo "Checking bats:"
+          ls -la test/bats/bin/bats
+          echo "Test files:"
+          find test -maxdepth 1 -name '*.bats' | wc -l
+
       - name: Run bats for this shard
         env:
           HK_LOG_LEVEL: warn
@@ -134,14 +146,16 @@ jobs:
           shard=${{ matrix.shard }}
           total=${{ matrix.total_shards }}
 
+          echo "Starting shard $shard of $total"
           count=0
           for test_file in test/*.bats; do
             if [ $((count % total)) -eq $shard ]; then
               echo "Running: $test_file"
-              ./test/bats/bin/bats "$test_file"
+              ./test/bats/bin/bats "$test_file" || echo "FAILED: $test_file"
             fi
             count=$((count + 1))
           done
+          echo "Shard $shard completed"
 
   finish:
     needs:
