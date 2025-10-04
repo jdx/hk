@@ -132,6 +132,12 @@ jobs:
           ls -la target/debug/hk
           echo "Testing hk:"
           target/debug/hk --version
+          echo "Configuring git (non-interactive)"
+          git config --global user.email "ci@example.invalid"
+          git config --global user.name "CI Bot"
+          git config --global init.defaultBranch main
+          git config --global advice.detachedHead false
+          git config --global core.autocrlf input
           echo "Checking bats:"
           ls -la test/bats/bin/bats
           echo "Test files:"
@@ -151,7 +157,7 @@ jobs:
           for test_file in test/*.bats; do
             if [ $((count % total)) -eq $shard ]; then
               echo "Running: $test_file"
-              ./test/bats/bin/bats "$test_file" || echo "FAILED: $test_file"
+              timeout 5m ./test/bats/bin/bats "$test_file" || echo "FAILED or TIMEOUT: $test_file"
             fi
             count=$((count + 1))
           done
