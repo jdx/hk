@@ -1,3 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo:
+    name: Cargo tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --all --all-features -- --nocapture
+
+  bats:
+    name: Bats tests (shard ${{ matrix.shard }} of ${{ matrix.total_shards }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+        total_shards: [4]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure bash dependencies
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: List and shard test files
+        id: shard
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(ls test/*.bats | sort)
+          shard_index=${{ matrix.shard }}
+          shard_count=${{ matrix.total_shards }}
+          selected=()
+          for i in "${!files[@]}"; do
+            if (( i % shard_count == shard_index )); then
+              selected+=("${files[$i]}")
+            fi
+          done
+          if (( ${#selected[@]} == 0 )); then
+            echo "No tests in this shard"
+            echo "files=[]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          printf '%s\n' "${selected[@]}" | jq -R . | jq -cs . > shard.json
+          echo "files=$(cat shard.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Run bats for this shard
+        if: steps.shard.outputs.files != '[]'
+        env:
+          HK_LOG_LEVEL: warn
+        run: |
+          set -euo pipefail
+          files=$(echo '${{ steps.shard.outputs.files }}' | jq -r '.[]')
+          # Use the vendored bats to ensure consistent version
+          BATS=./test/bats/bin/bats
+          chmod +x "$BATS"
+          # Run each file explicitly to avoid picking up vendored bats tests
+          # Also run with jobs for intra-shard parallelism
+          $BATS --jobs 8 $files
+
 name: ci
 
 on:
