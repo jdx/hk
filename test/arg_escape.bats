@@ -21,7 +21,7 @@ hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     git add hk.pkl
     git status -sb || true
-    git commit -m "install hk"
+    git commit -m "install hk" --no-verify
     echo "[debug] running hk install (with timeout)"
     HK_LOG_LEVEL=debug run timeout 1s hk install
     echo "[debug] hk install status=$status"
