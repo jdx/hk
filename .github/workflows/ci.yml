@@ -38,6 +38,7 @@ jobs:
           path: target/
 
   ci:
+    needs: build
     strategy:
       fail-fast: false
       matrix:
@@ -56,6 +57,21 @@ jobs:
           submodules: recursive
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: hk-build-artifacts
+      - name: Setup hk binary
+        run: |
+          # Move downloaded artifacts to correct location
+          if [ -d "hk-build-artifacts" ]; then
+            mkdir -p target/debug
+            cp -r hk-build-artifacts/* target/debug/
+            chmod +x target/debug/hk
+          fi
+          # Rebuild for current OS if needed
+          mise run init
+          mise run build
       - run: mise x -- bun i
       - name: mise run ci
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
@@ -89,9 +105,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           submodules: recursive
+
+      - name: Install parallel (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install parallel
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -100,6 +120,18 @@ jobs:
 
       - name: Install mise
         uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+
+      - name: Build hk for current OS
+        run: |
+          # Move downloaded artifacts to correct location
+          if [ -d "hk-build-artifacts" ]; then
+            mkdir -p target/debug
+            cp -r hk-build-artifacts/* target/debug/
+            chmod +x target/debug/hk
+          fi
+          # Rebuild for current OS if needed
+          mise run init
+          mise run build
 
       - name: Run bats for this shard
         env:
