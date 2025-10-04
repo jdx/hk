@@ -42,7 +42,7 @@ jobs:
         with:
           timeout_minutes: 10
           max_attempts: 3
-          command: 'mise run test:cargo ::: lint'
+          command: "mise run test:cargo ::: lint"
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10
