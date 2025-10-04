@@ -377,10 +377,13 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
 
 /// Format a value for Pkl - either as a List() or as a string
 pub fn format_pkl_value(value: &str) -> String {
-    // Try to parse as a simple path list first
-    if let Some(paths) = parse_as_path_list(value) {
-        let formatted_paths: Vec<String> = paths.iter().map(|p| format!("\"{}\"", p)).collect();
-        return format!("List({})", formatted_paths.join(", "));
+    // Skip path list parsing for multiline patterns to preserve formatting
+    if !value.contains('\n') {
+        // Try to parse as a simple path list first (only for single-line patterns)
+        if let Some(paths) = parse_as_path_list(value) {
+            let formatted_paths: Vec<String> = paths.iter().map(|p| format!("\"{}\"", p)).collect();
+            return format!("List({})", formatted_paths.join(", "));
+        }
     }
 
     // Otherwise format as a string

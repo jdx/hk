@@ -160,6 +160,7 @@ impl PreCommit {
         let mut linters = IndexMap::new();
         let mut local_hooks = IndexMap::new();
         let mut custom_steps = IndexMap::new();
+        let mut manual_steps = IndexMap::new();
 
         // Track which stages each hook appears in
         let mut steps_by_stage: HashMap<String, Vec<(String, String)>> = HashMap::new();
@@ -184,6 +185,9 @@ impl PreCommit {
                     vec!["pre-commit".to_string()]
                 };
 
+                // Check if this is a manual-only step
+                let is_manual_only = hook_stages.len() == 1 && hook_stages[0] == "manual";
+
                 // Convert the hook to an HkStep
                 let step = if is_local {
                     self.convert_local_hook(hook, &unique_id, repo)
@@ -194,7 +198,10 @@ impl PreCommit {
                 };
 
                 // Add to appropriate collection
-                let collection_name = if is_local {
+                let collection_name = if is_manual_only {
+                    manual_steps.insert(unique_id.clone(), step);
+                    "manual_steps"
+                } else if is_local {
                     local_hooks.insert(unique_id.clone(), step);
                     "local_hooks"
                 } else if self.is_known_hook(&hook.id) {
@@ -232,13 +239,23 @@ impl PreCommit {
                 .step_collections
                 .insert("custom_steps".to_string(), custom_steps);
         }
+        if !manual_steps.is_empty() {
+            hk_config
+                .step_collections
+                .insert("manual_steps".to_string(), manual_steps);
+        }
 
         // Generate hooks
         let has_steps = !hk_config.step_collections.is_empty();
 
-        // Create hooks for each stage
+        // Create hooks for each stage (except manual, which goes to check/fix)
         let mut stages_used = HashSet::new();
         for (stage, _) in &steps_by_stage {
+            // Skip manual stage - those steps will be added to check/fix hooks
+            if stage == "manual" {
+                continue;
+            }
+
             stages_used.insert(stage.clone());
 
             let mut hook = HkHook {
@@ -259,6 +276,7 @@ impl PreCommit {
                 .map(|steps| steps.iter().map(|(_, col)| col.clone()).collect())
                 .unwrap_or_default();
 
+            // Only include non-manual collections in git hooks
             for collection in &["linters", "local_hooks", "custom_steps"] {
                 if collections_in_stage.contains(*collection) {
                     hook.step_spreads.push(collection.to_string());
@@ -270,7 +288,7 @@ impl PreCommit {
 
         // Always add check and fix hooks if we have any steps
         if has_steps {
-            // Check hook
+            // Check hook - includes manual_steps
             let mut check_hook = HkHook {
                 fix: None,
                 stash: None,
@@ -278,7 +296,7 @@ impl PreCommit {
                 direct_steps: IndexMap::new(),
             };
 
-            for collection in &["linters", "local_hooks", "custom_steps"] {
+            for collection in &["linters", "local_hooks", "custom_steps", "manual_steps"] {
                 if hk_config.step_collections.contains_key(*collection) {
                     check_hook.step_spreads.push(collection.to_string());
                 }
@@ -286,7 +304,7 @@ impl PreCommit {
 
             hk_config.hooks.insert("check".to_string(), check_hook);
 
-            // Fix hook
+            // Fix hook - includes manual_steps
             let mut fix_hook = HkHook {
                 fix: Some(true),
                 stash: None,
@@ -294,7 +312,7 @@ impl PreCommit {
                 direct_steps: IndexMap::new(),
             };
 
-            for collection in &["linters", "local_hooks"] {
+            for collection in &["linters", "local_hooks", "manual_steps"] {
                 if hk_config.step_collections.contains_key(*collection) {
                     fix_hook.step_spreads.push(collection.to_string());
                 }
@@ -576,6 +594,7 @@ impl PreCommit {
             "commit" | "commit-msg" => "commit-msg",
             "push" | "pre-push" => "pre-push",
             "prepare-commit-msg" => "prepare-commit-msg",
+            "manual" => "manual",
             _ => "pre-commit",
         }
     }
