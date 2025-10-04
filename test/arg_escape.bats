@@ -31,6 +31,9 @@ EOF
     fi
     echo "[debug] hk install status=$status"
     echo "[debug] hk install output:\n$output"
+    if [ -f strace.log ]; then
+        echo "[debug] tail strace.log:"; tail -n 200 strace.log || true
+    fi
     echo 'console.log("test")' > '$test.js'
     git add '$test.js'
     run git commit -m "test"

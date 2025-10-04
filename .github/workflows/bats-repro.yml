@@ -57,3 +57,13 @@ jobs:
           echo "TMPDIR=$TMPDIR BATS_TMPDIR=$BATS_TMPDIR"
           # Keep tempdir for inspection and avoid cleanup races
           timeout 5s bash -x ./test/bats/bin/bats --no-tempdir-cleanup --verbose-run --formatter tap test/arg_escape.bats
+
+      - name: Upload strace logs (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bats-repro-strace
+          path: |
+            **/strace.log
+            /tmp/bats-run-*/**/strace.log
+          if-no-files-found: ignore
