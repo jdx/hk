@@ -400,7 +400,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
 
                     // Generate mise x wrapper
                     let tool_name = self.hook_id_to_tool(&hook.id);
-                    step.push_str(&format!("        // Use mise x to install dependencies:\n"));
+                    step.push_str("        // Use mise x to install dependencies:\n");
                     step.push_str(&format!(
                         "        prefix = \"mise x {}@latest --\"\n",
                         tool_name
@@ -483,7 +483,7 @@ import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.
         if let Some(ref rev) = repo.rev {
             step.push_str(&format!(" @ {}", rev));
         }
-        step.push_str("\n");
+        step.push('\n');
         step.push_str(&format!("    [\"{}\"] {{\n", hook.id));
 
         if let Some(ref name) = hook.name {
