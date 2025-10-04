@@ -172,6 +172,15 @@ checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01
 size = 5008766
 url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-apple-darwin.tar.gz"
 
+[[tools.uv]]
+version = "0.8.23"
+backend = "aqua:astral-sh/uv"
+
+[tools.uv.platforms.linux-x64]
+checksum = "sha256:598f7939cae516de105075d55eb20d906787de307a0011904e301346a13de2ff"
+size = 21470350
+url = "https://github.com/astral-sh/uv/releases/download/0.8.23/uv-x86_64-unknown-linux-musl.tar.gz"
+
 [[tools.vhs]]
 version = "0.10.0"
 backend = "aqua:charmbracelet/vhs"

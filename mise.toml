@@ -22,6 +22,7 @@ ripgrep = "latest"
 usage = "latest"
 vhs = "latest"
 taplo = "latest"
+uv = "latest"
 
 [tasks.init]
 run = '''

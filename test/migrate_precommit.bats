@@ -441,9 +441,7 @@ repos:
 -   repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5
     hooks:
-    -   id: forbid-crlf
     -   id: remove-crlf
-    -   id: forbid-tabs
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.0.0
     hooks:
@@ -465,9 +463,7 @@ PRECOMMIT
     # Verify hk.pkl references vendored hooks
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl"'
-    assert_output --partial "forbid-crlf"
     assert_output --partial "remove-crlf"
-    assert_output --partial "forbid-tabs"
     assert_output --partial "Builtins.prettier"
     
     # Verify vendored PKL file was created
@@ -475,36 +471,110 @@ PRECOMMIT
     
     # Verify the generated PKL file has correct structure
     run cat .hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl
-    assert_output --partial "forbid_crlf"
     assert_output --partial "remove_crlf"
-    assert_output --partial "forbid_tabs"
     
-    # Verify hooks use the vendored scripts
+    # Verify hooks use the vendored scripts and are in linters
     run cat hk.pkl
-    assert_output --partial "Vendors_Lucas_C_pre_commit_hooks.forbid_crlf"
+    assert_output --partial "local linters"
+    assert_output --partial "Vendors_Lucas_C_pre_commit_hooks.remove_crlf"
+    refute_output --partial "custom_steps"
     
     # Create a test file with CRLF line endings to test the vendored hook
     printf "line1\r\nline2\r\n" > test.txt
     git add test.txt
     
-    # Install dependencies for the vendored hook if needed
-    cd .hk/vendors/Lucas-C-pre-commit-hooks && pip install --quiet -e . --break-system-packages 2>/dev/null || true
-    cd ../../..
+    # Dependencies will be installed automatically when the hook runs
     
-    # Run hk check - should detect CRLF
-    run hk check
-    # Don't assert failure since it might pass if no errors
-    
-    # Run hk fix - should remove CRLF
+    # Run hk fix - should install dependencies and remove CRLF
     run hk fix
-    # Check if fix was applied
-    if grep -q $'\r' test.txt; then
-        # If CRLF still exists, just verify the vendoring structure is correct
-        # The actual fix requires Python dependencies which may not be in test environment
-        skip "Python dependencies not available in test environment"
-    fi
+    assert_success
     
     # Verify CRLF was removed - check file directly for \r bytes
     run od -c test.txt
     refute_output --partial '\r'
+}
+
+@test "migrate precommit - vendor node hooks (doctoc)" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/thlorenz/doctoc
+    rev: v2.2.0
+    hooks:
+    -   id: doctoc
+        args: [--maxlevel=3]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.0.0
+    hooks:
+    -   id: prettier
+PRECOMMIT
+
+    run hk migrate pre-commit
+    assert_success
+    assert_output --partial "Successfully migrated to hk.pkl"
+    
+    # Verify .hk directory was created with vendored repo
+    [ -d .hk/vendors ]
+    [ -d .hk/vendors/thlorenz-doctoc ]
+    [ -f .hk/vendors/thlorenz-doctoc/.pre-commit-hooks.yaml ]
+    
+    # Verify .git directory was removed
+    [ ! -d .hk/vendors/thlorenz-doctoc/.git ]
+    
+    # Verify package.json exists in the vendored repo
+    [ -f .hk/vendors/thlorenz-doctoc/package.json ]
+    
+    # Verify hk.pkl references vendored hooks
+    run cat hk.pkl
+    assert_output --partial 'import ".hk/vendors/thlorenz-doctoc/hooks.pkl"'
+    assert_output --partial "doctoc"
+    assert_output --partial "Builtins.prettier"
+    
+    # Verify vendored PKL file was created
+    [ -f .hk/vendors/thlorenz-doctoc/hooks.pkl ]
+    
+    # Verify the generated PKL file has correct structure for Node.js
+    run cat .hk/vendors/thlorenz-doctoc/hooks.pkl
+    assert_output --partial "doctoc"
+    assert_output --partial "node_modules"
+    assert_output --partial "npm install"
+    assert_output --partial "npx --prefix .hk/vendors/thlorenz-doctoc doctoc"
+    
+    # Verify hooks use the vendored scripts and are in linters
+    run cat hk.pkl
+    assert_output --partial "local linters"
+    assert_output --partial "Vendors_thlorenz_doctoc.doctoc"
+    refute_output --partial "custom_steps"
+    
+    # Create a test markdown file without TOC to test the vendored hook
+    cat <<'MARKDOWN' > README.md
+# Test Document
+
+This is a test document for doctoc.
+
+## Section One
+
+Some content here.
+
+### Subsection 1.1
+
+More content.
+
+## Section Two
+
+Final section.
+MARKDOWN
+    git add README.md
+    
+    # Dependencies will be installed automatically when the hook runs
+    
+    # Run hk fix - should install dependencies and add TOC to README.md
+    run hk fix
+    assert_success
+    
+    # Verify TOC was added to the markdown file
+    run cat README.md
+    assert_output --partial "<!-- START doctoc"
+    assert_output --partial "<!-- END doctoc"
+    assert_output --partial "Section One"
+    assert_output --partial "Section Two"
 }

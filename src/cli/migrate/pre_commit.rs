@@ -272,13 +272,14 @@ impl PreCommit {
                 };
 
                 // Add to appropriate collection
+                let is_vendored = vendored_repos.contains_key(&repo.repo);
                 let collection_name = if is_manual_only {
                     manual_steps.insert(unique_id.clone(), step);
                     "manual_steps"
                 } else if is_local {
                     local_hooks.insert(unique_id.clone(), step);
                     "local_hooks"
-                } else if self.is_known_hook(&hook.id) {
+                } else if self.is_known_hook(&hook.id) || is_vendored {
                     linters.insert(unique_id.clone(), step);
                     "linters"
                 } else {
@@ -378,7 +379,7 @@ impl PreCommit {
 
             hk_config.hooks.insert("check".to_string(), check_hook);
 
-            // Fix hook - includes manual_steps
+            // Fix hook - includes manual_steps and custom_steps
             let mut fix_hook = HkHook {
                 fix: Some(true),
                 stash: None,
@@ -386,7 +387,7 @@ impl PreCommit {
                 direct_steps: IndexMap::new(),
             };
 
-            for collection in &["linters", "local_hooks", "manual_steps"] {
+            for collection in &["linters", "local_hooks", "custom_steps", "manual_steps"] {
                 if hk_config.step_collections.contains_key(*collection) {
                     fix_hook.step_spreads.push(collection.to_string());
                 }
@@ -1065,13 +1066,20 @@ impl PreCommit {
                 let module_name = Self::find_python_module(vendor_path, &hook.entry);
                 if let Some(module) = module_name {
                     let vendor_name = Self::repo_url_to_vendor_name(repo_url);
+                    // Use uv to install dependencies if needed, then run the module
+                    let install_check = format!(
+                        "[ -d .hk/vendors/{}/.venv ] || (cd .hk/vendors/{} && uv venv && uv pip install -e .)",
+                        vendor_name, vendor_name
+                    );
+                    // Use absolute path to python to avoid cd which breaks relative file paths
+                    let python_path = format!(".hk/vendors/{}/.venv/bin/python", vendor_name);
                     let module_path = if pass_filenames {
                         format!(
-                            "cd .hk/vendors/{} && python -m {} {{{{files}}}}",
-                            vendor_name, module
+                            "{} && {} -m {} {{{{files}}}}",
+                            install_check, python_path, module
                         )
                     } else {
-                        format!("cd .hk/vendors/{} && python -m {}", vendor_name, module)
+                        format!("{} && {} -m {}", install_check, python_path, module)
                     };
                     (module_path, false) // No prefix needed, we're calling python directly
                 } else {
@@ -1083,6 +1091,37 @@ impl PreCommit {
                     };
                     (cmd, true) // Need mise x prefix
                 }
+            } else if hook.language == "node" {
+                // For Node.js hooks, try to find the package and use npx
+                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
+                let package_name = Self::find_node_package_name(vendor_path);
+
+                let node_cmd = if let Some(pkg_name) = package_name {
+                    // Check for node_modules and install if needed, then run npx
+                    let install_check = format!(
+                        "[ -d .hk/vendors/{}/node_modules ] || (cd .hk/vendors/{} && npm install --silent --no-audit --no-fund)",
+                        vendor_name, vendor_name
+                    );
+                    if pass_filenames {
+                        format!(
+                            "{} && npx --prefix .hk/vendors/{} {} {{{{files}}}}",
+                            install_check, vendor_name, pkg_name
+                        )
+                    } else {
+                        format!(
+                            "{} && npx --prefix .hk/vendors/{} {}",
+                            install_check, vendor_name, pkg_name
+                        )
+                    }
+                } else {
+                    // Fallback to entry name
+                    if pass_filenames {
+                        format!("{} {{{{files}}}}", hook.entry)
+                    } else {
+                        hook.entry.clone()
+                    }
+                };
+                (node_cmd, false) // No prefix needed, we're calling npx directly
             } else {
                 // For non-Python hooks, use the entry directly
                 let entry_path = vendor_path.join(&hook.entry);
@@ -1296,6 +1335,24 @@ impl PreCommit {
             }
         }
 
+        None
+    }
+
+    /// Find the Node.js package name from package.json
+    fn find_node_package_name(vendor_path: &Path) -> Option<String> {
+        let package_json = vendor_path.join("package.json");
+        if package_json.exists() {
+            if let Ok(content) = std::fs::read_to_string(&package_json) {
+                // Parse package.json to find the name
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(name) = json.get("name") {
+                        if let Some(name_str) = name.as_str() {
+                            return Some(name_str.to_string());
+                        }
+                    }
+                }
+            }
+        }
         None
     }
 }
