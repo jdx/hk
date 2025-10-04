@@ -282,43 +282,94 @@ impl HkConfig {
 fn parse_as_path_list(pattern: &str) -> Option<Vec<String>> {
     let trimmed = pattern.trim();
 
-    // Split by | and check if each part is a simple ^...$ pattern
-    let parts: Vec<&str> = trimmed.split('|').collect();
+    // Check if this is a (?x) verbose mode pattern
+    let working_pattern = if trimmed.starts_with("(?x)") {
+        trimmed[4..].trim()
+    } else {
+        trimmed
+    };
+
+    // Split by | and check if each part is a convertible pattern
+    let parts: Vec<&str> = working_pattern.split('|').collect();
 
     // Need at least 2 parts to make a list worthwhile
     if parts.len() < 2 {
         return None;
     }
 
-    let mut paths = Vec::new();
+    let mut globs = Vec::new();
 
     for part in parts {
         let part = part.trim();
 
-        // Check if it's a simple ^literal$ pattern
-        if !part.starts_with('^') || !part.ends_with('$') {
-            return None;
+        if let Some(glob) = convert_regex_to_glob(part) {
+            globs.push(glob);
+        } else {
+            return None; // Can't convert this part
         }
-
-        // Extract the middle part
-        let middle = &part[1..part.len() - 1];
-
-        // Check if it contains regex metacharacters (except for escaped dots)
-        // Allow: escaped dots (\.), escaped backslashes (\\), forward slashes, alphanumeric, dash, underscore
-        for ch in middle.chars() {
-            match ch {
-                'a'..='z' | 'A'..='Z' | '0'..='9' | '/' | '-' | '_' | '.' => continue,
-                '\\' => continue, // Will handle escaping below
-                _ => return None, // Other regex metacharacters
-            }
-        }
-
-        // Unescape the path (primarily \. -> .)
-        let unescaped = middle.replace("\\.", ".");
-        paths.push(unescaped);
     }
 
-    Some(paths)
+    Some(globs)
+}
+
+/// Convert a simple regex pattern to a glob pattern
+/// Returns Some(glob) if convertible, None otherwise
+fn convert_regex_to_glob(regex: &str) -> Option<String> {
+    let mut result = String::new();
+    let mut chars = regex.chars().peekable();
+
+    // Check for anchor patterns
+    let has_start_anchor = regex.starts_with('^');
+    let has_end_anchor = regex.ends_with('$');
+
+    // Skip leading ^
+    if has_start_anchor {
+        chars.next();
+    }
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            // End anchor
+            '$' if chars.peek().is_none() => {
+                // Just skip the end anchor
+            }
+            // Escaped dot becomes literal dot
+            '\\' => {
+                if let Some(next) = chars.next() {
+                    match next {
+                        '.' => result.push('.'),
+                        _ => return None, // Other escapes not supported
+                    }
+                } else {
+                    return None;
+                }
+            }
+            // .* becomes **
+            '.' => {
+                if chars.peek() == Some(&'*') {
+                    chars.next(); // consume the *
+                    result.push_str("**");
+                } else {
+                    return None; // Single . is not a valid glob
+                }
+            }
+            // Regular characters
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '/' | '-' | '_' => {
+                result.push(ch);
+            }
+            _ => return None, // Unsupported character
+        }
+    }
+
+    // If it had no anchors, we need ** prefix/suffix for glob equivalence
+    if !has_start_anchor {
+        result = format!("**{}", result);
+    }
+    if !has_end_anchor {
+        result = format!("{}**", result);
+    }
+
+    Some(result)
 }
 
 /// Format a value for Pkl - either as a List() or as a string
