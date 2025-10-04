@@ -205,7 +205,11 @@ impl StepGroup {
             .steps
             .values()
             .map(|step| {
-                let files = glob::get_matches(step.glob.as_ref().unwrap_or(&vec![]), &files)?;
+                let files = if let Some(pattern) = &step.glob {
+                    glob::get_pattern_matches(pattern, &files)?
+                } else {
+                    files.clone()
+                };
                 Ok((step.name.as_str(), files))
             })
             .collect::<Result<_>>()?;

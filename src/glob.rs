@@ -1,6 +1,8 @@
 use crate::Result;
+use crate::step::Pattern;
 use globset::{GlobBuilder, GlobSetBuilder};
 use itertools::Itertools;
+use regex::Regex;
 use std::path::{Path, PathBuf};
 
 pub fn get_matches<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Result<Vec<PathBuf>> {
@@ -17,4 +19,27 @@ pub fn get_matches<P: AsRef<Path>>(glob: &[String], files: &[P]) -> Result<Vec<P
         .map(|f| f.to_path_buf())
         .collect_vec();
     Ok(matches)
+}
+
+pub fn get_pattern_matches<P: AsRef<Path>>(pattern: &Pattern, files: &[P]) -> Result<Vec<PathBuf>> {
+    match pattern {
+        Pattern::Globs(globs) => get_matches(globs, files),
+        Pattern::Regex { pattern, .. } => {
+            let re = Regex::new(pattern)?;
+            let matches = files
+                .iter()
+                .map(|f| f.as_ref())
+                .filter(|f| {
+                    // Try to match against the path as a string
+                    if let Some(path_str) = f.to_str() {
+                        re.is_match(path_str)
+                    } else {
+                        false
+                    }
+                })
+                .map(|f| f.to_path_buf())
+                .collect_vec();
+            Ok(matches)
+        }
+    }
 }

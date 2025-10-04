@@ -174,11 +174,13 @@ impl Config {
             }
 
             if let Some(glob) = &step_config.glob {
-                step.glob = Some(glob.iter().cloned().collect());
+                step.glob = Some(crate::step::Pattern::Globs(glob.iter().cloned().collect()));
             }
 
             if let Some(exclude) = &step_config.exclude {
-                step.exclude = Some(exclude.iter().cloned().collect());
+                step.exclude = Some(crate::step::Pattern::Globs(
+                    exclude.iter().cloned().collect(),
+                ));
             }
 
             if let Some(profiles) = &step_config.profiles {
