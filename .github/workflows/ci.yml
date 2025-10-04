@@ -37,9 +37,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: hk-build-artifacts
-          path: |
-            target/
-            test/bats/bin/
+          path: target/
 
   ci:
     strategy:
