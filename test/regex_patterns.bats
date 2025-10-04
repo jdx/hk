@@ -11,14 +11,13 @@ teardown() {
 @test "regex exclude pattern" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["prettier"] {
                 glob = List("**/*.yaml")
-                exclude = new Mapping {
-                    ["_type"] = "regex"
-                    ["pattern"] = #"""
+                exclude = Config.Regex(#"""
 (?x)
 ^.*airflow\.template\.yaml$|
 ^.*init_git_sync\.template\.yaml$|
@@ -29,8 +28,7 @@ hooks {
 ^\.pre-commit-config\.yaml$|
 ^.*reproducible_build\.yaml$|
 ^.*pnpm-lock\.yaml$
-"""#
-                }
+"""#)
                 check = "prettier --no-color --check {{files}}"
             }
         }
@@ -67,14 +65,12 @@ EOF
 @test "regex glob pattern" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["yaml-check"] {
-                glob = new Mapping {
-                    ["_type"] = "regex"
-                    ["pattern"] = #"^(config|settings).*\.yaml$"#
-                }
+                glob = Config.Regex(#"^(config|settings).*\.yaml$"#)
                 check = "echo {{files}}"
             }
         }
@@ -105,16 +101,14 @@ EOF
 @test "regex pattern with dir" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["check-src"] {
                 dir = "src"
                 glob = List("**/*.js")
-                exclude = new Mapping {
-                    ["_type"] = "regex"
-                    ["pattern"] = #".*\.test\.js$"#
-                }
+                exclude = Config.Regex(#".*\.test\.js$"#)
                 check = "echo {{files}}"
             }
         }
@@ -144,16 +138,14 @@ EOF
 @test "regex pattern with dir and nested paths" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["check-src"] {
                 dir = "src"
                 glob = List("**/*.js")
-                exclude = new Mapping {
-                    ["_type"] = "regex"
-                    ["pattern"] = #"^utils/.*$"#
-                }
+                exclude = Config.Regex(#"^utils/.*$"#)
                 check = "echo {{files}}"
             }
         }

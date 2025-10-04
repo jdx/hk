@@ -104,10 +104,9 @@ exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
 exclude = "node_modules"
 
 // Exclude using regex pattern (for complex matching)
-exclude = new Mapping {
-    ["_type"] = "regex"
-    ["pattern"] = #".*\.(test|spec)\.(js|ts)$"#
-}
+// First import Config.pkl to use the Regex helper
+import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+exclude = Config.Regex(#".*\.(test|spec)\.(js|ts)$"#)
 ```
 
 Notes:
@@ -187,10 +186,7 @@ Files the step should run on. By default this will only run this step if at leas
 
 // Regex pattern for complex matching
 ["config-lint"] {
-    glob = new Mapping {
-        ["_type"] = "regex"
-        ["pattern"] = #"^(config|settings).*\.(json|yaml|yml)$"#
-    }
+    glob = Config.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
     check = "config-lint {{files}}"
 }
 ```
@@ -481,15 +477,12 @@ Files to exclude from the step. Supports glob patterns and regex patterns. Files
 // Exclude with regex pattern for complex matching
 ["linter"] {
     glob = List("**/*")
-    exclude = new Mapping {
-        ["_type"] = "regex"
-        ["pattern"] = #"""
+    exclude = Config.Regex(#"""
 (?x)
 ^(vendor|dist|build)/.*$|
 .*\.(min|bundle)\.(js|css)$|
 .*\.generated\.(ts|js)$
-"""#
-    }
+"""#)
     check = "custom-lint {{files}}"
 }
 ```
@@ -499,18 +492,16 @@ Notes:
 - The `(?x)` flag enables verbose mode for multi-line patterns with comments
 - Use raw strings (`#"..."#` or `#"""..."""#`) to avoid escaping backslashes
 
-**Optional: Creating a helper function**
+**Using the Regex helper**
 
-To simplify the syntax, you can define a helper function in your `hk.pkl`:
+The `Regex()` helper function is available by importing Config.pkl:
 
 ```pkl
-local Regex = (pattern) -> new Mapping {
-    ["_type"] = "regex"
-    ["pattern"] = pattern
-}
+amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
 
-// Then use it like:
-exclude = Regex(#".*\.test\.js$"#)
+// Use it like:
+exclude = Config.Regex(#".*\.test\.js$"#)
 ```
 
 ### `<STEP>.interactive: bool`
