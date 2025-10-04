@@ -17,7 +17,7 @@ hooks {
         steps {
             ["prettier"] {
                 dir = "ui"
-                glob = List("*.html", "*.ts")
+                glob = List("**/*.html", "**/*.ts")
                 check = "prettier --no-color --check {{files}}"
             }
         }

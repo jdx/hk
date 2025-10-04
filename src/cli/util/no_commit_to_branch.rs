@@ -33,8 +33,9 @@ impl NoCommitToBranch {
 }
 
 fn get_current_branch() -> Result<String> {
+    // Use symbolic-ref instead of rev-parse to work in repos without commits
     let output = Command::new("git")
-        .args(&["rev-parse", "--abbrev-ref", "HEAD"])
+        .args(&["symbolic-ref", "--short", "HEAD"])
         .output()?;
 
     if !output.status.success() {
@@ -45,9 +46,7 @@ fn get_current_branch() -> Result<String> {
         .into());
     }
 
-    let branch = String::from_utf8(output.stdout)?
-        .trim()
-        .to_string();
+    let branch = String::from_utf8(output.stdout)?.trim().to_string();
 
     Ok(branch)
 }
