@@ -81,14 +81,17 @@ jobs:
       - run: mise run msrv
 
   bats:
-    name: Bats tests (shard ${{ matrix.shard }} of ${{ matrix.total_shards }})
-    runs-on: ubuntu-latest
+    name: Bats tests (shard ${{ matrix.shard }} of ${{ matrix.total_shards }}, ${{ matrix.os }}, HK_LIBGIT2=${{ matrix.hk_libgit2 }})
     needs: build
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
+        hk_libgit2: [0, 1]
         shard: [0, 1, 2, 3]
         total_shards: [4]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,6 +112,7 @@ jobs:
       - name: Run bats for this shard
         env:
           HK_LOG_LEVEL: warn
+          HK_LIBGIT2: ${{ matrix.hk_libgit2 }}
         shell: bash
         run: |
           set -euo pipefail
