@@ -21,7 +21,7 @@ impl CheckSymlinks {
         }
 
         if found_broken {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Broken symlinks found"));
         }
 
         Ok(())

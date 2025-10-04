@@ -21,7 +21,7 @@ impl PythonDebugStatements {
         }
 
         if found_debug {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Debug statements found in Python files"));
         }
 
         Ok(())

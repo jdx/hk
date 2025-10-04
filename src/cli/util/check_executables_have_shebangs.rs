@@ -22,7 +22,7 @@ impl CheckExecutablesHaveShebangs {
         }
 
         if found_issues {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Executable files without shebangs found"));
         }
 
         Ok(())

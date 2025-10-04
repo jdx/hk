@@ -23,7 +23,7 @@ impl CheckByteOrderMarker {
         }
 
         if found_bom {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Files with BOM found"));
         }
 
         Ok(())
@@ -107,7 +107,7 @@ mod tests {
         let file = dir.path().join("partial_bom.txt");
 
         // Only first 2 bytes of BOM
-        fs::write(&file, &[0xEF, 0xBB, 0x00]).unwrap();
+        fs::write(&file, [0xEF, 0xBB, 0x00]).unwrap();
 
         let result = has_bom(&file).unwrap();
         assert!(!result);

@@ -29,7 +29,7 @@ impl MixedLineEnding {
         }
 
         if !self.fix && found_mixed {
-            std::process::exit(1);
+            return Err(eyre::eyre!("Files with mixed line endings found"));
         }
 
         Ok(())
