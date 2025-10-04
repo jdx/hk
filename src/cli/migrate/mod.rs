@@ -320,7 +320,7 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
 
     // Check for anchor patterns
     let has_start_anchor = regex.starts_with('^');
-    let has_end_anchor = regex.ends_with('$');
+    let _has_end_anchor = regex.ends_with('$');
 
     // Skip leading ^
     if has_start_anchor {
@@ -337,7 +337,9 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
             '\\' => {
                 if let Some(next) = chars.next() {
                     match next {
-                        '.' => result.push('.'),
+                        '.' => {
+                            result.push('.');
+                        }
                         _ => return None, // Other escapes not supported
                     }
                 } else {
@@ -348,7 +350,16 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
             '.' => {
                 if chars.peek() == Some(&'*') {
                     chars.next(); // consume the *
-                    result.push_str("**");
+
+                    // Check what comes after .*
+                    if chars.peek() == Some(&'/') {
+                        // .*/ becomes **/
+                        chars.next(); // consume the /
+                        result.push_str("**/");
+                    } else {
+                        // .* at end or before other chars becomes **
+                        result.push_str("**");
+                    }
                 } else {
                     return None; // Single . is not a valid glob
                 }
@@ -361,12 +372,9 @@ fn convert_regex_to_glob(regex: &str) -> Option<String> {
         }
     }
 
-    // If it had no anchors, we need ** prefix/suffix for glob equivalence
-    if !has_start_anchor {
-        result = format!("**{}", result);
-    }
-    if !has_end_anchor {
-        result = format!("{}**", result);
+    // If no start anchor and doesn't already start with **, add it
+    if !has_start_anchor && !result.starts_with("**/") {
+        result = format!("**/{}", result);
     }
 
     Some(result)
