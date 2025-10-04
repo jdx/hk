@@ -42,6 +42,10 @@ jobs:
         run: |
           set -euxo pipefail
           echo "Running bats with verbose output"
+          # Ensure hk is available in PATH for this step immediately
+          export PATH="$GITHUB_WORKSPACE/target/debug:$PATH"
+          echo "which hk: $(command -v hk || echo not-found)"
+          hk --version || true
           # Use runner temp for bats tmp to avoid container tmpfs quirks under act
           export TMPDIR="$RUNNER_TEMP"
           export BATS_TMPDIR="$RUNNER_TEMP"

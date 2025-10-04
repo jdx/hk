@@ -149,6 +149,10 @@ jobs:
           HK_LIBGIT2: ${{ matrix.hk_libgit2 }}
         shell: bash
         run: |
+          # Ensure hk is on PATH for this step (some environments delay GITHUB_PATH propagation)
+          export PATH="$GITHUB_WORKSPACE/target/debug:$PATH"
+          echo "PATH=$PATH"
+          command -v hk && hk --version || echo "hk not found"
           # Select test files for this shard using simple math
           shard=${{ matrix.shard }}
           total=${{ matrix.total_shards }}
