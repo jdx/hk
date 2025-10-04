@@ -514,15 +514,28 @@ impl PreCommit {
             properties_as_comments: Vec::new(),
         };
 
-        // Apply types/types_or as exclude patterns
-        if let Some(types_exclude) =
-            Self::types_to_exclude_pattern(&hook.types, &hook.types_or, &hook.exclude_types)
-        {
-            // Combine with existing exclude pattern
-            if let Some(ref existing_exclude) = step.exclude {
-                step.exclude = Some(format!("{}|{}", existing_exclude, types_exclude));
+        // Apply types/types_or filtering
+        // If there's no glob pattern but we have types, create a glob from types
+        // Otherwise, create exclude patterns for non-matching types
+        if !hook.types.is_empty() || !hook.types_or.is_empty() {
+            if step.glob.is_none() {
+                // No files pattern - create a glob from types
+                if let Some(glob_pattern) = Self::types_to_glob_pattern(&hook.types, &hook.types_or)
+                {
+                    step.glob = Some(glob_pattern);
+                }
             } else {
-                step.exclude = Some(types_exclude);
+                // Has files pattern - add exclude patterns for non-matching types
+                if let Some(types_exclude) =
+                    Self::types_to_exclude_pattern(&hook.types, &hook.types_or, &hook.exclude_types)
+                {
+                    // Combine with existing exclude pattern
+                    if let Some(ref existing_exclude) = step.exclude {
+                        step.exclude = Some(format!("{}|{}", existing_exclude, types_exclude));
+                    } else {
+                        step.exclude = Some(types_exclude);
+                    }
+                }
             }
         }
 
@@ -839,6 +852,71 @@ impl PreCommit {
             "prepare-commit-msg" => "prepare-commit-msg",
             "manual" => "manual",
             _ => "pre-commit",
+        }
+    }
+
+    /// Convert pre-commit types/types_or to a glob pattern
+    /// This is used when there's no files pattern but we have types
+    fn types_to_glob_pattern(types: &[String], types_or: &[String]) -> Option<String> {
+        let match_types = if !types_or.is_empty() {
+            types_or
+        } else if !types.is_empty() {
+            types
+        } else {
+            return None;
+        };
+
+        // Map types to glob patterns
+        let mut patterns = Vec::new();
+        for type_name in match_types {
+            match type_name.as_str() {
+                "python" => patterns.push("**/*.py"),
+                "pyi" => patterns.push("**/*.pyi"),
+                "yaml" => {
+                    patterns.push("**/*.yaml");
+                    patterns.push("**/*.yml");
+                }
+                "json" => patterns.push("**/*.json"),
+                "toml" => patterns.push("**/*.toml"),
+                "markdown" => {
+                    patterns.push("**/*.md");
+                    patterns.push("**/*.markdown");
+                    patterns.push("**/*.mdown");
+                }
+                "javascript" => patterns.push("**/*.js"),
+                "jsx" => patterns.push("**/*.jsx"),
+                "typescript" => patterns.push("**/*.ts"),
+                "tsx" => patterns.push("**/*.tsx"),
+                "rust" => patterns.push("**/*.rs"),
+                "go" => patterns.push("**/*.go"),
+                "shell" => {
+                    patterns.push("**/*.sh");
+                    patterns.push("**/*.bash");
+                }
+                "text" | "file" => return None, // Match all files, no pattern needed
+                _ => return None,               // Unknown type
+            }
+        }
+
+        if patterns.is_empty() {
+            return None;
+        }
+
+        // For types_or with multiple patterns, use regex alternation
+        if patterns.len() == 1 {
+            Some(patterns[0].to_string())
+        } else {
+            // Convert glob patterns to regex
+            let regex_patterns: Vec<String> = patterns
+                .iter()
+                .map(|p| {
+                    // Convert **/*.ext to regex pattern that matches end of filename
+                    let ext = p.strip_prefix("**/").unwrap_or(p);
+                    let pattern = ext.replace("*.", r".*\.");
+                    format!("{}$", pattern) // Anchor to end of filename
+                })
+                .collect();
+            Some(format!("({})", regex_patterns.join("|")))
         }
     }
 
