@@ -42,7 +42,7 @@ jobs:
         with:
           timeout_minutes: 10
           max_attempts: 3
-          command: "mise run test:cargo ::: lint"
+          command: "mise run test:cargo ::: lint ::: docs-sync"
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -53,15 +53,6 @@ jobs:
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
       - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
       - run: mise run msrv
-  docs-sync:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
-      - name: Check documentation sync
-        run: mise run docs-sync
-
   bats:
     name: Bats tests (shard ${{ matrix.shard }} of ${{ matrix.total_shards }})
     runs-on: ubuntu-latest
@@ -73,16 +64,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Run bats for this shard
+      - name: Install mise
+        uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+
+      - name: Build and run bats for this shard
         env:
           HK_LOG_LEVEL: warn
         shell: bash
         run: |
           set -euo pipefail
-          BATS=./test/bats/bin/bats
-          chmod +x "$BATS"
+          # Initialize submodules and build hk
+          mise run init
+          mise run build
           # Build a null-delimited list of test files and select this shard's slice
           find test -maxdepth 1 -name '*.bats' -print0 | sort -z \
             | awk -v shard='${{ matrix.shard }}' -v total='${{ matrix.total_shards }}' 'BEGIN{RS="\0"; ORS="\0"} { if ((NR-1)%total==shard) print }' \
-            | xargs -0 -r "$BATS" --jobs 8
+            | xargs -0 -r ./test/bats/bin/bats --jobs 8
