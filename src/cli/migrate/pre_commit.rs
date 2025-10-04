@@ -315,6 +315,7 @@ impl PreCommit {
                 comments: Vec::new(),
                 glob: None,
                 exclude: hook.exclude.clone(),
+                prefix: None,
                 check: None,
                 fix: None,
                 shell: None,
@@ -410,6 +411,7 @@ impl PreCommit {
             comments: Vec::new(),
             glob: hook.files.clone(),
             exclude: hook.exclude.clone(),
+            prefix: None,
             check: None,
             fix: None,
             shell: None,
@@ -422,6 +424,11 @@ impl PreCommit {
         }
         if let Some(ref name) = hook.name {
             step.comments.push(format!("Name: {}", name));
+        }
+
+        // Handle additional_dependencies with mise x
+        if !hook.additional_dependencies.is_empty() {
+            step.prefix = Self::generate_mise_prefix(&hook.additional_dependencies);
         }
 
         // Set check command
@@ -472,6 +479,7 @@ impl PreCommit {
             comments: Vec::new(),
             glob: None,
             exclude: hook.exclude.clone(),
+            prefix: None,
             check: None,
             fix: None,
             shell: None,
@@ -529,6 +537,40 @@ impl PreCommit {
 
     fn is_known_hook(&self, id: &str) -> bool {
         self.get_builtin_map().contains_key(id)
+    }
+
+    /// Generate a mise x prefix from additional_dependencies
+    /// Example: ["ruff==0.13.3"] -> Some("mise x pipx:ruff@0.13.3 --")
+    fn generate_mise_prefix(dependencies: &[String]) -> Option<String> {
+        if dependencies.is_empty() {
+            return None;
+        }
+
+        // For now, handle the first dependency (most common case)
+        // Format: package==version or package>=version, etc.
+        let dep = &dependencies[0];
+
+        // Parse package name and version
+        let (package, version) = if let Some(idx) = dep.find("==") {
+            (&dep[..idx], Some(&dep[idx + 2..]))
+        } else if let Some(idx) = dep.find(">=") {
+            (&dep[..idx], Some(&dep[idx + 2..]))
+        } else if let Some(idx) = dep.find("<=") {
+            (&dep[..idx], Some(&dep[idx + 2..]))
+        } else if let Some(idx) = dep.find('>') {
+            (&dep[..idx], Some(&dep[idx + 1..]))
+        } else if let Some(idx) = dep.find('<') {
+            (&dep[..idx], Some(&dep[idx + 1..]))
+        } else {
+            (dep.as_str(), None)
+        };
+
+        // Build mise x command
+        if let Some(ver) = version {
+            Some(format!("mise x pipx:{}@{} --", package, ver))
+        } else {
+            Some(format!("mise x pipx:{} --", package))
+        }
     }
 
     fn map_stage(stage: &str) -> &'static str {

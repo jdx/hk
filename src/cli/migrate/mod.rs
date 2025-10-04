@@ -51,6 +51,8 @@ pub struct HkStep {
     pub glob: Option<String>,
     /// Exclude pattern
     pub exclude: Option<String>,
+    /// Prefix command (e.g., "mise x pipx:ruff@0.13.3 --")
+    pub prefix: Option<String>,
     /// Check command
     pub check: Option<String>,
     /// Fix command
@@ -195,6 +197,14 @@ impl HkConfig {
                 "{}exclude = {}\n",
                 inner_indent,
                 format_pkl_string(exclude)
+            ));
+        }
+
+        if let Some(ref prefix) = step.prefix {
+            output.push_str(&format!(
+                "{}prefix = {}\n",
+                inner_indent,
+                format_pkl_string(prefix)
             ));
         }
 
