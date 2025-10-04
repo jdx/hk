@@ -355,7 +355,7 @@ impl Step {
                 let mut high = job.files.len();
 
                 while low < high {
-                    let mid = (low + high + 1) / 2;
+                    let mid = (low + high).div_ceil(2);
                     let test_size =
                         self.estimate_files_string_size(&job.files[..mid.min(job.files.len())]);
 
