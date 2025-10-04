@@ -171,8 +171,8 @@ impl PreCommit {
         let mut local_hooks = IndexMap::new();
         let mut custom_steps = IndexMap::new();
 
-        // Track which stages each hook appears in
-        let mut steps_by_stage: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        // Track which stages each hook appears in, along with the concrete step and its collection
+        let mut steps_by_stage: HashMap<String, Vec<(String, HkStep, String)>> = HashMap::new();
 
         for repo in &config.repos {
             let is_local = repo.repo == "local";
@@ -203,25 +203,29 @@ impl PreCommit {
                     self.convert_unknown_hook(hook, &unique_id, repo)
                 };
 
-                // Add to appropriate collection
+                // Track which stages this hook appears in BEFORE moving step into collection
                 let collection_name = if is_local {
-                    local_hooks.insert(unique_id.clone(), step);
                     "local_hooks"
                 } else if self.is_known_hook(&hook.id) {
-                    linters.insert(unique_id.clone(), step);
                     "linters"
                 } else {
-                    custom_steps.insert(unique_id.clone(), step);
                     "custom_steps"
                 };
-
-                // Track which stages this hook appears in
                 for stage in &hook_stages {
                     let hk_stage = Self::map_stage(stage);
                     steps_by_stage
                         .entry(hk_stage.to_string())
                         .or_default()
-                        .push((unique_id.clone(), collection_name.to_string()));
+                        .push((unique_id.clone(), step.clone(), collection_name.to_string()));
+                }
+
+                // Add to appropriate collection (move step now)
+                if is_local {
+                    local_hooks.insert(unique_id.clone(), step);
+                } else if self.is_known_hook(&hook.id) {
+                    linters.insert(unique_id.clone(), step);
+                } else {
+                    custom_steps.insert(unique_id.clone(), step);
                 }
             }
         }
@@ -246,7 +250,7 @@ impl PreCommit {
         // Generate hooks
         let has_steps = !hk_config.step_collections.is_empty();
 
-        // Create hooks for each stage
+        // Create hooks for each stage (including manual) using direct steps per-stage
         let mut stages_used = HashSet::new();
         for (stage, _) in &steps_by_stage {
             stages_used.insert(stage.clone());
@@ -263,15 +267,13 @@ impl PreCommit {
                 hook.stash = Some("git".to_string());
             }
 
-            // Add step spreads for collections that have steps in this stage
-            let collections_in_stage: HashSet<String> = steps_by_stage
-                .get(stage)
-                .map(|steps| steps.iter().map(|(_, col)| col.clone()).collect())
-                .unwrap_or_default();
-
-            for collection in &["linters", "local_hooks", "custom_steps"] {
-                if collections_in_stage.contains(*collection) {
-                    hook.step_spreads.push(collection.to_string());
+            // Add only the steps that belong to this specific stage
+            if let Some(steps) = steps_by_stage.get(stage) {
+                let mut seen = HashSet::new();
+                for (id, st, _col) in steps {
+                    if seen.insert(id.clone()) {
+                        hook.direct_steps.insert(id.clone(), st.clone());
+                    }
                 }
             }
 
@@ -288,9 +290,16 @@ impl PreCommit {
                 direct_steps: IndexMap::new(),
             };
 
-            for collection in &["linters", "local_hooks", "custom_steps"] {
-                if hk_config.step_collections.contains_key(*collection) {
-                    check_hook.step_spreads.push(collection.to_string());
+            // Include all non-manual steps from any stage for check
+            let mut seen = HashSet::new();
+            for (stage, steps) in &steps_by_stage {
+                if stage == "manual" {
+                    continue;
+                }
+                for (id, st, _col) in steps {
+                    if seen.insert(id.clone()) {
+                        check_hook.direct_steps.insert(id.clone(), st.clone());
+                    }
                 }
             }
 
@@ -304,9 +313,16 @@ impl PreCommit {
                 direct_steps: IndexMap::new(),
             };
 
-            for collection in &["linters", "local_hooks"] {
-                if hk_config.step_collections.contains_key(*collection) {
-                    fix_hook.step_spreads.push(collection.to_string());
+            // Include non-manual steps only, and only from linters/local_hooks
+            let mut seen_fix = HashSet::new();
+            for (stage, steps) in &steps_by_stage {
+                if stage == "manual" {
+                    continue;
+                }
+                for (id, st, col) in steps {
+                    if (col == "linters" || col == "local_hooks") && seen_fix.insert(id.clone()) {
+                        fix_hook.direct_steps.insert(id.clone(), st.clone());
+                    }
                 }
             }
 
@@ -586,6 +602,7 @@ impl PreCommit {
             "commit" | "commit-msg" => "commit-msg",
             "push" | "pre-push" => "pre-push",
             "prepare-commit-msg" => "prepare-commit-msg",
+            "manual" => "manual",
             _ => "pre-commit",
         }
     }
