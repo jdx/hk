@@ -9,16 +9,24 @@ class Script {
     other: String?
 }
 
+typealias RegexPattern = Mapping<"_type"|"pattern", String>
+
+/// Helper function to create regex patterns with clean syntax
+function Regex(pattern: String): RegexPattern = new Mapping {
+    ["_type"] = "regex"
+    ["pattern"] = pattern
+}
+
 class Step {
     _type = "step"
     /// Which profiles (HK_PROFILES) need to be active for the step to run
     profiles: List<String>?
     
     /// Which file patterns to run the step on
-    glob: (String | List<String>)?
+    glob: (String | List<String> | RegexPattern)?
 
     /// Which file patterns to exclude from the step
-    exclude: (String | List<String>)?
+    exclude: (String | List<String> | RegexPattern)?
 
     /// files to stage after running the fix step
     stage: (String | List<String>)?
@@ -142,7 +150,7 @@ default_branch: String?
 /// If true, abort remaining steps/groups after the first failure
 fail_fast: Boolean?
 /// Global file patterns to exclude from all steps
-exclude: (String | List<String>)?
+exclude: (String | List<String> | RegexPattern)?
 
 output {
   renderer {
@@ -151,7 +159,7 @@ output {
             ...s
             .toMap()
             .mapValues((k, v) ->
-                if ((k == "glob" || k == "exclude" || k == "depends" || k == "stage") && v is String)
+                if ((k == "depends" || k == "stage") && v is String)
                     List(v) // permits "s" instead of List("s")
                 else if (k == "stash" && v is Boolean)
                     if (v) "git" else "none"

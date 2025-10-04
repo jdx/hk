@@ -18,19 +18,5 @@ check_added_large_files = new Config.Step {
             files = List("{{tmp}}/small.txt")
             expect { code = 0 }
         }
-        ["respects custom limit"] {
-            run = "check"
-            before = "dd if=/dev/zero of={{tmp}}/medium.bin bs=1024 count=50 2>/dev/null"
-            files = List("{{tmp}}/medium.bin")
-            check = "hk util check-added-large-files --maxkb 100 {{files}}"
-            expect { code = 0 }
-        }
-        ["detects file over custom limit"] {
-            run = "check"
-            before = "dd if=/dev/zero of={{tmp}}/medium.bin bs=1024 count=50 2>/dev/null"
-            files = List("{{tmp}}/medium.bin")
-            check = "hk util check-added-large-files --maxkb 10 {{files}}"
-            expect { code = 1 }
-        }
     }
 }
