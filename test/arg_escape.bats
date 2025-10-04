@@ -22,8 +22,13 @@ EOF
     git add hk.pkl
     git status -sb || true
     git commit -m "install hk" --no-verify
-    echo "[debug] running hk install (with timeout)"
-    HK_LOG_LEVEL=debug run timeout 1s hk install
+    echo "[debug] running hk install (with timeout + tracing)"
+    if command -v strace >/dev/null 2>&1; then
+        HK_TRACE=1 GIT_TRACE=1 run timeout 1s strace -f -tt -s 256 -o strace.log hk install
+        echo "[debug] strace captured to: $PWD/strace.log"
+    else
+        HK_TRACE=1 GIT_TRACE=1 run timeout 1s hk install
+    fi
     echo "[debug] hk install status=$status"
     echo "[debug] hk install output:\n$output"
     echo 'console.log("test")' > '$test.js'

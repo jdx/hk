@@ -46,6 +46,11 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/target/debug:$PATH"
           echo "which hk: $(command -v hk || echo not-found)"
           hk --version || true
+          # Best-effort install of strace for deeper diagnostics under act
+          if command -v apt-get >/dev/null 2>&1; then
+            apt-get update -y >/dev/null 2>&1 || true
+            apt-get install -y strace >/dev/null 2>&1 || true
+          fi
           # Use runner temp for bats tmp to avoid container tmpfs quirks under act
           export TMPDIR="$RUNNER_TEMP"
           export BATS_TMPDIR="$RUNNER_TEMP"
