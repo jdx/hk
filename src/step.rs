@@ -753,11 +753,19 @@ impl Step {
         };
         job.status_start(ctx, semaphore).await?;
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
-        let globs = match self.glob.as_ref() {
-            Some(Pattern::Globs(g)) => g.as_slice(),
-            _ => &[],
-        };
-        tctx.with_globs(globs);
+        // Set {{globs}} template variable based on pattern type
+        match self.glob.as_ref() {
+            Some(Pattern::Globs(g)) => {
+                tctx.with_globs(g.as_slice());
+            }
+            Some(Pattern::Regex { pattern, .. }) => {
+                // For regex patterns, provide the pattern string so templates can use it
+                tctx.insert("globs", pattern);
+            }
+            None => {
+                tctx.with_globs(&[] as &[&str]);
+            }
+        }
         let file_msg = |files: &[PathBuf]| {
             format!(
                 "{} file{}",

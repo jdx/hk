@@ -219,6 +219,191 @@ EOF
     refute_output --partial 'echo.*main.ts'
 }
 
+@test "dir pre-filters files before glob matching" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["check-src"] {
+                dir = "src"
+                glob = List("**/*.ts")
+                check = "echo checking: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p src other
+    # Create files in src/ that should match
+    echo "src" > src/app.ts
+    echo "src" > src/lib.ts
+
+    # Create files outside src/ that should NOT match (even though they match the glob)
+    echo "other" > other/app.ts
+    echo "other" > other/lib.ts
+    echo "root" > main.ts
+
+    git add src/ other/ main.ts
+    run hk check -v
+    assert_success
+    # {{files}} shows paths relative to dir, so just "app.ts lib.ts"
+    assert_output --partial 'checking: app.ts lib.ts'
+    # The check command should only process files in src/, verify count is 2
+    assert_output --partial 'check-src – 2 files'
+    # Should NOT see files outside src/ in the echo command output
+    refute_output --partial 'checking:.*other'
+    refute_output --partial 'checking:.*main.ts'
+}
+
+@test "dir pre-filters files before regex matching" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["check-backend"] {
+                dir = "backend"
+                glob = Config.Regex(#"^.*\\.py$"#)
+                check = "echo checking: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p backend frontend
+    # Create files in backend/ that should match
+    echo "backend" > backend/app.py
+    echo "backend" > backend/db.py
+
+    # Create files outside backend/ that should NOT match (even though they match the regex)
+    echo "frontend" > frontend/app.py
+    echo "frontend" > frontend/utils.py
+    echo "root" > main.py
+
+    git add backend/ frontend/ main.py
+    run hk check -v
+    assert_success
+    # {{files}} shows paths relative to dir, so just "app.py db.py"
+    assert_output --partial 'checking: app.py db.py'
+    # The check command should only process files in backend/, verify count is 2
+    assert_output --partial 'check-backend – 2 files'
+    # Should NOT see files outside backend/ in the echo command output
+    refute_output --partial 'checking:.*frontend'
+    refute_output --partial 'checking:.*main.py'
+}
+
+@test "step with dir but no glob filters to directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["check-src"] {
+                dir = "src"
+                check = "echo checking: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p src docs
+    echo "src" > src/app.js
+    echo "src" > src/lib.js
+    echo "docs" > docs/README.md
+    echo "root" > package.json
+
+    git add src/ docs/ package.json
+    run hk check -v
+    assert_success
+    # {{files}} shows paths relative to dir, so just "app.js lib.js"
+    assert_output --partial 'checking: app.js lib.js'
+    # The check command should only process files in src/, verify count is 2
+    assert_output --partial 'check-src – 2 files'
+    # Should NOT see files outside src/ in the echo command output
+    refute_output --partial 'checking:.*docs'
+    refute_output --partial 'checking:.*package.json'
+}
+
+@test "{{globs}} template variable works with regex patterns" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["yaml-check"] {
+                glob = Config.Regex(#"^.*\\.yaml$"#)
+                check = "echo pattern={{globs}} files={{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    echo "foo: bar" > config.yaml
+    echo "baz: qux" > settings.yaml
+
+    git add config.yaml settings.yaml
+    run hk check -v
+    assert_success
+    # {{globs}} should contain the regex pattern (backslashes are displayed literally in shell output)
+    assert_output --partial 'pattern=^.*\.yaml$'
+    # {{files}} should contain the matched files
+    assert_output --partial 'files=config.yaml settings.yaml'
+}
+
+@test "regex with dir matches paths relative to dir" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["check-components"] {
+                dir = "src/components"
+                glob = Config.Regex(#"^[A-Z].*\\.tsx$"#)
+                check = "echo matched: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p src/components src/utils
+    # These should match (relative paths start with uppercase)
+    echo "component" > src/components/Button.tsx
+    echo "component" > src/components/Input.tsx
+
+    # These should NOT match (relative paths don't start with uppercase)
+    echo "component" > src/components/helpers.tsx
+    echo "util" > src/utils/Button.tsx  # Not in dir
+
+    git add src/
+    run hk check -v
+    assert_success
+    # Should match files with uppercase names in src/components
+    assert_output --partial 'matched: Button.tsx Input.tsx'
+    # Should NOT match lowercase files in the check command output
+    refute_output --partial 'matched:.*helpers'
+    # Should NOT match files outside dir
+    refute_output --partial 'matched:.*src/utils'
+}
+
 # Note: User config tests with .hkrc.pkl would require a separate Pkl schema for UserConfig
 # which doesn't currently exist. The Rust changes to support Pattern in UserStepConfig
 # are tested implicitly through the API, but end-to-end .hkrc.pkl tests would need

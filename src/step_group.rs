@@ -205,12 +205,20 @@ impl StepGroup {
             .steps
             .values()
             .map(|step| {
-                let files = if let Some(pattern) = &step.glob {
-                    glob::get_pattern_matches(pattern, &files, step.dir.as_deref())?
-                } else {
-                    files.clone()
-                };
-                Ok((step.name.as_str(), files))
+                let mut step_files = files.clone();
+
+                // Filter by dir if specified, even without a glob pattern
+                if let Some(dir) = &step.dir {
+                    step_files.retain(|f| f.starts_with(dir));
+                }
+
+                // Then apply glob pattern if specified
+                if let Some(pattern) = &step.glob {
+                    step_files =
+                        glob::get_pattern_matches(pattern, &step_files, step.dir.as_deref())?;
+                }
+
+                Ok((step.name.as_str(), step_files))
             })
             .collect::<Result<_>>()?;
         let mut steps_per_file: HashMap<&Path, Vec<&Step>> = Default::default();

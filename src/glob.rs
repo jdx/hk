@@ -26,6 +26,18 @@ pub fn get_pattern_matches<P: AsRef<Path>>(
     files: &[P],
     dir: Option<&str>,
 ) -> Result<Vec<PathBuf>> {
+    // Pre-filter files by dir if specified
+    let files_vec: Vec<PathBuf> = if let Some(dir) = dir {
+        files
+            .iter()
+            .map(|f| f.as_ref())
+            .filter(|f| f.starts_with(dir))
+            .map(|f| f.to_path_buf())
+            .collect()
+    } else {
+        files.iter().map(|f| f.as_ref().to_path_buf()).collect()
+    };
+
     match pattern {
         Pattern::Globs(globs) => {
             // When dir is set, prefix globs with the directory
@@ -34,22 +46,21 @@ pub fn get_pattern_matches<P: AsRef<Path>>(
                     .iter()
                     .map(|g| format!("{}/{}", dir.trim_end_matches('/'), g))
                     .collect::<Vec<_>>();
-                get_matches(&dir_globs, files)
+                get_matches(&dir_globs, &files_vec)
             } else {
-                get_matches(globs, files)
+                get_matches(globs, &files_vec)
             }
         }
         Pattern::Regex { pattern, .. } => {
             let re = Regex::new(pattern)?;
-            let matches = files
+            let matches = files_vec
                 .iter()
-                .map(|f| f.as_ref())
                 .filter(|f| {
                     // For regex patterns, if dir is set, match against the path relative to dir
                     let path_to_match = if let Some(dir) = dir {
                         f.strip_prefix(dir).unwrap_or(f)
                     } else {
-                        f
+                        f.as_path()
                     };
 
                     if let Some(path_str) = path_to_match.to_str() {
