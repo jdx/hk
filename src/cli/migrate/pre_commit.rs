@@ -1132,7 +1132,7 @@ impl PreCommit {
                     gopath, gopath, vendor_name
                 );
                 // Use the binary name from entry, which should be in GOPATH/bin
-                let binary_name = hook.entry.split('/').last().unwrap_or(&hook.entry);
+                let binary_name = hook.entry.split('/').next_back().unwrap_or(&hook.entry);
                 let go_cmd = if pass_filenames {
                     format!(
                         "{} && {}/bin/{} {{{{files}}}}",
@@ -1142,6 +1142,27 @@ impl PreCommit {
                     format!("{} && {}/bin/{}", install_check, gopath, binary_name)
                 };
                 (go_cmd, false) // No prefix needed, we're calling the binary directly
+            } else if hook.language == "ruby" {
+                // For Ruby hooks, build and install the gem
+                let vendor_name = Self::repo_url_to_vendor_name(repo_url);
+                let gem_home = format!(".hk/vendors/{}/.gem-home", vendor_name);
+                let install_check = format!(
+                    "[ -d {}/bin ] || (cd .hk/vendors/{} && gem build *.gemspec && gem install --no-document --install-dir $(pwd)/.gem-home --bindir $(pwd)/.gem-home/bin *.gem)",
+                    gem_home, vendor_name
+                );
+                // Use the entry as the binary name, with GEM_HOME set and bin directory in PATH
+                let ruby_cmd = if pass_filenames {
+                    format!(
+                        "{} && GEM_HOME=$(pwd)/{} GEM_PATH= PATH=$(pwd)/{}/bin:$PATH {}/bin/{} {{{{files}}}}",
+                        install_check, gem_home, gem_home, gem_home, hook.entry
+                    )
+                } else {
+                    format!(
+                        "{} && GEM_HOME=$(pwd)/{} GEM_PATH= PATH=$(pwd)/{}/bin:$PATH {}/bin/{}",
+                        install_check, gem_home, gem_home, gem_home, hook.entry
+                    )
+                };
+                (ruby_cmd, false) // No prefix needed, we're calling the binary directly
             } else {
                 // For non-Python/Node/Go hooks, use the entry directly
                 let entry_path = vendor_path.join(&hook.entry);
