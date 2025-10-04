@@ -134,9 +134,16 @@ jobs:
           set -euo pipefail
           # Build a null-delimited list of test files and select this shard's slice
           echo "Running shard ${{ matrix.shard }} of ${{ matrix.total_shards }}"
-          find test -maxdepth 1 -name '*.bats' -print0 | sort -z \
-            | awk -v shard='${{ matrix.shard }}' -v total='${{ matrix.total_shards }}' 'BEGIN{RS="\0"; ORS="\0"} { if ((NR-1)%total==shard) print }' \
-            | xargs -0 -r ./test/bats/bin/bats --jobs 8
+          test_files=$(find test -maxdepth 1 -name '*.bats' | sort | awk -v shard='${{ matrix.shard }}' -v total='${{ matrix.total_shards }}' '(NR-1)%total==shard')
+          if [ -z "$test_files" ]; then
+            echo "No tests for this shard"
+            exit 0
+          fi
+          test_count=$(echo "$test_files" | wc -l)
+          echo "Running $test_count tests:"
+          echo "$test_files" | head -5
+          [ "$test_count" -gt 5 ] && echo "..."
+          echo "$test_files" | xargs ./test/bats/bin/bats --jobs 8 --formatter tap
 
   finish:
     needs:
