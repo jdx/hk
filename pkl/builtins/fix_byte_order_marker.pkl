@@ -8,7 +8,7 @@ fix_byte_order_marker = new Config.Step {
         ["removes BOM"] {
             run = "fix"
             write {
-                ["{{tmp}}/with_bom.txt"] = "\uFEFFHello, world!"
+                ["{{tmp}}/with_bom.txt"] = "\u{FEFF}Hello, world!"
             }
             files = List("{{tmp}}/with_bom.txt")
             expect {

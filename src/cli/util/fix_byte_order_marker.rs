@@ -85,5 +85,4 @@ mod tests {
         let result = fs::read(file.path()).unwrap();
         assert_eq!(result, b"");
     }
-
 }
