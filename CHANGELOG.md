@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.1](https://github.com/jdx/hk/compare/v1.18.0..v1.18.1) - 2025-10-05
+
+### 🐛 Bug Fixes
+
+- prevent race condition when files are deleted between collection and execution by [@jdx](https://github.com/jdx) in [#353](https://github.com/jdx/hk/pull/353)
+
 ## [1.18.0](https://github.com/jdx/hk/compare/v1.17.0..v1.18.0) - 2025-10-05
 
 ### 🚀 Features
