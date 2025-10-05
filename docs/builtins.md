@@ -112,10 +112,17 @@ You can also customize builtins:
 
 #### `ruff`
 - **Files:** `*.py`, `*.pyi`
-- **Features:** Fast Python linter and formatter
+- **Features:** Fast Python linter
 - **Commands:**
-  - Check: `ruff check {{files}} && ruff format --check {{files}}`
-  - Fix: `ruff check --fix {{files}} && ruff format {{files}}`
+  - Check: `ruff check {{files}}`
+  - Fix: `ruff check --fix {{files}}`
+
+#### `ruff_format`
+- **Files:** `*.py`
+- **Features:** Fast Python formatter (part of ruff)
+- **Commands:**
+  - Check: `ruff format --check {{files}}`
+  - Fix: `ruff format {{files}}`
 
 #### `isort`
 - **Files:** `*.py`

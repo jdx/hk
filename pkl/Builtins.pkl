@@ -58,6 +58,7 @@ reek = Builtins["builtins/reek.pkl"].reek
 revive = Builtins["builtins/revive.pkl"].revive
 rubocop = Builtins["builtins/rubocop.pkl"].rubocop
 ruff = Builtins["builtins/ruff.pkl"].ruff
+ruff_format = Builtins["builtins/ruff_format.pkl"].ruff_format
 rustfmt = Builtins["builtins/rustfmt.pkl"].rustfmt
 shellcheck = Builtins["builtins/shellcheck.pkl"].shellcheck
 shfmt = Builtins["builtins/shfmt.pkl"].shfmt

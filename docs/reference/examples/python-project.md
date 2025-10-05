@@ -2,7 +2,8 @@
 
 ```pkl
 /// Example configuration for a Python project
-/// * Uses ruff for fast linting and formatting
+/// * Uses ruff for fast linting
+/// * Uses ruff_format for fast formatting
 /// * Uses mypy for type checking
 /// * Sorts imports with isort
 /// * Validates with flake8
@@ -11,14 +12,18 @@ amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pk
 import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Builtins.pkl"
 
 local python_linters = new Mapping<String, Step> {
-  // Ruff is a fast all-in-one Python linter
+  // Ruff is a fast Python linter
   ["ruff"] = (Builtins.ruff) {
     // Run ruff first as it's the fastest
     batch = true
   }
-  // Black for consistent formatting
-  ["black"] = (Builtins.black) {
+  // Ruff formatter for code formatting
+  ["ruff_format"] = (Builtins.ruff_format) {
     depends = "ruff"  // Run after ruff
+  }
+  // Black for consistent formatting (alternative to ruff_format)
+  ["black"] = (Builtins.black) {
+    depends = "ruff_format"  // Run after ruff_format
   }
   // isort for import sorting
   ["isort"] = (Builtins.isort) {
@@ -67,7 +72,8 @@ fail_fast = true
 ## Description
 
 Example configuration for a Python project
-* Uses ruff for fast linting and formatting
+* Uses ruff for fast linting
+* Uses ruff_format for fast formatting
 * Uses mypy for type checking
 * Sorts imports with isort
 * Validates with flake8
