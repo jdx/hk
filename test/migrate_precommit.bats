@@ -416,7 +416,9 @@ PRECOMMIT
 
     # Verify basic structure
     run cat hk.pkl
-    assert_output --partial 'import "package://github.com/jdx/hk'
+    # When using --hk-pkl-root with a local path, it should use local imports
+    assert_output --partial 'import "'
+    assert_output --partial 'Builtins.pkl'
     assert_output --partial 'hooks {'
 
     # Apache Airflow uses several common pre-commit hooks
