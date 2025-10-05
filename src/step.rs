@@ -453,8 +453,10 @@ impl Step {
             return Ok(vec![j]);
         }
         let files = self.filter_files(files)?;
-        if files.is_empty() && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
-        {
+        // Skip if no files and step has file filters
+        // This means the step was explicitly looking for specific files and found none
+        let has_filters = self.glob.is_some() || self.dir.is_some() || self.exclude.is_some();
+        if files.is_empty() && has_filters {
             debug!("{self}: no file matches for step");
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(SkipReason::NoFilesToProcess);
@@ -841,6 +843,17 @@ impl Step {
             ctx.hook_ctx.semaphore().await
         };
         job.status_start(ctx, semaphore).await?;
+        // Filter out files that no longer exist (e.g., deleted by parallel tasks)
+        // Use symlink_metadata to check if the path exists as a file/symlink (even if broken)
+        job.files.retain(|f| f.symlink_metadata().is_ok());
+        // Skip this job if all files were deleted
+        if job.files.is_empty()
+            && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
+        {
+            debug!("{self}: all files deleted before execution");
+            self.mark_skipped(ctx, &SkipReason::NoFilesToProcess)?;
+            return Ok(());
+        }
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
         // Set {{globs}} template variable based on pattern type
         match self.glob.as_ref() {

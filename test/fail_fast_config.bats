@@ -27,6 +27,7 @@ hooks {
 EOF
     git add hk.pkl
     git commit -m "init"
+    echo "test" > test.txt
 
     run hk check
     assert_failure
@@ -53,6 +54,7 @@ hooks {
 EOF
     git add hk.pkl
     git commit -m "init"
+    echo "test" > test.txt
 
     run hk check
     # Overall run still fails due to first step
