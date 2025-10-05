@@ -50,6 +50,9 @@ git submodule update --init --recursive
 
 # Do not touch sub-crate versions/changelogs in this repository
 
+# Update version references in docs and source files
+VERSION="${version#v}" mise run update-version
+
 # Regenerate rendered artifacts (CLI docs, usage, etc.) for the release
 mise run render
 git add \
