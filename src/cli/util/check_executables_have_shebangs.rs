@@ -1,5 +1,6 @@
 use crate::Result;
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
@@ -37,10 +38,19 @@ fn is_executable(path: &PathBuf) -> Result<bool> {
         return Ok(false);
     }
 
-    let permissions = metadata.permissions();
+    #[cfg(unix)]
+    {
+        let permissions = metadata.permissions();
+        // Check if any execute bit is set
+        Ok(permissions.mode() & 0o111 != 0)
+    }
 
-    // Check if any execute bit is set
-    Ok(permissions.mode() & 0o111 != 0)
+    #[cfg(not(unix))]
+    {
+        // On Windows, we can't reliably check execute permissions via file attributes.
+        // Return false so we don't incorrectly flag files.
+        Ok(false)
+    }
 }
 
 fn has_shebang(path: &PathBuf) -> Result<bool> {
@@ -59,6 +69,7 @@ fn has_shebang(path: &PathBuf) -> Result<bool> {
 mod tests {
     use super::*;
     use std::fs;
+    #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
     use tempfile::NamedTempFile;
 
@@ -100,6 +111,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_is_executable() {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), b"#!/bin/bash\necho hello").unwrap();
@@ -114,6 +126,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_not_executable() {
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), b"#!/bin/bash\necho hello").unwrap();

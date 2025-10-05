@@ -1704,39 +1704,21 @@ impl PreCommit {
 
     /// Make Python scripts and other executable files in the vendor directory executable
     fn make_scripts_executable(vendor_path: &Path) -> Result<()> {
-        use std::os::unix::fs::PermissionsExt;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
 
-        // Find all Python files and shell scripts
-        if let Ok(entries) = std::fs::read_dir(vendor_path) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension() {
-                        if ext == "py" || ext == "sh" {
-                            // Make executable
-                            if let Ok(metadata) = std::fs::metadata(&path) {
-                                let mut perms = metadata.permissions();
-                                perms.set_mode(perms.mode() | 0o111); // Add execute permission
-                                let _ = std::fs::set_permissions(&path, perms);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Also check pre_commit_hooks subdirectory if it exists
-        let hooks_dir = vendor_path.join("pre_commit_hooks");
-        if hooks_dir.exists() {
-            if let Ok(entries) = std::fs::read_dir(&hooks_dir) {
+            // Find all Python files and shell scripts
+            if let Ok(entries) = std::fs::read_dir(vendor_path) {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.is_file() {
                         if let Some(ext) = path.extension() {
-                            if ext == "py" {
+                            if ext == "py" || ext == "sh" {
+                                // Make executable
                                 if let Ok(metadata) = std::fs::metadata(&path) {
                                     let mut perms = metadata.permissions();
-                                    perms.set_mode(perms.mode() | 0o111);
+                                    perms.set_mode(perms.mode() | 0o111); // Add execute permission
                                     let _ = std::fs::set_permissions(&path, perms);
                                 }
                             }
@@ -1744,6 +1726,34 @@ impl PreCommit {
                     }
                 }
             }
+
+            // Also check pre_commit_hooks subdirectory if it exists
+            let hooks_dir = vendor_path.join("pre_commit_hooks");
+            if hooks_dir.exists() {
+                if let Ok(entries) = std::fs::read_dir(&hooks_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() {
+                            if let Some(ext) = path.extension() {
+                                if ext == "py" {
+                                    if let Ok(metadata) = std::fs::metadata(&path) {
+                                        let mut perms = metadata.permissions();
+                                        perms.set_mode(perms.mode() | 0o111);
+                                        let _ = std::fs::set_permissions(&path, perms);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            // On Windows, executable permissions are not managed the same way.
+            // Files with .py, .sh extensions are typically executed through their interpreters.
+            let _ = vendor_path; // Suppress unused variable warning
         }
 
         Ok(())
