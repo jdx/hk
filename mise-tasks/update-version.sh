@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euxo pipefail
+set -eux
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Ensure gsed is installed
@@ -12,6 +12,14 @@ else
     SED="sed"
 fi
 
-rg 'package://github\.com/jdx/hk/releases/download/v[\d\.]+/hk@[\d\.]+#/' --files-with-matches -0 | xargs -0 -r "$SED" -i "s|package://github\.com/jdx/hk/releases/download/v[0-9.]\+/hk@[0-9.]\+#|package://github.com/jdx/hk/releases/download/v$VERSION/hk@$VERSION#|g"
+# Find files matching the pattern - using newline-separated list for simplicity
+files=$(rg 'package://github\.com/jdx/hk/releases/download/v[\d\.]+/hk@[\d\.]+#/' --files-with-matches || true)
+
+# Update each file if any were found
+if [[ -n "$files" ]]; then
+    echo "$files" | while IFS= read -r file; do
+        "$SED" -i "s|package://github\.com/jdx/hk/releases/download/v[0-9.]\+/hk@[0-9.]\+#|package://github.com/jdx/hk/releases/download/v$VERSION/hk@$VERSION#|g" "$file"
+    done
+fi
 
 git add .
