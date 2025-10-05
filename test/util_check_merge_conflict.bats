@@ -99,6 +99,49 @@ EOF
     refute_output
 }
 
+@test "util check-merge-conflict - detects during rebase-merge" {
+    cat > file1.txt <<EOF
+<<<<<<< HEAD
+conflict
+EOF
+
+    # Simulate rebase-merge state
+    mkdir -p .git/rebase-merge
+
+    run hk util check-merge-conflict file1.txt
+    assert_failure
+    assert_output --partial "file1.txt"
+}
+
+@test "util check-merge-conflict - detects during rebase-apply" {
+    cat > file1.txt <<EOF
+>>>>>>> branch
+conflict
+EOF
+
+    # Simulate rebase-apply state
+    mkdir -p .git/rebase-apply
+
+    run hk util check-merge-conflict file1.txt
+    assert_failure
+    assert_output --partial "file1.txt"
+}
+
+@test "util check-merge-conflict - detects during merge" {
+    cat > file1.txt <<EOF
+=======
+conflict
+EOF
+
+    # Simulate merge state
+    touch .git/MERGE_MSG
+    touch .git/MERGE_HEAD
+
+    run hk util check-merge-conflict file1.txt
+    assert_failure
+    assert_output --partial "file1.txt"
+}
+
 @test "util check-merge-conflict - builtin integration" {
     cat > hk.pkl <<HK
 amends "$PKL_PATH/Config.pkl"

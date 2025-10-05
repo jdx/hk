@@ -39,7 +39,7 @@ impl CheckMergeConflict {
     }
 }
 
-/// Check if we're currently in a merge
+/// Check if we're currently in a merge or rebase
 fn is_in_merge() -> bool {
     let Ok(output) = xx::process::cmd("git", ["rev-parse", "--git-dir"]).read() else {
         return false;
@@ -51,7 +51,9 @@ fn is_in_merge() -> bool {
     let rebase_apply = std::path::Path::new(git_dir).join("rebase-apply");
     let rebase_merge = std::path::Path::new(git_dir).join("rebase-merge");
 
-    merge_msg.exists() && (merge_head.exists() || rebase_apply.exists() || rebase_merge.exists())
+    // In a merge: MERGE_MSG and MERGE_HEAD both exist
+    // In a rebase: rebase-apply or rebase-merge directories exist
+    (merge_msg.exists() && merge_head.exists()) || rebase_apply.exists() || rebase_merge.exists()
 }
 
 /// Check if a file has merge conflict markers
