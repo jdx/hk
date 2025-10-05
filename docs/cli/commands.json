@@ -677,6 +677,98 @@
         "hidden_aliases": [],
         "examples": []
       },
+      "migrate": {
+        "full_cmd": ["migrate"],
+        "usage": "migrate <SUBCOMMAND>",
+        "subcommands": {
+          "pre-commit": {
+            "full_cmd": ["migrate", "pre-commit"],
+            "usage": "migrate pre-commit [FLAGS]",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "config",
+                "usage": "-c --config <CONFIG>",
+                "help": "Path to .pre-commit-config.yaml",
+                "help_first_line": "Path to .pre-commit-config.yaml",
+                "short": ["c"],
+                "long": ["config"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "CONFIG",
+                  "usage": "<CONFIG>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "output",
+                "usage": "-o --output <OUTPUT>",
+                "help": "Output path for hk.pkl",
+                "help_first_line": "Output path for hk.pkl",
+                "short": ["o"],
+                "long": ["output"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "OUTPUT",
+                  "usage": "<OUTPUT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "force",
+                "usage": "-f --force",
+                "help": "Overwrite existing hk.pkl file",
+                "help_first_line": "Overwrite existing hk.pkl file",
+                "short": ["f"],
+                "long": ["force"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "hk-pkl-root",
+                "usage": "--hk-pkl-root <HK_PKL_ROOT>",
+                "help": "Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl",
+                "help_first_line": "Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl",
+                "short": [],
+                "long": ["hk-pkl-root"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "HK_PKL_ROOT",
+                  "usage": "<HK_PKL_ROOT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Migrate from pre-commit to hk",
+            "name": "pre-commit",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          }
+        },
+        "args": [],
+        "flags": [],
+        "mounts": [],
+        "hide": false,
+        "subcommand_required": true,
+        "help": "Migrate from other hook managers to hk",
+        "name": "migrate",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": []
+      },
       "run": {
         "full_cmd": ["run"],
         "usage": "run [FLAGS] [FILES]… <SUBCOMMAND>",
@@ -1886,6 +1978,442 @@
         "hidden_aliases": [],
         "examples": []
       },
+      "util": {
+        "full_cmd": ["util"],
+        "usage": "util <SUBCOMMAND>",
+        "subcommands": {
+          "check-added-large-files": {
+            "full_cmd": ["util", "check-added-large-files"],
+            "usage": "util check-added-large-files [--maxkb <MAXKB>] <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "maxkb",
+                "usage": "--maxkb <MAXKB>",
+                "help": "Maximum file size in kilobytes (default: 500)",
+                "help_first_line": "Maximum file size in kilobytes (default: 500)",
+                "short": [],
+                "long": ["maxkb"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "MAXKB",
+                  "usage": "<MAXKB>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for large files being added to repository",
+            "name": "check-added-large-files",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "check-byte-order-marker": {
+            "full_cmd": ["util", "check-byte-order-marker"],
+            "usage": "util check-byte-order-marker <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for UTF-8 byte order marker (BOM)",
+            "name": "check-byte-order-marker",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "check-case-conflict": {
+            "full_cmd": ["util", "check-case-conflict"],
+            "usage": "util check-case-conflict <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check for case conflicts",
+                "help_first_line": "Files to check for case conflicts",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for case-insensitive filename conflicts",
+            "name": "check-case-conflict",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "check-executables-have-shebangs": {
+            "full_cmd": ["util", "check-executables-have-shebangs"],
+            "usage": "util check-executables-have-shebangs <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Check that executable files have shebangs",
+            "name": "check-executables-have-shebangs",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "check-merge-conflict": {
+            "full_cmd": ["util", "check-merge-conflict"],
+            "usage": "util check-merge-conflict [--assume-in-merge] <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "assume-in-merge",
+                "usage": "--assume-in-merge",
+                "help": "Run the check even when not in a merge",
+                "help_first_line": "Run the check even when not in a merge",
+                "short": [],
+                "long": ["assume-in-merge"],
+                "hide": false,
+                "global": false
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for merge conflict markers",
+            "name": "check-merge-conflict",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "check-symlinks": {
+            "full_cmd": ["util", "check-symlinks"],
+            "usage": "util check-symlinks <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for broken symlinks",
+            "name": "check-symlinks",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "detect-private-key": {
+            "full_cmd": ["util", "detect-private-key"],
+            "usage": "util detect-private-key <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Detect private keys in files",
+            "name": "detect-private-key",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "end-of-file-fixer": {
+            "full_cmd": ["util", "end-of-file-fixer"],
+            "usage": "util end-of-file-fixer [-f --fix] <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check/fix",
+                "help_first_line": "Files to check/fix",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "fix",
+                "usage": "-f --fix",
+                "help": "Fix files by adding final newline",
+                "help_first_line": "Fix files by adding final newline",
+                "short": ["f"],
+                "long": ["fix"],
+                "hide": false,
+                "global": false
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for and optionally fix missing final newlines",
+            "name": "end-of-file-fixer",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "fix-byte-order-marker": {
+            "full_cmd": ["util", "fix-byte-order-marker"],
+            "usage": "util fix-byte-order-marker <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to remove BOM from",
+                "help_first_line": "Files to remove BOM from",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Remove UTF-8 byte order marker (BOM)",
+            "name": "fix-byte-order-marker",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "mixed-line-ending": {
+            "full_cmd": ["util", "mixed-line-ending"],
+            "usage": "util mixed-line-ending [-f --fix] <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check or fix",
+                "help_first_line": "Files to check or fix",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "fix",
+                "usage": "-f --fix",
+                "help": "Fix mixed line endings by normalizing to LF",
+                "help_first_line": "Fix mixed line endings by normalizing to LF",
+                "short": ["f"],
+                "long": ["fix"],
+                "hide": false,
+                "global": false
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Detect and fix mixed line endings",
+            "name": "mixed-line-ending",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "no-commit-to-branch": {
+            "full_cmd": ["util", "no-commit-to-branch"],
+            "usage": "util no-commit-to-branch [--branch… <BRANCH>]",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "branch",
+                "usage": "--branch… <BRANCH>",
+                "help": "Branch names to protect (default: main, master)",
+                "help_first_line": "Branch names to protect (default: main, master)",
+                "short": [],
+                "long": ["branch"],
+                "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "BRANCH",
+                  "usage": "<BRANCH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Prevent commits to specific branches",
+            "name": "no-commit-to-branch",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "python-check-ast": {
+            "full_cmd": ["util", "python-check-ast"],
+            "usage": "util python-check-ast <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Check Python files for valid syntax",
+            "name": "python-check-ast",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "python-debug-statements": {
+            "full_cmd": ["util", "python-debug-statements"],
+            "usage": "util python-debug-statements <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Detect Python debug statements",
+            "name": "python-debug-statements",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "trailing-whitespace": {
+            "full_cmd": ["util", "trailing-whitespace"],
+            "usage": "util trailing-whitespace [-f --fix] <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check/fix",
+                "help_first_line": "Files to check/fix",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "fix",
+                "usage": "-f --fix",
+                "help": "Fix trailing whitespace by removing it",
+                "help_first_line": "Fix trailing whitespace by removing it",
+                "short": ["f"],
+                "long": ["fix"],
+                "hide": false,
+                "global": false
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for and optionally fix trailing whitespace",
+            "name": "trailing-whitespace",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          }
+        },
+        "args": [],
+        "flags": [],
+        "mounts": [],
+        "hide": false,
+        "subcommand_required": true,
+        "help": "Utility commands for file operations",
+        "name": "util",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": []
+      },
       "validate": {
         "full_cmd": ["validate"],
         "usage": "validate",
@@ -2052,7 +2580,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.16.0",
+  "version": "1.17.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
