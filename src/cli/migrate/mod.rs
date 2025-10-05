@@ -30,8 +30,10 @@ impl Migrate {
 pub struct HkConfig {
     /// Base configuration to amend
     pub amends: String,
-    /// Imports (e.g., Builtins.pkl)
+    /// Imports without alias
     pub imports: Vec<String>,
+    /// Imports with alias (path, alias)
+    pub named_imports: Vec<(String, String)>,
     /// Vendored repo imports (name, path)
     pub vendor_imports: Vec<(String, String)>,
     /// Comments at the top of the file
@@ -97,11 +99,16 @@ impl HkConfig {
         });
 
         let mut imports = vec![];
+        let mut named_imports = vec![];
 
-        // Add Types.pkl import if specified
-        if let Some(types_import) = types_pkl_import {
-            imports.push(types_import);
-        }
+        // Always add Types.pkl import (with alias) since we use Types.Regex()
+        let types_import = types_pkl_import.unwrap_or_else(|| {
+            format!(
+                "package://github.com/jdx/hk/releases/download/v{}/hk@{}#/Types.pkl",
+                version, version
+            )
+        });
+        named_imports.push((types_import, "Types".to_string()));
 
         // Add Builtins.pkl import
         imports.push(builtins_pkl.unwrap_or_else(|| {
@@ -114,6 +121,7 @@ impl HkConfig {
         Self {
             amends,
             imports,
+            named_imports,
             ..Default::default()
         }
     }
@@ -128,6 +136,11 @@ impl HkConfig {
         // Imports
         for import in &self.imports {
             output.push_str(&format!("import \"{}\"\n", import));
+        }
+
+        // Named imports
+        for (path, alias) in &self.named_imports {
+            output.push_str(&format!("import \"{}\" as {}\n", path, alias));
         }
 
         // Vendor imports

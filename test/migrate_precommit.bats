@@ -18,7 +18,7 @@ repos:
     -   id: eslint
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
     
@@ -43,7 +43,7 @@ repos:
         exclude: ^(pre_commit/resources/)
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify exclude is preserved (as regex)
@@ -62,7 +62,7 @@ repos:
         args: [--py39-plus]
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify args are noted in comments
@@ -82,7 +82,7 @@ repos:
         additional_dependencies: [types-pyyaml, types-requests]
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify additional_dependencies are handled with mise x
@@ -102,7 +102,7 @@ repos:
         exclude_types: [markdown]
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify type filtering is documented
@@ -123,7 +123,7 @@ repos:
         stages: [pre-commit]
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify both stages are created
@@ -144,7 +144,7 @@ repos:
         files: \.py$
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify local hooks are generated with check command
@@ -167,7 +167,7 @@ repos:
         pass_filenames: false
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
 
     # Verify local hook without {{files}}
@@ -190,7 +190,7 @@ repos:
     -   id: prettier
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify meta hooks are not included
@@ -208,7 +208,7 @@ repos:
     -   id: unknown-linter
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     # Verify unknown hooks are in custom_steps with TODO
@@ -231,7 +231,7 @@ PRECOMMIT
     echo "existing content" > hk.pkl
     
     # Try without force - should fail
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_failure
     assert_output --partial "already exists"
     
@@ -285,7 +285,7 @@ repos:
     -   id: my-custom-linter
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     run cat hk.pkl
@@ -310,7 +310,7 @@ repos:
     -   id: black
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     run cat hk.pkl
@@ -330,7 +330,7 @@ repos:
     -   id: black
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     run cat hk.pkl
@@ -351,7 +351,7 @@ repos:
         always_run: true
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     run cat hk.pkl
@@ -368,7 +368,7 @@ repos:
         pass_filenames: false
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     
     run cat hk.pkl
@@ -385,7 +385,7 @@ repos:
     -   id: prettier
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
 
     run cat hk.pkl
@@ -407,7 +407,7 @@ PRECOMMIT
     [ -f .pre-commit-config.yaml ]
     [ -s .pre-commit-config.yaml ]
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
 
@@ -448,7 +448,7 @@ repos:
     -   id: prettier
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
     
@@ -508,7 +508,7 @@ repos:
     -   id: prettier
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
     
@@ -593,7 +593,7 @@ repos:
     -   id: prettier
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
     
@@ -650,7 +650,7 @@ repos:
     -   id: prettier
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
     
@@ -723,7 +723,7 @@ repos:
     -   id: prettier
 PRECOMMIT
 
-    run hk migrate pre-commit
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
     
