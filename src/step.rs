@@ -453,8 +453,10 @@ impl Step {
             return Ok(vec![j]);
         }
         let files = self.filter_files(files)?;
-        if files.is_empty() && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
-        {
+        // Skip if no files and step has file filters
+        // This means the step was explicitly looking for specific files and found none
+        let has_filters = self.glob.is_some() || self.dir.is_some() || self.exclude.is_some();
+        if files.is_empty() && has_filters {
             debug!("{self}: no file matches for step");
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(SkipReason::NoFilesToProcess);
