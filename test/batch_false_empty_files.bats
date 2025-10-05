@@ -54,3 +54,39 @@ EOF
     refute_output --partial "should not run"
 }
 
+@test "batch=false should handle files deleted between collection and execution" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+display_skip_reasons = List("no-files-to-process")
+hooks {
+    ["fix"] {
+        steps {
+            ["deleter"] {
+                exclusive = true
+                glob = "*.temp.mjs"
+                fix = "rm -f {{ files }}"
+            }
+            ["prettier"] {
+                batch = false
+                glob = "*.temp.mjs"
+                fix = "prettier --write {{ files }}"
+            }
+        }
+    }
+}
+EOF
+    # Create a temp file that matches the glob
+    echo "export const foo = 1;" > test.temp.mjs
+    git add test.temp.mjs hk.pkl
+    git commit -m "add temp file"
+
+    # The "deleter" step runs first (exclusive=true) and removes the file
+    # Then "prettier" step tries to run but file is gone
+    # On origin/main this would fail with prettier error
+    # With the fix, it should skip gracefully
+    run hk fix --all
+    assert_success
+    assert_output --partial "prettier – skipped: no files to process"
+    refute_output --partial "[error] No files matching the pattern"
+}
+

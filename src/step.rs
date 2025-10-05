@@ -844,7 +844,8 @@ impl Step {
         };
         job.status_start(ctx, semaphore).await?;
         // Filter out files that no longer exist (e.g., deleted by parallel tasks)
-        job.files.retain(|f| f.exists());
+        // Use symlink_metadata to check if the path exists as a file/symlink (even if broken)
+        job.files.retain(|f| f.symlink_metadata().is_ok());
         // Skip this job if all files were deleted
         if job.files.is_empty()
             && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
