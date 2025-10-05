@@ -2,7 +2,7 @@
 
 **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
-**Version**: 1.16.0
+**Version**: 1.17.0
 
 - **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
@@ -62,6 +62,8 @@ Output in JSON format
 - [`hk fix [FLAGS] [FILES]…`](/cli/fix.md)
 - [`hk init [-f --force] [--mise]`](/cli/init.md)
 - [`hk install [--mise]`](/cli/install.md)
+- [`hk migrate <SUBCOMMAND>`](/cli/migrate.md)
+- [`hk migrate pre-commit [FLAGS]`](/cli/migrate/pre-commit.md)
 - [`hk run [FLAGS] [FILES]… <SUBCOMMAND>`](/cli/run.md)
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
 - [`hk run pre-commit [FLAGS] [FILES]…`](/cli/run/pre-commit.md)
@@ -70,5 +72,19 @@ Output in JSON format
 - [`hk test [FLAGS]`](/cli/test.md)
 - [`hk uninstall`](/cli/uninstall.md)
 - [`hk util <SUBCOMMAND>`](/cli/util.md)
+- [`hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`](/cli/util/check-added-large-files.md)
+- [`hk util check-byte-order-marker <FILES>…`](/cli/util/check-byte-order-marker.md)
+- [`hk util check-case-conflict <FILES>…`](/cli/util/check-case-conflict.md)
+- [`hk util check-executables-have-shebangs <FILES>…`](/cli/util/check-executables-have-shebangs.md)
+- [`hk util check-merge-conflict [--assume-in-merge] <FILES>…`](/cli/util/check-merge-conflict.md)
+- [`hk util check-symlinks <FILES>…`](/cli/util/check-symlinks.md)
+- [`hk util detect-private-key <FILES>…`](/cli/util/detect-private-key.md)
+- [`hk util end-of-file-fixer [-f --fix] <FILES>…`](/cli/util/end-of-file-fixer.md)
+- [`hk util fix-byte-order-marker <FILES>…`](/cli/util/fix-byte-order-marker.md)
+- [`hk util mixed-line-ending [-f --fix] <FILES>…`](/cli/util/mixed-line-ending.md)
+- [`hk util no-commit-to-branch [--branch… <BRANCH>]`](/cli/util/no-commit-to-branch.md)
+- [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)
+- [`hk util python-debug-statements <FILES>…`](/cli/util/python-debug-statements.md)
+- [`hk util trailing-whitespace [-f --fix] <FILES>…`](/cli/util/trailing-whitespace.md)
 - [`hk validate`](/cli/validate.md)
 - [`hk version`](/cli/version.md)

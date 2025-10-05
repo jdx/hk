@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.17.0](https://github.com/jdx/hk/compare/v1.16.0..v1.17.0) - 2025-10-05
+
+### 🚀 Features
+
+- Add hk util trailing-whitespace command by [@jdx](https://github.com/jdx) in [#319](https://github.com/jdx/hk/pull/319)
+- add mixed_line_ending builtin by [@jdx](https://github.com/jdx) in [#324](https://github.com/jdx/hk/pull/324)
+- add check_symlinks builtin by [@jdx](https://github.com/jdx) in [#326](https://github.com/jdx/hk/pull/326)
+- add check_executables_have_shebangs builtin by [@jdx](https://github.com/jdx) in [#325](https://github.com/jdx/hk/pull/325)
+- Add check-merge-conflict util command and builtin by [@jdx](https://github.com/jdx) in [#322](https://github.com/jdx/hk/pull/322)
+- add check_case_conflict builtin by [@jdx](https://github.com/jdx) in [#323](https://github.com/jdx/hk/pull/323)
+- add detect_private_key builtin by [@jdx](https://github.com/jdx) in [#332](https://github.com/jdx/hk/pull/332)
+- add check_added_large_files builtin by [@jdx](https://github.com/jdx) in [#329](https://github.com/jdx/hk/pull/329)
+- add python_debug_statements builtin by [@jdx](https://github.com/jdx) in [#331](https://github.com/jdx/hk/pull/331)
+- add python_check_ast builtin by [@jdx](https://github.com/jdx) in [#330](https://github.com/jdx/hk/pull/330)
+- add no_commit_to_branch builtin by [@jdx](https://github.com/jdx) in [#333](https://github.com/jdx/hk/pull/333)
+- add check_byte_order_marker and fix_byte_order_marker builtins by [@jdx](https://github.com/jdx) in [#328](https://github.com/jdx/hk/pull/328)
+- add regex pattern support for glob and exclude by [@jdx](https://github.com/jdx) in [#336](https://github.com/jdx/hk/pull/336)
+- automatically batch large file lists to prevent ARG_MAX errors by [@jdx](https://github.com/jdx) in [#338](https://github.com/jdx/hk/pull/338)
+
+### 🐛 Bug Fixes
+
+- Add validation for stage attribute requiring fix command by [@jdx](https://github.com/jdx) in [#327](https://github.com/jdx/hk/pull/327)
+- display stderr when check_list_files returns empty list by [@jdx](https://github.com/jdx) in [#334](https://github.com/jdx/hk/pull/334)
+- added new builtins to Builtins.pkl by [@jdx](https://github.com/jdx) in [b8a2b17](https://github.com/jdx/hk/commit/b8a2b17fcaff6f2bbc792d7e236a6c033d924bba)
+- enable experimental settings in mise.toml for swift support by [@jdx](https://github.com/jdx) in [#342](https://github.com/jdx/hk/pull/342)
+- correct airflow migration test to expect local imports by [@jdx](https://github.com/jdx) in [#343](https://github.com/jdx/hk/pull/343)
+- make final CI check always run and fail if dependencies fail by [@jdx](https://github.com/jdx) in [#344](https://github.com/jdx/hk/pull/344)
+- add ruff format to ruff builtin by [@jdx](https://github.com/jdx) in [#340](https://github.com/jdx/hk/pull/340)
+
+### 🚜 Refactor
+
+- Split util module into separate files by [@jdx](https://github.com/jdx) in [#321](https://github.com/jdx/hk/pull/321)
+
+### 🛡️ Security
+
+- migrate pre-commit by [@jdx](https://github.com/jdx) in [#318](https://github.com/jdx/hk/pull/318)
+
+### 🔍 Other Changes
+
+- split CI runs into parallel jobs and add docs-sync mise task by [@jdx](https://github.com/jdx) in [#337](https://github.com/jdx/hk/pull/337)
+- remove v0 pkl files from docs/public by [@jdx](https://github.com/jdx) in [#341](https://github.com/jdx/hk/pull/341)
+
 ## [1.16.0](https://github.com/jdx/hk/compare/v1.15.7..v1.16.0) - 2025-10-02
 
 ### 🚀 Features
