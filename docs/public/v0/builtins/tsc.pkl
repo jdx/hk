@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Tsc extends hk.Step {
-    glob = new { "**/*.{ts,tsx}" }
-    check = "tsc --noEmit {{ files }}"
-    check_all = "tsc --noEmit"
-} 

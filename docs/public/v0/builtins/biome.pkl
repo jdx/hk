@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Biome extends hk.Step {
-    glob = new { "**/*.{js,jsx,ts,tsx,json}" }
-    check = "biome check {{ files }}"
-    fix = "biome check --apply {{ files }}"
-    check_all = "biome check ."
-    fix_all = "biome check --apply ."
-} 

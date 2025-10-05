@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class StandardJs extends hk.Step {
-    glob = new { "**/*.{js,jsx,ts,tsx}" }
-    check = "standard {{ files }}"
-    fix = "standard --fix {{ files }}"
-    check_all = "standard"
-    fix_all = "standard --fix"
-} 

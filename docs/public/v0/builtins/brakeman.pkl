@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Brakeman extends hk.Step {
-    glob = new { "**/*.rb" }
-    check = "brakeman -q -w2 {{ files }}"
-    check_all = "brakeman -q -w2"
-} 

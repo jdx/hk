@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class StandardRb extends hk.Step {
-    glob = new { "**/*.rb" }
-    check = "standardrb {{ files }}"
-    fix = "standardrb --fix {{ files }}"
-    check_all = "standardrb"
-    fix_all = "standardrb --fix"
-} 

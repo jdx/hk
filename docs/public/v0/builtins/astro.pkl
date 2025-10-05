@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Astro extends hk.Step {
-    glob = new { "**/*.astro" }
-    check = "astro check {{ files }}"
-    check_all = "astro check"
-} 

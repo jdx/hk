@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Rubocop extends hk.Step {
-    glob = new { "**/*.rb" }
-    check = "rubocop {{ files }}"
-    check_all = "rubocop ."
-    fix = "rubocop --fix {{ files }}"
-    fix_all = "rubocop --fix ."
-} 

@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Rustfmt extends hk.Step {
-    glob = new { "**/*.rs" }
-    check = "rustfmt --check --edition 2024 {{ files }}"
-    fix = "rustfmt --edition 2024 {{ files }}"
-} 

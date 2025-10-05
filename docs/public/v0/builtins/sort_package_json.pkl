@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class SortPackageJson extends hk.Step {
-    glob = new { "**/package.json" }
-    check = "sort-package-json --check {{ files }}"
-    fix = "sort-package-json {{ files }}"
-    check_all = "sort-package-json --check"
-    fix_all = "sort-package-json"
-} 

@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Ktlint extends hk.Step {
-    glob = new { "**/*.kt" }
-    check = "ktlint {{ files }}"
-    fix = "ktlint -F {{ files }}"
-    check_all = "ktlint"
-    fix_all = "ktlint -F"
-} 

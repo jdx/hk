@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Flake8 extends hk.Step {
-    glob = new { "**/*.py" }
-    check = "flake8 {{ files }}"
-    check_all = "flake8 ."
-} 

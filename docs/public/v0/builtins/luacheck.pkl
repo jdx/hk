@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Luacheck extends hk.Step {
-    glob = new { "**/*.lua" }
-    check = "luacheck {{ files }}"
-    check_all = "luacheck ."
-} 

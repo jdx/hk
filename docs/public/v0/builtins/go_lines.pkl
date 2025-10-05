@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class GoLines extends hk.Step {
-    glob = new { "**/*.go" }
-    check = "golines --dry-run {{ files }}"
-    fix = "golines -w {{ files }}"
-    check_all = "golines --dry-run ."
-    fix_all = "golines -w ."
-} 

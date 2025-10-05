@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Sorbet extends hk.Step {
-    glob = new { "**/*.rb" }
-    check = "srb tc {{ files }}"
-    check_all = "srb tc"
-} 

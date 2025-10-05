@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class MarkdownLint extends hk.Step {
-    glob = new { "**/*.{md,markdown}" }
-    check = "markdownlint {{ files }}"
-    fix = "markdownlint --fix {{ files }}"
-    check_all = "markdownlint ."
-    fix_all = "markdownlint --fix ."
-} 

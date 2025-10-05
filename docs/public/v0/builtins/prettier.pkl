@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Prettier extends hk.Step {
-    glob = new { "**/*.{js,jsx,ts,tsx,css,scss,less,html,json,jsonc,yaml,markdown,markdown.mdx,graphql,handlebars,svelte,astro,htmlangular}" }
-    check = "prettier --check {{ files }}"
-    fix = "prettier --write {{ files }}"
-    // check_all = "prettier --check ."
-    // fix_all = "prettier --write ."
-} 
