@@ -579,7 +579,7 @@ impl PreCommit {
                     || entry
                         .split_whitespace()
                         .next()
-                        .map_or(false, |s| s.ends_with(".py")));
+                        .is_some_and(|s| s.ends_with(".py")));
 
             let cmd = if is_pygrep {
                 // pygrep hooks use the entry as a regex pattern
@@ -614,15 +614,13 @@ impl PreCommit {
                             image_name, docker_args
                         )
                     }
+                } else if docker_args.is_empty() {
+                    format!("docker run --rm -v $(pwd):/src -w /src {}", image_name)
                 } else {
-                    if docker_args.is_empty() {
-                        format!("docker run --rm -v $(pwd):/src -w /src {}", image_name)
-                    } else {
-                        format!(
-                            "docker run --rm -v $(pwd):/src -w /src {} {}",
-                            image_name, docker_args
-                        )
-                    }
+                    format!(
+                        "docker run --rm -v $(pwd):/src -w /src {} {}",
+                        image_name, docker_args
+                    )
                 }
             } else if is_python_script {
                 // Use uv run for local Python scripts
@@ -1533,15 +1531,13 @@ impl PreCommit {
                             install_check, build_dir, binary_name, entry_args
                         )
                     }
+                } else if entry_args.is_empty() {
+                    format!("{} && {}/{}", install_check, build_dir, binary_name)
                 } else {
-                    if entry_args.is_empty() {
-                        format!("{} && {}/{}", install_check, build_dir, binary_name)
-                    } else {
-                        format!(
-                            "{} && {}/{} {}",
-                            install_check, build_dir, binary_name, entry_args
-                        )
-                    }
+                    format!(
+                        "{} && {}/{} {}",
+                        install_check, build_dir, binary_name, entry_args
+                    )
                 };
                 (swift_cmd, false) // No prefix needed, we're calling the binary directly
             } else {
