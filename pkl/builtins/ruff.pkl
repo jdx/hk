@@ -3,6 +3,29 @@ import "../Config.pkl"
 ruff = new Config.Step {
     glob = "*.py"
     stage = "*.py"
-    check = "ruff check {{ files }} && ruff format --check {{ files }}"
-    fix = "ruff check --fix {{ files }} && ruff format {{ files }}"
+    check = "ruff check {{ files }}"
+    fix = "ruff check --fix {{ files }}"
+    tests {
+        ["detects unused import"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
+            files = List("{{tmp}}/test.py")
+            expect { code = 1 }
+        }
+        ["fixes unused import"] {
+            run = "fix"
+            write { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
+            files = List("{{tmp}}/test.py")
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.py"] = "print('hello')\n" }
+            }
+        }
+        ["passes clean file"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = "print('hello')\n" }
+            files = List("{{tmp}}/test.py")
+            expect { code = 0 }
+        }
+    }
 } 

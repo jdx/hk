@@ -1,0 +1,31 @@
+import "../Config.pkl"
+
+ruff_format = new Config.Step {
+    glob = "*.py"
+    stage = "*.py"
+    check = "ruff format --check {{ files }}"
+    fix = "ruff format {{ files }}"
+    tests {
+        ["detects unformatted code"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = "x=1+2\n" }
+            files = List("{{tmp}}/test.py")
+            expect { code = 1 }
+        }
+        ["formats code"] {
+            run = "fix"
+            write { ["{{tmp}}/test.py"] = "x=1+2\n" }
+            files = List("{{tmp}}/test.py")
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.py"] = "x = 1 + 2\n" }
+            }
+        }
+        ["passes formatted code"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = "x = 1 + 2\n" }
+            files = List("{{tmp}}/test.py")
+            expect { code = 0 }
+        }
+    }
+}
