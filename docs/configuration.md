@@ -104,9 +104,9 @@ exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
 exclude = "node_modules"
 
 // Exclude using regex pattern (for complex matching)
-// First import Config.pkl to use the Regex helper
-import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
-exclude = Config.Regex(#".*\.(test|spec)\.(js|ts)$"#)
+// First import Types.pkl to use the Regex helper
+import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Types.pkl"
+exclude = Types.Regex(#".*\.(test|spec)\.(js|ts)$"#)
 ```
 
 Notes:
@@ -186,7 +186,7 @@ Files the step should run on. By default this will only run this step if at leas
 
 // Regex pattern for complex matching
 ["config-lint"] {
-    glob = Config.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
+    glob = Types.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
     check = "config-lint {{files}}"
 }
 ```
@@ -477,7 +477,7 @@ Files to exclude from the step. Supports glob patterns and regex patterns. Files
 // Exclude with regex pattern for complex matching
 ["linter"] {
     glob = List("**/*")
-    exclude = Config.Regex(#"""
+    exclude = Types.Regex(#"""
 (?x)
 ^(vendor|dist|build)/.*$|
 .*\.(min|bundle)\.(js|css)$|
@@ -494,14 +494,14 @@ Notes:
 
 **Using the Regex helper**
 
-The `Regex()` helper function is available by importing Config.pkl:
+The `Regex()` helper function is available by importing Types.pkl:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.2.0/hk@1.2.0#/Types.pkl"
 
 // Use it like:
-exclude = Config.Regex(#".*\.test\.js$"#)
+exclude = Types.Regex(#".*\.test\.js$"#)
 ```
 
 ### `<STEP>.interactive: bool`

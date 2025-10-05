@@ -18,7 +18,7 @@ their changes
 >>>>>>> branch
 EOF
 
-    run hk util check-merge-conflict file1.txt
+    run hk util check-merge-conflict --assume-in-merge file1.txt
     assert_failure
     assert_output --partial "file1.txt"
 }
@@ -27,7 +27,7 @@ EOF
     echo "normal line" > file1.txt
     echo "another line" >> file1.txt
 
-    run hk util check-merge-conflict file1.txt
+    run hk util check-merge-conflict --assume-in-merge file1.txt
     assert_success
     refute_output
 }
@@ -39,7 +39,7 @@ normal line
 some changes
 EOF
 
-    run hk util check-merge-conflict file1.txt
+    run hk util check-merge-conflict --assume-in-merge file1.txt
     assert_failure
     assert_output --partial "file1.txt"
 }
@@ -51,7 +51,7 @@ normal line
 some changes
 EOF
 
-    run hk util check-merge-conflict file1.txt
+    run hk util check-merge-conflict --assume-in-merge file1.txt
     assert_failure
     assert_output --partial "file1.txt"
 }
@@ -62,7 +62,7 @@ normal line
 >>>>>>> branch
 EOF
 
-    run hk util check-merge-conflict file1.txt
+    run hk util check-merge-conflict --assume-in-merge file1.txt
     assert_failure
     assert_output --partial "file1.txt"
 }
@@ -77,7 +77,7 @@ EOF
 conflict
 EOF
 
-    run hk util check-merge-conflict file1.txt file2.txt
+    run hk util check-merge-conflict --assume-in-merge file1.txt file2.txt
     assert_failure
     assert_output --partial "file1.txt"
     assert_output --partial "file2.txt"
@@ -86,13 +86,56 @@ EOF
 @test "util check-merge-conflict - ignores markers in middle of line" {
     echo "this is not <<<<<<< a conflict" > file1.txt
 
-    run hk util check-merge-conflict file1.txt
+    run hk util check-merge-conflict --assume-in-merge file1.txt
     assert_success
     refute_output
 }
 
-@test "util check-merge-conflict - detects with leading whitespace" {
+@test "util check-merge-conflict - ignores markers with leading whitespace" {
     echo "  <<<<<<< HEAD  " > file1.txt
+
+    run hk util check-merge-conflict --assume-in-merge file1.txt
+    assert_success
+    refute_output
+}
+
+@test "util check-merge-conflict - detects during rebase-merge" {
+    cat > file1.txt <<EOF
+<<<<<<< HEAD
+conflict
+EOF
+
+    # Simulate rebase-merge state
+    mkdir -p .git/rebase-merge
+
+    run hk util check-merge-conflict file1.txt
+    assert_failure
+    assert_output --partial "file1.txt"
+}
+
+@test "util check-merge-conflict - detects during rebase-apply" {
+    cat > file1.txt <<EOF
+>>>>>>> branch
+conflict
+EOF
+
+    # Simulate rebase-apply state
+    mkdir -p .git/rebase-apply
+
+    run hk util check-merge-conflict file1.txt
+    assert_failure
+    assert_output --partial "file1.txt"
+}
+
+@test "util check-merge-conflict - detects during merge" {
+    cat > file1.txt <<EOF
+=======
+conflict
+EOF
+
+    # Simulate merge state
+    touch .git/MERGE_MSG
+    touch .git/MERGE_HEAD
 
     run hk util check-merge-conflict file1.txt
     assert_failure

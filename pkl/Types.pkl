@@ -1,0 +1,10 @@
+@ModuleInfo { minPklVersion = "0.27.2" }
+module hk.Types
+
+typealias RegexPattern = Mapping<"_type"|"pattern", String>
+
+/// Helper function to create regex patterns with clean syntax
+function Regex(pattern: String): RegexPattern = new Mapping {
+    ["_type"] = "regex"
+    ["pattern"] = pattern
+}

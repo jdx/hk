@@ -28,6 +28,34 @@ use xx::file::display_path;
 
 use crate::step_test::StepTest;
 
+/// Check if a file is binary by reading the first 8KB and looking for null bytes
+/// Returns None if the file cannot be read (error), Some(true/false) otherwise
+fn is_binary_file(path: &PathBuf) -> Option<bool> {
+    use dashmap::DashMap;
+    use std::io::Read;
+
+    // Memoize results (only cache successful reads, not errors)
+    // DashMap provides lock-free concurrent access, avoiding Mutex bottlenecks
+    static CACHE: LazyLock<DashMap<PathBuf, bool>> = LazyLock::new(DashMap::new);
+
+    // Check cache first (lock-free read)
+    if let Some(result) = CACHE.get(path) {
+        return Some(*result);
+    }
+
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut buffer = [0u8; 8192];
+    let bytes_read = file.read(&mut buffer).ok()?;
+
+    // Check for null bytes in the content
+    let is_binary = buffer[..bytes_read].contains(&0);
+
+    // Cache the result
+    CACHE.insert(path.clone(), is_binary);
+
+    Some(is_binary)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Pattern {
@@ -129,6 +157,9 @@ pub struct Step {
     pub exclude: Option<Pattern>,
     #[serde(default)]
     pub exclusive: bool,
+    /// Whether to include binary files (default: false)
+    #[serde(default)]
+    pub allow_binary: bool,
     pub root: Option<PathBuf>,
     #[serde(default)]
     pub hide: bool,
@@ -310,6 +341,16 @@ impl Step {
                     .collect();
             files.retain(|f| !excluded.contains(f));
         }
+
+        // Filter out binary files unless allow_binary is true
+        if !self.allow_binary {
+            files.retain(|f| {
+                // Keep file if we can't determine if it's binary (might be deleted/renamed)
+                // or if it's definitely not binary
+                is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
+            });
+        }
+
         Ok(files)
     }
 

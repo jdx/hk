@@ -94,9 +94,11 @@ pub static ARG_MAX: LazyLock<usize> = LazyLock::new(|| {
     #[cfg(unix)]
     {
         // Try to get the system's ARG_MAX using sysconf
+        // sysconf returns -1 on error or if the value is indeterminate
         unsafe {
             let value = libc::sysconf(libc::_SC_ARG_MAX);
-            if value > 0 {
+            // Must check for -1 before casting to usize, as -1 would become a very large number
+            if value != -1 && value > 0 {
                 return value as usize;
             }
         }
@@ -134,4 +136,43 @@ fn var_false(name: &str) -> bool {
         .map(|val| val.to_lowercase())
         .map(|val| val == "false" || val == "0")
         .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_arg_max_is_valid() {
+        // ARG_MAX should be a reasonable value, not extremely large
+        let arg_max = *ARG_MAX;
+
+        // Should be at least the fallback value
+        assert!(arg_max >= 128 * 1024, "ARG_MAX too small: {}", arg_max);
+
+        // Should not be an unreasonably large value (like -1 cast to usize)
+        // On most systems, ARG_MAX is between 128KB and 2MB
+        // We'll use 10MB as an upper bound to catch the -1 bug
+        assert!(
+            arg_max <= 10 * 1024 * 1024,
+            "ARG_MAX suspiciously large (possible -1 cast): {}",
+            arg_max
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_arg_max_unix_sysconf() {
+        // On Unix systems, verify that sysconf returns a valid value or we use the fallback
+        unsafe {
+            let value = libc::sysconf(libc::_SC_ARG_MAX);
+            if value == -1 {
+                // If sysconf fails, we should use the fallback
+                assert_eq!(*ARG_MAX, 128 * 1024);
+            } else {
+                // If sysconf succeeds, ARG_MAX should match it
+                assert_eq!(*ARG_MAX, value as usize);
+            }
+        }
+    }
 }

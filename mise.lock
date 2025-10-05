@@ -145,6 +145,14 @@ url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellche
 [tools.shellcheck.platforms.macos-arm64-shellcheck]
 checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829f45"
 
+[[tools.swift]]
+version = "6.2"
+backend = "core:swift"
+
+[tools.swift.platforms.macos-arm64]
+checksum = "blake3:d9e22fb7495996e43d1565e61b9bd3009d8e72de9cdf73cd07d93acfaeed5abe"
+size = 1726141935
+
 [[tools.swiftlint]]
 version = "0.59.1"
 backend = "asdf:swiftlint"
@@ -171,6 +179,15 @@ url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-x86_64-unknow
 checksum = "blake3:1578af59ab40316139c9b82da5b56bc318f44ffae85a322504afaed423a01ac6"
 size = 5008766
 url = "https://github.com/jdx/usage/releases/download/v2.2.2/usage-universal-apple-darwin.tar.gz"
+
+[[tools.uv]]
+version = "0.8.23"
+backend = "aqua:astral-sh/uv"
+
+[tools.uv.platforms.linux-x64]
+checksum = "sha256:598f7939cae516de105075d55eb20d906787de307a0011904e301346a13de2ff"
+size = 21470350
+url = "https://github.com/astral-sh/uv/releases/download/0.8.23/uv-x86_64-unknown-linux-musl.tar.gz"
 
 [[tools.vhs]]
 version = "0.10.0"

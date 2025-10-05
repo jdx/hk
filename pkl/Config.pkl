@@ -1,5 +1,7 @@
 @ModuleInfo { minPklVersion = "0.27.2" }
 module hk.Config
+import "Types.pkl"
+
 min_hk_version = "{{version | truncate(length=1)}}.0.0"
 
 class Script {
@@ -9,13 +11,10 @@ class Script {
     other: String?
 }
 
-typealias RegexPattern = Mapping<"_type"|"pattern", String>
+typealias RegexPattern = Types.RegexPattern
 
 /// Helper function to create regex patterns with clean syntax
-function Regex(pattern: String): RegexPattern = new Mapping {
-    ["_type"] = "regex"
-    ["pattern"] = pattern
-}
+function Regex(pattern: String): RegexPattern = Types.Regex(pattern)
 
 class Step {
     _type = "step"

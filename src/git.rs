@@ -258,7 +258,9 @@ impl Git {
             let staged_copied_files = BTreeSet::new();
             for s in staged_statuses.iter() {
                 if let Some(path) = s.path().map(PathBuf::from) {
-                    let exists = path.exists();
+                    // Check if path exists (including broken symlinks)
+                    // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
+                    let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
                     let st = s.status();
                     if st.is_index_new() {
                         staged_added_files.insert(path.clone());
@@ -292,7 +294,9 @@ impl Git {
             let mut unstaged_renamed_files = BTreeSet::new();
             for s in unstaged_statuses.iter() {
                 if let Some(path) = s.path().map(PathBuf::from) {
-                    let exists = path.exists();
+                    // Check if path exists (including broken symlinks)
+                    // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
+                    let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
                     let st = s.status();
                     if st == git2::Status::WT_NEW {
                         untracked_files.insert(path.clone());
@@ -364,7 +368,9 @@ impl Git {
                 let index_status = chars.next().unwrap_or_default();
                 let workdir_status = chars.next().unwrap_or_default();
                 let path = PathBuf::from(chars.skip(1).collect::<String>());
-                let exists = path.exists();
+                // Check if path exists (including broken symlinks)
+                // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
+                let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
                 let is_modified =
                     |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
 

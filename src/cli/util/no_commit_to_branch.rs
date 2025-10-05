@@ -53,8 +53,7 @@ mod tests {
         // This test will only pass in a git repository
         // In CI or non-git environments, it might fail
         let result = get_current_branch();
-        if result.is_ok() {
-            let branch = result.unwrap();
+        if let Ok(branch) = result {
             // Branch name should not be empty
             assert!(!branch.is_empty());
         }

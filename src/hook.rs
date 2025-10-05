@@ -710,6 +710,32 @@ impl Hook {
                 .cloned()
                 .collect()
         };
+
+        // Filter out directories (including symlinks to directories)
+        // git ls-files includes symlinks, which may point to directories
+        files.retain(|f| {
+            // First check if it's a symlink using symlink_metadata (doesn't follow links)
+            if let Ok(symlink_meta) = std::fs::symlink_metadata(f) {
+                if symlink_meta.is_symlink() {
+                    // For symlinks, follow them to check if they point to directories
+                    if let Ok(metadata) = std::fs::metadata(f) {
+                        // Symlink points to something - keep only if not a directory
+                        !metadata.is_dir()
+                    } else {
+                        // Broken symlink (metadata() fails) - keep it
+                        // Some tools like check-symlinks need to detect broken symlinks
+                        true
+                    }
+                } else {
+                    // Not a symlink - keep if not a directory
+                    !symlink_meta.is_dir()
+                }
+            } else {
+                // Can't stat it at all (deleted/renamed) - keep it
+                true
+            }
+        });
+
         // Union excludes from Settings and CLI options
         let settings = crate::settings::Settings::get();
         let mut all_excludes = settings.exclude.clone();

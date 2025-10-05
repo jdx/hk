@@ -5,6 +5,7 @@ mod check_executables_have_shebangs;
 mod check_merge_conflict;
 mod check_symlinks;
 mod detect_private_key;
+mod end_of_file_fixer;
 mod fix_byte_order_marker;
 mod mixed_line_ending;
 mod no_commit_to_branch;
@@ -19,6 +20,7 @@ pub use check_executables_have_shebangs::CheckExecutablesHaveShebangs;
 pub use check_merge_conflict::CheckMergeConflict;
 pub use check_symlinks::CheckSymlinks;
 pub use detect_private_key::DetectPrivateKey;
+pub use end_of_file_fixer::EndOfFileFixer;
 pub use fix_byte_order_marker::FixByteOrderMarker;
 pub use mixed_line_ending::MixedLineEnding;
 pub use no_commit_to_branch::NoCommitToBranch;
@@ -51,6 +53,8 @@ enum UtilCommands {
     CheckSymlinks(CheckSymlinks),
     /// Detect private keys in files
     DetectPrivateKey(DetectPrivateKey),
+    /// Check for and optionally fix missing final newlines
+    EndOfFileFixer(EndOfFileFixer),
     /// Remove UTF-8 byte order marker (BOM)
     FixByteOrderMarker(FixByteOrderMarker),
     /// Detect and fix mixed line endings
@@ -75,6 +79,7 @@ impl Util {
             UtilCommands::CheckMergeConflict(cmd) => cmd.run().await,
             UtilCommands::CheckSymlinks(cmd) => cmd.run().await,
             UtilCommands::DetectPrivateKey(cmd) => cmd.run().await,
+            UtilCommands::EndOfFileFixer(cmd) => cmd.run().await,
             UtilCommands::FixByteOrderMarker(cmd) => cmd.run().await,
             UtilCommands::MixedLineEnding(cmd) => cmd.run().await,
             UtilCommands::NoCommitToBranch(cmd) => cmd.run().await,

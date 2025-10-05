@@ -22,6 +22,8 @@ ripgrep = "latest"
 usage = "latest"
 vhs = "latest"
 taplo = "latest"
+uv = "latest"
+swift = "latest"
 
 [tasks.init]
 run = '''
@@ -48,7 +50,7 @@ run = "./benchmark/benchmark.sh"
 tools = { lefthook = "latest", "pre-commit" = "latest" }
 
 [tasks.ci]
-depends = ["test", "lint"]
+depends = ["test", "lint", "docs:sync"]
 
 [tasks.test]
 alias = ["t"]
@@ -102,6 +104,8 @@ run = "bun i && bun run docs:dev"
 [tasks."docs:build"]
 dir = "docs"
 run = "bun i && bun run docs:build"
+[tasks."docs:sync"]
+run = "./scripts/check-docs-sync.sh"
 
 
 
@@ -125,3 +129,36 @@ run = [
   "prettier --write docs/cli",
   "git add hk.usage.kdl docs",
 ]
+
+[tasks."test:migrate:airflow"]
+depends = ["build"]
+run = '''
+if [ ! -d ./airflow ]; then
+  git clone https://github.com/jdx/airflow ./airflow
+fi
+cd ./airflow
+git checkout hk
+hk migrate pre-commit --hk-pkl-root ../pkl --force
+if [ -n "$(git status --porcelain hk.pkl)" ]; then
+  git add hk.pkl
+  git -c commit.gpgsign=false commit -m "chore: regenerate hk.pkl"
+fi
+hk check --all
+'''
+
+[tasks."test:migrate:pillow"]
+depends = ["build"]
+run = '''
+if [ ! -d ./pillow ]; then
+  git clone https://github.com/jdx/Pillow ./pillow
+fi
+cd ./pillow
+git checkout main
+git pull
+hk migrate pre-commit --hk-pkl-root ../pkl --force
+if [ -n "$(git status --porcelain hk.pkl)" ]; then
+  git add hk.pkl
+  git -c commit.gpgsign=false commit -m "chore: regenerate hk.pkl"
+fi
+hk check --all
+'''

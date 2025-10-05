@@ -37,6 +37,11 @@ impl MixedLineEnding {
 }
 
 fn has_mixed_line_endings(path: &PathBuf) -> Result<bool> {
+    // Skip directories
+    if path.is_dir() {
+        return Ok(false);
+    }
+
     let content = fs::read(path)?;
 
     // Skip binary files
@@ -64,6 +69,11 @@ fn has_mixed_line_endings(path: &PathBuf) -> Result<bool> {
 }
 
 fn fix_line_endings(path: &PathBuf) -> Result<()> {
+    // Skip directories
+    if path.is_dir() {
+        return Ok(());
+    }
+
     let content = fs::read(path)?;
 
     // Convert all CRLF to LF

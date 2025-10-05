@@ -4,34 +4,8 @@ newlines = new Config.Step {
     glob = "*"
     stage = "*"
     check_first = true
-    shell = "bash -o errexit -c"
-    check_list_files = """
-status=0
-for file in {{files}}; do
-    if [[ "$(file -b --mime-type "$file")" != text/* ]]; then
-        continue
-    fi
-    if [[ "$(tail -c1 "$file")" != '' ]]; then
-        echo "$file"
-        status=1
-    fi
-done
-exit $status
-"""
-    fix = new Config.Script {
-        linux = "sed -i -e '$a\\' {{files}}"
-        macos = """
-for file in {{files}}; do
-    if [[ "$(file -b --mime-type "$file")" != text/* ]]; then
-        continue
-    fi
-    if [[ "$(tail -c1 "$file")" != '' ]]; then
-        echo >> "$file"
-    fi
-done
-"""
-        other = "sed -i -e '$a\\' {{files}}"
-    }
+    check_list_files = "hk util end-of-file-fixer {{files}}"
+    fix = "hk util end-of-file-fixer --fix {{files}}"
     tests {
       ["adds newline"] {
         run = "fix"

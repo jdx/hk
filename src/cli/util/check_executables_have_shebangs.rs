@@ -31,6 +31,12 @@ impl CheckExecutablesHaveShebangs {
 
 fn is_executable(path: &PathBuf) -> Result<bool> {
     let metadata = fs::metadata(path)?;
+
+    // Skip directories
+    if metadata.is_dir() {
+        return Ok(false);
+    }
+
     let permissions = metadata.permissions();
 
     // Check if any execute bit is set

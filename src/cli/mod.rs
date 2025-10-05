@@ -14,6 +14,7 @@ mod config;
 mod fix;
 mod init;
 mod install;
+mod migrate;
 mod run;
 mod test;
 mod uninstall;
@@ -71,6 +72,7 @@ enum Commands {
     Fix(Box<fix::Fix>),
     Init(Box<init::Init>),
     Install(Box<install::Install>),
+    Migrate(Box<migrate::Migrate>),
     Run(Box<run::Run>),
     Test(Box<test::Test>),
     Uninstall(Box<uninstall::Uninstall>),
@@ -154,6 +156,7 @@ pub async fn run() -> Result<()> {
         Commands::Fix(cmd) => cmd.hook.run("fix").await,
         Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
+        Commands::Migrate(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,
         Commands::Uninstall(cmd) => cmd.run().await,
         Commands::Usage(cmd) => cmd.run().await,
