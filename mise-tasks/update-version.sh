@@ -16,6 +16,14 @@ fi
 echo "Current directory: $(pwd)"
 echo "Ripgrep version: $(rg --version | head -1)"
 
+# Debug: check if expected files exist
+echo "Checking for expected files:"
+ls -la docs/getting_started.md docs/configuration.md hk-example.pkl src/cli/init.rs 2>&1 | head -10
+
+# Debug: check what these files contain
+echo "Content check (docs/getting_started.md):"
+grep -n "package://github.com/jdx/hk" docs/getting_started.md | head -3 || echo "Pattern not found"
+
 # Find files matching the pattern - using newline-separated list for simplicity
 files=$(rg 'package://github\.com/jdx/hk/releases/download/v[\d\.]+/hk@[\d\.]+#/' --files-with-matches || true)
 
