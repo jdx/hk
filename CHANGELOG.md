@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.18.0](https://github.com/jdx/hk/compare/v1.17.0..v1.18.0) - 2025-10-05
+
+### 🚀 Features
+
+- add fix-smart-quotes util by [@joonas](https://github.com/joonas) in [#348](https://github.com/jdx/hk/pull/348)
+
+### 🐛 Bug Fixes
+
+- add Windows support by guarding Unix-specific file permission APIs by [@jdx](https://github.com/jdx) in [#349](https://github.com/jdx/hk/pull/349)
+- handle missing files in update-version script by [@jdx](https://github.com/jdx) in [#350](https://github.com/jdx/hk/pull/350)
+- rewrite update-version script to avoid pipefail issues by [@jdx](https://github.com/jdx) in [211b1ac](https://github.com/jdx/hk/commit/211b1ac4850a5634e5bc6f11fb70cf7ad8f6d7cb)
+- run render before update-version in release script by [@jdx](https://github.com/jdx) in [35d2df3](https://github.com/jdx/hk/commit/35d2df37c2e453fe4587a56452da6906ebeb2c66)
+- use [0-9] instead of \d in ripgrep pattern for better compatibility by [@jdx](https://github.com/jdx) in [cf8ebb0](https://github.com/jdx/hk/commit/cf8ebb08036f105fed6eb787254ebd1c468208cc)
+- explicitly specify search path for ripgrep in update-version script by [@jdx](https://github.com/jdx) in [5666f96](https://github.com/jdx/hk/commit/5666f96d1fdbecd507f24034e5ec7d98c793f342)
+
+### 🔍 Other Changes
+
+- add diagnostic output to update-version script by [@jdx](https://github.com/jdx) in [aaeea63](https://github.com/jdx/hk/commit/aaeea63c071d4709dcab69a5bae4a56a6752da18)
+- add more file existence checks by [@jdx](https://github.com/jdx) in [cbace40](https://github.com/jdx/hk/commit/cbace4055e2aaafadb53ae0db81275da7bbe7333)
+- test rg pattern matching in CI environment by [@jdx](https://github.com/jdx) in [a52ea46](https://github.com/jdx/hk/commit/a52ea4663655a41afb6abf9c8e112308f5314af4)
+
+### New Contributors
+
+- @joonas made their first contribution in [#348](https://github.com/jdx/hk/pull/348)
+
 ## [1.17.0](https://github.com/jdx/hk/compare/v1.16.0..v1.17.0) - 2025-10-05
 
 ### 🚀 Features
@@ -28,10 +53,16 @@
 - correct airflow migration test to expect local imports by [@jdx](https://github.com/jdx) in [#343](https://github.com/jdx/hk/pull/343)
 - make final CI check always run and fail if dependencies fail by [@jdx](https://github.com/jdx) in [#344](https://github.com/jdx/hk/pull/344)
 - add ruff format to ruff builtin by [@jdx](https://github.com/jdx) in [#340](https://github.com/jdx/hk/pull/340)
+- update release-plz to automatically update version refs in docs by [@jdx](https://github.com/jdx) in [#339](https://github.com/jdx/hk/pull/339)
+- enable rename detection in git status by [@jdx](https://github.com/jdx) in [#347](https://github.com/jdx/hk/pull/347)
 
 ### 🚜 Refactor
 
 - Split util module into separate files by [@jdx](https://github.com/jdx) in [#321](https://github.com/jdx/hk/pull/321)
+
+### 🧪 Testing
+
+- remove flaky ruby vendoring test by [@jdx](https://github.com/jdx) in [#345](https://github.com/jdx/hk/pull/345)
 
 ### 🛡️ Security
 
@@ -41,6 +72,7 @@
 
 - split CI runs into parallel jobs and add docs-sync mise task by [@jdx](https://github.com/jdx) in [#337](https://github.com/jdx/hk/pull/337)
 - remove v0 pkl files from docs/public by [@jdx](https://github.com/jdx) in [#341](https://github.com/jdx/hk/pull/341)
+- remove swift from mise tools and skip swift tests when unavailable by [@jdx](https://github.com/jdx) in [#346](https://github.com/jdx/hk/pull/346)
 
 ## [1.16.0](https://github.com/jdx/hk/compare/v1.15.7..v1.16.0) - 2025-10-02
 
