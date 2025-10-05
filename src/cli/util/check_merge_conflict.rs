@@ -8,13 +8,17 @@ pub struct CheckMergeConflict {
     /// Files to check
     #[clap(required = true)]
     pub files: Vec<PathBuf>,
+
+    /// Run the check even when not in a merge
+    #[clap(long)]
+    pub assume_in_merge: bool,
 }
 
 impl CheckMergeConflict {
     pub async fn run(&self) -> Result<()> {
-        // Only check for merge conflicts if we're actually in a merge
+        // Only check for merge conflicts if we're actually in a merge or assume_in_merge is set
         // This matches pre-commit behavior
-        if !is_in_merge() {
+        if !self.assume_in_merge && !is_in_merge() {
             return Ok(());
         }
 
