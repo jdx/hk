@@ -2605,7 +2605,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.18.0",
+  "version": "1.18.1",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
