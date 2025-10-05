@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class SwiftLint extends hk.Step {
-    glob = new { "**/*.swift" }
-    check = "swiftlint lint {{ files }}"
-    fix = "swiftlint --fix {{ files }}"
-    check_all = "swiftlint"
-    fix_all = "swiftlint --fix"
-} 

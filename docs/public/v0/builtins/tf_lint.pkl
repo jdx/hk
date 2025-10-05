@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class TfLint extends hk.Step {
-    glob = new { "**/*.tf" }
-    check = "tflint {{ files }}"
-    check_all = "tflint"
-} 

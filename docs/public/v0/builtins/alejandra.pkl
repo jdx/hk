@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Alejandra extends hk.Step {
-    glob = new { "**/*.nix" }
-    check = "alejandra --check {{ files }}"
-    fix = "alejandra {{ files }}"
-    check_all = "alejandra --check ."
-    fix_all = "alejandra ."
-} 

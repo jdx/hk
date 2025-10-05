@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class CppLint extends hk.Step {
-    glob = new { "**/*.{c,h,cpp,hpp,cc,hh,cxx,hxx}" }
-    check = "cpplint {{ files }}"
-    check_all = "cpplint --recursive ."
-} 

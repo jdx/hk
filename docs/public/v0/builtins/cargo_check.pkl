@@ -1,6 +1,0 @@
-import "../hk.pkl"
-
-class CargoCheck extends hk.Step {
-    glob = new { "**/*.rs" }
-    check_all = "cargo check --all-features"
-} 

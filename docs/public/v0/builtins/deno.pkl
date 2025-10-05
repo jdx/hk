@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Deno extends hk.Step {
-    glob = new { "**/*.{js,jsx,ts,tsx}" }
-    check = "deno fmt --check {{ files }}"
-    fix = "deno fmt {{ files }}"
-    check_all = "deno fmt --check"
-    fix_all = "deno fmt"
-} 

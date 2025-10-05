@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Yamllint extends hk.Step {
-    glob = new { "**/*.{yml,yaml}" }
-    check = "yamllint {{ files }}"
-    check_all = "yamllint ."
-} 

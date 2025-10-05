@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Xmllint extends hk.Step {
-    glob = new { "**/*.xml" }
-    check = "xmllint --noout {{ files }}"
-    check_all = "xmllint --noout ."
-} 

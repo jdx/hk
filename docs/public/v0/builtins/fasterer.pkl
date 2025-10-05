@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class Fasterer extends hk.Step {
-    glob = new { "**/*.rb" }
-    check = "fasterer {{ files }}"
-    check_all = "fasterer"
-} 

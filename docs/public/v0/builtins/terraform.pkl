@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Terraform extends hk.Step {
-    glob = new { "**/*.tf" }
-    check = "terraform fmt -check {{ files }}"
-    fix = "terraform fmt {{ files }}"
-    check_all = "terraform fmt -check"
-    fix_all = "terraform fmt"
-} 

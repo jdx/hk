@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class GoVet extends hk.Step {
-    glob = new { "**/*.go" }
-    check = "go vet {{ files }}"
-    check_all = "go vet ."
-} 

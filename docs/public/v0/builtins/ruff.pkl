@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Ruff extends hk.Step {
-    glob = new { "**/*.py" }
-    check = "ruff check {{ files }}"
-    fix = "ruff check --fix {{ files }}"
-    check_all = "ruff check ."
-    fix_all = "ruff check --fix ."
-} 

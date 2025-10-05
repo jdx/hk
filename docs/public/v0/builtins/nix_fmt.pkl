@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class NixFmt extends hk.Step {
-    glob = new { "**/*.nix" }
-    check = "nixfmt --check {{ files }}"
-    fix = "nixfmt {{ files }}"
-    check_all = "nixfmt --check ."
-    fix_all = "nixfmt ."
-} 

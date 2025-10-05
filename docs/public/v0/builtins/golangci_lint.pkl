@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class GolangciLint extends hk.Step {
-    glob = new { "**/*.go" }
-    check = "golangci-lint run {{ files }}"
-    fix = "golangci-lint run --fix {{ files }}"
-    check_all = "golangci-lint run"
-    fix_all = "golangci-lint run --fix"
-} 
