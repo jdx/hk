@@ -139,11 +139,35 @@ jobs:
       - run: mise run msrv
   final:
     needs:
+      - build
       - ci-libgit2
       - ci-nolibgit2
       - ci-other
       - msrv
     runs-on: ubuntu-latest
     timeout-minutes: 1
+    if: always()
     steps:
-      - run: echo "All CI jobs completed successfully"
+      - name: Check CI job results
+        run: |
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "build failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.ci-libgit2.result }}" != "success" ]; then
+            echo "ci-libgit2 failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.ci-nolibgit2.result }}" != "success" ]; then
+            echo "ci-nolibgit2 failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.ci-other.result }}" != "success" ]; then
+            echo "ci-other failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.msrv.result }}" != "success" ]; then
+            echo "msrv failed or was skipped"
+            exit 1
+          fi
+          echo "All CI jobs completed successfully"
