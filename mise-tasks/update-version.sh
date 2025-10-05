@@ -24,8 +24,8 @@ ls -la docs/getting_started.md docs/configuration.md hk-example.pkl src/cli/init
 echo "Content check (docs/getting_started.md):"
 grep -n "package://github.com/jdx/hk" docs/getting_started.md | head -3 || echo "Pattern not found"
 
-# Find files matching the pattern - using newline-separated list for simplicity
-files=$(rg 'package://github\.com/jdx/hk/releases/download/v[\d\.]+/hk@[\d\.]+#/' --files-with-matches || true)
+# Find files matching the pattern - using [0-9] instead of \d for better compatibility
+files=$(rg 'package://github\.com/jdx/hk/releases/download/v[0-9.]+/hk@[0-9.]+#/' --files-with-matches || true)
 
 # Debug: show what we found
 echo "Found files:"
