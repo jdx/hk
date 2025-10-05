@@ -239,14 +239,14 @@ impl Git {
             let mut status_options = StatusOptions::new();
             status_options.include_untracked(true);
             status_options.recurse_untracked_dirs(true);
-            status_options.renames_head_to_index(true);
 
             if let Some(pathspec) = pathspec {
                 for path in pathspec {
                     status_options.pathspec(path);
                 }
             }
-            // Get staged files (index)
+            // Get staged files (index) - detect renames between HEAD and index
+            status_options.renames_head_to_index(true);
             status_options.show(StatusShow::Index);
             let staged_statuses = repo
                 .statuses(Some(&mut status_options))
@@ -282,7 +282,9 @@ impl Git {
                 }
             }
 
-            // Get unstaged files (workdir)
+            // Get unstaged files (workdir) - detect renames between index and workdir
+            status_options.renames_head_to_index(false);
+            status_options.renames_index_to_workdir(true);
             status_options.show(StatusShow::Workdir);
             let unstaged_statuses = repo
                 .statuses(Some(&mut status_options))
@@ -309,7 +311,7 @@ impl Git {
                     if st == git2::Status::WT_DELETED {
                         unstaged_deleted_files.insert(path.clone());
                     }
-                    if st == git2::Status::WT_RENAMED {
+                    if st.is_wt_renamed() {
                         unstaged_renamed_files.insert(path.clone());
                     }
                     if exists {
@@ -415,6 +417,44 @@ impl Git {
                         unstaged_renamed_files.insert(path.clone());
                     }
                     _ => {}
+                }
+            }
+
+            // Detect unstaged renames using git add -N + git diff trick
+            // This is needed because git status --porcelain doesn't show renames for unstaged files
+            if !untracked_files.is_empty() {
+                // Temporarily add untracked files with intent-to-add (no content)
+                let mut add_args = vec!["add", "-N"];
+                let untracked_paths: Vec<&str> =
+                    untracked_files.iter().filter_map(|p| p.to_str()).collect();
+                add_args.extend(&untracked_paths);
+                let _ = git_read(add_args.into_iter().map(OsString::from).collect::<Vec<_>>());
+
+                // Run git diff to detect renames
+                let diff_output = git_read(vec![
+                    OsString::from("diff"),
+                    OsString::from("--name-status"),
+                    OsString::from("--find-renames"),
+                    OsString::from("HEAD"),
+                ]);
+
+                // Reset to remove intent-to-add entries
+                let _ = git_read(vec![OsString::from("reset")]);
+
+                // Parse diff output for renames
+                if let Ok(output) = diff_output {
+                    for line in output.split('\n') {
+                        if line.is_empty() {
+                            continue;
+                        }
+                        let parts: Vec<&str> = line.split('\t').collect();
+                        if parts.len() >= 2 && parts[0].starts_with('R') {
+                            // Format: R<similarity>\told_path\tnew_path
+                            if let Some(new_path) = parts.last() {
+                                unstaged_renamed_files.insert(PathBuf::from(new_path));
+                            }
+                        }
+                    }
                 }
             }
 

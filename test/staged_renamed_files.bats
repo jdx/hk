@@ -114,3 +114,81 @@ EOF
     assert_success
     assert_output --partial "Renamed files detected"
 }
+
+@test "unstaged_renamed_files detects unstaged renames" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["check-unstaged-renames"] {
+                condition = """
+git.unstaged_renamed_files != []
+"""
+                check = "echo 'Unstaged renamed files detected'"
+            }
+            ["check-no-unstaged-renames"] {
+                condition = """
+git.unstaged_renamed_files == []
+"""
+                check = "echo 'No unstaged renames detected'"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # Create a file, commit it, then rename it WITHOUT staging
+    echo "original content" > original.txt
+    git add original.txt
+    git commit -m "add original file"
+
+    # Rename the file in working directory without staging anything
+    mv original.txt renamed.txt
+
+    # The hook should detect the unstaged rename
+    run hk run pre-commit
+    assert_success
+    assert_output --partial "Unstaged renamed files detected"
+    refute_output --partial "No unstaged renames detected"
+}
+
+@test "unstaged_renamed_files empty when no unstaged renames" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["check-unstaged-renames"] {
+                condition = """
+git.unstaged_renamed_files != []
+"""
+                check = "echo 'Unstaged renamed files detected'"
+            }
+            ["check-no-unstaged-renames"] {
+                condition = """
+git.unstaged_renamed_files == []
+"""
+                check = "echo 'No unstaged renames detected'"
+            }
+        }
+    }
+}
+EOF
+    git init
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # Create a file and stage it (no unstaged renames)
+    echo "new content" > new.txt
+    git add new.txt
+
+    # The hook should NOT detect unstaged renames
+    run hk run pre-commit
+    assert_success
+    assert_output --partial "No unstaged renames detected"
+    refute_output --partial "Unstaged renamed files detected"
+}
