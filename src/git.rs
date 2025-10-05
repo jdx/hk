@@ -239,6 +239,7 @@ impl Git {
             let mut status_options = StatusOptions::new();
             status_options.include_untracked(true);
             status_options.recurse_untracked_dirs(true);
+            status_options.renames_head_to_index(true);
 
             if let Some(pathspec) = pathspec {
                 for path in pathspec {
@@ -332,17 +333,11 @@ impl Git {
                 unstaged_renamed_files,
             })
         } else {
-            let mut args = vec![
-                "status",
-                "--porcelain",
-                "--no-renames",
-                "--untracked-files=all",
-                "-z",
-            ]
-            .into_iter()
-            .filter(|&arg| !arg.is_empty())
-            .map(OsString::from)
-            .collect_vec();
+            let mut args = vec!["status", "--porcelain", "--untracked-files=all", "-z"]
+                .into_iter()
+                .filter(|&arg| !arg.is_empty())
+                .map(OsString::from)
+                .collect_vec();
             if let Some(pathspec) = pathspec {
                 args.push("--".into());
                 args.extend(pathspec.iter().map(|p| p.into()))
