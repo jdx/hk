@@ -1,3 +1,6 @@
+[settings]
+experimental = true
+
 [env]
 _.path = ["test/bats/bin", "{{ env.CARGO_TARGET_DIR | default(value='target') }}/debug", "node_modules/.bin"]
 
