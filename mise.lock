@@ -128,6 +128,10 @@ checksum = "sha256:4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4
 size = 2566310
 url = "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz"
 
+[[tools.ruff]]
+version = "0.13.3"
+backend = "aqua:astral-sh/ruff"
+
 [[tools.shellcheck]]
 version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
@@ -144,14 +148,6 @@ url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellche
 
 [tools.shellcheck.platforms.macos-arm64-shellcheck]
 checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829f45"
-
-[[tools.swift]]
-version = "6.2"
-backend = "core:swift"
-
-[tools.swift.platforms.macos-arm64]
-checksum = "blake3:d9e22fb7495996e43d1565e61b9bd3009d8e72de9cdf73cd07d93acfaeed5abe"
-size = 1726141935
 
 [[tools.swiftlint]]
 version = "0.59.1"
