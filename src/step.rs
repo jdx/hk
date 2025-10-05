@@ -31,19 +31,16 @@ use crate::step_test::StepTest;
 /// Check if a file is binary by reading the first 8KB and looking for null bytes
 /// Returns None if the file cannot be read (error), Some(true/false) otherwise
 fn is_binary_file(path: &PathBuf) -> Option<bool> {
-    use std::collections::HashMap;
+    use dashmap::DashMap;
     use std::io::Read;
-    use std::sync::Mutex;
 
     // Memoize results (only cache successful reads, not errors)
-    static CACHE: LazyLock<Mutex<HashMap<PathBuf, bool>>> =
-        LazyLock::new(|| Mutex::new(HashMap::new()));
+    // DashMap provides lock-free concurrent access, avoiding Mutex bottlenecks
+    static CACHE: LazyLock<DashMap<PathBuf, bool>> = LazyLock::new(DashMap::new);
 
-    // Check cache first
-    if let Ok(cache) = CACHE.lock() {
-        if let Some(&result) = cache.get(path) {
-            return Some(result);
-        }
+    // Check cache first (lock-free read)
+    if let Some(result) = CACHE.get(path) {
+        return Some(*result);
     }
 
     let mut file = std::fs::File::open(path).ok()?;
@@ -54,9 +51,7 @@ fn is_binary_file(path: &PathBuf) -> Option<bool> {
     let is_binary = buffer[..bytes_read].contains(&0);
 
     // Cache the result
-    if let Ok(mut cache) = CACHE.lock() {
-        cache.insert(path.clone(), is_binary);
-    }
+    CACHE.insert(path.clone(), is_binary);
 
     Some(is_binary)
 }
