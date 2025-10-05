@@ -640,6 +640,10 @@ PRECOMMIT
 }
 
 @test "migrate precommit - vendor swift hooks (swift-format)" {
+    if ! command -v swift &> /dev/null; then
+        skip "swift not available"
+    fi
+
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/swiftlang/swift-format
