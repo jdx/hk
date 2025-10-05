@@ -159,7 +159,7 @@ impl PreCommit {
 
         println!("\nNext steps:");
         println!("1. Review the generated hk.pkl file");
-        println!("2. Complete any TODO items for local/unknown hooks");
+        println!("2. Complete any TODO items (local/unknown hooks, vendored repos)");
         println!("3. Run 'hk install' to install git hooks");
         println!("4. Run 'hk check --all' to test your configuration");
 
@@ -185,6 +185,25 @@ impl PreCommit {
         }
 
         // Add header comments
+        if !vendored_repos.is_empty() {
+            hk_config
+                .header_comments
+                .push("TODO: Vendored repos detected".to_string());
+            hk_config.header_comments.push(
+                "The .hk/vendors directory is a compatibility layer for pre-commit projects."
+                    .to_string(),
+            );
+            hk_config
+                .header_comments
+                .push("For better performance and idiomatic hk usage, consider installing tools with mise:".to_string());
+            hk_config
+                .header_comments
+                .push("  mise use <tool>@<version>".to_string());
+            hk_config.header_comments.push(
+                "Then update your hooks to use the mise-installed tools directly.".to_string(),
+            );
+            hk_config.header_comments.push("".to_string());
+        }
         if config.fail_fast {
             hk_config
                 .header_comments
