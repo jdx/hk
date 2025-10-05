@@ -360,6 +360,9 @@ cmd util subcommand_required=#true help="Utility commands for file operations" {
     cmd fix-byte-order-marker help="Remove UTF-8 byte order marker (BOM)" {
         arg <FILES>… help="Files to remove BOM from" var=#true
     }
+    cmd fix-smart-quotes help="Replace UTF-8 smart quotes" {
+        arg <FILES>… help="Files to replace smart quotes in" var=#true
+    }
     cmd mixed-line-ending help="Detect and fix mixed line endings" {
         flag "-f --fix" help="Fix mixed line endings by normalizing to LF"
         arg <FILES>… help="Files to check or fix" var=#true

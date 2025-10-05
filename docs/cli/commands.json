@@ -2247,6 +2247,31 @@
             "hidden_aliases": [],
             "examples": []
           },
+          "fix-smart-quotes": {
+            "full_cmd": ["util", "fix-smart-quotes"],
+            "usage": "util fix-smart-quotes <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to replace smart quotes in",
+                "help_first_line": "Files to replace smart quotes in",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Replace UTF-8 smart quotes",
+            "name": "fix-smart-quotes",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
           "mixed-line-ending": {
             "full_cmd": ["util", "mixed-line-ending"],
             "usage": "util mixed-line-ending [-f --fix] <FILES>…",

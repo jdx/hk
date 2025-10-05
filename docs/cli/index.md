@@ -81,6 +81,7 @@ Output in JSON format
 - [`hk util detect-private-key <FILES>…`](/cli/util/detect-private-key.md)
 - [`hk util end-of-file-fixer [-f --fix] <FILES>…`](/cli/util/end-of-file-fixer.md)
 - [`hk util fix-byte-order-marker <FILES>…`](/cli/util/fix-byte-order-marker.md)
+- [`hk util fix-smart-quotes <FILES>…`](/cli/util/fix-smart-quotes.md)
 - [`hk util mixed-line-ending [-f --fix] <FILES>…`](/cli/util/mixed-line-ending.md)
 - [`hk util no-commit-to-branch [--branch… <BRANCH>]`](/cli/util/no-commit-to-branch.md)
 - [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)
