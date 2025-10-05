@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Taplo extends hk.Step {
-    glob = new { "**/*.toml" }
-    check = "taplo check {{ files }}"
-    fix = "taplo format {{ files }}"
-    check_all = "taplo check ."
-    fix_all = "taplo format ."
-} 

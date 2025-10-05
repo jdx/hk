@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Xo extends hk.Step {
-    glob = new { "**/*.{js,jsx,ts,tsx}" }
-    check = "xo {{ files }}"
-    fix = "xo --fix {{ files }}"
-    check_all = "xo"
-    fix_all = "xo --fix"
-} 

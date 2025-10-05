@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class GoImports extends hk.Step {
-    glob = new { "**/*.go" }
-    check = "goimports -l {{ files }}"
-    fix = "goimports -w {{ files }}"
-    check_all = "goimports -l ."
-    fix_all = "goimports -w ."
-} 

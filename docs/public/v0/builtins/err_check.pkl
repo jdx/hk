@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class ErrCheck extends hk.Step {
-    glob = new { "**/*.go" }
-    check = "errcheck {{ files }}"
-    check_all = "errcheck ./..."
-} 

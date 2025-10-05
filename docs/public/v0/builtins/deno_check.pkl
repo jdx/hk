@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class DenoCheck extends hk.Step {
-    glob = new { "**/*.{js,jsx,ts,tsx}" }
-    check = "deno check {{ files }}"
-    check_all = "deno check"
-} 

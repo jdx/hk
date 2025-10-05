@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class StyleLint extends hk.Step {
-    glob = new { "**/*.{css,scss,sass,less}" }
-    check = "stylelint {{ files }}"
-    fix = "stylelint --fix {{ files }}"
-    check_all = "stylelint \"**/*.{css,scss,sass,less}\""
-    fix_all = "stylelint --fix \"**/*.{css,scss,sass,less}\""
-} 

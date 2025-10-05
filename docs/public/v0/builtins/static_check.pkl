@@ -1,7 +1,0 @@
-import "../hk.pkl"
-
-class StaticCheck extends hk.Step {
-    glob = new { "**/*.go" }
-    check = "staticcheck {{ files }}"
-    check_all = "staticcheck ./..."
-} 

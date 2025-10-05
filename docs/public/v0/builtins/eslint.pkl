@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Eslint extends hk.Step {
-    glob = new { "**/*.{js,jsx,ts,tsx}" }
-    check = "eslint {{ files }}"
-    fix = "eslint --fix {{ files }}"
-    check_all = "eslint ."
-    fix_all = "eslint --fix ."
-} 

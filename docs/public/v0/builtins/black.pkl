@@ -1,9 +1,0 @@
-import "../hk.pkl"
-
-class Black extends hk.Step {
-    glob = new { "**/*.py" }
-    check = "black --check {{ files }}"
-    fix = "black {{ files }}"
-    check_all = "black --check ."
-    fix_all = "black ."
-} 
