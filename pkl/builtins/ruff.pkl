@@ -3,6 +3,6 @@ import "../Config.pkl"
 ruff = new Config.Step {
     glob = "*.py"
     stage = "*.py"
-    check = "ruff check {{ files }}"
-    fix = "ruff check --fix {{ files }}"
+    check = "ruff check {{ files }} && ruff format --check {{ files }}"
+    fix = "ruff check --fix {{ files }} && ruff format {{ files }}"
 } 
