@@ -7,6 +7,7 @@ mod check_symlinks;
 mod detect_private_key;
 mod end_of_file_fixer;
 mod fix_byte_order_marker;
+mod fix_smart_quotes;
 mod mixed_line_ending;
 mod no_commit_to_branch;
 mod python_check_ast;
@@ -22,6 +23,7 @@ pub use check_symlinks::CheckSymlinks;
 pub use detect_private_key::DetectPrivateKey;
 pub use end_of_file_fixer::EndOfFileFixer;
 pub use fix_byte_order_marker::FixByteOrderMarker;
+pub use fix_smart_quotes::FixSmartQuotes;
 pub use mixed_line_ending::MixedLineEnding;
 pub use no_commit_to_branch::NoCommitToBranch;
 pub use python_check_ast::PythonCheckAst;
@@ -57,6 +59,8 @@ enum UtilCommands {
     EndOfFileFixer(EndOfFileFixer),
     /// Remove UTF-8 byte order marker (BOM)
     FixByteOrderMarker(FixByteOrderMarker),
+    /// Replace UTF-8 smart quotes
+    FixSmartQuotes(FixSmartQuotes),
     /// Detect and fix mixed line endings
     MixedLineEnding(MixedLineEnding),
     /// Prevent commits to specific branches
@@ -81,6 +85,7 @@ impl Util {
             UtilCommands::DetectPrivateKey(cmd) => cmd.run().await,
             UtilCommands::EndOfFileFixer(cmd) => cmd.run().await,
             UtilCommands::FixByteOrderMarker(cmd) => cmd.run().await,
+            UtilCommands::FixSmartQuotes(cmd) => cmd.run().await,
             UtilCommands::MixedLineEnding(cmd) => cmd.run().await,
             UtilCommands::NoCommitToBranch(cmd) => cmd.run().await,
             UtilCommands::PythonCheckAst(cmd) => cmd.run().await,
