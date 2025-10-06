@@ -190,3 +190,137 @@ EOF
     assert_output --partial "existing_file.txt: team_a"
     assert_output --partial "test_file.txt: team_b"
 }
+
+@test "stage directive stages files in sibling directories from subdirectory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ["create-owners"] {
+                condition = "git.staged_added_files != []"
+                fix = """
+# Create owners.yml in the same directory as the new file
+for file in \$(git diff --cached --name-only --diff-filter=A); do
+    dir=\$(dirname "\$file")
+    echo "\$(basename "\$file"): team_a" > "\$dir/owners.yml"
+done
+"""
+                stage = "**/owners.yml"
+            }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "init"
+    hk install
+
+    # Create sibling directories with new files in each
+    mkdir -p web/dir1 web/dir2
+    echo "content1" > web/dir1/file1.txt
+    echo "content2" > web/dir2/file2.txt
+    git add web/dir1/file1.txt web/dir2/file2.txt
+
+    # Change to one subdirectory before running hook
+    cd web/dir1
+
+    # Run the pre-commit hook from subdirectory
+    hk run pre-commit
+
+    # Go back to root to check results
+    cd ../..
+
+    # Verify both original files are staged
+    run git diff --name-only --cached
+    assert_success
+    assert_output --partial "web/dir1/file1.txt"
+    assert_output --partial "web/dir2/file2.txt"
+
+    # Verify owners.yml in BOTH directories are staged
+    assert_output --partial "web/dir1/owners.yml"
+    assert_output --partial "web/dir2/owners.yml"
+
+    # Verify both owners.yml files exist and have correct content
+    run test -f web/dir1/owners.yml
+    assert_success
+    run cat web/dir1/owners.yml
+    assert_success
+    assert_output "file1.txt: team_a"
+
+    run test -f web/dir2/owners.yml
+    assert_success
+    run cat web/dir2/owners.yml
+    assert_success
+    assert_output "file2.txt: team_a"
+}
+
+@test "stage directive stages files in parent and child directories from subdirectory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ["create-owners"] {
+                condition = "git.staged_added_files != []"
+                fix = """
+# Create owners.yml in the same directory as the new file
+for file in \$(git diff --cached --name-only --diff-filter=A); do
+    dir=\$(dirname "\$file")
+    echo "\$(basename "\$file"): team_a" > "\$dir/owners.yml"
+done
+"""
+                stage = "**/owners.yml"
+            }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "init"
+    hk install
+
+    # Create parent and nested child directories with files
+    mkdir -p web/parent/child
+    echo "parent content" > web/parent/parent_file.txt
+    echo "child content" > web/parent/child/child_file.txt
+    git add web/parent/parent_file.txt web/parent/child/child_file.txt
+
+    # Change to middle directory before running hook
+    cd web/parent
+
+    # Run the pre-commit hook from middle directory
+    hk run pre-commit
+
+    # Go back to root to check results
+    cd ../..
+
+    # Verify both original files are staged
+    run git diff --name-only --cached
+    assert_success
+    assert_output --partial "web/parent/parent_file.txt"
+    assert_output --partial "web/parent/child/child_file.txt"
+
+    # Verify owners.yml in BOTH parent and child directories are staged
+    assert_output --partial "web/parent/owners.yml"
+    assert_output --partial "web/parent/child/owners.yml"
+
+    # Verify both owners.yml files exist and have correct content
+    run test -f web/parent/owners.yml
+    assert_success
+    run cat web/parent/owners.yml
+    assert_success
+    assert_output "parent_file.txt: team_a"
+
+    run test -f web/parent/child/owners.yml
+    assert_success
+    run cat web/parent/child/owners.yml
+    assert_success
+    assert_output "child_file.txt: team_a"
+}
