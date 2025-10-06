@@ -324,3 +324,73 @@ EOF
     assert_success
     assert_output "child_file.txt: team_a"
 }
+
+@test "stage directive does not stage files not matching glob from subdirectory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ["create-files"] {
+                condition = "git.staged_added_files != []"
+                fix = """
+# Create both .yml and .md files in the same directory as the new file
+for file in \$(git diff --cached --name-only --diff-filter=A); do
+    dir=\$(dirname "\$file")
+    echo "\$(basename "\$file"): team_a" > "\$dir/owners.yml"
+    echo "# \$(basename "\$file")" > "\$dir/notes.md"
+done
+"""
+                stage = "**/owners.yml"
+            }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "init"
+    hk install
+
+    # Create sibling directories with new files in each
+    mkdir -p web/dir1 web/dir2
+    echo "content1" > web/dir1/file1.txt
+    echo "content2" > web/dir2/file2.txt
+    git add web/dir1/file1.txt web/dir2/file2.txt
+
+    # Change to one subdirectory before running hook
+    cd web/dir1
+
+    # Run the pre-commit hook from subdirectory
+    hk run pre-commit
+
+    # Go back to root to check results
+    cd ../..
+
+    # Verify original files are staged
+    run git diff --name-only --cached
+    assert_success
+    assert_output --partial "web/dir1/file1.txt"
+    assert_output --partial "web/dir2/file2.txt"
+
+    # Verify owners.yml files ARE staged (they match the glob)
+    assert_output --partial "web/dir1/owners.yml"
+    assert_output --partial "web/dir2/owners.yml"
+
+    # Verify .md files are NOT staged (they don't match the glob)
+    refute_output --partial "web/dir1/notes.md"
+    refute_output --partial "web/dir2/notes.md"
+
+    # Verify .md files exist but remain untracked
+    run test -f web/dir1/notes.md
+    assert_success
+    run test -f web/dir2/notes.md
+    assert_success
+
+    run git status --porcelain web/dir1/notes.md web/dir2/notes.md
+    assert_success
+    assert_line --regexp '^\?\? web/dir1/notes\.md$'
+    assert_line --regexp '^\?\? web/dir2/notes\.md$'
+}
