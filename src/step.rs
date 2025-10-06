@@ -688,8 +688,10 @@ impl Step {
                     .status(Some(&stage_pathspecs))?;
 
                 // Build a scoped candidate set:
-                //  - Include only files that this step actually operated on (union of job files)
-                //  - Additionally include any explicit, non-glob stage paths (to allow generators)
+                //  - Include files that this step actually operated on (union of job files)
+                //  - Include explicit, non-glob stage paths (to allow generators)
+                //  - Include files from status that match the stage globs (untracked/unstaged)
+                //    since status was filtered by stage_pathspecs
                 let is_globlike = |s: &str| s.contains('*') || s.contains('?') || s.contains('[');
                 let mut candidates: indexmap::IndexSet<PathBuf> = all_job_files.clone();
                 for pat in &stage_globs {
@@ -701,18 +703,14 @@ impl Step {
                     }
                 }
 
-                // Build candidate list from job files plus explicit non-glob stage paths.
-                // For glob patterns, include both unstaged and untracked files as candidates
-                // so that generators can stage newly created files matching the glob.
-                let is_globlike = |s: &str| s.contains('*') || s.contains('?') || s.contains('[');
-                if stage_globs.iter().any(|g| is_globlike(g)) {
-                    for p in status.unstaged_files.iter() {
-                        candidates.insert(p.clone());
-                    }
-                    for p in status.untracked_files.iter() {
-                        candidates.insert(p.clone());
-                    }
+                // status was filtered by stage_pathspecs, so these files already match the globs
+                for p in status.untracked_files.iter() {
+                    candidates.insert(p.clone());
                 }
+                for p in status.unstaged_files.iter() {
+                    candidates.insert(p.clone());
+                }
+
                 let candidate_vec = candidates.into_iter().collect_vec();
                 let matched_candidates = glob::get_matches(&stage_globs, &candidate_vec)?;
                 // Now keep only those that are actually unstaged or untracked
