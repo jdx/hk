@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.2](https://github.com/jdx/hk/compare/v1.18.1..v1.18.2) - 2025-10-06
+
+### 🐛 Bug Fixes
+
+- stage directive to include untracked files matching globs by [@jdx](https://github.com/jdx) in [#355](https://github.com/jdx/hk/pull/355)
+
 ## [1.18.1](https://github.com/jdx/hk/compare/v1.18.0..v1.18.1) - 2025-10-05
 
 ### 🐛 Bug Fixes
