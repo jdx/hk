@@ -9,7 +9,7 @@ teardown() {
   _common_teardown
 }
 
-@test "stage={{job_files}} only stages files processed by the step" {
+@test "stage=<JOB_FILES> only stages files processed by the step" {
   cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -18,7 +18,7 @@ hooks {
     steps = new Mapping<String, Step> {
       ["shfmt"] {
         glob = List("**/*")
-        stage = "{{job_files}}"
+        stage = "<JOB_FILES>"
         check_list_files = """
 # Simulate shfmt's shell script detection - output one file per line
 matched=""
@@ -81,7 +81,7 @@ EOF
   assert_line --regexp '^\?\? src/unrelated\.txt$'
 }
 
-@test "stage={{job_files}} works with check_list_files that filters by content" {
+@test "stage=<JOB_FILES> works with check_list_files that filters by content" {
   cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -90,7 +90,7 @@ hooks {
     steps = new Mapping<String, Step> {
       ["fix-todos"] {
         glob = "**/*.ts"
-        stage = "{{job_files}}"
+        stage = "<JOB_FILES>"
         check_list_files = """
 # Only return files that contain TODO comments
 if grep -l 'TODO' {{files}} 2>/dev/null; then
@@ -141,7 +141,7 @@ EOF
   assert_line --regexp '^ M src/without_todo\.ts$'
 }
 
-@test "stage={{job_files}} stages files created by the step" {
+@test "stage=<JOB_FILES> stages files created by the step" {
   cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -150,7 +150,7 @@ hooks {
     steps = new Mapping<String, Step> {
       ["generator"] {
         glob = "src/input.ts"
-        stage = "{{job_files}}"
+        stage = "<JOB_FILES>"
         fix = """
 # Process input and generate output
 cat src/input.ts > src/generated.ts

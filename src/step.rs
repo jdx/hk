@@ -516,17 +516,17 @@ impl Step {
             }
         }
         for job in jobs.iter_mut().filter(|j| j.check_first) {
-            // If stage={{job_files}} and check_list_files is defined, always run check_first
+            // If stage=<JOB_FILES> and check_list_files is defined, always run check_first
             // to ensure files are filtered correctly, even when there's no contention
             let needs_filtering_for_stage = self
                 .stage
                 .as_ref()
-                .map(|v| v.len() == 1 && v[0] == "{{job_files}}")
+                .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
                 .unwrap_or(false)
                 && self.check_list_files.is_some();
 
             if needs_filtering_for_stage {
-                // Always run check_first when we need to filter files for stage={{job_files}}
+                // Always run check_first when we need to filter files for stage=<JOB_FILES>
                 job.check_first = true;
             } else {
                 // Default behavior: only set check_first if there are any files in contention
@@ -656,15 +656,15 @@ impl Step {
         if non_skip_jobs > 0 && matches!(ctx.hook_ctx.run_type, RunType::Fix) {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
             // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
-            // Special case: if stage is exactly "{{job_files}}", use all_job_files directly
+            // Special case: if stage is exactly "<JOB_FILES>", use actual_job_files directly
             let stage_only_job_files = self
                 .stage
                 .as_ref()
-                .map(|v| v.len() == 1 && v[0] == "{{job_files}}")
+                .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
                 .unwrap_or(false);
 
             let rendered_patterns: Vec<String> = if stage_only_job_files {
-                // Don't render the template, we'll use all_job_files directly
+                // Don't render the template, we'll use actual_job_files directly
                 vec![]
             } else {
                 self.stage
@@ -722,7 +722,7 @@ impl Step {
                 //    since status was filtered by stage_pathspecs
                 let is_globlike = |s: &str| s.contains('*') || s.contains('?') || s.contains('[');
                 let mut candidates: indexmap::IndexSet<PathBuf> = if stage_only_job_files {
-                    // When stage={{job_files}}, use the actual files processed (after check_list_files filtering)
+                    // When stage=<JOB_FILES>, use the actual files processed (after check_list_files filtering)
                     trace!(
                         "{}: using actual_job_files for stage candidates: {:?}",
                         self, actual_job_files
@@ -751,11 +751,11 @@ impl Step {
                         candidates.insert(p.clone());
                     }
                 }
-                // else: when stage={{job_files}}, candidates only contains all_job_files
+                // else: when stage=<JOB_FILES>, candidates only contains actual_job_files
 
                 let candidate_vec = candidates.into_iter().collect_vec();
                 let matched_candidates = if stage_only_job_files {
-                    // For {{job_files}}, all candidates are already the files we want
+                    // For <JOB_FILES>, all candidates are already the files we want
                     candidate_vec
                 } else {
                     glob::get_matches(&stage_globs, &candidate_vec)?

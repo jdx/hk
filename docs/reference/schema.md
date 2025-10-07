@@ -189,9 +189,23 @@ Steps define individual linting/formatting tasks. Each step has these properties
 #### `stage`
 - **Type:** `String | List<String>?` (optional)
 - **Description:** Files to stage after running fix step
-- **Example:**
+- **Special Values:**
+  - `"<JOB_FILES>"` - Stage only the files that were actually processed by this step (after `check_list_files` filtering). Use this when `check_list_files` dynamically discovers files to avoid staging unrelated files that match the glob.
+- **Examples:**
   ```pkl
   stage = glob  // Stage the same files that were processed
+  stage = "<JOB_FILES>"  // Stage only files processed after check_list_files filtering
+  stage = List("*.js", "*.ts")  // Stage specific patterns
+  ```
+- **Use case for `<JOB_FILES>`:**
+  When using `check_list_files` with a broad glob like `**/*`, you want to stage only the files that were actually processed, not all files matching the glob:
+  ```pkl
+  ["shfmt"] {
+    glob = "**/*"
+    stage = "<JOB_FILES>"  // Only stage shell scripts, not all files
+    check_list_files = "find . -name '*.sh' -type f"
+    fix = "shfmt -w {{files}}"
+  }
   ```
 
 ### Commands

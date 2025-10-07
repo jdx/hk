@@ -2,6 +2,7 @@
 # Test that reproduces the shfmt untracked file staging bug
 # Bug: when shfmt has glob="**/*" and stage="**/*", it stages untracked files
 # that happen to be shell scripts during a commit
+# Fixed by using stage="<JOB_FILES>" instead
 
 set -euo pipefail
 
