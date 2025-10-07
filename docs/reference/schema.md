@@ -517,8 +517,8 @@ Common builtins:
 ### Basic JavaScript/TypeScript Project
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
@@ -542,8 +542,8 @@ hooks {
 ### Monorepo with Multiple Languages
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
 
 local frontend_linters = new Mapping<String, Step> {
   ["prettier"] = (Builtins.prettier) {
@@ -579,7 +579,7 @@ hooks {
 ### Custom Linter with Platform-Specific Commands
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
 
 hooks {
   ["pre-commit"] {
@@ -605,8 +605,8 @@ hooks {
 ### Step with Dependencies and Conditions
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
@@ -631,8 +631,8 @@ hooks {
 ### Profile-Based Configuration
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.2/hk@1.18.2#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
 
 hooks {
   ["check"] {

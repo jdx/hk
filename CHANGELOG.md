@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.18.3](https://github.com/jdx/hk/compare/v1.18.2..v1.18.3) - 2025-10-07
+
+### 🐛 Bug Fixes
+
+- stash untracked files during partial stashes when HK_STASH_UNTRACKED=true by [@jdx](https://github.com/jdx) in [#357](https://github.com/jdx/hk/pull/357)
+
 ## [1.18.2](https://github.com/jdx/hk/compare/v1.18.1..v1.18.2) - 2025-10-06
 
 ### 🐛 Bug Fixes
