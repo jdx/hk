@@ -575,22 +575,25 @@ impl Git {
     ) -> Result<Option<StashType>> {
         // When a subset of paths is provided, filter out untracked paths. Passing untracked
         // paths as pathspecs to `git stash push` can fail with "did not match any file(s) known to git".
-        // However, when HK_STASH_UNTRACKED=true, we want to include untracked files in the pathspecs,
-        // since git stash push --include-untracked can handle them.
+        // The --include-untracked flag will automatically handle all untracked files.
         let tracked_subset: Option<Vec<PathBuf>> = paths.map(|ps| {
             ps.iter()
-                .filter(|p| {
-                    // When HK_STASH_UNTRACKED=true, include all files (tracked and untracked)
-                    // Otherwise, filter out untracked files
-                    *env::HK_STASH_UNTRACKED || !status.untracked_files.contains(*p)
-                })
+                .filter(|p| !status.untracked_files.contains(*p))
                 .cloned()
                 .collect()
         });
-        // If after filtering there are no tracked paths left, do not attempt a partial stash.
+        // If after filtering there are no tracked paths left:
+        // - When HK_STASH_UNTRACKED=true, do a full stash (no pathspecs) to stash all untracked files
+        // - Otherwise, no need to stash anything
         if let Some(ref ts) = tracked_subset {
             if ts.is_empty() {
-                return Ok(None);
+                if *env::HK_STASH_UNTRACKED {
+                    // No tracked files to stash, but we want to stash all untracked files
+                    // So do a full stash with --include-untracked (no pathspecs)
+                    return self.push_stash(None, status);
+                } else {
+                    return Ok(None);
+                }
             }
         }
         if let Some(repo) = &mut self.repo {
@@ -731,9 +734,13 @@ impl Git {
                 };
 
                 // List paths from our stash entry
-                let show = git_cmd(["stash", "show", "--name-only", "-z", &stash_ref])
-                    .read()
-                    .unwrap_or_default();
+                // When HK_STASH_UNTRACKED=true, we need to include untracked files in the show output
+                let mut cmd = git_cmd(["stash", "show", "--name-only", "-z"]);
+                if *env::HK_STASH_UNTRACKED {
+                    cmd = cmd.arg("--include-untracked");
+                }
+                cmd = cmd.arg(&stash_ref);
+                let show = cmd.read().unwrap_or_default();
                 let stash_paths: Vec<PathBuf> = show
                     .split('\0')
                     .filter(|s| !s.is_empty())
@@ -789,6 +796,37 @@ impl Git {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
                     // Lightweight size probe for the worktree snapshot stored in the stash
+                    // Check if this is an untracked file (exists in stash^3 but not in stash^1 or stash^2)
+                    let is_untracked = *env::HK_STASH_UNTRACKED
+                        && git_cmd(["cat-file", "-e", &format!("{}^3:{}", &stash_ref, path_str)])
+                            .run()
+                            .is_ok()
+                        && git_cmd(["cat-file", "-e", &format!("{}^2:{}", &stash_ref, path_str)])
+                            .run()
+                            .is_err();
+
+                    // Handle untracked files specially - just restore from stash^3
+                    if is_untracked {
+                        debug!(
+                            "manual-unstash: restoring untracked file from stash^3 path={}",
+                            display_path(&path)
+                        );
+                        if let Ok(contents) = git_read_raw([
+                            "cat-file",
+                            "-p",
+                            &format!("{}^3:{}", &stash_ref, path_str),
+                        ]) {
+                            if let Err(err) = xx::file::write(&path, &contents) {
+                                warn!(
+                                    "failed to write untracked file {}: {err:?}",
+                                    display_path(&path)
+                                );
+                            }
+                        }
+                        // Skip normal merge path for untracked files
+                        continue;
+                    }
+
                     let work_size: Option<usize> =
                         git_cmd(["cat-file", "-s", &format!("{}:{}", &stash_ref, path_str)])
                             .read()
