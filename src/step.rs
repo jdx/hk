@@ -516,8 +516,22 @@ impl Step {
             }
         }
         for job in jobs.iter_mut().filter(|j| j.check_first) {
-            // only set check_first if there are any files in contention
-            job.check_first = job.files.iter().any(|f| files_in_contention.contains(f));
+            // If stage={{job_files}} and check_list_files is defined, always run check_first
+            // to ensure files are filtered correctly, even when there's no contention
+            let needs_filtering_for_stage = self
+                .stage
+                .as_ref()
+                .map(|v| v.len() == 1 && v[0] == "{{job_files}}")
+                .unwrap_or(false)
+                && self.check_list_files.is_some();
+
+            if needs_filtering_for_stage {
+                // Always run check_first when we need to filter files for stage={{job_files}}
+                job.check_first = true;
+            } else {
+                // Default behavior: only set check_first if there are any files in contention
+                job.check_first = job.files.iter().any(|f| files_in_contention.contains(f));
+            }
         }
         Ok(jobs)
     }
@@ -570,23 +584,22 @@ impl Step {
                     step.mark_skipped(&ctx, reason)?;
                     // Skipped jobs should still count as completed for overall progress
                     ctx.hook_ctx.inc_completed_jobs(1);
-                    return Ok(());
+                    return Ok(vec![]);
                 }
                 if job.check_first {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check(step.check_type());
-                    debug!("{step}: running check step first due to fix step contention");
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
                             ctx.hook_ctx.inc_completed_jobs(1);
-                            return Ok(());
+                            return Ok(vec![]);
                         }
                         Err(e) => {
-                            if let Some(Error::CheckListFailed { source, stdout, stderr }) =
+                            if let Some(Error::CheckListFailed { source: _, stdout, stderr }) =
                                 e.downcast_ref::<Error>()
                             {
-                                debug!("{step}: failed check step first: {source}");
+                                debug!("{step}: failed check step first: check list failed");
                                 let (files, extras) = step.filter_files_from_check_list(&job.files, stdout);
                                 for f in extras {
                                     warn!(
@@ -608,17 +621,21 @@ impl Step {
                     }
                     job.run_type = prev_run_type;
                 }
+                let processed_files = job.files.clone();
                 let result = step.run(&ctx, &mut job).await;
                 if let Err(err) = &result {
                     job.status_errored(&ctx, format!("{err}")).await?;
                 }
                 ctx.hook_ctx.inc_completed_jobs(1);
-                result
+                result.map(|_| processed_files)
             });
         }
+        let mut actual_job_files: indexmap::IndexSet<PathBuf> = indexmap::IndexSet::new();
         while let Some(res) = set.join_next().await {
             match res {
-                Ok(Ok(())) => {}
+                Ok(Ok(files)) => {
+                    actual_job_files.extend(files);
+                }
                 Ok(Err(err)) => {
                     ctx.status_errored(&format!("{err}"));
                     return Err(err);
@@ -639,13 +656,24 @@ impl Step {
         if non_skip_jobs > 0 && matches!(ctx.hook_ctx.run_type, RunType::Fix) {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
             // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
-            let rendered_patterns: Vec<String> = self
+            // Special case: if stage is exactly "{{job_files}}", use all_job_files directly
+            let stage_only_job_files = self
                 .stage
                 .as_ref()
-                .unwrap_or(&vec![])
-                .iter()
-                .map(|s| tera::render(s, &ctx.hook_ctx.tctx))
-                .collect::<Result<Vec<_>>>()?;
+                .map(|v| v.len() == 1 && v[0] == "{{job_files}}")
+                .unwrap_or(false);
+
+            let rendered_patterns: Vec<String> = if stage_only_job_files {
+                // Don't render the template, we'll use all_job_files directly
+                vec![]
+            } else {
+                self.stage
+                    .as_ref()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .map(|s| tera::render(s, &ctx.hook_ctx.tctx))
+                    .collect::<Result<Vec<_>>>()?
+            };
 
             let mut stage_globs: Vec<String> = Vec::new();
             for pat in rendered_patterns {
@@ -675,17 +703,17 @@ impl Step {
             trace!("{}: stage globs: {:?}", self, &stage_globs);
             let stage_pathspecs: Vec<OsString> =
                 stage_globs.iter().cloned().map(OsString::from).collect();
-            if !stage_pathspecs.is_empty() {
-                trace!(
-                    "{}: requesting status for pathspecs: {:?}",
-                    self, &stage_pathspecs
-                );
-                let status = ctx
-                    .hook_ctx
-                    .git
-                    .lock()
-                    .await
-                    .status(Some(&stage_pathspecs))?;
+            if !stage_pathspecs.is_empty() || stage_only_job_files {
+                let status = if stage_only_job_files {
+                    // For {{job_files}}, get status of all files (no pathspec filtering)
+                    ctx.hook_ctx.git.lock().await.status(None)?
+                } else {
+                    ctx.hook_ctx
+                        .git
+                        .lock()
+                        .await
+                        .status(Some(&stage_pathspecs))?
+                };
 
                 // Build a scoped candidate set:
                 //  - Include files that this step actually operated on (union of job files)
@@ -693,26 +721,46 @@ impl Step {
                 //  - Include files from status that match the stage globs (untracked/unstaged)
                 //    since status was filtered by stage_pathspecs
                 let is_globlike = |s: &str| s.contains('*') || s.contains('?') || s.contains('[');
-                let mut candidates: indexmap::IndexSet<PathBuf> = all_job_files.clone();
-                for pat in &stage_globs {
-                    if !is_globlike(pat) {
-                        let p = PathBuf::from(pat);
-                        if p.exists() {
-                            candidates.insert(p);
+                let mut candidates: indexmap::IndexSet<PathBuf> = if stage_only_job_files {
+                    // When stage={{job_files}}, use the actual files processed (after check_list_files filtering)
+                    trace!(
+                        "{}: using actual_job_files for stage candidates: {:?}",
+                        self, actual_job_files
+                    );
+                    actual_job_files.clone()
+                } else {
+                    // Default behavior: start with all files matched by glob
+                    all_job_files.clone()
+                };
+
+                if !stage_only_job_files {
+                    for pat in &stage_globs {
+                        if !is_globlike(pat) {
+                            let p = PathBuf::from(pat);
+                            if p.exists() {
+                                candidates.insert(p);
+                            }
                         }
                     }
-                }
 
-                // status was filtered by stage_pathspecs, so these files already match the globs
-                for p in status.untracked_files.iter() {
-                    candidates.insert(p.clone());
+                    // status was filtered by stage_pathspecs, so these files already match the globs
+                    for p in status.untracked_files.iter() {
+                        candidates.insert(p.clone());
+                    }
+                    for p in status.unstaged_files.iter() {
+                        candidates.insert(p.clone());
+                    }
                 }
-                for p in status.unstaged_files.iter() {
-                    candidates.insert(p.clone());
-                }
+                // else: when stage={{job_files}}, candidates only contains all_job_files
 
                 let candidate_vec = candidates.into_iter().collect_vec();
-                let matched_candidates = glob::get_matches(&stage_globs, &candidate_vec)?;
+                let matched_candidates = if stage_only_job_files {
+                    // For {{job_files}}, all candidates are already the files we want
+                    candidate_vec
+                } else {
+                    glob::get_matches(&stage_globs, &candidate_vec)?
+                };
+
                 // Now keep only those that are actually unstaged or untracked
                 let unstaged_set: indexmap::IndexSet<PathBuf> =
                     status.unstaged_files.iter().cloned().collect();

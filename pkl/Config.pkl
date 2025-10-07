@@ -28,6 +28,9 @@ class Step {
     exclude: (String | List<String> | RegexPattern)?
 
     /// files to stage after running the fix step
+    /// Can be a glob pattern (e.g., "*.js") or the special value "{{job_files}}"
+    /// to stage only the files that were actually processed by this step.
+    /// Use "{{job_files}}" when the step uses check_list_files for dynamic file discovery.
     stage: (String | List<String>)?
     
     /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
