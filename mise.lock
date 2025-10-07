@@ -132,6 +132,11 @@ url = "https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14
 version = "0.13.3"
 backend = "aqua:astral-sh/ruff"
 
+[tools.ruff.platforms.linux-x64]
+checksum = "sha256:8d24d74171772c67366d3187b990a3dc706022aa3a631b2a612d12e362f226c7"
+size = 13639367
+url = "https://github.com/astral-sh/ruff/releases/download/0.13.3/ruff-x86_64-unknown-linux-musl.tar.gz"
+
 [[tools.shellcheck]]
 version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
@@ -140,6 +145,9 @@ backend = "ubi:koalaman/shellcheck"
 checksum = "blake3:0ad9524f3f16ad030f8350e7b970c62c24aeff3d813f2565665aecc5a8b79644"
 size = 2559196
 url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz"
+
+[tools.shellcheck.platforms.linux-x64-shellcheck]
+checksum = "blake3:3297f19e635c3225457702704fa328408adbbfdcaa0a7c7fe591d8af1cc588f4"
 
 [tools.shellcheck.platforms.macos-arm64]
 checksum = "blake3:ad4957ed937da4e876d19e3500fc31d104e43b6e4e11d57a7b7c40140bc870d6"
@@ -161,6 +169,11 @@ url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/portable_swif
 [[tools.taplo]]
 version = "0.10.0"
 backend = "aqua:tamasfe/taplo"
+
+[tools.taplo.platforms.linux-x64]
+checksum = "blake3:4871fab0e60275a1eb46e7190726e144f56c9a9527f59b0d1da5a042baead8e2"
+size = 5116068
+url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz"
 
 [[tools.usage]]
 version = "2.2.2"
