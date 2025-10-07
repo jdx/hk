@@ -519,6 +519,12 @@ impl Git {
         for p in status.unstaged_files.iter() {
             files_to_stash.insert(p.clone());
         }
+        // 5) When HK_STASH_UNTRACKED=true, also include untracked files
+        if *env::HK_STASH_UNTRACKED {
+            for p in status.untracked_files.iter() {
+                files_to_stash.insert(p.clone());
+            }
+        }
         let files_count = files_to_stash.len();
         job.prop("files", &files_count);
         // TODO: if any intent_to_add files exist, run `git rm --cached -- <file>...` then `git add --intent-to-add -- <file>...` when unstashing
@@ -569,12 +575,19 @@ impl Git {
     ) -> Result<Option<StashType>> {
         // When a subset of paths is provided, filter out untracked paths. Passing untracked
         // paths as pathspecs to `git stash push` can fail with "did not match any file(s) known to git".
-        let tracked_subset: Option<Vec<PathBuf>> = paths.map(|ps| {
-            ps.iter()
-                .filter(|p| !status.untracked_files.contains(*p))
-                .cloned()
-                .collect()
-        });
+        // However, when HK_STASH_UNTRACKED=true, we want to stash all untracked files regardless,
+        // so we don't pass any pathspecs in that case.
+        let tracked_subset: Option<Vec<PathBuf>> = if *env::HK_STASH_UNTRACKED {
+            // When stashing untracked files, don't use pathspecs - stash everything
+            None
+        } else {
+            paths.map(|ps| {
+                ps.iter()
+                    .filter(|p| !status.untracked_files.contains(*p))
+                    .cloned()
+                    .collect()
+            })
+        };
         // If after filtering there are no tracked paths left, do not attempt a partial stash.
         if let Some(ref ts) = tracked_subset {
             if ts.is_empty() {
