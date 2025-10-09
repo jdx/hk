@@ -1,9 +1,9 @@
 { pkgs, lib, stdenv, fetchFromGitHub, rustPlatform, coreutils, bash, direnv, openssl, git }:
 let
-  cargoToml = builtins.readToml (builtins.readFile ./Cargo.toml);
+  cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 in rustPlatform.buildRustPackage {
   pname = "hk";
-  version = "1.16.0";
+  inherit (cargoToml.package) version;
 
   src = lib.cleanSource ./.;
 
