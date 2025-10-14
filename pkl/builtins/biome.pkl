@@ -4,5 +4,5 @@ biome = new Config.Step {
     glob = List("*.js", "*.jsx", "*.ts", "*.tsx", "*.json")
     stage = glob
     check = "biome check {{ files }}"
-    fix = "biome check --apply {{ files }}"
+    fix = "biome check --write {{ files }}"
 } 
