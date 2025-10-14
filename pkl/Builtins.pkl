@@ -28,6 +28,7 @@ fasterer = Builtins["builtins/fasterer.pkl"].fasterer
 fix_byte_order_marker = Builtins["builtins/fix_byte_order_marker.pkl"].fix_byte_order_marker
 flake8 = Builtins["builtins/flake8.pkl"].flake8
 go_fmt = Builtins["builtins/go_fmt.pkl"].go_fmt
+go_fumpt = Builtins["builtins/go_fumpt.pkl"].go_fumpt
 go_imports = Builtins["builtins/go_imports.pkl"].go_imports
 go_lines = Builtins["builtins/go_lines.pkl"].go_lines
 go_sec = Builtins["builtins/go_sec.pkl"].go_sec
