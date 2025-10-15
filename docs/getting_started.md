@@ -47,8 +47,8 @@ The global configuration file follows the same format as `hk.pkl` and can be use
 This will generate a `hk.pkl` file in the root of the repository, here's an example `hk.pkl` with eslint and prettier linters:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.19.0/hk@1.19.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.19.0/hk@1.19.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // linters can be manually defined
