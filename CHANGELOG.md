@@ -1,6 +1,31 @@
 # Changelog
 
+## [1.19.0](https://github.com/jdx/hk/compare/v1.18.3..v1.19.0) - 2025-10-15
+
+### 🚀 Features
+
+- add nix flake compatibility by [@chadac](https://github.com/chadac) in [#361](https://github.com/jdx/hk/pull/361)
+- update biome pkl builtins to use biome v2 flags by [@ic4l4s9c](https://github.com/ic4l4s9c) in [#366](https://github.com/jdx/hk/pull/366)
+
+### 🐛 Bug Fixes
+
+- add nix version to package metadata by [@chadac](https://github.com/chadac) in [#363](https://github.com/jdx/hk/pull/363)
+- suppress stash probe stderr and preserve stash on restoration failure by [@jdx](https://github.com/jdx) in [#367](https://github.com/jdx/hk/pull/367)
+
+### 🔍 Other Changes
+
+- bump xx by [@jdx](https://github.com/jdx) in [#362](https://github.com/jdx/hk/pull/362)
+
+### New Contributors
+
+- @ic4l4s9c made their first contribution in [#366](https://github.com/jdx/hk/pull/366)
+- @chadac made their first contribution in [#363](https://github.com/jdx/hk/pull/363)
+
 ## [1.18.3](https://github.com/jdx/hk/compare/v1.18.2..v1.18.3) - 2025-10-07
+
+### 🚀 Features
+
+- add {{job_files}} template for dynamic staging by [@jdx](https://github.com/jdx) in [#358](https://github.com/jdx/hk/pull/358)
 
 ### 🐛 Bug Fixes
 
