@@ -29,6 +29,16 @@ where
     })
 }
 
+fn git_cmd_silent<I, S>(args: I) -> xx::process::XXExpression
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
+    // Silently ignore stderr output by using an empty handler
+    xx::process::cmd("git", args).on_stderr_line(|_line| {})
+}
+
 fn git_run<I, S>(args: I) -> Result<()>
 where
     I: IntoIterator<Item = S>,
@@ -792,18 +802,30 @@ impl Git {
                 // the merge logic when no fixer output exists for the path.
                 const LARGE_STASH_FILE_BYTES: usize = 1_000_000; // 1 MiB
 
+                // Track whether any file restoration failed so we can preserve the stash
+                let mut restoration_failed = false;
+
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
                     // Lightweight size probe for the worktree snapshot stored in the stash
                     // Check if this is an untracked file (exists in stash^3 but not in stash^1 or stash^2)
+                    // Use silent commands to avoid noisy "exists on disk, but not in ref" errors
                     let is_untracked = *env::HK_STASH_UNTRACKED
-                        && git_cmd(["cat-file", "-e", &format!("{}^3:{}", &stash_ref, path_str)])
-                            .run()
-                            .is_ok()
-                        && git_cmd(["cat-file", "-e", &format!("{}^2:{}", &stash_ref, path_str)])
-                            .run()
-                            .is_err();
+                        && git_cmd_silent([
+                            "cat-file",
+                            "-e",
+                            &format!("{}^3:{}", &stash_ref, path_str),
+                        ])
+                        .run()
+                        .is_ok()
+                        && git_cmd_silent([
+                            "cat-file",
+                            "-e",
+                            &format!("{}^2:{}", &stash_ref, path_str),
+                        ])
+                        .run()
+                        .is_err();
 
                     // Handle untracked files specially - just restore from stash^3
                     if is_untracked {
@@ -821,6 +843,7 @@ impl Git {
                                     "failed to write untracked file {}: {err:?}",
                                     display_path(&path)
                                 );
+                                restoration_failed = true;
                             }
                         }
                         // Skip normal merge path for untracked files
@@ -848,6 +871,7 @@ impl Git {
                                     "failed to write large worktree snapshot for {}: {err:?}",
                                     display_path(&path)
                                 );
+                                restoration_failed = true;
                             }
                         }
                         // Skip normal merge path for large files
@@ -1051,6 +1075,7 @@ impl Git {
                             "failed to write merged worktree for {}: {err:?}",
                             display_path(&path)
                         );
+                        restoration_failed = true;
                     }
                     // If fixer differs from base, ensure index has fixer blob unless newline-only change
                     if newline_only_change {
@@ -1067,6 +1092,7 @@ impl Git {
                             .run()
                         {
                             warn!("failed to set index for {}: {err:?}", display_path(&path));
+                            restoration_failed = true;
                         } else {
                             debug!(
                                 "manual-unstash: set index cacheinfo path={} mode={mode:o} oid={oid}",
@@ -1080,9 +1106,23 @@ impl Git {
                         );
                     }
                 }
-                // Drop the specific stash we manually consumed
-                if let Err(err) = git_cmd(["stash", "drop", &stash_ref]).run() {
-                    warn!("failed to drop stash: {err:?}");
+                // Only drop the stash if all file restorations succeeded
+                if restoration_failed {
+                    error!(
+                        "Failed to restore some files from stash. Stash has been preserved at '{stash_ref}'."
+                    );
+                    error!(
+                        "You can manually recover your changes with: git stash show {stash_ref} && git stash apply {stash_ref}"
+                    );
+                    // Keep the stash around and return an error
+                    return Err(eyre!(
+                        "Stash restoration failed - stash preserved at {stash_ref}"
+                    ));
+                } else {
+                    // All files restored successfully, safe to drop the stash
+                    if let Err(err) = git_cmd(["stash", "drop", &stash_ref]).run() {
+                        warn!("failed to drop stash: {err:?}");
+                    }
                 }
             }
         }
