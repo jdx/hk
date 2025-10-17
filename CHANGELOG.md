@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.1](https://github.com/jdx/hk/compare/v1.19.0..v1.19.1) - 2025-10-17
+
+### 📦️ Dependency Updates
+
+- update actions/download-artifact digest to d3f86a1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#369](https://github.com/jdx/hk/pull/369)
+- update actions/upload-artifact digest to ea165f8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#370](https://github.com/jdx/hk/pull/370)
+
 ## [1.19.0](https://github.com/jdx/hk/compare/v1.18.3..v1.19.0) - 2025-10-15
 
 ### 🚀 Features
