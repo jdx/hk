@@ -1,6 +1,7 @@
 use crate::version as version_lib;
 use std::num::NonZero;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::{Result, env, logger, settings::Settings};
 use clap::Parser;
@@ -146,7 +147,14 @@ pub async fn run() -> Result<()> {
         crate::trace::init_tracing(json_output)?;
     }
 
-    let settings = Settings::get();
+    // Only load settings if not running migrate command to avoid config loading errors
+    // during migration with potentially invalid existing configs
+    let settings = if matches!(args.command, Commands::Migrate(_)) {
+        // For migrate, use minimal default settings to avoid loading invalid configs
+        Arc::new(crate::settings::generated::settings::Settings::default())
+    } else {
+        Settings::get()
+    };
     if !settings.terminal_progress {
         clx::osc::configure(settings.terminal_progress);
     }
