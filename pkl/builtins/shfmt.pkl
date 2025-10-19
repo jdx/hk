@@ -11,5 +11,5 @@ if [ -n "$files" ]; then
   exit 1
 fi
 """
-    fix = "shfmt -w {{ files }}"
+    fix = "shfmt -w -s {{ files }}"
 } 
