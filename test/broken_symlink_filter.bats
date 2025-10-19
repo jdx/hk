@@ -17,6 +17,7 @@ hooks {
         steps {
             ["test"] {
                 glob = "**/*"
+                allow_symlinks = true
                 check = "echo {{files}}"
             }
         }
@@ -93,6 +94,7 @@ hooks {
         steps {
             ["test"] {
                 glob = "**/*"
+                allow_symlinks = true
                 check = "echo {{files}}"
             }
         }

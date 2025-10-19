@@ -56,6 +56,29 @@ fn is_binary_file(path: &PathBuf) -> Option<bool> {
     Some(is_binary)
 }
 
+/// Check if a file is a symbolic link
+/// Returns None if the file cannot be read (error), Some(true/false) otherwise
+fn is_symlink_file(path: &PathBuf) -> Option<bool> {
+    use dashmap::DashMap;
+
+    // Memoize results (only cache successful reads, not errors)
+    // DashMap provides lock-free concurrent access, avoiding Mutex bottlenecks
+    static CACHE: LazyLock<DashMap<PathBuf, bool>> = LazyLock::new(DashMap::new);
+
+    // Check cache first (lock-free read)
+    if let Some(result) = CACHE.get(path) {
+        return Some(*result);
+    }
+
+    let metadata = std::fs::symlink_metadata(path).ok()?;
+    let is_symlink = metadata.file_type().is_symlink();
+
+    // Cache the result
+    CACHE.insert(path.clone(), is_symlink);
+
+    Some(is_symlink)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(untagged)]
 pub enum Pattern {
@@ -160,6 +183,9 @@ pub struct Step {
     /// Whether to include binary files (default: false)
     #[serde(default)]
     pub allow_binary: bool,
+    /// Whether to include symbolic links (default: false)
+    #[serde(default)]
+    pub allow_symlinks: bool,
     pub root: Option<PathBuf>,
     #[serde(default)]
     pub hide: bool,
@@ -348,6 +374,17 @@ impl Step {
                 // Keep file if we can't determine if it's binary (might be deleted/renamed)
                 // or if it's definitely not binary
                 is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
+            });
+        }
+
+        // Filter out symbolic links unless allow_symlinks is true
+        if !self.allow_symlinks {
+            files.retain(|f| {
+                // Keep file if we can't determine if it's a symlink (might be deleted/renamed)
+                // or if it's definitely not a symlink
+                is_symlink_file(f)
+                    .map(|is_symlink| !is_symlink)
+                    .unwrap_or(true)
             });
         }
 
