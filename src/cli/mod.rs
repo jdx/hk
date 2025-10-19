@@ -146,6 +146,11 @@ pub async fn run() -> Result<()> {
         crate::trace::init_tracing(json_output)?;
     }
 
+    let settings = Settings::get();
+    if !settings.terminal_progress {
+        clx::osc::configure(settings.terminal_progress);
+    }
+
     // CLI settings snapshot applied above; settings are built from snapshot
     match args.command {
         Commands::Builtins(cmd) => cmd.run().await,

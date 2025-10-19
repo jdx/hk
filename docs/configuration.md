@@ -1298,6 +1298,17 @@ Set to `true` to force summaries to appear in text mode, useful for CI environme
 
 Example: `HK_SUMMARY_TEXT=1 hk check`
 
+### `terminal-progress`
+
+- Type: `bool`
+- Default: `true`
+- Sources:
+  - ENV: `HK_TERMINAL_PROGRESS`
+  - Git: `hk.terminalProgress`
+  - Pkl: `terminal_progress`
+
+Enables or disables reporting progress via OSC sequences to compatible terminals.
+
 ### `timing-json`
 
 - Type: `path`
