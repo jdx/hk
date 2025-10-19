@@ -160,6 +160,9 @@ pub struct Step {
     /// Whether to include binary files (default: false)
     #[serde(default)]
     pub allow_binary: bool,
+    /// Whether to include symbolic links (default: false)
+    #[serde(default = "Step::default_allow_symlinks")]
+    pub allow_symlinks: bool,
     pub root: Option<PathBuf>,
     #[serde(default)]
     pub hide: bool,
@@ -199,6 +202,10 @@ pub enum OutputSummary {
 }
 
 impl Step {
+    fn default_allow_symlinks() -> bool {
+        false
+    }
+
     pub(crate) fn init(&mut self, name: &str) {
         self.name = name.to_string();
         if self.interactive {
@@ -348,6 +355,17 @@ impl Step {
                 // Keep file if we can't determine if it's binary (might be deleted/renamed)
                 // or if it's definitely not binary
                 is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
+            });
+        }
+
+        // Filter out symbolic links unless allow_symlinks is true
+        if !self.allow_symlinks {
+            files.retain(|f| {
+                // Keep file if we can't determine if it's a symlink (might be deleted/renamed)
+                // or if it's definitely not a symlink
+                std::fs::symlink_metadata(f)
+                    .map(|meta| !meta.file_type().is_symlink())
+                    .unwrap_or(true)
             });
         }
 

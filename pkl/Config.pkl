@@ -84,6 +84,9 @@ class Step {
     /// One of: "stdout", "stderr", "combined", "hide"
     output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
     
+    /// Whether to include symbolic links (default: false)
+    allow_symlinks = false
+    
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}
 
