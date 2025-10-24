@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.19.1](https://github.com/jdx/hk/compare/v1.19.0..v1.19.1) - 2025-10-24
+
+### 🐛 Bug Fixes
+
+- **(shfmt)** use -s for check and fix by [@bhanuprasad14](https://github.com/bhanuprasad14) in [6b15e0d](https://github.com/jdx/hk/commit/6b15e0dc550d73d32d7c8430a463c99c58c7d07e)
+- add symlink filtering for steps to prevent prettier errors by [@jdx](https://github.com/jdx) in [#372](https://github.com/jdx/hk/pull/372)
+
+### 🔍 Other Changes
+
+- update clx submodule to add OSC progress bars by [@jdx](https://github.com/jdx) in [#373](https://github.com/jdx/hk/pull/373)
+
+### 📦️ Dependency Updates
+
+- update actions/download-artifact digest to d3f86a1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#369](https://github.com/jdx/hk/pull/369)
+- update actions/upload-artifact digest to ea165f8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#370](https://github.com/jdx/hk/pull/370)
+- update anthropics/claude-code-action digest to f30f5ee by [@renovate[bot]](https://github.com/renovate[bot]) in [#374](https://github.com/jdx/hk/pull/374)
+- update actions/download-artifact action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#375](https://github.com/jdx/hk/pull/375)
+- update amannn/action-semantic-pull-request action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#376](https://github.com/jdx/hk/pull/376)
+- update apple-actions/import-codesign-certs action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#377](https://github.com/jdx/hk/pull/377)
+- update jdx/mise-action action to v3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#378](https://github.com/jdx/hk/pull/378)
+
 ## [1.19.0](https://github.com/jdx/hk/compare/v1.18.3..v1.19.0) - 2025-10-15
 
 ### 🚀 Features
