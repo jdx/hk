@@ -17,8 +17,9 @@ impl Install {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
         let cwd = std::env::current_dir()?;
-        let git_dir = xx::file::find_up(&cwd, &[".git"])
-            .ok_or_else(|| eyre::eyre!("No .git directory found in this or any parent directory"))?;
+        let git_dir = xx::file::find_up(&cwd, &[".git"]).ok_or_else(|| {
+            eyre::eyre!("No .git directory found in this or any parent directory")
+        })?;
         let hooks = git_dir.join("hooks");
         let add_hook = |hook: &str| {
             let hook_file = hooks.join(hook);
