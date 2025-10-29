@@ -173,7 +173,7 @@ This is a multi-line comment
 Every `hk.pkl` should start with this line which essentially schema validates the config and provides base classes:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.19.0/hk@1.19.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Config.pkl"
 ```
 
 ### Imports
