@@ -18,7 +18,9 @@ pub struct Install {
 impl Install {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
-        let hooks = PathBuf::from(".git/hooks");
+        // Recursively search for .git directory
+        let git_dir = find_git_dir()?;
+        let hooks = git_dir.join("hooks");
         let add_hook = |hook: &str| {
             let hook_file = hooks.join(hook);
             let command = if *env::HK_MISE || self.mise {
@@ -28,7 +30,7 @@ impl Install {
             };
             xx::file::write(&hook_file, git_hook_content(&command, hook))?;
             xx::file::make_executable(&hook_file)?;
-            println!("Installed hk hook: .git/hooks/{hook}");
+            println!("Installed hk hook: {}", hook_file.display());
             Result::<(), eyre::Report>::Ok(())
         };
         for hook in config.hooks.keys() {
@@ -40,6 +42,22 @@ impl Install {
         Ok(())
     }
 }
+
+/// Recursively search for a .git directory from the current directory upwards
+fn find_git_dir() -> Result<PathBuf> {
+    let mut dir = env::current_dir()?;
+    loop {
+        let candidate = dir.join(".git");
+        if candidate.is_dir() {
+            return Ok(candidate);
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    Err(eyre::eyre!("No .git directory found in this or any parent directory"))
+}
+
 
 fn git_hook_content(hk: &str, hook: &str) -> String {
     format!(
