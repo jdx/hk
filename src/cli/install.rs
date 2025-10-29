@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use crate::{Result, config::Config, env};
 
 /// Sets up git hooks to run hk
@@ -18,8 +16,9 @@ pub struct Install {
 impl Install {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
-        // Recursively search for .git directory
-        let git_dir = find_git_dir()?;
+        let cwd = std::env::current_dir()?;
+        let git_dir = xx::file::find_up(&cwd, &[".git"])
+            .ok_or_else(|| eyre::eyre!("No .git directory found in this or any parent directory"))?;
         let hooks = git_dir.join("hooks");
         let add_hook = |hook: &str| {
             let hook_file = hooks.join(hook);
@@ -42,22 +41,6 @@ impl Install {
         Ok(())
     }
 }
-
-/// Recursively search for a .git directory from the current directory upwards
-fn find_git_dir() -> Result<PathBuf> {
-    let mut dir = env::current_dir()?;
-    loop {
-        let candidate = dir.join(".git");
-        if candidate.is_dir() {
-            return Ok(candidate);
-        }
-        if !dir.pop() {
-            break;
-        }
-    }
-    Err(eyre::eyre!("No .git directory found in this or any parent directory"))
-}
-
 
 fn git_hook_content(hk: &str, hook: &str) -> String {
     format!(
