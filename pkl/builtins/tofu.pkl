@@ -1,0 +1,8 @@
+import "../Config.pkl"
+
+tofu = new Config.Step {
+    glob = List("**/*.tf", "**/*.tfvars")
+    stage = glob
+    check_list_files = "tofu fmt -check {{ files }}"
+    fix = "tofu fmt {{ files }}"
+}

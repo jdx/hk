@@ -74,6 +74,7 @@ swiftlint = Builtins["builtins/swiftlint.pkl"].swiftlint
 taplo = Builtins["builtins/taplo.pkl"].taplo
 terraform = Builtins["builtins/terraform.pkl"].terraform
 tf_lint = Builtins["builtins/tf_lint.pkl"].tf_lint
+tofu = Builtins["builtins/tofu.pkl"].tofu
 trailing_whitespace = Builtins["builtins/trailing_whitespace.pkl"].trailing_whitespace
 tsc = Builtins["builtins/tsc.pkl"].tsc
 tsserver = Builtins["builtins/tsserver.pkl"].tsserver
