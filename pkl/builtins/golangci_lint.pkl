@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 golangci_lint = new Config.Step {
-    glob = "*.go"
-    stage = "*.go"
+    glob = "**/*.go"
+    stage = "**/*.go"
     check = "golangci-lint run {{ files }}"
     fix = "golangci-lint run --fix {{ files }}"
 } 

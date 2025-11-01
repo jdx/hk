@@ -1,7 +1,7 @@
 import "../Config.pkl"
 
 python_debug_statements = new Config.Step {
-    glob = "*.py"
+    glob = "**/*.py"
     check = "hk util python-debug-statements {{files}}"
     tests {
         ["detects pdb"] {

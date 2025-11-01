@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 stylua = new Config.Step {
-    glob = "*.lua"
-    stage = "*.lua"
+    glob = "**/*.lua"
+    stage = "**/*.lua"
     check = "stylua --check {{ files }}"
     fix = "stylua {{ files }}"
 } 

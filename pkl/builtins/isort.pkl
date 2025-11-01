@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 isort = new Config.Step {
-    glob = "*.py"
-    stage = "*.py"
+    glob = "**/*.py"
+    stage = "**/*.py"
     check = "isort --check-only {{ files }}"
     fix = "isort {{ files }}"
 } 

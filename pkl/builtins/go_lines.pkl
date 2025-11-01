@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 go_lines = new Config.Step {
-    glob = "*.go"
-    stage = "*.go"
+    glob = "**/*.go"
+    stage = "**/*.go"
     check = "golines --dry-run {{ files }}"
     fix = "golines -w {{ files }}"
 } 

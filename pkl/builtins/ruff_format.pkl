@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 ruff_format = new Config.Step {
-    glob = "*.py"
-    stage = "*.py"
+    glob = "**/*.py"
+    stage = "**/*.py"
     check = "ruff format --check {{ files }}"
     fix = "ruff format {{ files }}"
     tests {

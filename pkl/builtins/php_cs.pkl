@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 php_cs = new Config.Step {
-    glob = "*.php"
-    stage = "*.php"
+    glob = "**/*.php"
+    stage = "**/*.php"
     check = "phpcs {{ files }}"
     fix = "phpcbf {{ files }}"
 } 

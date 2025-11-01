@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
 flake8 = new Config.Step {
-    glob = "*.py"
+    glob = "**/*.py"
     check = "flake8 {{ files }}"
 } 

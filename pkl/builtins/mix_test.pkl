@@ -1,7 +1,7 @@
 import "../Config.pkl"
 
 mix_test = new Config.Step {
-    glob = List("*.ex", "*.exs")
+    glob = List("**/*.ex", "**/*.exs")
     exclude = List("deps/**/*")
     check = "mix test --warnings-as-errors {{files}}"
 }

@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
 pkl = new Config.Step {
-    glob = "*.pkl"
+    glob = "**/*.pkl"
     check = "pkl eval {{files}} >/dev/null"
 }

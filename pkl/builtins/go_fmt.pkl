@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 go_fmt = new Config.Step {
-    glob = "*.go"
-    stage = "*.go"
+    glob = "**/*.go"
+    stage = "**/*.go"
     check_list_files = """
 FILES=$(gofmt -s -l {{files}})
 if [ -n "$FILES" ]; then
