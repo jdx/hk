@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 jq = new Config.Step {
-    glob = "*.json"
-    stage = "*.json"
+    glob = "**/*.json"
+    stage = "**/*.json"
     check = "jq . {{ files }}"
     fix = "jq -S . {{ files }}"
 } 

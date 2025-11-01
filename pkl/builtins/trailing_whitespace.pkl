@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 trailing_whitespace = new Config.Step {
-    glob = "*"
-    stage = "*"
+    glob = "**/*"
+    stage = "**/*"
     check_list_files = "hk util trailing-whitespace {{files}}"
     fix = "hk util trailing-whitespace --fix {{files}}"
     tests {

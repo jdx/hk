@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 cargo_fmt = new Config.Step {
-    glob = "*.rs"
-    stage = "*.rs"
+    glob = "**/*.rs"
+    stage = "**/*.rs"
     workspace_indicator = "Cargo.toml"
     check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
     fix = "cargo fmt --manifest-path {{workspace_indicator}}"

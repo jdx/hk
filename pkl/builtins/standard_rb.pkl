@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 standard_rb = new Config.Step {
-    glob = "*.rb"
-    stage = "*.rb"
+    glob = "**/*.rb"
+    stage = "**/*.rb"
     check = "standardrb {{ files }}"
     fix = "standardrb --fix {{ files }}"
 } 

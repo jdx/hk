@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 black = new Config.Step {
-    glob = List("*.py")
-    stage = List("*.py")
+    glob = List("**/*.py")
+    stage = List("**/*.py")
     check = "black --check {{ files }}"
     fix = "black {{ files }}"
 } 

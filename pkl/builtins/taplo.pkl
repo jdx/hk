@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 taplo = new Config.Step {
-    glob = "*.toml"
-    stage = "*.toml"
+    glob = "**/*.toml"
+    stage = "**/*.toml"
     check = "taplo check {{ files }}"
     fix = "taplo format {{ files }}"
 } 

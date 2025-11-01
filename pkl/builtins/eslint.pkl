@@ -1,7 +1,7 @@
 import "../Config.pkl"
 
 eslint = new Config.Step {
-    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
+    glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
     stage = glob
     batch = true
     check = "eslint {{ files }}"

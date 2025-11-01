@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 rustfmt = new Config.Step {
-    glob = "*.rs"
-    stage = "*.rs"
+    glob = "**/*.rs"
+    stage = "**/*.rs"
     check = "rustfmt --check --edition 2024 {{ files }}"
     check_list_files = "rustfmt --check --edition 2024 --files-with-diff {{ files }}"
     fix = "rustfmt --edition 2024 {{ files }}"

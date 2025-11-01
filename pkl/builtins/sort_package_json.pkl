@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 sort_package_json = new Config.Step {
     glob = "**/package.json"
-    stage = "*/package.json"
+    stage = "**/package.json"
     check = "sort-package-json --check {{ files }}"
     fix = "sort-package-json {{ files }}"
 } 

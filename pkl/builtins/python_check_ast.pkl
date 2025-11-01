@@ -1,7 +1,7 @@
 import "../Config.pkl"
 
 python_check_ast = new Config.Step {
-    glob = "*.py"
+    glob = "**/*.py"
     check = "hk util python-check-ast {{files}}"
     tests {
         ["detects invalid Python syntax"] {

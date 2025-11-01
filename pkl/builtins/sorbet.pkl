@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
 sorbet = new Config.Step {
-    glob = "*.rb"
+    glob = "**/*.rb"
     check = "srb tc {{ files }}"
 } 
