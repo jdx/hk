@@ -983,12 +983,19 @@ impl Step {
             for arg in shell[1..].iter() {
                 cmd = cmd.arg(arg);
             }
-            cmd
+            // If the user provides a shell, pass the full arg
+            cmd.arg(&run)
         } else {
-            CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+            let cmd = CmdLineRunner::new("sh").arg("-o").arg("errexit");
+            if self.interactive {
+                // Can't use `stdin_string` if this is interactive
+                cmd.arg(&run)
+            } else {
+                // Pass as stdin so we don't blow `ARG_MAX_STRLEN` with a megastring
+                cmd.stdin_string(&run)
+            }
         };
         cmd = cmd
-            .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
