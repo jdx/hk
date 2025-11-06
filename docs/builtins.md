@@ -355,6 +355,27 @@ You can also customize builtins:
   - Check: `alejandra --check {{files}}`
   - Fix: `alejandra {{files}}`
 
+### Elixir
+
+#### `mix_fmt`
+- **Files:** `*.ex`, `*.exs`
+- **Features:** Format Elixir with Mix
+- **Commands:**
+  - Check: `mix format --check-formatted {{files}}`
+  - Fix: `mix format {{files}}`
+
+#### `mix_compile`
+- **Files:** `*.ex`
+- **Features:** Compile Elixir with Mix
+- **Commands:**
+  - Check: `mix compile --warnings-as-errors --strict-errors {{files}}`
+
+#### `mix_test`
+- **Files:** `*.ex`, `*.exs`
+- **Features:** Test Elixir with Mix
+- **Commands:**
+  - Check: `mix test --warnings-as-errors {{files}}`
+
 ### Data Formats
 
 #### `jq`
