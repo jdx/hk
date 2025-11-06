@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 prettier = new Config.Step {
-    glob = List("**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.css", "**/*.scss", "**/*.less", "**/*.html", "**/*.json", "**/*.json5", "**/*.jsonc", "**/*.yaml", "**/*.yml", "**/*.markdown", "**/*.markdown.mdx", "**/*.md", "**/*.graphql", "**/*.handlebars", "**/*.svelte", "**/*.astro", "**/*.htmlangular")
-    stage = List("**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.css", "**/*.scss", "**/*.less", "**/*.html", "**/*.json", "**/*.json5", "**/*.jsonc", "**/*.yaml", "**/*.yml", "**/*.markdown", "**/*.markdown.mdx", "**/*.md", "**/*.graphql", "**/*.handlebars", "**/*.svelte", "**/*.astro", "**/*.htmlangular")
+    glob = List("**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.css", "**/*.scss", "**/*.less", "**/*.html", "**/*.json", "**/*.json5", "**/*.jsonc", "**/*.yaml", "**/*.yml", "**/*.markdown", "**/*.markdown.mdx", "**/*.md", "**/*.graphql", "**/*.handlebars", "**/*.svelte", "**/*.astro", "**/*.htmlangular", "**/*.vue")
+    stage = List("**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.css", "**/*.scss", "**/*.less", "**/*.html", "**/*.json", "**/*.json5", "**/*.jsonc", "**/*.yaml", "**/*.yml", "**/*.markdown", "**/*.markdown.mdx", "**/*.md", "**/*.graphql", "**/*.handlebars", "**/*.svelte", "**/*.astro", "**/*.htmlangular", "**/*.vue")
     batch = true
     check = "prettier --check {{ files }}"
     check_list_files = "prettier --list-different {{ files }}"
@@ -17,4 +17,4 @@ prettier = new Config.Step {
         }
       }
     }
-} 
+}
