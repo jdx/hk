@@ -559,6 +559,13 @@ You can also customize builtins:
   - Fix: `hk util trailing-whitespace --fix {{files}}`
 - **Notes:** Uses cross-platform Rust implementation (works on Windows, macOS, Linux)
 
+#### `typos`
+- **Files:** All text files
+- **Features:** Source code spell checker
+- **Commands:**
+  - Check: `typos --diff {{files}}` (with diff support)
+  - Fix: `typos --write-changes {{files}}`
+
 ## Customizing Builtins
 
 ### Override Properties
