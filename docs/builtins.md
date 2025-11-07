@@ -320,7 +320,9 @@ You can also customize builtins:
 #### `tf_lint`
 - **Files:** `*.tf`
 - **Features:** Terraform linter
-- **Command:** `tflint`
+- **Commands:**
+  - Check: `tflint`
+  - Fix: `tflint --fix`
 
 #### `hadolint`
 - **Files:** `Dockerfile*`
