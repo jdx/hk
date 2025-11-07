@@ -563,7 +563,7 @@ You can also customize builtins:
 - **Files:** All text files
 - **Features:** Source code spell checker
 - **Commands:**
-  - Check: `typos {{files}}`
+  - Check: `typos --diff {{files}}` (with diff support)
   - Fix: `typos --write-changes {{files}}`
 
 ## Customizing Builtins

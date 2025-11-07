@@ -2,6 +2,11 @@ import "../Config.pkl"
 
 typos = new Config.Step {
     glob = "**/*"
-    check = "typos {{ files }}"
+    check_diff = """
+output=$(typos --diff {{files}})
+[ -z "$output" ] && exit 0
+printf "%s" "$output"
+exit 1
+"""
     fix = "typos --write-changes {{ files }}"
 }
