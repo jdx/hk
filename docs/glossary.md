@@ -24,7 +24,7 @@ See: [Step Dependencies](/reference/schema.md#depends)
 
 ## Group
 
-A organizational unit that contains multiple steps, allowing you to structure your configuration hierarchically. Groups help organize related steps together and can be used to create logical divisions like "frontend" and "backend" tasks.
+An organizational unit that contains multiple steps, allowing you to structure your configuration hierarchically. Groups help organize related steps together and can be used to create logical divisions like "frontend" and "backend" tasks.
 
 Example:
 ```pkl
