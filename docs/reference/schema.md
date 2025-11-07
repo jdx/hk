@@ -679,6 +679,6 @@ HK_PROFILES=security hk check   # Only security-scan
 
 - [Built-in Linters Reference](../builtins.md)
 - [Configuration Examples](examples/index.md)
-- [Pkl Language Documentation](https://pkl-lang.org/docs/)
+- [Pkl Language Documentation](https://pkl-lang.org/main/current/language.html)
 - [Configuration Guide](../configuration.md)
 - [Environment Variables](../environment_variables.md)
