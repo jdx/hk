@@ -27,7 +27,7 @@ jobs:
           submodules: recursive
           token: ${{ secrets.HK_GH_TOKEN }}
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
-      - uses: jdx/mise-action@e3d7b8d67a7958d1207f6ed871e83b1ea780e7b0 # v3
+      - uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v3
         with:
           experimental: true
       - run: mise trust --all
