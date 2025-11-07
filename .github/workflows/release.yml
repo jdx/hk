@@ -64,7 +64,7 @@ jobs:
           codesign_prefix: dev.jdx.
           dry-run: true # Always dry-run to just build without uploading
       - name: Upload binary artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: binary-${{ matrix.target }}
           path: |
@@ -92,7 +92,7 @@ jobs:
 
           echo "Contents of docs/public/pkl:"
           ls -la docs/public/pkl || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: pkl-packages
           path: docs/public/pkl/*
@@ -110,7 +110,7 @@ jobs:
       - name: Generate release notes
         run: git cliff --latest > release-notes.md && cat release-notes.md
       - name: Download all artifacts
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           path: artifacts
       - name: Prepare release assets
