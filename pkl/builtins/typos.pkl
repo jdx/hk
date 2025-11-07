@@ -1,0 +1,7 @@
+import "../Config.pkl"
+
+typos = new Config.Step {
+    glob = "**/*"
+    check = "typos {{ files }}"
+    fix = "typos --write-changes {{ files }}"
+}

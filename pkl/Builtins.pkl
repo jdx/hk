@@ -81,6 +81,7 @@ tofu = Builtins["builtins/tofu.pkl"].tofu
 trailing_whitespace = Builtins["builtins/trailing_whitespace.pkl"].trailing_whitespace
 tsc = Builtins["builtins/tsc.pkl"].tsc
 tsserver = Builtins["builtins/tsserver.pkl"].tsserver
+typos = Builtins["builtins/typos.pkl"].typos
 xmllint = Builtins["builtins/xmllint.pkl"].xmllint
 xo = Builtins["builtins/xo.pkl"].xo
 yamllint = Builtins["builtins/yamllint.pkl"].yamllint
