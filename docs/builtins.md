@@ -304,14 +304,14 @@ You can also customize builtins:
 ### Infrastructure
 
 #### `terraform`
-- **Files:** `**/*.tf`, `**/*.tfvars`
+- **Files:** `**/*.tf`, `**/*.tfvars`, `**/*.tftest.hcl`
 - **Features:** Terraform formatter
 - **Commands:**
   - Check: `terraform fmt -check {{files}}`
   - Fix: `terraform fmt {{files}}`
 
 #### `tofu`
-- **Files:** `**/*.tf`, `**/*.tfvars`
+- **Files:** `**/*.tf`, `**/*.tfvars`, `**/*.tftest.hcl`
 - **Features:** OpenTofu formatter (open-source Terraform fork)
 - **Commands:**
   - Check: `tofu fmt -check {{files}}`
