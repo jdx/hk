@@ -194,7 +194,7 @@ You can also customize builtins:
 - **Files:** Go projects
 - **Features:** Go meta-linter
 - **Commands:**
-  - Check: `golangci-lint run {{files}}`
+  - Check: `golangci-lint run --fix=false {{files}}`
   - Fix: `golangci-lint run --fix {{files}}`
 
 #### `staticcheck`
