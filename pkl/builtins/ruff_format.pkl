@@ -2,8 +2,17 @@ import "../Config.pkl"
 
 ruff_format = new Config.Step {
     glob = List("**/*.py", "**/*.pyi")
-    stage = List("**/*.py", "**/*.pyi")
+    stage = "<JOB_FILES>"
     check = "ruff format --check {{ files }}"
+    check_list_files = """
+# Parse ruff format --check output to get files that need formatting
+# Output format: "Would reformat: filename"
+files=$(ruff format --check {{ files }} 2>&1 | grep '^Would reformat:' | sed 's/^Would reformat: //')
+if [ -n "$files" ]; then
+  echo "$files"
+  exit 1
+fi
+"""
     fix = "ruff format {{ files }}"
     tests {
         ["detects unformatted code"] {
