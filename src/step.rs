@@ -798,7 +798,9 @@ impl Step {
                     glob::get_matches(&stage_globs, &candidate_vec)?
                 };
 
-                // Now keep only those that are actually unstaged or untracked
+                // Now keep only those that are actually unstaged or untracked,
+                // BUT exclude files that were originally untracked before hook execution
+                // (untracked files should never be staged during pre-commit, even if they match stage glob)
                 let unstaged_set: indexmap::IndexSet<PathBuf> =
                     status.unstaged_files.iter().cloned().collect();
                 let untracked_set: indexmap::IndexSet<PathBuf> =
@@ -806,6 +808,17 @@ impl Step {
                 let filtered = matched_candidates
                     .into_iter()
                     .filter(|p| unstaged_set.contains(p) || untracked_set.contains(p))
+                    .filter(|p| {
+                        let is_originally_untracked = ctx.hook_ctx.original_untracked_files.contains(p);
+                        if is_originally_untracked {
+                            debug!(
+                                "{}: skipping originally untracked file from staging: {}",
+                                self,
+                                p.display()
+                            );
+                        }
+                        !is_originally_untracked
+                    })
                     .collect_vec();
 
                 trace!(

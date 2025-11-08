@@ -139,6 +139,9 @@ pub struct HookContext {
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
+    /// Files that were untracked before any stashing or step execution
+    /// These should never be staged during hook execution
+    pub original_untracked_files: BTreeSet<PathBuf>,
 }
 
 impl HookContext {
@@ -152,6 +155,7 @@ impl HookContext {
         run_type: RunType,
         hk_progress: Option<Arc<ProgressJob>>,
         skip_steps: IndexMap<String, SkipReason>,
+        original_untracked_files: BTreeSet<PathBuf>,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = expr_ctx;
@@ -182,6 +186,7 @@ impl HookContext {
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
+            original_untracked_files,
         }
     }
 
@@ -456,6 +461,7 @@ impl Hook {
             run_type,
             hk_progress,
             skip_steps,
+            git_status.untracked_files.clone(),
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
