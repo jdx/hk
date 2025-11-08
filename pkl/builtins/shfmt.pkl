@@ -4,6 +4,7 @@ shfmt = new Config.Step {
     batch = true
     glob = List("**/*.sh", "**/*.bash")
     stage = glob
+    check_diff = "shfmt -d {{ files }}"
     check_list_files = """
 files=$(shfmt -l {{ files }})
 if [ -n "$files" ]; then

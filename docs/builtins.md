@@ -298,7 +298,7 @@ You can also customize builtins:
 - **Files:** `*.sh`, `*.bash`
 - **Features:** Shell formatter
 - **Commands:**
-  - Check: `shfmt -l {{files}}`
+  - Check: `shfmt -d {{files}}` (with diff support)
   - Fix: `shfmt -w {{files}}`
 
 ### Infrastructure
