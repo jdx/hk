@@ -1,8 +1,8 @@
 import "../Config.pkl"
 
 ruff = new Config.Step {
-    glob = "**/*.py"
-    stage = "**/*.py"
+    glob = List("**/*.py", "**/*.pyi")
+    stage = List("**/*.py", "**/*.pyi")
     check = "ruff check {{ files }}"
     fix = "ruff check --fix {{ files }}"
     tests {

@@ -118,7 +118,7 @@ You can also customize builtins:
   - Fix: `ruff check --fix {{files}}`
 
 #### `ruff_format`
-- **Files:** `*.py`
+- **Files:** `*.py`, `*.pyi`
 - **Features:** Fast Python formatter (part of ruff)
 - **Commands:**
   - Check: `ruff format --check {{files}}`
@@ -142,7 +142,7 @@ You can also customize builtins:
 - **Command:** `pylint {{files}}`
 
 #### `mypy`
-- **Files:** `*.py`
+- **Files:** `*.py`, `*.pyi`
 - **Features:** Static type checker for Python
 - **Command:** `mypy {{files}}`
 
