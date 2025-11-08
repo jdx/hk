@@ -80,7 +80,7 @@ fn check_hooks_path_config() -> Result<()> {
             path
         ));
         warnings.push(
-            "         Run 'git config --global --unset core.hooksPath' to remove it.".to_string(),
+            "         Run 'git config --global --unset-all core.hooksPath' to remove it.".to_string(),
         );
     }
 
@@ -90,7 +90,7 @@ fn check_hooks_path_config() -> Result<()> {
             path
         ));
         warnings.push(
-            "         Run 'git config --local --unset core.hooksPath' to remove it.".to_string(),
+            "         Run 'git config --local --unset-all core.hooksPath' to remove it.".to_string(),
         );
     }
 
