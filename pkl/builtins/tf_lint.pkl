@@ -3,4 +3,5 @@ import "../Config.pkl"
 tf_lint = new Config.Step {
     glob = "**/*.tf"
     check = "tflint"
+    fix = "tflint --fix"
 }
