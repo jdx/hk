@@ -133,3 +133,48 @@ EOF
     assert_success
     assert_output --partial "config found from subdirectory"
 }
+
+@test "HK_FILE set to custom path does not fall back to .config/hk.pkl" {
+    cd "$BATS_TEST_TMPDIR"
+    git init
+
+    # Create .config/hk.pkl (should NOT be used when HK_FILE is set)
+    mkdir -p .config
+    cat > .config/hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["test"] {
+        check = "echo 'WRONG: using .config/hk.pkl'"
+      }
+    }
+  }
+}
+EOF
+
+    # Create custom config file at the HK_FILE path
+    cat > custom-config.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["test"] {
+        check = "echo 'CORRECT: using custom-config.pkl'"
+      }
+    }
+  }
+}
+EOF
+
+    # Set HK_FILE to the custom path
+    export HK_FILE="custom-config.pkl"
+
+    # hk check should use custom-config.pkl, NOT .config/hk.pkl
+    run hk check
+    assert_success
+    assert_output --partial "CORRECT: using custom-config.pkl"
+    refute_output --partial "WRONG: using .config/hk.pkl"
+}

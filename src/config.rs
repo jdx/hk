@@ -72,11 +72,13 @@ impl Config {
 
     #[tracing::instrument(level = "info", name = "config.load_project")]
     fn load_project_config() -> Result<Self> {
-        let default_path = env::HK_FILE
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("hk.pkl");
-        let paths = vec![default_path, ".config/hk.pkl", "hk.toml", "hk.yaml", "hk.yml", "hk.json"];
+        let paths: Vec<&str> = if let Some(hk_file) = env::HK_FILE.as_ref() {
+            // If HK_FILE is explicitly set, only use that path (no fallbacks)
+            vec![hk_file.as_str()]
+        } else {
+            // Default search order when HK_FILE is not set
+            vec!["hk.pkl", ".config/hk.pkl", "hk.toml", "hk.yaml", "hk.yml", "hk.json"]
+        };
         let mut cwd = std::env::current_dir()?;
         while cwd != Path::new("/") {
             for path in &paths {
@@ -104,7 +106,7 @@ impl Config {
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
-        config.init(Path::new(default_path))?;
+        config.init(Path::new(paths[0]))?;
         Ok(config)
     }
 
