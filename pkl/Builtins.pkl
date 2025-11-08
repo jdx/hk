@@ -21,6 +21,7 @@ cpp_lint = Builtins["builtins/cpp_lint.pkl"].cpp_lint
 deno = Builtins["builtins/deno.pkl"].deno
 deno_check = Builtins["builtins/deno_check.pkl"].deno_check
 detect_private_key = Builtins["builtins/detect_private_key.pkl"].detect_private_key
+dprint = Builtins["builtins/dprint.pkl"].dprint
 erb = Builtins["builtins/erb.pkl"].erb
 err_check = Builtins["builtins/err_check.pkl"].err_check
 eslint = Builtins["builtins/eslint.pkl"].eslint
