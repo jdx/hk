@@ -1,6 +1,6 @@
 import "../Config.pkl"
 
 mypy = new Config.Step {
-    glob = "**/*.py"
+    glob = List("**/*.py", "**/*.pyi")
     check = "mypy {{ files }}"
 } 
