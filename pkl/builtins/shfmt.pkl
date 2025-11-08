@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 shfmt = new Config.Step {
     batch = true
-    glob = List("**/*.sh", "**/*.bash")
+    glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
     stage = glob
     check_diff = "shfmt -d {{ files }}"
     check_list_files = """

@@ -295,7 +295,7 @@ You can also customize builtins:
 - **Command:** `shellcheck {{files}}`
 
 #### `shfmt`
-- **Files:** `*.sh`, `*.bash`
+- **Files:** `*.sh`, `*.bash`, `*.mksh`, `*.bats`, `*.zsh`
 - **Features:** Shell formatter
 - **Commands:**
   - Check: `shfmt -d {{files}}` (with diff support)
