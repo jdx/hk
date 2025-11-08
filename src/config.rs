@@ -76,7 +76,7 @@ impl Config {
             .as_ref()
             .map(|s| s.as_str())
             .unwrap_or("hk.pkl");
-        let paths = vec![default_path, "hk.toml", "hk.yaml", "hk.yml", "hk.json"];
+        let paths = vec![default_path, ".config/hk.pkl", "hk.toml", "hk.yaml", "hk.yml", "hk.json"];
         let mut cwd = std::env::current_dir()?;
         while cwd != Path::new("/") {
             for path in &paths {
