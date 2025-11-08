@@ -1,0 +1,8 @@
+import "../Config.pkl"
+
+dprint = new Config.Step {
+    glob = "**/*"
+    check = "dprint check --allow-no-files {{ files }}"
+    check_list_files = "dprint check --allow-no-files --list-different {{ files }}"
+    fix = "dprint fmt --allow-no-files {{ files }}"
+}

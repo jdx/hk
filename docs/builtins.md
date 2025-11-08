@@ -508,6 +508,13 @@ You can also customize builtins:
   - Check: `astro check {{files}}`
   - Fix: `astro format {{files}}`
 
+#### `dprint`
+- **Files:** All text files
+- **Features:** Pluggable and configurable code formatter
+- **Commands:**
+  - Check: `dprint check --allow-no-files {{files}}`
+  - Fix: `dprint fmt --allow-no-files {{files}}`
+
 ### Special Purpose
 
 #### `check_case_conflict`
