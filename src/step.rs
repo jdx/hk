@@ -1133,6 +1133,28 @@ impl Step {
         // Parse unified diff format to extract file names from --- and +++ lines
         // Check both stdout and stderr since some tools output diffs to stderr
         let mut listed: HashSet<PathBuf> = HashSet::new();
+
+        // First pass: detect if this diff uses a/ and b/ prefixes (git-style)
+        let mut has_a_prefix = false;
+        let mut has_b_prefix = false;
+        for output in [stdout, stderr] {
+            for line in output.lines() {
+                if line.starts_with("--- a/") {
+                    has_a_prefix = true;
+                } else if line.starts_with("+++ b/") {
+                    has_b_prefix = true;
+                }
+                if has_a_prefix && has_b_prefix {
+                    break;
+                }
+            }
+            if has_a_prefix && has_b_prefix {
+                break;
+            }
+        }
+        let should_strip_prefixes = has_a_prefix && has_b_prefix;
+
+        // Second pass: extract file paths
         for output in [stdout, stderr] {
             for line in output.lines() {
                 if line.starts_with("--- ") {
@@ -1143,6 +1165,14 @@ impl Step {
                         } else {
                             path_str.trim()
                         };
+                        // Strip standard diff path prefixes (a/ or b/) if detected
+                        let path = if should_strip_prefixes {
+                            path.strip_prefix("a/")
+                                .or_else(|| path.strip_prefix("b/"))
+                                .unwrap_or(path)
+                        } else {
+                            path
+                        };
                         listed.insert(try_canonicalize(&PathBuf::from(path)));
                     }
                 } else if line.starts_with("+++ ") {
@@ -1151,6 +1181,14 @@ impl Step {
                             before_tab.trim()
                         } else {
                             path_str.trim()
+                        };
+                        // Strip standard diff path prefixes (a/ or b/) if detected
+                        let path = if should_strip_prefixes {
+                            path.strip_prefix("a/")
+                                .or_else(|| path.strip_prefix("b/"))
+                                .unwrap_or(path)
+                        } else {
+                            path
                         };
                         listed.insert(try_canonicalize(&PathBuf::from(path)));
                     }
