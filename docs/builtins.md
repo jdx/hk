@@ -515,6 +515,13 @@ You can also customize builtins:
   - Check: `dprint check --allow-no-files {{files}}`
   - Fix: `dprint fmt --allow-no-files {{files}}`
 
+#### `vacuum`
+- **Files:** `*openapi*.yaml`, `*openapi*.yml`, `*openapi*.json`, `*swagger*.yaml`, `*swagger*.yml`, `*swagger*.json`
+- **Features:** Very fast OpenAPI linter
+- **Commands:**
+  - Check: `vacuum lint {{files}}`
+  - Fix: `vacuum lint --fix {{files}}`
+
 ### Special Purpose
 
 #### `check_case_conflict`
