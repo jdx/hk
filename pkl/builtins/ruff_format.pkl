@@ -2,8 +2,9 @@ import "../Config.pkl"
 
 ruff_format = new Config.Step {
     glob = List("**/*.py", "**/*.pyi")
-    stage = List("**/*.py", "**/*.pyi")
+    stage = "<JOB_FILES>"
     check = "ruff format --check {{ files }}"
+    check_diff = "ruff format --diff {{ files }}"
     fix = "ruff format {{ files }}"
     tests {
         ["detects unformatted code"] {
