@@ -4,16 +4,7 @@ ruff = new Config.Step {
     glob = List("**/*.py", "**/*.pyi")
     stage = "<JOB_FILES>"
     check = "ruff check {{ files }}"
-    check_list_files = """
-# Parse ruff check output to get list of files with issues
-# ruff check --output-format=concise outputs: filename:line:column: error
-# Extract unique filenames using cut (portable across all platforms)
-files=$(ruff check --output-format=concise {{ files }} 2>&1 | cut -d: -f1 | sort -u)
-if [ -n "$files" ]; then
-  echo "$files"
-  exit 1
-fi
-"""
+    check_diff = "ruff check --diff {{ files }}"
     fix = "ruff check --fix {{ files }}"
     tests {
         ["detects unused import"] {

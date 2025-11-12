@@ -553,14 +553,14 @@ impl Step {
             }
         }
         for job in jobs.iter_mut().filter(|j| j.check_first) {
-            // If stage=<JOB_FILES> and check_list_files is defined, always run check_first
+            // If stage=<JOB_FILES> and check_list_files or check_diff is defined, always run check_first
             // to ensure files are filtered correctly, even when there's no contention
             let needs_filtering_for_stage = self
                 .stage
                 .as_ref()
                 .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
                 .unwrap_or(false)
-                && self.check_list_files.is_some();
+                && (self.check_list_files.is_some() || self.check_diff.is_some());
 
             if needs_filtering_for_stage {
                 // Always run check_first when we need to filter files for stage=<JOB_FILES>
@@ -636,19 +636,24 @@ impl Step {
                             if let Some(Error::CheckListFailed { source: _, stdout, stderr }) =
                                 e.downcast_ref::<Error>()
                             {
-                                debug!("{step}: failed check step first: check list failed");
-                                let (files, extras) = step.filter_files_from_check_list(&job.files, stdout);
+                                debug!("{step}: failed check step first: check list or diff failed");
+                                // Use check_diff parser if check_diff is defined, otherwise check_list_files
+                                let (files, extras) = if step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
+                                    step.filter_files_from_check_diff(&job.files, stdout)
+                                } else {
+                                    step.filter_files_from_check_list(&job.files, stdout)
+                                };
                                 for f in extras {
                                     warn!(
-                                        "{step}: file in check_list_files not found in original files: {}",
+                                        "{step}: file in check output not found in original files: {}",
                                         f.display()
                                     );
                                 }
 
                                 // If no files remain after filtering and stderr is non-empty, fail with the stderr output
                                 if files.is_empty() && !stderr.trim().is_empty() {
-                                    error!("{step}: check_list_files returned no files and produced errors:\n{}", stderr);
-                                    return Err(eyre!("check_list_files failed with errors:\n{}", stderr));
+                                    error!("{step}: check returned no files and produced errors:\n{}", stderr);
+                                    return Err(eyre!("check failed with errors:\n{}", stderr));
                                 }
 
                                 job.files = files;
@@ -1015,17 +1020,28 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
-                // For check_list_files, if stdout is empty but stderr has content, treat as an error
-                if let RunType::Check(CheckType::ListFiles) = job.run_type {
+                // For check_list_files and check_diff, if stdout is empty but stderr has content, treat as an error
+                if matches!(
+                    job.run_type,
+                    RunType::Check(CheckType::ListFiles | CheckType::Diff)
+                ) {
+                    let check_type_name = if matches!(job.run_type, RunType::Check(CheckType::Diff))
+                    {
+                        "check_diff"
+                    } else {
+                        "check_list_files"
+                    };
                     debug!(
-                        "{self}: check_list_files succeeded, stdout len={}, stderr len={}",
+                        "{self}: {check_type_name} succeeded, stdout len={}, stderr len={}",
                         result.stdout.len(),
                         result.stderr.len()
                     );
                     if result.stdout.trim().is_empty() && !result.stderr.trim().is_empty() {
-                        error!("{self}: check_list_files returned no files but produced stderr");
+                        error!("{self}: {check_type_name} returned no files but produced stderr");
                         return Err(Error::CheckListFailed {
-                            source: eyre!("check_list_files returned no files but produced stderr"),
+                            source: eyre!(
+                                "{check_type_name} returned no files but produced stderr"
+                            ),
                             stdout: result.stdout.clone(),
                             stderr: result.stderr.clone(),
                         })?;
@@ -1043,7 +1059,10 @@ impl Step {
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
-                    if let RunType::Check(CheckType::ListFiles) = job.run_type {
+                    if matches!(
+                        job.run_type,
+                        RunType::Check(CheckType::ListFiles | CheckType::Diff)
+                    ) {
                         let result = &e.3;
                         let stdout = result.stdout.clone();
                         let stderr = result.stderr.clone();
@@ -1088,6 +1107,48 @@ impl Step {
             .lines()
             .map(|p| try_canonicalize(&PathBuf::from(p)))
             .collect();
+        let files: IndexSet<PathBuf> = original_files
+            .iter()
+            .filter(|f| listed.contains(&try_canonicalize(f)))
+            .cloned()
+            .collect();
+        let canonicalized_files: IndexSet<PathBuf> = files.iter().map(try_canonicalize).collect();
+        let extras: Vec<PathBuf> = listed
+            .into_iter()
+            .filter(|f| !canonicalized_files.contains(f))
+            .collect();
+        (files.into_iter().collect(), extras)
+    }
+
+    fn filter_files_from_check_diff(
+        &self,
+        original_files: &[PathBuf],
+        stdout: &str,
+    ) -> (Vec<PathBuf>, Vec<PathBuf>) {
+        // Parse unified diff format to extract file names from --- and +++ lines
+        let mut listed: HashSet<PathBuf> = HashSet::new();
+        for line in stdout.lines() {
+            if line.starts_with("--- ") {
+                if let Some(path_str) = line.strip_prefix("--- ") {
+                    // Strip timestamp if present (tab-separated: "--- file.py	2025-01-01 12:00:00")
+                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
+                        before_tab.trim()
+                    } else {
+                        path_str.trim()
+                    };
+                    listed.insert(try_canonicalize(&PathBuf::from(path)));
+                }
+            } else if line.starts_with("+++ ") {
+                if let Some(path_str) = line.strip_prefix("+++ ") {
+                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
+                        before_tab.trim()
+                    } else {
+                        path_str.trim()
+                    };
+                    listed.insert(try_canonicalize(&PathBuf::from(path)));
+                }
+            }
+        }
         let files: IndexSet<PathBuf> = original_files
             .iter()
             .filter(|f| listed.contains(&try_canonicalize(f)))

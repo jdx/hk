@@ -14,9 +14,9 @@ teardown() {
 # This prevents untracked files from being accidentally staged.
 
 @test "ruff with <JOB_FILES> only stages files with linting issues" {
-    cat <<PKL > hk.pkl
-amends "\$PKL_PATH/Config.pkl"
-import "\$PKL_PATH/Builtins.pkl"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
   ["pre-commit"] {
     fix = true
@@ -26,7 +26,7 @@ hooks {
     }
   }
 }
-PKL
+EOF
     git add hk.pkl
     git commit -m 'init'
     hk install
@@ -38,14 +38,14 @@ print("hello")' > has_issue.py
     git commit -m 'add has_issue.py'
 
     # Create tracked file without issues
-    echo 'print("hello")' > no_issue.py
+    echo 'print("world")' > no_issue.py
     git add no_issue.py
     git commit -m 'add no_issue.py'
 
     # Modify file with issue and stage it
     echo 'import sys
 import os
-print("hello")' > has_issue.py
+print("goodbye")' > has_issue.py
     git add has_issue.py
 
     # Modify file without issue but don't stage
@@ -71,9 +71,9 @@ print("test")' > untracked.py
 }
 
 @test "ruff_format with <JOB_FILES> only stages files needing formatting" {
-    cat <<PKL > hk.pkl
-amends "\$PKL_PATH/Config.pkl"
-import "\$PKL_PATH/Builtins.pkl"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
   ["pre-commit"] {
     fix = true
@@ -83,7 +83,7 @@ hooks {
     }
   }
 }
-PKL
+EOF
     git add hk.pkl
     git commit -m 'init'
     hk install
@@ -124,9 +124,9 @@ PKL
 }
 
 @test "black with <JOB_FILES> only stages files needing formatting" {
-    cat <<PKL > hk.pkl
-amends "\$PKL_PATH/Config.pkl"
-import "\$PKL_PATH/Builtins.pkl"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
   ["pre-commit"] {
     fix = true
@@ -136,7 +136,7 @@ hooks {
     }
   }
 }
-PKL
+EOF
     git add hk.pkl
     git commit -m 'init'
     hk install
@@ -177,9 +177,9 @@ PKL
 }
 
 @test "prettier with <JOB_FILES> only stages files needing formatting" {
-    cat <<PKL > hk.pkl
-amends "\$PKL_PATH/Config.pkl"
-import "\$PKL_PATH/Builtins.pkl"
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
 hooks {
   ["pre-commit"] {
     fix = true
@@ -189,7 +189,7 @@ hooks {
     }
   }
 }
-PKL
+EOF
     git add hk.pkl
     git commit -m 'init'
     hk install
