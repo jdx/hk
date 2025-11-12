@@ -1,4 +1,5 @@
 use crate::{Result, config::Config, env};
+use log::warn;
 use std::process::Command;
 
 /// Sets up git hooks to run hk
@@ -76,30 +77,26 @@ fn check_hooks_path_config() -> Result<()> {
 
     if let Ok(Some(path)) = check_config("--global") {
         warnings.push(format!(
-            "Warning: core.hooksPath is set globally to '{}'. This may prevent hk hooks from running.",
+            "core.hooksPath is set globally to '{}'. This may prevent hk hooks from running.",
             path
         ));
-        warnings.push(
-            "         Run 'git config --global --unset-all core.hooksPath' to remove it.".to_string(),
-        );
+        warnings
+            .push("Run 'git config --global --unset-all core.hooksPath' to remove it.".to_string());
     }
 
     if let Ok(Some(path)) = check_config("--local") {
         warnings.push(format!(
-            "Warning: core.hooksPath is set locally to '{}'. This may prevent hk hooks from running.",
+            "core.hooksPath is set locally to '{}'. This may prevent hk hooks from running.",
             path
         ));
-        warnings.push(
-            "         Run 'git config --local --unset-all core.hooksPath' to remove it.".to_string(),
-        );
+        warnings
+            .push("Run 'git config --local --unset-all core.hooksPath' to remove it.".to_string());
     }
 
     if !warnings.is_empty() {
-        eprintln!();
         for warning in warnings {
-            eprintln!("{}", warning);
+            warn!("{}", warning);
         }
-        eprintln!();
     }
 
     Ok(())

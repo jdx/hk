@@ -26,7 +26,7 @@ EOF
     assert_success
 
     # Should warn about global hooksPath
-    assert_output --partial "Warning: core.hooksPath is set globally to '/some/global/hooks/path'"
+    assert_output --partial "core.hooksPath is set globally to '/some/global/hooks/path'"
     assert_output --partial "git config --global --unset-all core.hooksPath"
 
     # Clean up global config
@@ -50,7 +50,7 @@ EOF
     assert_success
 
     # Should warn about local hooksPath
-    assert_output --partial "Warning: core.hooksPath is set locally to '/some/local/hooks/path'"
+    assert_output --partial "core.hooksPath is set locally to '/some/local/hooks/path'"
     assert_output --partial "git config --local --unset-all core.hooksPath"
 
     # Clean up local config
@@ -75,9 +75,9 @@ EOF
     assert_success
 
     # Should warn about both
-    assert_output --partial "Warning: core.hooksPath is set globally to '/some/global/hooks/path'"
+    assert_output --partial "core.hooksPath is set globally to '/some/global/hooks/path'"
     assert_output --partial "git config --global --unset-all core.hooksPath"
-    assert_output --partial "Warning: core.hooksPath is set locally to '/some/local/hooks/path'"
+    assert_output --partial "core.hooksPath is set locally to '/some/local/hooks/path'"
     assert_output --partial "git config --local --unset-all core.hooksPath"
 
     # Clean up configs
