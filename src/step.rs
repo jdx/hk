@@ -1020,7 +1020,11 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
-                // For check_list_files and check_diff, if stdout is empty but stderr has content, treat as an error
+                // For check_list_files and check_diff that succeed (exit 0):
+                // - If stdout is empty and stderr is empty: no issues found (success)
+                // - If stdout has content: issues found, will be parsed
+                // - If stdout is empty but stderr has content: likely just informational messages, not an error
+                // We don't treat stderr-only output as an error here since exit code was 0
                 if matches!(
                     job.run_type,
                     RunType::Check(CheckType::ListFiles | CheckType::Diff)
@@ -1032,20 +1036,10 @@ impl Step {
                         "check_list_files"
                     };
                     debug!(
-                        "{self}: {check_type_name} succeeded, stdout len={}, stderr len={}",
+                        "{self}: {check_type_name} succeeded (exit 0), stdout len={}, stderr len={}",
                         result.stdout.len(),
                         result.stderr.len()
                     );
-                    if result.stdout.trim().is_empty() && !result.stderr.trim().is_empty() {
-                        error!("{self}: {check_type_name} returned no files but produced stderr");
-                        return Err(Error::CheckListFailed {
-                            source: eyre!(
-                                "{check_type_name} returned no files but produced stderr"
-                            ),
-                            stdout: result.stdout.clone(),
-                            stderr: result.stderr.clone(),
-                        })?;
-                    }
                 }
                 // Save output for end-of-run summary based on configured mode
                 self.save_output_summary(
