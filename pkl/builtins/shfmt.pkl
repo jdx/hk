@@ -2,10 +2,8 @@ import "../Config.pkl"
 
 shfmt = new Config.Step {
     batch = true
-    // Matches shell files by extension and shebang (including extensionless scripts)
-    types = List("shell")
-    glob = List("**/*.bats")  // Also include .bats files which may not be detected by shebang
-    stage = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
+    glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
+    stage = glob
     check_diff = "shfmt -d {{ files }}"
     check_list_files = """
 files=$(shfmt -l {{ files }})

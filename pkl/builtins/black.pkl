@@ -1,8 +1,7 @@
 import "../Config.pkl"
 
 black = new Config.Step {
-    // Matches both .py files and Python scripts without extensions (via shebang)
-    types = List("python")
+    glob = List("**/*.py")
     stage = "<JOB_FILES>"
     check = "black --check {{ files }}"
     check_diff = "black --diff {{ files }}"
