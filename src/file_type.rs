@@ -18,15 +18,15 @@ pub fn get_file_types(path: &Path) -> HashSet<String> {
 
     let mut types = HashSet::new();
 
-    // 1. Check if it's a symlink
+    // 1. Check if it's a symlink (but continue to detect target's type)
     if let Ok(metadata) = std::fs::symlink_metadata(path) {
         if metadata.is_symlink() {
             types.insert("symlink".to_string());
-            FILE_TYPE_CACHE.insert(path.to_path_buf(), types.clone());
-            return types;
         }
+    }
 
-        // 2. Check if it's executable
+    // 2. Check if it's executable (follows symlinks)
+    if let Ok(metadata) = std::fs::metadata(path) {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -36,35 +36,43 @@ pub fn get_file_types(path: &Path) -> HashSet<String> {
         }
     }
 
-    // 3. Check by filename (e.g., Dockerfile, Makefile)
-    if let Some(filename) = path.file_name().and_then(|n| n.to_str()) {
+    // 3. For symlinks, also check the target's filename and extension
+    // For non-symlinks, use the path directly
+    let check_path = if types.contains("symlink") {
+        std::fs::read_link(path).unwrap_or_else(|_| path.to_path_buf())
+    } else {
+        path.to_path_buf()
+    };
+
+    // 4. Check by filename (e.g., Dockerfile, Makefile)
+    if let Some(filename) = check_path.file_name().and_then(|n| n.to_str()) {
         if let Some(name_types) = get_types_by_filename(filename) {
             types.extend(name_types);
         }
     }
 
-    // 4. Check by extension
-    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+    // 5. Check by extension
+    if let Some(ext) = check_path.extension().and_then(|e| e.to_str()) {
         if let Some(ext_types) = get_types_by_extension(ext) {
             types.extend(ext_types);
         }
     }
 
-    // 5. Check shebang for executable text files
+    // 6. Check shebang for executable text files
     if types.contains("executable") || types.is_empty() {
         if let Some(shebang_types) = detect_shebang(path) {
             types.extend(shebang_types);
         }
     }
 
-    // 6. Check magic number / content-based detection
+    // 7. Check magic number / content-based detection
     if types.is_empty() || !types.contains("text") {
         if let Some(content_types) = detect_by_content(path) {
             types.extend(content_types);
         }
     }
 
-    // 7. If still no type detected, default to text if not binary
+    // 8. If still no type detected, default to text if not binary
     if types.is_empty() {
         types.insert("text".to_string());
     }
@@ -604,5 +612,43 @@ mod tests {
         let types = get_file_types(file.path());
         assert!(types.contains("binary"));
         assert!(!types.contains("text"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_symlink_to_python_file() {
+        use std::os::unix::fs::symlink;
+
+        // Create target Python file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let target_path = temp_dir.path().join("target.py");
+        std::fs::write(&target_path, b"print('hello')").unwrap();
+
+        // Create a symlink to the Python file
+        let link_path = temp_dir.path().join("link_to_script");
+        symlink(&target_path, &link_path).unwrap();
+
+        let types = get_file_types(&link_path);
+        assert!(types.contains("symlink"), "Should contain symlink type");
+        assert!(types.contains("python"), "Should contain python type");
+        assert!(types.contains("text"), "Should contain text type");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_symlink_matches_target_type() {
+        use std::os::unix::fs::symlink;
+
+        // Create target Python file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let target_path = temp_dir.path().join("script.py");
+        std::fs::write(&target_path, b"print('hello')").unwrap();
+
+        let link_path = temp_dir.path().join("link_to_script");
+        symlink(&target_path, &link_path).unwrap();
+
+        // Should match python type filter even though it's a symlink
+        assert!(matches_types(&link_path, &["python".to_string()]));
+        assert!(matches_types(&link_path, &["symlink".to_string()]));
     }
 }
