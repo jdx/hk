@@ -153,6 +153,8 @@ pub struct Step {
     #[serde(default)]
     pub glob: Option<Pattern>,
     #[serde(default)]
+    pub types: Option<Vec<String>>,
+    #[serde(default)]
     pub interactive: bool,
     pub depends: Vec<String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
@@ -388,6 +390,11 @@ impl Step {
             });
         }
 
+        // Filter by file types if specified
+        if let Some(types) = &self.types {
+            files.retain(|f| crate::file_type::matches_types(f, types));
+        }
+
         Ok(files)
     }
 
@@ -492,7 +499,10 @@ impl Step {
         let files = self.filter_files(files)?;
         // Skip if no files and step has file filters
         // This means the step was explicitly looking for specific files and found none
-        let has_filters = self.glob.is_some() || self.dir.is_some() || self.exclude.is_some();
+        let has_filters = self.glob.is_some()
+            || self.dir.is_some()
+            || self.exclude.is_some()
+            || self.types.is_some();
         if files.is_empty() && has_filters {
             debug!("{self}: no file matches for step");
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
@@ -938,7 +948,10 @@ impl Step {
         job.files.retain(|f| f.symlink_metadata().is_ok());
         // Skip this job if all files were deleted
         if job.files.is_empty()
-            && (self.glob.is_some() || self.dir.is_some() || self.exclude.is_some())
+            && (self.glob.is_some()
+                || self.dir.is_some()
+                || self.exclude.is_some()
+                || self.types.is_some())
         {
             debug!("{self}: all files deleted before execution");
             self.mark_skipped(ctx, &SkipReason::NoFilesToProcess)?;
