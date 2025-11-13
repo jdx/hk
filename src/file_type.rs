@@ -164,62 +164,62 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
 fn detect_by_content(path: &Path) -> Option<HashSet<String>> {
     let mut types = HashSet::new();
 
-    // Read first 8KB for detection
-    let mut file = File::open(path).ok()?;
-    let kind = infer::get_from_path(path).ok()??;
+    // Try magic number detection first
+    if let Ok(Some(kind)) = infer::get_from_path(path) {
+        types.insert("binary".to_string());
 
-    types.insert("binary".to_string());
-
-    // Map infer's MIME types to our type tags
-    let mime = kind.mime_type();
-    match mime {
-        // Images
-        m if m.starts_with("image/") => {
-            types.insert("image".to_string());
-            if let Some(subtype) = m.strip_prefix("image/") {
-                types.insert(subtype.to_string());
+        // Map infer's MIME types to our type tags
+        let mime = kind.mime_type();
+        match mime {
+            // Images
+            m if m.starts_with("image/") => {
+                types.insert("image".to_string());
+                if let Some(subtype) = m.strip_prefix("image/") {
+                    types.insert(subtype.to_string());
+                }
             }
+            // Videos
+            m if m.starts_with("video/") => {
+                types.insert("video".to_string());
+            }
+            // Audio
+            m if m.starts_with("audio/") => {
+                types.insert("audio".to_string());
+            }
+            // Archives
+            "application/zip" => {
+                types.insert("archive".to_string());
+                types.insert("zip".to_string());
+            }
+            "application/gzip" | "application/x-gzip" => {
+                types.insert("archive".to_string());
+                types.insert("gzip".to_string());
+            }
+            "application/x-tar" => {
+                types.insert("archive".to_string());
+                types.insert("tar".to_string());
+            }
+            // PDFs
+            "application/pdf" => {
+                types.insert("pdf".to_string());
+            }
+            _ => {}
         }
-        // Videos
-        m if m.starts_with("video/") => {
-            types.insert("video".to_string());
-        }
-        // Audio
-        m if m.starts_with("audio/") => {
-            types.insert("audio".to_string());
-        }
-        // Archives
-        "application/zip" => {
-            types.insert("archive".to_string());
-            types.insert("zip".to_string());
-        }
-        "application/gzip" | "application/x-gzip" => {
-            types.insert("archive".to_string());
-            types.insert("gzip".to_string());
-        }
-        "application/x-tar" => {
-            types.insert("archive".to_string());
-            types.insert("tar".to_string());
-        }
-        // PDFs
-        "application/pdf" => {
-            types.insert("pdf".to_string());
-        }
-        _ => {}
+
+        return Some(types);
     }
 
-    // If no binary signature found, check if it's text
-    if types.is_empty() {
-        use std::io::Read;
-        let mut buffer = [0u8; 8192];
-        let bytes_read = file.read(&mut buffer).ok()?;
-        let is_binary = buffer[..bytes_read].contains(&0);
+    // If no magic number found, fallback to null-byte scanning
+    use std::io::Read;
+    let mut file = File::open(path).ok()?;
+    let mut buffer = [0u8; 8192];
+    let bytes_read = file.read(&mut buffer).ok()?;
+    let is_binary = buffer[..bytes_read].contains(&0);
 
-        if is_binary {
-            types.insert("binary".to_string());
-        } else {
-            types.insert("text".to_string());
-        }
+    if is_binary {
+        types.insert("binary".to_string());
+    } else {
+        types.insert("text".to_string());
     }
 
     Some(types)
@@ -582,5 +582,27 @@ mod tests {
         assert!(types.contains("dockerfile"));
 
         std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_text_file_without_extension() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"This is a plain text file\nwithout any extension\n")
+            .unwrap();
+
+        let types = get_file_types(file.path());
+        assert!(types.contains("text"));
+        assert!(!types.contains("binary"));
+    }
+
+    #[test]
+    fn test_binary_file_detection() {
+        let mut file = NamedTempFile::new().unwrap();
+        // Write some binary data with null bytes
+        file.write_all(&[0x00, 0x01, 0x02, 0xFF, 0xFE]).unwrap();
+
+        let types = get_file_types(file.path());
+        assert!(types.contains("binary"));
+        assert!(!types.contains("text"));
     }
 }
