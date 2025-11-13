@@ -108,17 +108,16 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
             .nth(1)
             .unwrap_or("")
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or("")
     } else {
         shebang
             .trim_start_matches("#!")
-            .trim()
             .split_whitespace()
             .next()
             .unwrap_or("")
             .split('/')
-            .last()
+            .next_back()
             .unwrap_or("")
     };
 
@@ -565,10 +564,10 @@ mod tests {
         // Should match if ANY type matches
         assert!(matches_types(
             &path,
-            &vec!["python".to_string(), "ruby".to_string()]
+            &["python".to_string(), "ruby".to_string()]
         ));
-        assert!(matches_types(&path, &vec!["text".to_string()]));
-        assert!(!matches_types(&path, &vec!["ruby".to_string()]));
+        assert!(matches_types(&path, &["text".to_string()]));
+        assert!(!matches_types(&path, &["ruby".to_string()]));
     }
 
     #[test]
