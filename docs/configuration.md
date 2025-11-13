@@ -191,6 +191,55 @@ Files the step should run on. By default this will only run this step if at leas
 }
 ```
 
+### `<STEP>.types: List<String>`
+
+Default: `(none)`
+
+Filter files by their type rather than just glob patterns. Matches files by extension, shebang, or content detection (OR logic - file must match ANY of the specified types). This is particularly useful for matching scripts without file extensions.
+
+```pkl
+// Match Python files by extension AND shebang (including extensionless scripts)
+["black"] {
+    types = List("python")
+    fix = "black {{files}}"
+}
+
+// Match shell scripts by extension or shebang
+["shellcheck"] {
+    types = List("shell")
+    check = "shellcheck {{files}}"
+}
+
+// Match multiple types (OR logic)
+["format-scripts"] {
+    types = List("python", "shell", "ruby")
+    fix = "format-script {{files}}"
+}
+
+// Combine types with glob patterns for more precise filtering
+["format-src-python"] {
+    glob = "src/**/*"  // Only files in src/
+    types = List("python")  // That are Python files
+    fix = "black {{files}}"
+}
+```
+
+**Supported types include:**
+
+- **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`
+- **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
+- **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`
+- **Markup:** `html`, `markdown`, `css`
+- **Special:** `text`, `binary`, `executable`, `symlink`, `dockerfile`
+- **Images:** `image`, `png`, `jpeg`, `gif`, `svg`, `webp`
+- **Archives:** `archive`, `zip`, `tar`, `gzip`
+
+Types are detected using:
+1. File extension (e.g., `.py` → `python`)
+2. Shebang line (e.g., `#!/usr/bin/env python3` → `python`)
+3. Special filenames (e.g., `Dockerfile` → `dockerfile`)
+4. Content/magic number detection for binary files
+
 ### `<STEP>.check: (String | Script)`
 
 A command to run that does not modify files. This typically is a "check" command like `eslint` or `prettier --check` that returns a non-zero exit code if there are errors.
