@@ -72,6 +72,22 @@ impl Context {
         self
     }
 
+    pub fn with_filepaths_file<P: AsRef<Path>>(
+        &mut self,
+        filepaths_file: &mut tempfile::NamedTempFile,
+        files: &[P],
+    ) -> crate::Result<&mut Self> {
+        use std::io::Write;
+        for f in files {
+            writeln!(filepaths_file, "{}", f.as_ref().display())?;
+        }
+        self.insert(
+            "filepaths_file",
+            &filepaths_file.path().display().to_string(),
+        );
+        Ok(self)
+    }
+
     pub fn with_workspace_files<P: AsRef<Path>>(
         &mut self,
         shell_type: ShellType,

@@ -87,6 +87,10 @@ class Step {
     /// Whether to include symbolic links (default: false)
     allow_symlinks = false
     
+    /// Whether to include `filespaths_file` (a tempfile containing the `files`, one-per-line) in the template variables.
+    /// The files won't be shell-escaped.
+    make_filespath_file = false
+
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}
 

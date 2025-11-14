@@ -166,6 +166,10 @@ pub struct Step {
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub fix: Option<Script>,
     pub workspace_indicator: Option<String>,
+    /// Whether to have `files` template variable be a single file with the files
+    /// listed (one per line) in it
+    #[serde(default)]
+    pub make_filespath_file: bool,
     pub prefix: Option<String>,
     pub dir: Option<String>,
     pub condition: Option<String>,
@@ -540,8 +544,10 @@ impl Step {
             )]
         };
 
-        // Auto-batch any jobs where the file list would exceed safe limits
-        jobs = self.auto_batch_jobs_if_needed(jobs);
+        if !self.make_filespath_file {
+            // Auto-batch any jobs where the file list would exceed safe limits
+            jobs = self.auto_batch_jobs_if_needed(jobs);
+        }
 
         // Apply profile skip only after determining files/no-files, so NoFilesToProcess wins
         // Also, if a condition is present, defer profile checks to run() so ConditionFalse wins
@@ -932,20 +938,9 @@ impl Step {
             self.mark_skipped(ctx, &SkipReason::NoFilesToProcess)?;
             return Ok(());
         }
-        let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
-        // Set {{globs}} template variable based on pattern type
-        match self.glob.as_ref() {
-            Some(Pattern::Globs(g)) => {
-                tctx.with_globs(g.as_slice());
-            }
-            Some(Pattern::Regex { pattern, .. }) => {
-                // For regex patterns, provide the pattern string so templates can use it
-                tctx.insert("globs", pattern);
-            }
-            None => {
-                tctx.with_globs(&[] as &[&str]);
-            }
-        }
+        let mut maybe_tempfile = None;
+        let tctx = self.job_tera_context(ctx, job, &mut maybe_tempfile)?;
+
         let file_msg = |files: &[PathBuf]| {
             format!(
                 "{} file{}",
@@ -1079,6 +1074,58 @@ impl Step {
         Ok(())
     }
 
+    fn job_tera_context(
+        &self,
+        ctx: &StepContext,
+        job: &StepJob,
+        maybe_tempfile: &mut Option<tempfile::NamedTempFile>,
+    ) -> Result<tera::Context> {
+        let mut tctx: tera::Context = ctx.hook_ctx.tctx.clone();
+
+        // Set {{globs}} template variable based on pattern type
+        match self.glob.as_ref() {
+            Some(Pattern::Globs(g)) => {
+                tctx.with_globs(g.as_slice());
+            }
+            Some(Pattern::Regex { pattern, .. }) => {
+                // For regex patterns, provide the pattern string so templates can use it
+                tctx.insert("globs", pattern);
+            }
+            None => {
+                tctx.with_globs(&[] as &[&str]);
+            }
+        }
+
+        // Set {{files}} (to directory-stripped paths)
+        let command_files = if let Some(dir) = &self.dir {
+            job.files
+                .iter()
+                .map(|f| f.strip_prefix(dir).unwrap_or(f).to_path_buf())
+                .collect::<Vec<_>>()
+        } else {
+            job.files.clone()
+        };
+        tctx.with_files(self.shell_type(), &command_files);
+
+        // Set {{workspace_files}}
+        if let Some(workspace_indicator) = &job.workspace_indicator {
+            tctx.with_workspace_indicator(workspace_indicator);
+            let workspace_dir = workspace_indicator
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."));
+            tctx.with_workspace_files(self.shell_type(), workspace_dir, &job.files);
+        }
+
+        if self.make_filespath_file {
+            // @TODO: This is the only result-inducing part :(
+            let mut tempfile = tempfile::NamedTempFile::new()?;
+            tctx.with_filepaths_file(&mut tempfile, &command_files)?;
+            *maybe_tempfile = Some(tempfile);
+        }
+        Ok(tctx)
+    }
+
     fn filter_files_from_check_list(
         &self,
         original_files: &[PathBuf],
@@ -1125,7 +1172,12 @@ impl Step {
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace
         let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
-        let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
+        let mut maybe_tempfile = None;
+        let suggest_ctx = self.job_tera_context(ctx, &temp_job, &mut maybe_tempfile);
+        if suggest_ctx.is_err() {
+            return;
+        }
+        let suggest_ctx = suggest_ctx.unwrap();
         if let Some(mut fix_cmd) = self.run_cmd(RunType::Fix).map(|s| s.to_string()) {
             if let Some(prefix) = &self.prefix {
                 fix_cmd = format!("{prefix} {fix_cmd}");
