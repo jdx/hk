@@ -15,12 +15,12 @@ pub struct PreCommit {
     /// Path to .pre-commit-config.yaml
     #[clap(short, long, default_value = ".pre-commit-config.yaml")]
     config: PathBuf,
-    /// Output path for hk.pkl
-    #[clap(short, long, default_value = "hk.pkl")]
-    output: PathBuf,
     /// Overwrite existing hk.pkl file
     #[clap(short, long)]
     force: bool,
+    /// Output path for hk.pkl
+    #[clap(short, long, default_value = "hk.pkl")]
+    output: PathBuf,
     /// Root path for hk pkl files (e.g., "pkl" for local, or package URL prefix)
     /// If specified, will use {root}/Config.pkl and {root}/Builtins.pkl
     #[clap(long)]
