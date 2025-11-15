@@ -77,7 +77,14 @@ impl Config {
             vec![hk_file.as_str()]
         } else {
             // Default search order when HK_FILE is not set
-            vec!["hk.pkl", ".config/hk.pkl", "hk.toml", "hk.yaml", "hk.yml", "hk.json"]
+            vec![
+                "hk.pkl",
+                ".config/hk.pkl",
+                "hk.toml",
+                "hk.yaml",
+                "hk.yml",
+                "hk.json",
+            ]
         };
         let mut cwd = std::env::current_dir()?;
         while cwd != Path::new("/") {
