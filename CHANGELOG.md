@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.21.0](https://github.com/jdx/hk/compare/v1.20.0..v1.21.0) - 2025-11-15
+
+### 🚀 Features
+
+- **(dprint)** new builtin by [@scop](https://github.com/scop) in [#402](https://github.com/jdx/hk/pull/402)
+- **(mypy,ruff,ruff_format)** associate with .pyi by [@scop](https://github.com/scop) in [#404](https://github.com/jdx/hk/pull/404)
+- **(prettier)** support Vue files by [@minusfive](https://github.com/minusfive) in [#388](https://github.com/jdx/hk/pull/388)
+- **(terraform,tofu)** include .tftest.hcl in glob by [@scop](https://github.com/scop) in [#397](https://github.com/jdx/hk/pull/397)
+- **(tflint)** add fix command by [@scop](https://github.com/scop) in [#401](https://github.com/jdx/hk/pull/401)
+- **(typos)** new builtin by [@scop](https://github.com/scop) in [#400](https://github.com/jdx/hk/pull/400)
+- use recursive glob patterns in all builtins by [@jdx](https://github.com/jdx) in [#383](https://github.com/jdx/hk/pull/383)
+- shfmt improvements by [@scop](https://github.com/scop) in [#410](https://github.com/jdx/hk/pull/410)
+- add content-based file type matching by [@jdx](https://github.com/jdx) in [#416](https://github.com/jdx/hk/pull/416)
+- add clap-sort unit test and sort CLI flags alphabetically by [@jdx](https://github.com/jdx) in [#419](https://github.com/jdx/hk/pull/419)
+- Add alternate config directory support with tests by [@jdx](https://github.com/jdx) in [#407](https://github.com/jdx/hk/pull/407)
+
+### 🐛 Bug Fixes
+
+- **(golangci-lint)** check with --fix=false by [@scop](https://github.com/scop) in [#399](https://github.com/jdx/hk/pull/399)
+- **(shfmt)** don't pass -s by [@scop](https://github.com/scop) in [#398](https://github.com/jdx/hk/pull/398)
+- **(tf_lint)** don't pass filenames by [@scop](https://github.com/scop) in [#396](https://github.com/jdx/hk/pull/396)
+- Import elixir builtins by [@arthurcogo](https://github.com/arthurcogo) in [#390](https://github.com/jdx/hk/pull/390)
+- Add warning for existing Git hooks path by [@jdx](https://github.com/jdx) in [#409](https://github.com/jdx/hk/pull/409)
+- prevent untracked files from being staged with <JOB_FILES> by [@jdx](https://github.com/jdx) in [#408](https://github.com/jdx/hk/pull/408)
+
+### 📚 Documentation
+
+- Add Elixir builtins to docs by [@arthurcogo](https://github.com/arthurcogo) in [#389](https://github.com/jdx/hk/pull/389)
+- glossary grammar fix by [@scop](https://github.com/scop) in [#395](https://github.com/jdx/hk/pull/395)
+- fix link to Pkl language docs by [@scop](https://github.com/scop) in [#394](https://github.com/jdx/hk/pull/394)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 8a1c437 by [@renovate[bot]](https://github.com/renovate[bot]) in [#391](https://github.com/jdx/hk/pull/391)
+- update jdx/mise-action digest to be3be22 by [@renovate[bot]](https://github.com/renovate[bot]) in [#392](https://github.com/jdx/hk/pull/392)
+- update github artifact actions (major) by [@renovate[bot]](https://github.com/renovate[bot]) in [#393](https://github.com/jdx/hk/pull/393)
+- update rust crate infer to 0.19 by [@renovate[bot]](https://github.com/renovate[bot]) in [#418](https://github.com/jdx/hk/pull/418)
+- update jdx/mise-action digest to 9dc7d5d by [@renovate[bot]](https://github.com/renovate[bot]) in [#417](https://github.com/jdx/hk/pull/417)
+
+### New Contributors
+
+- @scop made their first contribution in [#410](https://github.com/jdx/hk/pull/410)
+- @arthurcogo made their first contribution in [#390](https://github.com/jdx/hk/pull/390)
+- @minusfive made their first contribution in [#388](https://github.com/jdx/hk/pull/388)
+
 ## [1.20.0](https://github.com/jdx/hk/compare/v1.19.0..v1.20.0) - 2025-10-29
 
 ### 🚀 Features
