@@ -23,7 +23,7 @@ pub struct StepJob {
     pub skip_reason: Option<SkipReason>,
     pub progress: Option<Arc<ProgressJob>>,
     pub semaphore: Option<OwnedSemaphorePermit>,
-    workspace_indicator: Option<PathBuf>,
+    pub workspace_indicator: Option<PathBuf>,
 
     pub status: StepJobStatus,
 }
@@ -60,31 +60,6 @@ impl StepJob {
     pub fn with_workspace_indicator(mut self, workspace_indicator: PathBuf) -> Self {
         self.workspace_indicator = Some(workspace_indicator);
         self
-    }
-
-    pub fn tctx(&self, base: &tera::Context) -> tera::Context {
-        let mut tctx = base.clone();
-
-        // Handle directory stripping for command execution context
-        let command_files = if let Some(dir) = &self.step.dir {
-            self.files
-                .iter()
-                .map(|f| f.strip_prefix(dir).unwrap_or(f).to_path_buf())
-                .collect::<Vec<_>>()
-        } else {
-            self.files.clone()
-        };
-
-        tctx.with_files(self.step.shell_type(), &command_files);
-        if let Some(workspace_indicator) = &self.workspace_indicator {
-            tctx.with_workspace_indicator(workspace_indicator);
-            let workspace_dir = workspace_indicator
-                .parent()
-                .filter(|p| !p.as_os_str().is_empty())
-                .unwrap_or(std::path::Path::new("."));
-            tctx.with_workspace_files(self.step.shell_type(), workspace_dir, &self.files);
-        }
-        tctx
     }
 
     pub fn build_progress(&self, ctx: &StepContext) -> Arc<ProgressJob> {
