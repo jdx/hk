@@ -11,6 +11,7 @@ mod config;
 mod env;
 mod error;
 mod file_rw_locks;
+mod file_type;
 mod git;
 mod glob;
 mod hash;

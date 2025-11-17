@@ -11,8 +11,8 @@ hk provides 70+ pre-configured linters and formatters through the `Builtins` mod
 Import and use builtins in your `hk.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
@@ -118,7 +118,7 @@ You can also customize builtins:
   - Fix: `ruff check --fix {{files}}`
 
 #### `ruff_format`
-- **Files:** `*.py`
+- **Files:** `*.py`, `*.pyi`
 - **Features:** Fast Python formatter (part of ruff)
 - **Commands:**
   - Check: `ruff format --check {{files}}`
@@ -142,7 +142,7 @@ You can also customize builtins:
 - **Command:** `pylint {{files}}`
 
 #### `mypy`
-- **Files:** `*.py`
+- **Files:** `*.py`, `*.pyi`
 - **Features:** Static type checker for Python
 - **Command:** `mypy {{files}}`
 
@@ -194,7 +194,7 @@ You can also customize builtins:
 - **Files:** Go projects
 - **Features:** Go meta-linter
 - **Commands:**
-  - Check: `golangci-lint run {{files}}`
+  - Check: `golangci-lint run --fix=false {{files}}`
   - Fix: `golangci-lint run --fix {{files}}`
 
 #### `staticcheck`
@@ -295,23 +295,23 @@ You can also customize builtins:
 - **Command:** `shellcheck {{files}}`
 
 #### `shfmt`
-- **Files:** `*.sh`, `*.bash`
+- **Files:** `*.sh`, `*.bash`, `*.mksh`, `*.bats`, `*.zsh`
 - **Features:** Shell formatter
 - **Commands:**
-  - Check: `shfmt -l {{files}}`
+  - Check: `shfmt -d {{files}}` (with diff support)
   - Fix: `shfmt -w {{files}}`
 
 ### Infrastructure
 
 #### `terraform`
-- **Files:** `**/*.tf`, `**/*.tfvars`
+- **Files:** `**/*.tf`, `**/*.tfvars`, `**/*.tftest.hcl`
 - **Features:** Terraform formatter
 - **Commands:**
   - Check: `terraform fmt -check {{files}}`
   - Fix: `terraform fmt {{files}}`
 
 #### `tofu`
-- **Files:** `**/*.tf`, `**/*.tfvars`
+- **Files:** `**/*.tf`, `**/*.tfvars`, `**/*.tftest.hcl`
 - **Features:** OpenTofu formatter (open-source Terraform fork)
 - **Commands:**
   - Check: `tofu fmt -check {{files}}`
@@ -320,7 +320,9 @@ You can also customize builtins:
 #### `tf_lint`
 - **Files:** `*.tf`
 - **Features:** Terraform linter
-- **Command:** `tflint {{files}}`
+- **Commands:**
+  - Check: `tflint`
+  - Fix: `tflint --fix`
 
 #### `hadolint`
 - **Files:** `Dockerfile*`
@@ -354,6 +356,27 @@ You can also customize builtins:
 - **Commands:**
   - Check: `alejandra --check {{files}}`
   - Fix: `alejandra {{files}}`
+
+### Elixir
+
+#### `mix_fmt`
+- **Files:** `*.ex`, `*.exs`
+- **Features:** Format Elixir with Mix
+- **Commands:**
+  - Check: `mix format --check-formatted {{files}}`
+  - Fix: `mix format {{files}}`
+
+#### `mix_compile`
+- **Files:** `*.ex`
+- **Features:** Compile Elixir with Mix
+- **Commands:**
+  - Check: `mix compile --warnings-as-errors --strict-errors {{files}}`
+
+#### `mix_test`
+- **Files:** `*.ex`, `*.exs`
+- **Features:** Test Elixir with Mix
+- **Commands:**
+  - Check: `mix test --warnings-as-errors {{files}}`
 
 ### Data Formats
 
@@ -485,6 +508,13 @@ You can also customize builtins:
   - Check: `astro check {{files}}`
   - Fix: `astro format {{files}}`
 
+#### `dprint`
+- **Files:** All text files
+- **Features:** Pluggable and configurable code formatter
+- **Commands:**
+  - Check: `dprint check --allow-no-files {{files}}`
+  - Fix: `dprint fmt --allow-no-files {{files}}`
+
 ### Special Purpose
 
 #### `check_case_conflict`
@@ -537,6 +567,13 @@ You can also customize builtins:
   - Check: `hk util trailing-whitespace {{files}}`
   - Fix: `hk util trailing-whitespace --fix {{files}}`
 - **Notes:** Uses cross-platform Rust implementation (works on Windows, macOS, Linux)
+
+#### `typos`
+- **Files:** All text files
+- **Features:** Source code spell checker
+- **Commands:**
+  - Check: `typos --diff {{files}}` (with diff support)
+  - Fix: `typos --write-changes {{files}}`
 
 ## Customizing Builtins
 

@@ -77,16 +77,6 @@
             "global": false
           },
           {
-            "name": "fix",
-            "usage": "-f --fix",
-            "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-            "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-            "short": ["f"],
-            "long": ["fix"],
-            "hide": false,
-            "global": false
-          },
-          {
             "name": "check",
             "usage": "-c --check",
             "help": "Run run command instead of fix command",
@@ -115,38 +105,14 @@
             }
           },
           {
-            "name": "from-ref",
-            "usage": "--from-ref <FROM_REF>",
-            "help": "Start reference for checking files (requires --to-ref)",
-            "help_first_line": "Start reference for checking files (requires --to-ref)",
-            "short": [],
-            "long": ["from-ref"],
+            "name": "fix",
+            "usage": "-f --fix",
+            "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+            "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+            "short": ["f"],
+            "long": ["fix"],
             "hide": false,
-            "global": false,
-            "arg": {
-              "name": "FROM_REF",
-              "usage": "<FROM_REF>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
-          },
-          {
-            "name": "to-ref",
-            "usage": "--to-ref <TO_REF>",
-            "help": "End reference for checking files (requires --from-ref)",
-            "help_first_line": "End reference for checking files (requires --from-ref)",
-            "short": [],
-            "long": ["to-ref"],
-            "hide": false,
-            "global": false,
-            "arg": {
-              "name": "TO_REF",
-              "usage": "<TO_REF>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
+            "global": false
           },
           {
             "name": "glob",
@@ -195,6 +161,43 @@
             }
           },
           {
+            "name": "fail-fast",
+            "usage": "--fail-fast",
+            "help": "Abort on first failure",
+            "help_first_line": "Abort on first failure",
+            "short": [],
+            "long": ["fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "from-ref",
+            "usage": "--from-ref <FROM_REF>",
+            "help": "Start reference for checking files (requires --to-ref)",
+            "help_first_line": "Start reference for checking files (requires --to-ref)",
+            "short": [],
+            "long": ["from-ref"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "FROM_REF",
+              "usage": "<FROM_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "no-fail-fast",
+            "usage": "--no-fail-fast",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "short": [],
+            "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "skip-step",
             "usage": "--skip-step… <STEP>",
             "help": "Skip specific step(s)",
@@ -211,26 +214,6 @@
               "double_dash": "Optional",
               "hide": false
             }
-          },
-          {
-            "name": "fail-fast",
-            "usage": "--fail-fast",
-            "help": "Abort on first failure",
-            "help_first_line": "Abort on first failure",
-            "short": [],
-            "long": ["fail-fast"],
-            "hide": false,
-            "global": false
-          },
-          {
-            "name": "no-fail-fast",
-            "usage": "--no-fail-fast",
-            "help": "Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Continue on failures (opposite of --fail-fast)",
-            "short": [],
-            "long": ["no-fail-fast"],
-            "hide": false,
-            "global": false
           },
           {
             "name": "stash",
@@ -250,6 +233,23 @@
               "choices": {
                 "choices": ["git", "patch-file", "none"]
               }
+            }
+          },
+          {
+            "name": "to-ref",
+            "usage": "--to-ref <TO_REF>",
+            "help": "End reference for checking files (requires --from-ref)",
+            "help_first_line": "End reference for checking files (requires --from-ref)",
+            "short": [],
+            "long": ["to-ref"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "TO_REF",
+              "usage": "<TO_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
             }
           }
         ],
@@ -431,16 +431,6 @@
             "global": false
           },
           {
-            "name": "fix",
-            "usage": "-f --fix",
-            "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-            "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-            "short": ["f"],
-            "long": ["fix"],
-            "hide": false,
-            "global": false
-          },
-          {
             "name": "check",
             "usage": "-c --check",
             "help": "Run run command instead of fix command",
@@ -469,38 +459,14 @@
             }
           },
           {
-            "name": "from-ref",
-            "usage": "--from-ref <FROM_REF>",
-            "help": "Start reference for checking files (requires --to-ref)",
-            "help_first_line": "Start reference for checking files (requires --to-ref)",
-            "short": [],
-            "long": ["from-ref"],
+            "name": "fix",
+            "usage": "-f --fix",
+            "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+            "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+            "short": ["f"],
+            "long": ["fix"],
             "hide": false,
-            "global": false,
-            "arg": {
-              "name": "FROM_REF",
-              "usage": "<FROM_REF>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
-          },
-          {
-            "name": "to-ref",
-            "usage": "--to-ref <TO_REF>",
-            "help": "End reference for checking files (requires --from-ref)",
-            "help_first_line": "End reference for checking files (requires --from-ref)",
-            "short": [],
-            "long": ["to-ref"],
-            "hide": false,
-            "global": false,
-            "arg": {
-              "name": "TO_REF",
-              "usage": "<TO_REF>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
+            "global": false
           },
           {
             "name": "glob",
@@ -549,6 +515,43 @@
             }
           },
           {
+            "name": "fail-fast",
+            "usage": "--fail-fast",
+            "help": "Abort on first failure",
+            "help_first_line": "Abort on first failure",
+            "short": [],
+            "long": ["fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "from-ref",
+            "usage": "--from-ref <FROM_REF>",
+            "help": "Start reference for checking files (requires --to-ref)",
+            "help_first_line": "Start reference for checking files (requires --to-ref)",
+            "short": [],
+            "long": ["from-ref"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "FROM_REF",
+              "usage": "<FROM_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "no-fail-fast",
+            "usage": "--no-fail-fast",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "short": [],
+            "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "skip-step",
             "usage": "--skip-step… <STEP>",
             "help": "Skip specific step(s)",
@@ -565,26 +568,6 @@
               "double_dash": "Optional",
               "hide": false
             }
-          },
-          {
-            "name": "fail-fast",
-            "usage": "--fail-fast",
-            "help": "Abort on first failure",
-            "help_first_line": "Abort on first failure",
-            "short": [],
-            "long": ["fail-fast"],
-            "hide": false,
-            "global": false
-          },
-          {
-            "name": "no-fail-fast",
-            "usage": "--no-fail-fast",
-            "help": "Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Continue on failures (opposite of --fail-fast)",
-            "short": [],
-            "long": ["no-fail-fast"],
-            "hide": false,
-            "global": false
           },
           {
             "name": "stash",
@@ -604,6 +587,23 @@
               "choices": {
                 "choices": ["git", "patch-file", "none"]
               }
+            }
+          },
+          {
+            "name": "to-ref",
+            "usage": "--to-ref <TO_REF>",
+            "help": "End reference for checking files (requires --from-ref)",
+            "help_first_line": "End reference for checking files (requires --from-ref)",
+            "short": [],
+            "long": ["to-ref"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "TO_REF",
+              "usage": "<TO_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
             }
           }
         ],
@@ -705,6 +705,16 @@
                 }
               },
               {
+                "name": "force",
+                "usage": "-f --force",
+                "help": "Overwrite existing hk.pkl file",
+                "help_first_line": "Overwrite existing hk.pkl file",
+                "short": ["f"],
+                "long": ["force"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "output",
                 "usage": "-o --output <OUTPUT>",
                 "help": "Output path for hk.pkl",
@@ -720,16 +730,6 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
-              },
-              {
-                "name": "force",
-                "usage": "-f --force",
-                "help": "Overwrite existing hk.pkl file",
-                "help_first_line": "Overwrite existing hk.pkl file",
-                "short": ["f"],
-                "long": ["force"],
-                "hide": false,
-                "global": false
               },
               {
                 "name": "hk-pkl-root",
@@ -810,16 +810,6 @@
                 "global": false
               },
               {
-                "name": "fix",
-                "usage": "-f --fix",
-                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "short": ["f"],
-                "long": ["fix"],
-                "hide": false,
-                "global": false
-              },
-              {
                 "name": "check",
                 "usage": "-c --check",
                 "help": "Run run command instead of fix command",
@@ -848,38 +838,14 @@
                 }
               },
               {
-                "name": "from-ref",
-                "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
-                "short": [],
-                "long": ["from-ref"],
+                "name": "fix",
+                "usage": "-f --fix",
+                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "short": ["f"],
+                "long": ["fix"],
                 "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "FROM_REF",
-                  "usage": "<FROM_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
-                "name": "to-ref",
-                "usage": "--to-ref <TO_REF>",
-                "help": "End reference for checking files (requires --from-ref)",
-                "help_first_line": "End reference for checking files (requires --from-ref)",
-                "short": [],
-                "long": ["to-ref"],
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "TO_REF",
-                  "usage": "<TO_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
+                "global": false
               },
               {
                 "name": "glob",
@@ -928,6 +894,43 @@
                 }
               },
               {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-ref",
+                "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
+                "short": [],
+                "long": ["from-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FROM_REF",
+                  "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -944,26 +947,6 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
-              },
-              {
-                "name": "fail-fast",
-                "usage": "--fail-fast",
-                "help": "Abort on first failure",
-                "help_first_line": "Abort on first failure",
-                "short": [],
-                "long": ["fail-fast"],
-                "hide": false,
-                "global": false
-              },
-              {
-                "name": "no-fail-fast",
-                "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
-                "short": [],
-                "long": ["no-fail-fast"],
-                "hide": false,
-                "global": false
               },
               {
                 "name": "stash",
@@ -983,6 +966,23 @@
                   "choices": {
                     "choices": ["git", "patch-file", "none"]
                   }
+                }
+              },
+              {
+                "name": "to-ref",
+                "usage": "--to-ref <TO_REF>",
+                "help": "End reference for checking files (requires --from-ref)",
+                "help_first_line": "End reference for checking files (requires --from-ref)",
+                "short": [],
+                "long": ["to-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TO_REF",
+                  "usage": "<TO_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
                 }
               }
             ],
@@ -1021,16 +1021,6 @@
                 "global": false
               },
               {
-                "name": "fix",
-                "usage": "-f --fix",
-                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "short": ["f"],
-                "long": ["fix"],
-                "hide": false,
-                "global": false
-              },
-              {
                 "name": "check",
                 "usage": "-c --check",
                 "help": "Run run command instead of fix command",
@@ -1059,38 +1049,14 @@
                 }
               },
               {
-                "name": "from-ref",
-                "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
-                "short": [],
-                "long": ["from-ref"],
+                "name": "fix",
+                "usage": "-f --fix",
+                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "short": ["f"],
+                "long": ["fix"],
                 "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "FROM_REF",
-                  "usage": "<FROM_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
-                "name": "to-ref",
-                "usage": "--to-ref <TO_REF>",
-                "help": "End reference for checking files (requires --from-ref)",
-                "help_first_line": "End reference for checking files (requires --from-ref)",
-                "short": [],
-                "long": ["to-ref"],
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "TO_REF",
-                  "usage": "<TO_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
+                "global": false
               },
               {
                 "name": "glob",
@@ -1139,6 +1105,43 @@
                 }
               },
               {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-ref",
+                "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
+                "short": [],
+                "long": ["from-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FROM_REF",
+                  "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -1155,26 +1158,6 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
-              },
-              {
-                "name": "fail-fast",
-                "usage": "--fail-fast",
-                "help": "Abort on first failure",
-                "help_first_line": "Abort on first failure",
-                "short": [],
-                "long": ["fail-fast"],
-                "hide": false,
-                "global": false
-              },
-              {
-                "name": "no-fail-fast",
-                "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
-                "short": [],
-                "long": ["no-fail-fast"],
-                "hide": false,
-                "global": false
               },
               {
                 "name": "stash",
@@ -1194,6 +1177,23 @@
                   "choices": {
                     "choices": ["git", "patch-file", "none"]
                   }
+                }
+              },
+              {
+                "name": "to-ref",
+                "usage": "--to-ref <TO_REF>",
+                "help": "End reference for checking files (requires --from-ref)",
+                "help_first_line": "End reference for checking files (requires --from-ref)",
+                "short": [],
+                "long": ["to-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TO_REF",
+                  "usage": "<TO_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
                 }
               }
             ],
@@ -1251,16 +1251,6 @@
                 "global": false
               },
               {
-                "name": "fix",
-                "usage": "-f --fix",
-                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "short": ["f"],
-                "long": ["fix"],
-                "hide": false,
-                "global": false
-              },
-              {
                 "name": "check",
                 "usage": "-c --check",
                 "help": "Run run command instead of fix command",
@@ -1289,38 +1279,14 @@
                 }
               },
               {
-                "name": "from-ref",
-                "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
-                "short": [],
-                "long": ["from-ref"],
+                "name": "fix",
+                "usage": "-f --fix",
+                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "short": ["f"],
+                "long": ["fix"],
                 "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "FROM_REF",
-                  "usage": "<FROM_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
-                "name": "to-ref",
-                "usage": "--to-ref <TO_REF>",
-                "help": "End reference for checking files (requires --from-ref)",
-                "help_first_line": "End reference for checking files (requires --from-ref)",
-                "short": [],
-                "long": ["to-ref"],
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "TO_REF",
-                  "usage": "<TO_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
+                "global": false
               },
               {
                 "name": "glob",
@@ -1369,6 +1335,43 @@
                 }
               },
               {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-ref",
+                "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
+                "short": [],
+                "long": ["from-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FROM_REF",
+                  "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -1385,26 +1388,6 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
-              },
-              {
-                "name": "fail-fast",
-                "usage": "--fail-fast",
-                "help": "Abort on first failure",
-                "help_first_line": "Abort on first failure",
-                "short": [],
-                "long": ["fail-fast"],
-                "hide": false,
-                "global": false
-              },
-              {
-                "name": "no-fail-fast",
-                "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
-                "short": [],
-                "long": ["no-fail-fast"],
-                "hide": false,
-                "global": false
               },
               {
                 "name": "stash",
@@ -1424,6 +1407,23 @@
                   "choices": {
                     "choices": ["git", "patch-file", "none"]
                   }
+                }
+              },
+              {
+                "name": "to-ref",
+                "usage": "--to-ref <TO_REF>",
+                "help": "End reference for checking files (requires --from-ref)",
+                "help_first_line": "End reference for checking files (requires --from-ref)",
+                "short": [],
+                "long": ["to-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TO_REF",
+                  "usage": "<TO_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
                 }
               }
             ],
@@ -1489,16 +1489,6 @@
                 "global": false
               },
               {
-                "name": "fix",
-                "usage": "-f --fix",
-                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-                "short": ["f"],
-                "long": ["fix"],
-                "hide": false,
-                "global": false
-              },
-              {
                 "name": "check",
                 "usage": "-c --check",
                 "help": "Run run command instead of fix command",
@@ -1527,38 +1517,14 @@
                 }
               },
               {
-                "name": "from-ref",
-                "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
-                "short": [],
-                "long": ["from-ref"],
+                "name": "fix",
+                "usage": "-f --fix",
+                "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+                "short": ["f"],
+                "long": ["fix"],
                 "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "FROM_REF",
-                  "usage": "<FROM_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
-              },
-              {
-                "name": "to-ref",
-                "usage": "--to-ref <TO_REF>",
-                "help": "End reference for checking files (requires --from-ref)",
-                "help_first_line": "End reference for checking files (requires --from-ref)",
-                "short": [],
-                "long": ["to-ref"],
-                "hide": false,
-                "global": false,
-                "arg": {
-                  "name": "TO_REF",
-                  "usage": "<TO_REF>",
-                  "required": true,
-                  "double_dash": "Optional",
-                  "hide": false
-                }
+                "global": false
               },
               {
                 "name": "glob",
@@ -1607,6 +1573,43 @@
                 }
               },
               {
+                "name": "fail-fast",
+                "usage": "--fail-fast",
+                "help": "Abort on first failure",
+                "help_first_line": "Abort on first failure",
+                "short": [],
+                "long": ["fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-ref",
+                "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
+                "short": [],
+                "long": ["from-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FROM_REF",
+                  "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "no-fail-fast",
+                "usage": "--no-fail-fast",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "short": [],
+                "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -1623,26 +1626,6 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
-              },
-              {
-                "name": "fail-fast",
-                "usage": "--fail-fast",
-                "help": "Abort on first failure",
-                "help_first_line": "Abort on first failure",
-                "short": [],
-                "long": ["fail-fast"],
-                "hide": false,
-                "global": false
-              },
-              {
-                "name": "no-fail-fast",
-                "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
-                "short": [],
-                "long": ["no-fail-fast"],
-                "hide": false,
-                "global": false
               },
               {
                 "name": "stash",
@@ -1662,6 +1645,23 @@
                   "choices": {
                     "choices": ["git", "patch-file", "none"]
                   }
+                }
+              },
+              {
+                "name": "to-ref",
+                "usage": "--to-ref <TO_REF>",
+                "help": "End reference for checking files (requires --from-ref)",
+                "help_first_line": "End reference for checking files (requires --from-ref)",
+                "short": [],
+                "long": ["to-ref"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TO_REF",
+                  "usage": "<TO_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
                 }
               }
             ],
@@ -1704,16 +1704,6 @@
             "global": false
           },
           {
-            "name": "fix",
-            "usage": "-f --fix",
-            "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-            "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
-            "short": ["f"],
-            "long": ["fix"],
-            "hide": false,
-            "global": false
-          },
-          {
             "name": "check",
             "usage": "-c --check",
             "help": "Run run command instead of fix command",
@@ -1742,38 +1732,14 @@
             }
           },
           {
-            "name": "from-ref",
-            "usage": "--from-ref <FROM_REF>",
-            "help": "Start reference for checking files (requires --to-ref)",
-            "help_first_line": "Start reference for checking files (requires --to-ref)",
-            "short": [],
-            "long": ["from-ref"],
+            "name": "fix",
+            "usage": "-f --fix",
+            "help": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+            "help_first_line": "Run fix command instead of run command This is the default behavior unless HK_FIX=0",
+            "short": ["f"],
+            "long": ["fix"],
             "hide": false,
-            "global": false,
-            "arg": {
-              "name": "FROM_REF",
-              "usage": "<FROM_REF>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
-          },
-          {
-            "name": "to-ref",
-            "usage": "--to-ref <TO_REF>",
-            "help": "End reference for checking files (requires --from-ref)",
-            "help_first_line": "End reference for checking files (requires --from-ref)",
-            "short": [],
-            "long": ["to-ref"],
-            "hide": false,
-            "global": false,
-            "arg": {
-              "name": "TO_REF",
-              "usage": "<TO_REF>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
+            "global": false
           },
           {
             "name": "glob",
@@ -1822,6 +1788,43 @@
             }
           },
           {
+            "name": "fail-fast",
+            "usage": "--fail-fast",
+            "help": "Abort on first failure",
+            "help_first_line": "Abort on first failure",
+            "short": [],
+            "long": ["fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "from-ref",
+            "usage": "--from-ref <FROM_REF>",
+            "help": "Start reference for checking files (requires --to-ref)",
+            "help_first_line": "Start reference for checking files (requires --to-ref)",
+            "short": [],
+            "long": ["from-ref"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "FROM_REF",
+              "usage": "<FROM_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "no-fail-fast",
+            "usage": "--no-fail-fast",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "short": [],
+            "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "skip-step",
             "usage": "--skip-step… <STEP>",
             "help": "Skip specific step(s)",
@@ -1838,26 +1841,6 @@
               "double_dash": "Optional",
               "hide": false
             }
-          },
-          {
-            "name": "fail-fast",
-            "usage": "--fail-fast",
-            "help": "Abort on first failure",
-            "help_first_line": "Abort on first failure",
-            "short": [],
-            "long": ["fail-fast"],
-            "hide": false,
-            "global": false
-          },
-          {
-            "name": "no-fail-fast",
-            "usage": "--no-fail-fast",
-            "help": "Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Continue on failures (opposite of --fail-fast)",
-            "short": [],
-            "long": ["no-fail-fast"],
-            "hide": false,
-            "global": false
           },
           {
             "name": "stash",
@@ -1878,6 +1861,23 @@
                 "choices": ["git", "patch-file", "none"]
               }
             }
+          },
+          {
+            "name": "to-ref",
+            "usage": "--to-ref <TO_REF>",
+            "help": "End reference for checking files (requires --from-ref)",
+            "help_first_line": "End reference for checking files (requires --from-ref)",
+            "short": [],
+            "long": ["to-ref"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "TO_REF",
+              "usage": "<TO_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
           }
         ],
         "mounts": [],
@@ -1895,22 +1895,14 @@
         "args": [],
         "flags": [
           {
-            "name": "step",
-            "usage": "--step… <STEP>",
-            "help": "Filter by step name (repeatable)",
-            "help_first_line": "Filter by step name (repeatable)",
+            "name": "list",
+            "usage": "--list",
+            "help": "List tests without running",
+            "help_first_line": "List tests without running",
             "short": [],
-            "long": ["step"],
-            "var": true,
+            "long": ["list"],
             "hide": false,
-            "global": false,
-            "arg": {
-              "name": "STEP",
-              "usage": "<STEP>",
-              "required": true,
-              "double_dash": "Optional",
-              "hide": false
-            }
+            "global": false
           },
           {
             "name": "name",
@@ -1931,14 +1923,22 @@
             }
           },
           {
-            "name": "list",
-            "usage": "--list",
-            "help": "List tests without running",
-            "help_first_line": "List tests without running",
+            "name": "step",
+            "usage": "--step… <STEP>",
+            "help": "Filter by step name (repeatable)",
+            "help_first_line": "Filter by step name (repeatable)",
             "short": [],
-            "long": ["list"],
+            "long": ["step"],
+            "var": true,
             "hide": false,
-            "global": false
+            "global": false,
+            "arg": {
+              "name": "STEP",
+              "usage": "<STEP>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
           }
         ],
         "mounts": [],
@@ -2605,7 +2605,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.20.0",
+  "version": "1.21.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

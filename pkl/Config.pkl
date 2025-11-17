@@ -20,12 +20,17 @@ class Step {
     _type = "step"
     /// Which profiles (HK_PROFILES) need to be active for the step to run
     profiles: List<String>?
-    
+
     /// Which file patterns to run the step on
     glob: (String | List<String> | RegexPattern)?
 
     /// Which file patterns to exclude from the step
     exclude: (String | List<String> | RegexPattern)?
+
+    /// File types to match (OR logic) - file must match ANY specified type
+    /// Examples: "python", "shell", "javascript", "text", "binary"
+    /// Matches files by extension, shebang, or content detection
+    types: List<String>?
 
     /// files to stage after running the fix step
     /// Can be a glob pattern (e.g., "*.js") or the special value "<JOB_FILES>"

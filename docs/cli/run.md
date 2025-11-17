@@ -17,10 +17,6 @@ Run on specific files
 
 Run on all files instead of just staged files
 
-### `-f --fix`
-
-Run fix command instead of run command This is the default behavior unless HK_FIX=0
-
 ### `-c --check`
 
 Run run command instead of fix command
@@ -29,13 +25,9 @@ Run run command instead of fix command
 
 Exclude files that otherwise would have been selected
 
-### `--from-ref <FROM_REF>`
+### `-f --fix`
 
-Start reference for checking files (requires --to-ref)
-
-### `--to-ref <TO_REF>`
-
-End reference for checking files (requires --from-ref)
+Run fix command instead of run command This is the default behavior unless HK_FIX=0
 
 ### `-g --glob… <GLOB>`
 
@@ -49,17 +41,21 @@ Print the plan instead of running the hook
 
 Run only specific step(s)
 
-### `--skip-step… <STEP>`
-
-Skip specific step(s)
-
 ### `--fail-fast`
 
 Abort on first failure
 
+### `--from-ref <FROM_REF>`
+
+Start reference for checking files (requires --to-ref)
+
 ### `--no-fail-fast`
 
 Continue on failures (opposite of --fail-fast)
+
+### `--skip-step… <STEP>`
+
+Skip specific step(s)
 
 ### `--stash <STASH>`
 
@@ -70,6 +66,10 @@ Stash method to use for git hooks
 - `git`
 - `patch-file`
 - `none`
+
+### `--to-ref <TO_REF>`
+
+End reference for checking files (requires --from-ref)
 
 ## Subcommands
 

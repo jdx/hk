@@ -1,9 +1,10 @@
 import "../Config.pkl"
 
 ruff = new Config.Step {
-    glob = "**/*.py"
-    stage = "**/*.py"
-    check = "ruff check --force-exclude {{ files }}"
+    glob = List("**/*.py", "**/*.pyi")
+    stage = "<JOB_FILES>"
+    check = "ruff check {{ files }}"
+    check_diff = "ruff check --force-exclude --diff {{ files }}"
     fix = "ruff check --force-exclude --fix {{ files }}"
     tests {
         ["detects unused import"] {

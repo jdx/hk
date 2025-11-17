@@ -10,13 +10,13 @@ Migrate from pre-commit to hk
 
 Path to .pre-commit-config.yaml
 
-### `-o --output <OUTPUT>`
-
-Output path for hk.pkl
-
 ### `-f --force`
 
 Overwrite existing hk.pkl file
+
+### `-o --output <OUTPUT>`
+
+Output path for hk.pkl
 
 ### `--hk-pkl-root <HK_PKL_ROOT>`
 

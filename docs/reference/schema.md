@@ -531,8 +531,8 @@ Common builtins:
 ### Basic JavaScript/TypeScript Project
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
@@ -556,8 +556,8 @@ hooks {
 ### Monorepo with Multiple Languages
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Builtins.pkl"
 
 local frontend_linters = new Mapping<String, Step> {
   ["prettier"] = (Builtins.prettier) {
@@ -593,7 +593,7 @@ hooks {
 ### Custom Linter with Platform-Specific Commands
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Config.pkl"
 
 hooks {
   ["pre-commit"] {
@@ -619,8 +619,8 @@ hooks {
 ### Step with Dependencies and Conditions
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
@@ -645,8 +645,8 @@ hooks {
 ### Profile-Based Configuration
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.20.0/hk@1.20.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.21.0/hk@1.21.0#/Builtins.pkl"
 
 hooks {
   ["check"] {
@@ -679,6 +679,6 @@ HK_PROFILES=security hk check   # Only security-scan
 
 - [Built-in Linters Reference](../builtins.md)
 - [Configuration Examples](examples/index.md)
-- [Pkl Language Documentation](https://pkl-lang.org/docs/)
+- [Pkl Language Documentation](https://pkl-lang.org/main/current/language.html)
 - [Configuration Guide](../configuration.md)
 - [Environment Variables](../environment_variables.md)

@@ -179,3 +179,18 @@ pub async fn run() -> Result<()> {
         Commands::Test(cmd) => cmd.run().await,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn test_subcommands_are_sorted() {
+        let cmd = Cli::command();
+        // Check all subcommands for alphabetical ordering
+        for subcmd in cmd.get_subcommands() {
+            clap_sort::assert_sorted(subcmd);
+        }
+    }
+}
