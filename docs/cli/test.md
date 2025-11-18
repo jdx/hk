@@ -6,14 +6,14 @@ Run step-defined tests
 
 ## Flags
 
-### `--step… <STEP>`
+### `--list`
 
-Filter by step name (repeatable)
+List tests without running
 
 ### `--name… <NAME>`
 
 Filter by test name (repeatable)
 
-### `--list`
+### `--step… <STEP>`
 
-List tests without running
+Filter by step name (repeatable)

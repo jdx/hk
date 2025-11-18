@@ -8,7 +8,7 @@ pub(crate) struct HookOptions {
     /// Run on all files instead of just staged files
     #[clap(short, long)]
     pub all: bool,
-    /// Run run command instead of fix command
+    /// Run check command instead of fix command
     #[clap(short, long, overrides_with = "fix")]
     pub check: bool,
     /// Exclude files that otherwise would have been selected

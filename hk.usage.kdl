@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.20.0"
+version "1.21.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -26,17 +26,11 @@ cmd cache hide=#true subcommand_required=#true help="Manage hk internal cache" {
 cmd check help="Fixes code" {
     alias c
     flag "-a --all" help="Run on all files instead of just staged files"
-    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
     flag "-c --check" help="Run run command instead of fix command"
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
-        arg <FROM_REF>
-    }
-    flag --to-ref help="End reference for checking files (requires --from-ref)" {
-        arg <TO_REF>
-    }
+    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -44,15 +38,21 @@ cmd check help="Fixes code" {
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --fail-fast help="Abort on first failure"
+    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+        arg <FROM_REF>
+    }
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
-    flag --fail-fast help="Abort on first failure"
-    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
         }
+    }
+    flag --to-ref help="End reference for checking files (requires --from-ref)" {
+        arg <TO_REF>
     }
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
 }
@@ -85,17 +85,11 @@ cmd config help="Configuration introspection and management" {
 cmd fix help="Fixes code" {
     alias f
     flag "-a --all" help="Run on all files instead of just staged files"
-    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
     flag "-c --check" help="Run run command instead of fix command"
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
-        arg <FROM_REF>
-    }
-    flag --to-ref help="End reference for checking files (requires --from-ref)" {
-        arg <TO_REF>
-    }
+    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -103,15 +97,21 @@ cmd fix help="Fixes code" {
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --fail-fast help="Abort on first failure"
+    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+        arg <FROM_REF>
+    }
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
-    flag --fail-fast help="Abort on first failure"
-    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
         }
+    }
+    flag --to-ref help="End reference for checking files (requires --from-ref)" {
+        arg <TO_REF>
     }
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
 }
@@ -133,10 +133,10 @@ cmd migrate subcommand_required=#true help="Migrate from other hook managers to 
         flag "-c --config" help="Path to .pre-commit-config.yaml" {
             arg <CONFIG>
         }
+        flag "-f --force" help="Overwrite existing hk.pkl file"
         flag "-o --output" help="Output path for hk.pkl" {
             arg <OUTPUT>
         }
-        flag "-f --force" help="Overwrite existing hk.pkl file"
         flag --hk-pkl-root help="Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl" {
             arg <HK_PKL_ROOT>
         }
@@ -145,17 +145,11 @@ cmd migrate subcommand_required=#true help="Migrate from other hook managers to 
 cmd run help="Run a hook" {
     alias r
     flag "-a --all" help="Run on all files instead of just staged files"
-    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
     flag "-c --check" help="Run run command instead of fix command"
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
-        arg <FROM_REF>
-    }
-    flag --to-ref help="End reference for checking files (requires --from-ref)" {
-        arg <TO_REF>
-    }
+    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -163,32 +157,32 @@ cmd run help="Run a hook" {
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --fail-fast help="Abort on first failure"
+    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+        arg <FROM_REF>
+    }
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
-    flag --fail-fast help="Abort on first failure"
-    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
         }
+    }
+    flag --to-ref help="End reference for checking files (requires --from-ref)" {
+        arg <TO_REF>
     }
     arg "[OTHER]" required=#false hide=#true
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
     cmd commit-msg {
         alias cm
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-c --check" help="Run run command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
-            arg <FROM_REF>
-        }
-        flag --to-ref help="End reference for checking files (requires --from-ref)" {
-            arg <TO_REF>
-        }
+        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
@@ -196,15 +190,21 @@ cmd run help="Run a hook" {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
-        flag --fail-fast help="Abort on first failure"
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
             }
+        }
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
         }
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
@@ -212,17 +212,11 @@ cmd run help="Run a hook" {
     cmd pre-commit help="Sets up git hooks to run hk" {
         alias pc
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-c --check" help="Run run command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
-            arg <FROM_REF>
-        }
-        flag --to-ref help="End reference for checking files (requires --from-ref)" {
-            arg <TO_REF>
-        }
+        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
@@ -230,32 +224,32 @@ cmd run help="Run a hook" {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
-        flag --fail-fast help="Abort on first failure"
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
             }
+        }
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
         }
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
     cmd pre-push {
         alias pp
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-c --check" help="Run run command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
-            arg <FROM_REF>
-        }
-        flag --to-ref help="End reference for checking files (requires --from-ref)" {
-            arg <TO_REF>
-        }
+        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
@@ -263,15 +257,21 @@ cmd run help="Run a hook" {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
-        flag --fail-fast help="Abort on first failure"
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
             }
+        }
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
         }
         arg "[REMOTE]" help="Remote name" required=#false
         arg "[URL]" help="Remote URL" required=#false
@@ -280,17 +280,11 @@ cmd run help="Run a hook" {
     cmd prepare-commit-msg {
         alias pcm
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-c --check" help="Run run command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
-            arg <FROM_REF>
-        }
-        flag --to-ref help="End reference for checking files (requires --from-ref)" {
-            arg <TO_REF>
-        }
+        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
@@ -298,15 +292,21 @@ cmd run help="Run a hook" {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
-        flag --fail-fast help="Abort on first failure"
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
             }
+        }
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
         }
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message so far"
         arg "[SOURCE]" help="The source of the commit message (e.g., \"message\", \"template\", \"merge\")" required=#false
@@ -315,13 +315,13 @@ cmd run help="Run a hook" {
     }
 }
 cmd test help="Run step-defined tests" {
-    flag --step help="Filter by step name (repeatable)" var=#true {
-        arg <STEP>
-    }
+    flag --list help="List tests without running"
     flag --name help="Filter by test name (repeatable)" var=#true {
         arg <NAME>
     }
-    flag --list help="List tests without running"
+    flag --step help="Filter by step name (repeatable)" var=#true {
+        arg <STEP>
+    }
 }
 cmd uninstall help="Removes hk hooks from the current git repository"
 cmd usage hide=#true help="Generates a usage spec for the CLI" {
