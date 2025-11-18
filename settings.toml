@@ -368,6 +368,7 @@ type = "bool"
 default = true
 sources.env = ["HK_STAGE"]
 sources.git = ["hk.stage"]
+sources.pkl = ["stage", "defaults.stage"]
 docs = """
 Controls whether hk automatically stages files that were fixed by pre-commit hooks.
 

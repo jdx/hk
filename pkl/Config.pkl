@@ -153,6 +153,7 @@ display_skip_reasons: List<String> = List("profile-not-enabled")
 /// Available tags include: "missing-profiles"
 warnings: List<String> = List()
 
+stage: Boolean?
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
 env: Mapping<String, String> = new Mapping<String, String>{}
 /// Preferred default branch to compare against (e.g. "main"). If empty or omitted, hk will auto-detect.

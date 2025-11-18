@@ -1281,6 +1281,7 @@ Useful for thorough checking in CI or before major releases.
 - Sources:
   - ENV: `HK_STAGE`
   - Git: `hk.stage`
+  - Pkl: `stage`
 
 Controls whether hk automatically stages files that were fixed by pre-commit hooks.
 

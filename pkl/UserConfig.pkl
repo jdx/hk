@@ -10,6 +10,7 @@ class Defaults {
     all: Boolean?
     fix: Boolean?
     check: Boolean?
+    stage: Boolean?
     exclude: (String | List<String>)?
     skip_steps: (String | List<String>)?
     skip_hooks: (String | List<String>)?

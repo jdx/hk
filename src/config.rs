@@ -290,6 +290,7 @@ pub struct Config {
     #[serde(default)]
     pub env: IndexMap<String, String>,
     pub fail_fast: Option<bool>,
+    pub stage: Option<bool>,
     pub display_skip_reasons: Option<Vec<String>>,
     pub hide_warnings: Option<Vec<String>>,
     pub warnings: Option<Vec<String>>,
@@ -361,6 +362,7 @@ pub struct UserConfig {
 pub struct UserDefaults {
     pub jobs: Option<u16>,
     pub fail_fast: Option<bool>,
+    pub stage: Option<bool>,
     pub profiles: Option<Vec<String>>,
     pub all: Option<bool>,
     pub fix: Option<bool>,
