@@ -23,7 +23,7 @@ impl Config {
                 let raw = xx::file::read_to_string(path)?;
                 toml::from_str(&raw)?
             }
-            "yaml" => {
+            "yaml" | "yml" => {
                 let raw = xx::file::read_to_string(path)?;
                 serde_yaml::from_str(&raw)?
             }
