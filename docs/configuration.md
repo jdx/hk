@@ -78,11 +78,10 @@ Notes:
 
 ## `env: Mapping<String, String>`
 
-Environment variables can be set in hk.pkl for configuring hk or the linters.
+Environment variables can be set in hk.pkl for configuring the linters.
 
 ```pkl
 env {
-    ["HK_FAIL_FAST"] = "0"
     ["NODE_ENV"] = "production"
 }
 ```
