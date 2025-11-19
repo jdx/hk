@@ -47,11 +47,16 @@ impl Context {
     }
 
     pub fn with_files<P: AsRef<Path>>(&mut self, shell_type: ShellType, files: &[P]) -> &mut Self {
-        let files = files
+        let files_list: Vec<String> = files
+            .iter()
+            .map(|f| f.as_ref().to_str().unwrap().to_string())
+            .collect();
+        self.insert("files_list", &files_list);
+        let quoted_files = files
             .iter()
             .map(|m| shell_type.quote(m.as_ref().to_str().unwrap()))
             .join(" ");
-        self.insert("files", &files);
+        self.insert("files", &quoted_files);
         self
     }
 

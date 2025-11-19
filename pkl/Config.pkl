@@ -44,6 +44,14 @@ class Step {
     /// Connects stdin/stdout/stderr to the hk's execution. Implies `exclusive`.
     interactive = false
 
+    /// A templated string to send via stdin to the command.
+    /// This is useful for tools which allow passing filenames via stdin (like xargs), to avoid hk's automatic batching.
+    /// Supports variable `file_list` (`list[str]`) and Tera builtins: https://keats.github.io/tera/docs/#built-ins.
+    /// Example: `"{{ file_list | join(sep='\n') }}"`
+    /// Note that no shell escaping is applied to `file_list`.
+    /// Mutually exclusive with `interactive`.
+    stdin: String?
+
     /// Wait for sibling steps to finish before starting this step.
     depends: (String | List<String>) = List()
 
