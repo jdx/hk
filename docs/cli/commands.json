@@ -255,7 +255,7 @@
         ],
         "mounts": [],
         "hide": false,
-        "help": "Fixes code",
+        "help": "Checks code",
         "name": "check",
         "aliases": ["c"],
         "hidden_aliases": [],
