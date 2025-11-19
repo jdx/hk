@@ -56,7 +56,10 @@ PKL
 }
 
 
-@test "patch backup rotation keeps last 10 patches" {
+@test "patch backup rotation respects configured limit" {
+    # Override default (20) with test value (10) via environment variable
+    export HK_STASH_BACKUP_COUNT=10
+
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -88,7 +91,7 @@ PKL
         sleep 0.2  # Ensure different timestamps
     done
 
-    # Verify exactly 10 patches remain
+    # Verify exactly 10 patches remain (as configured)
     run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l"
     assert_success
     assert_output "      10"

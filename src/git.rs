@@ -6,6 +6,7 @@ use std::{
 
 use crate::Result;
 use crate::merge;
+use crate::settings::Settings;
 use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
@@ -203,8 +204,9 @@ impl Git {
                 std::fs::write(&patch_path, patch_content)?;
                 debug!("Saved stash patch: {}", patch_path.display());
 
-                // Rotate old patches, keeping last 10
-                self.rotate_patch_files(10)?;
+                // Rotate old patches based on configured backup count
+                let backup_count = Settings::get().stash_backup_count;
+                self.rotate_patch_files(backup_count)?;
 
                 Ok(())
             }

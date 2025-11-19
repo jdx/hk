@@ -408,6 +408,22 @@ When enabled (default), untracked files will be temporarily stashed along with t
 This ensures a clean working directory for hook execution.
 """
 
+[stash_backup_count]
+type = "usize"
+default = 20
+sources.env = ["HK_STASH_BACKUP_COUNT"]
+sources.git = ["hk.stashBackupCount"]
+sources.pkl = ["stash_backup_count"]
+docs = """
+Number of backup patch files to keep per repository when using git stash.
+
+Each time git stash is used, hk creates a backup patch file in
+$HK_STATE_DIR/patches/. This setting controls how many of these
+backups are retained per repository (oldest are automatically deleted).
+
+Default: 20
+"""
+
 [state_dir]
 type = "path"
 sources.env = ["HK_STATE_DIR"]

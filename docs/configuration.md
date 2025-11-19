@@ -1293,7 +1293,7 @@ Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated 
 ### `stash`
 
 - Type: `enum`
-- Default: N/A (Depends on the hook configuration)
+- Default: `"auto"`
 - Sources:
   - CLI: `--stash`
   - ENV: `HK_STASH`
@@ -1302,9 +1302,27 @@ Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated 
 Strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
 
 Available strategies:
+- `auto`: Automatically choose the best strategy (default)
 - `git`: Use `git stash` to stash changes
 - `patch-file`: Use hk-generated patch files (typically faster, avoids "index is locked" errors)
 - `none`: No stashing (fastest, but may cause staging conflicts if fixes modify unstaged changes in the same file)
+
+### `stash-backup-count`
+
+- Type: `usize`
+- Default: `20`
+- Sources:
+  - ENV: `HK_STASH_BACKUP_COUNT`
+  - Git: `hk.stashBackupCount`
+  - Pkl: `stash_backup_count`
+
+Number of backup patch files to keep per repository when using git stash.
+
+Each time git stash is used, hk creates a backup patch file in
+$HK_STATE_DIR/patches/. This setting controls how many of these
+backups are retained per repository (oldest are automatically deleted).
+
+Default: 20
 
 ### `stash-untracked`
 
