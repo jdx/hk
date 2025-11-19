@@ -174,8 +174,12 @@ PKL
     run hk run pre-commit
     assert_success
 
+    # Debug: check if patches directory exists and what's in it
+    run bash -c "ls -la $HK_STATE_DIR/patches/ 2>&1 || echo 'patches dir does not exist'"
+    echo "# Debug patches dir: $output" >&3
+
     # Verify patch file was created
-    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l | xargs"
+    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch 2>/dev/null | wc -l | xargs"
     assert_success
     assert_output "1"
 
