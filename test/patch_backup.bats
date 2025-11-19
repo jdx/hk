@@ -170,6 +170,10 @@ PKL
     git add file.txt
     echo "unstaged content  " > file.txt
 
+    # Debug: verify environment is set up correctly
+    echo "# Debug HK_STATE_DIR=$HK_STATE_DIR" >&3
+    echo "# Debug HK_LIBGIT2=$HK_LIBGIT2" >&3
+
     # Run pre-commit hook with libgit2
     run hk run pre-commit
     assert_success
