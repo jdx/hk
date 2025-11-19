@@ -170,17 +170,9 @@ PKL
     git add file.txt
     echo "unstaged content  " > file.txt
 
-    # Debug: verify environment is set up correctly
-    echo "# Debug HK_STATE_DIR=$HK_STATE_DIR" >&3
-    echo "# Debug HK_LIBGIT2=$HK_LIBGIT2" >&3
-
     # Run pre-commit hook with libgit2
     run hk run pre-commit
     assert_success
-
-    # Debug: check if patches directory exists and what's in it
-    run bash -c "ls -la $HK_STATE_DIR/patches/ 2>&1 || echo 'patches dir does not exist'"
-    echo "# Debug patches dir: $output" >&3
 
     # Verify patch file was created
     run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch 2>/dev/null | wc -l | xargs"
