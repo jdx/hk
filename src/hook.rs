@@ -111,11 +111,12 @@ pub enum StepOrGroup {
 }
 
 impl StepOrGroup {
-    pub fn init(&mut self, name: &str) {
+    pub fn init(&mut self, name: &str) -> Result<()> {
         match self {
-            StepOrGroup::Step(step) => step.init(name),
-            StepOrGroup::Group(group) => group.init(name),
+            StepOrGroup::Step(step) => step.init(name)?,
+            StepOrGroup::Group(group) => group.init(name)?,
         }
+        Ok(())
     }
 }
 pub struct HookContext {
@@ -278,11 +279,12 @@ impl HookContext {
 }
 
 impl Hook {
-    pub fn init(&mut self, hook_name: &str) {
+    pub fn init(&mut self, hook_name: &str) -> Result<()> {
         self.name = hook_name.to_string();
         for (name, step) in self.steps.iter_mut() {
-            step.init(name);
+            step.init(name)?;
         }
+        Ok(())
     }
 
     fn run_type(&self, opts: &HookOptions) -> RunType {
