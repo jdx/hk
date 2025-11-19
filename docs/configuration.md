@@ -130,9 +130,9 @@ Hooks define when and how linters are run. See [hooks](/hooks) for more informat
 
 ## `hooks.<HOOK>.fix: bool`
 
-Default: `false` (`true` for `pre-commit` and `fix`)
+Default: `false` (`true` for `fix`)
 
-If true, hk will run the fix step to make modifications.
+If true, hk will run the fix command for each step (if it exists) to make modifications.
 
 ## `hooks.<HOOK>.stash: (String | Boolean)`
 
