@@ -261,8 +261,8 @@ PKL
     assert_success
 
     # Verify patch was created
-    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l"
-    assert_output "       1"
+    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l | xargs"
+    assert_output "1"
 
     # Verify patch contains the unstaged changes
     run bash -c "cat $HK_STATE_DIR/patches/*.patch"
