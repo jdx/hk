@@ -136,13 +136,13 @@ If true, hk will run the fix step to make modifications.
 
 ## `hooks.<HOOK>.stash: (String | Boolean)`
 
-Default: `git`
+Default: `"none"`
 
-- `git`: Use `git stash` to stash unstaged changes before running fix steps.
-- `patch-file`: Alias of `git` behavior for now.
-- `none`: Do not stash unstaged changes before running fix steps.
-- `true` (boolean): Alias of `git`.
-- `false` (boolean): Alias of `none`.
+- `"git"`: Use `git stash` to stash unstaged changes before running fix steps.
+- `"patch-file"`: Alias of `git` behavior for now.
+- `"none"`: Do not stash unstaged changes before running fix steps.
+- `true` (boolean): Alias of `"git"`.
+- `false` (boolean): Alias of `"none"`.
 
 Examples:
 
@@ -1293,7 +1293,7 @@ Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated 
 ### `stash`
 
 - Type: `enum`
-- Default: `"auto"`
+- Default: N/A (Depends on the hook configuration)
 - Sources:
   - CLI: `--stash`
   - ENV: `HK_STASH`
@@ -1302,7 +1302,6 @@ Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated 
 Strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
 
 Available strategies:
-- `auto`: Automatically choose the best strategy (default)
 - `git`: Use `git stash` to stash changes
 - `patch-file`: Use hk-generated patch files (typically faster, avoids "index is locked" errors)
 - `none`: No stashing (fastest, but may cause staging conflicts if fixes modify unstaged changes in the same file)

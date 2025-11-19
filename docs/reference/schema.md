@@ -124,9 +124,9 @@ Each hook in the `hooks` mapping has the following properties:
 - **Type:** `StashMethod` = `Boolean | "git" | "patch-file" | "none"`
 - **Description:** How to handle unstaged changes before running fix steps
 - **Values:**
-  - `true` or `"git"` - Use git stash (default for pre-commit with fix=true)
+  - `true` or `"git"` - Use git stash
   - `"patch-file"` - Create a patch file
-  - `false` or `"none"` - No stashing
+  - `false` or `"none"` - No stashing (default)
 - **Example:**
   ```pkl
   hooks {
