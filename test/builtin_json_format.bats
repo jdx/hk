@@ -33,4 +33,4 @@ EOF
     assert_file_contains test.json '{
   "test": 123
 }'
-} 
+}

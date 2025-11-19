@@ -5,4 +5,4 @@ isort = new Config.Step {
     stage = "**/*.py"
     check = "isort --check-only {{ files }}"
     fix = "isort {{ files }}"
-} 
+}

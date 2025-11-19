@@ -5,4 +5,4 @@ sort_package_json = new Config.Step {
     stage = "**/package.json"
     check = "sort-package-json --check {{ files }}"
     fix = "sort-package-json {{ files }}"
-} 
+}

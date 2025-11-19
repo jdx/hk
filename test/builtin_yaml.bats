@@ -32,4 +32,4 @@ EOF
     run hk run pre-commit
     assert_failure
     assert_output --partial "yaml: mapping values are not allowed"
-} 
+}

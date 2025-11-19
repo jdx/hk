@@ -30,18 +30,18 @@ ruff = new Config.Step {
         }
         ["check respects config exclude"] {
             run = "check"
-            write { 
-                ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" 
-                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n" 
+            write {
+                ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n"
+                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
             }
             files = List("{{tmp}}/test.py")
             expect { code = 0 }
         }
         ["fix respects config exclude"] {
             run = "fix"
-            write { 
-                ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" 
-                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n" 
+            write {
+                ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n"
+                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
             }
             files = List("{{tmp}}/test.py")
             expect {
@@ -50,4 +50,4 @@ ruff = new Config.Step {
             }
         }
     }
-} 
+}

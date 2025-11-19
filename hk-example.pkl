@@ -17,7 +17,7 @@ local linters = new Mapping<String, Step> {
         // if multiple fixes run against the same file, run check first which only requires read locking
         // if failure, then it gets write locks to run the "fix" step
         // default: true
-        check_first = true 
+        check_first = true
 
         // instead of passing all files to check/fix, it will split them into batches
         // this takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier

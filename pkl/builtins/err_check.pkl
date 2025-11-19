@@ -3,4 +3,4 @@ import "../Config.pkl"
 err_check = new Config.Step {
     glob = "**/*.go"
     check = "errcheck {{ files }}"
-} 
+}

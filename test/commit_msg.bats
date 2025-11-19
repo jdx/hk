@@ -25,7 +25,7 @@ EOF
     run git commit -m "test"
     assert_failure
     assert_output --partial "Commit message must start with feat:"
-    
+
     run git commit -m "feat: add test file"
     assert_success
-} 
+}

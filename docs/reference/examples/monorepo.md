@@ -3,7 +3,7 @@
 ```pkl
 /// Example configuration for a monorepo with multiple languages
 /// * Frontend: JavaScript/TypeScript with React
-/// * Backend: Rust  
+/// * Backend: Rust
 /// * Infrastructure: Terraform
 /// * Uses groups to organize steps by component
 
@@ -96,7 +96,7 @@ hooks {
 
 Example configuration for a monorepo with multiple languages
 * Frontend: JavaScript/TypeScript with React
-* Backend: Rust  
+* Backend: Rust
 * Infrastructure: Terraform
 * Uses groups to organize steps by component
 

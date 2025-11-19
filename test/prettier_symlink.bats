@@ -39,10 +39,10 @@ EOF
 
     # Run hk check --all (this should not fail due to symlink)
     run hk check --all
-    
+
     # Should succeed
     assert_success
-    
+
     # Should not contain error messages about symlinks
     refute_output --partial "symbolic link"
     refute_output --partial "duplicate"
@@ -79,10 +79,10 @@ EOF
 
     # Run hk check --all and capture output
     run hk check --all
-    
+
     # Should succeed
     assert_success
-    
+
     # Should not contain symlink errors
     refute_output --partial "symbolic link"
 }
@@ -124,10 +124,10 @@ EOF
 
     # Run hk check --all
     run hk check --all
-    
+
     # Should succeed
     assert_success
-    
+
     # Should not contain symlink errors
     refute_output --partial "symbolic link"
 }

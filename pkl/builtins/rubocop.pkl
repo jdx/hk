@@ -5,4 +5,4 @@ rubocop = new Config.Step {
     stage = "**/*.rb"
     check = "rubocop {{ files }}"
     fix = "rubocop --fix {{ files }}"
-} 
+}

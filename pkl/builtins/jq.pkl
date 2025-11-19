@@ -5,4 +5,4 @@ jq = new Config.Step {
     stage = "**/*.json"
     check = "jq . {{ files }}"
     fix = "jq -S . {{ files }}"
-} 
+}

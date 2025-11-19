@@ -5,4 +5,4 @@ nixpkgs_format = new Config.Step {
     stage = "**/*.nix"
     check = "nixpkgs-fmt --check {{ files }}"
     fix = "nixpkgs-fmt {{ files }}"
-} 
+}

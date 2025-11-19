@@ -414,7 +414,7 @@ The `Script` type allows platform-specific commands:
 ```pkl
 class Script {
   linux: String?    // Command for Linux
-  macos: String?    // Command for macOS  
+  macos: String?    // Command for macOS
   windows: String?  // Command for Windows
   other: String?    // Fallback for other platforms
 }

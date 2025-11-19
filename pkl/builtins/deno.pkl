@@ -5,4 +5,4 @@ deno = new Config.Step {
     stage = glob
     check = "deno fmt --check {{ files }}"
     fix = "deno fmt {{ files }}"
-} 
+}

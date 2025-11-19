@@ -11,4 +11,4 @@ if [ -n "$FILES" ]; then
 fi
 """
     fix = "gofmt -s -w {{files}}"
- } 
+ }

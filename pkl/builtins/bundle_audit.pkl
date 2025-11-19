@@ -5,4 +5,4 @@ bundle_audit = new Config.Step {
     stage = "**/Gemfile.lock"
     check = "bundle-audit check {{ files }}"
     fix = "bundle-audit update"
-} 
+}

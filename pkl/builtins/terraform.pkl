@@ -5,4 +5,4 @@ terraform = new Config.Step {
     stage = glob
     check_list_files = "terraform fmt -check {{ files }}"
     fix = "terraform fmt {{ files }}"
-} 
+}

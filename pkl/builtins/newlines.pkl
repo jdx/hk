@@ -14,4 +14,4 @@ newlines = new Config.Step {
         expect { files { ["{{tmp}}/a.txt"] = "no-newline\n" } }
       }
     }
-} 
+}

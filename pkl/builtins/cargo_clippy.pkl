@@ -10,4 +10,4 @@ cargo_clippy = new Config.Step {
     env {
       ["CARGO_TERM_PROGRESS_WHEN"] = "never"
     }
-} 
+}

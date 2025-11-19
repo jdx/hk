@@ -35,4 +35,4 @@ EOF
     git commit -m "test"
     run cat test.js
     assert_output 'console.log("test");'
-} 
+}

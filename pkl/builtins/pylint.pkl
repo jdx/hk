@@ -3,4 +3,4 @@ import "../Config.pkl"
 pylint = new Config.Step {
     glob = "**/*.py"
     check = "pylint {{ files }}"
-} 
+}

@@ -5,4 +5,4 @@ clang_format = new Config.Step {
     stage = glob
     check = "clang-format --dry-run -Werror {{ files }}"
     fix = "clang-format -i {{ files }}"
-} 
+}

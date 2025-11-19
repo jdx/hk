@@ -3,4 +3,4 @@ import "../Config.pkl"
 revive = new Config.Step {
     glob = "**/*.go"
     check = "revive {{ files }}"
-} 
+}

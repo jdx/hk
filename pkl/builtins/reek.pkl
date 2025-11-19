@@ -3,4 +3,4 @@ import "../Config.pkl"
 reek = new Config.Step {
     glob = "**/*.rb"
     check = "reek {{ files }}"
-} 
+}

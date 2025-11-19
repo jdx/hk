@@ -144,7 +144,7 @@ EOF
 
     # Stage the file for deletion
     git rm src/foo.rs
-    
+
     # Try to commit with --all
     run hk check --all
     assert_success
