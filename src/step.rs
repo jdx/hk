@@ -559,7 +559,7 @@ impl Step {
             )]
         };
 
-        if !self.stdin.is_some() {
+        if self.stdin.is_none() {
             // Auto-batch any jobs where the file list would exceed safe limits
             jobs = self.auto_batch_jobs_if_needed(jobs);
         }
