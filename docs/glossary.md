@@ -92,7 +92,7 @@ See: [HK_SKIP_STEPS](/environment_variables.md#hk_skip_steps), [HK_SKIP_HOOK](/e
 A strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and the automated fixes applied by linting tools.
 
 Stash strategies:
-- `git`: Uses `git stash` (default)
+- `git`: Uses `git stash`
 - `patch-file`: Uses hk-generated patch files (faster, avoids lock conflicts)
 - `none`: No stashing (fastest, but may cause staging conflicts)
 
