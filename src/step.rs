@@ -647,6 +647,10 @@ impl Step {
                                 e.downcast_ref::<Error>()
                             {
                                 debug!("{step}: failed check step first: check list or diff failed");
+                                // Log stderr if present (informational/warnings only)
+                                if !stderr.trim().is_empty() {
+                                    debug!("{step}: check stderr output:\n{}", stderr);
+                                }
                                 // Use check_diff parser if check_diff is defined, otherwise check_list_files
                                 let (files, extras) = if step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
                                     step.filter_files_from_check_diff(&job.files, stdout, stderr)
@@ -660,21 +664,20 @@ impl Step {
                                     );
                                 }
 
-                                // If no files remain after filtering and stderr is non-empty:
-                                // - For check_list_files: this is an error (tool failed)
-                                // - For check_diff: keep all original files (diff wasn't parseable)
-                                if files.is_empty() && !stderr.trim().is_empty() {
-                                    if step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
-                                        debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
-                                        // Keep all original files
-                                    } else {
-                                        error!("{step}: check_list_files returned no files and produced errors:\n{}", stderr);
-                                        return Err(eyre!("check failed with errors:\n{}", stderr));
-                                    }
+                                // For check_diff: if no parseable files, keep all original files
+                                if files.is_empty() && step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
+                                    debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
+                                    // Keep all original files for check_diff when diff parsing fails
+                                } else if files.is_empty() {
+                                    // For check_list_files: non-zero exit with no files is an error
+                                    // (Tool failed, not "files need fixing")
+                                    error!("{step}: check_list_files failed with no files in output");
+                                    return Err(e);
                                 } else {
                                     job.files = files;
                                 }
                             }
+                            // For regular check commands that fail: fall through to run fixer
                             debug!("{step}: failed check step first: {e}");
                         }
                     }
@@ -1040,21 +1043,22 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
-                // For check_list_files: empty stdout + stderr = error (tool failed to list files)
-                // For check_diff: empty stdout + stderr = success (no changes needed)
+                // For both check_list_files and check_diff: stderr is informational only
+                // Files are read from stdout; stderr may contain warnings, debug info, etc.
                 if let RunType::Check(CheckType::ListFiles) = job.run_type {
                     debug!(
                         "{self}: check_list_files succeeded (exit 0), stdout len={}, stderr len={}",
                         result.stdout.len(),
                         result.stderr.len()
                     );
-                    if result.stdout.trim().is_empty() && !result.stderr.trim().is_empty() {
-                        error!("{self}: check_list_files returned no files but produced stderr");
-                        return Err(Error::CheckListFailed {
-                            source: eyre!("check_list_files returned no files but produced stderr"),
-                            stdout: result.stdout.clone(),
-                            stderr: result.stderr.clone(),
-                        })?;
+                    if !result.stderr.trim().is_empty() {
+                        debug!("{self}: check_list_files stderr output:\n{}", result.stderr);
+                    }
+                    // Warn if exit 0 but stdout has content (misconfigured tool)
+                    if !result.stdout.trim().is_empty() {
+                        warn!(
+                            "{self}: check_list_files exited 0 (success) but returned files in stdout. This may indicate misconfiguration - the tool should exit non-zero when files need fixing."
+                        );
                     }
                 } else if let RunType::Check(CheckType::Diff) = job.run_type {
                     // For check_diff, stderr with exit 0 is just informational (e.g., "N files already formatted")
