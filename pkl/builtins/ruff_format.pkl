@@ -39,7 +39,7 @@ ruff_format = new Config.Step {
         }
         ["fix respects config exclude"] {
             run = "fix"
-            write { 
+            write {
                 ["{{tmp}}/test.py"] = "x=1+2\n"
                 ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
             }
