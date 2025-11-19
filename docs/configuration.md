@@ -136,7 +136,7 @@ If true, hk will run the fix step to make modifications.
 
 ## `hooks.<HOOK>.stash: (String | Boolean)`
 
-Default: `none`
+Default: `"none"`
 
 - `"git"`: Use `git stash` to stash unstaged changes before running fix steps.
 - `"patch-file"`: Alias of `git` behavior for now.
