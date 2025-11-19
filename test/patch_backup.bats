@@ -40,9 +40,9 @@ PKL
     assert_success
 
     # Verify patch file was created
-    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l"
+    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l | xargs"
     assert_success
-    assert_output "       1"
+    assert_output "1"
 
     # Verify patch file contains the unstaged changes
     run bash -c "cat $HK_STATE_DIR/patches/*.patch"
@@ -92,17 +92,17 @@ PKL
     done
 
     # Verify exactly 10 patches remain (as configured)
-    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l"
+    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l | xargs"
     assert_success
-    assert_output "      10"
+    assert_output "10"
 
     # Get list of patch files sorted by time (newest first)
     run bash -c "ls -t $HK_STATE_DIR/patches/*.patch"
     assert_success
 
     # Verify we have patches (count non-empty lines)
-    run bash -c "ls -t $HK_STATE_DIR/patches/*.patch | wc -l"
-    assert_output "      10"
+    run bash -c "ls -t $HK_STATE_DIR/patches/*.patch | wc -l | xargs"
+    assert_output "10"
 
     # Verify the most recent patch exists and contains recent content
     run bash -c "cat \$(ls -t $HK_STATE_DIR/patches/*.patch | head -1)"
@@ -175,9 +175,9 @@ PKL
     assert_success
 
     # Verify patch file was created
-    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l"
+    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch | wc -l | xargs"
     assert_success
-    assert_output "       1"
+    assert_output "1"
 
     # Verify patch content
     run bash -c "cat $HK_STATE_DIR/patches/*.patch"
