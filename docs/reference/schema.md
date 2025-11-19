@@ -263,6 +263,15 @@ Steps define individual linting/formatting tasks. Each step has these properties
   interactive = true  // For prompts or interactive tools
   ```
 
+#### `stdin`
+- **Type:** `String?` (optional)
+- **Description:** A templated string to send via stdin to the command (mutually exclusive with `interactive`)
+- **Example:**
+  ```pkl
+  stdin = "{{ files_list | join(sep='\n') }}"
+  // can be combined with `check = "xargs <command>"`
+  ```
+
 #### `depends`
 - **Type:** `String | List<String>`
 - **Default:** `List()`

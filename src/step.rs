@@ -5,7 +5,7 @@ use crate::{hook::SkipReason, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
-use eyre::{WrapErr, eyre};
+use eyre::{WrapErr, bail, eyre};
 use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -156,6 +156,7 @@ pub struct Step {
     pub types: Option<Vec<String>>,
     #[serde(default)]
     pub interactive: bool,
+    pub stdin: Option<String>,
     pub depends: Vec<String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub shell: Option<Script>,
@@ -227,11 +228,19 @@ pub enum OutputSummary {
 }
 
 impl Step {
-    pub(crate) fn init(&mut self, name: &str) {
+    pub(crate) fn init(&mut self, name: &str) -> Result<()> {
+        if self.stdin.is_some() && self.interactive {
+            bail!(
+                "Step '{}' can't have both `stdin` and `interactive = true`.",
+                name
+            );
+        }
+
         self.name = name.to_string();
         if self.interactive {
             self.exclusive = true;
         }
+        Ok(())
     }
 
     pub fn run_cmd(&self, run_type: RunType) -> Option<&Script> {
@@ -550,8 +559,10 @@ impl Step {
             )]
         };
 
-        // Auto-batch any jobs where the file list would exceed safe limits
-        jobs = self.auto_batch_jobs_if_needed(jobs);
+        if self.stdin.is_none() {
+            // Auto-batch any jobs where the file list would exceed safe limits
+            jobs = self.auto_batch_jobs_if_needed(jobs);
+        }
 
         // Apply profile skip only after determining files/no-files, so NoFilesToProcess wins
         // Also, if a condition is present, defer profile checks to run() so ConditionFalse wins
@@ -1021,6 +1032,11 @@ impl Step {
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
             .stderr_to_progress(true);
+        if let Some(stdin) = &self.stdin {
+            let rendered_stdin = tera::render(stdin, &tctx)?;
+            cmd = cmd.stdin_string(rendered_stdin);
+        }
+
         if self.interactive {
             clx::progress::pause();
             cmd = cmd

@@ -61,7 +61,7 @@ impl Config {
             version::version_cmp_or_bail(min_hk_version)?;
         }
         for (name, hook) in self.hooks.iter_mut() {
-            hook.init(name);
+            hook.init(name)?;
         }
         for (key, value) in self.env.iter() {
             unsafe { std::env::set_var(key, value) };
