@@ -37,7 +37,7 @@ hooks {
     ["fix"] {
         steps {
             ["ruff-format"] {
-                stdin = "{{ files_list | join(sep=\\"\\n\\") }}"
+                stdin = "{{ files_list | join(sep='\\n') }}"
                 fix = "xargs ruff format"
             }
         }
@@ -63,7 +63,7 @@ hooks {
     ["fix"] {
         steps {
             ["ruff-format"] {
-                stdin = "{{ files_list | join(sep=\\"\\n\\") }}"
+                stdin = "{{ files_list | join(sep='\\n') }}"
                 prefix = "xargs"
                 fix = "ruff format"
             }
@@ -90,7 +90,7 @@ hooks {
     ["fix"] {
         steps {
             ["ruff-format"] {
-                stdin = "{{ files_list | join(sep=\\"\\n\\") }}"
+                stdin = "{{ files_list | join(sep='\\n') }}"
                 fix = "ruff format @/dev/stdin"
             }
         }

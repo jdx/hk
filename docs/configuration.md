@@ -567,6 +567,22 @@ local linters = new Mapping<String, Step> {
 }
 ```
 
+### `<STEP>.stdin: String?`
+
+If set, sends the template-expanded string to the command's stdin (mutually exclusive with `interactive`).
+Supports variable `file_list` (`list[str]`) and Tera builtins: https://keats.github.io/tera/docs/#built-ins.
+
+This is useful for tools which allow passing filenames via stdin (like xargs), to avoid hk's automatic batching.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["hungry-command"] {
+        stdin = " {{ files_list | join(sep='\n') }}"
+        check = "xargs my-command"
+    }
+}
+```
+
 ### `<STEP>.condition: String`
 
 If set, the step will only run if this condition evaluates to true. Evaluated with [`expr`](https://github.com/jdx/expr-rs).
