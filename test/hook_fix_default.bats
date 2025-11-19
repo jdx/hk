@@ -25,14 +25,14 @@ EOF
     git commit -m "init"
     echo "content  " > file.txt
     git add file.txt
-    
+
     run hk run pre-commit
     assert_failure
 
     run cat -e file.txt
     assert_success
     assert_output "content  $"
-} 
+}
 
 @test "fix defaults to fix" {
     cat <<EOF > hk.pkl
@@ -50,11 +50,11 @@ EOF
     git commit -m "init"
     echo "content  " > file.txt
     git add file.txt
-    
+
     run hk run fix
     assert_success
 
     run cat -e file.txt
     assert_success
     assert_output "content$"
-} 
+}
