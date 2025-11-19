@@ -28,7 +28,7 @@ PKL
     git add file.txt
     echo "changed content  " > file.txt
 
-    run hk run pre-commit --stash auto
+    run hk run pre-commit
     assert_success
     refute_output --partial "Stashed unstaged changes"
     run cat -e file.txt
