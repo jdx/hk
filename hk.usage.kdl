@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.21.0"
+version "1.21.1"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -26,7 +26,7 @@ cmd cache hide=#true subcommand_required=#true help="Manage hk internal cache" {
 cmd check help="Fixes code" {
     alias c
     flag "-a --all" help="Run on all files instead of just staged files"
-    flag "-c --check" help="Run run command instead of fix command"
+    flag "-c --check" help="Run check command instead of fix command"
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
@@ -85,7 +85,7 @@ cmd config help="Configuration introspection and management" {
 cmd fix help="Fixes code" {
     alias f
     flag "-a --all" help="Run on all files instead of just staged files"
-    flag "-c --check" help="Run run command instead of fix command"
+    flag "-c --check" help="Run check command instead of fix command"
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
@@ -145,7 +145,7 @@ cmd migrate subcommand_required=#true help="Migrate from other hook managers to 
 cmd run help="Run a hook" {
     alias r
     flag "-a --all" help="Run on all files instead of just staged files"
-    flag "-c --check" help="Run run command instead of fix command"
+    flag "-c --check" help="Run check command instead of fix command"
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
@@ -178,7 +178,7 @@ cmd run help="Run a hook" {
     cmd commit-msg {
         alias cm
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-c --check" help="Run run command instead of fix command"
+        flag "-c --check" help="Run check command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
@@ -212,7 +212,7 @@ cmd run help="Run a hook" {
     cmd pre-commit help="Sets up git hooks to run hk" {
         alias pc
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-c --check" help="Run run command instead of fix command"
+        flag "-c --check" help="Run check command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
@@ -245,7 +245,7 @@ cmd run help="Run a hook" {
     cmd pre-push {
         alias pp
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-c --check" help="Run run command instead of fix command"
+        flag "-c --check" help="Run check command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
@@ -280,7 +280,7 @@ cmd run help="Run a hook" {
     cmd prepare-commit-msg {
         alias pcm
         flag "-a --all" help="Run on all files instead of just staged files"
-        flag "-c --check" help="Run run command instead of fix command"
+        flag "-c --check" help="Run check command instead of fix command"
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }

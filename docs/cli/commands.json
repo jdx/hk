@@ -79,8 +79,8 @@
           {
             "name": "check",
             "usage": "-c --check",
-            "help": "Run run command instead of fix command",
-            "help_first_line": "Run run command instead of fix command",
+            "help": "Run check command instead of fix command",
+            "help_first_line": "Run check command instead of fix command",
             "short": ["c"],
             "long": ["check"],
             "hide": false,
@@ -433,8 +433,8 @@
           {
             "name": "check",
             "usage": "-c --check",
-            "help": "Run run command instead of fix command",
-            "help_first_line": "Run run command instead of fix command",
+            "help": "Run check command instead of fix command",
+            "help_first_line": "Run check command instead of fix command",
             "short": ["c"],
             "long": ["check"],
             "hide": false,
@@ -812,8 +812,8 @@
               {
                 "name": "check",
                 "usage": "-c --check",
-                "help": "Run run command instead of fix command",
-                "help_first_line": "Run run command instead of fix command",
+                "help": "Run check command instead of fix command",
+                "help_first_line": "Run check command instead of fix command",
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
@@ -1023,8 +1023,8 @@
               {
                 "name": "check",
                 "usage": "-c --check",
-                "help": "Run run command instead of fix command",
-                "help_first_line": "Run run command instead of fix command",
+                "help": "Run check command instead of fix command",
+                "help_first_line": "Run check command instead of fix command",
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
@@ -1253,8 +1253,8 @@
               {
                 "name": "check",
                 "usage": "-c --check",
-                "help": "Run run command instead of fix command",
-                "help_first_line": "Run run command instead of fix command",
+                "help": "Run check command instead of fix command",
+                "help_first_line": "Run check command instead of fix command",
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
@@ -1491,8 +1491,8 @@
               {
                 "name": "check",
                 "usage": "-c --check",
-                "help": "Run run command instead of fix command",
-                "help_first_line": "Run run command instead of fix command",
+                "help": "Run check command instead of fix command",
+                "help_first_line": "Run check command instead of fix command",
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
@@ -1706,8 +1706,8 @@
           {
             "name": "check",
             "usage": "-c --check",
-            "help": "Run run command instead of fix command",
-            "help_first_line": "Run run command instead of fix command",
+            "help": "Run check command instead of fix command",
+            "help_first_line": "Run check command instead of fix command",
             "short": ["c"],
             "long": ["check"],
             "hide": false,
@@ -2605,7 +2605,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.21.0",
+  "version": "1.21.1",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

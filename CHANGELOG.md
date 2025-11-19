@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.21.1](https://github.com/jdx/hk/compare/v1.21.0..v1.21.1) - 2025-11-19
+
+### 🐛 Bug Fixes
+
+- **(ruff)** Make `ruff` respect user config `exclude` by [@thejcannon](https://github.com/thejcannon) in [#421](https://github.com/jdx/hk/pull/421)
+- **(ruff_format)** Pass `--force-exclude` to `ruff format` (as well) by [@thejcannon](https://github.com/thejcannon) in [#428](https://github.com/jdx/hk/pull/428)
+- Fix --check docstring by [@thejcannon](https://github.com/thejcannon) in [#423](https://github.com/jdx/hk/pull/423)
+- Configuration Read Support YML File Extension by [@hcoona](https://github.com/hcoona) in [#427](https://github.com/jdx/hk/pull/427)
+- treat check_list_files stderr as informational, not an error by [@jdx](https://github.com/jdx) in [#425](https://github.com/jdx/hk/pull/425)
+- remove trailing whitespace in ruff_format.pkl by [@jdx](https://github.com/jdx) in [9f4abdc](https://github.com/jdx/hk/commit/9f4abdc13d91faeacd39771996cbf66fae7ffc2c)
+
+### 🚜 Refactor
+
+- Enable `trailing-whitespace` in this repo by [@thejcannon](https://github.com/thejcannon) in [#429](https://github.com/jdx/hk/pull/429)
+
+### 📚 Documentation
+
+- Don't suggest configuring hk in config env by [@thejcannon](https://github.com/thejcannon) in [#424](https://github.com/jdx/hk/pull/424)
+
+### New Contributors
+
+- @thejcannon made their first contribution in [#428](https://github.com/jdx/hk/pull/428)
+- @hcoona made their first contribution in [#427](https://github.com/jdx/hk/pull/427)
+
 ## [1.21.0](https://github.com/jdx/hk/compare/v1.20.0..v1.21.0) - 2025-11-15
 
 ### 🚀 Features

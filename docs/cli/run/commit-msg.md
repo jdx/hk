@@ -21,7 +21,7 @@ Run on all files instead of just staged files
 
 ### `-c --check`
 
-Run run command instead of fix command
+Run check command instead of fix command
 
 ### `-e --exclude… <EXCLUDE>`
 
