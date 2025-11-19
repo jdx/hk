@@ -3,7 +3,7 @@
 - **Usage**: `hk check [FLAGS] [FILES]…`
 - **Aliases**: `c`
 
-Fixes code
+Checks code
 
 ## Arguments
 
