@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.22.0](https://github.com/jdx/hk/compare/v1.21.1..v1.22.0) - 2025-11-19
+
+### 🚀 Features
+
+- Add `stdin` to step config by [@thejcannon](https://github.com/thejcannon) in [#435](https://github.com/jdx/hk/pull/435)
+
+### 🐛 Bug Fixes
+
+- save patch backup files when using git as stash method by [@jdx](https://github.com/jdx) in [#434](https://github.com/jdx/hk/pull/434)
+
+### 📚 Documentation
+
+- Clarify `stash` default (behavior) by [@thejcannon](https://github.com/thejcannon) in [#431](https://github.com/jdx/hk/pull/431)
+- Clarify hook fix default by [@thejcannon](https://github.com/thejcannon) in [#433](https://github.com/jdx/hk/pull/433)
+
 ## [1.21.1](https://github.com/jdx/hk/compare/v1.21.0..v1.21.1) - 2025-11-19
 
 ### 🐛 Bug Fixes
