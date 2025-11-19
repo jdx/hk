@@ -3,9 +3,9 @@ import "../Config.pkl"
 ruff_format = new Config.Step {
     glob = List("**/*.py", "**/*.pyi")
     stage = "<JOB_FILES>"
-    check = "ruff format --check {{ files }}"
-    check_diff = "ruff format --diff {{ files }}"
-    fix = "ruff format {{ files }}"
+    check = "ruff format --force-exclude --check {{ files }}"
+    check_diff = "ruff format --force-exclude --diff {{ files }}"
+    fix = "ruff format --force-exclude {{ files }}"
     tests {
         ["detects unformatted code"] {
             run = "check"
@@ -27,6 +27,27 @@ ruff_format = new Config.Step {
             write { ["{{tmp}}/test.py"] = "x = 1 + 2\n" }
             files = List("{{tmp}}/test.py")
             expect { code = 0 }
+        }
+        ["check respects config exclude"] {
+            run = "check"
+            write {
+                ["{{tmp}}/test.py"] = "x=1+2\n"
+                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
+            }
+            files = List("{{tmp}}/test.py")
+            expect { code = 0 }
+        }
+        ["fix respects config exclude"] {
+            run = "fix"
+            write { 
+                ["{{tmp}}/test.py"] = "x=1+2\n"
+                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
+            }
+            files = List("{{tmp}}/test.py")
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.py"] = "x=1+2\n" }
+            }
         }
     }
 }
