@@ -5,4 +5,4 @@ yq = new Config.Step {
     stage = "**/*.yaml"
     check = "yq {{ files }}"
     fix = "yq -iP {{ files }}"
-} 
+}

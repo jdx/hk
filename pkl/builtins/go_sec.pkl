@@ -3,4 +3,4 @@ import "../Config.pkl"
 go_sec = new Config.Step {
     glob = "**/*.go"
     check = "gosec {{ files }}"
-} 
+}

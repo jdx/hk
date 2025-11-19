@@ -59,7 +59,7 @@ for scenario, filename in scenarios.items():
         with open(filename) as f:
             print(f"\nProcessing {filename}...")
             data = json.load(f)
-            
+
             # Collect data for each tool
             for result in data['results']:
                 command = result['command']
@@ -85,11 +85,11 @@ positions = np.arange(num_scenarios)
 # Plot bars for each tool
 for idx, tool in enumerate(tools):
     offset = (idx - (len(tools)-1)/2) * width
-    bars = ax.bar(positions + offset, tool_times[tool], width, 
+    bars = ax.bar(positions + offset, tool_times[tool], width,
                   yerr=tool_stddevs[tool],
                   capsize=5,
                   label=tool)
-    
+
     # Add value labels on top of bars
     for bar in bars:
         height = bar.get_height()

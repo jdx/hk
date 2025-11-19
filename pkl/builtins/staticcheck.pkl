@@ -3,4 +3,4 @@ import "../Config.pkl"
 staticcheck = new Config.Step {
     glob = "**/*.go"
     check = "staticcheck {{ files }}"
-} 
+}

@@ -5,4 +5,4 @@ sql_fluff = new Config.Step {
     stage = "**/*.sql"
     check = "sqlfluff lint {{ files }}"
     fix = "sqlfluff fix {{ files }}"
-} 
+}

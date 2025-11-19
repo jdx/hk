@@ -3,4 +3,4 @@ import "../Config.pkl"
 erb = new Config.Step {
     glob = "**/*.erb"
     check = "erb -P -x -T - {{ files }} | ruby -c"
-} 
+}

@@ -3,4 +3,4 @@ import "../Config.pkl"
 tsserver = new Config.Step {
     glob = List("**/*.ts", "**/*.tsx")
     check = "tsc-files --noEmit {{ files }}"
-} 
+}

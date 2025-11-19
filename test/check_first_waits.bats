@@ -46,4 +46,4 @@ EOF
     # runs b to completion without a
     assert_output --partial "  b – start b
   b – end b"
-} 
+}

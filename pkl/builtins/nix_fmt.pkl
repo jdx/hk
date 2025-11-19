@@ -5,4 +5,4 @@ nix_fmt = new Config.Step {
     stage = "**/*.nix"
     check = "nixfmt --check {{ files }}"
     fix = "nixfmt {{ files }}"
-} 
+}

@@ -3,7 +3,7 @@
 ```pkl
 /// Example configuration for a JavaScript/TypeScript project
 /// * Uses prettier for formatting
-/// * Uses eslint for linting  
+/// * Uses eslint for linting
 /// * Runs type checking with tsc
 /// * Enables automatic fixes in pre-commit
 
@@ -58,7 +58,7 @@ hooks {
 
 Example configuration for a JavaScript/TypeScript project
 * Uses prettier for formatting
-* Uses eslint for linting  
+* Uses eslint for linting
 * Runs type checking with tsc
 * Enables automatic fixes in pre-commit
 

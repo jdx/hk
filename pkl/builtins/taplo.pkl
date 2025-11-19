@@ -5,4 +5,4 @@ taplo = new Config.Step {
     stage = "**/*.toml"
     check = "taplo check {{ files }}"
     fix = "taplo format {{ files }}"
-} 
+}

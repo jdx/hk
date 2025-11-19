@@ -37,10 +37,10 @@ teardown() {
   # Run with default profile (nonexistent profile won't be enabled)
   run hk check --all
   assert_success
-  
+
   # ProfileNotEnabled is set to false, so this message should NOT appear
   refute_output --partial "skipped: disabled by profile"
-  
+
   # The step should still be skipped but silently
   refute_output --partial "test-profile"
 }
@@ -66,7 +66,7 @@ EOF
 
   run hk check --all
   assert_success
-  
+
   # ProfileNotEnabled is set to true, so this message SHOULD appear
   assert_output --partial "skipped: profile not enabled (nonexistent)"
 }
@@ -91,10 +91,10 @@ EOF
 
   run hk check --all
   assert_success
-  
+
   # NoCommandForRunType is set to false, so this message should NOT appear
   refute_output --partial "skipped: no command for run type"
-  
+
   # Now test with NoCommandForRunType shown
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
@@ -114,7 +114,7 @@ EOF
 
   run hk check --all
   assert_success
-  
+
   # NoCommandForRunType is set to true, so this message SHOULD appear
   assert_output --partial "skipped: no command for run type"
 }
@@ -139,10 +139,10 @@ EOF
 
   HK_SKIP_STEPS="test-step" run hk check --all
   assert_success
-  
+
   # DisabledByEnv is not configured, so skip message should NOT appear
   refute_output --partial "skipped: disabled via HK_SKIP_STEPS"
-  
+
   # Now test with DisabledByEnv messages shown
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
@@ -162,7 +162,7 @@ EOF
 
   HK_SKIP_STEPS="test-step" run hk check --all
   assert_success
-  
+
   # DisabledByEnv is configured, so skip message SHOULD appear
   assert_output --partial "skipped: disabled via HK_SKIP_STEPS"
 }
@@ -188,10 +188,10 @@ EOF
 
   run hk check --all
   assert_success
-  
+
   # NoFilesToProcess is not in the list, so message should NOT appear
   refute_output --partial "skipped: no files to process"
-  
+
   # Now test with NoFilesToProcess shown
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
@@ -212,7 +212,7 @@ EOF
 
   run hk check --all
   assert_success
-  
+
   # NoFilesToProcess is in the list, so message SHOULD appear
   assert_output --partial "skipped: no files to process"
 }
@@ -237,10 +237,10 @@ EOF
 
   run hk check --all --skip-step test-step
   assert_success
-  
+
   # DisabledByCli is not configured, so skip message should NOT appear
   refute_output --partial "skipped: disabled via --skip-step"
-  
+
   # Now test with DisabledByCli messages shown
   cat >hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
@@ -260,7 +260,7 @@ EOF
 
   run hk check --all --skip-step test-step
   assert_success
-  
+
   # DisabledByCli is configured, so skip message SHOULD appear
   assert_output --partial "skipped: disabled via --skip-step"
 }

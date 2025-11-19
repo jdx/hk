@@ -26,10 +26,10 @@ EOF
     git add hk.pkl
     git commit -m "init"
     cat <<EOF > test.json
-{ "invalid": 
+{ "invalid":
 EOF
     git add test.json
     run hk run pre-commit
     assert_failure
     assert_output --partial "parse error"
-} 
+}

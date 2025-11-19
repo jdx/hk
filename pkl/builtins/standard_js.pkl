@@ -5,4 +5,4 @@ standard_js = new Config.Step {
     stage = glob
     check = "standard {{ files }}"
     fix = "standard --fix {{ files }}"
-} 
+}

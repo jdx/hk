@@ -5,4 +5,4 @@ go_imports = new Config.Step {
     stage = "**/*.go"
     check = "goimports -l {{ files }}"
     fix = "goimports -w {{ files }}"
-} 
+}

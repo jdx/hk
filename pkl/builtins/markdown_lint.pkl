@@ -5,4 +5,4 @@ markdown_lint = new Config.Step {
     stage = glob
     check = "markdownlint {{ files }}"
     fix = "markdownlint --fix {{ files }}"
-} 
+}

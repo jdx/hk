@@ -6,4 +6,4 @@ cargo_check = new Config.Step {
     env {
         ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
     }
-} 
+}

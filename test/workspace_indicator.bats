@@ -56,4 +56,4 @@ EOF
   refute_output --partial "files=a/main.go b/main.go main.go"
   refute_output --partial "files=a/main.go main.go"
   refute_output --partial "files=b/main.go main.go"
-} 
+}

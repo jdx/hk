@@ -4,4 +4,4 @@ actionlint = new Config.Step {
     glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
     batch = true
     check = "actionlint {{ files }}"
-} 
+}

@@ -5,4 +5,4 @@ stylelint = new Config.Step {
     stage = glob
     check = "stylelint {{ files }}"
     fix = "stylelint --fix {{ files }}"
-} 
+}

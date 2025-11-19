@@ -5,4 +5,4 @@ stylua = new Config.Step {
     stage = "**/*.lua"
     check = "stylua --check {{ files }}"
     fix = "stylua {{ files }}"
-} 
+}

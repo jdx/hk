@@ -35,4 +35,4 @@ EOF
     assert_success
     assert_output --partial "prettier"
     assert_output --partial "shellcheck – skipped: disabled via HK_SKIP_STEPS"
-} 
+}

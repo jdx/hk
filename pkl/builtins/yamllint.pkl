@@ -3,4 +3,4 @@ import "../Config.pkl"
 yamllint = new Config.Step {
     glob = List("**/*.yml", "**/*.yaml")
     check = "yamllint {{ files }}"
-} 
+}

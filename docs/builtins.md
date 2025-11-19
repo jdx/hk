@@ -583,10 +583,10 @@ You can also customize builtins:
 ["prettier"] = (Builtins.prettier) {
   // Override glob patterns
   glob = List("src/**/*.js", "src/**/*.ts")
-  
+
   // Disable batch processing
   batch = false
-  
+
   // Add environment variables
   env {
     ["PRETTIER_CONFIG"] = ".prettierrc.json"
@@ -609,7 +609,7 @@ You can also customize builtins:
 ["cargo_clippy"] = (Builtins.cargo_clippy) {
   // Only run in directories with Cargo.toml
   workspace_indicator = "Cargo.toml"
-  
+
   // Custom command using workspace
   check = "cargo clippy --manifest-path {{workspace}}/Cargo.toml"
 }

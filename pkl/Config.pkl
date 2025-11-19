@@ -37,19 +37,19 @@ class Step {
     /// to stage only the files that were actually processed by this step.
     /// Use "<JOB_FILES>" when the step uses check_list_files for dynamic file discovery.
     stage: (String | List<String>)?
-    
+
     /// If true, the step will run by itself, waiting for previous steps to finish before starting and making later steps wait for it to finish
     exclusive = false
 
     /// Connects stdin/stdout/stderr to the hk's execution. Implies `exclusive`.
     interactive = false
-    
+
     /// Wait for sibling steps to finish before starting this step.
     depends: (String | List<String>) = List()
 
     /// Which shell to use for running commands
     shell: (String | Script)?
-    
+
     /// a shell command to check. Any edits will be ignored.
     check: (String | Script)?
     check_list_files: (String | Script)?
@@ -84,14 +84,14 @@ class Step {
     stomp = false
 
     hide = false
-    
+
     /// Controls which stream(s) to include in the end-of-run summary for this step
     /// One of: "stdout", "stderr", "combined", "hide"
     output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
-    
+
     /// Whether to include symbolic links (default: false)
     allow_symlinks = false
-    
+
     /// run the linter scripts with these environment variables
     env = new Mapping<String, String>{}
 

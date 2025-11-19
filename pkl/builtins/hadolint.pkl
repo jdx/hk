@@ -3,4 +3,4 @@ import "../Config.pkl"
 hadolint = new Config.Step {
     glob = "**/Dockerfile*"
     check = "hadolint {{ files }}"
-} 
+}

@@ -6,4 +6,4 @@ cargo_fmt = new Config.Step {
     workspace_indicator = "Cargo.toml"
     check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
     fix = "cargo fmt --manifest-path {{workspace_indicator}}"
-} 
+}

@@ -12,4 +12,4 @@ teardown() {
 @test "hk init creates hk.pkl" {
     hk init
     assert_file_contains hk.pkl "linters ="
-} 
+}

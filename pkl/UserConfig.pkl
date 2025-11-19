@@ -24,7 +24,7 @@ class HookConfig {
     all: Boolean?
     fix: Boolean?
     check: Boolean?
-    
+
     /// Per-step overrides within this hook
     steps: Mapping<String, StepConfig> = new Mapping<String, StepConfig>{}
 }

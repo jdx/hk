@@ -5,4 +5,4 @@ gomod_tidy = new Config.Step {
     stage = "**/go.mod"
     check_diff = "go mod tidy -diff"
     fix = "go mod tidy"
-} 
+}

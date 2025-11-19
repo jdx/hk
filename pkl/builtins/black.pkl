@@ -6,4 +6,4 @@ black = new Config.Step {
     check = "black --check {{ files }}"
     check_diff = "black --diff {{ files }}"
     fix = "black {{ files }}"
-} 
+}

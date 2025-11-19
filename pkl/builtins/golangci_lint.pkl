@@ -5,4 +5,4 @@ golangci_lint = new Config.Step {
     stage = "**/*.go"
     check = "golangci-lint run --fix=false {{ files }}"
     fix = "golangci-lint run --fix {{ files }}"
-} 
+}

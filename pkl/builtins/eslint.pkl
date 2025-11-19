@@ -6,4 +6,4 @@ eslint = new Config.Step {
     batch = true
     check = "eslint {{ files }}"
     fix = "eslint --fix {{ files }}"
-} 
+}

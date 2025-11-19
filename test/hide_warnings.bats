@@ -28,13 +28,13 @@ hooks {
 }
 EOF
     touch test.txt
-    
+
     # First run without hiding warnings
     run hk check
     assert_success
     assert_output --partial "FAST TEST"
     assert_output --partial "1 step was skipped due to missing profiles: slow"
-    
+
     # Now run with HK_HIDE_WARNINGS=missing-profiles
     HK_HIDE_WARNINGS=missing-profiles run hk check
     assert_success
@@ -93,7 +93,7 @@ hooks {
 }
 EOF
     touch test.txt
-    
+
     # Test with multiple warning tags (missing-profiles should be hidden)
     HK_HIDE_WARNINGS=foo,missing-profiles,bar run hk check
     assert_success
@@ -120,7 +120,7 @@ hooks {
 }
 EOF
     touch test.txt
-    
+
     # Test with wrong tag - warning should still appear
     HK_HIDE_WARNINGS=wrong-tag run hk check
     assert_success

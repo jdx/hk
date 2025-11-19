@@ -5,4 +5,4 @@ xo = new Config.Step {
     stage = glob
     check = "xo {{ files }}"
     fix = "xo --fix {{ files }}"
-} 
+}

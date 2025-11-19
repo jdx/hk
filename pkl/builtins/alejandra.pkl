@@ -5,4 +5,4 @@ alejandra = new Config.Step {
     stage = "**/*.nix"
     check = "alejandra --check {{ files }}"
     fix = "alejandra {{ files }}"
-} 
+}
