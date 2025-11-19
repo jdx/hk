@@ -123,6 +123,99 @@ impl Git {
         })
     }
 
+    /// Get the patches directory for this repository
+    fn patches_dir(&self) -> Result<PathBuf> {
+        let patches_dir = env::HK_STATE_DIR.join("patches");
+        std::fs::create_dir_all(&patches_dir)?;
+        Ok(patches_dir)
+    }
+
+    /// Get a unique name for the repository based on its directory
+    fn repo_name(&self) -> Result<String> {
+        let cwd = std::env::current_dir()?;
+        let name = cwd
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        Ok(name)
+    }
+
+    /// Rotate patch files, keeping only the last N patches for this repository
+    fn rotate_patch_files(&self, keep_count: usize) -> Result<()> {
+        let patches_dir = self.patches_dir()?;
+        let repo_name = self.repo_name()?;
+        let prefix = format!("{}-", repo_name);
+
+        // Collect all patch files for this repo
+        let mut patch_files: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&patches_dir) {
+            for entry in entries.flatten() {
+                if let Ok(file_name) = entry.file_name().into_string() {
+                    if file_name.starts_with(&prefix) && file_name.ends_with(".patch") {
+                        if let Ok(metadata) = entry.metadata() {
+                            if let Ok(modified) = metadata.modified() {
+                                patch_files.push((entry.path(), modified));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by modification time, newest first
+        patch_files.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Remove old patches beyond keep_count
+        for (path, _) in patch_files.iter().skip(keep_count) {
+            debug!("Rotating old patch file: {}", path.display());
+            let _ = std::fs::remove_file(path);
+        }
+
+        Ok(())
+    }
+
+    /// Save a patch backup of the stash
+    fn save_stash_patch(&self, stash_ref: &str) -> Result<()> {
+        let patches_dir = self.patches_dir()?;
+        let repo_name = self.repo_name()?;
+
+        // Generate timestamp and short hash for unique filename
+        let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let short_hash = if let Some(commit) = &self.stash_commit {
+            commit.chars().take(8).collect::<String>()
+        } else {
+            "unknown".to_string()
+        };
+
+        let patch_filename = format!("{}-{}-{}.patch", repo_name, timestamp, short_hash);
+        let patch_path = patches_dir.join(&patch_filename);
+
+        // Generate patch using git stash show
+        let mut cmd = git_cmd_silent(["stash", "show", "-p"]);
+        if *env::HK_STASH_UNTRACKED {
+            cmd = cmd.arg("--include-untracked");
+        }
+        cmd = cmd.arg(stash_ref);
+
+        match cmd.read() {
+            Ok(patch_content) => {
+                std::fs::write(&patch_path, patch_content)?;
+                debug!("Saved stash patch: {}", patch_path.display());
+
+                // Rotate old patches, keeping last 10
+                self.rotate_patch_files(10)?;
+
+                Ok(())
+            }
+            Err(e) => {
+                debug!("Failed to save stash patch: {}", e);
+                // Don't fail the whole operation if patch saving fails
+                Ok(())
+            }
+        }
+    }
+
     /// Determine the repository's default branch reference.
     /// Strategy:
     /// 1) Use `origin/HEAD` if it points to a branch
@@ -629,6 +722,8 @@ impl Git {
                 if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
                     self.stash_commit = Some(h.trim().to_string());
                 }
+                // Save patch backup
+                let _ = self.save_stash_patch("stash@{0}");
                 Ok(Some(StashType::Git))
             } else {
                 match repo.stash_save(&sig, "hk", Some(flags)) {
@@ -637,6 +732,8 @@ impl Git {
                         {
                             self.stash_commit = Some(h.trim().to_string());
                         }
+                        // Save patch backup
+                        let _ = self.save_stash_patch("stash@{0}");
                         Ok(Some(StashType::LibGit))
                     }
                     Err(e) => {
@@ -650,6 +747,8 @@ impl Git {
                         {
                             self.stash_commit = Some(h.trim().to_string());
                         }
+                        // Save patch backup
+                        let _ = self.save_stash_patch("stash@{0}");
                         Ok(Some(StashType::Git))
                     }
                 }
@@ -670,6 +769,8 @@ impl Git {
             if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
                 self.stash_commit = Some(h.trim().to_string());
             }
+            // Save patch backup
+            let _ = self.save_stash_patch("stash@{0}");
             Ok(Some(StashType::Git))
         }
     }
