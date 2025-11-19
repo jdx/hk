@@ -178,6 +178,12 @@ impl Git {
 
     /// Save a patch backup of the stash
     fn save_stash_patch(&self, stash_ref: &str) {
+        // If backup_count is 0, skip patch backup entirely
+        let backup_count = Settings::get().stash_backup_count;
+        if backup_count == 0 {
+            return;
+        }
+
         // Get patches directory and repo name
         let (patches_dir, repo_name) = match (self.patches_dir(), self.repo_name()) {
             (Ok(dir), Ok(name)) => (dir, name),
@@ -230,7 +236,6 @@ impl Git {
         debug!("Saved stash patch: {}", patch_path.display());
 
         // Rotate old patches based on configured backup count
-        let backup_count = Settings::get().stash_backup_count;
         if let Err(e) = self.rotate_patch_files(backup_count) {
             warn!("Failed to rotate old patch files: {}", e);
             // Continue anyway - at least we saved the current patch

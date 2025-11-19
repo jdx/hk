@@ -193,6 +193,47 @@ PKL
     assert_output --partial "unstaged content"
 }
 
+@test "patch backup with count=0 disables backup creation" {
+    # Setting backup count to 0 should disable patch backup entirely
+    export HK_STASH_BACKUP_COUNT=0
+
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps {
+            ["test-step"] {
+                check = "echo 'checking'"
+            }
+        }
+    }
+}
+PKL
+    git add hk.pkl
+    git commit -m "init"
+
+    # Create and commit initial file
+    echo "initial" > file.txt
+    git add file.txt
+    git commit -m "add file"
+
+    # Create 3 stashes
+    for i in {1..3}; do
+        echo "content-$i" > file.txt
+        git add file.txt
+        echo "unstaged-$i" > file.txt
+        hk run pre-commit > /dev/null 2>&1
+        sleep 0.2  # Ensure different timestamps
+    done
+
+    # Verify no patches were created when count=0
+    run bash -c "ls -1 $HK_STATE_DIR/patches/*.patch 2>/dev/null | wc -l | xargs"
+    assert_success
+    assert_output "0"
+}
+
 @test "patch backup contains recoverable changes" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"

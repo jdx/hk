@@ -1322,6 +1322,8 @@ Each time git stash is used, hk creates a backup patch file in
 $HK_STATE_DIR/patches/. This setting controls how many of these
 backups are retained per repository (oldest are automatically deleted).
 
+Set to 0 to disable patch backup creation entirely.
+
 Default: 20
 
 ### `stash-untracked`
