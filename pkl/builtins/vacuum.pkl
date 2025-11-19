@@ -1,0 +1,7 @@
+import "../Config.pkl"
+
+vacuum = new Config.Step {
+    glob = List("**/*openapi*.yaml", "**/*openapi*.yml", "**/*openapi*.json", "**/*swagger*.yaml", "**/*swagger*.yml", "**/*swagger*.json")
+    check = "vacuum lint {{files}}"
+    fix = "vacuum lint --fix {{files}}"
+}
