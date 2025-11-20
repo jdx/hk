@@ -27,6 +27,9 @@ pub(crate) struct HookOptions {
     /// Run only specific step(s)
     #[clap(short = 'S', long)]
     pub step: Vec<String>,
+    /// Display statistics about files matching each step
+    #[clap(long)]
+    pub stats: bool,
     /// Abort on first failure
     #[clap(long, overrides_with = "no_fail_fast")]
     pub fail_fast: bool,
@@ -55,7 +58,9 @@ impl HookOptions {
         let config = Config::get()?;
         match config.hooks.get(name) {
             Some(hook) => {
-                if self.plan {
+                if self.stats {
+                    hook.stats(self, name).await?;
+                } else if self.plan {
                     hook.plan(self).await?;
                 } else {
                     hook.run(self).await?;

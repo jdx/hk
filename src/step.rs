@@ -30,7 +30,7 @@ use crate::step_test::StepTest;
 
 /// Check if a file is binary by reading the first 8KB and looking for null bytes
 /// Returns None if the file cannot be read (error), Some(true/false) otherwise
-fn is_binary_file(path: &PathBuf) -> Option<bool> {
+pub fn is_binary_file(path: &PathBuf) -> Option<bool> {
     use dashmap::DashMap;
     use std::io::Read;
 
@@ -58,7 +58,7 @@ fn is_binary_file(path: &PathBuf) -> Option<bool> {
 
 /// Check if a file is a symbolic link
 /// Returns None if the file cannot be read (error), Some(true/false) otherwise
-fn is_symlink_file(path: &PathBuf) -> Option<bool> {
+pub fn is_symlink_file(path: &PathBuf) -> Option<bool> {
     use dashmap::DashMap;
 
     // Memoize results (only cache successful reads, not errors)
@@ -356,7 +356,7 @@ impl Step {
         Ok(Some(workspaces))
     }
 
-    fn filter_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    pub fn filter_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
         let mut files = files.to_vec();
         if let Some(dir) = &self.dir {
             files.retain(|f| f.starts_with(dir));

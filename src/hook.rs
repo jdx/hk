@@ -361,6 +361,87 @@ impl Hook {
         Ok(())
     }
 
+    pub async fn stats(&self, opts: HookOptions, hook_name: &str) -> Result<()> {
+        let run_type = self.run_type(&opts);
+        let repo = Arc::new(Mutex::new(Git::new()?));
+        let git_status = repo.lock().await.status(None)?;
+        let stash_method = if let Some(stash_str) = &opts.stash {
+            stash_str
+                .parse::<StashMethod>()
+                .unwrap_or(StashMethod::None)
+        } else {
+            self.resolve_stash_method(*env::HK_STASH)
+        };
+        let progress = ProgressJobBuilder::new()
+            .status(ProgressStatus::Hide)
+            .build();
+        let files = self
+            .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
+            .await?;
+        let all_files = files.iter().cloned().collect::<Vec<_>>();
+        let total_files = all_files.len();
+
+        println!(
+            "{}",
+            style::nbold(&format!("Statistics for hook: {}", hook_name))
+        );
+        println!();
+        println!("Total files: {}", style::ncyan(total_files));
+        println!(
+            "Run type: {}",
+            style::nblue(if run_type == RunType::Fix {
+                "fix"
+            } else {
+                "check"
+            })
+        );
+        println!();
+
+        // Collect stats for each step
+        let groups = self.get_step_groups(&opts);
+        let mut step_stats: Vec<(String, usize)> = Vec::new();
+
+        for group in &groups {
+            for (step_name, step) in &group.steps {
+                let filtered_files = step.filter_files(&all_files)?;
+                step_stats.push((step_name.clone(), filtered_files.len()));
+            }
+        }
+
+        if step_stats.is_empty() {
+            println!("No steps found in hook '{}'", hook_name);
+            return Ok(());
+        }
+
+        println!("{}", style::nbold("Files matching each step:"));
+        println!();
+
+        // Find the longest step name for alignment
+        let max_name_len = step_stats
+            .iter()
+            .map(|(name, _)| name.len())
+            .max()
+            .unwrap_or(0);
+
+        for (step_name, count) in step_stats {
+            let percentage = if total_files > 0 {
+                (count as f64 / total_files as f64) * 100.0
+            } else {
+                0.0
+            };
+
+            println!(
+                "  {:width$}  {}  ({:.1}%)",
+                style::nyellow(&step_name),
+                style::ncyan(count),
+                percentage,
+                width = max_name_len
+            );
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         // Handle fail_fast effective value locally (no global mutation)
