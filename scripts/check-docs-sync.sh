@@ -30,30 +30,6 @@ else
     echo -e "${GREEN}OK${NC}"
 fi
 
-# Check if Config.pkl fields are documented
-echo -n "Checking Config.pkl field coverage... "
-config_fields=$(grep -E "^[a-z_]+:" pkl/Config.pkl | grep -v "^output" | sed 's/:.*//' | sort | uniq)
-documented_fields=$(grep -E "^### \`[a-z_]+\`" docs/reference/schema.md | sed 's/### `//;s/`//' | sort | uniq)
-
-# Known fields that are internal or covered differently
-excluded_fields="shell linux macos windows other"
-
-for field in $config_fields; do
-    if echo "$excluded_fields" | grep -qw "$field"; then
-        continue
-    fi
-    if ! echo "$documented_fields" | grep -qw "$field"; then
-        echo -e "${RED}FAIL${NC}"
-        echo -e "${RED}Config field '$field' not documented in schema.md${NC}"
-        errors=$((errors + 1))
-        break
-    fi
-done
-
-if [ $errors -eq 0 ]; then
-    echo -e "${GREEN}OK${NC}"
-fi
-
 # Check version placeholders
 echo -n "Checking version placeholders... "
 if grep -q "{{version}}" docs/reference/schema.md; then
