@@ -1314,7 +1314,7 @@ This is useful when you want to manually review changes made by auto-fixers befo
   - ENV: `HK_STASH`
   - Git: `hk.stash`
 
-Strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
+Strategy for temporarily saving unstaged changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
 
 Available strategies:
 - `git`: Use `git stash` to stash changes
