@@ -1309,6 +1309,7 @@ Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated 
 ### `stash`
 
 - Type: `enum`
+- Default: N/A (Depends on the hook configuration)
 - Sources:
   - CLI: `--stash`
   - ENV: `HK_STASH`
