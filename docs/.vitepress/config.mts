@@ -43,7 +43,6 @@ export default defineConfig({
       {
         text: 'Reference',
         items: [
-          { text: 'Schema Reference', link: '/reference/schema' },
           { text: 'Built-in Linters', link: '/builtins' },
           { text: 'Configuration Examples', link: '/reference/examples/' },
           { text: 'Glossary', link: '/glossary' },
