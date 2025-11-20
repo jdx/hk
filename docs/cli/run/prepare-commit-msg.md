@@ -77,6 +77,10 @@ Stash method to use for git hooks
 - `patch-file`
 - `none`
 
+### `--stats`
+
+Display statistics about files matching each step
+
 ### `--to-ref <TO_REF>`
 
 End reference for checking files (requires --from-ref)

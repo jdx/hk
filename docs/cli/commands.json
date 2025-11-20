@@ -236,6 +236,16 @@
             }
           },
           {
+            "name": "stats",
+            "usage": "--stats",
+            "help": "Display statistics about files matching each step",
+            "help_first_line": "Display statistics about files matching each step",
+            "short": [],
+            "long": ["stats"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "to-ref",
             "usage": "--to-ref <TO_REF>",
             "help": "End reference for checking files (requires --from-ref)",
@@ -588,6 +598,16 @@
                 "choices": ["git", "patch-file", "none"]
               }
             }
+          },
+          {
+            "name": "stats",
+            "usage": "--stats",
+            "help": "Display statistics about files matching each step",
+            "help_first_line": "Display statistics about files matching each step",
+            "short": [],
+            "long": ["stats"],
+            "hide": false,
+            "global": false
           },
           {
             "name": "to-ref",
@@ -969,6 +989,16 @@
                 }
               },
               {
+                "name": "stats",
+                "usage": "--stats",
+                "help": "Display statistics about files matching each step",
+                "help_first_line": "Display statistics about files matching each step",
+                "short": [],
+                "long": ["stats"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "to-ref",
                 "usage": "--to-ref <TO_REF>",
                 "help": "End reference for checking files (requires --from-ref)",
@@ -1178,6 +1208,16 @@
                     "choices": ["git", "patch-file", "none"]
                   }
                 }
+              },
+              {
+                "name": "stats",
+                "usage": "--stats",
+                "help": "Display statistics about files matching each step",
+                "help_first_line": "Display statistics about files matching each step",
+                "short": [],
+                "long": ["stats"],
+                "hide": false,
+                "global": false
               },
               {
                 "name": "to-ref",
@@ -1408,6 +1448,16 @@
                     "choices": ["git", "patch-file", "none"]
                   }
                 }
+              },
+              {
+                "name": "stats",
+                "usage": "--stats",
+                "help": "Display statistics about files matching each step",
+                "help_first_line": "Display statistics about files matching each step",
+                "short": [],
+                "long": ["stats"],
+                "hide": false,
+                "global": false
               },
               {
                 "name": "to-ref",
@@ -1648,6 +1698,16 @@
                 }
               },
               {
+                "name": "stats",
+                "usage": "--stats",
+                "help": "Display statistics about files matching each step",
+                "help_first_line": "Display statistics about files matching each step",
+                "short": [],
+                "long": ["stats"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "to-ref",
                 "usage": "--to-ref <TO_REF>",
                 "help": "End reference for checking files (requires --from-ref)",
@@ -1861,6 +1921,16 @@
                 "choices": ["git", "patch-file", "none"]
               }
             }
+          },
+          {
+            "name": "stats",
+            "usage": "--stats",
+            "help": "Display statistics about files matching each step",
+            "help_first_line": "Display statistics about files matching each step",
+            "short": [],
+            "long": ["stats"],
+            "hide": false,
+            "global": false
           },
           {
             "name": "to-ref",
