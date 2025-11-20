@@ -646,7 +646,6 @@ If a builtin doesn't exist for your tool:
 
 ## See Also
 
-- [Configuration Schema Reference](reference/schema.md)
 - [Configuration Guide](configuration.md)
 - [Getting Started](getting_started.md)
 

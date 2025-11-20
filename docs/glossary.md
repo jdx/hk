@@ -20,7 +20,7 @@ steps {
 }
 ```
 
-See: [Step Dependencies](/reference/schema.md#depends)
+See: [Step Dependencies](/configuration.md#step-depends-list-string)
 
 ## Group
 
@@ -38,7 +38,7 @@ steps {
 }
 ```
 
-See: [Group Configuration](/reference/schema.md#group-configuration)
+See: [Group Configuration](/configuration.md#group)
 
 ## Hook
 
@@ -125,4 +125,4 @@ steps {
 }
 ```
 
-See: [Step Configuration](/reference/schema.md#step-configuration)
+See: [Step Configuration](/configuration.md#hooks-hook-steps-step-group)
