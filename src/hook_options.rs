@@ -42,6 +42,9 @@ pub(crate) struct HookOptions {
     /// Stash method to use for git hooks
     #[clap(long, value_parser = ["git", "patch-file", "none"])]
     pub stash: Option<String>,
+    /// Display statistics about files matching each step
+    #[clap(long)]
+    pub stats: bool,
     /// End reference for checking files (requires --from-ref)
     #[clap(long)]
     pub to_ref: Option<String>,
@@ -55,7 +58,9 @@ impl HookOptions {
         let config = Config::get()?;
         match config.hooks.get(name) {
             Some(hook) => {
-                if self.plan {
+                if self.stats {
+                    hook.stats(self, name).await?;
+                } else if self.plan {
                     hook.plan(self).await?;
                 } else {
                     hook.run(self).await?;

@@ -51,6 +51,7 @@ cmd check help="Checks code" {
             choices git patch-file none
         }
     }
+    flag --stats help="Display statistics about files matching each step"
     flag --to-ref help="End reference for checking files (requires --from-ref)" {
         arg <TO_REF>
     }
@@ -110,6 +111,7 @@ cmd fix help="Fixes code" {
             choices git patch-file none
         }
     }
+    flag --stats help="Display statistics about files matching each step"
     flag --to-ref help="End reference for checking files (requires --from-ref)" {
         arg <TO_REF>
     }
@@ -170,6 +172,7 @@ cmd run help="Run a hook" {
             choices git patch-file none
         }
     }
+    flag --stats help="Display statistics about files matching each step"
     flag --to-ref help="End reference for checking files (requires --from-ref)" {
         arg <TO_REF>
     }
@@ -203,6 +206,7 @@ cmd run help="Run a hook" {
                 choices git patch-file none
             }
         }
+        flag --stats help="Display statistics about files matching each step"
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
@@ -237,6 +241,7 @@ cmd run help="Run a hook" {
                 choices git patch-file none
             }
         }
+        flag --stats help="Display statistics about files matching each step"
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
@@ -270,6 +275,7 @@ cmd run help="Run a hook" {
                 choices git patch-file none
             }
         }
+        flag --stats help="Display statistics about files matching each step"
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
@@ -305,6 +311,7 @@ cmd run help="Run a hook" {
                 choices git patch-file none
             }
         }
+        flag --stats help="Display statistics about files matching each step"
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }

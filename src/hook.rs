@@ -361,6 +361,147 @@ impl Hook {
         Ok(())
     }
 
+    pub async fn stats(&self, opts: HookOptions, hook_name: &str) -> Result<()> {
+        let settings = Settings::get();
+        let run_type = self.run_type(&opts);
+        let repo = Arc::new(Mutex::new(Git::new()?));
+        let git_status = repo.lock().await.status(None)?;
+        let stash_method = if let Some(stash_str) = &opts.stash {
+            stash_str
+                .parse::<StashMethod>()
+                .unwrap_or(StashMethod::None)
+        } else {
+            self.resolve_stash_method(*env::HK_STASH)
+        };
+        let progress = ProgressJobBuilder::new()
+            .status(ProgressStatus::Hide)
+            .build();
+        let files = self
+            .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
+            .await?;
+        let all_files = files.iter().cloned().collect::<Vec<_>>();
+        let total_files = all_files.len();
+
+        // Build skip_steps map (same logic as run method)
+        let skip_steps = {
+            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
+
+            // First, check environment variable skips directly
+            for s in env::HK_SKIP_STEPS.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                );
+            }
+
+            // Then add any additional skips from config/git that aren't from env
+            for s in settings.skip_steps.iter() {
+                // Only add if not already marked as env skip
+                if !m.contains_key::<str>(s) {
+                    m.insert(s.clone(), SkipReason::DisabledByConfig);
+                }
+            }
+            for s in opts.skip_step.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
+                );
+            }
+            m
+        };
+
+        println!(
+            "{}",
+            style::nbold(&format!("Statistics for hook: {}", hook_name))
+        );
+        println!();
+        println!("Total files: {}", style::ncyan(total_files));
+        println!(
+            "Run type: {}",
+            style::nblue(if run_type == RunType::Fix {
+                "fix"
+            } else {
+                "check"
+            })
+        );
+        println!();
+
+        // Collect stats for each step
+        let groups = self.get_step_groups(&opts);
+        let mut step_stats: Vec<(String, usize, Option<SkipReason>)> = Vec::new();
+
+        for group in &groups {
+            for (step_name, step) in &group.steps {
+                // Check if step is in skip list
+                if let Some(skip_reason) = skip_steps.get(step_name) {
+                    step_stats.push((step_name.clone(), 0, Some(skip_reason.clone())));
+                    continue;
+                }
+
+                // Check if step has a command for this run type
+                if step.run_cmd(run_type).is_none() {
+                    step_stats.push((
+                        step_name.clone(),
+                        0,
+                        Some(SkipReason::NoCommandForRunType(run_type)),
+                    ));
+                    continue;
+                }
+
+                // Check profile skip reason
+                if let Some(skip_reason) = step.profile_skip_reason() {
+                    step_stats.push((step_name.clone(), 0, Some(skip_reason)));
+                    continue;
+                }
+
+                let filtered_files = step.filter_files(&all_files)?;
+                step_stats.push((step_name.clone(), filtered_files.len(), None));
+            }
+        }
+
+        if step_stats.is_empty() {
+            println!("No steps found in hook '{}'", hook_name);
+            return Ok(());
+        }
+
+        println!("{}", style::nbold("Files matching each step:"));
+        println!();
+
+        // Find the longest step name for alignment
+        let max_name_len = step_stats
+            .iter()
+            .map(|(name, _, _)| name.len())
+            .max()
+            .unwrap_or(0);
+
+        for (step_name, count, skip_reason) in step_stats {
+            if let Some(reason) = skip_reason {
+                println!(
+                    "  {:width$}  {}",
+                    style::nyellow(&step_name),
+                    style::ndim(format!("(skipped: {})", reason.message())),
+                    width = max_name_len
+                );
+            } else {
+                let percentage = if total_files > 0 {
+                    (count as f64 / total_files as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                println!(
+                    "  {:width$}  {}  ({:.1}%)",
+                    style::nyellow(&step_name),
+                    style::ncyan(count),
+                    percentage,
+                    width = max_name_len
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         // Handle fail_fast effective value locally (no global mutation)
