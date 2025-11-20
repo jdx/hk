@@ -27,9 +27,6 @@ pub(crate) struct HookOptions {
     /// Run only specific step(s)
     #[clap(short = 'S', long)]
     pub step: Vec<String>,
-    /// Display statistics about files matching each step
-    #[clap(long)]
-    pub stats: bool,
     /// Abort on first failure
     #[clap(long, overrides_with = "no_fail_fast")]
     pub fail_fast: bool,
@@ -45,6 +42,9 @@ pub(crate) struct HookOptions {
     /// Stash method to use for git hooks
     #[clap(long, value_parser = ["git", "patch-file", "none"])]
     pub stash: Option<String>,
+    /// Display statistics about files matching each step
+    #[clap(long)]
+    pub stats: bool,
     /// End reference for checking files (requires --from-ref)
     #[clap(long)]
     pub to_ref: Option<String>,
