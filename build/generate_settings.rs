@@ -209,7 +209,7 @@ fn generate_settings_merge(
 
     // Define SettingValue enum
     let mut setting_value = Enum::new("SettingValue");
-    setting_value.vis("pub").derive("Clone");
+    setting_value.vis("pub").derive("Clone").derive("Debug");
 
     {
         let mut v = Variant::new("Bool");

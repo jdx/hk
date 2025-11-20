@@ -30,7 +30,7 @@ enum ConfigCommand {
     /// Get a specific configuration value
     ///
     /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
-    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks
+    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
     Get(ConfigGet),
     /// Show the configuration source precedence order
     ///
@@ -51,7 +51,7 @@ struct ConfigGet {
     /// Configuration key to retrieve
     ///
     /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
-    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks
+    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
     key: String,
 }
 

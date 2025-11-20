@@ -1294,17 +1294,17 @@ Useful for thorough checking in CI or before major releases.
 - Type: `bool`
 - Default: `true`
 - Sources:
+  - CLI: `--stage`, `--no-stage`
   - ENV: `HK_STAGE`
   - Git: `hk.stage`
+  - Pkl: `stage`
 
 Controls whether hk automatically stages files that were fixed by pre-commit hooks.
 
 When enabled (default), files modified by fix commands will be automatically staged.
-When disabled (`HK_STAGE=0`), fixed files will remain as unstaged changes, allowing you to review them before committing.
+When disabled, fixed files will remain as unstaged changes, allowing you to review them before committing.
 
 This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
-
-Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated files.
 
 ### `stash`
 

@@ -853,7 +853,7 @@ impl Step {
                     let pre_untracked: BTreeSet<PathBuf> = status.untracked_files.clone();
                     // Only stage matched files if stage setting is enabled (default: true)
                     // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
-                    if Settings::get().stage {
+                    if ctx.hook_ctx.should_stage {
                         ctx.hook_ctx.git.lock().await.add(&filtered)?;
                     }
                     // Classify staged files using pre-staging untracked snapshot
