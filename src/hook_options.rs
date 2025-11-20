@@ -14,8 +14,8 @@ pub(crate) struct HookOptions {
     /// Exclude files that otherwise would have been selected
     #[clap(short, long, value_hint = clap::ValueHint::FilePath)]
     pub exclude: Option<Vec<String>>,
-    /// Run fix command instead of run command
-    /// This is the default behavior unless HK_FIX=0
+    /// Run fix command instead of check command
+    /// (this is the default behavior unless HK_FIX=0)
     #[clap(short, long, overrides_with = "check")]
     pub fix: bool,
     /// Run on files that match these glob patterns
