@@ -134,6 +134,15 @@ Default: `false` (`true` for `fix`)
 
 If true, hk will run the fix command for each step (if it exists) to make modifications.
 
+## `hooks.<HOOK>.stage: Boolean`
+
+Default: `true`
+
+If true, hk will automatically stage fixed files after `fix` commands run.
+
+This can be overridden via the `stage` [configuration setting](https://hk.jdx.dev/configuration.html#stage).
+Note that this means the value of `stage` in your `hk.pkl` takes precendence.
+
 ## `hooks.<HOOK>.stash: (String | Boolean)`
 
 Default: `"none"`
@@ -1292,17 +1301,13 @@ Useful for thorough checking in CI or before major releases.
 ### `stage`
 
 - Type: `bool`
-- Default: `true`
 - Sources:
   - CLI: `--stage`, `--no-stage`
   - ENV: `HK_STAGE`
   - Git: `hk.stage`
   - Pkl: `stage`
 
-Controls whether hk automatically stages files that were fixed by pre-commit hooks.
-
-When enabled (default), files modified by fix commands will be automatically staged.
-When disabled, fixed files will remain as unstaged changes, allowing you to review them before committing.
+When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration.html#hooks-hook-stage-boolean).
 
 This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
 
