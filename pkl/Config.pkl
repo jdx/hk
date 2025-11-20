@@ -172,7 +172,6 @@ fail_fast: Boolean?
 /// Global file patterns to exclude from all steps
 exclude: (String | List<String> | RegexPattern)?
 
-
 output {
   renderer {
     converters {
