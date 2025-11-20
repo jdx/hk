@@ -30,7 +30,7 @@ cmd check help="Checks code" {
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
+    flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -90,7 +90,7 @@ cmd fix help="Fixes code" {
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
+    flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -151,7 +151,7 @@ cmd run help="Run a hook" {
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
+    flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -185,7 +185,7 @@ cmd run help="Run a hook" {
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
@@ -220,7 +220,7 @@ cmd run help="Run a hook" {
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
@@ -254,7 +254,7 @@ cmd run help="Run a hook" {
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
@@ -290,7 +290,7 @@ cmd run help="Run a hook" {
         flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
             arg <EXCLUDE>
         }
-        flag "-f --fix" help="Run fix command instead of run command This is the default behavior unless HK_FIX=0"
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
