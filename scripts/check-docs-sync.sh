@@ -30,22 +30,13 @@ else
     echo -e "${GREEN}OK${NC}"
 fi
 
-# Check version placeholders
-echo -n "Checking version placeholders... "
-if grep -q "{{version}}" docs/reference/schema.md; then
-    echo -e "${YELLOW}WARN${NC}"
-    echo -e "${YELLOW}Version placeholders found in schema.md - consider updating to specific version${NC}"
-else
-    echo -e "${GREEN}OK${NC}"
-fi
-
 # Check that examples in docs can be parsed (basic syntax check)
 echo -n "Checking Pkl examples syntax... "
 pkl_examples=$(mktemp -d)
 trap "rm -rf $pkl_examples" EXIT
 
 # Extract Pkl code blocks from documentation
-awk '/```pkl/,/```/ {if (!/```/) print}' docs/reference/schema.md docs/builtins.md docs/configuration.md > "$pkl_examples/examples.txt"
+awk '/```pkl/,/```/ {if (!/```/) print}' docs/builtins.md docs/configuration.md > "$pkl_examples/examples.txt"
 
 # Basic syntax validation (check for common issues)
 if grep -E "^\s*(check|fix|glob|stage)\s*=" "$pkl_examples/examples.txt" | grep -v "//"; then
@@ -60,15 +51,6 @@ if grep -E "^\s*(check|fix|glob|stage)\s*=" "$pkl_examples/examples.txt" | grep 
     fi
 else
     echo -e "${GREEN}OK${NC}"
-fi
-
-# Check cross-references between docs
-echo -n "Checking cross-references... "
-if grep -q "\.\./builtins\.md" docs/reference/schema.md && [ -f docs/builtins.md ]; then
-    echo -e "${GREEN}OK${NC}"
-else
-    echo -e "${YELLOW}WARN${NC}"
-    echo -e "${YELLOW}Cross-references may need updating${NC}"
 fi
 
 # Summary
