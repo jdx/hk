@@ -129,6 +129,9 @@ impl Config {
             if user_config.warnings.is_some() {
                 self.warnings = user_config.warnings.clone();
             }
+            if user_config.stage.is_some() {
+                self.stage = user_config.stage
+            }
 
             for (key, value) in &user_config.environment {
                 // User config takes precedence over project config
@@ -295,6 +298,7 @@ pub struct Config {
     pub warnings: Option<Vec<String>>,
     /// Global file patterns to exclude from all steps
     pub exclude: Option<StringOrList>,
+    pub stage: Option<bool>,
 }
 
 impl std::fmt::Display for Config {
@@ -354,6 +358,7 @@ pub struct UserConfig {
     pub hide_warnings: Option<Vec<String>>,
     #[serde(rename = "warnings")]
     pub warnings: Option<Vec<String>>,
+    pub stage: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

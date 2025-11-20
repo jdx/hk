@@ -140,6 +140,7 @@ pub struct HookContext {
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
+    pub should_stage: bool,
 }
 
 impl HookContext {
@@ -153,6 +154,7 @@ impl HookContext {
         run_type: RunType,
         hk_progress: Option<Arc<ProgressJob>>,
         skip_steps: IndexMap<String, SkipReason>,
+        should_stage: bool,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = expr_ctx;
@@ -183,6 +185,7 @@ impl HookContext {
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
+            should_stage,
         }
     }
 
@@ -504,17 +507,16 @@ impl Hook {
 
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
-        // Handle fail_fast effective value locally (no global mutation)
-        let base_settings = Settings::get();
-        let fail_fast_effective = if opts.fail_fast {
+        let settings = Settings::get();
+        let fail_fast = if opts.fail_fast {
             true
         } else if opts.no_fail_fast {
             false
         } else {
-            base_settings.fail_fast
+            settings.fail_fast
         };
+        let should_stage = opts.should_stage().unwrap_or(settings.stage);
 
-        let settings = Settings::get();
         if settings.skip_hooks.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
             return Ok(());
@@ -599,6 +601,7 @@ impl Hook {
             run_type,
             hk_progress,
             skip_steps,
+            should_stage,
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
@@ -624,14 +627,14 @@ impl Hook {
         let multiple_groups = hook_ctx.groups.len() > 1;
         for (i, group) in hook_ctx.groups.iter().enumerate() {
             debug!("running group: {i}");
-            let mut ctx = StepGroupContext::new(hook_ctx.clone(), fail_fast_effective);
+            let mut ctx = StepGroupContext::new(hook_ctx.clone(), fail_fast);
             if multiple_groups {
                 if let Some(name) = &group.name {
                     ctx = ctx.with_progress(group.build_group_progress(name));
                 }
             }
             result = result.and(group.run(ctx).await);
-            if fail_fast_effective && result.is_err() {
+            if fail_fast && result.is_err() {
                 break;
             }
         }
@@ -693,7 +696,6 @@ impl Hook {
 
         // Display summary of profile-skipped steps
         // Only show summary if user has enabled the warning tag and it's not hidden
-        let settings = Settings::get();
         if settings.warnings.contains("missing-profiles")
             && !settings.hide_warnings.contains("missing-profiles")
         {

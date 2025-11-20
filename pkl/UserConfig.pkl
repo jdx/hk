@@ -40,6 +40,7 @@ environment: Mapping<String, String> = new Mapping<String, String>{}
 defaults: Defaults = new Defaults {}
 hooks: Mapping<String, HookConfig> = new Mapping<String, HookConfig>{}
 
+stage: Boolean?
 // Optional top-level configuration
 display_skip_reasons: List<String>?
 hide_warnings: List<String>?

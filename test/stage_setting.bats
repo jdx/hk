@@ -3,149 +3,105 @@
 setup() {
     load 'test_helper/common_setup'
     _common_setup
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
+        }
+    }
+}
+EOF
+    touch file.txt
+    git add hk.pkl file.txt
+    git commit -m "initial commit"
 }
 
 teardown() {
     _common_teardown
 }
 
-@test "HK_STAGE=0 prevents automatic staging of fixed files" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        fix = true
-        stash = "git"
-        steps {
-            ["generate"] {
-                glob = "src/*.txt"
-                stage = List("generated.txt")
-                fix = "echo 'generated content' > generated.txt"
-            }
-        }
-    }
-}
-EOF
+@test "stages by default" {
+    echo "content  " > file.txt
 
-    mkdir -p src
-    echo "original content" > src/test.txt
+    hk run fix
 
-    git add hk.pkl src/test.txt
-    git commit -m "init"
-    hk install
-
-    # Make a change to trigger the hook
-    echo "modified content" > src/test.txt
-    git add src/test.txt
-
-    # Run with HK_STAGE=0 to prevent auto-staging
-    HK_STAGE=0 hk run pre-commit
-
-    # Verify that src/test.txt is still staged
-    run git diff --name-only --cached
-    assert_success
-    assert_output --partial "src/test.txt"
-
-    # Verify that generated.txt is NOT staged
-    refute_output --partial "generated.txt"
-
-    # Verify that generated.txt exists but is untracked
-    run git status --porcelain --untracked-files=all
-    assert_success
-    assert_output --partial "?? generated.txt"
-}
-
-@test "HK_STAGE=1 (default) stages fixed files automatically" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        fix = true
-        stash = "git"
-        steps {
-            ["generate"] {
-                glob = "src/*.txt"
-                stage = List("generated.txt")
-                fix = "echo 'generated content' > generated.txt"
-            }
-        }
-    }
-}
-EOF
-
-    mkdir -p src
-    echo "original content" > src/test.txt
-
-    git add hk.pkl src/test.txt
-    git commit -m "init"
-    hk install
-
-    # Make a change to trigger the hook
-    echo "modified content" > src/test.txt
-    git add src/test.txt
-
-    # Run with default HK_STAGE (should be 1)
-    hk run pre-commit
-
-    # Verify that src/test.txt is staged
-    run git diff --name-only --cached
-    assert_success
-    assert_output --partial "src/test.txt"
-
-    # Verify that generated.txt IS staged
-    assert_output --partial "generated.txt"
-
-    # Verify that generated.txt is staged (A = added)
     run git status --porcelain
     assert_success
-    assert_output --partial "A  generated.txt"
+    assert_output 'M  file.txt'
 }
 
-@test "git config hk.stage=false prevents automatic staging" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        fix = true
-        stash = "git"
-        steps {
-            ["generate"] {
-                glob = "src/*.txt"
-                stage = List("generated.txt")
-                fix = "echo 'generated content' > generated.txt"
-            }
-        }
-    }
+@test "disabled in config" {
+    echo "stage = false" >> hk.pkl
+    git commit -am "disabling stage in config"
+
+    echo "content  " > file.txt
+
+    hk run fix
+
+    run git status --porcelain
+    assert_success
+    assert_output ' M file.txt'
 }
+
+@test "disabled in user config" {
+    cat <<EOF > .hkrc.pkl
+amends "$PKL_PATH/UserConfig.pkl"
+
+stage = false
 EOF
+    echo ".hkrc.pkl" > .git/info/exclude
 
-    mkdir -p src
-    echo "original content" > src/test.txt
+    echo "content  " > file.txt
 
-    git add hk.pkl src/test.txt
-    git commit -m "init"
-    hk install
+    hk run fix
 
-    # Set git config to disable staging
+    run git status --porcelain
+    assert_success
+    assert_output ' M file.txt'
+}
+
+@test "disabled in git config" {
     git config hk.stage false
+    echo "content  " > file.txt
 
-    # Make a change to trigger the hook
-    echo "modified content" > src/test.txt
-    git add src/test.txt
+    hk run fix
 
-    # Run pre-commit
-    hk run pre-commit
-
-    # Verify that src/test.txt is still staged
-    run git diff --name-only --cached
+    run git status --porcelain
     assert_success
-    assert_output --partial "src/test.txt"
+    assert_output ' M file.txt'
+}
 
-    # Verify that generated.txt is NOT staged
-    refute_output --partial "generated.txt"
+@test "disabled in envvar" {
+    echo "content  " > file.txt
 
-    # Verify that generated.txt exists but is untracked
-    run git status --porcelain --untracked-files=all
+    HK_STAGE=0 hk run fix
+
+    run git status --porcelain
     assert_success
-    assert_output --partial "?? generated.txt"
+    assert_output ' M file.txt'
+}
+
+@test "disabled on CLI" {
+    echo "content  " > file.txt
+
+    hk run -v fix --no-stage
+
+    run git status --porcelain
+    assert_success
+    assert_output ' M file.txt'
+}
+
+@test "respects CLI enable" {
+    echo "content  " > file.txt
+
+    HK_STAGE=0 hk run -v fix --stage
+
+    run git status --porcelain
+    assert_success
+    assert_output 'M  file.txt'
 }
