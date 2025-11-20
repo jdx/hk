@@ -515,13 +515,7 @@ impl Hook {
         } else {
             settings.fail_fast
         };
-        let should_stage = if opts.stage {
-            true
-        } else if opts.no_stage {
-            false
-        } else {
-            settings.stage
-        };
+        let should_stage = opts.should_stage().unwrap_or(settings.stage);
 
         if settings.skip_hooks.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);

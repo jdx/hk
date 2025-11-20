@@ -60,6 +60,16 @@ pub(crate) struct HookOptions {
 }
 
 impl HookOptions {
+    pub fn should_stage(&self) -> Option<bool> {
+        if self.stage {
+            Some(true)
+        } else if self.no_stage {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
     pub(crate) async fn run(self, name: &str) -> Result<()> {
         let config = Config::get()?;
         match config.hooks.get(name) {
