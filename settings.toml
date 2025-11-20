@@ -381,6 +381,7 @@ Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated 
 
 [stash]
 type = "enum"
+default = "N/A (Depends on the hook configuration)"
 validate.enum = ["git", "patch-file", "none"]
 sources.cli = ["--stash"]
 sources.env = ["HK_STASH"]
