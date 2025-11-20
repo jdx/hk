@@ -172,6 +172,7 @@ fail_fast: Boolean?
 /// Global file patterns to exclude from all steps
 exclude: (String | List<String> | RegexPattern)?
 
+
 output {
   renderer {
     converters {
@@ -188,6 +189,13 @@ output {
             )
             .toDynamic()
         }
+    }
+  }
+  files {
+    ["Config.reflected.\(module.output.renderer.extension)"] {
+      const local reflect = import("pkl:reflect")
+      value = reflect.Module(module)
+      renderer = module.output.renderer
     }
   }
 }
