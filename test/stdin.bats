@@ -107,3 +107,32 @@ EOF
     assert_success
     assert_output "x = 1"
 }
+
+@test "stdin works with hk tests" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["fix"] {
+        steps {
+            ["ruff-format"] {
+                stdin = "{{ files_list | join(sep='\\n') }}"
+                prefix = "xargs"
+                fix = "ruff format"
+                tests {
+                    ["fix"] {
+                        run = "fix"
+                        write { ["{{tmp}}/a.txt"] = "x=1" }
+                        files = List("{{tmp}}/a.txt")
+                        expect { files { ["{{tmp}}/a.txt"] = "x = 1\n" } }
+                    }
+                }
+            }
+        }
+    }
+}
+EOF
+    run hk test
+    assert_success
+    assert_output --partial "ok - ruff-format :: fix"
+}

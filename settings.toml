@@ -386,7 +386,7 @@ sources.cli = ["--stash"]
 sources.env = ["HK_STASH"]
 sources.git = ["hk.stash"]
 docs = """
-Strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
+Strategy for temporarily saving unstaged changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
 
 Available strategies:
 - `git`: Use `git stash` to stash changes
