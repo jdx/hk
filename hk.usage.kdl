@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.23.0"
+version "1.24.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -39,10 +39,10 @@ cmd check help="Checks code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
-    flag --from-ref {
+    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
-    flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --no-stage help="Disable auto-staging of fixed files"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
@@ -101,10 +101,10 @@ cmd fix help="Fixes code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
-    flag --from-ref {
+    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
-    flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --no-stage help="Disable auto-staging of fixed files"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
@@ -164,10 +164,10 @@ cmd run help="Run a hook" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
-    flag --from-ref {
+    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
-    flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --no-stage help="Disable auto-staging of fixed files"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
@@ -200,10 +200,10 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref {
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
@@ -237,10 +237,10 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref {
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
@@ -273,10 +273,10 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref {
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
@@ -311,10 +311,10 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref {
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>

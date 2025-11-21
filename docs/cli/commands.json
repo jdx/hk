@@ -173,6 +173,8 @@
           {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
+            "help": "Start reference for checking files (requires --to-ref)",
+            "help_first_line": "Start reference for checking files (requires --to-ref)",
             "short": [],
             "long": ["from-ref"],
             "hide": false,
@@ -188,8 +190,8 @@
           {
             "name": "no-fail-fast",
             "usage": "--no-fail-fast",
-            "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
             "short": [],
             "long": ["no-fail-fast"],
             "hide": false,
@@ -555,6 +557,8 @@
           {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
+            "help": "Start reference for checking files (requires --to-ref)",
+            "help_first_line": "Start reference for checking files (requires --to-ref)",
             "short": [],
             "long": ["from-ref"],
             "hide": false,
@@ -570,8 +574,8 @@
           {
             "name": "no-fail-fast",
             "usage": "--no-fail-fast",
-            "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
             "short": [],
             "long": ["no-fail-fast"],
             "hide": false,
@@ -962,6 +966,8 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -977,8 +983,8 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
@@ -1201,6 +1207,8 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -1216,8 +1224,8 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
@@ -1459,6 +1467,8 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -1474,8 +1484,8 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
@@ -1725,6 +1735,8 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
+                "help": "Start reference for checking files (requires --to-ref)",
+                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -1740,8 +1752,8 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help": "Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
@@ -1968,6 +1980,8 @@
           {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
+            "help": "Start reference for checking files (requires --to-ref)",
+            "help_first_line": "Start reference for checking files (requires --to-ref)",
             "short": [],
             "long": ["from-ref"],
             "hide": false,
@@ -1983,8 +1997,8 @@
           {
             "name": "no-fail-fast",
             "usage": "--no-fail-fast",
-            "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+            "help": "Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Continue on failures (opposite of --fail-fast)",
             "short": [],
             "long": ["no-fail-fast"],
             "hide": false,
@@ -2801,7 +2815,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.23.0",
+  "version": "1.24.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
