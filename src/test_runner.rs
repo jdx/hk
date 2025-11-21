@@ -27,6 +27,7 @@ async fn execute_cmd(
     base_dir: &Path,
     test: &StepTest,
     cmd_str: &str,
+    stdin: &Option<String>,
 ) -> Result<(String, String, i32)> {
     let mut runner = if let Some(shell) = &step.shell {
         let shell = shell.to_string();
@@ -36,6 +37,10 @@ async fn execute_cmd(
     } else {
         CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
     };
+    if let Some(stdin) = stdin {
+        let rendered_stdin = crate::tera::render(stdin, &tctx)?;
+        runner = runner.stdin_string(rendered_stdin);
+    }
     runner = runner.arg(cmd_str).current_dir(base_dir);
     for (k, v) in &step.env {
         let v = crate::tera::render(v, tctx)?;
@@ -178,7 +183,8 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     let mut before_stderr = String::new();
     if let Some(cmd_str) = &test.before {
         let rendered = crate::tera::render(cmd_str, &tctx)?;
-        let (stdout, stderr, code) = execute_cmd(step, &tctx, base_dir, test, &rendered).await?;
+        let (stdout, stderr, code) =
+            execute_cmd(step, &tctx, base_dir, test, &rendered, &None).await?;
         before_stdout = stdout.clone();
         before_stderr = stderr.clone();
         if code != 0 {
@@ -196,14 +202,16 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     // Run main command
-    let (stdout, stderr, code) = execute_cmd(step, &tctx, base_dir, test, &run).await?;
+
+    let (stdout, stderr, code) =
+        execute_cmd(step, &tctx, base_dir, test, &run, &step.stdin).await?;
 
     // Run post-command (after) before evaluating expectations so it can contribute to assertions
     let mut after_fail: Option<(i32, String, String)> = None;
     if let Some(cmd_str) = &test.after {
         let rendered = crate::tera::render(cmd_str, &tctx)?;
         let (a_stdout, a_stderr, a_code) =
-            execute_cmd(step, &tctx, base_dir, test, &rendered).await?;
+            execute_cmd(step, &tctx, base_dir, test, &rendered, &None).await?;
         if a_code != 0 {
             after_fail = Some((a_code, a_stdout, a_stderr));
         }
