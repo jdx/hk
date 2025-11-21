@@ -30,9 +30,9 @@ pub(crate) struct HookOptions {
     /// Abort on first failure
     #[clap(long, overrides_with = "no_fail_fast")]
     pub fail_fast: bool,
+    /// Start reference for checking files (requires --to-ref)
     #[clap(long)]
     pub from_ref: Option<String>,
-    /// Start reference for checking files (requires --to-ref)
     /// Continue on failures (opposite of --fail-fast)
     #[clap(long, overrides_with = "fail_fast")]
     pub no_fail_fast: bool,
