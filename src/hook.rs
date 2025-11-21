@@ -607,15 +607,24 @@ impl Hook {
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
         if stash_method != StashMethod::None {
-            // Capture exact staged index entries for files under consideration so we can
-            // ensure index hunks survive formatting and stash apply.
-            let files_vec = hook_ctx.files();
-            {
-                let mut r = repo.lock().await;
-                r.capture_index(&files_vec)?;
-                // Stash ALL unstaged changes in the repository (not only files under consideration)
-                // so that unrelated worktree changes do not affect or get affected by fixers.
-                r.stash_unstaged(&file_progress, stash_method, &git_status)?;
+            // Only run stash logic if there are actually unstaged changes to stash
+            let has_unstaged_changes = !git_status.unstaged_files.is_empty()
+                || (*env::HK_STASH_UNTRACKED && !git_status.untracked_files.is_empty());
+
+            if has_unstaged_changes {
+                // Capture exact staged index entries for files under consideration so we can
+                // ensure index hunks survive formatting and stash apply.
+                let files_vec = hook_ctx.files();
+                {
+                    let mut r = repo.lock().await;
+                    r.capture_index(&files_vec)?;
+                    // Stash ALL unstaged changes in the repository (not only files under consideration)
+                    // so that unrelated worktree changes do not affect or get affected by fixers.
+                    r.stash_unstaged(&file_progress, stash_method, &git_status)?;
+                }
+            } else {
+                file_progress.prop("message", "No unstaged changes to stash");
+                file_progress.set_status(ProgressStatus::Done);
             }
         }
 
