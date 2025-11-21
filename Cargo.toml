@@ -4,7 +4,7 @@ resolver = "2"
 
 [package]
 name = "hk"
-version = "1.22.0"
+version = "1.23.0"
 edition = "2024"
 description = "A tool for managing git hooks"
 license = "MIT"

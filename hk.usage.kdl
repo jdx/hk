@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.22.0"
+version "1.23.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -39,13 +39,15 @@ cmd check help="Checks code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
-    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+    flag --from-ref {
         arg <FROM_REF>
     }
-    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+    flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+    flag --no-stage help="Disable auto-staging of fixed files"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --stage help="Enable auto-staging of fixed files"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
@@ -76,8 +78,8 @@ cmd config help="Configuration introspection and management" {
         arg <KEY> help="Configuration key to explain"
     }
     cmd get help="Get a specific configuration value" {
-        long_help "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks"
-        arg <KEY> help="Configuration key to retrieve" help_long="Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks"
+        long_help "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage"
+        arg <KEY> help="Configuration key to retrieve" help_long="Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage"
     }
     cmd sources help="Show the configuration source precedence order" {
         long_help "Show the configuration source precedence order\n\nLists all configuration sources in order of precedence to help understand where configuration values come from."
@@ -99,13 +101,15 @@ cmd fix help="Fixes code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
-    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+    flag --from-ref {
         arg <FROM_REF>
     }
-    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+    flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+    flag --no-stage help="Disable auto-staging of fixed files"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --stage help="Enable auto-staging of fixed files"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
@@ -160,13 +164,15 @@ cmd run help="Run a hook" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
-    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+    flag --from-ref {
         arg <FROM_REF>
     }
-    flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+    flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+    flag --no-stage help="Disable auto-staging of fixed files"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
+    flag --stage help="Enable auto-staging of fixed files"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
@@ -194,13 +200,15 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+        flag --from-ref {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --stage help="Enable auto-staging of fixed files"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -229,13 +237,15 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+        flag --from-ref {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --stage help="Enable auto-staging of fixed files"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -263,13 +273,15 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+        flag --from-ref {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --stage help="Enable auto-staging of fixed files"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -299,13 +311,15 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
-        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+        flag --from-ref {
             arg <FROM_REF>
         }
-        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-fail-fast help="Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
+        flag --stage help="Enable auto-staging of fixed files"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none

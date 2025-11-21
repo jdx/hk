@@ -27,7 +27,7 @@ Exclude files that otherwise would have been selected
 
 ### `-f --fix`
 
-Run fix command instead of check command This is the default behavior unless HK_FIX=0
+Run fix command instead of check command (this is the default behavior unless HK_FIX=0)
 
 ### `-g --glob… <GLOB>`
 
@@ -47,15 +47,21 @@ Abort on first failure
 
 ### `--from-ref <FROM_REF>`
 
-Start reference for checking files (requires --to-ref)
-
 ### `--no-fail-fast`
 
-Continue on failures (opposite of --fail-fast)
+Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)
+
+### `--no-stage`
+
+Disable auto-staging of fixed files
 
 ### `--skip-step… <STEP>`
 
 Skip specific step(s)
+
+### `--stage`
+
+Enable auto-staging of fixed files
 
 ### `--stash <STASH>`
 
