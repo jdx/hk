@@ -38,7 +38,7 @@ async fn execute_cmd(
         CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
     };
     if let Some(stdin) = stdin {
-        let rendered_stdin = crate::tera::render(stdin, &tctx)?;
+        let rendered_stdin = crate::tera::render(stdin, tctx)?;
         runner = runner.stdin_string(rendered_stdin);
     }
     runner = runner.arg(cmd_str).current_dir(base_dir);
