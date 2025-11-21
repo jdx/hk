@@ -694,13 +694,19 @@ impl Step {
                     }
                     job.run_type = prev_run_type;
                 }
-                let processed_files = job.files.clone();
                 let result = step.run(&ctx, &mut job).await;
                 if let Err(err) = &result {
                     job.status_errored(&ctx, format!("{err}")).await?;
                 }
                 ctx.hook_ctx.inc_completed_jobs(1);
-                result.map(|_| processed_files)
+                // Return the actual files that were processed after filtering
+                // If job was skipped (status still Pending or marked skipped), return empty
+                let files_to_return = if matches!(job.status, StepJobStatus::Pending) {
+                    vec![]
+                } else {
+                    job.files
+                };
+                result.map(|_| files_to_return)
             });
         }
         let mut actual_job_files: indexmap::IndexSet<PathBuf> = indexmap::IndexSet::new();
@@ -726,7 +732,11 @@ impl Step {
             ctx.status_aborted();
             return Ok(());
         }
-        if non_skip_jobs > 0 && matches!(ctx.hook_ctx.run_type, RunType::Fix) {
+        // Skip staging if no jobs actually processed any files (e.g., all jobs skipped by condition)
+        if non_skip_jobs > 0
+            && !actual_job_files.is_empty()
+            && matches!(ctx.hook_ctx.run_type, RunType::Fix)
+        {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
             // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
             // Special case: if stage is exactly "<JOB_FILES>", use actual_job_files directly
