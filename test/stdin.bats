@@ -132,7 +132,7 @@ hooks {
     }
 }
 EOF
-    run hk test -v
-    assert_output "x = 1"
+    run hk test
     assert_success
+    assert_output --partial "ok - ruff-format :: fix"
 }
