@@ -92,6 +92,7 @@ pub struct Hook {
     pub steps: IndexMap<String, StepOrGroup>,
     pub fix: Option<bool>,
     pub stash: Option<StashSetting>,
+    pub stage: Option<bool>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
 }
@@ -515,7 +516,11 @@ impl Hook {
         } else {
             settings.fail_fast
         };
-        let should_stage = opts.should_stage().unwrap_or(settings.stage);
+        let should_stage = opts
+            .should_stage()
+            .or(settings.stage)
+            .or(self.stage)
+            .unwrap_or(true);
 
         if settings.skip_hooks.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);

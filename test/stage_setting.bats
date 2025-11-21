@@ -10,6 +10,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         fix = true
+        stage = read?("env:FIX_STAGE")?.toBoolean() ?? null
         steps {
             ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
@@ -33,6 +34,16 @@ teardown() {
     run git status --porcelain
     assert_success
     assert_output 'M  file.txt'
+}
+
+@test "disabled in hook config" {
+    echo "content  " > file.txt
+
+    FIX_STAGE=false hk run fix
+
+    run git status --porcelain
+    assert_success
+    assert_output ' M file.txt'
 }
 
 @test "disabled in config" {
@@ -96,10 +107,44 @@ EOF
     assert_output ' M file.txt'
 }
 
-@test "respects CLI enable" {
+@test "CLI enable overrides env disable" {
     echo "content  " > file.txt
 
     HK_STAGE=0 hk run -v fix --stage
+
+    run git status --porcelain
+    assert_success
+    assert_output 'M  file.txt'
+}
+
+@test "CLI enable overrides hook disable" {
+    echo "content  " > file.txt
+
+    FIX_STAGE=false hk run -v fix --stage
+
+    run git status --porcelain
+    assert_success
+    assert_output 'M  file.txt'
+}
+
+# This case is a bit weird. Intuitively you'd think hook config would win out,
+# but root config values are akin to CLI/Env in that they are "global".
+@test "config disable overrides hook config disable" {
+    echo "stage = true" >> hk.pkl
+    git commit -am "disabling stage in config"
+    echo "content  " > file.txt
+
+    FIX_STAGE=false hk run fix
+
+    run git status --porcelain
+    assert_success
+    assert_output 'M  file.txt'
+}
+
+@test "env var enable overrides hook config disable" {
+    echo "content  " > file.txt
+
+    HK_STAGE=1 FIX_STAGE=false hk run fix
 
     run git status --porcelain
     assert_success
