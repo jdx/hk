@@ -190,11 +190,4 @@ output {
         }
     }
   }
-  files {
-    ["Config.reflected.\(module.output.renderer.extension)"] {
-      const local reflect = import("pkl:reflect")
-      value = reflect.Module(module)
-      renderer = module.output.renderer
-    }
-  }
 }

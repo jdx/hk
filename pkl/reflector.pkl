@@ -1,0 +1,24 @@
+import "pkl:reflect"
+output {
+    renderer {
+        converters {
+            [reflect.Class] = (c) -> new Dynamic {
+                // location?
+                name = c.name
+                properties = c.properties
+            }
+            [reflect.Property] = (p) -> new Dynamic {
+                // location?
+                name = p.name
+                type = p.type
+                docComment = p.docComment
+            }
+            [reflect.NullableType] = (t) -> "\(module.output.renderer.renderValue(t.member))?"
+            [reflect.DeclaredType] = (d) -> if (!d.typeArguments.isEmpty) new Dynamic {
+                    name = d.referent.name
+                    args = d.typeArguments
+                } else  d.referent.name
+            [reflect.Type] = (t) -> t.toString()
+        }
+    }
+}
