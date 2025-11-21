@@ -173,8 +173,6 @@
           {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
-            "help": "Start reference for checking files (requires --to-ref)",
-            "help_first_line": "Start reference for checking files (requires --to-ref)",
             "short": [],
             "long": ["from-ref"],
             "hide": false,
@@ -190,10 +188,20 @@
           {
             "name": "no-fail-fast",
             "usage": "--no-fail-fast",
-            "help": "Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
             "short": [],
             "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "no-stage",
+            "usage": "--no-stage",
+            "help": "Disable auto-staging of fixed files",
+            "help_first_line": "Disable auto-staging of fixed files",
+            "short": [],
+            "long": ["no-stage"],
             "hide": false,
             "global": false
           },
@@ -214,6 +222,16 @@
               "double_dash": "Optional",
               "hide": false
             }
+          },
+          {
+            "name": "stage",
+            "usage": "--stage",
+            "help": "Enable auto-staging of fixed files",
+            "help_first_line": "Enable auto-staging of fixed files",
+            "short": [],
+            "long": ["stage"],
+            "hide": false,
+            "global": false
           },
           {
             "name": "stash",
@@ -369,7 +387,7 @@
                 "name": "KEY",
                 "usage": "<KEY>",
                 "help": "Configuration key to retrieve",
-                "help_long": "Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks",
+                "help_long": "Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage",
                 "help_first_line": "Configuration key to retrieve",
                 "required": true,
                 "double_dash": "Optional",
@@ -380,7 +398,7 @@
             "mounts": [],
             "hide": false,
             "help": "Get a specific configuration value",
-            "help_long": "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks",
+            "help_long": "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage",
             "name": "get",
             "aliases": [],
             "hidden_aliases": [],
@@ -537,8 +555,6 @@
           {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
-            "help": "Start reference for checking files (requires --to-ref)",
-            "help_first_line": "Start reference for checking files (requires --to-ref)",
             "short": [],
             "long": ["from-ref"],
             "hide": false,
@@ -554,10 +570,20 @@
           {
             "name": "no-fail-fast",
             "usage": "--no-fail-fast",
-            "help": "Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
             "short": [],
             "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "no-stage",
+            "usage": "--no-stage",
+            "help": "Disable auto-staging of fixed files",
+            "help_first_line": "Disable auto-staging of fixed files",
+            "short": [],
+            "long": ["no-stage"],
             "hide": false,
             "global": false
           },
@@ -578,6 +604,16 @@
               "double_dash": "Optional",
               "hide": false
             }
+          },
+          {
+            "name": "stage",
+            "usage": "--stage",
+            "help": "Enable auto-staging of fixed files",
+            "help_first_line": "Enable auto-staging of fixed files",
+            "short": [],
+            "long": ["stage"],
+            "hide": false,
+            "global": false
           },
           {
             "name": "stash",
@@ -926,8 +962,6 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -943,10 +977,20 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-stage",
+                "usage": "--no-stage",
+                "help": "Disable auto-staging of fixed files",
+                "help_first_line": "Disable auto-staging of fixed files",
+                "short": [],
+                "long": ["no-stage"],
                 "hide": false,
                 "global": false
               },
@@ -967,6 +1011,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "stage",
+                "usage": "--stage",
+                "help": "Enable auto-staging of fixed files",
+                "help_first_line": "Enable auto-staging of fixed files",
+                "short": [],
+                "long": ["stage"],
+                "hide": false,
+                "global": false
               },
               {
                 "name": "stash",
@@ -1147,8 +1201,6 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -1164,10 +1216,20 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-stage",
+                "usage": "--no-stage",
+                "help": "Disable auto-staging of fixed files",
+                "help_first_line": "Disable auto-staging of fixed files",
+                "short": [],
+                "long": ["no-stage"],
                 "hide": false,
                 "global": false
               },
@@ -1188,6 +1250,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "stage",
+                "usage": "--stage",
+                "help": "Enable auto-staging of fixed files",
+                "help_first_line": "Enable auto-staging of fixed files",
+                "short": [],
+                "long": ["stage"],
+                "hide": false,
+                "global": false
               },
               {
                 "name": "stash",
@@ -1387,8 +1459,6 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -1404,10 +1474,20 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-stage",
+                "usage": "--no-stage",
+                "help": "Disable auto-staging of fixed files",
+                "help_first_line": "Disable auto-staging of fixed files",
+                "short": [],
+                "long": ["no-stage"],
                 "hide": false,
                 "global": false
               },
@@ -1428,6 +1508,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "stage",
+                "usage": "--stage",
+                "help": "Enable auto-staging of fixed files",
+                "help_first_line": "Enable auto-staging of fixed files",
+                "short": [],
+                "long": ["stage"],
+                "hide": false,
+                "global": false
               },
               {
                 "name": "stash",
@@ -1635,8 +1725,6 @@
               {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
-                "help": "Start reference for checking files (requires --to-ref)",
-                "help_first_line": "Start reference for checking files (requires --to-ref)",
                 "short": [],
                 "long": ["from-ref"],
                 "hide": false,
@@ -1652,10 +1740,20 @@
               {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
-                "help": "Continue on failures (opposite of --fail-fast)",
-                "help_first_line": "Continue on failures (opposite of --fail-fast)",
+                "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+                "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
                 "short": [],
                 "long": ["no-fail-fast"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "no-stage",
+                "usage": "--no-stage",
+                "help": "Disable auto-staging of fixed files",
+                "help_first_line": "Disable auto-staging of fixed files",
+                "short": [],
+                "long": ["no-stage"],
                 "hide": false,
                 "global": false
               },
@@ -1676,6 +1774,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "stage",
+                "usage": "--stage",
+                "help": "Enable auto-staging of fixed files",
+                "help_first_line": "Enable auto-staging of fixed files",
+                "short": [],
+                "long": ["stage"],
+                "hide": false,
+                "global": false
               },
               {
                 "name": "stash",
@@ -1860,8 +1968,6 @@
           {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
-            "help": "Start reference for checking files (requires --to-ref)",
-            "help_first_line": "Start reference for checking files (requires --to-ref)",
             "short": [],
             "long": ["from-ref"],
             "hide": false,
@@ -1877,10 +1983,20 @@
           {
             "name": "no-fail-fast",
             "usage": "--no-fail-fast",
-            "help": "Continue on failures (opposite of --fail-fast)",
-            "help_first_line": "Continue on failures (opposite of --fail-fast)",
+            "help": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
+            "help_first_line": "Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)",
             "short": [],
             "long": ["no-fail-fast"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "no-stage",
+            "usage": "--no-stage",
+            "help": "Disable auto-staging of fixed files",
+            "help_first_line": "Disable auto-staging of fixed files",
+            "short": [],
+            "long": ["no-stage"],
             "hide": false,
             "global": false
           },
@@ -1901,6 +2017,16 @@
               "double_dash": "Optional",
               "hide": false
             }
+          },
+          {
+            "name": "stage",
+            "usage": "--stage",
+            "help": "Enable auto-staging of fixed files",
+            "help_first_line": "Enable auto-staging of fixed files",
+            "short": [],
+            "long": ["stage"],
+            "hide": false,
+            "global": false
           },
           {
             "name": "stash",
@@ -2675,7 +2801,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.22.0",
+  "version": "1.23.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

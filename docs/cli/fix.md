@@ -47,15 +47,21 @@ Abort on first failure
 
 ### `--from-ref <FROM_REF>`
 
-Start reference for checking files (requires --to-ref)
-
 ### `--no-fail-fast`
 
-Continue on failures (opposite of --fail-fast)
+Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)
+
+### `--no-stage`
+
+Disable auto-staging of fixed files
 
 ### `--skip-step… <STEP>`
 
 Skip specific step(s)
+
+### `--stage`
+
+Enable auto-staging of fixed files
 
 ### `--stash <STASH>`
 

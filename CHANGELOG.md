@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.23.0](https://github.com/jdx/hk/compare/v1.22.0..v1.23.0) - 2025-11-21
+
+### 🚀 Features
+
+- **(vacuum)** new builtin by [@scop](https://github.com/scop) in [#414](https://github.com/jdx/hk/pull/414)
+- add --stats flag to show file counts per step by [@jdx](https://github.com/jdx) in [#446](https://github.com/jdx/hk/pull/446)
+- Plumb `stage` through CLI and PKL by [@thejcannon](https://github.com/thejcannon) in [#442](https://github.com/jdx/hk/pull/442)
+
+### 🐛 Bug Fixes
+
+- **(cli)** check help description by [@scop](https://github.com/scop) in [#439](https://github.com/jdx/hk/pull/439)
+
+### 📚 Documentation
+
+- **(stash)** rephrase uncommitted -> unstaged by [@scop](https://github.com/scop) in [#451](https://github.com/jdx/hk/pull/451)
+- re-Remove "auto" stash value by [@thejcannon](https://github.com/thejcannon) in [#444](https://github.com/jdx/hk/pull/444)
+- Delete `schema.md` by [@thejcannon](https://github.com/thejcannon) in [#445](https://github.com/jdx/hk/pull/445)
+- fix --fix description by [@scop](https://github.com/scop) in [#450](https://github.com/jdx/hk/pull/450)
+
+### 📦️ Dependency Updates
+
+- update actions/checkout digest to 93cb6ef by [@renovate[bot]](https://github.com/renovate[bot]) in [#452](https://github.com/jdx/hk/pull/452)
+- update anthropics/claude-code-action digest to 6902c22 by [@renovate[bot]](https://github.com/renovate[bot]) in [#453](https://github.com/jdx/hk/pull/453)
+
 ## [1.22.0](https://github.com/jdx/hk/compare/v1.21.1..v1.22.0) - 2025-11-19
 
 ### 🚀 Features
