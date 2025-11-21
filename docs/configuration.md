@@ -11,8 +11,8 @@ hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.or
 Here's a basic `hk.pkl` file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.23.0/hk@1.23.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.23.0/hk@1.23.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // linters can be manually defined
@@ -104,7 +104,7 @@ exclude = "node_modules"
 
 // Exclude using regex pattern (for complex matching)
 // First import Types.pkl to use the Regex helper
-import "package://github.com/jdx/hk/releases/download/v1.23.0/hk@1.23.0#/Types.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Types.pkl"
 exclude = Types.Regex(#".*\.(test|spec)\.(js|ts)$"#)
 ```
 
@@ -554,8 +554,8 @@ Notes:
 The `Regex()` helper function is available by importing Types.pkl:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.23.0/hk@1.23.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.23.0/hk@1.23.0#/Types.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Types.pkl"
 
 // Use it like:
 exclude = Types.Regex(#".*\.test\.js$"#)
@@ -816,8 +816,8 @@ The hkrc file follows the same format as `hk.pkl` and can be used to define glob
 Example hkrc file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.23.0/hk@1.23.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.23.0/hk@1.23.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Builtins.pkl"
 
 local linters {
     ["prettier"] = Builtins.prettier

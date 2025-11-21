@@ -47,9 +47,11 @@ Abort on first failure
 
 ### `--from-ref <FROM_REF>`
 
+Start reference for checking files (requires --to-ref)
+
 ### `--no-fail-fast`
 
-Start reference for checking files (requires --to-ref) Continue on failures (opposite of --fail-fast)
+Continue on failures (opposite of --fail-fast)
 
 ### `--no-stage`
 

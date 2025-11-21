@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.24.0](https://github.com/jdx/hk/compare/v1.23.0..v1.24.0) - 2025-11-21
+
+### 🚀 Features
+
+- hook stage by [@thejcannon](https://github.com/thejcannon) in [#448](https://github.com/jdx/hk/pull/448)
+
+### 🐛 Bug Fixes
+
+- Pass/render `stdin` for `hk test` tests by [@thejcannon](https://github.com/thejcannon) in [#455](https://github.com/jdx/hk/pull/455)
+
+### 📚 Documentation
+
+- Fix `from_ref` docstring by [@thejcannon](https://github.com/thejcannon) in [#454](https://github.com/jdx/hk/pull/454)
+
+### ⚡ Performance
+
+- skip stash operations when no unstaged changes by [@jdx](https://github.com/jdx) in [#457](https://github.com/jdx/hk/pull/457)
+- skip staging when jobs are skipped by conditions by [@jdx](https://github.com/jdx) in [#458](https://github.com/jdx/hk/pull/458)
+
 ## [1.23.0](https://github.com/jdx/hk/compare/v1.22.0..v1.23.0) - 2025-11-21
 
 ### 🚀 Features
