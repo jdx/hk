@@ -1,4 +1,5 @@
 import "pkl:reflect"
+
 output {
     renderer {
         converters {
@@ -12,13 +13,16 @@ output {
                 name = p.name
                 type = p.type
                 docComment = p.docComment
+                defaultValue = p.defaultValue.toString()
             }
-            [reflect.NullableType] = (t) -> "\(module.output.renderer.renderValue(t.member))?"
-            [reflect.DeclaredType] = (d) -> if (!d.typeArguments.isEmpty) new Dynamic {
-                    name = d.referent.name
-                    args = d.typeArguments
-                } else  d.referent.name
-            [reflect.Type] = (t) -> t.toString()
+            [reflect.StringLiteralType] = (s) -> s.value
+            [reflect.NullableType] = (t) -> "\(outer[t.member.getClass()].apply(t.member))?"
+            [reflect.DeclaredType] = (d) ->
+                if (d.typeArguments.isEmpty) d.referent.name
+                else "\(d.referent.name)<\(d.typeArguments.map((arg) -> outer[arg.getClass()].apply(arg)).join(", "))>"
+            [reflect.UnknownType] = (u) -> "Unknown"
+            [reflect.UnionType] = (u) -> u.members.map((member) -> outer[member.getClass()].apply(member)).join(" | ")
+            [reflect.Type] = (t) -> t.name
         }
     }
 }
