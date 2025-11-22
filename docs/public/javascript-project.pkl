@@ -4,8 +4,8 @@
 /// * Runs type checking with tsc
 /// * Enables automatic fixes in pre-commit
 
-amends "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.24.1/hk@1.24.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.24.1/hk@1.24.1#/Builtins.pkl"
 
 // Configure environment for all tools
 env {

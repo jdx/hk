@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.24.1](https://github.com/jdx/hk/compare/v1.24.0..v1.24.1) - 2025-11-22
+
+### ⚡ Performance
+
+- show progress bars before expensive git status call by [@jdx](https://github.com/jdx) in [#459](https://github.com/jdx/hk/pull/459)
+
 ## [1.24.0](https://github.com/jdx/hk/compare/v1.23.0..v1.24.0) - 2025-11-21
 
 ### 🚀 Features

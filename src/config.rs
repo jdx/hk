@@ -260,7 +260,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
             Make sure your 'amends' declaration uses a valid path or package URL.\n\
             Examples:\n\
             • amends \"pkl/Config.pkl\" (if vendored)\n\
-            • amends \"package://github.com/jdx/hk/releases/download/v1.24.0/hk@1.24.0#/Config.pkl\"",
+            • amends \"package://github.com/jdx/hk/releases/download/v1.24.1/hk@1.24.1#/Config.pkl\"",
             path.display()
         );
     }
