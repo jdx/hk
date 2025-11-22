@@ -528,7 +528,6 @@ impl Hook {
         }
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
         let groups = self.get_step_groups(&opts);
         let stash_method = if let Some(stash_str) = &opts.stash {
             stash_str
@@ -544,6 +543,7 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
+        let git_status = repo.lock().await.status(None)?;
         let files = self
             .file_list(
                 &opts,
