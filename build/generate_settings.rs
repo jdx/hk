@@ -2,8 +2,6 @@ use codegen::{Enum, Function, Impl, Scope, Struct, Variant};
 use std::fs;
 use std::path::Path;
 
-use indexmap::IndexMap;
-
 use crate::settings_toml::{OptionConfig, PklSource, SettingsRegistry};
 
 pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
