@@ -1,42 +1,10 @@
-use indexmap::IndexMap;
-use serde::Deserialize;
 use std::fs;
 
-#[derive(Debug, Deserialize)]
-struct SettingsRegistry {
-    #[serde(flatten)]
-    options: IndexMap<String, OptionConfig>,
-}
+// Include the shared types from the build directory
+#[path = "../build/settings_toml.rs"]
+mod settings_toml;
 
-#[derive(Debug, Deserialize)]
-struct OptionConfig {
-    #[serde(rename = "type")]
-    typ: String,
-    default: Option<toml::Value>,
-    sources: SourcesConfig,
-    docs: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct SourcesConfig {
-    #[serde(default)]
-    cli: Vec<String>,
-    #[serde(default)]
-    env: Vec<String>,
-    #[serde(default)]
-    git: Vec<String>,
-    #[serde(default)]
-    pkl: PklSource,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(untagged)]
-enum PklSource {
-    #[default]
-    None,
-    Single(String),
-    Multiple(Vec<String>),
-}
+use settings_toml::{PklSource, SettingsRegistry};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let settings_content = fs::read_to_string("settings.toml")?;
@@ -142,7 +110,7 @@ fn generate_configuration_docs(
     }
 
     md = md.trim().to_string();
-    md.push_str("\n");
+    md.push('\n');
 
     fs::write("docs/gen/settings-config.md", md)?;
 

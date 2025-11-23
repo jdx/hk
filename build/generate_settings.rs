@@ -1,58 +1,10 @@
 use codegen::{Enum, Function, Impl, Scope, Struct, Variant};
-use indexmap::IndexMap;
-use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Deserialize)]
-pub struct SettingsRegistry {
-    #[serde(flatten)]
-    pub options: IndexMap<String, OptionConfig>,
-}
+use indexmap::IndexMap;
 
-#[derive(Debug, Deserialize)]
-pub struct OptionConfig {
-    #[serde(rename = "type")]
-    pub typ: String,
-    pub default: Option<toml::Value>,
-    pub merge: Option<String>,
-    pub sources: SourcesConfig,
-    pub validate: Option<ValidateConfig>,
-    pub docs: String,
-    #[serde(default)]
-    pub examples: Vec<String>,
-    #[serde(default)]
-    pub deprecated: Option<String>,
-    #[serde(default)]
-    pub since: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SourcesConfig {
-    #[serde(default)]
-    pub cli: Vec<String>,
-    #[serde(default)]
-    pub env: Vec<String>,
-    #[serde(default)]
-    pub git: Vec<String>,
-    #[serde(default)]
-    pub pkl: PklSource,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(untagged)]
-pub enum PklSource {
-    #[default]
-    None,
-    Single(String),
-    Multiple(Vec<String>),
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ValidateConfig {
-    #[serde(rename = "enum")]
-    pub enum_values: Option<Vec<String>>,
-}
+use crate::settings_toml::{OptionConfig, PklSource, SettingsRegistry};
 
 pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let settings_content = fs::read_to_string("settings.toml")?;
