@@ -7,18 +7,18 @@ mod settings_toml;
 use settings_toml::{PklSource, SettingsRegistry};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let settings_content = fs::read_to_string("settings.toml")?;
-    let registry: SettingsRegistry = toml::from_str(&settings_content)?;
-
-    generate_configuration_docs(&registry)?;
+    generate_settings_config_doc()?;
     println!("Generated docs/gen/settings-config.md");
+    generate_pkl_config_doc()?;
+    println!("Generated docs/gen/pkl-config.md");
 
     Ok(())
 }
 
-fn generate_configuration_docs(
-    registry: &SettingsRegistry,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn generate_settings_config_doc() -> Result<(), Box<dyn std::error::Error>> {
+    let settings_content = fs::read_to_string("settings.toml")?;
+    let registry: SettingsRegistry = toml::from_str(&settings_content)?;
+
     let mut md = String::new();
 
     // Sorted for stable output
@@ -113,6 +113,121 @@ fn generate_configuration_docs(
     md.push('\n');
 
     fs::write("docs/gen/settings-config.md", md)?;
+    Ok(())
+}
 
+fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+
+    let reflector_path = std::env::current_dir()?.join("pkl/_reflector.pkl");
+    let reflector_uri = format!("file:{}", reflector_path.display());
+
+    let output = Command::new("pkl")
+        .arg("eval")
+        .arg("pkl/Config.pkl")
+        .arg("--format")
+        .arg("json")
+        .arg("-x")
+        .arg(format!("import(\"{}\").render(module)", reflector_uri))
+        .output()?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "pkl command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    let config_json_str = String::from_utf8(output.stdout)?;
+    let config_json_str = config_json_str.replace("https://hk.jdx.dev/", "/");
+    let config_json: serde_json::Value = serde_json::from_str(&config_json_str)?;
+
+    let mut md = String::new();
+
+    // Process top-level properties from moduleClass
+    if let Some(properties) = config_json["moduleClass"]["properties"].as_object() {
+        for (key, value) in properties {
+            // Skip internal properties like "output"
+            if key == "output" {
+                continue;
+            }
+
+            // TODO(josh_cannon): Make all types nullable
+            md.push_str(&format!(
+                "## `{}: {}`\n\n",
+                key,
+                value["type"].as_str().unwrap_or("Unknown")
+            ));
+            if let Some(default) = value["defaultValue"].as_str() {
+                if default != "null" {
+                    md.push_str(&format!("Default: `{}`\n\n", default));
+                }
+            }
+            if let Some(doc) = value["docComment"].as_str() {
+                md.push_str(doc);
+                md.push_str("\n\n");
+            }
+        }
+    }
+
+    // Process hooks
+    md.push_str("## `hooks.<HOOK>`\n\n");
+    if let Some(properties) = config_json["classes"]["Hook"]["properties"].as_object() {
+        for (key, value) in properties {
+            // Skip internal properties like "output"
+            if key == "output" {
+                continue;
+            }
+
+            // TODO(josh_cannon): Make all types nullable
+            md.push_str(&format!(
+                "### `<HOOK>.{}: {}`\n\n",
+                key,
+                value["type"].as_str().unwrap_or("Unknown")
+            ));
+            if let Some(default) = value["defaultValue"].as_str() {
+                if default != "null" {
+                    md.push_str(&format!("Default: `{}`\n\n", default));
+                }
+            }
+            if let Some(doc) = value["docComment"].as_str() {
+                md.push_str(doc);
+                md.push_str("\n\n");
+            }
+        }
+    }
+
+    // Process Steps
+    md.push_str("## `hooks.<HOOK>.steps.<STEP|GROUP>`\n\n");
+    if let Some(properties) = config_json["classes"]["Step"]["properties"].as_object() {
+        for (key, value) in properties {
+            // Skip internal properties like "output"
+            if key == "output" {
+                continue;
+            }
+
+            // TODO(josh_cannon): Make all types nullable
+            md.push_str(&format!(
+                "### `<STEP>.{}: {}`\n\n",
+                key,
+                value["type"].as_str().unwrap_or("Unknown")
+            ));
+            if let Some(default) = value["defaultValue"].as_str() {
+                if default != "null" {
+                    md.push_str(&format!("Default: `{}`\n\n", default));
+                }
+            }
+            if let Some(doc) = value["docComment"].as_str() {
+                md.push_str(doc);
+                md.push_str("\n\n");
+            }
+        }
+    }
+
+    md = md.trim().to_string();
+    md.push('\n');
+
+    fs::write("docs/gen/pkl-config.md", md)?;
     Ok(())
 }

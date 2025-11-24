@@ -7,7 +7,7 @@ typealias RegexPattern = Types.RegexPattern
 /// Helper function to create regex patterns with clean syntax
 function Regex(pattern: String): RegexPattern = Types.Regex(pattern)
 
-min_hk_version = "{{version | truncate(length=1)}}.0.0"
+min_hk_version: String? = "{{version | truncate(length=1)}}.0.0"
 
 class Script {
     linux: String?
@@ -202,8 +202,6 @@ class Step {
     /// Which shell to use for running commands
     shell: (String | Script)?
 
-
-
     /// if set, run the linter on workspaces only which are parent directories containing this filename
     workspace_indicator: String?
 
@@ -290,9 +288,9 @@ class Group {
 }
 
 class Hook {
-    /// If true, hk will run the fix command for each step (if it exists) to make modifications.
-    ///
     /// Default: `false` (`true` for `fix`)
+    ///
+    /// If true, hk will run the fix command for each step (if it exists) to make modifications.
     fix: Boolean?
 
     /// Whether (and how) to stash changes before running fix steps.
@@ -321,7 +319,13 @@ class Hook {
     /// }
     /// ```
     stash: StashMethod?
-    
+
+    /// Default: `true`
+    ///
+    /// If true, hk will automatically stage fixed files after `fix` commands run.
+    ///
+    /// This can be overridden via the `stage` [configuration setting](https://hk.jdx.dev/configuration.html#stage).
+    /// Note that this means the value of `stage` in your `hk.pkl` takes precendence.
     stage: Boolean?
 
     /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
@@ -362,7 +366,6 @@ default_branch: String?
 /// }
 /// ```
 env: Mapping<String, String> = new Mapping<String, String>{}
-
 
 /// Global exclude patterns that apply to all hooks and steps.
 /// Files matching these patterns will be skipped from processing.
@@ -408,7 +411,13 @@ display_skip_reasons: List<String> = List("profile-not-enabled")
 /// Available tags include: "missing-profiles"
 warnings: List<String> = List()
 
+/// If true, hk will automatically stage fixed files after `fix` commands run.
+///
+/// This can be overridden via the `stage` [configuration setting](https://hk.jdx.dev/configuration.html#stage).
+/// Note that this means the value of `stage` in your `hk.pkl` takes precendence.
 stage: Boolean?
+
+/// Hooks define when and how linters are run. See [hooks](https://hk.jdx.dev/hooks) for more information.
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
 
 output {
