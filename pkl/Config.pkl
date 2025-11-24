@@ -2,12 +2,12 @@
 module hk.Config
 import "Types.pkl"
 
+min_hk_version: String? = "{{version | truncate(length=1)}}.0.0"
+
 typealias RegexPattern = Types.RegexPattern
 
 /// Helper function to create regex patterns with clean syntax
 function Regex(pattern: String): RegexPattern = Types.Regex(pattern)
-
-min_hk_version: String? = "{{version | truncate(length=1)}}.0.0"
 
 class Script {
     linux: String?
@@ -278,7 +278,7 @@ class Step {
     ///     }
     /// }
     /// ```
-    exclusive: Boolean? = false
+    exclusive: Boolean = false
 
     /// If true, connects stdin/stdout/stderr to hk's execution. This implies `exclusive = true`.
     ///
@@ -290,7 +290,7 @@ class Step {
     ///     }
     /// }
     /// ```
-    interactive: Boolean? = false
+    interactive: Boolean = false
 
     /// If set, sends the template-expanded string to the command's stdin (mutually exclusive with `interactive`).
     /// Supports variable `file_list` (`list[str]`) and Tera builtins: https://keats.github.io/tera/docs/#built-ins.
@@ -320,7 +320,7 @@ class Step {
     ///     }
     /// }
     /// ```
-    depends: (String | List<String>)? = List()
+    depends: (String | List<String>) = List()
 
     /// If set, use this shell instead of the default `sh -o errexit -c`.
     ///
@@ -462,7 +462,7 @@ class Step {
     /// If true, when intending to run the fix command for this step, if any other steps in the same group need to read to the same files, this step will run the check command instead
     /// if it fails, the fix command will be run after
     /// Note that this behavior is only used if multiple steps would be in contention. If all fix steps edit disjoint files, the fix step will be chosen first despite this config.
-    check_first: Boolean? = true
+    check_first: Boolean = true
 
     /// If true, hk will run the linter on batches of files instead of all files at once.
     /// This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
@@ -474,11 +474,11 @@ class Step {
     ///     }
     /// }
     /// ```
-    batch: Boolean? = false
+    batch: Boolean = false
 
     /// If true, hk will get a write lock instead of a read lock when running fix/fix_all.
     /// Use this if the tool has its own locking mechanism or you simply don't care if files may be written to by multiple linters simultaneously.
-    stomp: Boolean? = false
+    stomp: Boolean = false
 
     /// If true, the step will be hidden from output.
     ///
@@ -489,7 +489,7 @@ class Step {
     ///     }
     /// }
     /// ```
-    hide: Boolean? = false
+    hide: Boolean = false
 
     /// Controls which stream(s) from the step's command are captured and printed at the end of the hook run.
     /// This prints a single consolidated block per step that produced any output, with a header like `STEP_NAME stderr:`.
@@ -524,7 +524,7 @@ class Step {
     output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
 
     /// Whether to include symbolic links (default: false)
-    allow_symlinks: Boolean? = false
+    allow_symlinks: Boolean = false
 
     /// Environment variables specific to this step. These are merged with the global environment variables.
     ///
@@ -537,7 +537,7 @@ class Step {
     ///     }
     /// }
     /// ```
-    env: Mapping<String, String>? = new Mapping<String, String>{}
+    env: Mapping<String, String> = new Mapping<String, String>{}
 
     /// Define self-contained tests for a step, runnable via `hk test`.
     ///
@@ -610,7 +610,7 @@ class Step {
     /// hk test --name formats json via fix
     /// hk test --list          # list without running
     /// ```
-    tests: Mapping<String, StepTest>? = new Mapping<String, StepTest>{}
+    tests: Mapping<String, StepTest> = new Mapping<String, StepTest>{}
 }
 
 class StepTest {
