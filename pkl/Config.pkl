@@ -2,6 +2,11 @@
 module hk.Config
 import "Types.pkl"
 
+typealias RegexPattern = Types.RegexPattern
+
+/// Helper function to create regex patterns with clean syntax
+function Regex(pattern: String): RegexPattern = Types.Regex(pattern)
+
 min_hk_version = "{{version | truncate(length=1)}}.0.0"
 
 class Script {
@@ -11,26 +16,165 @@ class Script {
     other: String?
 }
 
-typealias RegexPattern = Types.RegexPattern
-
-/// Helper function to create regex patterns with clean syntax
-function Regex(pattern: String): RegexPattern = Types.Regex(pattern)
-
 class Step {
     _type = "step"
+
+
+    /// Files the step should run on. By default this will only run this step if at least 1 staged file matches the glob or regex patterns.
+    /// If no patterns are provided, the step will always run.
+    ///
+    /// ```pkl
+    /// // Glob patterns
+    /// ["prettier"] {
+    ///     glob = List("*.js", "*.ts")
+    ///     check = "prettier --check {{files}}"
+    /// }
+    ///
+    /// // Single glob pattern
+    /// ["eslint"] {
+    ///     glob = "*.js"
+    ///     check = "eslint {{files}}"
+    /// }
+    ///
+    /// // Regex pattern for complex matching
+    /// ["config-lint"] {
+    ///     glob = Types.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
+    ///     check = "config-lint {{files}}"
+    /// }
+    /// ```
+    glob: (String | List<String> | RegexPattern)?
+
+    /// Filter files by their type rather than just glob patterns.
+    /// Matches files by extension, shebang, or content detection (OR logic - file must match ANY of the specified types).
+    /// This is particularly useful for matching scripts without file extensions.
+    ///
+    /// ```pkl
+    /// // Match Python files by extension OR shebang (including extensionless scripts)
+    /// ["black"] {
+    ///     types = List("python")
+    ///     fix = "black {{files}}"
+    /// }
+    ///
+    /// // Match shell scripts by extension or shebang
+    /// ["shellcheck"] {
+    ///     types = List("shell")
+    ///     check = "shellcheck {{files}}"
+    /// }
+    ///
+    /// // Match multiple types (OR logic)
+    /// ["format-scripts"] {
+    ///     types = List("python", "shell", "ruby")
+    ///     fix = "format-script {{files}}"
+    /// }
+    ///
+    /// // Combine types with glob patterns for more precise filtering
+    /// ["format-src-python"] {
+    ///     glob = "src/**/*"  // Only files in src/
+    ///     types = List("python")  // That are Python files
+    ///     fix = "black {{files}}"
+    /// }
+    /// ```
+    ///
+    /// **Supported types include:**
+    ///
+    /// - **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`
+    /// - **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
+    /// - **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`
+    /// - **Markup:** `html`, `markdown`, `css`
+    /// - **Special:** `text`, `binary`, `executable`, `symlink`, `dockerfile`
+    /// - **Images:** `image`, `png`, `jpeg`, `gif`, `svg`, `webp`
+    /// - **Archives:** `archive`, `zip`, `tar`, `gzip`
+    ///
+    /// Types are detected using:
+    /// 1. File extension (e.g., `.py` → `python`)
+    /// 2. Shebang line (e.g., `#!/usr/bin/env python3` → `python`)
+    /// 3. Special filenames (e.g., `Dockerfile` → `dockerfile`)
+    /// 4. Content/magic number detection for binary files
+    types: List<String>?
+
+    /// A command to run that does not modify files.
+    /// This typically is a "check" command like `eslint` or `prettier --check` that returns a non-zero exit code if there are errors.
+    /// Parallelization works better with check commands than fix commands as no files are being modified.
+    ///
+    /// ```pkl
+    /// hooks {
+    ///     ["pre-commit"] {
+    ///         ["prettier"] {
+    ///             check = "prettier --check {{files}}"
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// If you want to use a different check command for different operating systems, you can define a Script instead of a String:
+    ///
+    /// ```pkl
+    /// hooks {
+    ///     ["pre-commit"] {
+    ///         ["prettier"] {
+    ///             check = new Script {
+    ///                 linux = "prettier --check {{files}}"
+    ///                 macos = "prettier --check {{files}}"
+    ///                 windows = "prettier --check {{files}}"
+    ///                 other = "prettier --check {{files}}"
+    ///             }
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Template variables:
+    ///
+    /// - `{{files}}`: A list of files to run the linter on.
+    /// - `{{workspace}}`: When `workspace_indicator` is set and matched, this is the workspace directory path (e.g., `.` for the repo root or `packages/app`).
+    /// - `{{workspace_indicator}}`: Full path to the matched workspace indicator file (e.g., `packages/app/package.json`).
+    /// - `{{workspace_files}}`: A list of files relative to `{{workspace}}`.
+    check: (String | Script)?
+
+    /// A command that returns a list of files that need fixing.
+    /// This is used to optimize the fix step when `check_first` is enabled.
+    /// Instead of running the fix command on all files, it will only run on files that need fixing.
+    ///
+    /// ```pkl
+    /// hooks {
+    ///     ["pre-commit"] {
+    ///         ["prettier"] {
+    ///             check_list_files = "prettier --list-different {{files}}"
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    check_list_files: (String | Script)?
+
+    /// A command that shows the diff of what would be changed.
+    /// This is an alternative to `check` that can provide more detailed information about what would be changed.
+    check_diff: (String | Script)?
+
+
+    /// A command to run that modifies files.
+    /// This typically is a "fix" command like `eslint --fix` or `prettier --write`.
+    /// Templates variables are the same as for `check`.
+    ///
+    /// ```pkl
+    /// local linters = new Mapping<String, Step> {
+    ///     ["prettier"] {
+    ///         fix = "prettier --write {{files}}"
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// By default, hk will use `fix` commands but this can be overridden by setting
+    /// [`--fix`](https://hk.jdx.dev/configuration#fix) or running `hk run <HOOK> --run`.
+    fix: (String | Script)?
+
+
     /// Which profiles (HK_PROFILES) need to be active for the step to run
     profiles: List<String>?
 
-    /// Which file patterns to run the step on
-    glob: (String | List<String> | RegexPattern)?
 
     /// Which file patterns to exclude from the step
     exclude: (String | List<String> | RegexPattern)?
 
-    /// File types to match (OR logic) - file must match ANY specified type
-    /// Examples: "python", "shell", "javascript", "text", "binary"
-    /// Matches files by extension, shebang, or content detection
-    types: List<String>?
 
     /// files to stage after running the fix step
     /// Can be a glob pattern (e.g., "*.js") or the special value "<JOB_FILES>"
@@ -58,13 +202,7 @@ class Step {
     /// Which shell to use for running commands
     shell: (String | Script)?
 
-    /// a shell command to check. Any edits will be ignored.
-    check: (String | Script)?
-    check_list_files: (String | Script)?
-    check_diff: (String | Script)?
 
-    /// a shell command that checks and edits files. Edits will be automatically added to the index.
-    fix: (String | Script)?
 
     /// if set, run the linter on workspaces only which are parent directories containing this filename
     workspace_indicator: String?
@@ -110,18 +248,25 @@ class Step {
 class StepTest {
     /// What to run: "check", "fix", or "command"
     run: "check" | "fix" = "check"
+
     /// Files to pass to the command (used to render {{ files }})
     files: (String | List<String>)? = List()
+
     /// Optional path to copy into a temp sandbox before running
     fixture: String?
+
     /// Inline files to write into the sandbox
     write: Mapping<String, String> = new Mapping<String, String>{}
+
     /// Command to run before executing the test command
     before: String?
+
     /// Extra environment variables for this test
     env: Mapping<String, String> = new Mapping<String, String>{}
+
     /// Command to run after the main command, before expectations (cleanup or extra verification)
     after: String?
+
     /// Expectations for the test result
     expect: StepTestExpect = new StepTestExpect{}
 }
@@ -145,13 +290,114 @@ class Group {
 }
 
 class Hook {
+    /// If true, hk will run the fix command for each step (if it exists) to make modifications.
+    ///
+    /// Default: `false` (`true` for `fix`)
     fix: Boolean?
+
+    /// Whether (and how) to stash changes before running fix steps.
+    ///
+    /// - `"git"`: Use `git stash`.
+    /// - `"patch-file"`: Use hk-generated patch files (typically faster, avoids "index is locked" errors).
+    /// - `"none"`: Do not stash unstaged changes.
+    /// - `true` (boolean): Alias of `"git"`.
+    /// - `false` (boolean): Alias of `"none"`.
+    ///
+    /// Examples:
+    ///
+    /// ```pkl
+    /// hooks {
+    ///   ["pre-commit"] {
+    ///     fix = true
+    ///     stash = true        // boolean shorthand for git
+    ///     steps = linters
+    ///   }
+    ///
+    ///   ["fix"] {
+    ///     fix = true
+    ///     stash = "none"      // disable stashing
+    ///     steps = linters
+    ///   }
+    /// }
+    /// ```
     stash: StashMethod?
+    
     stage: Boolean?
+
     /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
     report: (String | Script)?
+
+    /// Steps are the individual linters that make up a hook.
+    /// They are executed in the order they are defined in parallel up to
+    /// [`--jobs`](https://hk.jdx.dev/configuration.html#jobs) at a time.
     steps: Mapping<String, Step | Group> = new Mapping<String, Step>{}
 }
+
+
+/// Specifies the preferred default branch to compare against when hk needs a reference (e.g., suggestions in pre-commit warnings).
+/// If unset or empty, hk attempts to detect it via `origin/HEAD`, the current branch's remote, or falls back to `main`/`master`
+/// if they exist on the remote.
+///
+/// Examples:
+///
+/// ```pkl
+/// // Use a local branch name
+/// default_branch = "main"
+///
+/// // Or a remote-qualified ref
+/// default_branch = "origin/main"
+/// ```
+///
+/// Notes:
+///
+/// - Both local branch names (e.g., `main`) and remote-qualified refs (e.g., `origin/main`) are supported.
+/// - If omitted, hk will detect the default branch based on your repository's remotes and branches.
+default_branch: String?
+
+/// Environment variables for configuring the linters.
+///
+/// ```pkl
+/// env {
+///     ["NODE_ENV"] = "production"
+/// }
+/// ```
+env: Mapping<String, String> = new Mapping<String, String>{}
+
+
+/// Global exclude patterns that apply to all hooks and steps.
+/// Files matching these patterns will be skipped from processing.
+/// Supports directory names, glob patterns, and regex patterns.
+///
+/// ```pkl
+/// // Exclude specific directories
+/// exclude = List("node_modules", "dist", "build")
+///
+/// // Exclude using glob patterns
+/// exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
+///
+/// // Single pattern
+/// exclude = "node_modules"
+///
+/// // Exclude using regex pattern (for complex matching)
+/// // First import Types.pkl to use the Regex helper
+/// import "package://github.com/jdx/hk/releases/download/v1.22.0/hk@1.22.0#/Types.pkl"
+/// exclude = Types.Regex(#".*\.(test|spec)\.(js|ts)$"#)
+/// ```
+///
+/// Notes:
+///
+/// - Patterns from all configuration sources are unioned together
+/// - Simple directory names automatically match their contents (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
+/// - Can be overridden per-step with `<STEP>.exclude`
+/// - Regex patterns use Rust regex syntax and match against full file paths
+exclude: (String | List<String> | RegexPattern)?
+
+/// Controls whether hk aborts remaining steps/groups after the first failure.
+///
+/// - When `true`, as soon as a step fails, hk cancels pending steps in the same hook and returns the error.
+/// - When `false`, hk continues running other steps and reports all failures at the end.
+fail_fast: Boolean?
+
 
 /// Controls which skip reasons are displayed in the output
 /// By default, only profile-not-enabled messages are displayed
@@ -164,13 +410,6 @@ warnings: List<String> = List()
 
 stage: Boolean?
 hooks: Mapping<String, Hook> = new Mapping<String, Hook>{}
-env: Mapping<String, String> = new Mapping<String, String>{}
-/// Preferred default branch to compare against (e.g. "main"). If empty or omitted, hk will auto-detect.
-default_branch: String?
-/// If true, abort remaining steps/groups after the first failure
-fail_fast: Boolean?
-/// Global file patterns to exclude from all steps
-exclude: (String | List<String> | RegexPattern)?
 
 output {
   renderer {
