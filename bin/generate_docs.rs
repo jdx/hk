@@ -146,82 +146,79 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
     let mut md = String::new();
 
     // Process top-level properties from moduleClass
-    if let Some(properties) = config_json["moduleClass"]["properties"].as_object() {
-        for (key, value) in properties {
-            // Skip internal properties like "output"
-            if key == "output" {
-                continue;
-            }
+    let properties = config_json["moduleClass"]["properties"]
+        .as_object()
+        .expect("Expected top level properties in Config.pkl");
+    for (key, value) in properties {
+        if key == "output" {
+            continue;
+        }
 
-            // TODO(josh_cannon): Make all types nullable
-            md.push_str(&format!(
-                "## `{}: {}`\n\n",
-                key,
-                value["type"].as_str().unwrap_or("Unknown")
-            ));
-            if let Some(default) = value["defaultValue"].as_str() {
-                if default != "null" {
-                    md.push_str(&format!("Default: `{}`\n\n", default));
-                }
+        md.push_str(&format!(
+            "## `{}: {}`\n\n",
+            key,
+            value["type"].as_str().unwrap()
+        ));
+        if let Some(default) = value["defaultValue"].as_str() {
+            if default != "null" {
+                md.push_str(&format!("Default: `{}`\n\n", default));
             }
-            if let Some(doc) = value["docComment"].as_str() {
-                md.push_str(doc);
-                md.push_str("\n\n");
-            }
+        }
+        if let Some(doc) = value["docComment"].as_str() {
+            md.push_str(doc);
+            md.push_str("\n\n");
         }
     }
 
     // Process hooks
     md.push_str("## `hooks.<HOOK>`\n\n");
-    if let Some(properties) = config_json["classes"]["Hook"]["properties"].as_object() {
-        for (key, value) in properties {
-            // Skip internal properties like "output"
-            if key == "output" {
-                continue;
-            }
+    let properties = config_json["classes"]["Hook"]["properties"]
+        .as_object()
+        .expect("Expected Hook class in Config.pkl!");
+    for (key, value) in properties {
+        if key == "_type" {
+            continue;
+        }
 
-            // TODO(josh_cannon): Make all types nullable
-            md.push_str(&format!(
-                "### `<HOOK>.{}: {}`\n\n",
-                key,
-                value["type"].as_str().unwrap_or("Unknown")
-            ));
-            if let Some(default) = value["defaultValue"].as_str() {
-                if default != "null" {
-                    md.push_str(&format!("Default: `{}`\n\n", default));
-                }
+        md.push_str(&format!(
+            "### `<HOOK>.{}: {}`\n\n",
+            key,
+            value["type"].as_str().unwrap()
+        ));
+        if let Some(default) = value["defaultValue"].as_str() {
+            if default != "null" {
+                md.push_str(&format!("Default: `{}`\n\n", default));
             }
-            if let Some(doc) = value["docComment"].as_str() {
-                md.push_str(doc);
-                md.push_str("\n\n");
-            }
+        }
+        if let Some(doc) = value["docComment"].as_str() {
+            md.push_str(doc);
+            md.push_str("\n\n");
         }
     }
 
     // Process Steps
     md.push_str("## `hooks.<HOOK>.steps.<STEP|GROUP>`\n\n");
-    if let Some(properties) = config_json["classes"]["Step"]["properties"].as_object() {
-        for (key, value) in properties {
-            // Skip internal properties like "output"
-            if key == "output" {
-                continue;
-            }
+    let properties = config_json["classes"]["Step"]["properties"]
+        .as_object()
+        .expect("Expected Step class in Config.pkl");
+    for (key, value) in properties {
+        if key == "_type" {
+            continue;
+        }
 
-            // TODO(josh_cannon): Make all types nullable
-            md.push_str(&format!(
-                "### `<STEP>.{}: {}`\n\n",
-                key,
-                value["type"].as_str().unwrap_or("Unknown")
-            ));
-            if let Some(default) = value["defaultValue"].as_str() {
-                if default != "null" {
-                    md.push_str(&format!("Default: `{}`\n\n", default));
-                }
+        md.push_str(&format!(
+            "### `<STEP>.{}: {}`\n\n",
+            key,
+            value["type"].as_str().unwrap()
+        ));
+        if let Some(default) = value["defaultValue"].as_str() {
+            if default != "null" {
+                md.push_str(&format!("Default: `{}`\n\n", default));
             }
-            if let Some(doc) = value["docComment"].as_str() {
-                md.push_str(doc);
-                md.push_str("\n\n");
-            }
+        }
+        if let Some(doc) = value["docComment"].as_str() {
+            md.push_str(doc);
+            md.push_str("\n\n");
         }
     }
 
