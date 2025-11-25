@@ -1,0 +1,762 @@
+## `default_branch: String`
+
+Default: auto-detected
+
+Specifies the preferred default branch to compare against when hk needs a reference (e.g., suggestions in pre-commit warnings).
+If unset or empty, hk attempts to detect it via `origin/HEAD`, 
+the current branch's remote, or falls back to `main`/`master` if they exist on the remote.
+
+Examples:
+
+```pkl
+// Use a local branch name
+default_branch = "main"
+
+// Or a remote-qualified ref
+default_branch = "origin/main"
+```
+
+Notes:
+
+- Both local branch names (e.g., `main`) and remote-qualified refs (e.g., `origin/main`) are supported.
+- If omitted, hk will detect the default branch based on your repository's remotes and branches.
+
+## `env: Mapping<String, String>`
+
+Environment variables for configuring the linters.
+
+```pkl
+env {
+    ["NODE_ENV"] = "production"
+}
+```
+
+## `exclude: String | List<String> | Regex`
+
+Global exclude patterns that apply to all hooks and steps.
+Files matching these patterns will be skipped from processing.
+Supports directory names, glob patterns, and regex patterns.
+
+```pkl
+// Exclude specific directories
+exclude = List("node_modules", "dist", "build")
+
+// Exclude using glob patterns
+exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
+
+// Single pattern
+exclude = "node_modules"
+
+// Exclude using regex pattern (for complex matching)
+// First import Types.pkl to use the Regex helper
+import "package://github.com/jdx/hk/releases/download/v1.22.0/hk@1.22.0#/Types.pkl"
+exclude = Types.Regex(#".*\.(test|spec)\.(js|ts)$"#)
+```
+
+Notes:
+
+- Patterns from all configuration sources are unioned together
+- Simple directory names automatically match their contents (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
+- Can be overridden per-step with `<STEP>.exclude`
+- Regex patterns use Rust regex syntax and match against full file paths
+
+## `fail_fast: Boolean`
+
+Controls whether hk aborts remaining steps/groups after the first failure.
+
+- When `true`, as soon as a step fails, hk cancels pending steps in the same hook and returns the error.
+- When `false`, hk continues running other steps and reports all failures at the end.
+
+## `display_skip_reasons: List<String>`
+
+Controls which skip reasons are displayed in the output
+By default, only profile-not-enabled messages are displayed
+Possible values: "profile-not-enabled", "profile-explicitly-disabled", "no-command-for-run-type", "no-files-to-process", "condition-false", "disabled-by-env", "disabled-by-cli"
+
+## `warnings: List<String>`
+
+Which warning categories to show. Empty by default (no warnings shown).
+Available tags include: "missing-profiles"
+
+## `stage: Boolean`
+
+If true, hk will automatically stage fixed files after `fix` commands run.
+
+This can be overridden via the `stage` [configuration setting](/configuration.html#stage).
+Note that this means the value of `stage` in your `hk.pkl` takes precendence.
+
+## `hooks: Mapping<String, Hook>`
+
+Hooks define when and how linters are run. See [hooks](/hooks) for more information.
+
+## `hooks.<HOOK>`
+
+### `<HOOK>.fix: Boolean`
+
+Default: `false` (`true` for `fix`)
+
+If true, hk will run the fix command for each step (if it exists) to make modifications.
+
+### `<HOOK>.stash: StashMethod`
+
+Whether (and how) to stash changes before running fix steps.
+
+- `"git"`: Use `git stash`.
+- `"patch-file"`: Use hk-generated patch files (typically faster, avoids "index is locked" errors).
+- `"none"`: Do not stash unstaged changes.
+- `true` (boolean): Alias of `"git"`.
+- `false` (boolean): Alias of `"none"`.
+
+Examples:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = true        // boolean shorthand for git
+    steps = linters
+  }
+
+  ["fix"] {
+    fix = true
+    stash = "none"      // disable stashing
+    steps = linters
+  }
+}
+```
+
+### `<HOOK>.stage: Boolean`
+
+Default: `true`
+
+If true, hk will automatically stage fixed files after `fix` commands run.
+
+This can be overridden via the `stage` [configuration setting](/configuration.html#stage).
+Note that this means the value of `stage` in your `hk.pkl` takes precendence.
+
+### `<HOOK>.report: String | Script`
+
+Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
+
+### `<HOOK>.steps: Mapping<String, Step | Group>`
+
+Steps are the individual linters that make up a hook.
+They are executed in the order they are defined in parallel up to
+[`--jobs`](/configuration.html#jobs) at a time.
+
+## `hooks.<HOOK>.steps.<STEP|GROUP>`
+
+### `<STEP>.glob: String | List<String> | Regex`
+
+Files the step should run on. By default this will only run this step if at least 1 staged file matches the glob or regex patterns.
+If no patterns are provided, the step will always run.
+
+```pkl
+// Glob patterns
+["prettier"] {
+    glob = List("*.js", "*.ts")
+    check = "prettier --check {{files}}"
+}
+
+// Single glob pattern
+["eslint"] {
+    glob = "*.js"
+    check = "eslint {{files}}"
+}
+
+// Regex pattern for complex matching
+["config-lint"] {
+    glob = Types.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
+    check = "config-lint {{files}}"
+}
+```
+
+### `<STEP>.types: List<String>`
+
+Filter files by their type rather than just glob patterns.
+Matches files by extension, shebang, or content detection (OR logic - file must match ANY of the specified types).
+This is particularly useful for matching scripts without file extensions.
+
+```pkl
+// Match Python files by extension OR shebang (including extensionless scripts)
+["black"] {
+    types = List("python")
+    fix = "black {{files}}"
+}
+
+// Match shell scripts by extension or shebang
+["shellcheck"] {
+    types = List("shell")
+    check = "shellcheck {{files}}"
+}
+
+// Match multiple types (OR logic)
+["format-scripts"] {
+    types = List("python", "shell", "ruby")
+    fix = "format-script {{files}}"
+}
+
+// Combine types with glob patterns for more precise filtering
+["format-src-python"] {
+    glob = "src/**/*"  // Only files in src/
+    types = List("python")  // That are Python files
+    fix = "black {{files}}"
+}
+```
+
+**Supported types include:**
+
+- **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`
+- **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
+- **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`
+- **Markup:** `html`, `markdown`, `css`
+- **Special:** `text`, `binary`, `executable`, `symlink`, `dockerfile`
+- **Images:** `image`, `png`, `jpeg`, `gif`, `svg`, `webp`
+- **Archives:** `archive`, `zip`, `tar`, `gzip`
+
+Types are detected using:
+1. File extension (e.g., `.py` → `python`)
+2. Shebang line (e.g., `#!/usr/bin/env python3` → `python`)
+3. Special filenames (e.g., `Dockerfile` → `dockerfile`)
+4. Content/magic number detection for binary files
+
+### `<STEP>.check: String | Script`
+
+A command to run that does not modify files.
+This typically is a "check" command like `eslint` or `prettier --check` that returns a non-zero exit code if there are errors.
+Parallelization works better with check commands than fix commands as no files are being modified.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            check = "prettier --check {{files}}"
+        }
+    }
+}
+```
+
+If you want to use a different check command for different operating systems, you can define a Script instead of a String:
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            check = new Script {
+                linux = "prettier --check {{files}}"
+                macos = "prettier --check {{files}}"
+                windows = "prettier --check {{files}}"
+                other = "prettier --check {{files}}"
+            }
+        }
+    }
+}
+```
+
+Template variables:
+
+- `{{files}}`: A list of files to run the linter on.
+- `{{workspace}}`: When `workspace_indicator` is set and matched, this is the workspace directory path (e.g., `.` for the repo root or `packages/app`).
+- `{{workspace_indicator}}`: Full path to the matched workspace indicator file (e.g., `packages/app/package.json`).
+- `{{workspace_files}}`: A list of files relative to `{{workspace}}`.
+
+### `<STEP>.check_list_files: String | Script`
+
+A command that returns a list of files that need fixing.
+This is used to optimize the fix step when `check_first` is enabled.
+Instead of running the fix command on all files, it will only run on files that need fixing.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            check_list_files = "prettier --list-different {{files}}"
+        }
+    }
+}
+```
+
+### `<STEP>.check_diff: String | Script`
+
+A command that shows the diff of what would be changed.
+This is an alternative to `check` that can provide more detailed information about what would be changed.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        ["prettier"] {
+            check_diff = "prettier --check --diff {{files}}"
+        }
+    }
+}
+```
+
+### `<STEP>.fix: String | Script`
+
+A command to run that modifies files.
+This typically is a "fix" command like `eslint --fix` or `prettier --write`.
+Templates variables are the same as for `check`.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["prettier"] {
+        fix = "prettier --write {{files}}"
+    }
+}
+```
+
+By default, hk will use `fix` commands but this can be overridden by setting
+[`--fix`](/configuration#fix) or running `hk run <HOOK> --run`.
+
+### `<STEP>.profiles: List<String>`
+
+Profiles are a way to enable/disable linters based on the current profile.
+The linter will only run if its profile is in [`HK_PROFILE`](/configuration#hk-profile).
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["prettier"] = (Builtins.prettier) {
+        profiles = List("slow")
+    }
+}
+```
+
+Profiles can be prefixed with `!` to disable them.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["prettier"] = (Builtins.prettier) {
+        profiles = List("!slow")
+    }
+}
+```
+
+### `<STEP>.exclude: String | List<String> | Regex`
+
+Files to exclude from the step. Supports glob patterns and regex patterns.
+Files matching these patterns will be skipped.
+
+```pkl
+// Exclude with glob patterns
+["prettier"] {
+    glob = List("**/*.yaml")
+    exclude = List("*.test.yaml", "*.fixture.yaml")
+    check = "prettier --check {{files}}"
+}
+
+// Exclude with regex pattern for complex matching
+["linter"] {
+    glob = List("**/*")
+    exclude = Types.Regex(#"""
+(?x)
+^(vendor|dist|build)/.*$|
+.*\.(min|bundle)\.(js|css)$|
+.*\.generated\.(ts|js)$
+"""#)
+    check = "custom-lint {{files}}"
+}
+```
+
+Notes:
+- Regex patterns use Rust regex syntax
+- The `(?x)` flag enables verbose mode for multi-line patterns with comments
+- Use raw strings (`#"..."#` or `#"""..."""#`) to avoid escaping backslashes
+
+**Using the Regex helper**
+
+The `Regex()` helper function is available by importing Types.pkl:
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v1.24.1/hk@1.24.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.24.1/hk@1.24.1#/Types.pkl"
+
+// Use it like:
+exclude = Types.Regex(#".*\.test\.js$"#)
+```
+
+### `<STEP>.stage: String | List<String>`
+
+A list of globs of files to add to the git index after running a fix step.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["prettier"] {
+                stage = List("*.js", "*.ts")
+            }
+        }
+    }
+}
+```
+
+### `<STEP>.exclusive: Boolean`
+
+If true, this step will wait for any previous steps to finish before running.
+No other steps will start until this one finishes. Under the hood this groups the previous steps into a group.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["prelint"] {
+                exclusive = true // blocks other steps from starting until this one finishes
+                check = "mise run prelint"
+            }
+            // ... other steps will run in parallel ...
+            ["postlint"] {
+                exclusive = true // wait for all previous steps to finish before starting
+                check = "mise run postlint"
+            }
+        }
+    }
+}
+```
+
+### `<STEP>.interactive: Boolean`
+
+If true, connects stdin/stdout/stderr to hk's execution. This implies `exclusive = true`.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["show-warning"] {
+        interactive = true
+        check = "echo warning && read -p 'Press Enter to continue'"
+    }
+}
+```
+
+### `<STEP>.stdin: String`
+
+If set, sends the template-expanded string to the command's stdin (mutually exclusive with `interactive`).
+Supports variable `file_list` (`list[str]`) and Tera builtins: https://keats.github.io/tera/docs/#built-ins.
+
+This is useful for tools which allow passing filenames via stdin (like xargs), to avoid hk's automatic batching.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["hungry-command"] {
+        stdin = " {{ files_list | join(sep='\n') }}"
+        check = "xargs my-command"
+    }
+}
+```
+
+### `<STEP>.depends: String | List<String>`
+
+A list of steps that must finish before this step can run.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["prettier"] {
+                depends = List("eslint")
+            }
+        }
+    }
+}
+```
+
+### `<STEP>.shell: String | Script`
+
+If set, use this shell instead of the default `sh -o errexit -c`.
+
+```pkl
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["prettier"] {
+                shell = "bash -o errexit -c"
+            }
+        }
+    }
+}
+```
+
+### `<STEP>.workspace_indicator: String`
+
+If set, run the linter on workspaces only which are parent directories containing this filename.
+This is useful for tools that need to be run from a specific directory, like a project root.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["cargo-clippy"] {
+        workspace_indicator = "Cargo.toml"
+            glob = "*.rs"
+            workspace_indicator = "Cargo.toml"
+            check = "cargo clippy --manifest-path {{workspace_indicator}}"
+    }
+}
+```
+
+In this example, given a file list like the following:
+
+```text
+└── workspaces/
+    ├── proj1/
+    │   ├── Cargo.toml
+    │   └── src/
+    │       ├── lib.rs
+    │       └── main.rs
+    └── proj2/
+        ├── Cargo.toml
+        └── src/
+            ├── lib.rs
+            └── main.rs
+```
+
+hk will run 1 step for each workspace even though multiple rs files are in each workspace:
+
+- `cargo clippy --manifest-path workspaces/proj1/Cargo.toml`
+- `cargo clippy --manifest-path workspaces/proj2/Cargo.toml`
+
+When `workspace_indicator` is used, the following template variables become available in commands and env:
+
+- `{{workspace}}`: the workspace directory path
+- `{{workspace_indicator}}`: the matched indicator file path
+- `{{workspace_files}}`: files relative to `{{workspace}}`
+
+For example, in a monorepo with Node packages:
+
+```pkl
+local linters = new Mapping<String, Step> {
+  ["npm-lint"] {
+    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
+    workspace_indicator = "package.json"
+    check = "echo cd {{workspace}} && npm run lint -- {{workspace_files}}"
+    fix = "echo cd {{workspace}} && npm run fix -- {{workspace_files}}"
+  }
+}
+```
+
+### `<STEP>.prefix: String`
+
+If set, run the linter scripts with this prefix, e.g.: "mise exec --" or "npm run".
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["eslint"] {
+        prefix = "npm run"
+    }
+}
+```
+
+### `<STEP>.dir: String`
+
+If set, run the linter scripts in this directory.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["eslint"] = (Builtins.eslint) {
+        dir = "frontend"
+    }
+}
+```
+
+### `<STEP>.condition: String`
+
+If set, the step will only run if this condition evaluates to true. Evaluated with [`expr`](https://github.com/jdx/expr-rs).
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["prettier"] {
+        condition = "eval('test -f check.js')"
+    }
+}
+```
+
+#### Git status in conditions and templates
+
+hk provides the current git status to both condition expressions and Tera templates via a `git` object.
+This lets you avoid shelling out in conditions (e.g., `exec('git …')`).
+
+- Available fields: `git.staged_files`, `git.unstaged_files`, `git.untracked_files`, `git.modified_files`
+  - Staged classifications: `git.staged_added_files`, `git.staged_modified_files`, `git.staged_deleted_files`, `git.staged_renamed_files`, `git.staged_copied_files`
+  - Unstaged classifications: `git.unstaged_modified_files`, `git.unstaged_deleted_files`, `git.unstaged_renamed_files`
+
+- In conditions (expr):
+
+```pkl
+// Run only if there are any staged files
+condition = "git.staged_files != []"
+
+// Run only if a Cargo.toml file is staged
+condition = #"any(git.staged_files, {hasSuffix(#, "Cargo.toml")})"#
+
+// Diff-filter approximations
+// Added or Renamed (AR):
+condition = "(git.staged_added_files != []) || (git.staged_renamed_files != [])"
+
+// Renamed or Deleted (RD):
+condition = "(git.staged_renamed_files != []) || (git.staged_deleted_files != [])"
+```
+
+- In templates (Tera):
+
+```pkl
+check = "echo staged: {{ git.staged_files }}"
+```
+
+These lists contain repository-relative paths for files currently in each state.
+
+### `<STEP>.check_first: Boolean`
+
+If true, when intending to run the fix command for this step, if any other steps in the same group need to read to the same files, this step will run the check command instead
+if it fails, the fix command will be run after
+Note that this behavior is only used if multiple steps would be in contention. If all fix steps edit disjoint files, the fix step will be chosen first despite this config.
+
+### `<STEP>.batch: Boolean`
+
+If true, hk will run the linter on batches of files instead of all files at once.
+This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["eslint"] {
+        batch = true
+    }
+}
+```
+
+### `<STEP>.stomp: Boolean`
+
+If true, hk will get a write lock instead of a read lock when running fix/fix_all.
+Use this if the tool has its own locking mechanism or you simply don't care if files may be written to by multiple linters simultaneously.
+
+### `<STEP>.hide: Boolean`
+
+If true, the step will be hidden from output.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["prettier"] {
+        hide = true
+    }
+}
+```
+
+### `<STEP>.output_summary: stdout | stderr | combined | hide`
+
+Controls which stream(s) from the step's command are captured and printed at the end of the hook run.
+This prints a single consolidated block per step that produced any output, with a header like `STEP_NAME stderr:`.
+
+- `"stderr"` (default): capture only standard error
+- `"stdout"`: capture only standard output
+- `"combined"`: capture both stdout and stderr interleaved (line-by-line as produced)
+- `"hide"`: capture nothing and print nothing for this step
+
+Examples:
+
+```pkl
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] {
+        check = "eslint {{files}}"
+        output_summary = "combined"
+      }
+      ["format"] {
+        check = "prettier --check {{files}}"
+        output_summary = "stdout"
+      }
+      ["quiet-step"] {
+        check = "echo noisy && echo warn 1>&2"
+        output_summary = "hide"
+      }
+    }
+  }
+}
+```
+
+### `<STEP>.allow_symlinks: Boolean`
+
+Whether to include symbolic links (default: false)
+
+### `<STEP>.env: Mapping<String, String>`
+
+Environment variables specific to this step. These are merged with the global environment variables.
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["prettier"] {
+        env {
+            ["NODE_ENV"] = "production"
+        }
+    }
+}
+```
+
+### `<STEP>.tests: Mapping<String, StepTest>`
+
+Define self-contained tests for a step, runnable via `hk test`.
+
+Key points:
+
+- Mapping is keyed by test name.
+- Supported run modes: `check` or `fix` (defaults to `check`).
+- `files` is optional; if omitted, it defaults to the keys of `write`.
+- `write` lets you create files before the test runs (paths can be relative to the sandbox or absolute).
+- `fixture` copies a directory into a temporary sandbox before the test runs.
+- `env` merges with the step's `env` (test env wins on conflicts).
+- `before` is an optional shell command to run before the test's main command. If it fails (non-zero exit), the test fails immediately.
+- `after` is an optional shell command to run after the main command, before evaluating expectations. If it fails, the test fails and reports that failure.
+- `expect` supports:
+  - `code` (default 0)
+  - `stdout`, `stderr` substring checks
+  - `files` full-file content assertions
+
+Template variables available in tests are the same as for steps, plus:
+
+- `{{files}}`, `{{globs}}`, `{{workspace}}`, `{{workspace_indicator}}`
+- `{{root}}`: project root
+- `{{tmp}}`: sandbox path used to execute the test
+
+Example:
+
+```pkl
+hooks {
+  ["check"] {
+    steps {
+      ["prettier"] {
+        check = "prettier --check {{ files }}"
+        fix = "prettier --write {{ files }}"
+        tests {
+          ["formats json via fix"] {
+            run = "fix"
+            write { ["{{tmp}}/a.json"] = "{\"b\":1}" }
+            // files omitted -> defaults to write keys
+            expect { files { ["{{tmp}}/a.json"] = "{\n  \"b\": 1\n}\n" } }
+          }
+          ["check shows output"] {
+            run = "check"
+            files = List("{{tmp}}/a.json")
+            env { ["FOO"] = "bar" }
+            expect { stdout = "prettier" }
+          }
+          ["before generates file, after verifies contents"] {
+            run = "fix"
+            // before: generate an input file the step will process
+            before = #"printf '{\"b\":1}' > {{tmp}}/raw.json"#
+            // files: tell hk which file the step should operate on
+            files = List("{{tmp}}/raw.json")
+            // after: verify the contents using a shell assertion
+            after = #"grep -q '\"b\": 1' {{tmp}}/raw.json"#
+            // expect: full-file match after formatting
+            expect { files { ["{{tmp}}/raw.json"] = "{\n  \"b\": 1\n}\n" } }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Run tests with:
+
+```bash
+hk test                 # all tests
+hk test --step prettier # only prettier's tests
+hk test --name formats json via fix
+hk test --list          # list without running
+```
