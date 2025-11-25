@@ -1,5 +1,6 @@
 pub mod generate_builtins;
 pub mod generate_settings;
+pub mod settings_toml;
 
 use std::env;
 use std::path::PathBuf;

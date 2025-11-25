@@ -25,6 +25,10 @@ include = [
 build = "build/mod.rs"
 rust-version = "1.85"
 
+[[bin]]
+name = "generate-docs"
+path = "bin/generate_docs.rs"
+
 [dependencies]
 arc-swap = "1"
 chrono = "0.4"

@@ -1,58 +1,8 @@
 use codegen::{Enum, Function, Impl, Scope, Struct, Variant};
-use indexmap::IndexMap;
-use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 
-#[derive(Debug, Deserialize)]
-pub struct SettingsRegistry {
-    #[serde(flatten)]
-    pub options: IndexMap<String, OptionConfig>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct OptionConfig {
-    #[serde(rename = "type")]
-    pub typ: String,
-    pub default: Option<toml::Value>,
-    pub merge: Option<String>,
-    pub sources: SourcesConfig,
-    pub validate: Option<ValidateConfig>,
-    pub docs: String,
-    #[serde(default)]
-    pub examples: Vec<String>,
-    #[serde(default)]
-    pub deprecated: Option<String>,
-    #[serde(default)]
-    pub since: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SourcesConfig {
-    #[serde(default)]
-    pub cli: Vec<String>,
-    #[serde(default)]
-    pub env: Vec<String>,
-    #[serde(default)]
-    pub git: Vec<String>,
-    #[serde(default)]
-    pub pkl: PklSource,
-}
-
-#[derive(Debug, Deserialize, Default)]
-#[serde(untagged)]
-pub enum PklSource {
-    #[default]
-    None,
-    Single(String),
-    Multiple(Vec<String>),
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ValidateConfig {
-    #[serde(rename = "enum")]
-    pub enum_values: Option<Vec<String>>,
-}
+use crate::settings_toml::{OptionConfig, PklSource, SettingsRegistry};
 
 pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let settings_content = fs::read_to_string("settings.toml")?;
@@ -66,9 +16,6 @@ pub fn generate(out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
 
     // Generate the settings meta
     generate_settings_meta(out_dir, &registry)?;
-
-    // Generate docs from the centralized settings registry
-    generate_configuration_docs(&registry)?;
 
     Ok(())
 }
@@ -359,128 +306,6 @@ fn generate_settings_meta(
         out_dir.join("generated_settings_meta.rs"),
         scope.to_string(),
     )?;
-
-    Ok(())
-}
-
-fn generate_configuration_docs(
-    registry: &SettingsRegistry,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // Build a concise markdown section summarizing settings
-    // We either replace content between markers in docs/configuration.md
-    // or append to the end if markers are not present.
-    const START_MARKER: &str = "<!-- BEGIN: AUTO-GENERATED SETTINGS -->";
-    const END_MARKER: &str = "<!-- END: AUTO-GENERATED SETTINGS -->";
-
-    let mut md = String::new();
-    md.push_str(START_MARKER);
-    md.push_str("\n\n");
-
-    // Sorted for stable output
-    let mut keys: Vec<_> = registry.options.keys().cloned().collect();
-    keys.sort();
-
-    md.push('\n');
-    // Include per-setting docs as collapsible sections
-    for key in &keys {
-        let opt = registry.options.get(key).unwrap();
-        md.push_str(&format!("### `{}`\n\n", key.replace('_', "-")));
-        // Metadata: unordered list with type, default (if any), and sources
-        md.push_str(&format!("- Type: `{}`\n", opt.typ));
-        if let Some(default) = &opt.default {
-            md.push_str(&format!("- Default: `{}`\n", default));
-        }
-        // Sources (if any)
-        let mut any_sources = false;
-        let mut sources_block = String::new();
-        if !opt.sources.cli.is_empty() {
-            any_sources = true;
-            let items = opt
-                .sources
-                .cli
-                .iter()
-                .map(|s| format!("`{}`", s))
-                .collect::<Vec<_>>()
-                .join(", ");
-            sources_block.push_str(&format!("- CLI: {}\n", items));
-        }
-        if !opt.sources.env.is_empty() {
-            any_sources = true;
-            let items = opt
-                .sources
-                .env
-                .iter()
-                .map(|s| format!("`{}`", s))
-                .collect::<Vec<_>>()
-                .join(", ");
-            sources_block.push_str(&format!("- ENV: {}\n", items));
-        }
-        if !opt.sources.git.is_empty() {
-            any_sources = true;
-            let items = opt
-                .sources
-                .git
-                .iter()
-                .map(|s| format!("`{}`", s))
-                .collect::<Vec<_>>()
-                .join(", ");
-            sources_block.push_str(&format!("- Git: {}\n", items));
-        }
-        match &opt.sources.pkl {
-            PklSource::None => {}
-            PklSource::Single(s) => {
-                if !s.starts_with("defaults.") {
-                    any_sources = true;
-                    sources_block.push_str(&format!("- Pkl: `{}`\n", s));
-                }
-            }
-            PklSource::Multiple(v) => {
-                let filtered: Vec<&String> =
-                    v.iter().filter(|s| !s.starts_with("defaults.")).collect();
-                if !filtered.is_empty() {
-                    any_sources = true;
-                    let items = filtered
-                        .iter()
-                        .map(|s| format!("`{}`", s))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    sources_block.push_str(&format!("- Pkl: {}\n", items));
-                }
-            }
-        }
-        if any_sources {
-            md.push_str("- Sources:\n");
-            // indent nested bullets
-            let nested = sources_block
-                .lines()
-                .map(|l| format!("  {}", l))
-                .collect::<Vec<_>>()
-                .join("\n");
-            md.push_str(&nested);
-            md.push('\n');
-        }
-        md.push('\n');
-        md.push_str(opt.docs.trim());
-        md.push_str("\n\n");
-    }
-    md.push_str(END_MARKER);
-
-    // Read docs/configuration.md and replace/append
-    let path = "docs/configuration.md";
-    let existing = fs::read_to_string(path).unwrap_or_else(|_| String::new());
-    let s = existing.find(START_MARKER).unwrap();
-    let e = existing.find(END_MARKER).unwrap();
-    let e_end = e + END_MARKER.len();
-    let mut new_content = String::new();
-    new_content.push_str(&existing[..s]);
-    new_content.push_str(&md);
-    new_content.push_str(&existing[e_end..]);
-
-    // Ensure exactly one newline at the end of the file
-    new_content = new_content.trim_end().to_string();
-    new_content.push('\n');
-
-    fs::write(path, new_content)?;
 
     Ok(())
 }
