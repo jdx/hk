@@ -1,4 +1,3 @@
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -100,33 +99,8 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     };
     tctx.with_files(step.shell_type(), &files);
 
-    // Track created files/dirs for cleanup on success
-    let mut created_files: Vec<PathBuf> = Vec::new();
-    let mut created_dirs: Vec<PathBuf> = Vec::new();
-
     if let Some(fixture) = &test.fixture {
         let src = PathBuf::from(fixture);
-        // Pre-scan to determine which files/dirs will be newly created
-        let mut stack: Vec<PathBuf> = vec![src.clone()];
-        while let Some(cur) = stack.pop() {
-            let read_dir = match fs::read_dir(&cur) {
-                Ok(iter) => iter,
-                Err(_) => continue,
-            };
-            for entry in read_dir.flatten() {
-                let p = entry.path();
-                let rel = p.strip_prefix(&src).unwrap_or(&p);
-                let dest = base_dir.join(rel);
-                if p.is_dir() {
-                    if !dest.exists() {
-                        created_dirs.push(dest.clone());
-                    }
-                    stack.push(p);
-                } else if !dest.exists() {
-                    created_files.push(dest.clone());
-                }
-            }
-        }
         xx::file::copy_dir_all(&src, base_dir)?;
     }
     for (rel, contents) in &test.write {
@@ -139,25 +113,6 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
                 base_dir.join(&rendered)
             }
         };
-        // Track newly created parent dirs and file
-        if let Some(mut parent) = path.parent().map(|p| p.to_path_buf()) {
-            let mut to_create: Vec<PathBuf> = Vec::new();
-            while !parent.exists() {
-                to_create.push(parent.clone());
-                if !parent.pop() {
-                    break;
-                }
-            }
-            // Only record directories that are under base_dir
-            for dir in to_create {
-                if dir.starts_with(base_dir) {
-                    created_dirs.push(dir);
-                }
-            }
-        }
-        if !path.exists() {
-            created_files.push(path.clone());
-        }
         xx::file::write(&path, contents)?;
     }
 
@@ -260,18 +215,9 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         }
     }
 
-    // Cleanup created fixtures if test passed
-    if pass {
-        // Remove files first
-        for f in &created_files {
-            let _ = fs::remove_file(f);
-        }
-        // Remove directories in reverse depth order
-        created_dirs.sort_by_key(|b| std::cmp::Reverse(b.components().count()));
-        for d in &created_dirs {
-            let _ = xx::file::remove_dir_all(d);
-        }
-    }
+    // TODO: Consider adding a user-defined "cleanup" script in hk.pkl that tests can use
+    // to clean up after themselves. The previous automatic cleanup caused race conditions
+    // when tests ran in parallel and shared parent directories.
 
     // Prepend before output to help with debugging
     let final_stdout = if before_stdout.is_empty() {
