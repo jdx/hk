@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 ktlint = new Config.Step {
     glob = "**/*.kt"
-    stage = "**/*.kt"
+    stage = "<JOB_FILES>"
     check = "ktlint {{ files }}"
     fix = "ktlint -F {{ files }}"
 }

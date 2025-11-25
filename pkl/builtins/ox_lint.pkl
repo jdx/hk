@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 ox_lint = new Config.Step {
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
-    stage = glob
+    stage = "<JOB_FILES>"
     check = "oxlint {{ files }}"
     fix = "oxlint --fix {{ files }}"
 }

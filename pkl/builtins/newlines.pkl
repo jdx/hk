@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 newlines = new Config.Step {
     glob = "**/*"
-    stage = "**/*"
+    stage = "<JOB_FILES>"
     check_first = true
     check_list_files = "hk util end-of-file-fixer {{files}}"
     fix = "hk util end-of-file-fixer --fix {{files}}"

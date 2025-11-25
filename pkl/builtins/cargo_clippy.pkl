@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 cargo_clippy = new Config.Step {
     glob = "**/*.rs"
-    stage = "**/*.rs"
+    stage = "<JOB_FILES>"
     workspace_indicator = "Cargo.toml"
     check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet"
     fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"

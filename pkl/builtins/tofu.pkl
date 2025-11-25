@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 tofu = new Config.Step {
     glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
-    stage = glob
+    stage = "<JOB_FILES>"
     check_list_files = "tofu fmt -check {{ files }}"
     fix = "tofu fmt {{ files }}"
 }

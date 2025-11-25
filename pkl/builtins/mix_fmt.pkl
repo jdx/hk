@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 mix_fmt = new Config.Step {
     glob = List("**/*.ex", "**/*.exs")
-    stage = glob
+    stage = "<JOB_FILES>"
     exclude = List("deps/**/*")
     check = "mix format --check-formatted {{files}}"
     fix = "mix format {{files}}"
