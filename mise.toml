@@ -112,6 +112,7 @@ run = "bun i && bun run docs:build"
 run = "./scripts/check-docs-sync.sh"
 
 
+
 [tasks."docs-sync"]
 run = "./scripts/check-docs-sync.sh"
 
