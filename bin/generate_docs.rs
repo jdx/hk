@@ -7,18 +7,17 @@ mod settings_toml;
 use settings_toml::{PklSource, SettingsRegistry};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let settings_content = fs::read_to_string("settings.toml")?;
-    let registry: SettingsRegistry = toml::from_str(&settings_content)?;
-
-    generate_configuration_docs(&registry)?;
+    fs::create_dir_all("docs/gen")?;
+    generate_settings_doc()?;
     println!("Generated docs/gen/settings-config.md");
 
     Ok(())
 }
 
-fn generate_configuration_docs(
-    registry: &SettingsRegistry,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn generate_settings_doc() -> Result<(), Box<dyn std::error::Error>> {
+    let settings_content = fs::read_to_string("settings.toml")?;
+    let registry: SettingsRegistry = toml::from_str(&settings_content)?;
+
     let mut md = String::new();
 
     // Sorted for stable output
@@ -113,6 +112,5 @@ fn generate_configuration_docs(
     md.push('\n');
 
     fs::write("docs/gen/settings-config.md", md)?;
-
     Ok(())
 }

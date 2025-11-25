@@ -917,4 +917,4 @@ hk config get skip_steps
 hk config sources
 ```
 
-<!--@include: ./gen/settings-confg.md-->
+<!--@include: ./gen/settings-config.md-->
