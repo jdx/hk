@@ -916,3 +916,5 @@ hk config get skip_steps
 # Show configuration source precedence
 hk config sources
 ```
+
+<!--@include: ./gen/settings-confg.md-->
