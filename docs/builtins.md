@@ -412,7 +412,7 @@ You can also customize builtins:
 - **Commands:**
   - Check: `taplo lint --check {{files}}`
 
-#### `taplo`
+#### `taplo_format`
 - **Files:** `*.toml`
 - **Features:** TOML formatter
 - **Commands:**
