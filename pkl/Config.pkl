@@ -111,7 +111,7 @@ class StepTest {
     /// What to run: "check", "fix", or "command"
     run: "check" | "fix" = "check"
     /// Files to pass to the command (used to render {{ files }})
-    files: (String | List<String>)? = List()
+    files: (String | List<String>)?
     /// Optional path to copy into a temp sandbox before running
     fixture: String?
     /// Inline files to write into the sandbox
