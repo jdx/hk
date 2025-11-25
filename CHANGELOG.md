@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.25.0](https://github.com/jdx/hk/compare/v1.24.1..v1.25.0) - 2025-11-25
+
+### 🚀 Features
+
+- add fix_smart_quotes builtin by [@joonas](https://github.com/joonas) in [#463](https://github.com/jdx/hk/pull/463)
+
+### 🐛 Bug Fixes
+
+- Use `stage = "<JOB_FILES>"` for the builtins by [@thejcannon](https://github.com/thejcannon) in [#465](https://github.com/jdx/hk/pull/465)
+- Actually makes `files` for step tests default to write keys by [@thejcannon](https://github.com/thejcannon) in [#464](https://github.com/jdx/hk/pull/464)
+- remove test cleanup to prevent race conditions by [@jdx](https://github.com/jdx) in [#468](https://github.com/jdx/hk/pull/468)
+
 ## [1.24.1](https://github.com/jdx/hk/compare/v1.24.0..v1.24.1) - 2025-11-22
 
 ### ⚡ Performance
