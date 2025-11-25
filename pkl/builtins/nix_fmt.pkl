@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 nix_fmt = new Config.Step {
     glob = "**/*.nix"
-    stage = "**/*.nix"
+    stage = "<JOB_FILES>"
     check = "nixfmt --check {{ files }}"
     fix = "nixfmt {{ files }}"
 }

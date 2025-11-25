@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 go_fumpt = new Config.Step {
     glob = "**/*.go"
-    stage = "**/*.go"
+    stage = "<JOB_FILES>"
     check = "gofumpt -l {{ files }}"
     fix = "gofumpt -w {{ files }}"
 }

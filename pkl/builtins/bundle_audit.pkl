@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 bundle_audit = new Config.Step {
     glob = "**/Gemfile.lock"
-    stage = "**/Gemfile.lock"
+    stage = "<JOB_FILES>"
     check = "bundle-audit check {{ files }}"
     fix = "bundle-audit update"
 }

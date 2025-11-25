@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 go_imports = new Config.Step {
     glob = "**/*.go"
-    stage = "**/*.go"
+    stage = "<JOB_FILES>"
     check = "goimports -l {{ files }}"
     fix = "goimports -w {{ files }}"
 }

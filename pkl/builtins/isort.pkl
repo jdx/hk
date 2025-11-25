@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 isort = new Config.Step {
     glob = "**/*.py"
-    stage = "**/*.py"
+    stage = "<JOB_FILES>"
     check = "isort --check-only {{ files }}"
     fix = "isort {{ files }}"
 }

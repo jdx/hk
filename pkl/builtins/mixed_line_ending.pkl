@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 mixed_line_ending = new Config.Step {
     glob = "**/*"
-    stage = "**/*"
+    stage = "<JOB_FILES>"
     check = "hk util mixed-line-ending {{files}}"
     fix = "hk util mixed-line-ending --fix {{files}}"
     tests {

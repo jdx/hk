@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 biome = new Config.Step {
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
-    stage = glob
+    stage = "<JOB_FILES>"
     check = "biome check {{ files }}"
     fix = "biome check --write {{ files }}"
 }

@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 jq = new Config.Step {
     glob = "**/*.json"
-    stage = "**/*.json"
+    stage = "<JOB_FILES>"
     check = "jq . {{ files }}"
     fix = "jq -S . {{ files }}"
 }

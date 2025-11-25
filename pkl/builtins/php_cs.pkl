@@ -2,7 +2,7 @@ import "../Config.pkl"
 
 php_cs = new Config.Step {
     glob = "**/*.php"
-    stage = "**/*.php"
+    stage = "<JOB_FILES>"
     check = "phpcs {{ files }}"
     fix = "phpcbf {{ files }}"
 }

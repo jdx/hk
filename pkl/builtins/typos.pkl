@@ -2,6 +2,7 @@ import "../Config.pkl"
 
 typos = new Config.Step {
     glob = "**/*"
+    stage = "<JOB_FILES>"
     check_diff = """
 output=$(typos --diff {{files}})
 [ -z "$output" ] && exit 0
