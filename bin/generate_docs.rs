@@ -150,24 +150,10 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
         .as_object()
         .expect("Expected top level properties in Config.pkl");
     for (key, value) in properties {
-        if key == "output" {
+        if key == "output" || key == "min_hk_version" {
             continue;
         }
-
-        md.push_str(&format!(
-            "## `{}: {}`\n\n",
-            key,
-            value["type"].as_str().unwrap()
-        ));
-        if let Some(default) = value["defaultValue"].as_str() {
-            if default != "null" {
-                md.push_str(&format!("Default: `{}`\n\n", default));
-            }
-        }
-        if let Some(doc) = value["docComment"].as_str() {
-            md.push_str(doc);
-            md.push_str("\n\n");
-        }
+        md.push_str(&format_property_doc(key, value, "##"));
     }
 
     // Process hooks
@@ -179,21 +165,11 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
         if key == "_type" {
             continue;
         }
-
-        md.push_str(&format!(
-            "### `<HOOK>.{}: {}`\n\n",
-            key,
-            value["type"].as_str().unwrap()
+        md.push_str(&format_property_doc(
+            &format!("<HOOK>.{}", key),
+            value,
+            "###",
         ));
-        if let Some(default) = value["defaultValue"].as_str() {
-            if default != "null" {
-                md.push_str(&format!("Default: `{}`\n\n", default));
-            }
-        }
-        if let Some(doc) = value["docComment"].as_str() {
-            md.push_str(doc);
-            md.push_str("\n\n");
-        }
     }
 
     // Process Steps
@@ -205,21 +181,11 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
         if key == "_type" {
             continue;
         }
-
-        md.push_str(&format!(
-            "### `<STEP>.{}: {}`\n\n",
-            key,
-            value["type"].as_str().unwrap()
+        md.push_str(&format_property_doc(
+            &format!("<STEP>.{}", key),
+            value,
+            "###",
         ));
-        if let Some(default) = value["defaultValue"].as_str() {
-            if default != "null" {
-                md.push_str(&format!("Default: `{}`\n\n", default));
-            }
-        }
-        if let Some(doc) = value["docComment"].as_str() {
-            md.push_str(doc);
-            md.push_str("\n\n");
-        }
     }
 
     md = md.trim().to_string();
@@ -227,4 +193,22 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
 
     fs::write("docs/gen/pkl-config.md", md)?;
     Ok(())
+}
+
+fn format_property_doc(name: &str, value: &serde_json::Value, heading_level: &str) -> String {
+    let mut doc = format!(
+        "{} `{}: {}`\n\n",
+        heading_level,
+        name,
+        value["type"]
+            .as_str()
+            .unwrap()
+            .trim_end_matches("?")
+            .replace("RegexPattern", "Regex")
+    );
+    if let Some(doc_comment) = value["docComment"].as_str() {
+        doc.push_str(doc_comment);
+        doc.push_str("\n\n");
+    }
+    doc
 }

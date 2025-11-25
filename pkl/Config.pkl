@@ -199,7 +199,6 @@ class Step {
     /// ```
     profiles: List<String>?
 
-
     /// Files to exclude from the step. Supports glob patterns and regex patterns.
     /// Files matching these patterns will be skipped.
     ///
@@ -712,9 +711,11 @@ class Hook {
 }
 
 
+/// Default: auto-detected
+///
 /// Specifies the preferred default branch to compare against when hk needs a reference (e.g., suggestions in pre-commit warnings).
-/// If unset or empty, hk attempts to detect it via `origin/HEAD`, the current branch's remote, or falls back to `main`/`master`
-/// if they exist on the remote.
+/// If unset or empty, hk attempts to detect it via `origin/HEAD`,
+/// the current branch's remote, or falls back to `main`/`master` if they exist on the remote.
 ///
 /// Examples:
 ///
