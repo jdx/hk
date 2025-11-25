@@ -659,6 +659,11 @@ If a builtin doesn't exist for your tool:
 - **Features:** Remove UTF-8 BOM
 - **Commands:** Fix: `hk util fix-byte-order-marker {{files}}`
 
+#### `fix_smart_quotes`
+- **Files:** All files
+- **Features:** Replace UTF-8 smart quotes
+- **Commands:** Fix: `hk util fix-smart-quotes {{files}}`
+
 #### `check_added_large_files`
 - **Files:** All files
 - **Features:** Prevent committing large files (default limit: 500KB)
