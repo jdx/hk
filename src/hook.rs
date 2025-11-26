@@ -792,7 +792,17 @@ impl Hook {
             }
         }
         if let Err(err) = &result {
-            error!("{self}: hook finished with error: {err:?}");
+            // ScriptFailed is handled by main.rs handle_script_failed(), skip logging here
+            // Other errors are unexpected, show full trace for debugging
+            let is_script_failed = err.chain().any(|e| {
+                matches!(
+                    e.downcast_ref::<ensembler::Error>(),
+                    Some(ensembler::Error::ScriptFailed(_))
+                )
+            });
+            if !is_script_failed {
+                error!("{self}: hook finished with error: {err:?}");
+            }
         } else {
             debug!("{self}: hook finished successfully");
         }
