@@ -108,6 +108,7 @@ run = "cargo run --bin generate-docs"
 [tasks."docs:build"]
 dir = "docs"
 run = "bun i && bun run docs:build"
+depends = ["docs:gen"]
 [tasks."docs:sync"]
 run = "./scripts/check-docs-sync.sh"
 
