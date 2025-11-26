@@ -102,9 +102,13 @@ run = ["hk fix --all", "hk fix --all --slow"]
 [tasks.docs]
 dir = "docs"
 run = "bun i && bun run docs:dev"
+depends = ["docs:gen"]
+[tasks."docs:gen"]
+run = "cargo run --bin generate-docs"
 [tasks."docs:build"]
 dir = "docs"
 run = "bun i && bun run docs:build"
+depends = ["docs:gen"]
 [tasks."docs:sync"]
 run = "./scripts/check-docs-sync.sh"
 
