@@ -47,4 +47,3 @@ EOF
     assert_output --partial "  b – start b
   b – end b"
 }
-

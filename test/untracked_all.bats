@@ -51,4 +51,3 @@ EOF
     assert_success
     assert_output --partial "files: hk.pkl root.rs src/bar.rs src/foo.rs"
 }
-

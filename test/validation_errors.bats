@@ -154,4 +154,3 @@ EOF
     assert_failure
     assert_output --partial "Step 'test-step' in hook 'pre-push' has 'stage' attribute but no 'fix' command"
 }
-

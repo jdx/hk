@@ -96,4 +96,3 @@ EOF
     refute_output --partial "s stderr:"
     refute_output --partial "s output:"
 }
-

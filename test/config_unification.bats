@@ -139,5 +139,3 @@ EOF
     [ "$status" -ne 0 ]
     echo "$output" | grep -q "should run"
 }
-
-

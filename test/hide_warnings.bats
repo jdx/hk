@@ -127,4 +127,3 @@ EOF
     assert_output --partial "FAST TEST"
     assert_output --partial "1 step was skipped due to missing profiles: slow"
 }
-

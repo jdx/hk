@@ -107,4 +107,3 @@ TS
     run bash -c "git diff --staged --name-only"
     assert_line 'file.ts'
 }
-

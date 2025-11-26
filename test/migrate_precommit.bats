@@ -697,4 +697,3 @@ PRECOMMIT
     # The actual swift-format execution would require Swift to be installed
     # and takes ~3 minutes to build, so we only verify the vendoring structure
 }
-

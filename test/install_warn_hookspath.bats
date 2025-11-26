@@ -105,4 +105,3 @@ EOF
     # Should not warn about hooksPath
     refute_output --partial "core.hooksPath"
 }
-

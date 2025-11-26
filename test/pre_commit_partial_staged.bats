@@ -111,4 +111,3 @@ TS
     run bash -lc "git diff --staged --name-only"
     assert_output ""
 }
-

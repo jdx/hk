@@ -66,4 +66,3 @@ prepare_staged_with_unstaged_newline_only_change() {
     assert_success
     assert_output --partial "No newline at end of file"
 }
-

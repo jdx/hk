@@ -34,4 +34,3 @@ EOF
     assert_output --partial "RUN"
     refute_output --partial "WILL_NOT_RUN"
 }
-

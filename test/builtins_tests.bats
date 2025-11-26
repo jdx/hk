@@ -26,4 +26,3 @@ PKL
     # At least the newlines builtin has a test
     assert_output --partial "ok - newlines :: adds newline"
 }
-

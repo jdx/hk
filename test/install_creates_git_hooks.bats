@@ -18,4 +18,3 @@ EOF
     hk install
     assert_file_exists ".git/hooks/pre-commit"
 }
-

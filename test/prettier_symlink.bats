@@ -131,4 +131,3 @@ EOF
     # Should not contain symlink errors
     refute_output --partial "symbolic link"
 }
-

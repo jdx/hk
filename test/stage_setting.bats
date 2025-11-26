@@ -150,4 +150,3 @@ EOF
     assert_success
     assert_output 'M  file.txt'
 }
-

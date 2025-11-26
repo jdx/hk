@@ -36,4 +36,3 @@ teardown() {
     assert_line --regexp '^actionlint$'
     assert_line --regexp '^prettier$'
 }
-

@@ -34,4 +34,3 @@ PKL
     assert_failure
     assert_output --partial "/test.txt"
 }
-

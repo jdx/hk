@@ -394,4 +394,3 @@ EOF
     assert_line --regexp '^\?\? web/dir1/notes\.md$'
     assert_line --regexp '^\?\? web/dir2/notes\.md$'
 }
-

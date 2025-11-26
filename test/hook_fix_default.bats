@@ -58,4 +58,3 @@ EOF
     assert_success
     assert_output "content$"
 }
-

@@ -475,4 +475,3 @@ EOF
 # which doesn't currently exist. The Rust changes to support Pattern in UserStepConfig
 # are tested implicitly through the API, but end-to-end .hkrc.pkl tests would need
 # additional schema work.
-

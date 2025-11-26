@@ -34,4 +34,3 @@ EOF
     assert_failure
     assert_output --partial "SC2086"
 }
-

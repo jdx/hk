@@ -104,4 +104,3 @@ assert_head_not_contains() {
     run test -e untracked_dir/file.txt
     assert_success
 }
-

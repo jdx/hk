@@ -250,4 +250,3 @@ PKL
     # Use exact newline preservation check
     assert_exact_newline_preservation
 }
-

@@ -175,4 +175,3 @@ PKL
   assert_line --regexp '^M  src/changed\.ts$'
   assert_line --regexp '^M  src/other\.ts$'
 }
-

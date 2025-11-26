@@ -69,4 +69,3 @@ PKL
     assert_output --partial "skipped: condition is false"
     refute_output --partial "skipped: profile"
 }
-

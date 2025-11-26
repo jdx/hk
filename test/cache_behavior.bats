@@ -199,4 +199,3 @@ EOF
     run hk validate
     assert_success
 }
-

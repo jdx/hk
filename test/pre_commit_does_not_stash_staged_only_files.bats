@@ -64,4 +64,3 @@ prepare_only_staged_change() {
     assert_output --partial "M  a.txt"
     refute_output --partial " M a.txt"
 }
-

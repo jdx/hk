@@ -36,4 +36,3 @@ EOF
     run cat test.js
     assert_output 'console.log("test");'
 }
-

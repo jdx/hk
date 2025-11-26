@@ -35,4 +35,3 @@ EOF
     assert_output --partial "B RUNS"
     refute_output --partial "A SHOULD NOT RUN"
 }
-

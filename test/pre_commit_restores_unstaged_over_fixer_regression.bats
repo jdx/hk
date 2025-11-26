@@ -83,4 +83,3 @@ TS
     run bash -lc "cat file.ts"
     assert_line "import x from \"a\";"
 }
-

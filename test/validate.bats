@@ -19,4 +19,3 @@ hooks {
 EOF
     hk validate
 }
-

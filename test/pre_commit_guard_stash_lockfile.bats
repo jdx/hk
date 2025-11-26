@@ -68,4 +68,3 @@ prepare_staged_ts_and_unstaged_lock() {
     assert_success
     assert_output ""
 }
-

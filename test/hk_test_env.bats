@@ -34,4 +34,3 @@ PKL
     run hk test --step demo
     assert_success
 }
-

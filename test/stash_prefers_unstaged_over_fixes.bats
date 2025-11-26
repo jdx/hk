@@ -69,4 +69,3 @@ assert_unstaged_preferred() {
     hk fix -v
     assert_unstaged_preferred
 }
-

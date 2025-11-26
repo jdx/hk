@@ -205,4 +205,3 @@ EOF
     assert_output --partial "test.ts"
     refute_output --partial "test.py"
 }
-

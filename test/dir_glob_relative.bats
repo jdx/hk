@@ -113,4 +113,3 @@ EOF
     assert_success
     assert_output --partial "web/js/components/a.ts"
 }
-

@@ -120,4 +120,3 @@ EOF
     assert_output --partial "TEST"
     refute_output --partial "skipped due to missing profiles"
 }
-

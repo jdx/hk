@@ -61,4 +61,3 @@ PKL
     assert_success
     assert_output "changed content$"
 }
-

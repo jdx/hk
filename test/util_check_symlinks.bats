@@ -84,4 +84,3 @@ HK
     assert_failure
     assert_output --partial "broken_link"
 }
-

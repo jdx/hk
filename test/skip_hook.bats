@@ -34,4 +34,3 @@ EOF
     assert_success
     assert_output --partial "pre-commit: skipping hook due to HK_SKIP_HOOK"
 }
-

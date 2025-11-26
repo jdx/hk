@@ -119,4 +119,3 @@ EOF
     assert_output --partial "target.txt"
     assert_output --partial "valid_link.txt"
 }
-

@@ -28,4 +28,3 @@ EOF
     assert_output --partial "foo – skipped: disabled via --skip-step foo"
     refute_output --partial "RUN"
 }
-

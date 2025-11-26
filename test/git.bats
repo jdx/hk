@@ -152,4 +152,3 @@ EOF
     # Verify the deleted file is not in the output
     refute_output --partial "src/foo.rs"
 }
-

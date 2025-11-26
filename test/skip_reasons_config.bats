@@ -264,4 +264,3 @@ EOF
   # DisabledByCli is configured, so skip message SHOULD appear
   assert_output --partial "skipped: disabled via --skip-step"
 }
-

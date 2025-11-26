@@ -120,4 +120,3 @@ EOF
     assert_output --partial "step1"
     assert_output --partial "step2"
 }
-

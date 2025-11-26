@@ -307,4 +307,3 @@ EOF
     global_line=$(echo "$output" | grep -n "Git config (global" | cut -d: -f1)
     [ "$local_line" -lt "$global_line" ]
 }
-

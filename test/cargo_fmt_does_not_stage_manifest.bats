@@ -88,4 +88,3 @@ EOF
     assert_output --partial "?? other.unstaged"
     assert_output --partial "?? untracked.txt"
 }
-

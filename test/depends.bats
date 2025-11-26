@@ -62,4 +62,3 @@ EOF
     git commit -m "initial commit"
     hk fix -v
 }
-

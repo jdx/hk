@@ -108,4 +108,3 @@ EOF
     refute_output --partial "duplicate field \`_type\`"
     refute_output --partial "failed to parse cache file"
 }
-

@@ -47,4 +47,3 @@ TS
     assert_line --regexp '^A  fooment/schemas/generated\.proto$'
     assert_line --regexp '^A  config/logging/generated/frontend_schema\.ts$'
 }
-

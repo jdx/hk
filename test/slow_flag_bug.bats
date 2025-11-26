@@ -78,4 +78,3 @@ EOF
     assert_success
     assert_output --partial "SLOW STEP RAN"
 }
-

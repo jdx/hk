@@ -116,4 +116,3 @@ HK
     run cat test.txt
     assert_output "trailing"
 }
-

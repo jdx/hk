@@ -168,4 +168,3 @@ HK
     assert_output --partial "README.md"
     assert_output --partial "readme.md"
 }
-

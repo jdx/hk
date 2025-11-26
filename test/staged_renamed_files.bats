@@ -114,4 +114,3 @@ EOF
     assert_success
     assert_output --partial "Renamed files detected"
 }
-

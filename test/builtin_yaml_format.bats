@@ -33,4 +33,3 @@ EOF
     hk run pre-commit
     assert_file_contains test.yaml 'test: 123'
 }
-

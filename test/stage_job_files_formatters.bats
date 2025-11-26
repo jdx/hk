@@ -232,4 +232,3 @@ EOF
     run bash -c "git status --porcelain untracked.json"
     assert_line '?? untracked.json'
 }
-

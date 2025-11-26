@@ -36,4 +36,3 @@ PKL
     assert_success
     assert_output --partial "ok - demo :: uses project file"
 }
-

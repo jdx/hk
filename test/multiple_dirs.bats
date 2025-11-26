@@ -165,4 +165,3 @@ EOF
     assert_output --partial "global: backend/api/controllers/main.py"
     assert_output --partial "frontend/src/components/main.js"
 }
-

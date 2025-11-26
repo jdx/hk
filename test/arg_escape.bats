@@ -24,4 +24,3 @@ EOF
     assert_failure
     assert_output --partial '[warn] $test.js'
 }
-

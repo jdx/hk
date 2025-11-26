@@ -33,4 +33,3 @@ EOF
     # The overall run is fix; it should not print a suggestion that starts with "To fix, run:"
     refute_output --partial "To fix, run:"
 }
-

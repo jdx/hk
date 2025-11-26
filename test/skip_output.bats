@@ -71,4 +71,3 @@ EOF
     assert_output --partial "foo – skipped: condition is false"
     refute_output --partial "RUN"
 }
-

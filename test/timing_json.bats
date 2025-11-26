@@ -115,4 +115,3 @@ EOF
     run hk check --all
     assert_success
 }
-

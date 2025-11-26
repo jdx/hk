@@ -85,4 +85,3 @@ EOF
     # Should not print the multi-line fix body
     refute_output --partial "echo line1"
 }
-

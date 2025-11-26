@@ -348,4 +348,3 @@ EOF
     assert_output --partial "main.py"
     refute_output --partial "test_example.py"
 }
-

@@ -166,4 +166,3 @@ TS
     assert_line "import x from \"a\";"
     refute_line --partial '// unstaged'
 }
-

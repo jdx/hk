@@ -178,4 +178,3 @@ EOF
     assert_output --partial "CORRECT: using custom-config.pkl"
     refute_output --partial "WRONG: using .config/hk.pkl"
 }
-

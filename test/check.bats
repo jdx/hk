@@ -132,4 +132,3 @@ EOF
     assert_success
     assert_output --partial "checking test.js"
 }
-

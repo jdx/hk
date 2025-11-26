@@ -136,4 +136,3 @@ EOF
     assert_success
     assert_output --partial "ok - ruff-format :: fix"
 }
-

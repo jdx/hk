@@ -189,4 +189,3 @@ EOF
     # Should show check output normally
     assert_output --partial "Check output"
 }
-

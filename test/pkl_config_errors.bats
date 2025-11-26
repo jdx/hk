@@ -82,4 +82,3 @@ EOF
     # Should show the Pkl error (not our custom messages)
     [[ "$output" =~ "Failed to evaluate Pkl config" ]] || [[ "$output" =~ "Unexpected token" ]] || fail "Should show Pkl evaluation error"
 }
-

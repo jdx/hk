@@ -33,4 +33,3 @@ EOF
     assert_failure
     assert_output --partial "parse error"
 }
-

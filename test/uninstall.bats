@@ -27,4 +27,3 @@ EOF
     assert_file_not_exists .git/hooks/pre-commit
     assert_file_not_exists .git/hooks/pre-push
 }
-

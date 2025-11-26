@@ -247,4 +247,3 @@ EOF
     [[ "$output" =~ "test_step2 – skipped:" ]] || fail "test_step2 should be skipped"
     [[ "$output" =~ "test_step3 – skipped:" ]] || fail "test_step3 should be skipped"
 }
-

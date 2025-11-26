@@ -29,4 +29,3 @@ EOF
     run git commit -m "feat: add test file"
     assert_success
 }
-

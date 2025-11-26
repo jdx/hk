@@ -93,4 +93,3 @@ EOF
     assert_output --partial "line 2"
     assert_output --partial "invalid_field"
 }
-

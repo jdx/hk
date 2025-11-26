@@ -151,4 +151,3 @@ EOF
     run git status
     assert_success
 }
-

@@ -65,4 +65,3 @@ EOF
     assert_file_exists staged_modified.out
     assert_file_exists unstaged_modified.out
 }
-

@@ -183,4 +183,3 @@ EOF
     # Should not run fixer since check exited 0 (success)
     refute_output --partial "formatted"
 }
-

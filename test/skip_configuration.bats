@@ -312,4 +312,3 @@ EOF
     echo "$output" | grep -q "STEP2 RAN"
     ! echo "$output" | grep -q "STEP3 RAN"
 }
-

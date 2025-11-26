@@ -154,4 +154,3 @@ PKL
     run git show HEAD:file.txt
     assert_output 'fixed'
 }
-

@@ -121,4 +121,3 @@ HK
     run cat test.txt
     assert_output "$(printf "line1\nline2\nline3\n")"
 }
-

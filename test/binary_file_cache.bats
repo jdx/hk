@@ -82,4 +82,3 @@ EOF
     refute_output --partial "binary1.dat"
     refute_output --partial "binary2.dat"
 }
-

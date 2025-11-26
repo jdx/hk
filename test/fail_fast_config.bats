@@ -63,4 +63,3 @@ EOF
     # With fail_fast=false, the second step should still run
     assert_output --partial "SECOND"
 }
-

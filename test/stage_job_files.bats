@@ -187,4 +187,3 @@ PKL
   # The generated file should remain untracked since it's not in job_files.
   assert_line --regexp '^\?\? src/generated\.ts$'
 }
-

@@ -29,4 +29,3 @@ EOF
     assert_file_not_exists b.txt
     assert_file_exists c.txt
 }
-

@@ -27,4 +27,3 @@ EOF
     run git commit --no-edit
     assert_output --partial "default_commit_msg"
 }
-

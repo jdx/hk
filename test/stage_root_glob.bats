@@ -111,4 +111,3 @@ EOF
     assert_success
     [[ "$output" == $'?? a.txt\n?? b.txt' ]]
 }
-
