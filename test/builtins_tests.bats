@@ -21,6 +21,7 @@ hooks {
 }
 PKL
 
+    PATH="$PATH":"$PROJECT_ROOT"/test/builtin_tool_stubs
     run hk test
     assert_success
     # At least the newlines builtin has a test
