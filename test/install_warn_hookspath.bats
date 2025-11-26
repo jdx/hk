@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -105,3 +105,4 @@ EOF
     # Should not warn about hooksPath
     refute_output --partial "core.hooksPath"
 }
+

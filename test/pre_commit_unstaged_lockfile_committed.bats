@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -77,3 +77,4 @@ prepare_repo_with_staged_ts_and_unstaged_lockfile() {
     assert_success
     assert_output ""
 }
+

@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -26,3 +26,4 @@ PKL
     # At least the newlines builtin has a test
     assert_output --partial "ok - newlines :: adds newline"
 }
+

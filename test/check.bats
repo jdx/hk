@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -132,3 +132,4 @@ EOF
     assert_success
     assert_output --partial "checking test.js"
 }
+

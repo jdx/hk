@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -85,3 +85,4 @@ EOF
     # Should not print the multi-line fix body
     refute_output --partial "echo line1"
 }
+

@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -68,3 +68,4 @@ prepare_staged_ts_and_unstaged_lock() {
     assert_success
     assert_output ""
 }
+

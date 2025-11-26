@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 # Test union semantics for exclude, skip_steps, and skip_hooks settings
 
@@ -247,3 +247,4 @@ EOF
     [[ "$output" =~ "test_step2 – skipped:" ]] || fail "test_step2 should be skipped"
     [[ "$output" =~ "test_step3 – skipped:" ]] || fail "test_step3 should be skipped"
 }
+

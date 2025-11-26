@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -95,5 +95,6 @@ prepare_repo_tree_with_mixed_states() {
     run bash -lc "grep -q '// u4' d/e/w.ts && echo ok || echo fail"
     assert_line 'ok'
 }
+
 
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -154,3 +154,4 @@ EOF
     assert_failure
     assert_output --partial "Step 'test-step' in hook 'pre-push' has 'stage' attribute but no 'fix' command"
 }
+

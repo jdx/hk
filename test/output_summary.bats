@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -96,3 +96,4 @@ EOF
     refute_output --partial "s stderr:"
     refute_output --partial "s output:"
 }
+

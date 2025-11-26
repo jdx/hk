@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -152,3 +152,4 @@ EOF
     # Verify the deleted file is not in the output
     refute_output --partial "src/foo.rs"
 }
+

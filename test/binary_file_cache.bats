@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -82,3 +82,4 @@ EOF
     refute_output --partial "binary1.dat"
     refute_output --partial "binary2.dat"
 }
+

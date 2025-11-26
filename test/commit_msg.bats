@@ -1,4 +1,4 @@
-setup() {
+#!/usr/bin/env mise run test:bats
     load 'test_helper/common_setup'
     _common_setup
 }
@@ -29,3 +29,4 @@ EOF
     run git commit -m "feat: add test file"
     assert_success
 }
+

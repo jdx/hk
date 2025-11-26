@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 setup() {
     load 'test_helper/common_setup'
     _common_setup
@@ -36,3 +36,4 @@ teardown() {
     assert_line --regexp '^actionlint$'
     assert_line --regexp '^prettier$'
 }
+

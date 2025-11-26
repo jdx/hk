@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -65,3 +65,4 @@ EOF
     assert_file_exists staged_modified.out
     assert_file_exists unstaged_modified.out
 }
+

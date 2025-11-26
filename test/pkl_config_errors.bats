@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 # Test Pkl configuration error messages
 
@@ -82,3 +82,4 @@ EOF
     # Should show the Pkl error (not our custom messages)
     [[ "$output" =~ "Failed to evaluate Pkl config" ]] || [[ "$output" =~ "Unexpected token" ]] || fail "Should show Pkl evaluation error"
 }
+

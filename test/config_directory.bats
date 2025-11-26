@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -178,3 +178,4 @@ EOF
     assert_output --partial "CORRECT: using custom-config.pkl"
     refute_output --partial "WRONG: using .config/hk.pkl"
 }
+

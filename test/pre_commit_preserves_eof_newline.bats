@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -66,3 +66,4 @@ prepare_staged_with_unstaged_newline_only_change() {
     assert_success
     assert_output --partial "No newline at end of file"
 }
+

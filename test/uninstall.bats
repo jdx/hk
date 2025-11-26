@@ -1,4 +1,4 @@
-setup() {
+#!/usr/bin/env mise run test:bats
     load 'test_helper/common_setup'
     _common_setup
 }
@@ -27,3 +27,4 @@ EOF
     assert_file_not_exists .git/hooks/pre-commit
     assert_file_not_exists .git/hooks/pre-push
 }
+

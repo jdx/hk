@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -104,3 +104,4 @@ assert_head_not_contains() {
     run test -e untracked_dir/file.txt
     assert_success
 }
+

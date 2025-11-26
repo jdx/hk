@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -119,3 +119,4 @@ EOF
     assert_output --partial "target.txt"
     assert_output --partial "valid_link.txt"
 }
+

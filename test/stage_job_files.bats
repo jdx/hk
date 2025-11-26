@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
   load 'test_helper/common_setup'
@@ -187,3 +187,4 @@ PKL
   # The generated file should remain untracked since it's not in job_files.
   assert_line --regexp '^\?\? src/generated\.ts$'
 }
+

@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 # Test caching behavior and performance
 
@@ -199,3 +199,4 @@ EOF
     run hk validate
     assert_success
 }
+

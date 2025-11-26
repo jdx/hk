@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
   load 'test_helper/common_setup'
@@ -175,3 +175,4 @@ PKL
   assert_line --regexp '^M  src/changed\.ts$'
   assert_line --regexp '^M  src/other\.ts$'
 }
+

@@ -1,4 +1,4 @@
-setup() {
+#!/usr/bin/env mise run test:bats
     load 'test_helper/common_setup'
     _common_setup
 }
@@ -51,3 +51,4 @@ EOF
     assert_success
     assert_output --partial "files: hk.pkl root.rs src/bar.rs src/foo.rs"
 }
+

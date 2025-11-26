@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -89,4 +89,5 @@ EOF
     assert_output --partial "prettier – skipped: no files to process"
     refute_output --partial "[error] No files matching the pattern"
 }
+
 

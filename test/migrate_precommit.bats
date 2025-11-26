@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -697,3 +697,4 @@ PRECOMMIT
     # The actual swift-format execution would require Swift to be installed
     # and takes ~3 minutes to build, so we only verify the vendoring structure
 }
+

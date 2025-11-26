@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 # Test for https://github.com/jdx/hk/discussions/296
 # Verifies that duplicate _type fields are not generated in JSON when using groups
@@ -108,3 +108,4 @@ EOF
     refute_output --partial "duplicate field \`_type\`"
     refute_output --partial "failed to parse cache file"
 }
+

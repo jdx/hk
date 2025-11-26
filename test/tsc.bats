@@ -1,4 +1,4 @@
-setup() {
+#!/usr/bin/env mise run test:bats
     load 'test_helper/common_setup'
     _common_setup
 }
@@ -30,3 +30,4 @@ EOF
     assert_failure
     assert_output --partial "a/src/test.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'."
 }
+

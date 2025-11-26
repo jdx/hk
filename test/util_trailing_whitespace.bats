@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -116,3 +116,4 @@ HK
     run cat test.txt
     assert_output "trailing"
 }
+

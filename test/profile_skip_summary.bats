@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -120,3 +120,4 @@ EOF
     assert_output --partial "TEST"
     refute_output --partial "skipped due to missing profiles"
 }
+

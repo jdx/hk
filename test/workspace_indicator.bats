@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
   load 'test_helper/common_setup'
@@ -57,3 +57,4 @@ EOF
   refute_output --partial "files=a/main.go main.go"
   refute_output --partial "files=b/main.go main.go"
 }
+

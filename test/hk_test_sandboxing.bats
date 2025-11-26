@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -60,3 +60,4 @@ PKL
     run hk test --step cwd_dir
     assert_success
 }
+

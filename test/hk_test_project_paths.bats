@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -36,3 +36,4 @@ PKL
     assert_success
     assert_output --partial "ok - demo :: uses project file"
 }
+

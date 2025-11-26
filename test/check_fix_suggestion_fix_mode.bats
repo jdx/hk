@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -33,3 +33,4 @@ EOF
     # The overall run is fix; it should not print a suggestion that starts with "To fix, run:"
     refute_output --partial "To fix, run:"
 }
+

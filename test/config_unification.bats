@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -139,4 +139,5 @@ EOF
     [ "$status" -ne 0 ]
     echo "$output" | grep -q "should run"
 }
+
 

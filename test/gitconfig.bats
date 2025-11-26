@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -307,3 +307,4 @@ EOF
     global_line=$(echo "$output" | grep -n "Git config (global" | cut -d: -f1)
     [ "$local_line" -lt "$global_line" ]
 }
+

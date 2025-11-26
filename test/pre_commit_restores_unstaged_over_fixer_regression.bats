@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -83,3 +83,4 @@ TS
     run bash -lc "cat file.ts"
     assert_line "import x from \"a\";"
 }
+

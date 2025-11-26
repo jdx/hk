@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
   load 'test_helper/common_setup'
@@ -264,3 +264,4 @@ EOF
   # DisabledByCli is configured, so skip message SHOULD appear
   assert_output --partial "skipped: disabled via --skip-step"
 }
+

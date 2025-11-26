@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -111,3 +111,4 @@ TS
     run bash -lc "git diff --staged --name-only"
     assert_output ""
 }
+

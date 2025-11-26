@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -47,3 +47,4 @@ TS
     assert_line --regexp '^A  fooment/schemas/generated\.proto$'
     assert_line --regexp '^A  config/logging/generated/frontend_schema\.ts$'
 }
+

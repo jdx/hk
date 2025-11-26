@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -64,3 +64,4 @@ prepare_only_staged_change() {
     assert_output --partial "M  a.txt"
     refute_output --partial " M a.txt"
 }
+

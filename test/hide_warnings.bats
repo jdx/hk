@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -127,3 +127,4 @@ EOF
     assert_output --partial "FAST TEST"
     assert_output --partial "1 step was skipped due to missing profiles: slow"
 }
+

@@ -1,4 +1,4 @@
-#!/usr/bin/env bats
+#!/usr/bin/env mise run test:bats
 
 setup() {
     load 'test_helper/common_setup'
@@ -55,3 +55,4 @@ EOF
     # The deleted file should NOT be included in the files list
     assert_file_not_contains files_list.txt "ml/py/a.py"
 }
+
