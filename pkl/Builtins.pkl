@@ -76,6 +76,7 @@ staticcheck = Builtins["builtins/staticcheck.pkl"].staticcheck
 stylelint = Builtins["builtins/stylelint.pkl"].stylelint
 stylua = Builtins["builtins/stylua.pkl"].stylua
 swiftlint = Builtins["builtins/swiftlint.pkl"].swiftlint
+taplo_format = Builtins["builtins/taplo_format.pkl"].taplo_format
 taplo = Builtins["builtins/taplo.pkl"].taplo
 terraform = Builtins["builtins/terraform.pkl"].terraform
 tf_lint = Builtins["builtins/tf_lint.pkl"].tf_lint

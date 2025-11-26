@@ -408,10 +408,16 @@ You can also customize builtins:
 
 #### `taplo`
 - **Files:** `*.toml`
+- **Features:** TOML linter
+- **Commands:**
+  - Check: `taplo lint --check {{files}}`
+
+#### `taplo_format`
+- **Files:** `*.toml`
 - **Features:** TOML formatter
 - **Commands:**
-  - Check: `taplo fmt --check {{files}}`
-  - Fix: `taplo fmt {{files}}`
+  - Check: `taplo format --check {{files}}`
+  - Fix: `taplo format {{files}}`
 
 #### `sql_fluff`
 - **Files:** `*.sql`
