@@ -640,8 +640,9 @@ impl Step {
             set.spawn(async move {
                 if let Some(reason) = &job.skip_reason {
                     step.mark_skipped(&ctx, reason)?;
-                    // Skipped jobs should still count as completed for overall progress
-                    ctx.hook_ctx.inc_completed_jobs(1);
+                    // Skipped jobs reduce the total rather than incrementing completed
+                    // This shows actual work remaining vs work done
+                    ctx.hook_ctx.dec_total_jobs(1);
                     return Ok(vec![]);
                 }
                 if job.check_first {
