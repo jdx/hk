@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 revive = new Config.Step {
+    category = "Go"
+    description = "Fast Go linter"
     glob = "**/*.go"
     check = "revive {{ files }}"
 }

@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 check_byte_order_marker = new Config.Step {
+    category = "Special Purpose"
+    description = "Detect UTF-8 BOM"
     glob = "**/*"
     check = "hk util check-byte-order-marker {{files}}"
     tests {

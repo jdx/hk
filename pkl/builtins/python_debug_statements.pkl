@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 python_debug_statements = new Config.Step {
+    category = "Python"
+    description = "Detect debug statements in Python code"
     glob = "**/*.py"
     check = "hk util python-debug-statements {{files}}"
     tests {

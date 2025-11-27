@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 sql_fluff = new Config.Step {
+    category = "Data Formats"
+    description = "SQL linter and formatter"
     glob = "**/*.sql"
     stage = "<JOB_FILES>"
     check = "sqlfluff lint {{ files }}"

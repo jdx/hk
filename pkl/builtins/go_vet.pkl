@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 go_vet = new Config.Step {
+    category = "Go"
+    description = "Go code vetting"
     glob = "**/*.go"
     check = "go vet {{ files }}"
 }

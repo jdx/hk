@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 rustfmt = new Config.Step {
+    category = "Rust"
+    description = "Rust code formatter (standalone)"
     glob = "**/*.rs"
     stage = "<JOB_FILES>"
     check = "rustfmt --check --edition 2024 {{ files }}"

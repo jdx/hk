@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 go_fumpt = new Config.Step {
+    category = "Go"
+    description = "Strict Go formatter"
     glob = "**/*.go"
     stage = "<JOB_FILES>"
     check = "gofumpt -l {{ files }}"

@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 astro = new Config.Step {
+    category = "Other Languages"
+    description = "Astro component checker"
     glob = "**/*.astro"
     check = "astro check {{ files }}"
 }

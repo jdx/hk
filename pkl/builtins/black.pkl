@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 black = new Config.Step {
+    category = "Python"
+    description = "Opinionated Python formatter"
     glob = List("**/*.py")
     stage = "<JOB_FILES>"
     check = "black --check {{ files }}"

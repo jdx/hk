@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 check_merge_conflict = new Config.Step {
+    category = "Special Purpose"
+    description = "Detect merge conflict markers"
     glob = "**/*"
     check = "hk util check-merge-conflict --assume-in-merge {{files}}"
     tests {

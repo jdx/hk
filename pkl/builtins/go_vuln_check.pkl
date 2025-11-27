@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 go_vuln_check = new Config.Step {
+    category = "Go"
+    description = "Vulnerability scanner"
     glob = "**/*.go"
     check = "govulncheck {{ files }}"
 }

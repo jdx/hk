@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 ruff = new Config.Step {
+    category = "Python"
+    description = "Fast Python linter"
     glob = List("**/*.py", "**/*.pyi")
     stage = "<JOB_FILES>"
     check = "ruff check {{ files }}"

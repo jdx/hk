@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 flake8 = new Config.Step {
+    category = "Python"
+    description = "Python style guide enforcement"
     glob = "**/*.py"
     check = "flake8 {{ files }}"
 }

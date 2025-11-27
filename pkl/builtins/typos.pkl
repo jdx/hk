@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 typos = new Config.Step {
+    category = "Special Purpose"
+    description = "Source code spell checker"
     glob = "**/*"
     stage = "<JOB_FILES>"
     check_diff = """

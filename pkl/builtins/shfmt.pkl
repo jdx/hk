@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 shfmt = new Config.Step {
+    category = "Shell"
+    description = "Shell formatter"
     batch = true
     glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
     stage = "<JOB_FILES>"

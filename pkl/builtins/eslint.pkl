@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 eslint = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "Pluggable JavaScript linter"
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
     stage = "<JOB_FILES>"
     batch = true

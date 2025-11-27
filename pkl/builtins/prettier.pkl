@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 prettier = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "Opinionated code formatter"
     glob = List("**/*.js", "**/*.jsx", "**/*.mjs", "**/*.cjs", "**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts", "**/*.css", "**/*.scss", "**/*.less", "**/*.html", "**/*.json", "**/*.json5", "**/*.jsonc", "**/*.yaml", "**/*.yml", "**/*.markdown", "**/*.markdown.mdx", "**/*.md", "**/*.graphql", "**/*.handlebars", "**/*.svelte", "**/*.astro", "**/*.htmlangular", "**/*.vue")
     stage = "<JOB_FILES>"
     batch = true

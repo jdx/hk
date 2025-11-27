@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 no_commit_to_branch = new Config.Step {
+    category = "Special Purpose"
+    description = "Prevent direct commits to protected branches"
     check = "hk util no-commit-to-branch"
     tests {
         ["passes on feature branch"] {

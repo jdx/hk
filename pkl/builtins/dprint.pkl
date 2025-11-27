@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 dprint = new Config.Step {
+    category = "Other Languages"
+    description = "Pluggable code formatter"
     glob = "**/*"
     stage = "<JOB_FILES>"
     check = "dprint check --allow-no-files {{ files }}"

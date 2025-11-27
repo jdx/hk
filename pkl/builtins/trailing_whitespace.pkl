@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 trailing_whitespace = new Config.Step {
+    category = "Special Purpose"
+    description = "Detect and remove trailing whitespace"
     glob = "**/*"
     stage = "<JOB_FILES>"
     check_list_files = "hk util trailing-whitespace {{files}}"

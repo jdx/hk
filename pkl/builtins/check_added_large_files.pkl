@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 check_added_large_files = new Config.Step {
+    category = "Special Purpose"
+    description = "Prevent committing large files"
     glob = "**/*"
     check = "hk util check-added-large-files {{files}}"
     tests {

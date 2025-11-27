@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 brakeman = new Config.Step {
+    category = "Ruby"
+    description = "Security scanner for Rails"
     glob = List("**/*.rb")
     check = "brakeman -q -w2 {{ files }}"
 }

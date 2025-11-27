@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 pkl = new Config.Step {
+    category = "Configuration"
+    description = "Pkl configuration language"
     glob = "**/*.pkl"
     check = "pkl eval {{files}} >/dev/null"
 }

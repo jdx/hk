@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 newlines = new Config.Step {
+    category = "Special Purpose"
+    description = "Ensure files end with newline"
     glob = "**/*"
     stage = "<JOB_FILES>"
     check_first = true

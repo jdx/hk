@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 sort_package_json = new Config.Step {
+    category = "Configuration"
+    description = "Sort package.json keys"
     glob = "**/package.json"
     stage = "<JOB_FILES>"
     check = "sort-package-json --check {{ files }}"

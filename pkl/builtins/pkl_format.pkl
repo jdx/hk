@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 pkl_format = new Config.Step {
+    category = "Configuration"
+    description = "Pkl formatter"
     glob = "**/*.pkl"
     stage = "<JOB_FILES>"
     check_list_files = "pkl format --diff-name-only {{ files }}"

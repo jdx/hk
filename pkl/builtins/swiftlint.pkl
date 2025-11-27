@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 swiftlint = new Config.Step {
+    category = "Other Languages"
+    description = "Swift style and conventions"
     glob = "**/*.swift"
     stage = "<JOB_FILES>"
     check = "swiftlint lint {{ files }}"

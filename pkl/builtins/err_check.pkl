@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 err_check = new Config.Step {
+    category = "Go"
+    description = "Error handling checker"
     glob = "**/*.go"
     check = "errcheck {{ files }}"
 }

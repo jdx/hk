@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 cargo_clippy = new Config.Step {
+    category = "Rust"
+    description = "Rust linter"
     glob = "**/*.rs"
     stage = "<JOB_FILES>"
     workspace_indicator = "Cargo.toml"

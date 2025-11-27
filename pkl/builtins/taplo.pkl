@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 taplo = new Config.Step {
+    category = "Data Formats"
+    description = "TOML linter"
     glob = "**/*.toml"
     check = "taplo lint {{ files }}"
     tests {

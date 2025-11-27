@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 luacheck = new Config.Step {
+    category = "Other Languages"
+    description = "Lua linter"
     glob = "**/*.lua"
     check = "luacheck {{ files }}"
 }

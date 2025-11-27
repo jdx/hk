@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 isort = new Config.Step {
+    category = "Python"
+    description = "Python import sorter"
     glob = "**/*.py"
     stage = "<JOB_FILES>"
     check = "isort --check-only {{ files }}"
