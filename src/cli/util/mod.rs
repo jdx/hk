@@ -1,6 +1,7 @@
 mod check_added_large_files;
 mod check_byte_order_marker;
 mod check_case_conflict;
+mod check_conventional_commit;
 mod check_executables_have_shebangs;
 mod check_merge_conflict;
 mod check_symlinks;
@@ -17,6 +18,7 @@ mod trailing_whitespace;
 pub use check_added_large_files::CheckAddedLargeFiles;
 pub use check_byte_order_marker::CheckByteOrderMarker;
 pub use check_case_conflict::CheckCaseConflict;
+pub use check_conventional_commit::CheckConventionalCommit;
 pub use check_executables_have_shebangs::CheckExecutablesHaveShebangs;
 pub use check_merge_conflict::CheckMergeConflict;
 pub use check_symlinks::CheckSymlinks;
@@ -47,6 +49,8 @@ enum UtilCommands {
     CheckByteOrderMarker(CheckByteOrderMarker),
     /// Check for case-insensitive filename conflicts
     CheckCaseConflict(CheckCaseConflict),
+    /// Check for conventional commit message
+    CheckConventionalCommit(CheckConventionalCommit),
     /// Check that executable files have shebangs
     CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),
     /// Check for merge conflict markers
@@ -79,6 +83,7 @@ impl Util {
             UtilCommands::CheckAddedLargeFiles(cmd) => cmd.run().await,
             UtilCommands::CheckByteOrderMarker(cmd) => cmd.run().await,
             UtilCommands::CheckCaseConflict(cmd) => cmd.run().await,
+            UtilCommands::CheckConventionalCommit(cmd) => cmd.run().await,
             UtilCommands::CheckExecutablesHaveShebangs(cmd) => cmd.run().await,
             UtilCommands::CheckMergeConflict(cmd) => cmd.run().await,
             UtilCommands::CheckSymlinks(cmd) => cmd.run().await,
