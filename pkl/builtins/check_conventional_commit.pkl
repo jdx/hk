@@ -1,0 +1,5 @@
+import "../Config.pkl"
+
+check_conventional_commit = new Config.Step {
+    check = "hk util check-conventional-commit {{commit_msg_file}}"
+}
