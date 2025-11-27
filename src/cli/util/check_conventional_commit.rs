@@ -50,13 +50,13 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
     let mut parts = title.splitn(2, ":");
 
     // Ensure commit type is provided and isn't an empty string
-    let prefix = if let Some(prefix) = parts.next()
-        && !prefix.is_empty()
-    {
-        prefix
-    } else {
+    let Some(prefix) = parts.next() else {
         return Err(eyre::eyre!("Missing commit type"));
     };
+    if prefix.is_empty() {
+        return Err(eyre::eyre!("Missing commit type"));
+    }
+
     let mut type_and_scope = prefix.trim_end_matches('!').splitn(2, '(');
     let Some(commit_type) = type_and_scope.next() else {
         return Err(eyre::eyre!("Missing commit type"));
@@ -66,10 +66,10 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
         return Err(eyre::eyre!("Invalid commit type: '{commit_type}'"));
     }
 
-    if let Some(scope) = type_and_scope.next()
-        && !scope.ends_with(')')
-    {
-        return Err(eyre::eyre!("Invalid scope, missing closing parentheses"));
+    if let Some(scope) = type_and_scope.next() {
+        if !scope.ends_with(')') {
+            return Err(eyre::eyre!("Invalid scope, missing closing parentheses"));
+        }
     }
 
     // Ensure description has been provided and isn't an empty string
