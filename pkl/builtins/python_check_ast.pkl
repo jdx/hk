@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 python_check_ast = new Config.Step {
+    category = "Python"
+    description = "Validate Python syntax by parsing the AST"
     glob = "**/*.py"
     check = "hk util python-check-ast {{files}}"
     tests {

@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 tsc = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "TypeScript type checker"
     workspace_indicator = "tsconfig.json"
     glob = List("**/*.ts", "**/*.tsx")
     check = "tsc --noEmit -p {{workspace_indicator}}"

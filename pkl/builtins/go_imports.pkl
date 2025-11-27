@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 go_imports = new Config.Step {
+    category = "Go"
+    description = "Go import management"
     glob = "**/*.go"
     stage = "<JOB_FILES>"
     check = "goimports -l {{ files }}"

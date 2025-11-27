@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 tofu = new Config.Step {
+    category = "Infrastructure"
+    description = "OpenTofu formatter"
     glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
     stage = "<JOB_FILES>"
     check_list_files = "tofu fmt -check {{ files }}"

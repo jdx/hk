@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 yq = new Config.Step {
+    category = "Data Formats"
+    description = "YAML processor"
     glob = "**/*.yaml"
     stage = "<JOB_FILES>"
     check = "yq {{ files }}"

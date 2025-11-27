@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 ox_lint = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "Oxidation compiler linter"
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
     stage = "<JOB_FILES>"
     check = "oxlint {{ files }}"

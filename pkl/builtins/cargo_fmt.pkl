@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 cargo_fmt = new Config.Step {
+    category = "Rust"
+    description = "Rust code formatter"
     glob = "**/*.rs"
     stage = "<JOB_FILES>"
     workspace_indicator = "Cargo.toml"

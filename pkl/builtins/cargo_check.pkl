@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 cargo_check = new Config.Step {
+    category = "Rust"
+    description = "Fast Rust type checking"
     glob = "**/*.rs"
     check = "cargo check -q"
     env {

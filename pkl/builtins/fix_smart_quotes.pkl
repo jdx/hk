@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 fix_smart_quotes = new Config.Step {
+    category = "Special Purpose"
+    description = "Replace smart quotes with regular quotes"
     glob = "**/*"
     fix = "hk util fix-smart-quotes {{files}}"
     stage = glob

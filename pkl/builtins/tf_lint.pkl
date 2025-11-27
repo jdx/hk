@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 tf_lint = new Config.Step {
+    category = "Infrastructure"
+    description = "Terraform linter"
     glob = "**/*.tf"
     stage = "<JOB_FILES>"
     check = "tflint"

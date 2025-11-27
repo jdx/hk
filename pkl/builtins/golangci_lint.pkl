@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 golangci_lint = new Config.Step {
+    category = "Go"
+    description = "Go meta-linter"
     glob = "**/*.go"
     stage = "<JOB_FILES>"
     check = "golangci-lint run --fix=false {{ files }}"

@@ -147,6 +147,12 @@ impl<'de> Deserialize<'de> for Pattern {
 pub struct Step {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub _type: Option<String>,
+    /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// Human-readable description of the step for documentation
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     #[serde(default)]
     pub name: String,
     pub profiles: Option<Vec<String>>,

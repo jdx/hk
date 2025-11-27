@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 yamllint = new Config.Step {
+    category = "Data Formats"
+    description = "YAML linter"
     glob = List("**/*.yml", "**/*.yaml")
     check = "yamllint {{ files }}"
 }

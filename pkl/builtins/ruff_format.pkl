@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 ruff_format = new Config.Step {
+    category = "Python"
+    description = "Fast Python formatter (part of ruff)"
     glob = List("**/*.py", "**/*.pyi")
     stage = "<JOB_FILES>"
     check = "ruff format --force-exclude --check {{ files }}"

@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 sorbet = new Config.Step {
+    category = "Ruby"
+    description = "Type checker for Ruby"
     glob = "**/*.rb"
     check = "srb tc {{ files }}"
 }

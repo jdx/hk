@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 pylint = new Config.Step {
+    category = "Python"
+    description = "Python code analysis"
     glob = "**/*.py"
     check = "pylint {{ files }}"
 }

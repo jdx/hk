@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 mix_fmt = new Config.Step {
+    category = "Elixir"
+    description = "Format Elixir with Mix"
     glob = List("**/*.ex", "**/*.exs")
     stage = "<JOB_FILES>"
     exclude = List("deps/**/*")

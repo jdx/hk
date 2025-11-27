@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 jq = new Config.Step {
+    category = "Data Formats"
+    description = "JSON processor"
     glob = "**/*.json"
     stage = "<JOB_FILES>"
     check = "jq . {{ files }}"

@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 standard_js = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "JavaScript Standard Style"
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
     stage = "<JOB_FILES>"
     check = "standard {{ files }}"

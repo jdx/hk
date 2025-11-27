@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 clang_format = new Config.Step {
+    category = "Other Languages"
+    description = "C/C++ formatter"
     glob = List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
     stage = "<JOB_FILES>"
     check = "clang-format --dry-run -Werror {{ files }}"

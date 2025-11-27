@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 go_fmt = new Config.Step {
+    category = "Go"
+    description = "Go formatter"
     glob = "**/*.go"
     stage = "<JOB_FILES>"
     check_list_files = """

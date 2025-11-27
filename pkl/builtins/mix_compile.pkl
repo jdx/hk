@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 mix_compile = new Config.Step {
+    category = "Elixir"
+    description = "Compile Elixir with Mix"
     glob = "**/*.ex"
     exclude = List("deps/**/*")
     check = "mix compile --warnings-as-errors --strict-errors {{files}}"

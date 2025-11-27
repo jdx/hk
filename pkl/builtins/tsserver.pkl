@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 tsserver = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "TypeScript language server diagnostics"
     glob = List("**/*.ts", "**/*.tsx")
     check = "tsc-files --noEmit {{ files }}"
 }

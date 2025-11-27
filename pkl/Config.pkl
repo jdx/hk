@@ -18,6 +18,10 @@ function Regex(pattern: String): RegexPattern = Types.Regex(pattern)
 
 class Step {
     _type = "step"
+    /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
+    category: String?
+    /// Human-readable description of the step for documentation
+    description: String?
     /// Which profiles (HK_PROFILES) need to be active for the step to run
     profiles: List<String>?
 

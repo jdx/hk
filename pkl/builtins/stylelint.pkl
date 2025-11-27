@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 stylelint = new Config.Step {
+    category = "CSS"
+    description = "CSS linter"
     glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")
     stage = "<JOB_FILES>"
     check = "stylelint {{ files }}"

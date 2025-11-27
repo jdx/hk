@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 ktlint = new Config.Step {
+    category = "Other Languages"
+    description = "Kotlin linter and formatter"
     glob = "**/*.kt"
     stage = "<JOB_FILES>"
     check = "ktlint {{ files }}"

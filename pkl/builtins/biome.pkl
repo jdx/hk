@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 biome = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "Fast formatter and linter"
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
     stage = "<JOB_FILES>"
     check = "biome check {{ files }}"

@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 detect_private_key = new Config.Step {
+    category = "Special Purpose"
+    description = "Detect accidentally committed private keys"
     glob = "**/*"
     check = "hk util detect-private-key {{files}}"
     tests {

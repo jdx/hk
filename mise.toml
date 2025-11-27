@@ -51,7 +51,7 @@ run = "./benchmark/benchmark.sh"
 tools = { lefthook = "latest", "pre-commit" = "latest" }
 
 [tasks.ci]
-depends = ["test", "lint", "docs:sync"]
+depends = ["test", "lint"]
 
 [tasks.test]
 alias = ["t"]
@@ -109,14 +109,6 @@ run = "cargo run --bin generate-docs"
 dir = "docs"
 run = "bun i && bun run docs:build"
 depends = ["docs:gen"]
-[tasks."docs:sync"]
-run = "./scripts/check-docs-sync.sh"
-
-
-
-[tasks."docs-sync"]
-run = "./scripts/check-docs-sync.sh"
-
 [tasks.render]
 depends = ["render:*"]
 

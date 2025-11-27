@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 fasterer = new Config.Step {
+    category = "Ruby"
+    description = "Performance suggestions"
     glob = "**/*.rb"
     check = "fasterer {{ files }}"
 }

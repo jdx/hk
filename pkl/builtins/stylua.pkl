@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 stylua = new Config.Step {
+    category = "Other Languages"
+    description = "Lua formatter"
     glob = "**/*.lua"
     stage = "<JOB_FILES>"
     check = "stylua --check {{ files }}"

@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 xo = new Config.Step {
+    category = "JavaScript/TypeScript"
+    description = "JavaScript/TypeScript linter with great defaults"
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
     stage = "<JOB_FILES>"
     check = "xo {{ files }}"

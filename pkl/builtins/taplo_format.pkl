@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 taplo_format = new Config.Step {
+    category = "Data Formats"
+    description = "TOML formatter"
     glob = "**/*.toml"
     stage = "<JOB_FILES>"
     check = "taplo format --check {{ files }}"

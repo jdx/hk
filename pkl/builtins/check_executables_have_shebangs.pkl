@@ -1,6 +1,8 @@
 import "../Config.pkl"
 
 check_executables_have_shebangs = new Config.Step {
+    category = "Special Purpose"
+    description = "Verify executable files have shebang lines"
     glob = "**/*"
     check = "hk util check-executables-have-shebangs {{files}}"
     tests {
