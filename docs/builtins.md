@@ -433,6 +433,13 @@ You can also customize builtins:
 - **Features:** Pkl configuration language
 - **Command:** `pkl eval {{files}}`
 
+#### `pkl_format`
+- **Files:** `*.pkl`
+- **Features:** Pkl formatter (requires pkl 0.30+)
+- **Commands:**
+  - Check: `pkl format --diff-name-only {{files}}`
+  - Fix: `pkl format --write {{files}}`
+
 #### `sort_package_json`
 - **Files:** `package.json`
 - **Features:** Sort package.json keys

@@ -13,7 +13,8 @@ cargo_fmt = Builtins["builtins/cargo_fmt.pkl"].cargo_fmt
 check_added_large_files = Builtins["builtins/check_added_large_files.pkl"].check_added_large_files
 check_byte_order_marker = Builtins["builtins/check_byte_order_marker.pkl"].check_byte_order_marker
 check_case_conflict = Builtins["builtins/check_case_conflict.pkl"].check_case_conflict
-check_executables_have_shebangs = Builtins["builtins/check_executables_have_shebangs.pkl"].check_executables_have_shebangs
+check_executables_have_shebangs =
+  Builtins["builtins/check_executables_have_shebangs.pkl"].check_executables_have_shebangs
 check_merge_conflict = Builtins["builtins/check_merge_conflict.pkl"].check_merge_conflict
 check_symlinks = Builtins["builtins/check_symlinks.pkl"].check_symlinks
 clang_format = Builtins["builtins/clang_format.pkl"].clang_format
@@ -55,6 +56,7 @@ nixpkgs_format = Builtins["builtins/nixpkgs_format.pkl"].nixpkgs_format
 ox_lint = Builtins["builtins/ox_lint.pkl"].ox_lint
 php_cs = Builtins["builtins/php_cs.pkl"].php_cs
 pkl = Builtins["builtins/pkl.pkl"].pkl
+pkl_format = Builtins["builtins/pkl_format.pkl"].pkl_format
 prettier = Builtins["builtins/prettier.pkl"].prettier
 pylint = Builtins["builtins/pylint.pkl"].pylint
 python_check_ast = Builtins["builtins/python_check_ast.pkl"].python_check_ast
