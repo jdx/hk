@@ -80,19 +80,19 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
         return Err(eyre::eyre!("Missing description"));
     }
 
-    return Ok(true);
+    Ok(true)
 }
 
 fn check_commit_type(commit_type: &str, allowed_types: &[String]) -> bool {
-    return allowed_types.contains(&commit_type.to_string());
+    allowed_types.contains(&commit_type.to_string())
 }
 
 fn default_allowed_types() -> String {
-    return [
+    [
         "build", "chore", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "style",
         "test",
     ]
-    .join(",");
+    .join(",")
 }
 
 #[cfg(test)]
