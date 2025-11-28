@@ -1,5 +1,7 @@
 import "../Config.pkl"
 
 check_conventional_commit = new Config.Step {
+    category = "Special Purpose"
+    description = "Verify commit message matches conventional commits formatting"
     check = "hk util check-conventional-commit {{commit_msg_file}}"
 }
