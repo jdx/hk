@@ -2285,6 +2285,47 @@
             "hidden_aliases": [],
             "examples": []
           },
+          "check-conventional-commit": {
+            "full_cmd": ["util", "check-conventional-commit"],
+            "usage": "util check-conventional-commit [--allowed-types… <ALLOWED_TYPES>] <COMMIT_MSG_FILE>",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "COMMIT_MSG_FILE",
+                "usage": "<COMMIT_MSG_FILE>",
+                "help": "Commit message file to check",
+                "help_first_line": "Commit message file to check",
+                "required": true,
+                "double_dash": "Optional",
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "allowed-types",
+                "usage": "--allowed-types… <ALLOWED_TYPES>",
+                "short": [],
+                "long": ["allowed-types"],
+                "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "ALLOWED_TYPES",
+                  "usage": "<ALLOWED_TYPES>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for conventional commit message",
+            "name": "check-conventional-commit",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
           "check-executables-have-shebangs": {
             "full_cmd": ["util", "check-executables-have-shebangs"],
             "usage": "util check-executables-have-shebangs <FILES>…",
@@ -2815,7 +2856,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.25.0",
+  "version": "1.26.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

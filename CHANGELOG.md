@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.26.0](https://github.com/jdx/hk/compare/v1.25.0..v1.26.0) - 2025-11-28
+
+### 🚀 Features
+
+- Split `taplo` into `taplo` and `taplo_format` by [@thejcannon](https://github.com/thejcannon) in [#466](https://github.com/jdx/hk/pull/466)
+- add pkl_format builtin for pkl 0.30 formatter by [@jdx](https://github.com/jdx) in [#475](https://github.com/jdx/hk/pull/475)
+- add check-conventional-commit utility and built-in by [@joonas](https://github.com/joonas) in [#477](https://github.com/jdx/hk/pull/477)
+
+### 🐛 Bug Fixes
+
+- Fix docs build GHA by [@thejcannon](https://github.com/thejcannon) in [#471](https://github.com/jdx/hk/pull/471)
+- improve progress bar accuracy for skipped steps and OSC alignment by [@jdx](https://github.com/jdx) in [#472](https://github.com/jdx/hk/pull/472)
+- cleaner error output for command failures by [@jdx](https://github.com/jdx) in [#474](https://github.com/jdx/hk/pull/474)
+
+### 📚 Documentation
+
+- Generate `configuration` docs from `settings.toml` in-build by [@thejcannon](https://github.com/thejcannon) in [#461](https://github.com/jdx/hk/pull/461)
+- generate builtins docs from Pkl instead of manual sync by [@jdx](https://github.com/jdx) in [#476](https://github.com/jdx/hk/pull/476)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action digest to 146a281 by [@renovate[bot]](https://github.com/renovate[bot]) in [#479](https://github.com/jdx/hk/pull/479)
+- update anthropics/claude-code-action digest to a7e4c51 by [@renovate[bot]](https://github.com/renovate[bot]) in [#478](https://github.com/jdx/hk/pull/478)
+
 ## [1.25.0](https://github.com/jdx/hk/compare/v1.24.1..v1.25.0) - 2025-11-25
 
 ### 🚀 Features

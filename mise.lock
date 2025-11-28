@@ -63,6 +63,11 @@ url = "https://github.com/orhun/git-cliff/releases/download/v2.10.0/git-cliff-2.
 version = "2.12.0"
 backend = "ubi:hadolint/hadolint"
 
+[tools.hadolint.platforms.linux-x64]
+checksum = "sha256:56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010"
+size = 2426420
+url = "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"
+
 [tools.hadolint.platforms.linux-x64-hadolint]
 checksum = "blake3:35f56b2a62d2a03084500dd1a6de5fd56ac35219d29f45e915940add0da39b84"
 
@@ -164,6 +169,11 @@ checksum = "blake3:dda081f041dedece533bf343f83422af6d478742fcb7b09f8875b787f4829
 [[tools.swiftlint]]
 version = "0.59.1"
 backend = "asdf:swiftlint"
+
+[tools.swiftlint.platforms.linux-x64]
+checksum = "blake3:a0bd5d2a234208b230a33cfe0bbaeb151764635b7ec26ebb7ad99a724c27cbf0"
+size = 30049052
+url = "https://github.com/realm/SwiftLint/releases/download/0.59.1/swiftlint_linux.zip"
 
 [tools.swiftlint.platforms.macos-arm64]
 checksum = "blake3:6164196a72866dbd8b324acd6fc73099e2d128d1a996b6807b8bae28f18176f1"
