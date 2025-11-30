@@ -1,0 +1,10 @@
+import "../Config.pkl"
+
+mise = new Config.Step {
+    category = "Infrastructure"
+    description = "mise-en-place's built-in formatter and linter"
+    glob = "**/*.mise.*.toml"
+    batch = true
+    check = "mise fmt --check"
+    fix = "mise fmt"
+}
