@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-newlines = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Ensure files end with newline"
+}
+newlines = new Config.Step {
     glob = "**/*"
     stage = "<JOB_FILES>"
     check_first = true

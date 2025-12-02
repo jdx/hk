@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-terraform = new Config.Step {
+@Builtins.meta {
     category = "Infrastructure"
     description = "Terraform formatter"
+}
+terraform = new Config.Step {
     glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
     stage = "<JOB_FILES>"
     check_list_files = "terraform fmt -check {{ files }}"

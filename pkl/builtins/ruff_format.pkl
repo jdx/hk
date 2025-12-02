@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-ruff_format = new Config.Step {
+@Builtins.meta {
     category = "Python"
     description = "Fast Python formatter (part of ruff)"
+}
+ruff_format = new Config.Step {
     glob = List("**/*.py", "**/*.pyi")
     stage = "<JOB_FILES>"
     check = "ruff format --force-exclude --check {{ files }}"

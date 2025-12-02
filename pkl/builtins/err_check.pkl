@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-err_check = new Config.Step {
+@Builtins.meta {
     category = "Go"
     description = "Error handling checker"
+}
+err_check = new Config.Step {
     glob = "**/*.go"
     check = "errcheck {{ files }}"
 }

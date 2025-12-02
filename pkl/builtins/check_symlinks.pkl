@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-check_symlinks = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Detect broken symlinks"
+}
+check_symlinks = new Config.Step {
     glob = "**/*"
     allow_symlinks = true
     check = "hk util check-symlinks {{files}}"

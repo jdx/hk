@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-standard_rb = new Config.Step {
+@Builtins.meta {
     category = "Ruby"
     description = "Ruby Standard Style"
+}
+standard_rb = new Config.Step {
     glob = "**/*.rb"
     stage = "<JOB_FILES>"
     check = "standardrb {{ files }}"

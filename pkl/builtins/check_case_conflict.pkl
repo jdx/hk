@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-check_case_conflict = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Detect case-insensitive filename conflicts"
+}
+check_case_conflict = new Config.Step {
     glob = "**/*"
     check = "hk util check-case-conflict {{files}}"
     tests {

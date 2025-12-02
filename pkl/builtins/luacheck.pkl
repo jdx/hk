@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-luacheck = new Config.Step {
+@Builtins.meta {
     category = "Other Languages"
     description = "Lua linter"
+}
+luacheck = new Config.Step {
     glob = "**/*.lua"
     check = "luacheck {{ files }}"
 }

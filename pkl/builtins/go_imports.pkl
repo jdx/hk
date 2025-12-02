@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-go_imports = new Config.Step {
+@Builtins.meta {
     category = "Go"
     description = "Go import management"
+}
+go_imports = new Config.Step {
     glob = "**/*.go"
     stage = "<JOB_FILES>"
     check = "goimports -l {{ files }}"

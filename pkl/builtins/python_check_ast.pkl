@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-python_check_ast = new Config.Step {
+@Builtins.meta {
     category = "Python"
     description = "Validate Python syntax by parsing the AST"
+}
+python_check_ast = new Config.Step {
     glob = "**/*.py"
     check = "hk util python-check-ast {{files}}"
     tests {

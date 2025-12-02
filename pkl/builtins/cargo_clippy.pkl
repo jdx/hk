@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-cargo_clippy = new Config.Step {
+@Builtins.meta {
     category = "Rust"
     description = "Rust linter"
+}
+cargo_clippy = new Config.Step {
     glob = "**/*.rs"
     stage = "<JOB_FILES>"
     workspace_indicator = "Cargo.toml"

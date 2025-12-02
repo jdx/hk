@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-xmllint = new Config.Step {
+@Builtins.meta {
     category = "Data Formats"
     description = "XML validator"
+}
+xmllint = new Config.Step {
     glob = "**/*.xml"
     check = "xmllint --noout {{ files }}"
 }

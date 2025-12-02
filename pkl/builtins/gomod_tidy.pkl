@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-gomod_tidy = new Config.Step {
+@Builtins.meta {
     category = "Go"
     description = "Go module maintenance"
+}
+gomod_tidy = new Config.Step {
     glob = "**/go.mod"
     stage = "<JOB_FILES>"
     check_diff = "go mod tidy -diff"

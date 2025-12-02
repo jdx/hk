@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-jq = new Config.Step {
+@Builtins.meta {
     category = "Data Formats"
     description = "JSON processor"
+}
+jq = new Config.Step {
     glob = "**/*.json"
     stage = "<JOB_FILES>"
     check = "jq . {{ files }}"

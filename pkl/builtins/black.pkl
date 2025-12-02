@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-black = new Config.Step {
+@Builtins.meta {
     category = "Python"
     description = "Opinionated Python formatter"
+}
+black = new Config.Step {
     glob = List("**/*.py")
     stage = "<JOB_FILES>"
     check = "black --check {{ files }}"

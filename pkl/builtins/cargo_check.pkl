@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-cargo_check = new Config.Step {
+@Builtins.meta {
     category = "Rust"
     description = "Fast Rust type checking"
+}
+cargo_check = new Config.Step {
     glob = "**/*.rs"
     check = "cargo check -q"
     env {

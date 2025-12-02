@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-isort = new Config.Step {
+@Builtins.meta {
     category = "Python"
     description = "Python import sorter"
+}
+isort = new Config.Step {
     glob = "**/*.py"
     stage = "<JOB_FILES>"
     check = "isort --check-only {{ files }}"

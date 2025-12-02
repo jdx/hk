@@ -1,5 +1,13 @@
 import* "builtins/*.pkl" as Builtins
 
+class meta extends Annotation {
+    /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
+    category: String?
+
+    /// Human-readable description of the step for documentation
+    description: String?
+}
+
 actionlint = Builtins["builtins/actionlint.pkl"].actionlint
 alejandra = Builtins["builtins/alejandra.pkl"].alejandra
 astro = Builtins["builtins/astro.pkl"].astro

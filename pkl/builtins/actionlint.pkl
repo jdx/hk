@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-actionlint = new Config.Step {
+@Builtins.meta {
     category = "Infrastructure"
     description = "GitHub Actions workflow linter"
+ }
+const actionlint = new Config.Step {
     glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
     batch = true
     check = "actionlint {{ files }}"

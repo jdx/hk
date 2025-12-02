@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-go_fumpt = new Config.Step {
+@Builtins.meta {
     category = "Go"
     description = "Strict Go formatter"
+}
+go_fumpt = new Config.Step {
     glob = "**/*.go"
     stage = "<JOB_FILES>"
     check = "gofumpt -l {{ files }}"

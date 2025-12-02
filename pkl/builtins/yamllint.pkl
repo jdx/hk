@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-yamllint = new Config.Step {
+@Builtins.meta {
     category = "Data Formats"
     description = "YAML linter"
+}
+yamllint = new Config.Step {
     glob = List("**/*.yml", "**/*.yaml")
     check = "yamllint {{ files }}"
 }

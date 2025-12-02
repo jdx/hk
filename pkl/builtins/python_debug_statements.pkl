@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-python_debug_statements = new Config.Step {
+@Builtins.meta {
     category = "Python"
     description = "Detect debug statements in Python code"
+}
+python_debug_statements = new Config.Step {
     glob = "**/*.py"
     check = "hk util python-debug-statements {{files}}"
     tests {

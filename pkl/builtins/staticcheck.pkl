@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-staticcheck = new Config.Step {
+@Builtins.meta {
     category = "Go"
     description = "Go static analysis"
+}
+staticcheck = new Config.Step {
     glob = "**/*.go"
     check = "staticcheck {{ files }}"
 }

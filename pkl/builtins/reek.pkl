@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-reek = new Config.Step {
+@Builtins.meta {
     category = "Ruby"
     description = "Code smell detector"
+}
+reek = new Config.Step {
     glob = "**/*.rb"
     check = "reek {{ files }}"
 }
