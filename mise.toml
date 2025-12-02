@@ -99,6 +99,8 @@ run = ["hk check --all", "hk check --all --slow"]
 alias = ["fix", "format"]
 depends = ["build"]
 run = ["hk fix --all", "hk fix --all --slow"]
+
+
 [tasks.docs]
 dir = "docs"
 run = "bun i && bun run docs:dev"
