@@ -9,16 +9,15 @@ mod settings_toml;
 use settings_toml::{PklSource, SettingsRegistry};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    fs::create_dir_all("docs/gen")?;
-    generate_settings_doc()?;
+    generate_settings_config_doc()?;
     println!("Generated docs/gen/settings-config.md");
-    generate_builtins_doc()?;
-    println!("Generated docs/gen/builtins.md");
+    generate_pkl_config_doc()?;
+    println!("Generated docs/gen/pkl-config.md");
 
     Ok(())
 }
 
-fn generate_settings_doc() -> Result<(), Box<dyn std::error::Error>> {
+fn generate_settings_config_doc() -> Result<(), Box<dyn std::error::Error>> {
     let settings_content = fs::read_to_string("settings.toml")?;
     let registry: SettingsRegistry = toml::from_str(&settings_content)?;
 
@@ -119,112 +118,99 @@ fn generate_settings_doc() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
-    // Run pkl eval to get JSON output
+fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+
+    let reflector_path = std::env::current_dir()?.join("pkl/_reflector.pkl");
+    let reflector_uri = format!("file:{}", reflector_path.display());
+
     let output = Command::new("pkl")
-        .args(["eval", "pkl/Builtins.pkl", "--format", "json"])
+        .arg("eval")
+        .arg("pkl/Config.pkl")
+        .arg("--format")
+        .arg("json")
+        .arg("-x")
+        .arg(format!("import(\"{}\").render(module)", reflector_uri))
         .output()?;
 
     if !output.status.success() {
         return Err(format!(
-            "pkl eval failed: {}",
+            "pkl command failed: {}",
             String::from_utf8_lossy(&output.stderr)
         )
         .into());
     }
 
-    let json_str = String::from_utf8(output.stdout)?;
-    let builtins: serde_json::Value = serde_json::from_str(&json_str)?;
-
-    // Collect builtins grouped by category
-    let mut by_category: BTreeMap<String, Vec<(String, &serde_json::Value)>> = BTreeMap::new();
-
-    if let serde_json::Value::Object(map) = &builtins {
-        for (name, value) in map {
-            let category = value
-                .get("category")
-                .and_then(|v| v.as_str())
-                .unwrap_or("Uncategorized")
-                .to_string();
-            by_category
-                .entry(category)
-                .or_default()
-                .push((name.clone(), value));
-        }
-    }
-
-    // Sort builtins within each category
-    for builtins in by_category.values_mut() {
-        builtins.sort_by(|a, b| a.0.cmp(&b.0));
-    }
+    let config_json_str = String::from_utf8(output.stdout)?;
+    let config_json_str = config_json_str.replace("https://hk.jdx.dev/", "/");
+    let config_json: serde_json::Value = serde_json::from_str(&config_json_str)?;
 
     let mut md = String::new();
 
-    // Generate markdown grouped by category
-    for (category, builtins) in &by_category {
-        md.push_str(&format!("## {}\n\n", category));
-
-        for (name, value) in builtins {
-            let description = value
-                .get("description")
-                .and_then(|v| v.as_str())
-                .unwrap_or("");
-
-            // Format the builtin name with underscores replaced by hyphens for display
-            let display_name = name.replace('_', "-");
-            md.push_str(&format!("### `{}`\n\n", display_name));
-
-            if !description.is_empty() {
-                md.push_str(&format!("{}\n\n", description));
-            }
-
-            // Show glob pattern(s)
-            if let Some(glob) = value.get("glob") {
-                let glob_str = match glob {
-                    serde_json::Value::String(s) => format!("`{}`", s),
-                    serde_json::Value::Array(arr) => arr
-                        .iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| format!("`{}`", s))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    _ => String::new(),
-                };
-                if !glob_str.is_empty() {
-                    md.push_str(&format!("- **Glob:** {}\n", glob_str));
-                }
-            }
-
-            // Show check command if present (check, check_diff, or check_list_files)
-            if let Some(check) = value.get("check").and_then(|v| v.as_str()) {
-                if !check.is_empty() {
-                    md.push_str(&format!("- **Check:** `{}`\n", check));
-                }
-            } else if let Some(check_diff) = value.get("check_diff").and_then(|v| v.as_str()) {
-                if !check_diff.is_empty() {
-                    md.push_str(&format!("- **Check (diff):** `{}`\n", check_diff));
-                }
-            } else if let Some(check_list) = value.get("check_list_files").and_then(|v| v.as_str())
-            {
-                if !check_list.is_empty() {
-                    md.push_str(&format!("- **Check (list-files):** `{}`\n", check_list));
-                }
-            }
-
-            // Show fix command if present
-            if let Some(fix) = value.get("fix").and_then(|v| v.as_str()) {
-                if !fix.is_empty() {
-                    md.push_str(&format!("- **Fix:** `{}`\n", fix));
-                }
-            }
-
-            md.push('\n');
+    // Process top-level properties from moduleClass
+    let properties = config_json["moduleClass"]["properties"]
+        .as_object()
+        .expect("Expected top level properties in Config.pkl");
+    for (key, value) in properties {
+        if key == "output" || key == "min_hk_version" {
+            continue;
         }
+        md.push_str(&format_property_doc(key, value, "##"));
+    }
+
+    // Process hooks
+    md.push_str("## `hooks.<HOOK>`\n\n");
+    let properties = config_json["classes"]["Hook"]["properties"]
+        .as_object()
+        .expect("Expected Hook class in Config.pkl!");
+    for (key, value) in properties {
+        if key == "_type" {
+            continue;
+        }
+        md.push_str(&format_property_doc(
+            &format!("<HOOK>.{}", key),
+            value,
+            "###",
+        ));
+    }
+
+    // Process Steps
+    md.push_str("## `hooks.<HOOK>.steps.<STEP|GROUP>`\n\n");
+    let properties = config_json["classes"]["Step"]["properties"]
+        .as_object()
+        .expect("Expected Step class in Config.pkl");
+    for (key, value) in properties {
+        if key == "_type" {
+            continue;
+        }
+        md.push_str(&format_property_doc(
+            &format!("<STEP>.{}", key),
+            value,
+            "###",
+        ));
     }
 
     md = md.trim().to_string();
     md.push('\n');
 
-    fs::write("docs/gen/builtins.md", md)?;
+    fs::write("docs/gen/pkl-config.md", md)?;
     Ok(())
+}
+
+fn format_property_doc(name: &str, value: &serde_json::Value, heading_level: &str) -> String {
+    let mut doc = format!(
+        "{} `{}: {}`\n\n",
+        heading_level,
+        name,
+        value["type"]
+            .as_str()
+            .unwrap()
+            .trim_end_matches("?")
+            .replace("RegexPattern", "Regex")
+    );
+    if let Some(doc_comment) = value["docComment"].as_str() {
+        doc.push_str(doc_comment);
+        doc.push_str("\n\n");
+    }
+    doc
 }
