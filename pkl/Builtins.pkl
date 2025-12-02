@@ -1,5 +1,6 @@
 import* "builtins/*.pkl" as Builtins
 
+/// Internal class for annotating hk builtins for documentation generation
 class meta extends Annotation {
     /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
     category: String?
