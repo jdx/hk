@@ -105,10 +105,6 @@ backend = "npm:prettier"
 version = "16.23.1"
 backend = "npm:stylelint"
 
-[[tools."pipx:black"]]
-version = "25.11.0"
-backend = "pipx:black"
-
 [[tools.pkl]]
 version = "0.29.0"
 backend = "aqua:apple/pkl"

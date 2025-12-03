@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "25.11.0"
+tool = "pipx:black"

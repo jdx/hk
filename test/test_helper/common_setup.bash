@@ -17,6 +17,7 @@ _common_setup() {
     # Initialize a git repository
     export GIT_CONFIG_NOSYSTEM=1
     export HK_JOBS=2
+    export MISE_INSTALLS_DIR="${MISE_INSTALLS_DIR:-$HOME/.local/share/mise/installs}"
     export HOME="$TEST_TEMP_DIR"
     git config --global init.defaultBranch main
 

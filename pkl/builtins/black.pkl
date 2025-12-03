@@ -6,6 +6,42 @@ black = new Config.Step {
     glob = List("**/*.py")
     stage = "<JOB_FILES>"
     check = "black --check {{ files }}"
-    check_diff = "black --diff {{ files }}"
+    check_diff = "black --check --diff {{ files }}"
     fix = "black {{ files }}"
+    tests {
+        const local bad = "x=1"
+        const local good = "x = 1\n"
+        ["check bad file"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = bad }
+            expect {
+                code = 1
+                stderr = "1 file would be reformatted."
+            }
+        }
+        ["check good file"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = good }
+            expect {
+                code = 0
+                stderr = "1 file would be left unchanged."
+            }
+        }
+        ["fix bad file"] {
+            run = "fix"
+            write { ["{{tmp}}/test.py"] = bad }
+            expect {
+                code = 0
+                stderr = "1 file reformatted."
+            }
+        }
+        ["fix good file"] {
+            run = "fix"
+            write { ["{{tmp}}/test.py"] = good }
+            expect {
+                code = 0
+                stderr = "1 file left unchanged."
+            }
+        }
+    }
 }
