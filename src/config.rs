@@ -220,13 +220,65 @@ impl UserConfig {
     }
 }
 
+/// Get the HTTP proxy address from environment variables.
+/// Checks http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY in that order.
+fn get_http_proxy() -> Option<String> {
+    std::env::var("http_proxy")
+        .or_else(|_| std::env::var("HTTP_PROXY"))
+        .or_else(|_| std::env::var("https_proxy"))
+        .or_else(|_| std::env::var("HTTPS_PROXY"))
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
+/// Get the no_proxy list from environment variables.
+/// Checks no_proxy and NO_PROXY.
+fn get_no_proxy() -> Option<String> {
+    std::env::var("no_proxy")
+        .or_else(|_| std::env::var("NO_PROXY"))
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
 fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
     use std::process::{Command, Stdio};
 
-    // Run pkl with captured stderr to check for specific error patterns
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(format!("{bin} eval -f json {}", path.display()))
+    // Parse bin as shell words (e.g., "mise x -- pkl" -> ["mise", "x", "--", "pkl"])
+    let bin_parts = shell_words::split(bin).wrap_err("failed to parse pkl command")?;
+    let (cmd, bin_args) = bin_parts
+        .split_first()
+        .ok_or_else(|| eyre::eyre!("empty pkl command"))?;
+
+    // Build pkl command args - flags must come before the positional path argument
+    let mut args: Vec<String> = bin_args.to_vec();
+    args.extend(["eval".to_string(), "-f".to_string(), "json".to_string()]);
+
+    // Add --http-proxy if proxy env vars are set
+    // Note: pkl only supports http:// proxies, not https:// proxy addresses
+    if let Some(proxy) = get_http_proxy() {
+        // pkl requires http:// scheme and doesn't support authentication
+        if !proxy.starts_with("http://") {
+            debug!("Ignoring proxy {proxy}: pkl only supports http:// proxies");
+        } else if proxy.contains('@') {
+            debug!("Ignoring proxy {proxy}: pkl does not support proxy authentication");
+        } else {
+            args.push("--http-proxy".to_string());
+            args.push(proxy);
+        }
+    }
+
+    // Add --http-no-proxy if no_proxy env var is set
+    if let Some(no_proxy) = get_no_proxy() {
+        args.push("--http-no-proxy".to_string());
+        args.push(no_proxy);
+    }
+
+    // Add the path last (positional argument must come after flags)
+    args.push(path.display().to_string());
+
+    // Run pkl directly without shell - safer and simpler
+    let output = Command::new(cmd)
+        .args(&args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
