@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-swiftlint = new Config.Step {
+@Builtins.meta {
     category = "Other Languages"
     description = "Swift style and conventions"
+}
+swiftlint = new Config.Step {
     glob = "**/*.swift"
     stage = "<JOB_FILES>"
     check = "swiftlint lint {{ files }}"

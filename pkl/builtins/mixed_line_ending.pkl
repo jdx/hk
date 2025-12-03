@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-mixed_line_ending = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Detect and fix mixed line endings"
+}
+mixed_line_ending = new Config.Step {
     glob = "**/*"
     stage = "<JOB_FILES>"
     check = "hk util mixed-line-ending {{files}}"

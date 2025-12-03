@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-clang_format = new Config.Step {
+@Builtins.meta {
     category = "Other Languages"
     description = "C/C++ formatter"
+}
+clang_format = new Config.Step {
     glob = List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
     stage = "<JOB_FILES>"
     check = "clang-format --dry-run -Werror {{ files }}"

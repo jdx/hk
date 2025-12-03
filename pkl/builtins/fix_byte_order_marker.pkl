@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-fix_byte_order_marker = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Remove UTF-8 BOM"
+}
+fix_byte_order_marker = new Config.Step {
     glob = "**/*"
     stage = "<JOB_FILES>"
     fix = "hk util fix-byte-order-marker {{files}}"

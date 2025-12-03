@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-xo = new Config.Step {
+@Builtins.meta {
     category = "JavaScript/TypeScript"
     description = "JavaScript/TypeScript linter with great defaults"
+}
+xo = new Config.Step {
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
     stage = "<JOB_FILES>"
     check = "xo {{ files }}"

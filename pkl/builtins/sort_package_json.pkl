@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-sort_package_json = new Config.Step {
+@Builtins.meta {
     category = "Configuration"
     description = "Sort package.json keys"
+}
+sort_package_json = new Config.Step {
     glob = "**/package.json"
     stage = "<JOB_FILES>"
     check = "sort-package-json --check {{ files }}"

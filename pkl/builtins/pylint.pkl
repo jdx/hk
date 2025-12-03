@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-pylint = new Config.Step {
+@Builtins.meta {
     category = "Python"
     description = "Python code analysis"
+}
+pylint = new Config.Step {
     glob = "**/*.py"
     check = "pylint {{ files }}"
 }

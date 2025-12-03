@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-fix_smart_quotes = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Replace smart quotes with regular quotes"
+}
+fix_smart_quotes = new Config.Step {
     glob = "**/*"
     fix = "hk util fix-smart-quotes {{files}}"
     stage = glob

@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-trailing_whitespace = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Detect and remove trailing whitespace"
+}
+trailing_whitespace = new Config.Step {
     glob = "**/*"
     stage = "<JOB_FILES>"
     check_list_files = "hk util trailing-whitespace {{files}}"

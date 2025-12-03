@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-go_lines = new Config.Step {
+@Builtins.meta {
     category = "Go"
     description = "Long line fixer"
+}
+go_lines = new Config.Step {
     glob = "**/*.go"
     stage = "<JOB_FILES>"
     check = "golines --dry-run {{ files }}"

@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-erb = new Config.Step {
+@Builtins.meta {
     category = "Ruby"
     description = "ERB template linter"
+}
+erb = new Config.Step {
     glob = "**/*.erb"
     check = "erb -P -x -T - {{ files }} | ruby -c"
 }

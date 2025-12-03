@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-stylelint = new Config.Step {
+@Builtins.meta {
     category = "CSS"
     description = "CSS linter"
+}
+stylelint = new Config.Step {
     glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")
     stage = "<JOB_FILES>"
     check = "stylelint {{ files }}"

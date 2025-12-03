@@ -1,7 +1,10 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-check_conventional_commit = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Verify commit message matches conventional commits formatting"
+}
+check_conventional_commit = new Config.Step {
     check = "hk util check-conventional-commit {{commit_msg_file}}"
 }

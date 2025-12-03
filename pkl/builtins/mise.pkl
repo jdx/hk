@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-mise = new Config.Step {
+@Builtins.meta {
     category = "Infrastructure"
     description = "mise-en-place's built-in formatter and linter"
+}
+mise = new Config.Step {
     glob = List(
         "mise.toml",
         "mise.*.toml",

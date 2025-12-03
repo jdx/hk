@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-check_executables_have_shebangs = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Verify executable files have shebang lines"
+}
+check_executables_have_shebangs = new Config.Step {
     glob = "**/*"
     check = "hk util check-executables-have-shebangs {{files}}"
     tests {

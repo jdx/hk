@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-yq = new Config.Step {
+@Builtins.meta {
     category = "Data Formats"
     description = "YAML processor"
+}
+yq = new Config.Step {
     glob = "**/*.yaml"
     stage = "<JOB_FILES>"
     check = "yq {{ files }}"

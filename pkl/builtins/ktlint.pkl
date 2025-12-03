@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-ktlint = new Config.Step {
+@Builtins.meta {
     category = "Other Languages"
     description = "Kotlin linter and formatter"
+}
+ktlint = new Config.Step {
     glob = "**/*.kt"
     stage = "<JOB_FILES>"
     check = "ktlint {{ files }}"

@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-check_byte_order_marker = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Detect UTF-8 BOM"
+}
+check_byte_order_marker = new Config.Step {
     glob = "**/*"
     check = "hk util check-byte-order-marker {{files}}"
     tests {

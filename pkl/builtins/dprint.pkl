@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-dprint = new Config.Step {
+@Builtins.meta {
     category = "Other Languages"
     description = "Pluggable code formatter"
+}
+dprint = new Config.Step {
     glob = "**/*"
     stage = "<JOB_FILES>"
     check = "dprint check --allow-no-files {{ files }}"

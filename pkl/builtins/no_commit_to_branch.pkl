@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-no_commit_to_branch = new Config.Step {
+@Builtins.meta {
     category = "Special Purpose"
     description = "Prevent direct commits to protected branches"
+}
+no_commit_to_branch = new Config.Step {
     check = "hk util no-commit-to-branch"
     tests {
         ["passes on feature branch"] {

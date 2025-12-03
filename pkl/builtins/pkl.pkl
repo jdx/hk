@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-pkl = new Config.Step {
+@Builtins.meta {
     category = "Configuration"
     description = "Pkl configuration language"
+}
+pkl = new Config.Step {
     glob = "**/*.pkl"
     check = "pkl eval {{files}} >/dev/null"
 }

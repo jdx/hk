@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-pkl_format = new Config.Step {
+@Builtins.meta {
     category = "Configuration"
     description = "Pkl formatter"
+}
+pkl_format = new Config.Step {
     glob = "**/*.pkl"
     stage = "<JOB_FILES>"
     check_list_files = "pkl format --diff-name-only {{ files }}"

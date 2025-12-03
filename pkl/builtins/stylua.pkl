@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-stylua = new Config.Step {
+@Builtins.meta {
     category = "Other Languages"
     description = "Lua formatter"
+}
+stylua = new Config.Step {
     glob = "**/*.lua"
     stage = "<JOB_FILES>"
     check = "stylua --check {{ files }}"

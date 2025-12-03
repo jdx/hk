@@ -1,8 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
-taplo = new Config.Step {
+@Builtins.meta {
     category = "Data Formats"
     description = "TOML linter"
+}
+taplo = new Config.Step {
     glob = "**/*.toml"
     check = "taplo lint {{ files }}"
     tests {
