@@ -17,19 +17,16 @@ ruff_format = new Config.Step {
         ["check bad"] {
             run = "check"
             write { ["{{tmp}}/test.py"] = bad }
-            files = List("{{tmp}}/test.py")
             expect { code = 1 }
         }
         ["check good"] {
             run = "check"
             write { ["{{tmp}}/test.py"] = good }
-            files = List("{{tmp}}/test.py")
             expect { code = 0 }
         }
         ["fix bad"] {
             run = "fix"
             write { ["{{tmp}}/test.py"] = bad }
-            files = List("{{tmp}}/test.py")
             expect {
                 code = 0
                 files { ["{{tmp}}/test.py"] = good }
@@ -38,7 +35,6 @@ ruff_format = new Config.Step {
         ["fix good"] {
             run = "fix"
             write { ["{{tmp}}/test.py"] = good }
-            files = List("{{tmp}}/test.py")
             expect {
                 code = 0
                 files { ["{{tmp}}/test.py"] = good }
