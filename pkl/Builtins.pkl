@@ -54,6 +54,7 @@ jq = Builtins["builtins/jq.pkl"].jq
 ktlint = Builtins["builtins/ktlint.pkl"].ktlint
 luacheck = Builtins["builtins/luacheck.pkl"].luacheck
 markdown_lint = Builtins["builtins/markdown_lint.pkl"].markdown_lint
+mise = Builtins["builtins/mise.pkl"].mise
 mix_compile = Builtins["builtins/mix_compile.pkl"].mix_compile
 mix_fmt = Builtins["builtins/mix_fmt.pkl"].mix_fmt
 mix_test = Builtins["builtins/mix_test.pkl"].mix_test
