@@ -1,7 +1,7 @@
 #!/usr/bin/env -S mise tool-stub
 
 version = "0.13.3"
-tool = "ruff"
+tool = "aqua:astral-sh/ruff"
 
 [platforms.linux-x64]
 bin = "ruff-x86_64-unknown-linux-gnu/ruff"
