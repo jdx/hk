@@ -10,4 +10,40 @@ ktlint = new Config.Step {
     stage = "<JOB_FILES>"
     check = "ktlint {{ files }}"
     fix = "ktlint -F {{ files }}"
+    tests {
+        const local unfixable_bad = "const val fooBar = \"FOO-BAR\""
+        const local fixable_bad = "const val FOO_1  =  \"foo1\""
+        const local good = "const val FOO_1 = \"foo1\"\n"
+        ["check bad file"] {
+            run = "check"
+            write { ["{{tmp}}/Test.kt"] = fixable_bad }
+            expect { code = 1 }
+        }
+        ["check good file"] {
+            run = "check"
+            write { ["{{tmp}}/Test.kt"] = good }
+            expect { code = 0 }
+        }
+        ["fix fixable bad file"] {
+            run = "fix"
+            write { ["{{tmp}}/Test.kt"] = fixable_bad }
+            expect {
+                code = 0
+                files { ["{{tmp}}/Test.kt"] = good }
+            }
+        }
+        ["fix unfixable bad file"] {
+            run = "fix"
+            write { ["{{tmp}}/Test.kt"] = unfixable_bad }
+            expect { code = 1 }
+        }
+        ["fix good file"] {
+            run = "fix"
+            write { ["{{tmp}}/Test.kt"] = good }
+            expect {
+                code = 0
+                files { ["{{tmp}}/Test.kt"] = good }
+            }
+        }
+    }
 }
