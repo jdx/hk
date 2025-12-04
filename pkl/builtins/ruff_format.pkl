@@ -12,26 +12,37 @@ ruff_format = new Config.Step {
     check_diff = "ruff format --force-exclude --diff {{ files }}"
     fix = "ruff format --force-exclude {{ files }}"
     tests {
-        ["detects unformatted code"] {
+        const local bad = "x=1+2"
+        const local good = "x = 1 + 2\n"
+        ["check bad"] {
             run = "check"
-            write { ["{{tmp}}/test.py"] = "x=1+2\n" }
+            write { ["{{tmp}}/test.py"] = bad }
             files = List("{{tmp}}/test.py")
             expect { code = 1 }
         }
-        ["formats code"] {
+        ["check good"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = good }
+            files = List("{{tmp}}/test.py")
+            expect { code = 0 }
+        }
+        ["fix bad"] {
             run = "fix"
-            write { ["{{tmp}}/test.py"] = "x=1+2\n" }
+            write { ["{{tmp}}/test.py"] = bad }
             files = List("{{tmp}}/test.py")
             expect {
                 code = 0
-                files { ["{{tmp}}/test.py"] = "x = 1 + 2\n" }
+                files { ["{{tmp}}/test.py"] = good }
             }
         }
-        ["passes formatted code"] {
-            run = "check"
-            write { ["{{tmp}}/test.py"] = "x = 1 + 2\n" }
+        ["fix good"] {
+            run = "fix"
+            write { ["{{tmp}}/test.py"] = good }
             files = List("{{tmp}}/test.py")
-            expect { code = 0 }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.py"] = good }
+            }
         }
         ["check respects config exclude"] {
             run = "check"

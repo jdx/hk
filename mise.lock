@@ -96,15 +96,6 @@ backend = "aqua:BurntSushi/ripgrep"
 "platforms.macos-x64" = { checksum = "sha256:64811cb24e77cac3057d6c40b63ac9becf9082eedd54ca411b475b755d334882", url = "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-x86_64-apple-darwin.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:124510b94b6baa3380d051fdf4650eaa80a302c876d611e9dba0b2e18d87493a", url = "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-x86_64-pc-windows-msvc.zip"}
 
-[[tools.ruff]]
-version = "0.13.3"
-backend = "aqua:astral-sh/ruff"
-"platforms.linux-arm64" = { checksum = "sha256:4301d51fd2fbce6d4cc55613e5f8f96ee4fcb8dcaec8419023fe555575cf78f6", url = "https://github.com/astral-sh/ruff/releases/download/0.13.3/ruff-aarch64-unknown-linux-musl.tar.gz"}
-"platforms.linux-x64" = { checksum = "sha256:8d24d74171772c67366d3187b990a3dc706022aa3a631b2a612d12e362f226c7", url = "https://github.com/astral-sh/ruff/releases/download/0.13.3/ruff-x86_64-unknown-linux-musl.tar.gz"}
-"platforms.macos-arm64" = { checksum = "sha256:a170ead9a9f03527dba3d2fb3e9e445f73d9efe3584c3307f3d30c6d5f31c487", url = "https://github.com/astral-sh/ruff/releases/download/0.13.3/ruff-aarch64-apple-darwin.tar.gz"}
-"platforms.macos-x64" = { checksum = "sha256:1c3a291a595ddd08398eb1e06fba883b7d8d715bd4255af5972f858fec8b4e57", url = "https://github.com/astral-sh/ruff/releases/download/0.13.3/ruff-x86_64-apple-darwin.tar.gz"}
-"platforms.windows-x64" = { checksum = "sha256:01e7ce81e052ad8788d6a9bffbce74524d80fbf0659e6194165d1e1d3ded9f39", url = "https://github.com/astral-sh/ruff/releases/download/0.13.3/ruff-x86_64-pc-windows-msvc.zip"}
-
 [[tools.shellcheck]]
 version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
