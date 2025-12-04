@@ -92,18 +92,18 @@ version = "16.23.1"
 backend = "npm:stylelint"
 
 [[tools.pkl]]
-version = "0.29.0"
+version = "0.30.0"
 backend = "aqua:apple/pkl"
 
 [tools.pkl.platforms.linux-x64]
-checksum = "blake3:954ab61f352db192105bc3dd6daef7bd27aa847b1ea0a8f469f1f05881644864"
-size = 103994096
-url = "https://github.com/apple/pkl/releases/download/0.29.0/pkl-linux-amd64"
+checksum = "blake3:2a088f6ae2b0366bdca8307901862bf809fee2a0e2adb0516a0761ca5db96eff"
+size =  99355968
+url = "https://github.com/apple/pkl/releases/download/0.30.0/pkl-linux-amd64"
 
 [tools.pkl.platforms.macos-arm64]
-checksum = "blake3:b70836a640dc8ff41aa19f3edd7748a6ba7a281fb85335a48e59cd29c796b1ee"
-size = 104891168
-url = "https://github.com/apple/pkl/releases/download/0.29.0/pkl-macos-aarch64"
+checksum = "blake3:16f04d79683809b3e0b80b2c24529cfd3d167a373cbe35f1acb878d4cd25d55a"
+size = 97035920
+url = "https://github.com/apple/pkl/releases/download/0.30.0/pkl-macos-aarch64"
 
 [[tools.ripgrep]]
 version = "14.1.1"
