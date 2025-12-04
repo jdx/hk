@@ -1,0 +1,13 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.13.3"
+tool = "ruff"
+
+[platforms.linux-x64]
+bin = "ruff-x86_64-unknown-linux-gnu/ruff"
+
+[platforms.arm64]
+bin = "ruff-aarch64-unknown-linux-gnu/ruff"
+
+[platforms.darwin-arm64]
+bin = "ruff-aarch64-apple-darwin/ruff"
