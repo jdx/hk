@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.25.0"
+version "1.26.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -67,7 +67,7 @@ cmd config help="Configuration introspection and management" {
     long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults."
     cmd dump help="Print effective runtime settings (JSON format)" {
         long_help "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config."
-        flag --format help="Output format (json or toml)" {
+        flag --format help="Output format (json or toml)" default=json {
             arg <FORMAT> {
                 choices json toml
             }
@@ -136,11 +136,11 @@ cmd install help="Sets up git hooks to run hk" {
 }
 cmd migrate subcommand_required=#true help="Migrate from other hook managers to hk" {
     cmd pre-commit help="Migrate from pre-commit to hk" {
-        flag "-c --config" help="Path to .pre-commit-config.yaml" {
+        flag "-c --config" help="Path to .pre-commit-config.yaml" default=.pre-commit-config.yaml {
             arg <CONFIG>
         }
         flag "-f --force" help="Overwrite existing hk.pkl file"
-        flag "-o --output" help="Output path for hk.pkl" {
+        flag "-o --output" help="Output path for hk.pkl" default=hk.pkl {
             arg <OUTPUT>
         }
         flag --hk-pkl-root help="Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl" {
@@ -350,7 +350,7 @@ cmd usage hide=#true help="Generates a usage spec for the CLI" {
 }
 cmd util subcommand_required=#true help="Utility commands for file operations" {
     cmd check-added-large-files help="Check for large files being added to repository" {
-        flag --maxkb help="Maximum file size in kilobytes (default: 500)" {
+        flag --maxkb help="Maximum file size in kilobytes (default: 500)" default="500" {
             arg <MAXKB>
         }
         arg <FILES>… help="Files to check" var=#true
@@ -360,6 +360,12 @@ cmd util subcommand_required=#true help="Utility commands for file operations" {
     }
     cmd check-case-conflict help="Check for case-insensitive filename conflicts" {
         arg <FILES>… help="Files to check for case conflicts" var=#true
+    }
+    cmd check-conventional-commit help="Check for conventional commit message" {
+        flag --allowed-types var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test {
+            arg <ALLOWED_TYPES>
+        }
+        arg <COMMIT_MSG_FILE> help="Commit message file to check"
     }
     cmd check-executables-have-shebangs help="Check that executable files have shebangs" {
         arg <FILES>… help="Files to check" var=#true

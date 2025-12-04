@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.26.0](https://github.com/jdx/hk/compare/v1.25.0..v1.26.0) - 2025-12-04
+
+### 🚀 Features
+
+- Split `taplo` into `taplo` and `taplo_format` by [@thejcannon](https://github.com/thejcannon) in [#466](https://github.com/jdx/hk/pull/466)
+- add pkl_format builtin for pkl 0.30 formatter by [@jdx](https://github.com/jdx) in [#475](https://github.com/jdx/hk/pull/475)
+- add check-conventional-commit utility and built-in by [@joonas](https://github.com/joonas) in [#477](https://github.com/jdx/hk/pull/477)
+- add mise builtin by [@hisaac](https://github.com/hisaac) in [#480](https://github.com/jdx/hk/pull/480)
+- forward HTTP proxy env vars to pkl by [@jdx](https://github.com/jdx) in [#486](https://github.com/jdx/hk/pull/486)
+
+### 🐛 Bug Fixes
+
+- Fix docs build GHA by [@thejcannon](https://github.com/thejcannon) in [#471](https://github.com/jdx/hk/pull/471)
+- improve progress bar accuracy for skipped steps and OSC alignment by [@jdx](https://github.com/jdx) in [#472](https://github.com/jdx/hk/pull/472)
+- cleaner error output for command failures by [@jdx](https://github.com/jdx) in [#474](https://github.com/jdx/hk/pull/474)
+- update mise builtin glob by [@hisaac](https://github.com/hisaac) in [#482](https://github.com/jdx/hk/pull/482)
+
+### 🚜 Refactor
+
+- Remove pointless stage test by [@thejcannon](https://github.com/thejcannon) in [#484](https://github.com/jdx/hk/pull/484)
+- Move `black` from mise config to tool stub, for testing, and test the builtin by [@thejcannon](https://github.com/thejcannon) in [#483](https://github.com/jdx/hk/pull/483)
+- Move category/description to annotation by [@thejcannon](https://github.com/thejcannon) in [#485](https://github.com/jdx/hk/pull/485)
+
+### 📚 Documentation
+
+- Generate `configuration` docs from `settings.toml` in-build by [@thejcannon](https://github.com/thejcannon) in [#461](https://github.com/jdx/hk/pull/461)
+- generate builtins docs from Pkl instead of manual sync by [@jdx](https://github.com/jdx) in [#476](https://github.com/jdx/hk/pull/476)
+
+### 🧪 Testing
+
+- Stub ktlint and add tests to builtin by [@thejcannon](https://github.com/thejcannon) in [#488](https://github.com/jdx/hk/pull/488)
+- Bump pkl, fix the builtin, and add tests by [@thejcannon](https://github.com/thejcannon) in [#489](https://github.com/jdx/hk/pull/489)
+
+### 🔍 Other Changes
+
+- updated mise lockfile by [@jdx](https://github.com/jdx) in [b10d2e6](https://github.com/jdx/hk/commit/b10d2e6070c373b218379f3b13187e821c698365)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action digest to 146a281 by [@renovate[bot]](https://github.com/renovate[bot]) in [#479](https://github.com/jdx/hk/pull/479)
+- update anthropics/claude-code-action digest to a7e4c51 by [@renovate[bot]](https://github.com/renovate[bot]) in [#478](https://github.com/jdx/hk/pull/478)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#481](https://github.com/jdx/hk/pull/481)
+
+### New Contributors
+
+- @hisaac made their first contribution in [#482](https://github.com/jdx/hk/pull/482)
+
 ## [1.25.0](https://github.com/jdx/hk/compare/v1.24.1..v1.25.0) - 2025-11-25
 
 ### 🚀 Features

@@ -343,7 +343,8 @@
                   "choices": {
                     "choices": ["json", "toml"]
                   }
-                }
+                },
+                "default": "json"
               }
             ],
             "mounts": [],
@@ -762,7 +763,8 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "default": ".pre-commit-config.yaml"
               },
               {
                 "name": "force",
@@ -789,7 +791,8 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "default": "hk.pkl"
               },
               {
                 "name": "hk-pkl-root",
@@ -2224,7 +2227,8 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "default": "500"
               }
             ],
             "mounts": [],
@@ -2281,6 +2285,48 @@
             "hide": false,
             "help": "Check for case-insensitive filename conflicts",
             "name": "check-case-conflict",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "check-conventional-commit": {
+            "full_cmd": ["util", "check-conventional-commit"],
+            "usage": "util check-conventional-commit [--allowed-types… <ALLOWED_TYPES>] <COMMIT_MSG_FILE>",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "COMMIT_MSG_FILE",
+                "usage": "<COMMIT_MSG_FILE>",
+                "help": "Commit message file to check",
+                "help_first_line": "Commit message file to check",
+                "required": true,
+                "double_dash": "Optional",
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "allowed-types",
+                "usage": "--allowed-types… <ALLOWED_TYPES>",
+                "short": [],
+                "long": ["allowed-types"],
+                "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "ALLOWED_TYPES",
+                  "usage": "<ALLOWED_TYPES>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                },
+                "default": "build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test"
+              }
+            ],
+            "mounts": [],
+            "hide": false,
+            "help": "Check for conventional commit message",
+            "name": "check-conventional-commit",
             "aliases": [],
             "hidden_aliases": [],
             "examples": []
@@ -2815,7 +2861,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.25.0",
+  "version": "1.26.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
