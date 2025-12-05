@@ -36,23 +36,22 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         steps {
-            ["ruff-format"] {
+            ["whitespace"] {
                 stdin = "{{ files_list | join(sep='\\n') }}"
-                fix = "xargs ruff format"
+                fix = "xargs hk util trailing-whitespace --fix"
             }
         }
     }
 }
 EOF
-    # NB: Use `.txt` to be sure ruff didn't "find" a `.py` file.
-    echo "x=1" > file.txt
+    echo "x = 1  " > file.txt
 
     run hk fix file.txt
     assert_success
 
-    run cat file.txt
+    run cat -e file.txt
     assert_success
-    assert_output "x = 1"
+    assert_output "x = 1$"
 }
 
 @test "stdin works with xargs as prefix" {
@@ -62,50 +61,23 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         steps {
-            ["ruff-format"] {
+            ["whitespace"] {
                 stdin = "{{ files_list | join(sep='\\n') }}"
                 prefix = "xargs"
-                fix = "ruff format"
+                fix = "hk util trailing-whitespace --fix"
             }
         }
     }
 }
 EOF
-    # NB: Use `.txt` to be sure ruff didn't "find" a `.py` file.
-    echo "x=1" > file.txt
+    echo "x = 1  " > file.txt
 
     run hk fix file.txt
     assert_success
 
-    run cat file.txt
+    run cat -e file.txt
     assert_success
-    assert_output "x = 1"
-}
-
-@test "stdin works with ruff atfiles /dev/stdin" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Builtins.pkl"
-hooks {
-    ["fix"] {
-        steps {
-            ["ruff-format"] {
-                stdin = "{{ files_list | join(sep='\\n') }}"
-                fix = "ruff format @/dev/stdin"
-            }
-        }
-    }
-}
-EOF
-    # NB: Use `.txt` to be sure ruff didn't "find" a `.py` file.
-    echo "x=1" > file.txt
-
-    run hk fix file.txt
-    assert_success
-
-    run cat file.txt
-    assert_success
-    assert_output "x = 1"
+    assert_output "x = 1$"
 }
 
 @test "stdin works with hk tests" {
@@ -115,16 +87,16 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         steps {
-            ["ruff-format"] {
+            ["whitespace"] {
                 stdin = "{{ files_list | join(sep='\\n') }}"
                 prefix = "xargs"
-                fix = "ruff format"
+                fix = "hk util trailing-whitespace --fix"
                 tests {
                     ["fix"] {
                         run = "fix"
-                        write { ["{{tmp}}/a.txt"] = "x=1" }
+                        write { ["{{tmp}}/a.txt"] = "x = 1  " }
                         files = List("{{tmp}}/a.txt")
-                        expect { files { ["{{tmp}}/a.txt"] = "x = 1\n" } }
+                        expect { files { ["{{tmp}}/a.txt"] = "x = 1" } }
                     }
                 }
             }
@@ -134,5 +106,5 @@ hooks {
 EOF
     run hk test
     assert_success
-    assert_output --partial "ok - ruff-format :: fix"
+    assert_output --partial "ok - whitespace :: fix"
 }

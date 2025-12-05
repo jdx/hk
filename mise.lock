@@ -101,10 +101,6 @@ version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
 
 [[tools.swiftlint]]
-version = "latest"
-backend = "asdf:swiftlint"
-
-[[tools.swiftlint]]
 version = "0.59.1"
 backend = "asdf:swiftlint"
 
