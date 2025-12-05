@@ -8,30 +8,37 @@ import "../Config.pkl"
 ruff = new Config.Step {
     glob = List("**/*.py", "**/*.pyi")
     stage = "<JOB_FILES>"
-    check = "ruff check {{ files }}"
+    check = "ruff check --force-exclude {{ files }}"
     check_diff = "ruff check --force-exclude --diff {{ files }}"
     fix = "ruff check --force-exclude --fix {{ files }}"
     tests {
-        ["detects unused import"] {
+        const local bad = "import sys\nprint('hello')\n"
+        const local good = "print('hello')\n"
+        ["check bad"] {
             run = "check"
-            write { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
-            files = List("{{tmp}}/test.py")
+            write { ["{{tmp}}/test.py"] = bad }
             expect { code = 1 }
         }
-        ["fixes unused import"] {
+        ["check good"] {
+            run = "check"
+            write { ["{{tmp}}/test.py"] = good }
+            expect { code = 0 }
+        }
+        ["fix bad"] {
             run = "fix"
-            write { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
-            files = List("{{tmp}}/test.py")
+            write { ["{{tmp}}/test.py"] = bad }
             expect {
                 code = 0
-                files { ["{{tmp}}/test.py"] = "print('hello')\n" }
+                files { ["{{tmp}}/test.py"] = good }
             }
         }
-        ["passes clean file"] {
-            run = "check"
-            write { ["{{tmp}}/test.py"] = "print('hello')\n" }
-            files = List("{{tmp}}/test.py")
-            expect { code = 0 }
+        ["fix good"] {
+            run = "fix"
+            write { ["{{tmp}}/test.py"] = good }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.py"] = good }
+            }
         }
         ["check respects config exclude"] {
             run = "check"
