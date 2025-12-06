@@ -35,6 +35,7 @@ black = new Config.Step {
             write { ["{{tmp}}/test.py"] = bad }
             expect {
                 code = 0
+                files { ["{{tmp}}/test.py"] = good }
                 stderr = "1 file reformatted."
             }
         }
@@ -43,6 +44,7 @@ black = new Config.Step {
             write { ["{{tmp}}/test.py"] = good }
             expect {
                 code = 0
+                files { ["{{tmp}}/test.py"] = good }
                 stderr = "1 file left unchanged."
             }
         }

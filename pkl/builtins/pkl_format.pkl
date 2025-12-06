@@ -39,12 +39,18 @@ pkl_format = new Config.Step {
         ["fix bad file"] {
             run = "fix"
             write { ["{{tmp}}/test.pkl"] = bad }
-            expect { code = 0 }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.pkl"] = good }
+            }
         }
         ["fix good file"] {
             run = "fix"
             write { ["{{tmp}}/test.pkl"] = good }
-            expect { code = 0 }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.pkl"] = good }
+            }
         }
     }
 }

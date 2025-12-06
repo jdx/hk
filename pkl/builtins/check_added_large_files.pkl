@@ -20,7 +20,6 @@ check_added_large_files = new Config.Step {
             write {
                 ["{{tmp}}/small.txt"] = "small content"
             }
-            files = List("{{tmp}}/small.txt")
             expect { code = 0 }
         }
     }
