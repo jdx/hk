@@ -46,7 +46,6 @@ ruff = new Config.Step {
                 ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n"
                 ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
             }
-            files = List("{{tmp}}/test.py")
             expect { code = 0 }
         }
         ["fix respects config exclude"] {
@@ -55,7 +54,6 @@ ruff = new Config.Step {
                 ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n"
                 ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
             }
-            files = List("{{tmp}}/test.py")
             expect {
                 code = 0
                 files { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
