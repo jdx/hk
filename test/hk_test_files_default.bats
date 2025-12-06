@@ -9,18 +9,22 @@ teardown() {
     _common_teardown
 }
 
-@test "hk test defaults files to write keys" {
+@test "hk test defaults files to globbed write keys" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
   ["check"] {
     steps {
       ["demo"] {
+        glob = "*.txt"
         check = "echo {{files}} && exit 1"
         tests {
           ["omits files"] {
             run = "check"
-            write { ["{{tmp}}/test.txt"] = "content" }
+            write {
+              ["{{tmp}}/test.txt"] = "content"
+              ["{{tmp}}/test.config"] = "content"
+            }
             expect { code = 0 }
           }
         }
