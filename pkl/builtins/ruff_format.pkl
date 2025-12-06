@@ -46,7 +46,6 @@ ruff_format = new Config.Step {
                 ["{{tmp}}/test.py"] = "x=1+2\n"
                 ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
             }
-            files = List("{{tmp}}/test.py")
             expect { code = 0 }
         }
         ["fix respects config exclude"] {
@@ -55,7 +54,6 @@ ruff_format = new Config.Step {
                 ["{{tmp}}/test.py"] = "x=1+2\n"
                 ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
             }
-            files = List("{{tmp}}/test.py")
             expect {
                 code = 0
                 files { ["{{tmp}}/test.py"] = "x=1+2\n" }
