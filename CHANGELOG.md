@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.26.1](https://github.com/jdx/hk/compare/v1.26.0..v1.26.1) - 2025-12-05
+
+### 🐛 Bug Fixes
+
+- add new mise builtin to Builtins.pkl by [@hisaac](https://github.com/hisaac) in [#492](https://github.com/jdx/hk/pull/492)
+
+### 🧪 Testing
+
+- Move `ruff` to tool stub and fix up tests by [@thejcannon](https://github.com/thejcannon) in [#487](https://github.com/jdx/hk/pull/487)
+
 ## [1.26.0](https://github.com/jdx/hk/compare/v1.25.0..v1.26.0) - 2025-12-04
 
 ### 🚀 Features
