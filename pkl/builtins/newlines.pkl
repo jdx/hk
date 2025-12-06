@@ -8,15 +8,36 @@ import "../Config.pkl"
 newlines = new Config.Step {
     glob = "**/*"
     stage = "<JOB_FILES>"
-    check_first = true
     check_list_files = "hk util end-of-file-fixer {{files}}"
     fix = "hk util end-of-file-fixer --fix {{files}}"
     tests {
-      ["adds newline"] {
-        run = "fix"
-        write { ["{{tmp}}/a.txt"] = "no-newline" }
-        files = List("{{tmp}}/a.txt")
-        expect { files { ["{{tmp}}/a.txt"] = "no-newline\n" } }
-      }
+        const local bad = "content"
+        const local good = "content\n"
+        ["check bad file"] {
+            run = "check"
+            write { ["{{tmp}}/test.txt"] = bad }
+            expect { code = 1 }
+        }
+        ["check good file"] {
+            run = "check"
+            write { ["{{tmp}}/test.txt"] = good }
+            expect { code = 0 }
+        }
+        ["fix bad file"] {
+            run = "fix"
+            write { ["{{tmp}}/test.txt"] = bad }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.txt"] = good }
+            }
+        }
+        ["fix good file"] {
+            run = "fix"
+            write { ["{{tmp}}/test.txt"] = good }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.txt"] = good }
+            }
+        }
     }
 }

@@ -28,4 +28,34 @@ mise = new Config.Step {
     batch = true
     check = "mise fmt --check"
     fix = "mise fmt"
+    tests {
+        const local bad = "x  =  1";
+        const local good = "x = 1\n";
+        ["check bad file"] {
+            run = "check"
+            write { ["{{tmp}}/mise.toml"] = bad }
+            expect { code = 1 }
+        }
+        ["check good file"] {
+            run = "check"
+            write { ["{{tmp}}/mise.toml"] = good }
+            expect { code = 0 }
+        }
+        ["fix bad file"] {
+            run = "fix"
+            write { ["{{tmp}}/mise.toml"] = bad }
+            expect {
+                code = 0
+                files { ["{{tmp}}/mise.toml"] = good }
+            }
+        }
+        ["fix good file"] {
+            run = "fix"
+            write { ["{{tmp}}/mise.toml"] = good }
+            expect {
+                code = 0
+                files { ["{{tmp}}/mise.toml"] = good }
+            }
+        }
+    }
 }

@@ -17,7 +17,6 @@ python_debug_statements = new Config.Step {
                     pdb.set_trace()
                     """
             }
-            files = List("{{tmp}}/with_pdb.py")
             expect { code = 1 }
         }
         ["detects breakpoint"] {
@@ -28,7 +27,6 @@ python_debug_statements = new Config.Step {
                         breakpoint()
                     """
             }
-            files = List("{{tmp}}/with_breakpoint.py")
             expect { code = 1 }
         }
         ["passes clean code"] {
@@ -39,7 +37,6 @@ python_debug_statements = new Config.Step {
                         print("Hello, world!")
                     """
             }
-            files = List("{{tmp}}/clean.py")
             expect { code = 0 }
         }
         ["ignores commented debug"] {
@@ -51,7 +48,6 @@ python_debug_statements = new Config.Step {
                         print("Hello")
                     """
             }
-            files = List("{{tmp}}/commented.py")
             expect { code = 0 }
         }
     }

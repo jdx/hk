@@ -15,7 +15,6 @@ check_case_conflict = new Config.Step {
                 ["{{tmp}}/README.md"] = "# First\n"
                 ["{{tmp}}/readme.md"] = "# Second\n"
             }
-            files = List("{{tmp}}/README.md", "{{tmp}}/readme.md")
             expect { code = 1 }
         }
         ["passes when no conflicts"] {
@@ -24,7 +23,6 @@ check_case_conflict = new Config.Step {
                 ["{{tmp}}/file1.txt"] = "content\n"
                 ["{{tmp}}/file2.txt"] = "content\n"
             }
-            files = List("{{tmp}}/file1.txt", "{{tmp}}/file2.txt")
             expect { code = 0 }
         }
     }

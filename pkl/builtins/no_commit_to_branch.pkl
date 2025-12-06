@@ -11,14 +11,12 @@ no_commit_to_branch = new Config.Step {
         ["passes on feature branch"] {
             run = "check"
             write { ["{{tmp}}/.gitkeep"] = "" }
-            files = List("{{tmp}}/.gitkeep")
             before = "git init -q && git checkout -q -b feature-branch"
             expect { code = 0 }
         }
         ["fails on main branch"] {
             run = "check"
             write { ["{{tmp}}/.gitkeep"] = "" }
-            files = List("{{tmp}}/.gitkeep")
             before = "git init -q && git checkout -q -b main"
             expect { code = 1 }
         }
