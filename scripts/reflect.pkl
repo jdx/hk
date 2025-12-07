@@ -4,7 +4,7 @@ module hk.reflect
 import "pkl:reflect"
 
 local renderer = module.output.renderer;
-function render(mod: Module): String = renderer.renderValue((reflect.Module(mod))
+function render(mod: Module): String = renderer.renderValue(reflect.Module(mod))
 
 // NB: We reuse module output renderer, so we get the `--format` switching for free.
 output {
