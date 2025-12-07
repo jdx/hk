@@ -3,18 +3,12 @@
 # Test Pkl configuration error messages
 
 setup() {
-    # Use CARGO_TARGET_DIR if set (e.g., by mise), otherwise use local target
-    if [ -n "$CARGO_TARGET_DIR" ]; then
-        export HK="${HK:-$CARGO_TARGET_DIR/debug/hk}"
-    else
-        export HK="${HK:-$BATS_TEST_DIRNAME/../target/debug/hk}"
-    fi
-    export TEST_DIR="$(mktemp -d)"
-    cd "$TEST_DIR"
+    load 'test_helper/common_setup'
+    _common_setup
 }
 
 teardown() {
-    rm -rf "$TEST_DIR"
+    _common_teardown
 }
 
 @test "missing amends declaration shows helpful error" {
@@ -32,7 +26,7 @@ hooks {
 EOF
 
     # Run hk and expect it to fail with helpful error message
-    run $HK check
+    run hk check
     [ "$status" -ne 0 ]
 
     # Check that the error message contains helpful information
@@ -59,7 +53,7 @@ hooks {
 EOF
 
     # Run hk and expect it to fail with helpful error message
-    run $HK check
+    run hk check
     [ "$status" -ne 0 ]
 
     # Check that the error message contains helpful information
@@ -76,7 +70,7 @@ hooks = { this is invalid syntax
 EOF
 
     # Run hk and expect it to fail
-    run $HK check
+    run hk check
     [ "$status" -ne 0 ]
 
     # Should show the Pkl error (not our custom messages)
