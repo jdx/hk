@@ -27,13 +27,14 @@ EOF
 
     # Run hk and expect it to fail with helpful error message
     run hk check
-    [ "$status" -ne 0 ]
+    assert_failure
 
     # Check that the error message contains helpful information
-    [[ "$output" =~ "Missing 'amends' declaration" ]] || fail "Should mention missing amends"
-    [[ "$output" =~ "Your hk.pkl file should start with one of:" ]] || fail "Should provide examples"
-    [[ "$output" =~ "amends \"pkl/Config.pkl\"" ]] || fail "Should show local development example"
-    [[ "$output" =~ "amends \"package://github.com/jdx/hk" ]] || fail "Should show package URL example"
+    assert_output --partial
+    assert_output --partial "Missing 'amends' declaration"
+    assert_output --partial "Your hk.pkl file should start with one of:"
+    assert_output --partial "amends \"pkl/Config.pkl\""
+    assert_output --partial "amends \"package://github.com/jdx/hk"
 }
 
 @test "invalid module URI shows helpful error" {
@@ -54,11 +55,11 @@ EOF
 
     # Run hk and expect it to fail with helpful error message
     run hk check
-    [ "$status" -ne 0 ]
+    assert_failure
 
     # Check that the error message contains helpful information
-    [[ "$output" =~ "Invalid module URI" ]] || fail "Should mention invalid module URI"
-    [[ "$output" =~ "Make sure your 'amends' declaration uses a valid path or package URL" ]] || fail "Should provide guidance"
+    assert_output --partial "Invalid module URI"
+    assert_output --partial "Make sure your 'amends' declaration uses a valid path or package URL"
 }
 
 @test "pkl file with syntax errors shows original error" {
@@ -71,8 +72,8 @@ EOF
 
     # Run hk and expect it to fail
     run hk check
-    [ "$status" -ne 0 ]
+    assert_failure
 
     # Should show the Pkl error (not our custom messages)
-    [[ "$output" =~ "Failed to evaluate Pkl config" ]] || [[ "$output" =~ "Unexpected token" ]] || fail "Should show Pkl evaluation error"
+    assert_output --partial "Failed to evaluate Pkl config"
 }
