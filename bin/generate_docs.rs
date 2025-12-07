@@ -199,7 +199,7 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
 
                 let step: serde_json::Value = serde_json::from_str(
                     prop.get("defaultValue")
-                        .expect(format!("Expected defaultVlaue for prop {}", prop["name"]).as_str())
+                        .expect(format!("Expected defaultValue for prop {}", prop["name"]).as_str())
                         .as_str()
                         .unwrap(),
                 )?;
