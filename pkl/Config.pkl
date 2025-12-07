@@ -286,7 +286,7 @@ class Step {
     /// }
     /// ```
     ///
-    /// By default, hk will use `fix` commands but this can be overridden by setting [`HK_FIX=0`](/configuration#hk-fix) or running `hk run <HOOK> --run`.
+    /// By default, hk will use `fix` commands but this can be overridden by setting [`HK_FIX=0`](https://hk.jdx.dev/configuration#hk-fix) or running `hk run <HOOK> --run`.
     fix: (String | Script)?
 
     /// If true, hk will run the check step first and only run the fix step if the check step fails.
@@ -386,7 +386,7 @@ class Step {
     /// ```
     dir: String?
 
-    /// Profiles are a way to enable/disable linters based on the current profile. The linter will only run if its profile is in [`HK_PROFILE`](/configuration#hk-profile).
+    /// Profiles are a way to enable/disable linters based on the current profile. The linter will only run if its profile is in [`HK_PROFILE`](https://hk.jdx.dev/configuration#hk-profile).
     ///
     /// ```pkl
     /// local linters = new Mapping<String, Step> {
