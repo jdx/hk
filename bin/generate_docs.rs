@@ -197,12 +197,8 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                         ("Uncategorized".to_string(), String::new())
                     };
 
-                let step: serde_json::Value = serde_json::from_str(
-                    prop.get("defaultValue")
-                        .expect(format!("Expected defaultValue for prop {}", prop["name"]).as_str())
-                        .as_str()
-                        .unwrap(),
-                )?;
+                let step: serde_json::Value =
+                    serde_json::from_str(prop.get("defaultValue").unwrap().as_str().unwrap())?;
 
                 builtins_info.push(BuiltinInfo {
                     name: name.clone(),
