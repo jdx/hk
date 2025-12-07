@@ -14,6 +14,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Generated docs/gen/settings-config.md");
     generate_builtins_doc()?;
     println!("Generated docs/gen/builtins.md");
+    generate_pkl_config_doc()?;
+    println!("Generated docs/gen/pkl-config.md");
 
     Ok(())
 }
@@ -195,8 +197,12 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                         ("Uncategorized".to_string(), String::new())
                     };
 
-                let step: serde_json::Value =
-                    serde_json::from_str(prop.get("defaultValue").unwrap().as_str().unwrap())?;
+                let step: serde_json::Value = serde_json::from_str(
+                    prop.get("defaultValue")
+                        .expect(format!("Expected defaultVlaue for prop {}", prop["name"]).as_str())
+                        .as_str()
+                        .unwrap(),
+                )?;
 
                 builtins_info.push(BuiltinInfo {
                     name: name.clone(),
@@ -286,5 +292,112 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
     md.push('\n');
 
     fs::write("docs/gen/builtins.md", md)?;
+    Ok(())
+}
+
+fn format_property_doc(name: &str, value: &serde_json::Value, heading_level: &str) -> String {
+    let mut doc = format!(
+        "{} `{}: {}`\n\n",
+        heading_level,
+        name,
+        value["type"]
+            .as_str()
+            .unwrap()
+            .trim_end_matches("?")
+            .replace("RegexPattern", "Regex")
+    );
+    if let Some(doc_comment) = value["docComment"].as_str() {
+        doc.push_str(doc_comment);
+        doc.push_str("\n\n");
+    }
+    doc
+}
+
+fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
+    use std::process::Command;
+
+    let cwd = std::env::current_dir()?;
+    let reflect_script = cwd.join("scripts/reflect.pkl");
+    let reflect_uri = format!("file://{}", reflect_script.display());
+    let output = Command::new("pkl")
+        .arg("eval")
+        .arg("pkl/Config.pkl")
+        .arg("--format")
+        .arg("json")
+        .arg("-x")
+        .arg(format!("import(\"{}\").render(module)", reflect_uri))
+        .output()?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "pkl eval failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
+    }
+
+    let config_json_str = String::from_utf8(output.stdout)?;
+    let config_json_str = config_json_str.replace("https://hk.jdx.dev/", "/");
+    let config_json: serde_json::Value = serde_json::from_str(&config_json_str)?;
+
+    let mut md = String::new();
+
+    // Process top-level properties from moduleClass
+    let properties = config_json["moduleClass"]["properties"]
+        .as_object()
+        .expect("Expected top level properties in Config.pkl");
+    for (key, value) in properties {
+        match key.as_str() {
+            "output" => continue,
+            "min_hk_version" => continue,
+            // TODO(thejcannon): Include these
+            "display_skip_reasons" => continue,
+            "warnings" => continue,
+            "stage" => continue,
+            _ => (),
+        }
+        if key == "output" || key == "min_hk_version" {
+            continue;
+        }
+        md.push_str(&format_property_doc(key, value, "##"));
+    }
+
+    // Process hooks
+    md.push_str("## `hooks.<HOOK>`\n\n");
+    let properties = config_json["classes"]["Hook"]["properties"]
+        .as_object()
+        .expect("Expected Hook class in Config.pkl!");
+    for (key, value) in properties {
+        if key == "_type" {
+            continue;
+        }
+        md.push_str(&format_property_doc(
+            &format!("<HOOK>.{}", key),
+            value,
+            "###",
+        ));
+    }
+
+    // Process Steps
+    md.push_str("## `hooks.<HOOK>.steps.<STEP|GROUP>`\n\n");
+    let properties = config_json["classes"]["Step"]["properties"]
+        .as_object()
+        .expect("Expected Step class in Config.pkl");
+    for (key, value) in properties {
+        if key == "_type" {
+            continue;
+        }
+        md.push_str(&format_property_doc(
+            &format!("<STEP>.{}", key),
+            value,
+            "###",
+        ));
+    }
+
+    md = md.trim().to_string();
+    md.push('\n');
+
+    fs::write("docs/gen/pkl-config.md", md)?;
+
     Ok(())
 }

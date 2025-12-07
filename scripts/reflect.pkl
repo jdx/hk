@@ -4,23 +4,21 @@ module hk.reflect
 import "pkl:reflect"
 
 local renderer = module.output.renderer;
-function render(mod: Module): String = renderer.renderValue(reflect.Module(mod))
+function render(mod: Module): String = renderer.renderValue((reflect.Module(mod)))
 
 // NB: We reuse module output renderer, so we get the `--format` switching for free.
 output {
     renderer {
         converters {
             [reflect.Class] = (c) -> new Dynamic {
-                // location?
                 name = c.name
                 properties = c.properties
             }
             [reflect.Property] = (p) -> new Dynamic {
-                // location?
                 name = p.name
                 type = p.type
                 docComment = p.docComment
-                defaultValue = renderer.renderValue(p.defaultValue)
+                defaultValue = if (p.name == "output") null else renderer.renderValue(p.defaultValue)
                 annnotations = p.annotations
             }
             [reflect.StringLiteralType] = (s) -> s.value
