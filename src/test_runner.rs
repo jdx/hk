@@ -90,12 +90,15 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
             .map(PathBuf::from)
             .collect(),
-        None => test
-            .write
-            .keys()
-            .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
-            .map(PathBuf::from)
-            .collect(),
+        None => {
+            let all_keys: Vec<PathBuf> = test
+                .write
+                .keys()
+                .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
+                .map(PathBuf::from)
+                .collect();
+            step.filter_files(&all_keys)?
+        }
     };
     tctx.with_files(step.shell_type(), &files);
 
