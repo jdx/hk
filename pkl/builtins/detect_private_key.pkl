@@ -18,7 +18,6 @@ detect_private_key = new Config.Step {
                     -----END RSA PRIVATE KEY-----
                     """
             }
-            files = List("{{tmp}}/id_rsa")
             expect { code = 1 }
         }
         ["detects OpenSSH private key"] {
@@ -30,7 +29,6 @@ detect_private_key = new Config.Step {
                     -----END OPENSSH PRIVATE KEY-----
                     """
             }
-            files = List("{{tmp}}/id_ed25519")
             expect { code = 1 }
         }
         ["passes public key"] {
@@ -38,7 +36,6 @@ detect_private_key = new Config.Step {
             write {
                 ["{{tmp}}/id_rsa.pub"] = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... user@host"
             }
-            files = List("{{tmp}}/id_rsa.pub")
             expect { code = 0 }
         }
         ["passes clean file"] {
@@ -46,7 +43,6 @@ detect_private_key = new Config.Step {
             write {
                 ["{{tmp}}/clean.txt"] = "Hello, world!"
             }
-            files = List("{{tmp}}/clean.txt")
             expect { code = 0 }
         }
     }

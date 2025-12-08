@@ -27,7 +27,6 @@ check_symlinks = new Config.Step {
         ["passes regular file"] {
             run = "check"
             write { ["{{tmp}}/file.txt"] = "content" }
-            files = List("{{tmp}}/file.txt")
             expect { code = 0 }
         }
     }
