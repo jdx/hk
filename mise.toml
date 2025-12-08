@@ -2,26 +2,26 @@
 _.path = ["test/bats/bin", "{{ env.CARGO_TARGET_DIR | default(value='target') }}/debug", "node_modules/.bin"]
 
 [tools]
-actionlint = "latest"
-cargo-binstall = "latest"
-"cargo:cargo-msrv" = "latest"
-git-cliff = "latest"
-hadolint = "latest"
-node = "latest"
-"npm:prettier" = "latest"
-"npm:stylelint" = "latest"
-pkl = "latest"
-shellcheck = "latest"
-swiftlint = "latest"
-yq = "latest"
+actionlint            = "latest"
+bun                   = "latest"
+cargo-binstall        = "latest"
+"cargo:cargo-edit"    = "latest"
+"cargo:cargo-msrv"    = "latest"
 "cargo:cargo-release" = "latest"
-bun = "latest"
-ripgrep = "latest"
-"cargo:cargo-edit" = "latest"
-usage = "latest"
-vhs = "latest"
-taplo = "latest"
-uv = "latest"
+git-cliff             = "latest"
+hadolint              = "latest"
+node                  = "latest"
+"npm:prettier"        = "latest"
+"npm:stylelint"       = "latest"
+pkl                   = "latest"
+ripgrep               = "latest"
+shellcheck            = "latest"
+swiftlint             = "latest"
+taplo                 = "latest"
+usage                 = "latest"
+uv                    = "latest"
+vhs                   = "latest"
+yq                    = "latest"
 
 [tasks.init]
 run = '''
@@ -29,34 +29,34 @@ git submodule update --init --recursive
 '''
 
 [tasks.build]
+alias   = "b"
 depends = ["init"]
-alias = "b"
-run = "cargo build"
-sources = ["build.rs", "src/**/*", "pkl/**/*", "ensembler/src/**/*", "xx/src/**/*", "clx/**/*"]
 outputs = ["target/debug/hk"]
+run     = "cargo build"
+sources = ["build.rs", "src/**/*", "pkl/**/*", "ensembler/src/**/*", "xx/src/**/*", "clx/**/*"]
 
 [tasks.hk]
-alias = "dev"
+alias   = "dev"
 depends = ["build"]
-run = "hk"
+run     = "hk"
 
 [tasks.msrv]
 run = "cargo msrv verify"
 
 [tasks.benchmark]
-run = "./benchmark/benchmark.sh"
+run   = "./benchmark/benchmark.sh"
 tools = { lefthook = "latest", "pre-commit" = "latest" }
 
 [tasks.ci]
 depends = ["test", "lint"]
 
 [tasks.test]
-alias = ["t"]
+alias   = ["t"]
 depends = ["test:cargo", "test:bats"]
 
 [tasks."test:cargo"]
 alias = "tc"
-run = "cargo test --all --all-features"
+run   = "cargo test --all --all-features"
 
 [tasks."test:bats"]
 alias = "tb"
@@ -68,11 +68,11 @@ mise run test:bats:libgit2 $tests ::: test:bats:nolibgit2 $tests
 
 [tasks."test:bats:libgit2"]
 depends = ["build"]
-run = "HK_LIBGIT2=1 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
+run     = "HK_LIBGIT2=1 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
 
 [tasks."test:bats:nolibgit2"]
 depends = ["build"]
-run = "HK_LIBGIT2=0 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
+run     = "HK_LIBGIT2=0 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
 
 [tasks.dist]
 run = "pkl project package pkl --output-path docs/public/pkl"
@@ -91,27 +91,27 @@ run = [
 run = "cargo release"
 [tasks.lint]
 depends = ["build"]
-run = ["hk check --all", "hk check --all --slow"]
+run     = ["hk check --all", "hk check --all --slow"]
 [tasks.lint-fix]
-alias = ["fix", "format"]
+alias   = ["fix", "format"]
 depends = ["build"]
-run = ["hk fix --all", "hk fix --all --slow"]
+run     = ["hk fix --all", "hk fix --all --slow"]
 [tasks.docs]
-dir = "docs"
-run = "bun i && bun run docs:dev"
 depends = ["docs:gen"]
+dir     = "docs"
+run     = "bun i && bun run docs:dev"
 [tasks."docs:gen"]
 run = "cargo run --bin generate-docs"
 [tasks."docs:build"]
-dir = "docs"
-run = "bun i && bun run docs:build"
 depends = ["docs:gen"]
+dir     = "docs"
+run     = "bun i && bun run docs:build"
 [tasks.render]
 depends = ["render:*"]
 
 [tasks."demo"]
 depends = ["build"]
-run = "vhs tapes/hk-demo.tape"
+run     = "vhs tapes/hk-demo.tape"
 
 [tasks."render:usage"]
 depends = ["build"]
