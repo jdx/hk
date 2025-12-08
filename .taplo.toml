@@ -1,20 +1,20 @@
 [[rule]]
-include = ["settings.toml"]
 formatting.align_entries = false
-formatting.reorder_keys = false
-schema.path = "settings-schema.json"
-schema.enabled = true
+formatting.reorder_keys  = false
+include                  = ["settings.toml"]
+schema.enabled           = true
+schema.path              = "settings-schema.json"
 [formatting]
-align_entries = true
-array_trailing_comma = true
-array_auto_expand = false
-array_auto_collapse = false
-compact_arrays = true
+align_entries         = true
+allowed_blank_lines   = 1
+array_auto_collapse   = false
+array_auto_expand     = false
+array_trailing_comma  = true
+column_width          = 100
+compact_arrays        = true
 compact_inline_tables = false
-column_width = 100
-indent_tables = false
-indent_entries = false
-trailing_newline = true
-reorder_keys = true
-allowed_blank_lines = 1
-crlf = false
+crlf                  = false
+indent_entries        = false
+indent_tables         = false
+reorder_keys          = true
+trailing_newline      = true
