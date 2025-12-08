@@ -352,9 +352,6 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
             "stage" => continue,
             _ => (),
         }
-        if key == "output" || key == "min_hk_version" {
-            continue;
-        }
         md.push_str(&format_property_doc(key, value, "##"));
     }
 
