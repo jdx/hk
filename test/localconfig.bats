@@ -21,6 +21,11 @@ hooks {
 }
 EOF
 
+    run hk run check
+    assert_success
+    refute_output --partial "STEP_VAR=step_value"
+    refute_output --partial "hello"
+
     cat <<EOF > hk.local.pkl
 amends "./hk.pkl"
 import "./hk.pkl" as repo_config
