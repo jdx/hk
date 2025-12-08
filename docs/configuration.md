@@ -55,6 +55,32 @@ hooks {
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
+### `hk.local.pkl`
+
+If `hk.local.pkl` exists, it will be used instead of `hk.pkl`. It is intended to be used for local config, and should
+not be committed to source control.
+
+It is assumed that the first line will be (`amends "./hk.pkl"`).
+
+Example:
+
+```pkl
+amends "./hk.pkl"
+import "./hk.pkl" as repo_config
+
+hooks = (repo_config.hooks) {
+    ["pre-commit"] {
+        (steps) {
+            ["custom-step] = new Step {
+                // ...
+            }
+        }
+    }
+}
+
+```
+
+
 <!--@include: ./gen/pkl-config.md-->
 
 ### `<GROUP>`

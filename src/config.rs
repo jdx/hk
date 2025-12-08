@@ -78,8 +78,13 @@ impl Config {
         } else {
             // Default search order when HK_FILE is not set
             vec![
+                // User-local config
+                "hk.local.pkl",
+                ".config/hk.local.pkl",
+                // Standard config
                 "hk.pkl",
                 ".config/hk.pkl",
+                // Soon-to-be-deprecated
                 "hk.toml",
                 "hk.yaml",
                 "hk.yml",
