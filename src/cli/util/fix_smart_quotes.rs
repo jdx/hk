@@ -39,6 +39,7 @@ impl FixSmartQuotes {
 
 fn replace_smart_quotes(path: &PathBuf) -> Result<()> {
     let file = File::open(path)?;
+    let perms = fs::metadata(path)?.permissions();
     let mut tmpfile = NamedTempFile::new()?;
     let mut reader = BufReader::new(file);
     let mut buf = String::new();
@@ -56,6 +57,7 @@ fn replace_smart_quotes(path: &PathBuf) -> Result<()> {
     }
 
     fs::rename(tmpfile.path(), path)?;
+    fs::set_permissions(path, perms)?;
 
     Ok(())
 }
@@ -132,5 +134,20 @@ mod tests {
 
         let result = fs::read(file.path()).unwrap();
         assert_eq!(result, b"\"\"");
+    }
+
+    #[test]
+    fn test_preserve_file_permissions() {
+        let file = NamedTempFile::new().unwrap();
+
+        // Change file to be read-only to validate file permissions are correctly preserved.
+        let mut before = fs::metadata(file.path()).unwrap().permissions();
+        before.set_readonly(true);
+        fs::set_permissions(file.path(), before).unwrap();
+
+        replace_smart_quotes(&file.path().to_path_buf()).unwrap();
+
+        let after = fs::metadata(file.path()).unwrap().permissions();
+        assert!(after.readonly());
     }
 }
