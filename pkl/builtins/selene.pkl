@@ -1,0 +1,22 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Lua"
+  description = "Lua linter"
+}
+selene = new Config.Step {
+  glob = "**/*.lua"
+  check_diff = "selene {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.lua"
+      extra_files = new Mapping<String, String> {
+        ["selene.toml"] = "std = \"lua51\"\n"
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("rint(\"hello, world!\")\n", 1)
+    ["check good file"] = testMaker.checkPass("print(\"hello, world!\")\n")
+  }
+}
