@@ -1,0 +1,44 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+    category = "Data Formats"
+    description = "TOML linter"
+}
+tombi = new Config.Step {
+    glob = "**/*.toml"
+    check = "tombi lint {{ files }}"
+    tests {
+        const local config_file = "tombi.toml"
+        const local config = "toml-version = \"v1.0.0\"\n"
+        ["check bad file"] {
+            run = "check"
+            write {
+                ["{{tmp}}/file.toml"] = "[table]\nkey = 0\nkey = 1\n"
+                // Create a Tombi config file in the working directory to
+                // prevent loading system config (e.g. `$XDG_CONFIG_HOME`)
+                ["{{tmp}}/\(config_file)"] = config
+            }
+            files = List("{{tmp}}/file.toml")
+            expect { code = 1 }
+        }
+        ["check good file"] {
+            run = "check"
+            write {
+                ["{{tmp}}/file.toml"] = "[table]\nkey = 0\n"
+                ["{{tmp}}/\(config_file)"] = config
+            }
+            files = List("{{tmp}}/file.toml")
+            expect { code = 0 }
+        }
+        ["doesnt error on formattting"] {
+            run = "check"
+            write {
+                ["{{tmp}}/file.toml"] = "[table]\nkey   =   0\n"
+                ["{{tmp}}/\(config_file)"] = config
+            }
+            files = List("{{tmp}}/file.toml")
+            expect { code = 0 }
+        }
+    }
+}
