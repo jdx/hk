@@ -3,4 +3,4 @@ set -euo pipefail
 
 script_dir=$(dirname "$0")
 
-exec cargo run --all-features --manifest-path "$script_dir/../Cargo.toml" -- "$@"
+exec cargo run --all-features --manifest-path "$script_dir/../Cargo.toml" --bin hk -- "$@"
