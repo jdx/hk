@@ -159,6 +159,15 @@ Default: `.hkrc.pkl` in the current directory or parent directories.
 This file can override project-level settings and is useful for personal preferences.
 """
 
+[pkl_http_rewrite]
+type = "string"
+sources.env = ["HK_PKL_HTTP_REWRITE"]
+docs = """
+A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`.
+
+(`pkl` expects this in the form `http(s)://<FROM>/=http(s)://<TO>/`)ß
+"""
+
 [jobs]
 type = "usize"
 default = 0 # 0 means auto-detect from environment or CPU count

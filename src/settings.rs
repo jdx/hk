@@ -84,6 +84,7 @@ impl Settings {
             .as_ref()
             .and_then(|s| s.hkrc.clone())
     }
+
     pub fn get() -> Arc<Settings> {
         // Return Arc directly, panic on config errors
         Self::get_snapshot().expect("Failed to load configuration")

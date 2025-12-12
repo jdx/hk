@@ -278,6 +278,11 @@ fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
         args.push(no_proxy);
     }
 
+    if let Some(http_rewrite) = env::HK_PKL_HTTP_REWRITE.as_ref() {
+        args.push("--http-rewrite".to_string());
+        args.push(http_rewrite.to_string());
+    }
+
     // Add the path last (positional argument must come after flags)
     args.push(path.display().to_string());
 
