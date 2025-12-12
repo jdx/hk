@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.27.0](https://github.com/jdx/hk/compare/v1.26.0..v1.27.0) - 2025-12-12
+
+### 🚀 Features
+
+- **(lychee)** new builtin by [@scop](https://github.com/scop) in [#510](https://github.com/jdx/hk/pull/510)
+- **(tombi)** add tombi config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#511](https://github.com/jdx/hk/pull/511)
+- Apply the step glob to the test files fallback by [@thejcannon](https://github.com/thejcannon) in [#498](https://github.com/jdx/hk/pull/498)
+- Support `hk.local.pkl` by [@thejcannon](https://github.com/thejcannon) in [#504](https://github.com/jdx/hk/pull/504)
+- add yamlfmt config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#505](https://github.com/jdx/hk/pull/505)
+- add `HK_PKL_HTTP_REWRITE` envvar by [@thejcannon](https://github.com/thejcannon) in [#512](https://github.com/jdx/hk/pull/512)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** use `stage = "<JOB_FILES>"` for fix_smart_quotes builtin by [@joonas](https://github.com/joonas) in [#503](https://github.com/jdx/hk/pull/503)
+- add new mise builtin to Builtins.pkl by [@hisaac](https://github.com/hisaac) in [#492](https://github.com/jdx/hk/pull/492)
+- preserve file permissions in fix-smart-quotes util by [@joonas](https://github.com/joonas) in [#506](https://github.com/jdx/hk/pull/506)
+
+### 🚜 Refactor
+
+- Turn on `taplo-format` by [@thejcannon](https://github.com/thejcannon) in [#501](https://github.com/jdx/hk/pull/501)
+
+### 📚 Documentation
+
+- Generate config docs from the pkl by [@thejcannon](https://github.com/thejcannon) in [#499](https://github.com/jdx/hk/pull/499)
+
+### 🧪 Testing
+
+- Move `ruff` to tool stub and fix up tests by [@thejcannon](https://github.com/thejcannon) in [#487](https://github.com/jdx/hk/pull/487)
+- Do some test gardening by [@thejcannon](https://github.com/thejcannon) in [#497](https://github.com/jdx/hk/pull/497)
+- Clean up `test/pkl_config_errors.bats` by [@thejcannon](https://github.com/thejcannon) in [#500](https://github.com/jdx/hk/pull/500)
+- add yamllint tests by [@thejcannon](https://github.com/thejcannon) in [#509](https://github.com/jdx/hk/pull/509)
+
+### 📦️ Dependency Updates
+
+- update swatinem/rust-cache digest to 779680d by [@renovate[bot]](https://github.com/renovate[bot]) in [#495](https://github.com/jdx/hk/pull/495)
+- update anthropics/claude-code-action digest to 6337623 by [@renovate[bot]](https://github.com/renovate[bot]) in [#494](https://github.com/jdx/hk/pull/494)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#502](https://github.com/jdx/hk/pull/502)
+
+### New Contributors
+
+- @hituzi-no-sippo made their first contribution in [#511](https://github.com/jdx/hk/pull/511)
+
 ## [1.26.0](https://github.com/jdx/hk/compare/v1.25.0..v1.26.0) - 2025-12-04
 
 ### 🚀 Features

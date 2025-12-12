@@ -63,7 +63,7 @@ env: Mapping<String, String> = new Mapping<String, String>{}
 ///
 /// // Exclude using regex pattern (for complex matching)
 /// // First import Types.pkl to use the Regex helper
-/// import "package://github.com/jdx/hk/releases/download/v1.26.0/hk@1.26.0#/Types.pkl"
+/// import "package://github.com/jdx/hk/releases/download/v1.27.0/hk@1.27.0#/Types.pkl"
 /// exclude = Types.Regex(#".*\.(test|spec)\.(js|ts)$"#)
 /// ```
 ///
@@ -509,8 +509,8 @@ class Step {
     /// The `Regex()` helper function is available by importing Types.pkl:
     ///
     /// ```pkl
-    /// amends "package://github.com/jdx/hk/releases/download/v1.26.0/hk@1.26.0#/Config.pkl"
-    /// import "package://github.com/jdx/hk/releases/download/v1.26.0/hk@1.26.0#/Types.pkl"
+    /// amends "package://github.com/jdx/hk/releases/download/v1.27.0/hk@1.27.0#/Config.pkl"
+    /// import "package://github.com/jdx/hk/releases/download/v1.27.0/hk@1.27.0#/Types.pkl"
     ///
     /// // Use it like:
     /// exclude = Types.Regex(#".*\.test\.js$"#)
