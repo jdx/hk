@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.27.1](https://github.com/jdx/hk/compare/v1.27.0..v1.27.1) - 2025-12-13
+
+### 🐛 Bug Fixes
+
+- **(yq)** implement proper format checking with diff by [@thejcannon](https://github.com/thejcannon) in [#507](https://github.com/jdx/hk/pull/507)
+
+### 🚜 Refactor
+
+- Simplify Config.pkl (namely Regex stuff) and deprecate `Types.pkl` by [@thejcannon](https://github.com/thejcannon) in [#517](https://github.com/jdx/hk/pull/517)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to f0c8eb2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#513](https://github.com/jdx/hk/pull/513)
+- update rust crate codegen to 0.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#514](https://github.com/jdx/hk/pull/514)
+
 ## [1.27.0](https://github.com/jdx/hk/compare/v1.26.0..v1.27.0) - 2025-12-12
 
 ### 🚀 Features
