@@ -729,9 +729,9 @@ output {
         ["_type"] = "regex"
         ["pattern"] = r.pattern
       }
-      [Group] = (g) -> new Group {
+      [Group] = (g) -> new Dynamic {
         _type = "group"
-        ...g
+        ...g.toDynamic()
       }
       [Step] = (s) -> new Dynamic {
             _type = "step"
