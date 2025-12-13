@@ -128,22 +128,19 @@ impl PreCommit {
         // Vendor external repos
         let vendored_repos = self.vendor_repos(&precommit_config).await?;
 
-        let (amends_config_pkl, types_pkl_import, builtins_pkl) =
-            if let Some(ref root) = self.hk_pkl_root {
-                (
-                    Some(format!("{}/Config.pkl", root)),
-                    Some(format!("{}/Types.pkl", root)),
-                    Some(format!("{}/Builtins.pkl", root)),
-                )
-            } else {
-                (None, None, None)
-            };
+        let (amends_config_pkl, builtins_pkl) = if let Some(ref root) = self.hk_pkl_root {
+            (
+                Some(format!("{}/Config.pkl", root)),
+                Some(format!("{}/Builtins.pkl", root)),
+            )
+        } else {
+            (None, None)
+        };
 
         let hk_config = self.convert_config(
             &precommit_config,
             &vendored_repos,
             amends_config_pkl,
-            types_pkl_import,
             builtins_pkl,
         )?;
         let pkl_content = hk_config.to_pkl();
@@ -171,10 +168,9 @@ impl PreCommit {
         config: &PreCommitConfig,
         vendored_repos: &HashMap<String, VendoredRepo>,
         amends_config_pkl: Option<String>,
-        types_pkl_import: Option<String>,
         builtins_pkl: Option<String>,
     ) -> Result<HkConfig> {
-        let mut hk_config = HkConfig::new(amends_config_pkl, types_pkl_import, builtins_pkl);
+        let mut hk_config = HkConfig::new(amends_config_pkl, builtins_pkl);
         let mut used_ids = HashSet::new();
 
         // Add imports for vendored repos

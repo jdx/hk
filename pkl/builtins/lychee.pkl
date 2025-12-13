@@ -1,0 +1,12 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+    category = "Special Purpose"
+    description = "Fast, async, stream-based link checker"
+}
+lychee = new Config.Step {
+    // https://github.com/lycheeverse/lychee/blob/db0f8a842f594e0a879563caf7d183266c02ca95/.pre-commit-hooks.yaml#L7
+    types = List("text")
+    check = "lychee --no-progress {{ files }}"
+}

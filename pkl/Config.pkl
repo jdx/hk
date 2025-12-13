@@ -1,15 +1,18 @@
 @ModuleInfo { minPklVersion = "0.27.2" }
 module hk.Config
-import "Types.pkl"
+import "pkl:base" as base
 
 min_hk_version = "{{version | truncate(length=1)}}.0.0"
 
 typealias StashMethod = Boolean | "git" | "patch-file" | "none"
 
-typealias RegexPattern = Types.RegexPattern
-
-/// Helper function to create regex patterns with clean syntax
-function Regex(pattern: String): RegexPattern = Types.Regex(pattern)
+// NB: Re-export Regex in case users use Config.Regex
+@Deprecated {
+    since="1.27.1"
+    message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
+    replaceWith = "Regex"
+}
+const function Regex(s: String): Regex = base.Regex(s)
 
 class Script {
     linux: String?
@@ -62,9 +65,7 @@ env: Mapping<String, String> = new Mapping<String, String>{}
 /// exclude = "node_modules"
 ///
 /// // Exclude using regex pattern (for complex matching)
-/// // First import Types.pkl to use the Regex helper
-/// import "package://github.com/jdx/hk/releases/download/v1.26.0/hk@1.26.0#/Types.pkl"
-/// exclude = Types.Regex(#".*\.(test|spec)\.(js|ts)$"#)
+/// exclude = Regex(#".*\.(test|spec)\.(js|ts)$"#)
 /// ```
 ///
 /// Notes:
@@ -73,7 +74,7 @@ env: Mapping<String, String> = new Mapping<String, String>{}
 /// - Simple directory names automatically match their contents (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
 /// - Can be overridden per-step with `<STEP>.exclude`
 /// - Regex patterns use Rust regex syntax and match against full file paths
-exclude: (String | List<String> | RegexPattern)?
+exclude: (String | List<String> | Regex)?
 
 /// Default: `true`
 ///
@@ -146,8 +147,6 @@ class Hook {
 }
 
 class Step {
-    _type = "step"
-
     /// Files the step should run on. By default this will only run this step if at least 1 staged file matches the glob or regex patterns. If no patterns are provided, the step will always run.
     ///
     /// ```pkl
@@ -165,11 +164,11 @@ class Step {
     ///
     /// // Regex pattern for complex matching
     /// ["config-lint"] {
-    ///     glob = Types.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
+    ///     glob = Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
     ///     check = "config-lint {{files}}"
     /// }
     /// ```
-    glob: (String | List<String> | RegexPattern)?
+    glob: (String | List<String> | Regex)?
 
     /// Default: `(none)`
     ///
@@ -489,7 +488,7 @@ class Step {
     /// // Exclude with regex pattern for complex matching
     /// ["linter"] {
     ///     glob = List("**/*")
-    ///     exclude = Types.Regex(#"""
+    ///     exclude = Regex(#"""
     /// (?x)
     /// ^(vendor|dist|build)/.*$|
     /// .*\.(min|bundle)\.(js|css)$|
@@ -503,19 +502,8 @@ class Step {
     /// - Regex patterns use Rust regex syntax
     /// - The `(?x)` flag enables verbose mode for multi-line patterns with comments
     /// - Use raw strings (`#"..."#` or `#"""..."""#`) to avoid escaping backslashes
-    ///
-    /// **Using the Regex helper**
-    ///
-    /// The `Regex()` helper function is available by importing Types.pkl:
-    ///
-    /// ```pkl
-    /// amends "package://github.com/jdx/hk/releases/download/v1.26.0/hk@1.26.0#/Config.pkl"
-    /// import "package://github.com/jdx/hk/releases/download/v1.26.0/hk@1.26.0#/Types.pkl"
-    ///
-    /// // Use it like:
-    /// exclude = Types.Regex(#".*\.test\.js$"#)
     /// ```
-    exclude: (String | List<String> | RegexPattern)?
+    exclude: (String | List<String> | Regex)?
 
     /// Default: `false`
     ///
@@ -731,14 +719,22 @@ class StepTestExpect {
 }
 
 class Group {
-    _type = "group"
     steps: Mapping<String, Step> = new Mapping<String, Step>{}
 }
 
 output {
   renderer {
     converters {
-      [Step] = (s) -> new Step {
+      [Regex] = (r) -> new Mapping {
+        ["_type"] = "regex"
+        ["pattern"] = r.pattern
+      }
+      [Group] = (g) -> new Dynamic {
+        _type = "group"
+        ...g.toDynamic()
+      }
+      [Step] = (s) -> new Dynamic {
+            _type = "step"
             ...s
             .toMap()
             .mapValues((k, v) ->
