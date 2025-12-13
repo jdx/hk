@@ -463,6 +463,48 @@ EOF
     refute_output --partial 'files=.*lib'
 }
 
+@test "Config.Regex works" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["yaml-check"] {
+                glob = Config.Regex(#"^.*\\.yaml$"#)
+                check = "echo echo echo echo"
+            }
+        }
+    }
+}
+EOF
+    touch test.yaml
+    run hk check test.yaml
+    assert_success
+    assert_output --partial 'echo echo echo'
+}
+
+@test "Types.Regex works" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Types.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["yaml-check"] {
+                glob = Types.Regex(#"^.*\\.yaml$"#)
+                check = "echo echo echo echo"
+            }
+        }
+    }
+}
+EOF
+    touch test.yaml
+    run hk check test.yaml
+    assert_success
+    assert_output --partial 'echo echo echo'
+}
+
 # Note: User config tests with .hkrc.pkl would require a separate Pkl schema for UserConfig
 # which doesn't currently exist. The Rust changes to support Pattern in UserStepConfig
 # are tested implicitly through the API, but end-to-end .hkrc.pkl tests would need

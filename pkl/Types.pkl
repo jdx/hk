@@ -1,7 +1,6 @@
 @ModuleInfo { minPklVersion = "0.27.2" }
 module hk.Types
-
-typealias RegexPattern = Mapping<"_type"|"pattern", String>
+import "pkl:base"
 
 /// Helper function to create regex patterns with clean syntax
 @Deprecated {
@@ -9,7 +8,4 @@ typealias RegexPattern = Mapping<"_type"|"pattern", String>
     message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
     replaceWith = "Regex"
 }
-function Regex(pattern: String): RegexPattern = new Mapping {
-    ["_type"] = "regex"
-    ["pattern"] = pattern
-}
+function Regex(pattern: String): Regex = base.Regex(pattern)
