@@ -2,19 +2,20 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Configuration"
-    description = "Pkl formatter"
+  category = "Configuration"
+  description = "Pkl formatter"
 }
 pkl_format = new Config.Step {
-    glob = "**/*.pkl"
-    stage = "<JOB_FILES>"
-    check_list_files = "pkl format --diff-name-only {{ files }}"
-    // NB: pkl format exits 11 even if it fixes files
-    //  (If you're using a version of pkl that includes https://github.com/apple/pkl/pull/1340
-    //  you can override this command to just use `pkl format --write {{ files }}`
-    //  and remove the `shell` definition)
-    shell= "sh -c"
-    fix = """
+  glob = "**/*.pkl"
+  stage = "<JOB_FILES>"
+  check_list_files = "pkl format --diff-name-only {{ files }}"
+  // NB: pkl format exits 11 even if it fixes files
+  //  (If you're using a version of pkl that includes https://github.com/apple/pkl/pull/1340
+  //  you can override this command to just use `pkl format --write {{ files }}`
+  //  and remove the `shell` definition)
+  shell = "sh -c"
+  fix =
+    """
         pkl format --write {{ files }}
         code=$?
         if [ $code -eq 11 ]; then
@@ -23,34 +24,34 @@ pkl_format = new Config.Step {
             exit $code
         fi
     """
-    tests {
-        const local bad = "x = new {  }"
-        const local good = "x = new {}\n"
-        ["check bad file"] {
-            run = "check"
-            write { ["{{tmp}}/test.pkl"] = bad }
-            expect { code = 11 }
-        }
-        ["check good file"] {
-            run = "check"
-            write { ["{{tmp}}/test.pkl"] = good }
-            expect { code = 0 }
-        }
-        ["fix bad file"] {
-            run = "fix"
-            write { ["{{tmp}}/test.pkl"] = bad }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.pkl"] = good }
-            }
-        }
-        ["fix good file"] {
-            run = "fix"
-            write { ["{{tmp}}/test.pkl"] = good }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.pkl"] = good }
-            }
-        }
+  tests {
+    local const bad = "x = new {  }"
+    local const good = "x = new {}\n"
+    ["check bad file"] {
+      run = "check"
+      write { ["{{tmp}}/test.pkl"] = bad }
+      expect { code = 11 }
     }
+    ["check good file"] {
+      run = "check"
+      write { ["{{tmp}}/test.pkl"] = good }
+      expect { code = 0 }
+    }
+    ["fix bad file"] {
+      run = "fix"
+      write { ["{{tmp}}/test.pkl"] = bad }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.pkl"] = good }
+      }
+    }
+    ["fix good file"] {
+      run = "fix"
+      write { ["{{tmp}}/test.pkl"] = good }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.pkl"] = good }
+      }
+    }
+  }
 }

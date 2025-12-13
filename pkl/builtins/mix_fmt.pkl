@@ -2,13 +2,13 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Elixir"
-    description = "Format Elixir with Mix"
+  category = "Elixir"
+  description = "Format Elixir with Mix"
 }
 mix_fmt = new Config.Step {
-    glob = List("**/*.ex", "**/*.exs")
-    stage = "<JOB_FILES>"
-    exclude = List("deps/**/*")
-    check = "mix format --check-formatted {{files}}"
-    fix = "mix format {{files}}"
+  glob = List("**/*.ex", "**/*.exs")
+  stage = "<JOB_FILES>"
+  exclude = List("deps/**/*")
+  check = "mix format --check-formatted {{files}}"
+  fix = "mix format {{files}}"
 }

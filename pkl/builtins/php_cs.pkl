@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "PHP"
-    description = "PHP coding standards"
+  category = "PHP"
+  description = "PHP coding standards"
 }
 php_cs = new Config.Step {
-    glob = "**/*.php"
-    stage = "<JOB_FILES>"
-    check = "phpcs {{ files }}"
-    fix = "phpcbf {{ files }}"
+  glob = "**/*.php"
+  stage = "<JOB_FILES>"
+  check = "phpcs {{ files }}"
+  fix = "phpcbf {{ files }}"
 }

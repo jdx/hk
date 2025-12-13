@@ -2,37 +2,39 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Python"
-    description = "Validate Python syntax by parsing the AST"
+  category = "Python"
+  description = "Validate Python syntax by parsing the AST"
 }
 python_check_ast = new Config.Step {
-    glob = "**/*.py"
-    check = "hk util python-check-ast {{files}}"
-    tests {
-        ["detects invalid Python syntax"] {
-            run = "check"
-            write {
-                ["{{tmp}}/invalid.py"] = """
-                    def hello(:
-                        print("Invalid"
-                    """
-            }
-            expect { code = 1 }
-        }
-        ["passes valid Python"] {
-            run = "check"
-            write {
-                ["{{tmp}}/valid.py"] = """
-                    def hello():
-                        print("Hello, world!")
-                    """
-            }
-            expect { code = 0 }
-        }
-        ["passes empty file"] {
-            run = "check"
-            write { ["{{tmp}}/empty.py"] = "" }
-            expect { code = 0 }
-        }
+  glob = "**/*.py"
+  check = "hk util python-check-ast {{files}}"
+  tests {
+    ["detects invalid Python syntax"] {
+      run = "check"
+      write {
+        ["{{tmp}}/invalid.py"] =
+          """
+          def hello(:
+              print("Invalid"
+          """
+      }
+      expect { code = 1 }
     }
+    ["passes valid Python"] {
+      run = "check"
+      write {
+        ["{{tmp}}/valid.py"] =
+          """
+          def hello():
+              print("Hello, world!")
+          """
+      }
+      expect { code = 0 }
+    }
+    ["passes empty file"] {
+      run = "check"
+      write { ["{{tmp}}/empty.py"] = "" }
+      expect { code = 0 }
+    }
+  }
 }

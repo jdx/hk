@@ -2,10 +2,10 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Other Languages"
-    description = "Lua linter"
+  category = "Other Languages"
+  description = "Lua linter"
 }
 luacheck = new Config.Step {
-    glob = "**/*.lua"
-    check = "luacheck {{ files }}"
+  glob = "**/*.lua"
+  check = "luacheck {{ files }}"
 }

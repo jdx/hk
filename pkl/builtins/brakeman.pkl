@@ -2,10 +2,10 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Ruby"
-    description = "Security scanner for Rails"
+  category = "Ruby"
+  description = "Security scanner for Rails"
 }
 brakeman = new Config.Step {
-    glob = List("**/*.rb")
-    check = "brakeman -q -w2 {{ files }}"
+  glob = List("**/*.rb")
+  check = "brakeman -q -w2 {{ files }}"
 }

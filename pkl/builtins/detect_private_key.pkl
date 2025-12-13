@@ -2,48 +2,50 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Special Purpose"
-    description = "Detect accidentally committed private keys"
+  category = "Special Purpose"
+  description = "Detect accidentally committed private keys"
 }
 detect_private_key = new Config.Step {
-    glob = "**/*"
-    check = "hk util detect-private-key {{files}}"
-    tests {
-        ["detects RSA private key"] {
-            run = "check"
-            write {
-                ["{{tmp}}/id_rsa"] = """
-                    -----BEGIN RSA PRIVATE KEY-----
-                    MIIEpAIBAAKCAQEA...
-                    -----END RSA PRIVATE KEY-----
-                    """
-            }
-            expect { code = 1 }
-        }
-        ["detects OpenSSH private key"] {
-            run = "check"
-            write {
-                ["{{tmp}}/id_ed25519"] = """
-                    -----BEGIN OPENSSH PRIVATE KEY-----
-                    b3BlbnNzaC1rZXktdjEAAAAABG5vbmU...
-                    -----END OPENSSH PRIVATE KEY-----
-                    """
-            }
-            expect { code = 1 }
-        }
-        ["passes public key"] {
-            run = "check"
-            write {
-                ["{{tmp}}/id_rsa.pub"] = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... user@host"
-            }
-            expect { code = 0 }
-        }
-        ["passes clean file"] {
-            run = "check"
-            write {
-                ["{{tmp}}/clean.txt"] = "Hello, world!"
-            }
-            expect { code = 0 }
-        }
+  glob = "**/*"
+  check = "hk util detect-private-key {{files}}"
+  tests {
+    ["detects RSA private key"] {
+      run = "check"
+      write {
+        ["{{tmp}}/id_rsa"] =
+          """
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEpAIBAAKCAQEA...
+          -----END RSA PRIVATE KEY-----
+          """
+      }
+      expect { code = 1 }
     }
+    ["detects OpenSSH private key"] {
+      run = "check"
+      write {
+        ["{{tmp}}/id_ed25519"] =
+          """
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          b3BlbnNzaC1rZXktdjEAAAAABG5vbmU...
+          -----END OPENSSH PRIVATE KEY-----
+          """
+      }
+      expect { code = 1 }
+    }
+    ["passes public key"] {
+      run = "check"
+      write {
+        ["{{tmp}}/id_rsa.pub"] = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC... user@host"
+      }
+      expect { code = 0 }
+    }
+    ["passes clean file"] {
+      run = "check"
+      write {
+        ["{{tmp}}/clean.txt"] = "Hello, world!"
+      }
+      expect { code = 0 }
+    }
+  }
 }

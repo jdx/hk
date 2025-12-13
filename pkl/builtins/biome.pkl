@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "JavaScript/TypeScript"
-    description = "Fast formatter and linter"
+  category = "JavaScript/TypeScript"
+  description = "Fast formatter and linter"
 }
 biome = new Config.Step {
-    glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
-    stage = "<JOB_FILES>"
-    check = "biome check {{ files }}"
-    fix = "biome check --write {{ files }}"
+  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
+  stage = "<JOB_FILES>"
+  check = "biome check {{ files }}"
+  fix = "biome check --write {{ files }}"
 }

@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Python"
-    description = "Python import sorter"
+  category = "Python"
+  description = "Python import sorter"
 }
 isort = new Config.Step {
-    glob = "**/*.py"
-    stage = "<JOB_FILES>"
-    check = "isort --check-only {{ files }}"
-    fix = "isort {{ files }}"
+  glob = "**/*.py"
+  stage = "<JOB_FILES>"
+  check = "isort --check-only {{ files }}"
+  fix = "isort {{ files }}"
 }

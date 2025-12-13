@@ -2,13 +2,13 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Rust"
-    description = "Fast Rust type checking"
+  category = "Rust"
+  description = "Fast Rust type checking"
 }
 cargo_check = new Config.Step {
-    glob = "**/*.rs"
-    check = "cargo check -q"
-    env {
-        ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
-    }
+  glob = "**/*.rs"
+  check = "cargo check -q"
+  env {
+    ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
+  }
 }

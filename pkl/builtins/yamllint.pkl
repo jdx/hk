@@ -2,22 +2,22 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Data Formats"
-    description = "YAML linter"
+  category = "Data Formats"
+  description = "YAML linter"
 }
 yamllint = new Config.Step {
-    glob = List("**/*.yml", "**/*.yaml")
-    check = "yamllint {{ files }}"
-    tests {
-        ["check bad file"] {
-            run = "check"
-            write { ["{{tmp}}/file.yaml"] = "x: 1\nx: 2\n" }
-            expect { code = 1 }
-        }
-        ["check good file"] {
-            run = "check"
-            write { ["{{tmp}}/file.yaml"] = "x: 1\n" }
-            expect { code = 0 }
-        }
+  glob = List("**/*.yml", "**/*.yaml")
+  check = "yamllint {{ files }}"
+  tests {
+    ["check bad file"] {
+      run = "check"
+      write { ["{{tmp}}/file.yaml"] = "x: 1\nx: 2\n" }
+      expect { code = 1 }
     }
+    ["check good file"] {
+      run = "check"
+      write { ["{{tmp}}/file.yaml"] = "x: 1\n" }
+      expect { code = 0 }
+    }
+  }
 }

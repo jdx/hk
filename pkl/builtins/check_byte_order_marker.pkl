@@ -2,33 +2,33 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Special Purpose"
-    description = "Detect UTF-8 BOM"
+  category = "Special Purpose"
+  description = "Detect UTF-8 BOM"
 }
 check_byte_order_marker = new Config.Step {
-    glob = "**/*"
-    check = "hk util check-byte-order-marker {{files}}"
-    tests {
-        ["detects BOM"] {
-            run = "check"
-            write {
-                ["{{tmp}}/with_bom.txt"] = "\u{FEFF}Hello, world!"
-            }
-            expect { code = 1 }
-        }
-        ["passes without BOM"] {
-            run = "check"
-            write {
-                ["{{tmp}}/without_bom.txt"] = "Hello, world!"
-            }
-            expect { code = 0 }
-        }
-        ["passes empty file"] {
-            run = "check"
-            write {
-                ["{{tmp}}/empty.txt"] = ""
-            }
-            expect { code = 0 }
-        }
+  glob = "**/*"
+  check = "hk util check-byte-order-marker {{files}}"
+  tests {
+    ["detects BOM"] {
+      run = "check"
+      write {
+        ["{{tmp}}/with_bom.txt"] = "\u{FEFF}Hello, world!"
+      }
+      expect { code = 1 }
     }
+    ["passes without BOM"] {
+      run = "check"
+      write {
+        ["{{tmp}}/without_bom.txt"] = "Hello, world!"
+      }
+      expect { code = 0 }
+    }
+    ["passes empty file"] {
+      run = "check"
+      write {
+        ["{{tmp}}/empty.txt"] = ""
+      }
+      expect { code = 0 }
+    }
+  }
 }
