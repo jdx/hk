@@ -108,7 +108,7 @@ fn generate_settings_struct(
         }
 
         // Create a field with documentation
-        let mut field = codegen::Field::new(&format!("pub {}", field_name), field_type);
+        let mut field = codegen::Field::new(format!("pub {}", field_name), field_type);
         if !doc_lines.is_empty() {
             field.doc(doc_lines.join("\n"));
         }
