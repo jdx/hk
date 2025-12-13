@@ -2,10 +2,10 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Python"
-    description = "Static type checker for Python"
+  category = "Python"
+  description = "Static type checker for Python"
 }
 mypy = new Config.Step {
-    glob = List("**/*.py", "**/*.pyi")
-    check = "mypy {{ files }}"
+  glob = List("**/*.py", "**/*.pyi")
+  check = "mypy {{ files }}"
 }

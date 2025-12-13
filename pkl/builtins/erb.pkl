@@ -2,10 +2,10 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Ruby"
-    description = "ERB template linter"
+  category = "Ruby"
+  description = "ERB template linter"
 }
 erb = new Config.Step {
-    glob = "**/*.erb"
-    check = "erb -P -x -T - {{ files }} | ruby -c"
+  glob = "**/*.erb"
+  check = "erb -P -x -T - {{ files }} | ruby -c"
 }

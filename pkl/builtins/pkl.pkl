@@ -2,22 +2,22 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Configuration"
-    description = "Pkl configuration language"
+  category = "Configuration"
+  description = "Pkl configuration language"
 }
 pkl = new Config.Step {
-    glob = "**/*.pkl"
-    check = "pkl eval {{files}} >/dev/null"
-    tests {
-        ["check bad file"] {
-            run = "check"
-            write { ["{{tmp}}/test.pkl"] = "x == 1" }
-            expect { code = 1 }
-        }
-        ["check good file"] {
-            run = "check"
-            write { ["{{tmp}}/test.pkl"] = "x = 1" }
-            expect { code = 0 }
-        }
+  glob = "**/*.pkl"
+  check = "pkl eval {{files}} >/dev/null"
+  tests {
+    ["check bad file"] {
+      run = "check"
+      write { ["{{tmp}}/test.pkl"] = "x == 1" }
+      expect { code = 1 }
     }
+    ["check good file"] {
+      run = "check"
+      write { ["{{tmp}}/test.pkl"] = "x = 1" }
+      expect { code = 0 }
+    }
+  }
 }

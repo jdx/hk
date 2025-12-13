@@ -2,62 +2,62 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Python"
-    description = "Fast Python formatter (part of ruff)"
+  category = "Python"
+  description = "Fast Python formatter (part of ruff)"
 }
 ruff_format = new Config.Step {
-    glob = List("**/*.py", "**/*.pyi")
-    stage = "<JOB_FILES>"
-    check = "ruff format --force-exclude --check {{ files }}"
-    check_diff = "ruff format --force-exclude --diff {{ files }}"
-    fix = "ruff format --force-exclude {{ files }}"
-    tests {
-        const local bad = "x=1+2"
-        const local good = "x = 1 + 2\n"
-        ["check bad"] {
-            run = "check"
-            write { ["{{tmp}}/test.py"] = bad }
-            expect { code = 1 }
-        }
-        ["check good"] {
-            run = "check"
-            write { ["{{tmp}}/test.py"] = good }
-            expect { code = 0 }
-        }
-        ["fix bad"] {
-            run = "fix"
-            write { ["{{tmp}}/test.py"] = bad }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.py"] = good }
-            }
-        }
-        ["fix good"] {
-            run = "fix"
-            write { ["{{tmp}}/test.py"] = good }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.py"] = good }
-            }
-        }
-        ["check respects config exclude"] {
-            run = "check"
-            write {
-                ["{{tmp}}/test.py"] = "x=1+2\n"
-                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
-            }
-            expect { code = 0 }
-        }
-        ["fix respects config exclude"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/test.py"] = "x=1+2\n"
-                ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
-            }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.py"] = "x=1+2\n" }
-            }
-        }
+  glob = List("**/*.py", "**/*.pyi")
+  stage = "<JOB_FILES>"
+  check = "ruff format --force-exclude --check {{ files }}"
+  check_diff = "ruff format --force-exclude --diff {{ files }}"
+  fix = "ruff format --force-exclude {{ files }}"
+  tests {
+    local const bad = "x=1+2"
+    local const good = "x = 1 + 2\n"
+    ["check bad"] {
+      run = "check"
+      write { ["{{tmp}}/test.py"] = bad }
+      expect { code = 1 }
     }
+    ["check good"] {
+      run = "check"
+      write { ["{{tmp}}/test.py"] = good }
+      expect { code = 0 }
+    }
+    ["fix bad"] {
+      run = "fix"
+      write { ["{{tmp}}/test.py"] = bad }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.py"] = good }
+      }
+    }
+    ["fix good"] {
+      run = "fix"
+      write { ["{{tmp}}/test.py"] = good }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.py"] = good }
+      }
+    }
+    ["check respects config exclude"] {
+      run = "check"
+      write {
+        ["{{tmp}}/test.py"] = "x=1+2\n"
+        ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
+      }
+      expect { code = 0 }
+    }
+    ["fix respects config exclude"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/test.py"] = "x=1+2\n"
+        ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
+      }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.py"] = "x=1+2\n" }
+      }
+    }
+  }
 }

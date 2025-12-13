@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Ruby"
-    description = "Ruby style guide"
+  category = "Ruby"
+  description = "Ruby style guide"
 }
 rubocop = new Config.Step {
-    glob = "**/*.rb"
-    stage = "<JOB_FILES>"
-    check = "rubocop {{ files }}"
-    fix = "rubocop --fix {{ files }}"
+  glob = "**/*.rb"
+  stage = "<JOB_FILES>"
+  check = "rubocop {{ files }}"
+  fix = "rubocop --fix {{ files }}"
 }

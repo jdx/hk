@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Go"
-    description = "Go meta-linter"
+  category = "Go"
+  description = "Go meta-linter"
 }
 golangci_lint = new Config.Step {
-    glob = "**/*.go"
-    stage = "<JOB_FILES>"
-    check = "golangci-lint run --fix=false {{ files }}"
-    fix = "golangci-lint run --fix {{ files }}"
+  glob = "**/*.go"
+  stage = "<JOB_FILES>"
+  check = "golangci-lint run --fix=false {{ files }}"
+  fix = "golangci-lint run --fix {{ files }}"
 }

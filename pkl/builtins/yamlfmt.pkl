@@ -2,65 +2,66 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Data Formats"
-    description = "YAML formatter"
+  category = "Data Formats"
+  description = "YAML formatter"
 }
 yamlfmt = new Config.Step {
-    glob = List("**/*.yml", "**/*.yaml")
-    stage = "<JOB_FILES>"
-    check_diff = "yamlfmt -lint {{ files }}"
-    fix = "yamlfmt {{ files }}"
-    tests {
-        const local bad = "-  a\n"
-        const local good = "- a\n"
-        const local config_file = "yamlfmt.yaml"
-        const local config = """
-          formatter:
-            type: basic
-          """
-        ["check bad file"] {
-            run = "check"
-            write {
-                ["{{tmp}}/file.yaml"] = bad
-                // Create a yamlfmt config file in the working directory to
-                // prevent loading system config (e.g. `$XDG_CONFIG_HOME`)
-                ["{{tmp}}/\(config_file)"] = config
-            }
-            files = List("{{tmp}}/file.yaml")
-            expect { code = 1 }
-        }
-        ["check good file"] {
-            run = "check"
-            write {
-                ["{{tmp}}/file.yaml"] = good
-                ["{{tmp}}/\(config_file)"] = config
-            }
-            files = List("{{tmp}}/file.yaml")
-            expect { code = 0 }
-        }
-        ["fix bad file"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/file.yaml"] = bad
-                ["{{tmp}}/\(config_file)"] = config
-            }
-            files = List("{{tmp}}/file.yaml")
-            expect {
-                files { ["{{tmp}}/file.yaml"] = good }
-                code = 0
-            }
-        }
-        ["fix good file"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/file.yaml"] = good
-                ["{{tmp}}/\(config_file)"] = config
-            }
-            files = List("{{tmp}}/file.yaml")
-            expect {
-                files { ["{{tmp}}/file.yaml"] = good }
-                code = 0
-            }
-        }
+  glob = List("**/*.yml", "**/*.yaml")
+  stage = "<JOB_FILES>"
+  check_diff = "yamlfmt -lint {{ files }}"
+  fix = "yamlfmt {{ files }}"
+  tests {
+    local const bad = "-  a\n"
+    local const good = "- a\n"
+    local const config_file = "yamlfmt.yaml"
+    local const config =
+      """
+      formatter:
+        type: basic
+      """
+    ["check bad file"] {
+      run = "check"
+      write {
+        ["{{tmp}}/file.yaml"] = bad
+        // Create a yamlfmt config file in the working directory to
+        // prevent loading system config (e.g. `$XDG_CONFIG_HOME`)
+        ["{{tmp}}/\(config_file)"] = config
+      }
+      files = List("{{tmp}}/file.yaml")
+      expect { code = 1 }
     }
+    ["check good file"] {
+      run = "check"
+      write {
+        ["{{tmp}}/file.yaml"] = good
+        ["{{tmp}}/\(config_file)"] = config
+      }
+      files = List("{{tmp}}/file.yaml")
+      expect { code = 0 }
+    }
+    ["fix bad file"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/file.yaml"] = bad
+        ["{{tmp}}/\(config_file)"] = config
+      }
+      files = List("{{tmp}}/file.yaml")
+      expect {
+        files { ["{{tmp}}/file.yaml"] = good }
+        code = 0
+      }
+    }
+    ["fix good file"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/file.yaml"] = good
+        ["{{tmp}}/\(config_file)"] = config
+      }
+      files = List("{{tmp}}/file.yaml")
+      expect {
+        files { ["{{tmp}}/file.yaml"] = good }
+        code = 0
+      }
+    }
+  }
 }

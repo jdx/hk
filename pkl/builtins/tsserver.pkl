@@ -2,10 +2,10 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "JavaScript/TypeScript"
-    description = "TypeScript language server diagnostics"
+  category = "JavaScript/TypeScript"
+  description = "TypeScript language server diagnostics"
 }
 tsserver = new Config.Step {
-    glob = List("**/*.ts", "**/*.tsx")
-    check = "tsc-files --noEmit {{ files }}"
+  glob = List("**/*.ts", "**/*.tsx")
+  check = "tsc-files --noEmit {{ files }}"
 }
