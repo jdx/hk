@@ -4,6 +4,11 @@ module hk.Types
 typealias RegexPattern = Mapping<"_type"|"pattern", String>
 
 /// Helper function to create regex patterns with clean syntax
+@Deprecated {
+    since="1.27.1"
+    message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
+    replaceWith = "Regex"
+}
 function Regex(pattern: String): RegexPattern = new Mapping {
     ["_type"] = "regex"
     ["pattern"] = pattern

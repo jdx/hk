@@ -11,13 +11,12 @@ teardown() {
 @test "regex exclude pattern" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["prettier"] {
                 glob = List("**/*.yaml")
-                exclude = Config.Regex(#"""
+                exclude = Regex(#"""
 (?x)
 ^.*airflow\.template\.yaml$|
 ^.*init_git_sync\.template\.yaml$|
@@ -65,12 +64,11 @@ EOF
 @test "regex glob pattern" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["yaml-check"] {
-                glob = Config.Regex(#"^(config|settings).*\.yaml$"#)
+                glob = Regex(#"^(config|settings).*\.yaml$"#)
                 check = "echo {{files}}"
             }
         }
@@ -101,14 +99,13 @@ EOF
 @test "regex pattern with dir" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["check-src"] {
                 dir = "src"
                 glob = List("**/*.js")
-                exclude = Config.Regex(#".*\.test\.js$"#)
+                exclude = Regex(#".*\.test\.js$"#)
                 check = "echo {{files}}"
             }
         }
@@ -138,14 +135,13 @@ EOF
 @test "regex pattern with dir and nested paths" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["check-src"] {
                 dir = "src"
                 glob = List("**/*.js")
-                exclude = Config.Regex(#"^utils/.*$"#)
+                exclude = Regex(#"^utils/.*$"#)
                 check = "echo {{files}}"
             }
         }
@@ -262,13 +258,12 @@ EOF
 @test "dir pre-filters files before regex matching" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["check-backend"] {
                 dir = "backend"
-                glob = Config.Regex(#"^.*\\.py$"#)
+                glob = Regex(#"^.*\\.py$"#)
                 check = "echo checking: {{files}}"
             }
         }
@@ -338,12 +333,11 @@ EOF
 @test "{{globs}} template variable works with regex patterns" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["yaml-check"] {
-                glob = Config.Regex(#"^.*\\.yaml$"#)
+                glob = Regex(#"^.*\\.yaml$"#)
                 check = "echo pattern={{globs}} files={{files}}"
             }
         }
@@ -368,13 +362,12 @@ EOF
 @test "regex with dir matches paths relative to dir" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["check-components"] {
                 dir = "src/components"
-                glob = Config.Regex(#"^[A-Z].*\\.tsx$"#)
+                glob = Regex(#"^[A-Z].*\\.tsx$"#)
                 check = "echo matched: {{files}}"
             }
         }
@@ -407,7 +400,6 @@ EOF
 @test "{{globs}} template variable is consistent string format for both glob and regex" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
@@ -416,7 +408,7 @@ hooks {
                 check = "echo 'glob-type={{globs}}' files={{files}}"
             }
             ["regex-test"] {
-                glob = Config.Regex(#"^.*\\.json$"#)
+                glob = Regex(#"^.*\\.json$"#)
                 check = "echo 'regex-type={{globs}}' files={{files}}"
             }
         }
