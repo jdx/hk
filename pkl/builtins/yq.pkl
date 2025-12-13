@@ -2,10 +2,11 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Data Formats"
-    description = "YAML processor"
+  category = "Data Formats"
+  description = "YAML processor"
 }
 yq = new Config.Step {
+<<<<<<< HEAD
     glob = List("**/*.yaml", "**/*.yml")
     stage = "<JOB_FILES>"
     check_diff = """
@@ -46,4 +47,10 @@ exit $failed
             }
         }
     }
+=======
+  glob = "**/*.yaml"
+  stage = "<JOB_FILES>"
+  check = "yq {{ files }}"
+  fix = "yq -iP {{ files }}"
+>>>>>>> e4063a2 (okie dokie)
 }

@@ -2,52 +2,52 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Special Purpose"
-    description = "Replace smart quotes with regular quotes"
+  category = "Special Purpose"
+  description = "Replace smart quotes with regular quotes"
 }
 fix_smart_quotes = new Config.Step {
-    glob = "**/*"
-    fix = "hk util fix-smart-quotes {{files}}"
-    stage = "<JOB_FILES>"
-    tests {
-        ["replaces smart quotes with regular quotes"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/with_smart_quotes.txt"] = "\u{FF02}Hello, world!\u{FF02}"
-            }
-            files = List("{{tmp}}/with_smart_quotes.txt")
-            expect {
-                code = 0
-                files {
-                    ["{{tmp}}/with_smart_quotes.txt"] = "\"Hello, world!\""
-                }
-            }
+  glob = "**/*"
+  fix = "hk util fix-smart-quotes {{files}}"
+  stage = "<JOB_FILES>"
+  tests {
+    ["replaces smart quotes with regular quotes"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/with_smart_quotes.txt"] = "\u{FF02}Hello, world!\u{FF02}"
+      }
+      files = List("{{tmp}}/with_smart_quotes.txt")
+      expect {
+        code = 0
+        files {
+          ["{{tmp}}/with_smart_quotes.txt"] = "\"Hello, world!\""
         }
-        ["leaves file without smart quotes unchanged"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/without_smart_quotes.txt"] = "\"Hello, world!\""
-            }
-            files = List("{{tmp}}/without_smart_quotes.txt")
-            expect {
-                code = 0
-                files {
-                    ["{{tmp}}/without_smart_quotes.txt"] = "\"Hello, world!\""
-                }
-            }
-        }
-        ["handles empty file"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/empty.txt"] = ""
-            }
-            files = List("{{tmp}}/empty.txt")
-            expect {
-                code = 0
-                files {
-                    ["{{tmp}}/empty.txt"] = ""
-                }
-            }
-        }
+      }
     }
+    ["leaves file without smart quotes unchanged"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/without_smart_quotes.txt"] = "\"Hello, world!\""
+      }
+      files = List("{{tmp}}/without_smart_quotes.txt")
+      expect {
+        code = 0
+        files {
+          ["{{tmp}}/without_smart_quotes.txt"] = "\"Hello, world!\""
+        }
+      }
+    }
+    ["handles empty file"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/empty.txt"] = ""
+      }
+      files = List("{{tmp}}/empty.txt")
+      expect {
+        code = 0
+        files {
+          ["{{tmp}}/empty.txt"] = ""
+        }
+      }
+    }
+  }
 }

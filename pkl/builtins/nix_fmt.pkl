@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Nix"
-    description = "Nix formatter"
+  category = "Nix"
+  description = "Nix formatter"
 }
 nix_fmt = new Config.Step {
-    glob = "**/*.nix"
-    stage = "<JOB_FILES>"
-    check = "nixfmt --check {{ files }}"
-    fix = "nixfmt {{ files }}"
+  glob = "**/*.nix"
+  stage = "<JOB_FILES>"
+  check = "nixfmt --check {{ files }}"
+  fix = "nixfmt {{ files }}"
 }

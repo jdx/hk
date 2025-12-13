@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Go"
-    description = "Long line fixer"
+  category = "Go"
+  description = "Long line fixer"
 }
 go_lines = new Config.Step {
-    glob = "**/*.go"
-    stage = "<JOB_FILES>"
-    check = "golines --dry-run {{ files }}"
-    fix = "golines -w {{ files }}"
+  glob = "**/*.go"
+  stage = "<JOB_FILES>"
+  check = "golines --dry-run {{ files }}"
+  fix = "golines -w {{ files }}"
 }

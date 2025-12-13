@@ -318,7 +318,7 @@ class Step {
   /// ```
   ///
   /// By default, hk will use `fix` commands but this can be overridden by setting
-  /// [`HK_FIX=0`](https://hk.jdx.dev/configuration#hk-fix) or running `hk run <HOOK> --run`.
+  /// [`HK_FIX=0`](https://hk.jdx.dev/configuration#hk-fix) or running `hk run <HOOK> --check`.
   fix: (String | Script)?
 
   /// If true, hk will run the check step first and only run the fix step if the check step fails.
@@ -341,8 +341,8 @@ class Step {
   /// Default: `false`
   ///
   /// If true, hk will get a write lock instead of a read lock when running fix/fix_all.
-  /// Use this if the tool has its own locking mechanism or you simply don't care if files
-  /// may be written to by multiple linters simultaneously.
+  /// Use this if the tool has its own locking mechanism or you simply don't care
+  /// if files may be written to by multiple linters simultaneously.
   stomp: Boolean = false
 
   /// If set, run the linter on workspaces only which are parent directories containing this filename.
@@ -602,9 +602,8 @@ class Step {
   /// Default: `"stderr"`
   ///
   /// Controls which stream(s) from the step’s command are captured and printed
-  /// at the end of the hook run.
-  /// This prints a single consolidated block per step that produced any output, 
-  /// with a header like `STEP_NAME stderr:`.
+  /// at the end of the hook run. This prints a single consolidated block per step
+  /// that produced any output, with a header like `STEP_NAME stderr:`.
   ///
   /// - `"stderr"` (default): capture only standard error
   /// - `"stdout"`: capture only standard output

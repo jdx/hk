@@ -2,13 +2,13 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Rust"
-    description = "Rust code formatter (standalone)"
+  category = "Rust"
+  description = "Rust code formatter (standalone)"
 }
 rustfmt = new Config.Step {
-    glob = "**/*.rs"
-    stage = "<JOB_FILES>"
-    check = "rustfmt --check --edition 2024 {{ files }}"
-    check_list_files = "rustfmt --check --edition 2024 --files-with-diff {{ files }}"
-    fix = "rustfmt --edition 2024 {{ files }}"
+  glob = "**/*.rs"
+  stage = "<JOB_FILES>"
+  check = "rustfmt --check --edition 2024 {{ files }}"
+  check_list_files = "rustfmt --check --edition 2024 --files-with-diff {{ files }}"
+  fix = "rustfmt --edition 2024 {{ files }}"
 }

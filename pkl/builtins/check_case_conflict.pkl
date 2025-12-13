@@ -2,28 +2,28 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Special Purpose"
-    description = "Detect case-insensitive filename conflicts"
+  category = "Special Purpose"
+  description = "Detect case-insensitive filename conflicts"
 }
 check_case_conflict = new Config.Step {
-    glob = "**/*"
-    check = "hk util check-case-conflict {{files}}"
-    tests {
-        ["detects case conflicts"] {
-            run = "check"
-            write {
-                ["{{tmp}}/README.md"] = "# First\n"
-                ["{{tmp}}/readme.md"] = "# Second\n"
-            }
-            expect { code = 1 }
-        }
-        ["passes when no conflicts"] {
-            run = "check"
-            write {
-                ["{{tmp}}/file1.txt"] = "content\n"
-                ["{{tmp}}/file2.txt"] = "content\n"
-            }
-            expect { code = 0 }
-        }
+  glob = "**/*"
+  check = "hk util check-case-conflict {{files}}"
+  tests {
+    ["detects case conflicts"] {
+      run = "check"
+      write {
+        ["{{tmp}}/README.md"] = "# First\n"
+        ["{{tmp}}/readme.md"] = "# Second\n"
+      }
+      expect { code = 1 }
     }
+    ["passes when no conflicts"] {
+      run = "check"
+      write {
+        ["{{tmp}}/file1.txt"] = "content\n"
+        ["{{tmp}}/file2.txt"] = "content\n"
+      }
+      expect { code = 0 }
+    }
+  }
 }

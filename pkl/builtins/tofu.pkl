@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Infrastructure"
-    description = "OpenTofu formatter"
+  category = "Infrastructure"
+  description = "OpenTofu formatter"
 }
 tofu = new Config.Step {
-    glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
-    stage = "<JOB_FILES>"
-    check_list_files = "tofu fmt -check {{ files }}"
-    fix = "tofu fmt {{ files }}"
+  glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
+  stage = "<JOB_FILES>"
+  check_list_files = "tofu fmt -check {{ files }}"
+  fix = "tofu fmt {{ files }}"
 }

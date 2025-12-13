@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Infrastructure"
-    description = "Terraform linter"
+  category = "Infrastructure"
+  description = "Terraform linter"
 }
 tf_lint = new Config.Step {
-    glob = "**/*.tf"
-    stage = "<JOB_FILES>"
-    check = "tflint"
-    fix = "tflint --fix"
+  glob = "**/*.tf"
+  stage = "<JOB_FILES>"
+  check = "tflint"
+  fix = "tflint --fix"
 }

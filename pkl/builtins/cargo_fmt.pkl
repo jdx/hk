@@ -2,13 +2,13 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Rust"
-    description = "Rust code formatter"
+  category = "Rust"
+  description = "Rust code formatter"
 }
 cargo_fmt = new Config.Step {
-    glob = "**/*.rs"
-    stage = "<JOB_FILES>"
-    workspace_indicator = "Cargo.toml"
-    check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
-    fix = "cargo fmt --manifest-path {{workspace_indicator}}"
+  glob = "**/*.rs"
+  stage = "<JOB_FILES>"
+  workspace_indicator = "Cargo.toml"
+  check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
+  fix = "cargo fmt --manifest-path {{workspace_indicator}}"
 }
