@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "4.44.1"
+tool = "yq"

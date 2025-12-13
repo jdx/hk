@@ -8,6 +8,42 @@ import "../Config.pkl"
 yq = new Config.Step {
     glob = "**/*.yaml"
     stage = "<JOB_FILES>"
-    check = "yq {{ files }}"
+    check_diff = """
+failed=0
+for f in {{ files }}; do
+  yq -P "$f" | diff -u "$f" - || failed=1
+done
+exit $failed
+"""
     fix = "yq -iP {{ files }}"
+    tests {
+        const local bad = "foo:   bar\n"
+        const local good = "foo: bar\n"
+        ["check bad file"] {
+            run = "check"
+            write { ["{{tmp}}/test.yaml"] = bad }
+            expect { code = 1 }
+        }
+        ["check good file"] {
+            run = "check"
+            write { ["{{tmp}}/test.yaml"] = good }
+            expect { code = 0 }
+        }
+        ["fix bad file"] {
+            run = "fix"
+            write { ["{{tmp}}/test.yaml"] = bad }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.yaml"] = good }
+            }
+        }
+        ["fix good file"] {
+            run = "fix"
+            write { ["{{tmp}}/test.yaml"] = good }
+            expect {
+                code = 0
+                files { ["{{tmp}}/test.yaml"] = good }
+            }
+        }
+    }
 }
