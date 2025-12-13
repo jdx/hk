@@ -48,7 +48,7 @@ PRECOMMIT
 
     # Verify exclude is preserved (as regex)
     run cat hk.pkl
-    assert_output --partial 'exclude = Types.Regex'
+    assert_output --partial 'exclude = Regex'
     assert_output --partial 'pre_commit/resources'
 }
 
