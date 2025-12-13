@@ -8,7 +8,13 @@ import "../Config.pkl"
 yq = new Config.Step {
     glob = List("**/*.yaml", "**/*.yml")
     stage = "<JOB_FILES>"
-    check = "yq {{ files }}"
+    check_diff = """
+failed=0
+for f in {{ files }}; do
+  yq -P "$f" | diff -u "$f" - || failed=1
+done
+exit $failed
+"""
     fix = "yq -iP {{ files }}"
     tests {
         const local bad = "foo:  bar"
