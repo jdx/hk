@@ -21,7 +21,6 @@ taplo                 = "latest"
 usage                 = "latest"
 uv                    = "latest"
 vhs                   = "latest"
-yq                    = "latest"
 
 [tasks.init]
 run = '''
