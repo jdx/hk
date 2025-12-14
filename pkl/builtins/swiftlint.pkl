@@ -19,7 +19,7 @@ swiftlint = new Config.Step {
         ["{{tmp}}/test.swift"] = bad
         ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
       }
-      expect { code = 1 }
+      expect { code = 2 }
     }
     ["check good"] {
       run = "check"
