@@ -52,15 +52,6 @@ backend = "aqua:orhun/git-cliff"
 "platforms.macos-x64" = { checksum = "sha256:c3111dddaf866a986085f22ff22fa3003645fc69a3b9302c4e1352c4676c398a", url = "https://github.com/orhun/git-cliff/releases/download/v2.10.1/git-cliff-2.10.1-x86_64-apple-darwin.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:073c8027da2e055ec83c3609c4195284bd10b2771fcbd806ff0f94e48c310c77", url = "https://github.com/orhun/git-cliff/releases/download/v2.10.1/git-cliff-2.10.1-x86_64-pc-windows-msvc.zip"}
 
-[[tools.hadolint]]
-version = "2.12.0"
-backend = "aqua:hadolint/hadolint"
-"platforms.linux-arm64" = { checksum = "sha256:5798551bf19f33951881f15eb238f90aef023f11e7ec7e9f4c37961cb87c5df6", url = "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-arm64"}
-"platforms.linux-x64" = { checksum = "sha256:56de6d5e5ec427e17b74fa48d51271c7fc0d61244bf5c90e828aab8362d55010", url = "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"}
-"platforms.macos-arm64" = { checksum = "sha256:2a5b7afcab91645c39a7cebefcd835b865f7488e69be24567f433dfc3d41cd27", url = "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Darwin-x86_64"}
-"platforms.macos-x64" = { checksum = "sha256:2a5b7afcab91645c39a7cebefcd835b865f7488e69be24567f433dfc3d41cd27", url = "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Darwin-x86_64"}
-"platforms.windows-x64" = { checksum = "sha256:ed89a156290e15452276b2b4c84efa688a5183d3b578bfaec7cfdf986f0632a8", url = "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Windows-x86_64.exe"}
-
 [[tools.node]]
 version = "24.11.1"
 backend = "core:node"
