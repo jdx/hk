@@ -1,21 +1,11 @@
 @ModuleInfo { minPklVersion = "0.27.2" }
 module hk.Types
-<<<<<<< HEAD
 import "pkl:base"
 
 /// Helper function to create regex patterns with clean syntax
 @Deprecated {
-    since="1.27.1"
-    message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
-    replaceWith = "Regex"
-=======
-
-typealias RegexPattern = Mapping<"_type" | "pattern", String>
-
-/// Helper function to create regex patterns with clean syntax
-function Regex(pattern: String): RegexPattern = new Mapping {
-  ["_type"] = "regex"
-  ["pattern"] = pattern
->>>>>>> e4063a2 (okie dokie)
+  since = "1.27.1"
+  message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
+  replaceWith = "Regex"
 }
 function Regex(pattern: String): Regex = base.Regex(pattern)

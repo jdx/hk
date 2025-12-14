@@ -8,9 +8,9 @@ typealias StashMethod = Boolean | "git" | "patch-file" | "none"
 
 // NB: Re-export Regex in case users use Config.Regex
 @Deprecated {
-    since="1.27.1"
-    message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
-    replaceWith = "Regex"
+  since = "1.27.1"
+  message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
+  replaceWith = "Regex"
 }
 const function Regex(s: String): Regex = base.Regex(s)
 
@@ -25,7 +25,7 @@ class Script {
 ///
 /// Specifies the preferred default branch to compare against when hk needs a reference
 /// (e.g., suggestions in pre-commit warnings).
-/// If unset or empty, hk attempts to detect it via `origin/HEAD`, the current branch's remote, 
+/// If unset or empty, hk attempts to detect it via `origin/HEAD`, the current branch's remote,
 /// or falls back to `main`/`master` if they exist on the remote.
 ///
 /// Examples:
@@ -164,7 +164,7 @@ class Hook {
 class Step {
   _type = "step"
 
-  /// Files the step should run on. By default this will only run this step if 
+  /// Files the step should run on. By default this will only run this step if
   /// at least 1 staged file matches the glob or regex patterns.
   /// If no patterns are provided, the step will always run.
   ///
