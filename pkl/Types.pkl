@@ -4,8 +4,8 @@ import "pkl:base"
 
 /// Helper function to create regex patterns with clean syntax
 @Deprecated {
-    since="1.27.1"
-    message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
-    replaceWith = "Regex"
+  since = "1.27.1"
+  message = "Replace `Types.Regex` with `Regex` (pkl built-in)"
+  replaceWith = "Regex"
 }
 function Regex(pattern: String): Regex = base.Regex(pattern)

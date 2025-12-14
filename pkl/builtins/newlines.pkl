@@ -2,42 +2,42 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Special Purpose"
-    description = "Ensure files end with newline"
+  category = "Special Purpose"
+  description = "Ensure files end with newline"
 }
 newlines = new Config.Step {
-    glob = "**/*"
-    stage = "<JOB_FILES>"
-    check_list_files = "hk util end-of-file-fixer {{files}}"
-    fix = "hk util end-of-file-fixer --fix {{files}}"
-    tests {
-        const local bad = "content"
-        const local good = "content\n"
-        ["check bad file"] {
-            run = "check"
-            write { ["{{tmp}}/test.txt"] = bad }
-            expect { code = 1 }
-        }
-        ["check good file"] {
-            run = "check"
-            write { ["{{tmp}}/test.txt"] = good }
-            expect { code = 0 }
-        }
-        ["fix bad file"] {
-            run = "fix"
-            write { ["{{tmp}}/test.txt"] = bad }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.txt"] = good }
-            }
-        }
-        ["fix good file"] {
-            run = "fix"
-            write { ["{{tmp}}/test.txt"] = good }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.txt"] = good }
-            }
-        }
+  glob = "**/*"
+  stage = "<JOB_FILES>"
+  check_list_files = "hk util end-of-file-fixer {{files}}"
+  fix = "hk util end-of-file-fixer --fix {{files}}"
+  tests {
+    local const bad = "content"
+    local const good = "content\n"
+    ["check bad file"] {
+      run = "check"
+      write { ["{{tmp}}/test.txt"] = bad }
+      expect { code = 1 }
     }
+    ["check good file"] {
+      run = "check"
+      write { ["{{tmp}}/test.txt"] = good }
+      expect { code = 0 }
+    }
+    ["fix bad file"] {
+      run = "fix"
+      write { ["{{tmp}}/test.txt"] = bad }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.txt"] = good }
+      }
+    }
+    ["fix good file"] {
+      run = "fix"
+      write { ["{{tmp}}/test.txt"] = good }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.txt"] = good }
+      }
+    }
+  }
 }

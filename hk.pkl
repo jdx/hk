@@ -4,80 +4,81 @@ import "pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
 local linters = new Mapping<String, Step | Group> {
-    ["actionlint"] = Builtins.actionlint
-    ["cargo-fmt"] = Builtins.cargo_fmt
-    // TODO: fails on releases with hk-example.pkl
-    // ["pkl"] {
-    //     glob = new { "*.pkl" }
-    //     check = "pkl eval {{files}} >/dev/null"
-    // }
-    // predefined formatters+linters
-    ["cargo-clippy"] = (Builtins.cargo_clippy) {
-        profiles = List("slow")
-        check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
-    }
-    ["cargo-check"] = (Builtins.cargo_check) {
-        profiles = List("!slow")
-    }
-    ["dbg"] = new Step {
-        // ensure no dbg! macros are used
-        glob = "**/*.rs"
-        check = "! rg -e 'dbg!' {{files}}"
-    }
-    ["eslint"] = (Builtins.eslint) {
-        dir = "docs"
-        prefix = "bun run"
-    }
-    ["newlines"] = Builtins.newlines
-    ["trailing-whitespace"] = Builtins.trailing_whitespace
-    ["prettier"] = (Builtins.prettier) {
-        glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
-    }
-    ["taplo"] = (Builtins.taplo) {
-        glob = "settings.toml"
-    }
-    ["taplo-format"] = Builtins.taplo_format
-    ["docs"] = new Step {
-        glob = "docs/**"
-        check = "mise run docs:build"
-        output_summary = "hide"
-    }
+  ["actionlint"] = Builtins.actionlint
+  ["cargo-fmt"] = Builtins.cargo_fmt
+  // TODO: fails on releases with hk-example.pkl
+  // ["pkl"] {
+  //     glob = new { "*.pkl" }
+  //     check = "pkl eval {{files}} >/dev/null"
+  // }
+  // predefined formatters+linters
+  ["cargo-clippy"] = (Builtins.cargo_clippy) {
+    profiles = List("slow")
+    check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
+  }
+  ["cargo-check"] = (Builtins.cargo_check) {
+    profiles = List("!slow")
+  }
+  ["dbg"] = new Step {
+    // ensure no dbg! macros are used
+    glob = "**/*.rs"
+    check = "! rg -e 'dbg!' {{files}}"
+  }
+  ["eslint"] = (Builtins.eslint) {
+    dir = "docs"
+    prefix = "bun run"
+  }
+  ["newlines"] = Builtins.newlines
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["prettier"] = (Builtins.prettier) {
+    glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
+  }
+  ["pkl-format"] = Builtins.pkl_format
+  ["taplo"] = (Builtins.taplo) {
+    glob = "settings.toml"
+  }
+  ["taplo-format"] = Builtins.taplo_format
+  ["docs"] = new Step {
+    glob = "docs/**"
+    check = "mise run docs:build"
+    output_summary = "hide"
+  }
 }
 
 hooks = new {
-    ["pre-commit"] {
-        fix = true
-        stash = "git"
-        steps = new {
-            ["prelint"] {
-                check = "mise run prelint"
-                exclusive = true
-            }
-            ...linters
-            ["postlint"] {
-                check = "echo postlint"
-                exclusive = true
-            }
-        }
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = new {
+      ["prelint"] {
+        check = "mise run prelint"
+        exclusive = true
+      }
+      ...linters
+      ["postlint"] {
+        check = "echo postlint"
+        exclusive = true
+      }
     }
-    ["pre-push"] {
-        steps = linters
-    }
-    ["check"] {
-        steps = linters
-    }
-    ["fix"] {
-        fix = true
-        steps = linters
-    }
-    //["prepare-commit-msg"] {
-    //    ["render-commit-msg"] {
-    //        check = "echo 'default commit message' > {{commit_msg_file}}"
-    //    }
-    //}
+  }
+  ["pre-push"] {
+    steps = linters
+  }
+  ["check"] {
+    steps = linters
+  }
+  ["fix"] {
+    fix = true
+    steps = linters
+  }
+  //["prepare-commit-msg"] {
+  //    ["render-commit-msg"] {
+  //        check = "echo 'default commit message' > {{commit_msg_file}}"
+  //    }
+  //}
 
-    // TODO
-    // ["commit-msg"] {}
+  // TODO
+  // ["commit-msg"] {}
 }
 
 warnings = List("missing-profiles")

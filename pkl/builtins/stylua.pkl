@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Other Languages"
-    description = "Lua formatter"
+  category = "Other Languages"
+  description = "Lua formatter"
 }
 stylua = new Config.Step {
-    glob = "**/*.lua"
-    stage = "<JOB_FILES>"
-    check = "stylua --check {{ files }}"
-    fix = "stylua {{ files }}"
+  glob = "**/*.lua"
+  stage = "<JOB_FILES>"
+  check = "stylua --check {{ files }}"
+  fix = "stylua {{ files }}"
 }

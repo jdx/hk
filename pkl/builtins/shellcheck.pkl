@@ -2,11 +2,11 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Shell"
-    description = "Shell script analyzer"
+  category = "Shell"
+  description = "Shell script analyzer"
 }
 shellcheck = new Config.Step {
-    batch = true
-    glob = List("**/*.sh", "**/*.bash")
-    check = "shellcheck {{ files }}"
+  batch = true
+  glob = List("**/*.sh", "**/*.bash")
+  check = "shellcheck {{ files }}"
 }

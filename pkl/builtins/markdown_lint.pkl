@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Markdown"
-    description = "Markdown linter"
+  category = "Markdown"
+  description = "Markdown linter"
 }
 markdown_lint = new Config.Step {
-    glob = List("**/*.md", "**/*.markdown")
-    stage = "<JOB_FILES>"
-    check = "markdownlint {{ files }}"
-    fix = "markdownlint --fix {{ files }}"
+  glob = List("**/*.md", "**/*.markdown")
+  stage = "<JOB_FILES>"
+  check = "markdownlint {{ files }}"
+  fix = "markdownlint --fix {{ files }}"
 }

@@ -2,52 +2,52 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Special Purpose"
-    description = "Remove UTF-8 BOM"
+  category = "Special Purpose"
+  description = "Remove UTF-8 BOM"
 }
 fix_byte_order_marker = new Config.Step {
-    glob = "**/*"
-    stage = "<JOB_FILES>"
-    fix = "hk util fix-byte-order-marker {{files}}"
-    tests {
-        ["removes BOM"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/with_bom.txt"] = "\u{FEFF}Hello, world!"
-            }
-            files = List("{{tmp}}/with_bom.txt")
-            expect {
-                code = 0
-                files {
-                    ["{{tmp}}/with_bom.txt"] = "Hello, world!"
-                }
-            }
+  glob = "**/*"
+  stage = "<JOB_FILES>"
+  fix = "hk util fix-byte-order-marker {{files}}"
+  tests {
+    ["removes BOM"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/with_bom.txt"] = "\u{FEFF}Hello, world!"
+      }
+      files = List("{{tmp}}/with_bom.txt")
+      expect {
+        code = 0
+        files {
+          ["{{tmp}}/with_bom.txt"] = "Hello, world!"
         }
-        ["leaves file without BOM unchanged"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/without_bom.txt"] = "Hello, world!"
-            }
-            files = List("{{tmp}}/without_bom.txt")
-            expect {
-                code = 0
-                files {
-                    ["{{tmp}}/without_bom.txt"] = "Hello, world!"
-                }
-            }
-        }
-        ["handles empty file"] {
-            run = "fix"
-            write {
-                ["{{tmp}}/empty.txt"] = ""
-            }
-            files = List("{{tmp}}/empty.txt")
-            expect {
-                code = 0
-                files {
-                    ["{{tmp}}/empty.txt"] = ""
-                }
-            }
-        }
+      }
     }
+    ["leaves file without BOM unchanged"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/without_bom.txt"] = "Hello, world!"
+      }
+      files = List("{{tmp}}/without_bom.txt")
+      expect {
+        code = 0
+        files {
+          ["{{tmp}}/without_bom.txt"] = "Hello, world!"
+        }
+      }
+    }
+    ["handles empty file"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/empty.txt"] = ""
+      }
+      files = List("{{tmp}}/empty.txt")
+      expect {
+        code = 0
+        files {
+          ["{{tmp}}/empty.txt"] = ""
+        }
+      }
+    }
+  }
 }

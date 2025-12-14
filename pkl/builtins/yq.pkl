@@ -2,48 +2,49 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Data Formats"
-    description = "YAML processor"
+  category = "Data Formats"
+  description = "YAML processor"
 }
 yq = new Config.Step {
-    glob = List("**/*.yaml", "**/*.yml")
-    stage = "<JOB_FILES>"
-    check_diff = """
-failed=0
-for f in {{ files }}; do
-  yq -P "$f" | diff -u "$f" - || failed=1
-done
-exit $failed
-"""
-    fix = "yq -iP {{ files }}"
-    tests {
-        const local bad = "foo:  bar"
-        const local good = "foo: bar\n"
-        ["check bad"] {
-            run = "check"
-            write { ["{{tmp}}/test.yml"] = bad }
-            expect { code = 1 }
-        }
-        ["check good"] {
-            run = "check"
-            write { ["{{tmp}}/test.yml"] = good }
-            expect { code = 0 }
-        }
-        ["fix bad"] {
-            run = "fix"
-            write { ["{{tmp}}/test.yml"] = bad }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.yml"] = good }
-            }
-        }
-        ["fix good"] {
-            run = "fix"
-            write { ["{{tmp}}/test.yml"] = good }
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.yml"] = good }
-            }
-        }
+  glob = List("**/*.yaml", "**/*.yml")
+  stage = "<JOB_FILES>"
+  check_diff =
+    """
+    failed=0
+    for f in {{ files }}; do
+      yq -P "$f" | diff -u "$f" - || failed=1
+    done
+    exit $failed
+    """
+  fix = "yq -iP {{ files }}"
+  tests {
+    local const bad = "foo:  bar"
+    local const good = "foo: bar\n"
+    ["check bad"] {
+      run = "check"
+      write { ["{{tmp}}/test.yml"] = bad }
+      expect { code = 1 }
     }
+    ["check good"] {
+      run = "check"
+      write { ["{{tmp}}/test.yml"] = good }
+      expect { code = 0 }
+    }
+    ["fix bad"] {
+      run = "fix"
+      write { ["{{tmp}}/test.yml"] = bad }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.yml"] = good }
+      }
+    }
+    ["fix good"] {
+      run = "fix"
+      write { ["{{tmp}}/test.yml"] = good }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.yml"] = good }
+      }
+    }
+  }
 }

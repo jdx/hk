@@ -2,18 +2,19 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Go"
-    description = "Go formatter"
+  category = "Go"
+  description = "Go formatter"
 }
 go_fmt = new Config.Step {
-    glob = "**/*.go"
-    stage = "<JOB_FILES>"
-    check_list_files = """
-FILES=$(gofmt -s -l {{files}})
-if [ -n "$FILES" ]; then
-  echo "$FILES"
-  exit 1
-fi
-"""
-    fix = "gofmt -s -w {{files}}"
- }
+  glob = "**/*.go"
+  stage = "<JOB_FILES>"
+  check_list_files =
+    """
+    FILES=$(gofmt -s -l {{files}})
+    if [ -n "$FILES" ]; then
+      echo "$FILES"
+      exit 1
+    fi
+    """
+  fix = "gofmt -s -w {{files}}"
+}

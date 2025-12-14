@@ -2,32 +2,32 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Special Purpose"
-    description = "Detect broken symlinks"
+  category = "Special Purpose"
+  description = "Detect broken symlinks"
 }
 check_symlinks = new Config.Step {
-    glob = "**/*"
-    allow_symlinks = true
-    check = "hk util check-symlinks {{files}}"
-    tests {
-        ["detects broken symlink"] {
-            run = "check"
-            write { ["{{tmp}}/target.txt"] = "content" }
-            before = "ln -s {{tmp}}/nonexistent {{tmp}}/broken_link"
-            files = List("{{tmp}}/broken_link")
-            expect { code = 1 }
-        }
-        ["passes valid symlink"] {
-            run = "check"
-            write { ["{{tmp}}/target.txt"] = "content" }
-            before = "ln -s {{tmp}}/target.txt {{tmp}}/link"
-            files = List("{{tmp}}/link")
-            expect { code = 0 }
-        }
-        ["passes regular file"] {
-            run = "check"
-            write { ["{{tmp}}/file.txt"] = "content" }
-            expect { code = 0 }
-        }
+  glob = "**/*"
+  allow_symlinks = true
+  check = "hk util check-symlinks {{files}}"
+  tests {
+    ["detects broken symlink"] {
+      run = "check"
+      write { ["{{tmp}}/target.txt"] = "content" }
+      before = "ln -s {{tmp}}/nonexistent {{tmp}}/broken_link"
+      files = List("{{tmp}}/broken_link")
+      expect { code = 1 }
     }
+    ["passes valid symlink"] {
+      run = "check"
+      write { ["{{tmp}}/target.txt"] = "content" }
+      before = "ln -s {{tmp}}/target.txt {{tmp}}/link"
+      files = List("{{tmp}}/link")
+      expect { code = 0 }
+    }
+    ["passes regular file"] {
+      run = "check"
+      write { ["{{tmp}}/file.txt"] = "content" }
+      expect { code = 0 }
+    }
+  }
 }

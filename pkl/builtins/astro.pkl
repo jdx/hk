@@ -2,10 +2,10 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Other Languages"
-    description = "Astro component checker"
+  category = "Other Languages"
+  description = "Astro component checker"
 }
 astro = new Config.Step {
-    glob = "**/*.astro"
-    check = "astro check {{ files }}"
+  glob = "**/*.astro"
+  check = "astro check {{ files }}"
 }
