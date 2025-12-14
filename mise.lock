@@ -101,10 +101,6 @@ version = "0.11.0"
 backend = "ubi:koalaman/shellcheck"
 "platforms.linux-x64-shellcheck" = { checksum = "blake3:3297f19e635c3225457702704fa328408adbbfdcaa0a7c7fe591d8af1cc588f4"}
 
-[[tools.swiftlint]]
-version = "0.59.1"
-backend = "asdf:swiftlint"
-
 [[tools.taplo]]
 version = "0.10.0"
 backend = "aqua:tamasfe/taplo"
