@@ -604,7 +604,6 @@ class Step {
     /// ```
     env: Mapping<String, String> = new Mapping<String, String>{}
 
-    /// Define self-contained tests for a step, runnable via `hk test`.
     ///
     /// Key points:
     ///
