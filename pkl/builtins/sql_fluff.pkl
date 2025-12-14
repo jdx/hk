@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Data Formats"
-    description = "SQL linter and formatter"
+  category = "Data Formats"
+  description = "SQL linter and formatter"
 }
 sql_fluff = new Config.Step {
-    glob = "**/*.sql"
-    stage = "<JOB_FILES>"
-    check = "sqlfluff lint {{ files }}"
-    fix = "sqlfluff fix {{ files }}"
+  glob = "**/*.sql"
+  stage = "<JOB_FILES>"
+  check = "sqlfluff lint {{ files }}"
+  fix = "sqlfluff fix {{ files }}"
 }

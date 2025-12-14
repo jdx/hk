@@ -2,60 +2,59 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Infrastructure"
-    description = "mise-en-place's built-in formatter and linter"
+  category = "Infrastructure"
+  description = "mise-en-place's built-in formatter and linter"
 }
 mise = new Config.Step {
-    glob = List(
-        "mise.toml",
-        "mise.*.toml",
-        ".mise.toml",
-        ".mise.*.toml",
-
-        "mise/config.toml",
-        "mise/config.*.toml",
-        ".mise/config.toml",
-        ".mise/config.*.toml",
-
-        ".config/mise.toml",
-        ".config/mise.*.toml",
-        ".config/mise/config.toml",
-        ".config/mise/config.*.toml",
-        ".config/mise/mise.toml",
-        ".config/mise/mise.*.toml",
-        ".config/mise/conf.d/*.toml",
+  glob =
+    List(
+      "mise.toml",
+      "mise.*.toml",
+      ".mise.toml",
+      ".mise.*.toml",
+      "mise/config.toml",
+      "mise/config.*.toml",
+      ".mise/config.toml",
+      ".mise/config.*.toml",
+      ".config/mise.toml",
+      ".config/mise.*.toml",
+      ".config/mise/config.toml",
+      ".config/mise/config.*.toml",
+      ".config/mise/mise.toml",
+      ".config/mise/mise.*.toml",
+      ".config/mise/conf.d/*.toml",
     )
-    batch = true
-    check = "mise fmt --check"
-    fix = "mise fmt"
-    tests {
-        const local bad = "x  =  1";
-        const local good = "x = 1\n";
-        ["check bad file"] {
-            run = "check"
-            write { ["{{tmp}}/mise.toml"] = bad }
-            expect { code = 1 }
-        }
-        ["check good file"] {
-            run = "check"
-            write { ["{{tmp}}/mise.toml"] = good }
-            expect { code = 0 }
-        }
-        ["fix bad file"] {
-            run = "fix"
-            write { ["{{tmp}}/mise.toml"] = bad }
-            expect {
-                code = 0
-                files { ["{{tmp}}/mise.toml"] = good }
-            }
-        }
-        ["fix good file"] {
-            run = "fix"
-            write { ["{{tmp}}/mise.toml"] = good }
-            expect {
-                code = 0
-                files { ["{{tmp}}/mise.toml"] = good }
-            }
-        }
+  batch = true
+  check = "mise fmt --check"
+  fix = "mise fmt"
+  tests {
+    local const bad = "x  =  1"
+    local const good = "x = 1\n"
+    ["check bad file"] {
+      run = "check"
+      write { ["{{tmp}}/mise.toml"] = bad }
+      expect { code = 1 }
     }
+    ["check good file"] {
+      run = "check"
+      write { ["{{tmp}}/mise.toml"] = good }
+      expect { code = 0 }
+    }
+    ["fix bad file"] {
+      run = "fix"
+      write { ["{{tmp}}/mise.toml"] = bad }
+      expect {
+        code = 0
+        files { ["{{tmp}}/mise.toml"] = good }
+      }
+    }
+    ["fix good file"] {
+      run = "fix"
+      write { ["{{tmp}}/mise.toml"] = good }
+      expect {
+        code = 0
+        files { ["{{tmp}}/mise.toml"] = good }
+      }
+    }
+  }
 }

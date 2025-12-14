@@ -2,10 +2,10 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Python"
-    description = "Python style guide enforcement"
+  category = "Python"
+  description = "Python style guide enforcement"
 }
 flake8 = new Config.Step {
-    glob = "**/*.py"
-    check = "flake8 {{ files }}"
+  glob = "**/*.py"
+  check = "flake8 {{ files }}"
 }

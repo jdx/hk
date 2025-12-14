@@ -2,12 +2,12 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 
 @Builtins.meta {
-    category = "Ruby"
-    description = "Dependency security audit"
+  category = "Ruby"
+  description = "Dependency security audit"
 }
 bundle_audit = new Config.Step {
-    glob = "**/Gemfile.lock"
-    stage = "<JOB_FILES>"
-    check = "bundle-audit check {{ files }}"
-    fix = "bundle-audit update"
+  glob = "**/Gemfile.lock"
+  stage = "<JOB_FILES>"
+  check = "bundle-audit check {{ files }}"
+  fix = "bundle-audit update"
 }

@@ -71,7 +71,7 @@ import "./hk.pkl" as repo_config
 hooks = (repo_config.hooks) {
     ["pre-commit"] {
         (steps) {
-            ["custom-step] = new Step {
+            ["custom-step"] = new Step {
                 // ...
             }
         }

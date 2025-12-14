@@ -2,11 +2,11 @@ import* "builtins/*.pkl" as Builtins
 
 /// Internal class for annotating hk builtins for documentation generation
 class meta extends Annotation {
-    /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
-    category: String?
+  /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
+  category: String?
 
-    /// Human-readable description of the step for documentation
-    description: String?
+  /// Human-readable description of the step for documentation
+  description: String?
 }
 
 actionlint = Builtins["builtins/actionlint.pkl"].actionlint
@@ -22,7 +22,8 @@ cargo_fmt = Builtins["builtins/cargo_fmt.pkl"].cargo_fmt
 check_added_large_files = Builtins["builtins/check_added_large_files.pkl"].check_added_large_files
 check_byte_order_marker = Builtins["builtins/check_byte_order_marker.pkl"].check_byte_order_marker
 check_case_conflict = Builtins["builtins/check_case_conflict.pkl"].check_case_conflict
-check_conventional_commit = Builtins["builtins/check_conventional_commit.pkl"].check_conventional_commit
+check_conventional_commit =
+  Builtins["builtins/check_conventional_commit.pkl"].check_conventional_commit
 check_executables_have_shebangs =
   Builtins["builtins/check_executables_have_shebangs.pkl"].check_executables_have_shebangs
 check_merge_conflict = Builtins["builtins/check_merge_conflict.pkl"].check_merge_conflict
