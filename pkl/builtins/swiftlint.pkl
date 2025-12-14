@@ -15,17 +15,26 @@ swiftlint = new Config.Step {
     local const good = "let abc: Void\n"
     ["check bad"] {
       run = "check"
-      write { ["{{tmp}}/test.swift"] = bad }
+      write {
+        ["{{tmp}}/test.swift"] = bad
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
       expect { code = 1 }
     }
     ["check good"] {
       run = "check"
-      write { ["{{tmp}}/test.swift"] = good }
+      write {
+        ["{{tmp}}/test.swift"] = good
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
       expect { code = 0 }
     }
     ["fix bad"] {
       run = "fix"
-      write { ["{{tmp}}/test.swift"] = bad }
+      write {
+        ["{{tmp}}/test.swift"] = bad
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
       expect {
         code = 0
         files { ["{{tmp}}/test.swift"] = good }
@@ -33,7 +42,10 @@ swiftlint = new Config.Step {
     }
     ["fix good"] {
       run = "fix"
-      write { ["{{tmp}}/test.swift"] = good }
+      write {
+        ["{{tmp}}/test.swift"] = good
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
       expect {
         code = 0
         files { ["{{tmp}}/test.swift"] = good }
