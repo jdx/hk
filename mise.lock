@@ -139,12 +139,3 @@ backend = "aqua:charmbracelet/vhs"
 "platforms.macos-arm64" = { checksum = "sha256:dc256c403305ac8ba623563d0ef3241a38024f35b27c705f79d523e9da618012", url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Darwin_arm64.tar.gz"}
 "platforms.macos-x64" = { checksum = "sha256:0ef1ae1f399dc837204aa737d375a44cddb0a605be3c32eaa659d4e6a5ad0b70", url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Darwin_x86_64.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:7f5cffbbd01fe4229af0540856ddc0da933af0c16c05b1fbe62e0ef2097038a8", url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Windows_x86_64.zip"}
-
-[[tools.yq]]
-version = "4.47.1"
-backend = "aqua:mikefarah/yq"
-"platforms.linux-arm64" = { checksum = "sha256:b7f7c991abe262b0c6f96bbcb362f8b35429cefd59c8b4c2daa4811f1e9df599", url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_linux_arm64"}
-"platforms.linux-x64" = { checksum = "sha256:0fb28c6680193c41b364193d0c0fc4a03177aecde51cfc04d506b1517158c2fb", url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_linux_amd64"}
-"platforms.macos-arm64" = { checksum = "sha256:99aae3a7c9ddfe76bb339f0e7acd8224324b6527436fb6a5d890079bf5fcc590", url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_darwin_arm64"}
-"platforms.macos-x64" = { checksum = "sha256:a9b5ca36f7750576c6ace3cc7193349cd676b3a6bf30193fb2773ff45f5af5c2", url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_darwin_amd64"}
-"platforms.windows-x64" = { checksum = "sha256:529fc05f4cd557b0767262b7eefbd699fa38616bcb6ece184ee5aeadcc878572", url = "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_windows_amd64.exe"}
