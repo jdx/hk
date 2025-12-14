@@ -162,8 +162,6 @@ class Hook {
 }
 
 class Step {
-  _type = "step"
-
   /// Files the step should run on. By default this will only run this step if
   /// at least 1 staged file matches the glob or regex patterns.
   /// If no patterns are provided, the step will always run.
@@ -771,7 +769,16 @@ class Group {
 output {
   renderer {
     converters {
-      [Step] = (s) -> new Step {
+      [Regex] = (r) -> new Mapping {
+        ["_type"] = "regex"
+        ["pattern"] = r.pattern
+      }
+      [Group] = (g) -> new Dynamic {
+        _type = "group"
+        ...g.toDynamic()
+      }
+      [Step] = (s) -> new Dynamic {
+        _type = "step"
         ...s
           .toMap()
           .mapValues((k, v) ->
