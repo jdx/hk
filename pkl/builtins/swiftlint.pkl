@@ -10,4 +10,46 @@ swiftlint = new Config.Step {
   stage = "<JOB_FILES>"
   check = "swiftlint lint {{ files }}"
   fix = "swiftlint --fix {{ files }}"
+  tests {
+    local const bad = "let abc:Void\n"
+    local const good = "let abc: Void\n"
+    ["check bad"] {
+      run = "check"
+      write {
+        ["{{tmp}}/test.swift"] = bad
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
+      expect { code = 2 }
+    }
+    ["check good"] {
+      run = "check"
+      write {
+        ["{{tmp}}/test.swift"] = good
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
+      expect { code = 0 }
+    }
+    ["fix bad"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/test.swift"] = bad
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.swift"] = good }
+      }
+    }
+    ["fix good"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/test.swift"] = good
+        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
+      }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.swift"] = good }
+      }
+    }
+  }
 }
