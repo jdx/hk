@@ -10,4 +10,69 @@ stylelint = new Config.Step {
   stage = "<JOB_FILES>"
   check = "stylelint {{ files }}"
   fix = "stylelint --fix {{ files }}"
+  tests {
+    local const bad = "a { overflow: overlay; }\n"
+    local const good = "a { overflow: auto; }\n"
+    local const config = new Mapping {
+      ["stylelint.config.mjs"] =
+        """
+          /** @type {import('stylelint').Config} */
+          export default {
+            "rules": {
+              "declaration-property-value-keyword-no-deprecated": true,
+              "media-type-no-deprecated": true,
+            }
+          };
+        """
+    }
+    ["check bad"] {
+      run = "check"
+      write {
+        ["{{tmp}}/test.css"] = bad
+        ...config
+      }
+      expect { code = 127 }
+    }
+    ["check good"] {
+      run = "check"
+      write {
+        ["{{tmp}}/test.css"] = good
+        ...config
+      }
+      expect { code = 0 }
+    }
+    ["fix bad fixable"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/test.css"] = bad
+        ...config
+      }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.css"] = good }
+      }
+    }
+    ["fix good"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/test.css"] = good
+        ...config
+      }
+      expect {
+        code = 0
+        files { ["{{tmp}}/test.css"] = good }
+      }
+    }
+    ["fix semi-fxable"] {
+      run = "fix"
+      write {
+        ["{{tmp}}/test.css"] = "\(bad)\n@media tty {}\n"
+        ...config
+      }
+      expect {
+        code = 2
+        files { ["{{tmp}}/test.css"] = "\(good)\n@media tty {}\n" }
+      }
+    }
+  }
 }
