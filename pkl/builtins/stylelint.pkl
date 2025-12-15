@@ -31,7 +31,7 @@ stylelint = new Config.Step {
         ["{{tmp}}/test.css"] = bad
         ...config
       }
-      expect { code = 2 }
+      expect { code = 127 }
     }
     ["check good"] {
       run = "check"
