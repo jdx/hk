@@ -15,7 +15,7 @@ black = new Config.Step {
   tests {
     ...new helpers.Fix {
       filename = "test.py"
-      bad_file = "x=1"
+      unfixed_file = "x=1"
       fixed_file = "x = 1\n"
     }.suite
   }
