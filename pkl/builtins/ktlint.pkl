@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Other Languages"
@@ -11,39 +12,14 @@ ktlint = new Config.Step {
   check = "ktlint {{ files }}"
   fix = "ktlint -F {{ files }}"
   tests {
-    local const unfixable_bad = "const val fooBar = \"FOO-BAR\""
-    local const fixable_bad = "const val FOO_1  =  \"foo1\""
-    local const good = "const val FOO_1 = \"foo1\"\n"
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/Test.kt"] = fixable_bad }
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/Test.kt"] = good }
-      expect { code = 0 }
-    }
-    ["fix fixable bad file"] {
-      run = "fix"
-      write { ["{{tmp}}/Test.kt"] = fixable_bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/Test.kt"] = good }
+    ...new helpers.Fix {
+      filename = "Test.kt"
+      before = "const val FOO_1  =  \"foo1\""
+      after = "const val FOO_1 = \"foo1\"\n"
+      mixed = new helpers.MixedFixArgs {
+        before = "const val fooBar = \"FOO-BAR\""
+        after = "const val fooBar = \"FOO-BAR\""
       }
-    }
-    ["fix unfixable bad file"] {
-      run = "fix"
-      write { ["{{tmp}}/Test.kt"] = unfixable_bad }
-      expect { code = 1 }
-    }
-    ["fix good file"] {
-      run = "fix"
-      write { ["{{tmp}}/Test.kt"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/Test.kt"] = good }
-      }
-    }
+    }.suite
   }
 }

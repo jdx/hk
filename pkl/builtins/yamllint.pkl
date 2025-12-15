@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Data Formats"
@@ -9,15 +10,10 @@ yamllint = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
   check = "yamllint {{ files }}"
   tests {
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/file.yaml"] = "x: 1\nx: 2\n" }
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/file.yaml"] = "x: 1\n" }
-      expect { code = 0 }
-    }
+    ...new helpers.Check {
+      filename = "test.yaml"
+      bad = "x: 1\nx: 2\n"
+      good = "x: 1\n"
+    }.suite
   }
 }

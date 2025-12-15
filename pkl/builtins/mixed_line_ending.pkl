@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Special Purpose"
@@ -11,29 +12,14 @@ mixed_line_ending = new Config.Step {
   check = "hk util mixed-line-ending {{files}}"
   fix = "hk util mixed-line-ending --fix {{files}}"
   tests {
-    ["detects mixed line endings"] {
-      run = "check"
-      write { ["{{tmp}}/a.txt"] = "line1\r\nline2\nline3\r\n" }
-      files = List("{{tmp}}/a.txt")
-      expect { code = 1 }
-    }
-    ["passes LF only"] {
-      run = "check"
-      write { ["{{tmp}}/a.txt"] = "line1\nline2\nline3\n" }
-      files = List("{{tmp}}/a.txt")
-      expect { code = 0 }
-    }
-    ["passes CRLF only"] {
-      run = "check"
-      write { ["{{tmp}}/a.txt"] = "line1\r\nline2\r\nline3\r\n" }
-      files = List("{{tmp}}/a.txt")
-      expect { code = 0 }
-    }
-    ["fixes mixed line endings"] {
-      run = "fix"
-      write { ["{{tmp}}/a.txt"] = "line1\r\nline2\nline3\r\n" }
-      files = List("{{tmp}}/a.txt")
-      expect { files { ["{{tmp}}/a.txt"] = "line1\nline2\nline3\n" } }
-    }
+    ...new helpers.Fix {
+      filename = "test.txt"
+      before = "line1\r\nline2\nline3\r\n"
+      // NB: Also tests "passes LF only"
+      after = "line1\nline2\nline3\n"
+      other_good = new Mapping<String, String> {
+        ["passes CRLF only"] = "line1\r\nline2\r\nline3\r\n"
+      }
+    }.suite
   }
 }

@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -12,38 +13,16 @@ ruff_format = new Config.Step {
   check_diff = "ruff format --force-exclude --diff {{ files }}"
   fix = "ruff format --force-exclude {{ files }}"
   tests {
+    ...new helpers.Fix {
+      filename = "test.py"
+      before = "x=1+2"
+      after = "x = 1 + 2\n"
+    }.suite
     local const bad = "x=1+2"
-    local const good = "x = 1 + 2\n"
-    ["check bad"] {
-      run = "check"
-      write { ["{{tmp}}/test.py"] = bad }
-      expect { code = 1 }
-    }
-    ["check good"] {
-      run = "check"
-      write { ["{{tmp}}/test.py"] = good }
-      expect { code = 0 }
-    }
-    ["fix bad"] {
-      run = "fix"
-      write { ["{{tmp}}/test.py"] = bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.py"] = good }
-      }
-    }
-    ["fix good"] {
-      run = "fix"
-      write { ["{{tmp}}/test.py"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.py"] = good }
-      }
-    }
     ["check respects config exclude"] {
       run = "check"
       write {
-        ["{{tmp}}/test.py"] = "x=1+2\n"
+        ["{{tmp}}/test.py"] = bad
         ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
       }
       expect { code = 0 }
@@ -51,12 +30,12 @@ ruff_format = new Config.Step {
     ["fix respects config exclude"] {
       run = "fix"
       write {
-        ["{{tmp}}/test.py"] = "x=1+2\n"
+        ["{{tmp}}/test.py"] = bad
         ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
       }
       expect {
         code = 0
-        files { ["{{tmp}}/test.py"] = "x=1+2\n" }
+        files { ["{{tmp}}/test.py"] = bad }
       }
     }
   }

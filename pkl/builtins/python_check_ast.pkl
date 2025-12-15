@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -9,28 +10,19 @@ python_check_ast = new Config.Step {
   glob = "**/*.py"
   check = "hk util python-check-ast {{files}}"
   tests {
-    ["detects invalid Python syntax"] {
-      run = "check"
-      write {
-        ["{{tmp}}/invalid.py"] =
-          """
+    ...new helpers.Check {
+      filename = "test.py"
+      bad =
+        """
           def hello(:
               print("Invalid"
-          """
-      }
-      expect { code = 1 }
-    }
-    ["passes valid Python"] {
-      run = "check"
-      write {
-        ["{{tmp}}/valid.py"] =
-          """
+        """
+      good =
+        """
           def hello():
               print("Hello, world!")
-          """
-      }
-      expect { code = 0 }
-    }
+        """
+    }.suite
     ["passes empty file"] {
       run = "check"
       write { ["{{tmp}}/empty.py"] = "" }

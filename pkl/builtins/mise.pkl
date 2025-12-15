@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Infrastructure"
@@ -28,33 +29,10 @@ mise = new Config.Step {
   check = "mise fmt --check"
   fix = "mise fmt"
   tests {
-    local const bad = "x  =  1"
-    local const good = "x = 1\n"
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/mise.toml"] = bad }
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/mise.toml"] = good }
-      expect { code = 0 }
-    }
-    ["fix bad file"] {
-      run = "fix"
-      write { ["{{tmp}}/mise.toml"] = bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/mise.toml"] = good }
-      }
-    }
-    ["fix good file"] {
-      run = "fix"
-      write { ["{{tmp}}/mise.toml"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/mise.toml"] = good }
-      }
-    }
+    ...new helpers.Fix {
+      filename = "mise.toml"
+      before = "x  =  1"
+      after = "x = 1\n"
+    }.suite
   }
 }

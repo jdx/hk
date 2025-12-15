@@ -18,10 +18,12 @@ class Check {
   /// (This will be rooted in `{{tmp}}`)
   filename: String
 
-  /// The contents of a file which should fail `check`.
+  // @TODO(thejcannon): Make these allow List<String> too
+
+  /// Bad file contents (which should fail `check`).
   bad: String
 
-  /// The contents of a file which should pass `check`.
+  /// Good file contents (which should pass `check`).
   good: String
 
   /// Extra files to include in the sandbox, useful for config files.
@@ -29,7 +31,7 @@ class Check {
   extra_files: Mapping
 
   /// Exit code to expect for `check`'s failure.
-  failure_code: Int = 1
+  failure_code: Int(this != 0) = 1
 
   local rooted_extra_files: Mapping<String, String> =
     extra_files.toMap().mapKeys((key, value) -> "{{tmp}}\(key)").toMapping()
@@ -44,8 +46,7 @@ class Check {
       expect = new Config.StepTestExpect {
         code = failure_code
         files = new Mapping<String, String> {
-          // NB: The file didn't change
-          ["{{tmp}}/\(filename)"] = bad
+          ["{{tmp}}/\(filename)"] = bad // NB: The file didn't change
         }
       }
     }
@@ -58,8 +59,7 @@ class Check {
       expect = new Config.StepTestExpect {
         code = 0
         files = new Mapping<String, String> {
-          // NB: The file didn't change
-          ["{{tmp}}/\(filename)"] = good
+          ["{{tmp}}/\(filename)"] = good // NB: The file didn't change
         }
       }
     }
@@ -73,18 +73,31 @@ class Fix {
   /// (This will be rooted in `{{tmp}}`)
   filename: String
 
-  /// The contents of a file which should fail `check` with a fixable error.
+  // @TODO:(thejcannon): Make these pairs (That would fix the `mixed` case)
+
+  /// The contents of the file (which should fail `check` with a fixable error).
   before: String
 
   /// The contents of the file after it has been fixed (assumed to pass `check`).
   after: String
+
+  /// If the tool has any lints that aren't fixable, provide this object to also
+  /// test the case where the file has some fixable and some unfixable
+  /// errors. (The `fix` command is assumed to fix what's fixable, but still error)
+  mixed: MixedFixArgs?
+
+  /// Mapping from <Test Name> -> <file contents> which should also fail `check`
+  other_bad: Mapping<String, String>
+
+  /// Mapping from <Test Name> -> <file contents> which should also pass `check`
+  other_good: Mapping<String, String>
 
   /// Extra files to include in the sandbox, useful for config files.
   /// (These will be rooted in `{{tmp}}`)
   extra_files: Mapping
 
   /// Exit code to expect for `check`'s failure.
-  check_failure_code: Int = 1
+  check_failure_code: Int(this != 0) = 1
 
   local rooted_extra_files: Mapping<String, String> =
     extra_files.toMap().mapKeys((key, value) -> "{{tmp}}\(key)").toMapping()
@@ -92,8 +105,8 @@ class Fix {
   fixed suite: Mapping<String, Config.StepTest> = new Mapping<String, Config.StepTest> {
     ...new Check {
       filename = outer.filename
-      bad_file = unfixed_file
-      good_file = fixed_file
+      bad = before
+      good = after
       extra_files = outer.extra_files
       failure_code = check_failure_code
     }.suite
@@ -123,5 +136,61 @@ class Fix {
         }
       }
     }
+    for (key, value in other_bad) {
+      [key] = new Config.StepTest {
+        run = "check"
+        write = new Mapping<String, String> {
+          ["{{tmp}}/\(filename)"] = value
+          ...rooted_extra_files
+        }
+        expect = new Config.StepTestExpect {
+          code = check_failure_code
+          files = new Mapping<String, String> {
+            ["{{tmp}}/\(filename)"] = value // NB: The file didn't change
+          }
+        }
+      }
+    }
+    for (key, value in other_good) {
+      [key] = new Config.StepTest {
+        run = "check"
+        write = new Mapping<String, String> {
+          ["{{tmp}}/\(filename)"] = value
+          ...rooted_extra_files
+        }
+        expect = new Config.StepTestExpect {
+          code = 0
+          files = new Mapping<String, String> {
+            ["{{tmp}}/\(filename)"] = value // NB: The file didn't change
+          }
+        }
+      }
+    }
+    when (mixed != null) {
+      ["fix mixed file"] = new Config.StepTest {
+        run = "fix"
+        write = new Mapping<String, String> {
+          ["{{tmp}}/\(filename)"] = mixed.before
+          ...rooted_extra_files
+        }
+        expect = new Config.StepTestExpect {
+          code = mixed.exit_code
+          files = new Mapping<String, String> {
+            ["{{tmp}}/\(filename)"] = mixed.after
+          }
+        }
+      }
+    }
   }
+}
+
+class MixedFixArgs {
+  /// The contents of the file with both fixable and unfixable errors.
+  before: String
+
+  /// The contents of the file after fixing.
+  after: String
+
+  /// Exit code to expect for `fix`'s failure.
+  exit_code: Int(this != 0)
 }

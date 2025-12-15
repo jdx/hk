@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Data Formats"
@@ -9,36 +10,13 @@ tombi = new Config.Step {
   glob = "**/*.toml"
   check = "tombi lint {{ files }}"
   tests {
-    local const config_file = "tombi.toml"
-    local const config = "toml-version = \"v1.0.0\"\n"
-    ["check bad file"] {
-      run = "check"
-      write {
-        ["{{tmp}}/file.toml"] = "[table]\nkey = 0\nkey = 1\n"
-        // Create a Tombi config file in the working directory to
-        // prevent loading system config (e.g. `$XDG_CONFIG_HOME`)
-        ["{{tmp}}/\(config_file)"] = config
+    ...new helpers.Check {
+      filename = "file.toml"
+      bad = "[table]\nkey  =  0\nkey  =  1\n"
+      good = "[table]\nkey  =  0\n"
+      extra_files = new Mapping<String, String> {
+        ["tombi.toml"] = "toml-version = \"v1.0.0\"\n"
       }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write {
-        ["{{tmp}}/file.toml"] = "[table]\nkey = 0\n"
-        ["{{tmp}}/\(config_file)"] = config
-      }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 0 }
-    }
-    ["doesnt error on formattting"] {
-      run = "check"
-      write {
-        ["{{tmp}}/file.toml"] = "[table]\nkey   =   0\n"
-        ["{{tmp}}/\(config_file)"] = config
-      }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 0 }
-    }
+    }.suite
   }
 }
