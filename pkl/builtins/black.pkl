@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -12,41 +13,10 @@ black = new Config.Step {
   check_diff = "black --check --diff {{ files }}"
   fix = "black {{ files }}"
   tests {
-    local const bad = "x=1"
-    local const good = "x = 1\n"
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/test.py"] = bad }
-      expect {
-        code = 1
-        stderr = "1 file would be reformatted."
-      }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/test.py"] = good }
-      expect {
-        code = 0
-        stderr = "1 file would be left unchanged."
-      }
-    }
-    ["fix bad file"] {
-      run = "fix"
-      write { ["{{tmp}}/test.py"] = bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.py"] = good }
-        stderr = "1 file reformatted."
-      }
-    }
-    ["fix good file"] {
-      run = "fix"
-      write { ["{{tmp}}/test.py"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.py"] = good }
-        stderr = "1 file left unchanged."
-      }
-    }
+    ...new helpers.Fix {
+      filename = "test.py"
+      bad_file = "x=1"
+      fixed_file = "x = 1\n"
+    }.suite
   }
 }
