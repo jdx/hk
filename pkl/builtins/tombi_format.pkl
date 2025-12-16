@@ -12,13 +12,17 @@ tombi_format = new Config.Step {
   check_diff = "tombi format --check --diff {{ files }}"
   fix = "tombi format {{ files }}"
   tests {
-    ...new helpers.Fix {
+    local const testMaker = new helpers.TestMaker {
       filename = "test.toml"
-      before = "[table]\nkey  =  \"value\"\n"
-      after = "[table]\nkey = \"value\"\n"
       extra_files = new Mapping<String, String> {
         ["tombi.toml"] = "toml-version = \"v1.0.0\"\n"
       }
-    }.suite
+    }
+    ["check bad file"] = testMaker.checkFail("[table]\nkey  =  \"value\"\n", 1)
+    ["check good file"] = testMaker.checkPass("[table]\nkey = \"value\"\n")
+    ["fix bad file"] =
+      testMaker.fixPass("[table]\nkey  =  \"value\"\n", "[table]\nkey = \"value\"\n")
+    ["fix good file"] =
+      testMaker.fixPass("[table]\nkey = \"value\"\n", "[table]\nkey = \"value\"\n")
   }
 }

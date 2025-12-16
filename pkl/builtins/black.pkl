@@ -13,10 +13,14 @@ black = new Config.Step {
   check_diff = "black --check --diff {{ files }}"
   fix = "black {{ files }}"
   tests {
-    ...new helpers.Fix {
+    local const testMaker = new helpers.TestMaker {
       filename = "test.py"
-      before = "x=1"
-      after = "x = 1\n"
-    }.suite
+    }
+    local const before = "x=1"
+    local const after = "x = 1\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
   }
 }

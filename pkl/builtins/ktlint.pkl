@@ -12,14 +12,16 @@ ktlint = new Config.Step {
   check = "ktlint {{ files }}"
   fix = "ktlint -F {{ files }}"
   tests {
-    ...new helpers.Fix {
+    local const testMaker = new helpers.TestMaker {
       filename = "Test.kt"
-      before = "const val FOO_1  =  \"foo1\""
-      after = "const val FOO_1 = \"foo1\"\n"
-      mixed = new helpers.MixedFixArgs {
-        before = "const val fooBar = \"FOO-BAR\""
-        after = "const val fooBar = \"FOO-BAR\""
-      }
-    }.suite
+    }
+    ["check bad file"] = testMaker.checkFail("const val FOO_1  =  \"foo1\"", 1)
+    ["check good file"] = testMaker.checkPass("const val FOO_1 = \"foo1\"\n")
+    ["fix bad file"] =
+      testMaker.fixPass("const val FOO_1  =  \"foo1\"", "const val FOO_1 = \"foo1\"\n")
+    ["fix good file"] =
+      testMaker.fixPass("const val FOO_1 = \"foo1\"\n", "const val FOO_1 = \"foo1\"\n")
+    ["fixes formatting but not unfixable lint error"] =
+      testMaker.fixFail("const val fooBar  =  \"FOO-BAR\"", "const val fooBar = \"FOO-BAR\"\n", 1)
   }
 }

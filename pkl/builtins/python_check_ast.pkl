@@ -10,23 +10,24 @@ python_check_ast = new Config.Step {
   glob = "**/*.py"
   check = "hk util python-check-ast {{files}}"
   tests {
-    ...new helpers.Check {
+    local const testMaker = new helpers.TestMaker {
       filename = "test.py"
-      bad =
-        """
-          def hello(:
-              print("Invalid"
-        """
-      good =
-        """
-          def hello():
-              print("Hello, world!")
-        """
-    }.suite
-    ["passes empty file"] {
-      run = "check"
-      write { ["{{tmp}}/empty.py"] = "" }
-      expect { code = 0 }
     }
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+        def hello(:
+            print("Invalid"
+        """,
+        1,
+      )
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+        def hello():
+            print("Hello, world!")
+        """,
+      )
+    ["check empty file"] = testMaker.checkPass("")
   }
 }

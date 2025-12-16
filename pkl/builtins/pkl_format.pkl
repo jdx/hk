@@ -26,11 +26,12 @@ pkl_format = new Config.Step {
         fi
     """
   tests {
-    ...new helpers.Fix {
+    local const testMaker = new helpers.TestMaker {
       filename = "test.pkl"
-      before = "x = new {  }"
-      after = "x = new {}\n"
-      check_failure_code = 11
-    }.suite
+    }
+    ["check bad file"] = testMaker.checkFail("x = new {  }", 11)
+    ["check good file"] = testMaker.checkPass("x = new {}\n")
+    ["fix bad file"] = testMaker.fixPass("x = new {  }", "x = new {}\n")
+    ["fix good file"] = testMaker.fixPass("x = new {}\n", "x = new {}\n")
   }
 }

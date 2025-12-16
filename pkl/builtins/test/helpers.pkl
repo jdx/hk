@@ -2,195 +2,56 @@
 module hk.builtins.test.helpers
 import "../../Config.pkl"
 
-/// A "suite" of tests that test core `check` functionality.
-/// (This isn't meant to be exhaustive, but covers the basics)
-///
-/// Example usage:
-/// ```pkl
-/// step = new Step {
-///   ...
-///   tests {
-///     ...new Check { <ARGS> }.suite
-///   }
-/// }
-class Check {
+class TestMaker {
   /// The name of the file to run the command on.
   /// (This will be rooted in `{{tmp}}`)
-  filename: String
-
-  // @TODO(thejcannon): Make these allow List<String> too
-
-  /// Bad file contents (which should fail `check`).
-  bad: String
-
-  /// Good file contents (which should pass `check`).
-  good: String
+  filename: String = "file.txt"
 
   /// Extra files to include in the sandbox, useful for config files.
   /// (These will be rooted in `{{tmp}}`)
-  extra_files: Mapping
-
-  /// Exit code to expect for `check`'s failure.
-  failure_code: Int(this != 0) = 1
+  extra_files: Mapping<String, String> = new Mapping {}
 
   local rooted_extra_files: Mapping<String, String> =
     extra_files.toMap().mapKeys((key, value) -> "{{tmp}}\(key)").toMapping()
 
-  fixed suite: Mapping<String, Config.StepTest> = new Mapping<String, Config.StepTest> {
-    ["check bad file"] = new Config.StepTest {
-      run = "check"
-      write = new Mapping<String, String> {
-        ["{{tmp}}/\(filename)"] = bad
-        ...rooted_extra_files
-      }
-      expect = new Config.StepTestExpect {
-        code = failure_code
-        files = new Mapping<String, String> {
-          ["{{tmp}}/\(filename)"] = bad // NB: The file didn't change
-        }
-      }
+  /// Make a config test
+  local function makeTest(
+    runType: String,
+    before: String,
+    after: String,
+    expectedCode: Int,
+  ): Config.StepTest = new Config.StepTest {
+    local sandboxFilename = "{{tmp}}/\(filename)"
+    run = runType
+    write = new Mapping<String, String> {
+      [sandboxFilename] = before
+      ...rooted_extra_files
     }
-    ["check good file"] = new Config.StepTest {
-      run = "check"
-      write = new Mapping<String, String> {
-        ["{{tmp}}/\(filename)"] = good
-        ...rooted_extra_files
-      }
-      expect = new Config.StepTestExpect {
-        code = 0
-        files = new Mapping<String, String> {
-          ["{{tmp}}/\(filename)"] = good // NB: The file didn't change
-        }
+    expect = new Config.StepTestExpect {
+      code = expectedCode
+      files = new Mapping<String, String> {
+        [sandboxFilename] = after
       }
     }
   }
-}
 
-/// A "suite" of tests that test the core `fix` functionality.
-/// (This isn't meant to be exhaustive, but covers the basics)
-class Fix {
-  /// The name of the file to run the command on.
-  /// (This will be rooted in `{{tmp}}`)
-  filename: String
+  /// Make a "check" test (where `check` should exit zero)
+  function checkPass(contents: String): Config.StepTest = makeTest("check", contents, contents, 0)
 
-  // @TODO:(thejcannon): Make these pairs (That would fix the `mixed` case)
+  /// Make a "check" test (where `check` should exit nonzero)
+  function checkFail(contents: String, code: Int): Config.StepTest =
+    makeTest("check", contents, contents, code)
 
-  /// The contents of the file (which should fail `check` with a fixable error).
-  before: String
+  /// Make a "fix" test (where `fix` should exit zero)
+  function fixPass(before: String, after: String): Config.StepTest =
+    makeTest("fix", before, after, 0)
 
-  /// The contents of the file after it has been fixed (assumed to pass `check`).
-  after: String
+  /// Make a "fix" test (where `fix` should exit nonzero)
+  function fixFail(before: String, after: String, code: Int): Config.StepTest =
+    makeTest("fix", before, after, code)
 
-  /// If the tool has any lints that aren't fixable, provide this object to also
-  /// test the case where the file has some fixable and some unfixable
-  /// errors. (The `fix` command is assumed to fix what's fixable, but still error)
-  mixed: MixedFixArgs?
-
-  /// Mapping from <Test Name> -> <file contents> which should also fail `check`
-  other_bad: Mapping<String, String>
-
-  /// Mapping from <Test Name> -> <file contents> which should also pass `check`
-  other_good: Mapping<String, String>
-
-  /// Extra files to include in the sandbox, useful for config files.
-  /// (These will be rooted in `{{tmp}}`)
-  extra_files: Mapping
-
-  /// Exit code to expect for `check`'s failure.
-  check_failure_code: Int(this != 0) = 1
-
-  local rooted_extra_files: Mapping<String, String> =
-    extra_files.toMap().mapKeys((key, value) -> "{{tmp}}\(key)").toMapping()
-
-  fixed suite: Mapping<String, Config.StepTest> = new Mapping<String, Config.StepTest> {
-    ...new Check {
-      filename = outer.filename
-      bad = before
-      good = after
-      extra_files = outer.extra_files
-      failure_code = check_failure_code
-    }.suite
-    ["fix unfixed file"] = new Config.StepTest {
-      run = "fix"
-      write = new Mapping<String, String> {
-        ["{{tmp}}/\(filename)"] = before
-        ...rooted_extra_files
-      }
-      expect = new Config.StepTestExpect {
-        code = 0 // NB: Fix shouldn't error for fixable issues
-        files = new Mapping<String, String> {
-          ["{{tmp}}/\(filename)"] = after
-        }
-      }
-    }
-    ["fix fixed file"] = new Config.StepTest {
-      run = "fix"
-      write = new Mapping<String, String> {
-        ["{{tmp}}/\(filename)"] = after
-        ...rooted_extra_files
-      }
-      expect = new Config.StepTestExpect {
-        code = 0
-        files = new Mapping<String, String> {
-          ["{{tmp}}/\(filename)"] = after
-        }
-      }
-    }
-    for (key, value in other_bad) {
-      [key] = new Config.StepTest {
-        run = "check"
-        write = new Mapping<String, String> {
-          ["{{tmp}}/\(filename)"] = value
-          ...rooted_extra_files
-        }
-        expect = new Config.StepTestExpect {
-          code = check_failure_code
-          files = new Mapping<String, String> {
-            ["{{tmp}}/\(filename)"] = value // NB: The file didn't change
-          }
-        }
-      }
-    }
-    for (key, value in other_good) {
-      [key] = new Config.StepTest {
-        run = "check"
-        write = new Mapping<String, String> {
-          ["{{tmp}}/\(filename)"] = value
-          ...rooted_extra_files
-        }
-        expect = new Config.StepTestExpect {
-          code = 0
-          files = new Mapping<String, String> {
-            ["{{tmp}}/\(filename)"] = value // NB: The file didn't change
-          }
-        }
-      }
-    }
-    when (mixed != null) {
-      ["fix mixed file"] = new Config.StepTest {
-        run = "fix"
-        write = new Mapping<String, String> {
-          ["{{tmp}}/\(filename)"] = mixed.before
-          ...rooted_extra_files
-        }
-        expect = new Config.StepTestExpect {
-          code = mixed.exit_code
-          files = new Mapping<String, String> {
-            ["{{tmp}}/\(filename)"] = mixed.after
-          }
-        }
-      }
-    }
+  /// Make a TestMaker (same as this one) but using the provided filename
+  function withFilename(newFilename: String): TestMaker = (this) {
+    filename = newFilename
   }
-}
-
-class MixedFixArgs {
-  /// The contents of the file with both fixable and unfixable errors.
-  before: String
-
-  /// The contents of the file after fixing.
-  after: String
-
-  /// Exit code to expect for `fix`'s failure.
-  exit_code: Int(this != 0)
 }

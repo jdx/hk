@@ -10,11 +10,11 @@ taplo = new Config.Step {
   glob = "**/*.toml"
   check = "taplo lint {{ files }}"
   tests {
-    ...new helpers.Check {
+    local const testMaker = new helpers.TestMaker {
       filename = "test.toml"
-      bad = "[table]\nkey = 0\nkey = 1\n"
-      // NB: Formatting is bad, but `lint` doesn't check formatting
-      good = "[table]\nkey   =   0\n"
-    }.suite
+    }
+    ["check bad file"] = testMaker.checkFail("[table]\nkey = 0\nkey = 1\n", 1)
+    // NB: Formatting is bad, but `lint` doesn't check formatting
+    ["check good file"] = testMaker.checkPass("[table]\nkey   =   0\n")
   }
 }

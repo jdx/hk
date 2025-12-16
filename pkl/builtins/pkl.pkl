@@ -10,10 +10,10 @@ pkl = new Config.Step {
   glob = "**/*.pkl"
   check = "pkl eval {{files}} >/dev/null"
   tests {
-    ...new helpers.Check {
+    local const testMaker = new helpers.TestMaker {
       filename = "test.pkl"
-      bad = "x == 1"
-      good = "x = 1"
-    }.suite
+    }
+    ["check bad file"] = testMaker.checkFail("x == 1", 1)
+    ["check good file"] = testMaker.checkPass("x = 1")
   }
 }

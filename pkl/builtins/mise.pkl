@@ -29,10 +29,12 @@ mise = new Config.Step {
   check = "mise fmt --check"
   fix = "mise fmt"
   tests {
-    ...new helpers.Fix {
+    local const testMaker = new helpers.TestMaker {
       filename = "mise.toml"
-      before = "x  =  1"
-      after = "x = 1\n"
-    }.suite
+    }
+    ["check bad file"] = testMaker.checkFail("x  =  1", 1)
+    ["check good file"] = testMaker.checkPass("x = 1\n")
+    ["fix bad file"] = testMaker.fixPass("x  =  1", "x = 1\n")
+    ["fix good file"] = testMaker.fixPass("x = 1\n", "x = 1\n")
   }
 }

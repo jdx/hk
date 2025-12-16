@@ -12,10 +12,10 @@ newlines = new Config.Step {
   check_list_files = "hk util end-of-file-fixer {{files}}"
   fix = "hk util end-of-file-fixer --fix {{files}}"
   tests {
-    ...new helpers.Fix {
-      filename = "test.txt"
-      before = "content"
-      after = "content\n"
-    }.suite
+    local const testMaker = new helpers.TestMaker {}
+    ["check bad file"] = testMaker.checkFail("content", 1)
+    ["check good file"] = testMaker.checkPass("content\n")
+    ["fix bad file"] = testMaker.fixPass("content", "content\n")
+    ["fix good file"] = testMaker.fixPass("content\n", "content\n")
   }
 }

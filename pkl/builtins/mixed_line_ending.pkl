@@ -12,14 +12,11 @@ mixed_line_ending = new Config.Step {
   check = "hk util mixed-line-ending {{files}}"
   fix = "hk util mixed-line-ending --fix {{files}}"
   tests {
-    ...new helpers.Fix {
-      filename = "test.txt"
-      before = "line1\r\nline2\nline3\r\n"
-      // NB: Also tests "passes LF only"
-      after = "line1\nline2\nline3\n"
-      other_good = new Mapping<String, String> {
-        ["passes CRLF only"] = "line1\r\nline2\r\nline3\r\n"
-      }
-    }.suite
+    local const testMaker = new helpers.TestMaker {}
+    ["check bad file"] = testMaker.checkFail("line1\r\nline2\nline3\r\n", 1)
+    ["check good file (LF only)"] = testMaker.checkPass("line1\nline2\nline3\n")
+    ["check good file (CRLF only)"] = testMaker.checkPass("line1\r\nline2\r\nline3\r\n")
+    ["fix bad file"] = testMaker.fixPass("line1\r\nline2\nline3\r\n", "line1\nline2\nline3\n")
+    ["fix good file"] = testMaker.fixPass("line1\nline2\nline3\n", "line1\nline2\nline3\n")
   }
 }

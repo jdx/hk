@@ -12,17 +12,19 @@ yamlfmt = new Config.Step {
   check_diff = "yamlfmt -lint {{ files }}"
   fix = "yamlfmt {{ files }}"
   tests {
-    ...new helpers.Fix {
+    local const testMaker = new helpers.TestMaker {
       filename = "test.yaml"
-      before = "-  a\n"
-      after = "- a\n"
       extra_files = new Mapping<String, String> {
         ["yamlfmt.yaml"] =
           """
-            formatter:
-              type: basic
+          formatter:
+            type: basic
           """
       }
-    }.suite
+    }
+    ["check bad file"] = testMaker.checkFail("-  a\n", 1)
+    ["check good file"] = testMaker.checkPass("- a\n")
+    ["fix bad file"] = testMaker.fixPass("-  a\n", "- a\n")
+    ["fix good file"] = testMaker.fixPass("- a\n", "- a\n")
   }
 }
