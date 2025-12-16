@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Configuration"
@@ -25,33 +26,10 @@ pkl_format = new Config.Step {
         fi
     """
   tests {
-    local const bad = "x = new {  }"
-    local const good = "x = new {}\n"
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/test.pkl"] = bad }
-      expect { code = 11 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/test.pkl"] = good }
-      expect { code = 0 }
-    }
-    ["fix bad file"] {
-      run = "fix"
-      write { ["{{tmp}}/test.pkl"] = bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.pkl"] = good }
-      }
-    }
-    ["fix good file"] {
-      run = "fix"
-      write { ["{{tmp}}/test.pkl"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.pkl"] = good }
-      }
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.pkl" }
+    ["check bad file"] = testMaker.checkFail("x = new {  }", 11)
+    ["check good file"] = testMaker.checkPass("x = new {}\n")
+    ["fix bad file"] = testMaker.fixPass("x = new {  }", "x = new {}\n")
+    ["fix good file"] = testMaker.fixPass("x = new {}\n", "x = new {}\n")
   }
 }

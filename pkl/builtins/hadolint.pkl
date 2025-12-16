@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Infrastructure"
@@ -9,17 +10,8 @@ hadolint = new Config.Step {
   glob = "**/Dockerfile*"
   check = "hadolint {{ files }}"
   tests {
-    local const bad = "FROM debian\n"
-    local const good = "FROM debian:jessie\n"
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/Dockerfile"] = bad }
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/Dockerfile"] = good }
-      expect { code = 0 }
-    }
+    local const testMaker = new helpers.TestMaker { filename = "Dockerfile" }
+    ["check bad file"] = testMaker.checkFail("FROM debian\n", 1)
+    ["check good file"] = testMaker.checkPass("FROM debian:jessie\n")
   }
 }

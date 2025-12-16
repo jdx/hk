@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Special Purpose"
@@ -10,44 +11,10 @@ fix_smart_quotes = new Config.Step {
   fix = "hk util fix-smart-quotes {{files}}"
   stage = "<JOB_FILES>"
   tests {
-    ["replaces smart quotes with regular quotes"] {
-      run = "fix"
-      write {
-        ["{{tmp}}/with_smart_quotes.txt"] = "\u{FF02}Hello, world!\u{FF02}"
-      }
-      files = List("{{tmp}}/with_smart_quotes.txt")
-      expect {
-        code = 0
-        files {
-          ["{{tmp}}/with_smart_quotes.txt"] = "\"Hello, world!\""
-        }
-      }
-    }
-    ["leaves file without smart quotes unchanged"] {
-      run = "fix"
-      write {
-        ["{{tmp}}/without_smart_quotes.txt"] = "\"Hello, world!\""
-      }
-      files = List("{{tmp}}/without_smart_quotes.txt")
-      expect {
-        code = 0
-        files {
-          ["{{tmp}}/without_smart_quotes.txt"] = "\"Hello, world!\""
-        }
-      }
-    }
-    ["handles empty file"] {
-      run = "fix"
-      write {
-        ["{{tmp}}/empty.txt"] = ""
-      }
-      files = List("{{tmp}}/empty.txt")
-      expect {
-        code = 0
-        files {
-          ["{{tmp}}/empty.txt"] = ""
-        }
-      }
-    }
+    local const testMaker = new helpers.TestMaker {}
+    ["fix file with smart quotes"] =
+      testMaker.fixPass("\u{FF02}Hello, world!\u{FF02}", "\"Hello, world!\"")
+    ["fix file without smart quotes"] = testMaker.fixPass("\"Hello, world!\"", "\"Hello, world!\"")
+    ["fix empty file"] = testMaker.fixPass("", "")
   }
 }

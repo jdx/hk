@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -12,52 +13,19 @@ ruff = new Config.Step {
   check_diff = "ruff check --force-exclude --diff {{ files }}"
   fix = "ruff check --force-exclude --fix {{ files }}"
   tests {
-    local const bad = "import sys\nprint('hello')\n"
-    local const good = "print('hello')\n"
-    ["check bad"] {
-      run = "check"
-      write { ["{{tmp}}/test.py"] = bad }
-      expect { code = 1 }
-    }
-    ["check good"] {
-      run = "check"
-      write { ["{{tmp}}/test.py"] = good }
-      expect { code = 0 }
-    }
-    ["fix bad"] {
-      run = "fix"
-      write { ["{{tmp}}/test.py"] = bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.py"] = good }
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.py"
+      extra_files = new Mapping<String, String> {
+        ["ruff.toml"] = "exclude = [\"excluded.py\"]\n"
       }
     }
-    ["fix good"] {
-      run = "fix"
-      write { ["{{tmp}}/test.py"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.py"] = good }
-      }
-    }
-    ["check respects config exclude"] {
-      run = "check"
-      write {
-        ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n"
-        ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
-      }
-      expect { code = 0 }
-    }
-    ["fix respects config exclude"] {
-      run = "fix"
-      write {
-        ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n"
-        ["{{tmp}}/ruff.toml"] = "exclude = [\"test.py\"]\n"
-      }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
-      }
-    }
+    local const before = "import sys\nprint('hello')\n"
+    local const after = "print('hello')\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+    ["check respects config exclude"] = testMaker.withFilename("excluded.py").checkPass(before)
+    ["fix respects config exclude"] = testMaker.withFilename("excluded.py").fixPass(before, before)
   }
 }
