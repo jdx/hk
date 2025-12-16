@@ -19,7 +19,7 @@ hooks {
         stash = "patch-file"
         steps {
             ["prettier"] = Builtins.prettier
-            ["shellcheck"] = Builtins.shellcheck
+            ["newlines"] = Builtins.newlines
         }
     }
 }
