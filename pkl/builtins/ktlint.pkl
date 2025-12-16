@@ -12,9 +12,7 @@ ktlint = new Config.Step {
   check = "ktlint {{ files }}"
   fix = "ktlint -F {{ files }}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "Test.kt"
-    }
+    local const testMaker = new helpers.TestMaker { filename = "Test.kt" }
     ["check bad file"] = testMaker.checkFail("const val FOO_1  =  \"foo1\"", 1)
     ["check good file"] = testMaker.checkPass("const val FOO_1 = \"foo1\"\n")
     ["fix bad file"] =

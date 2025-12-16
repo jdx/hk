@@ -13,9 +13,7 @@ taplo_format = new Config.Step {
   check_diff = "taplo format --check --diff {{ files }}"
   fix = "taplo format {{ files }}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "test.toml"
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.toml" }
     ["check bad file"] = testMaker.checkFail("[table]\nkey  =  \"value\"\n", 1)
     ["check good file"] = testMaker.checkPass("[table]\nkey = \"value\"\n")
     ["fix bad file"] =

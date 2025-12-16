@@ -10,9 +10,7 @@ yamllint = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
   check = "yamllint {{ files }}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "test.yaml"
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.yaml" }
     ["check bad file"] = testMaker.checkFail("x: 1\nx: 2\n", 1)
     ["check good file"] = testMaker.checkPass("x: 1\n")
   }

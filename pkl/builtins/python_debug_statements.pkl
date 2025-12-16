@@ -10,9 +10,7 @@ python_debug_statements = new Config.Step {
   glob = "**/*.py"
   check = "hk util python-debug-statements {{files}}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "test.py"
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.py" }
     ["check pdb"] =
       testMaker.checkFail(
         """

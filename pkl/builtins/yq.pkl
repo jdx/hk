@@ -19,9 +19,7 @@ yq = new Config.Step {
     """
   fix = "yq -iP {{ files }}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "test.yaml"
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.yaml" }
     ["check bad file"] = testMaker.checkFail("foo:  bar", 1)
     ["check good file"] = testMaker.checkPass("foo: bar\n")
     ["fix bad file"] = testMaker.fixPass("foo:  bar", "foo: bar\n")

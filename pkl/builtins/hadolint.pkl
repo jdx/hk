@@ -10,9 +10,7 @@ hadolint = new Config.Step {
   glob = "**/Dockerfile*"
   check = "hadolint {{ files }}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "Dockerfile"
-    }
+    local const testMaker = new helpers.TestMaker { filename = "Dockerfile" }
     ["check bad file"] = testMaker.checkFail("FROM debian\n", 1)
     ["check good file"] = testMaker.checkPass("FROM debian:jessie\n")
   }

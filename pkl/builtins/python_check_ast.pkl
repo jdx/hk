@@ -10,9 +10,7 @@ python_check_ast = new Config.Step {
   glob = "**/*.py"
   check = "hk util python-check-ast {{files}}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "test.py"
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.py" }
     ["check bad file"] =
       testMaker.checkFail(
         """
