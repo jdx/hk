@@ -148,6 +148,10 @@ hooks {
 }
 EOF
     cat <<EOF > other.pkl
+import "./other_other.pkl"
+STEPS = other_other.STEPS
+EOF
+    cat <<EOF > other_other.pkl
 import "$PKL_PATH/Config.pkl"
 STEPS = new Mapping<String, Config.Step> {
     ["original"] { check = "echo 'checking original'" }
@@ -166,7 +170,7 @@ EOF
     assert_success
     refute_output --partial "cache.miss"
 
-    cat <<EOF > other.pkl
+    cat <<EOF > other_other.pkl
 import "$PKL_PATH/Config.pkl"
 STEPS = new Mapping<String, Config.Step> {
     ["modified"] { check = "echo 'checking modified'" }

@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
@@ -58,7 +58,7 @@ impl Config {
 
     /// Analyze pkl imports to get all transitive dependencies.
     /// Returns a set of local file paths that the config depends on.
-    fn analyze_imports(path: &Path) -> Result<HashSet<PathBuf>> {
+    fn analyze_imports(path: &Path) -> Result<IndexSet<PathBuf>> {
         use std::process::{Command, Stdio};
 
         let output = Command::new("pkl")
@@ -80,7 +80,7 @@ impl Config {
             serde_json::from_str(&json).wrap_err("failed to parse pkl imports")?;
 
         // Extract all local file paths from the imports map keys
-        let mut paths = HashSet::new();
+        let mut paths = IndexSet::new();
         for uri in imports.imports.keys() {
             if let Some(file_path) = uri.strip_prefix("file://") {
                 paths.insert(PathBuf::from(file_path));
@@ -154,8 +154,8 @@ impl Config {
             let imports_cache_path =
                 cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
             let imports_cache_mgr = CacheManagerBuilder::new(imports_cache_path)
-                .with_fresh_file(path.clone())
-                .build::<HashSet<PathBuf>>();
+                .with_fresh_files(vec![path.clone()])
+                .build::<IndexSet<PathBuf>>();
 
             let imports = imports_cache_mgr
                 .get_or_try_init(|| Self::analyze_imports(&path))?
