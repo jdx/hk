@@ -131,7 +131,7 @@ impl Config {
             for path in &paths {
                 let path = cwd.join(path);
                 if path.exists() {
-                    return Ok(Self::load_config_cached(path)?);
+                    return Self::load_config_cached(path);
                 }
             }
             cwd = cwd.parent().map(PathBuf::from).unwrap_or_default();
