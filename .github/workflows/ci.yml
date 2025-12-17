@@ -101,6 +101,37 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: mise run test:bats:nolibgit2
+  ci-nogit:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          #- ubuntu-24.04-arm
+          #- windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - run: brew install parallel
+        if: ${{ matrix.os == 'macos-latest' }}
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          submodules: recursive
+      - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: hk-${{ matrix.os }}
+          path: target/debug
+      - run: chmod +x target/debug/hk
+      - run: mise x -- bun i
+      - name: mise run test:bats:nogit
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: mise run test:bats:nogit
   ci-other:
     strategy:
       fail-fast: false
