@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -9,50 +10,37 @@ python_debug_statements = new Config.Step {
   glob = "**/*.py"
   check = "hk util python-debug-statements {{files}}"
   tests {
-    ["detects pdb"] {
-      run = "check"
-      write {
-        ["{{tmp}}/with_pdb.py"] =
-          """
-          import pdb
-          pdb.set_trace()
-          """
-      }
-      expect { code = 1 }
-    }
-    ["detects breakpoint"] {
-      run = "check"
-      write {
-        ["{{tmp}}/with_breakpoint.py"] =
-          """
-          def debug():
-              breakpoint()
-          """
-      }
-      expect { code = 1 }
-    }
-    ["passes clean code"] {
-      run = "check"
-      write {
-        ["{{tmp}}/clean.py"] =
-          """
-          def hello():
-              print("Hello, world!")
-          """
-      }
-      expect { code = 0 }
-    }
-    ["ignores commented debug"] {
-      run = "check"
-      write {
-        ["{{tmp}}/commented.py"] =
-          """
-          def hello():
-              # import pdb; pdb.set_trace()
-              print("Hello")
-          """
-      }
-      expect { code = 0 }
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.py" }
+    ["check pdb"] =
+      testMaker.checkFail(
+        """
+        import pdb
+        pdb.set_trace()
+        """,
+        1,
+      )
+    ["check breakpoint"] =
+      testMaker.checkFail(
+        """
+        def debug():
+            breakpoint()
+        """,
+        1,
+      )
+    ["check clean code"] =
+      testMaker.checkPass(
+        """
+        def hello():
+            print("Hello, world!")
+        """,
+      )
+    ["check commented debug"] =
+      testMaker.checkPass(
+        """
+        def hello():
+            # import pdb; pdb.set_trace()
+            print("Hello")
+        """,
+      )
   }
 }

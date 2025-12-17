@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Special Purpose"
@@ -11,33 +12,10 @@ newlines = new Config.Step {
   check_list_files = "hk util end-of-file-fixer {{files}}"
   fix = "hk util end-of-file-fixer --fix {{files}}"
   tests {
-    local const bad = "content"
-    local const good = "content\n"
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/test.txt"] = bad }
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/test.txt"] = good }
-      expect { code = 0 }
-    }
-    ["fix bad file"] {
-      run = "fix"
-      write { ["{{tmp}}/test.txt"] = bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.txt"] = good }
-      }
-    }
-    ["fix good file"] {
-      run = "fix"
-      write { ["{{tmp}}/test.txt"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.txt"] = good }
-      }
-    }
+    local const testMaker = new helpers.TestMaker {}
+    ["check bad file"] = testMaker.checkFail("content", 1)
+    ["check good file"] = testMaker.checkPass("content\n")
+    ["fix bad file"] = testMaker.fixPass("content", "content\n")
+    ["fix good file"] = testMaker.fixPass("content\n", "content\n")
   }
 }

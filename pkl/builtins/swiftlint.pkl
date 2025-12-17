@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Other Languages"
@@ -11,45 +12,15 @@ swiftlint = new Config.Step {
   check = "swiftlint lint {{ files }}"
   fix = "swiftlint --fix {{ files }}"
   tests {
-    local const bad = "let abc:Void\n"
-    local const good = "let abc: Void\n"
-    ["check bad"] {
-      run = "check"
-      write {
-        ["{{tmp}}/test.swift"] = bad
-        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
-      }
-      expect { code = 2 }
-    }
-    ["check good"] {
-      run = "check"
-      write {
-        ["{{tmp}}/test.swift"] = good
-        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
-      }
-      expect { code = 0 }
-    }
-    ["fix bad"] {
-      run = "fix"
-      write {
-        ["{{tmp}}/test.swift"] = bad
-        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
-      }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.swift"] = good }
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.swift"
+      extra_files = new Mapping<String, String> {
+        [".swiftlint.yml"] = "strict: true\n"
       }
     }
-    ["fix good"] {
-      run = "fix"
-      write {
-        ["{{tmp}}/test.swift"] = good
-        ["{{tmp}}/.swiftlint.yml"] = "strict: true\n"
-      }
-      expect {
-        code = 0
-        files { ["{{tmp}}/test.swift"] = good }
-      }
-    }
+    ["check bad file"] = testMaker.checkFail("let abc:Void\n", 2)
+    ["check good file"] = testMaker.checkPass("let abc: Void\n")
+    ["fix bad file"] = testMaker.fixPass("let abc:Void\n", "let abc: Void\n")
+    ["fix good file"] = testMaker.fixPass("let abc: Void\n", "let abc: Void\n")
   }
 }

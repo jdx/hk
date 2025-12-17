@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Configuration"
@@ -9,15 +10,8 @@ pkl = new Config.Step {
   glob = "**/*.pkl"
   check = "pkl eval {{files}} >/dev/null"
   tests {
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/test.pkl"] = "x == 1" }
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/test.pkl"] = "x = 1" }
-      expect { code = 0 }
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.pkl" }
+    ["check bad file"] = testMaker.checkFail("x == 1", 1)
+    ["check good file"] = testMaker.checkPass("x = 1")
   }
 }

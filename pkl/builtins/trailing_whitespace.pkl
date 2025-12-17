@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Special Purpose"
@@ -11,33 +12,10 @@ trailing_whitespace = new Config.Step {
   check_list_files = "hk util trailing-whitespace {{files}}"
   fix = "hk util trailing-whitespace --fix {{files}}"
   tests {
-    local const bad = "trailing  \n"
-    local const good = "trailing\n"
-    ["chekc bad file"] {
-      run = "check"
-      write { ["{{tmp}}/a.txt"] = bad }
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/a.txt"] = good }
-      expect { code = 0 }
-    }
-    ["fix bad file"] {
-      run = "fix"
-      write { ["{{tmp}}/a.txt"] = bad }
-      expect {
-        code = 0
-        files { ["{{tmp}}/a.txt"] = good }
-      }
-    }
-    ["fix good file"] {
-      run = "fix"
-      write { ["{{tmp}}/a.txt"] = good }
-      expect {
-        code = 0
-        files { ["{{tmp}}/a.txt"] = good }
-      }
-    }
+    local const testMaker = new helpers.TestMaker {}
+    ["check bad file"] = testMaker.checkFail("trailing  \n", 1)
+    ["check good file"] = testMaker.checkPass("trailing\n")
+    ["fix bad file"] = testMaker.fixPass("trailing  \n", "trailing\n")
+    ["fix good file"] = testMaker.fixPass("trailing\n", "trailing\n")
   }
 }

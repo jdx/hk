@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Data Formats"
@@ -9,23 +10,9 @@ taplo = new Config.Step {
   glob = "**/*.toml"
   check = "taplo lint {{ files }}"
   tests {
-    ["check bad file"] {
-      run = "check"
-      write { ["{{tmp}}/file.toml"] = "[table]\nkey = 0\nkey = 1\n" }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write { ["{{tmp}}/file.toml"] = "[table]\nkey = 0\n" }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 0 }
-    }
-    ["doesnt error on formattting"] {
-      run = "check"
-      write { ["{{tmp}}/file.toml"] = "[table]\nkey   =   0\n" }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 0 }
-    }
+    local const testMaker = new helpers.TestMaker { filename = "test.toml" }
+    ["check bad file"] = testMaker.checkFail("[table]\nkey = 0\nkey = 1\n", 1)
+    // NB: Formatting is bad, but `lint` doesn't check formatting
+    ["check good file"] = testMaker.checkPass("[table]\nkey   =   0\n")
   }
 }

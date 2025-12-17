@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Data Formats"
@@ -11,50 +12,17 @@ tombi_format = new Config.Step {
   check_diff = "tombi format --check --diff {{ files }}"
   fix = "tombi format {{ files }}"
   tests {
-    local const bad = "[table]\nkey  =  \"value\"\n"
-    local const good = "[table]\nkey = \"value\"\n"
-    local const config_file = "tombi.toml"
-    local const config = "toml-version = \"v1.0.0\"\n"
-    ["check bad file"] {
-      run = "check"
-      write {
-        ["{{tmp}}/file.toml"] = bad
-        // Create a Tombi config file in the working directory to
-        // prevent loading system config (e.g. `$XDG_CONFIG_HOME`)
-        ["{{tmp}}/\(config_file)"] = config
-      }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 1 }
-    }
-    ["check good file"] {
-      run = "check"
-      write {
-        ["{{tmp}}/file.toml"] = good
-        ["{{tmp}}/\(config_file)"] = config
-      }
-      files = List("{{tmp}}/file.toml")
-      expect { code = 0 }
-    }
-    ["fix bad file"] {
-      run = "fix"
-      write {
-        ["{{tmp}}/file.toml"] = bad
-        ["{{tmp}}/\(config_file)"] = config
-      }
-      files = List("{{tmp}}/file.toml")
-      expect {
-        files { ["{{tmp}}/file.toml"] = good }
-        code = 0
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.toml"
+      extra_files = new Mapping<String, String> {
+        ["tombi.toml"] = "toml-version = \"v1.0.0\"\n"
       }
     }
-    ["fix good file"] {
-      run = "fix"
-      write { ["{{tmp}}/file.toml"] = good }
-      files = List("{{tmp}}/file.toml")
-      expect {
-        files { ["{{tmp}}/file.toml"] = good }
-        code = 0
-      }
-    }
+    ["check bad file"] = testMaker.checkFail("[table]\nkey  =  \"value\"\n", 1)
+    ["check good file"] = testMaker.checkPass("[table]\nkey = \"value\"\n")
+    ["fix bad file"] =
+      testMaker.fixPass("[table]\nkey  =  \"value\"\n", "[table]\nkey = \"value\"\n")
+    ["fix good file"] =
+      testMaker.fixPass("[table]\nkey = \"value\"\n", "[table]\nkey = \"value\"\n")
   }
 }
