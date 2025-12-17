@@ -75,7 +75,7 @@ fi
 
 [tasks."test:bats:nolibgit2"]
 depends = ["build"]
-env = { "HK_LIBGIT2" = "1" }
+env = { "HK_LIBGIT2" = "0" }
 run = '''
 tests="{{arg(name='test', var=true, default='test')}}"
 tests=$(rg --files-with-matches git -g test/*.bats "$tests" || true | tr '\n' ' ')
