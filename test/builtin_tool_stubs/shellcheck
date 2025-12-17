@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.11.0"
+tool = "ubi:koalaman/shellcheck"

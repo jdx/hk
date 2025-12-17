@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Shell"
@@ -9,4 +10,11 @@ shellcheck = new Config.Step {
   batch = true
   glob = List("**/*.sh", "**/*.bash")
   check = "shellcheck {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.sh"
+    }
+    ["check bad file"] = testMaker.checkFail("#!/usr/bin/bash\necho 'oops I'm escaped'", 1)
+    ["check good file"] = testMaker.checkPass("#!/usr/bin/bash\necho 'oops I'\\''m escaped'\n")
+  }
 }

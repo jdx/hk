@@ -20,7 +20,7 @@ hooks {
         stash = "git"
         steps {
             ["prettier"] = Builtins.prettier
-            ["shellcheck"] = Builtins.shellcheck
+            ["newlines"] = Builtins.newlines
         }
     }
 }
@@ -30,9 +30,9 @@ EOF
     touch test.sh
     touch test.js
     git add test.sh test.js
-    export HK_SKIP_STEPS="shellcheck"
+    export HK_SKIP_STEPS="newlines"
     run hk run pre-commit -v
     assert_success
     assert_output --partial "prettier"
-    assert_output --partial "shellcheck – skipped: disabled via HK_SKIP_STEPS"
+    assert_output --partial "newlines – skipped: disabled via HK_SKIP_STEPS"
 }

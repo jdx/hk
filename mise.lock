@@ -83,11 +83,6 @@ backend = "aqua:BurntSushi/ripgrep"
 "platforms.macos-x64" = { checksum = "sha256:64811cb24e77cac3057d6c40b63ac9becf9082eedd54ca411b475b755d334882", url = "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-x86_64-apple-darwin.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:124510b94b6baa3380d051fdf4650eaa80a302c876d611e9dba0b2e18d87493a", url = "https://github.com/BurntSushi/ripgrep/releases/download/15.1.0/ripgrep-15.1.0-x86_64-pc-windows-msvc.zip"}
 
-[[tools.shellcheck]]
-version = "0.11.0"
-backend = "ubi:koalaman/shellcheck"
-"platforms.linux-x64-shellcheck" = { checksum = "blake3:3297f19e635c3225457702704fa328408adbbfdcaa0a7c7fe591d8af1cc588f4"}
-
 [[tools.taplo]]
 version = "0.10.0"
 backend = "aqua:tamasfe/taplo"

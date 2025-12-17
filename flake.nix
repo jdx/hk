@@ -29,7 +29,6 @@
               just
               clippy
               rustfmt
-              shellcheck
               shfmt
               nodejs
               cargo-release
