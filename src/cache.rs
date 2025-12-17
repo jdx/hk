@@ -49,6 +49,11 @@ impl CacheManagerBuilder {
         self
     }
 
+    pub fn with_fresh_files(mut self, paths: impl IntoIterator<Item = PathBuf>) -> Self {
+        self.fresh_files.extend(paths);
+        self
+    }
+
     // pub fn with_cache_key(mut self, key: String) -> Self {
     //     self.cache_keys.push(key);
     //     self

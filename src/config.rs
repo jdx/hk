@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
@@ -55,6 +56,40 @@ impl Config {
         Ok(config)
     }
 
+    /// Analyze pkl imports to get all transitive dependencies.
+    /// Returns a set of local file paths that the config depends on.
+    fn analyze_imports(path: &Path) -> Result<HashSet<PathBuf>> {
+        use std::process::{Command, Stdio};
+
+        let output = Command::new("pkl")
+            .args(["analyze", "imports", "-f", "json"])
+            .arg(path)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .wrap_err("failed to execute pkl analyze imports")?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            bail!("pkl analyze imports failed: {}", stderr);
+        }
+
+        let json = String::from_utf8_lossy(&output.stdout);
+        let imports: PklImports =
+            serde_json::from_str(&json).wrap_err("failed to parse pkl imports")?;
+
+        // Extract all local file paths from the imports map keys
+        let mut paths = HashSet::new();
+        for uri in imports.imports.keys() {
+            if let Some(file_path) = uri.strip_prefix("file://") {
+                paths.insert(PathBuf::from(file_path));
+            }
+        }
+
+        Ok(paths)
+    }
+
     fn init(&mut self, path: &Path) -> Result<()> {
         self.path = path.to_path_buf();
         if let Some(min_hk_version) = &self.min_hk_version {
@@ -96,22 +131,7 @@ impl Config {
             for path in &paths {
                 let path = cwd.join(path);
                 if path.exists() {
-                    let hash_key = format!("{}.json", hash::hash_to_str(&path));
-                    let hash_key_path = env::HK_CACHE_DIR.join("configs").join(hash_key);
-                    let cache_mgr = CacheManagerBuilder::new(hash_key_path)
-                        .with_fresh_file(path.to_path_buf())
-                        .build();
-                    // Load from cache if fresh; otherwise read from disk. In both cases, run init
-                    // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
-                    let mut config = cache_mgr
-                        .get_or_try_init(|| {
-                            Self::read(&path).wrap_err_with(|| {
-                                format!("Failed to read config file: {}", path.display())
-                            })
-                        })?
-                        .clone();
-                    config.init(&path)?;
-                    return Ok(config);
+                    return Ok(Self::load_config_cached(path)?);
                 }
             }
             cwd = cwd.parent().map(PathBuf::from).unwrap_or_default();
@@ -119,6 +139,48 @@ impl Config {
         debug!("No config file found, using default");
         let mut config = Config::default();
         config.init(Path::new(paths[0]))?;
+        Ok(config)
+    }
+
+    fn load_config_cached(path: PathBuf) -> Result<Config> {
+        let hash_key = format!("{}.json", hash::hash_to_str(&path));
+        let cache_dir = env::HK_CACHE_DIR.join("configs");
+
+        // For pkl files, we need to track all transitive imports for cache invalidation
+        let is_pkl = path.extension().is_some_and(|ext| ext == "pkl");
+
+        let fresh_files: Vec<PathBuf> = if is_pkl {
+            // First, get the imports (cached separately, invalidated only by the main config file)
+            let imports_cache_path =
+                cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
+            let imports_cache_mgr = CacheManagerBuilder::new(imports_cache_path)
+                .with_fresh_file(path.clone())
+                .build::<HashSet<PathBuf>>();
+
+            let imports = imports_cache_mgr
+                .get_or_try_init(|| Self::analyze_imports(&path))?
+                .clone();
+
+            imports.into_iter().collect()
+        } else {
+            vec![path.clone()]
+        };
+
+        // Build the config cache with all fresh files (imports + main config)
+        let config_cache_path = cache_dir.join(hash_key);
+        let config_cache_mgr = CacheManagerBuilder::new(config_cache_path)
+            .with_fresh_files(fresh_files)
+            .build::<Config>();
+
+        // Load from cache if fresh; otherwise read from disk. In both cases, run init
+        // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
+        let mut config = config_cache_mgr
+            .get_or_try_init(|| {
+                Self::read(&path)
+                    .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))
+            })?
+            .clone();
+        config.init(&path)?;
         Ok(config)
     }
 
@@ -483,4 +545,16 @@ impl IntoIterator for StringOrList {
             StringOrList::List(list) => list.into_iter(),
         }
     }
+}
+
+/// Output of `pkl analyze imports -f json`
+#[derive(Debug, Deserialize)]
+struct PklImports {
+    imports: std::collections::HashMap<String, Vec<PklImportEntry>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PklImportEntry {
+    #[allow(dead_code)]
+    uri: String,
 }
