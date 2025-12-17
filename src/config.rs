@@ -81,7 +81,7 @@ impl Config {
 
         // Extract all local file paths from the imports map keys
         let mut paths = IndexSet::new();
-        for uri in imports.imports.keys() {
+        for uri in imports.resolvedImports.keys() {
             if let Some(file_path) = uri.strip_prefix("file://") {
                 paths.insert(PathBuf::from(file_path));
             }
@@ -549,12 +549,7 @@ impl IntoIterator for StringOrList {
 
 /// Output of `pkl analyze imports -f json`
 #[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
 struct PklImports {
-    imports: std::collections::HashMap<String, Vec<PklImportEntry>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PklImportEntry {
-    #[allow(dead_code)]
-    uri: String,
+    resolvedImports: std::collections::HashMap<String, String>,
 }
