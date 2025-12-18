@@ -32,22 +32,7 @@ impl Config {
                 let raw = xx::file::read_to_string(path)?;
                 serde_json::from_str(&raw)?
             }
-            "pkl" => {
-                match parse_pkl("pkl", path) {
-                    Ok(raw) => raw,
-                    Err(err) => {
-                        // if pkl bin is not installed
-                        if which::which("pkl").is_err() {
-                            if let Ok(out) = parse_pkl("mise x -- pkl", path) {
-                                return Ok(out);
-                            };
-                            bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
-                        } else {
-                            return Err(err).wrap_err("failed to read pkl config file");
-                        }
-                    }
-                }
-            }
+            "pkl" => run_pkl(&["eval"], path)?,
             _ => {
                 bail!("Unsupported file extension: {}", ext);
             }
@@ -59,25 +44,8 @@ impl Config {
     /// Analyze pkl imports to get all transitive dependencies.
     /// Returns a set of local file paths that the config depends on.
     fn analyze_imports(path: &Path) -> Result<IndexSet<PathBuf>> {
-        use std::process::{Command, Stdio};
-
-        let output = Command::new("pkl")
-            .args(["analyze", "imports", "-f", "json"])
-            .arg(path)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .wrap_err("failed to execute pkl analyze imports")?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            bail!("pkl analyze imports failed: {}", stderr);
-        }
-
-        let json = String::from_utf8_lossy(&output.stdout);
         let imports: PklImports =
-            serde_json::from_str(&json).wrap_err("failed to parse pkl imports")?;
+            run_pkl(&["analyze", "imports"], path).wrap_err("failed to analyze pkl imports")?;
 
         // Extract all local file paths from the imports map keys
         let mut paths = IndexSet::new();
@@ -275,7 +243,7 @@ impl UserConfig {
             .expect("Config path should always be set by CLI");
 
         if user_config_path.exists() {
-            let user_config: UserConfig = parse_pkl("pkl", &user_config_path)?;
+            let user_config: UserConfig = run_pkl(&["eval"], &user_config_path)?;
             Ok(Some(user_config))
         } else {
             let default_path = PathBuf::from(".hkrc.pkl");
@@ -307,62 +275,79 @@ fn get_no_proxy() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
+fn run_pkl<T: DeserializeOwned>(subcommand: &[&str], path: &Path) -> Result<T> {
     use std::process::{Command, Stdio};
 
-    // Parse bin as shell words (e.g., "mise x -- pkl" -> ["mise", "x", "--", "pkl"])
-    let bin_parts = shell_words::split(bin).wrap_err("failed to parse pkl command")?;
-    let (cmd, bin_args) = bin_parts
-        .split_first()
-        .ok_or_else(|| eyre::eyre!("empty pkl command"))?;
+    let try_run = |bin: &str| -> Result<T> {
+        // Parse bin as shell words (e.g., "mise x -- pkl" -> ["mise", "x", "--", "pkl"])
+        let bin_parts = shell_words::split(bin).wrap_err("failed to parse pkl command")?;
+        let (cmd, bin_args) = bin_parts
+            .split_first()
+            .ok_or_else(|| eyre::eyre!("empty pkl command"))?;
 
-    // Build pkl command args - flags must come before the positional path argument
-    let mut args: Vec<String> = bin_args.to_vec();
-    args.extend(["eval".to_string(), "-f".to_string(), "json".to_string()]);
+        // Build pkl command args - flags must come before the positional path argument
+        let mut args: Vec<String> = bin_args.to_vec();
+        args.extend(subcommand.iter().map(|s| s.to_string()));
+        args.extend(["-f".to_string(), "json".to_string()]);
 
-    // Add --http-proxy if proxy env vars are set
-    // Note: pkl only supports http:// proxies, not https:// proxy addresses
-    if let Some(proxy) = get_http_proxy() {
-        // pkl requires http:// scheme and doesn't support authentication
-        if !proxy.starts_with("http://") {
-            debug!("Ignoring proxy {proxy}: pkl only supports http:// proxies");
-        } else if proxy.contains('@') {
-            debug!("Ignoring proxy {proxy}: pkl does not support proxy authentication");
-        } else {
-            args.push("--http-proxy".to_string());
-            args.push(proxy);
+        // Add --http-proxy if proxy env vars are set
+        // Note: pkl only supports http:// proxies, not https:// proxy addresses
+        if let Some(proxy) = get_http_proxy() {
+            // pkl requires http:// scheme and doesn't support authentication
+            if !proxy.starts_with("http://") {
+                debug!("Ignoring proxy {proxy}: pkl only supports http:// proxies");
+            } else if proxy.contains('@') {
+                debug!("Ignoring proxy {proxy}: pkl does not support proxy authentication");
+            } else {
+                args.push("--http-proxy".to_string());
+                args.push(proxy);
+            }
+        }
+
+        // Add --http-no-proxy if no_proxy env var is set
+        if let Some(no_proxy) = get_no_proxy() {
+            args.push("--http-no-proxy".to_string());
+            args.push(no_proxy);
+        }
+
+        if let Some(http_rewrite) = env::HK_PKL_HTTP_REWRITE.as_ref() {
+            args.push("--http-rewrite".to_string());
+            args.push(http_rewrite.to_string());
+        }
+
+        // Add the path last (positional argument must come after flags)
+        args.push(path.display().to_string());
+
+        // Run pkl directly without shell - safer and simpler
+        let output = Command::new(cmd)
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .wrap_err("failed to execute pkl command")?;
+
+        if !output.status.success() {
+            handle_pkl_error(&output, path)?;
+        }
+
+        let json = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(&json).wrap_err("failed to parse pkl output")
+    };
+
+    match try_run("pkl") {
+        Ok(result) => Ok(result),
+        Err(err) => {
+            // if pkl bin is not installed, try via mise
+            if which::which("pkl").is_err() {
+                if let Ok(result) = try_run("mise x -- pkl") {
+                    return Ok(result);
+                }
+                bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
+            }
+            Err(err).wrap_err("failed to run pkl")
         }
     }
-
-    // Add --http-no-proxy if no_proxy env var is set
-    if let Some(no_proxy) = get_no_proxy() {
-        args.push("--http-no-proxy".to_string());
-        args.push(no_proxy);
-    }
-
-    if let Some(http_rewrite) = env::HK_PKL_HTTP_REWRITE.as_ref() {
-        args.push("--http-rewrite".to_string());
-        args.push(http_rewrite.to_string());
-    }
-
-    // Add the path last (positional argument must come after flags)
-    args.push(path.display().to_string());
-
-    // Run pkl directly without shell - safer and simpler
-    let output = Command::new(cmd)
-        .args(&args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .wrap_err("failed to execute pkl command")?;
-
-    if !output.status.success() {
-        handle_pkl_error(&output, path)?;
-    }
-
-    let json = String::from_utf8_lossy(&output.stdout);
-    serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
 }
 
 fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
