@@ -19,7 +19,7 @@ EOF
     # hk check should fail with config error
     run hk check
     assert_failure
-    assert_output --partial "Failed to read config file"
+    assert_output --partial "Failed to load config"
     assert_output --partial "Invalid property definition"
 }
 
@@ -34,7 +34,7 @@ EOF
     # hk fix should fail with config error
     run hk fix
     assert_failure
-    assert_output --partial "Failed to read config file"
+    assert_output --partial "Failed to load config"
     assert_output --partial "Pkl Error"
 }
 
@@ -49,7 +49,7 @@ EOF
     # hk run should fail with config error
     run hk run pre-commit
     assert_failure
-    assert_output --partial "Failed to read config file"
+    assert_output --partial "Failed to load config"
     assert_output --partial "Invalid property definition"
 }
 
@@ -64,17 +64,17 @@ EOF
     # config get should fail
     run hk config get jobs
     assert_failure
-    assert_output --partial "Failed to read config file"
+    assert_output --partial "Failed to load config"
 
     # config dump should fail
     run hk config dump
     assert_failure
-    assert_output --partial "Failed to read config file"
+    assert_output --partial "Failed to load config"
 
     # config explain should fail
     run hk config explain jobs
     assert_failure
-    assert_output --partial "Failed to read config file"
+    assert_output --partial "Failed to load config"
 }
 
 
