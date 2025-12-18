@@ -84,24 +84,6 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or(cwd);
     let base_dir = if use_sandbox { &sandbox } else { &root };
-    let files: Vec<PathBuf> = match &test.files {
-        Some(files) => files
-            .iter()
-            .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
-            .map(PathBuf::from)
-            .collect(),
-        None => {
-            let all_keys: Vec<PathBuf> = test
-                .write
-                .keys()
-                .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
-                .map(PathBuf::from)
-                .collect();
-            step.filter_files(&all_keys)?
-        }
-    };
-    tctx.with_files(step.shell_type(), &files);
-
     if let Some(fixture) = &test.fixture {
         let src = PathBuf::from(fixture);
         xx::file::copy_dir_all(&src, base_dir)?;
@@ -117,6 +99,47 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             }
         };
         xx::file::write(&path, contents)?;
+    }
+
+    let all_write_keys: Vec<PathBuf> = test
+        .write
+        .keys()
+        .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
+        .map(PathBuf::from)
+        .collect();
+    let files: Vec<PathBuf> = match &test.files {
+        Some(files) => files
+            .iter()
+            .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
+            .map(PathBuf::from)
+            .collect(),
+        None => step.filter_files(&all_write_keys)?,
+    };
+    tctx.with_files(step.shell_type(), &files);
+
+    // Handle `workspace_indicator`
+    if let Some(workspaces) = step.workspaces_for_files(&all_write_keys)? {
+        let workspace_indicator = match workspaces.len() {
+            0 => eyre::bail!(
+                "{}: no workspace_indicator found for files in {:?}",
+                step.name,
+                &all_write_keys
+            ),
+            1 => workspaces.into_iter().next().unwrap(),
+            n => eyre::bail!(
+                "{}: expected exactly one workspace_indicator, found {}: {:?}",
+                step.name,
+                n,
+                workspaces
+            ),
+        };
+
+        tctx.with_workspace_indicator(&workspace_indicator);
+        let workspace_dir = workspace_indicator
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."));
+        tctx.with_workspace_files(step.shell_type(), workspace_dir, &files);
     }
 
     // Render command
