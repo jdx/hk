@@ -45,7 +45,7 @@ impl Config {
     /// Returns a set of local file paths that the config depends on.
     fn analyze_imports(path: &Path) -> Result<IndexSet<PathBuf>> {
         let imports: PklImports =
-            run_pkl(&["analyze", "imports"], path).wrap_err("failed to analyze pkl imports")?;
+            run_pkl(&["analyze", "imports"], path).wrap_err("failed to analyze pkl")?;
 
         // Extract all local file paths from the imports map keys
         let mut paths = IndexSet::new();
