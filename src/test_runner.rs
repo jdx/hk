@@ -84,6 +84,23 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or(cwd);
     let base_dir = if use_sandbox { &sandbox } else { &root };
+    if let Some(fixture) = &test.fixture {
+        let src = PathBuf::from(fixture);
+        xx::file::copy_dir_all(&src, base_dir)?;
+    }
+    for (rel, contents) in &test.write {
+        let rendered = crate::tera::render(rel, &tctx)?;
+        let path = {
+            let p = PathBuf::from(&rendered);
+            if p.is_absolute() {
+                p
+            } else {
+                base_dir.join(&rendered)
+            }
+        };
+        xx::file::write(&path, contents)?;
+    }
+
     let files: Vec<PathBuf> = match &test.files {
         Some(files) => files
             .iter()
@@ -102,21 +119,25 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     };
     tctx.with_files(step.shell_type(), &files);
 
-    if let Some(fixture) = &test.fixture {
-        let src = PathBuf::from(fixture);
-        xx::file::copy_dir_all(&src, base_dir)?;
-    }
-    for (rel, contents) in &test.write {
-        let rendered = crate::tera::render(rel, &tctx)?;
-        let path = {
-            let p = PathBuf::from(&rendered);
-            if p.is_absolute() {
-                p
-            } else {
-                base_dir.join(&rendered)
-            }
+    // Handle `workspace_indicator`
+    if let Some(workspaces) = step.workspaces_for_files(&files)? {
+        let workspace_indicator = match workspaces.len() {
+            0 => eyre::bail!("{}: no workspace_indicator found for files", step.name,),
+            1 => workspaces.into_iter().next().unwrap(),
+            n => eyre::bail!(
+                "{}: expected exactly one workspace_indicator, found {}: {:?}",
+                step.name,
+                n,
+                workspaces
+            ),
         };
-        xx::file::write(&path, contents)?;
+
+        tctx.with_workspace_indicator(&workspace_indicator);
+        let workspace_dir = workspace_indicator
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .unwrap_or(std::path::Path::new("."));
+        tctx.with_workspace_files(step.shell_type(), workspace_dir, &files);
     }
 
     // Render command
