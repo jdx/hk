@@ -101,30 +101,28 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         xx::file::write(&path, contents)?;
     }
 
-    let all_write_keys: Vec<PathBuf> = test
-        .write
-        .keys()
-        .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
-        .map(PathBuf::from)
-        .collect();
     let files: Vec<PathBuf> = match &test.files {
         Some(files) => files
             .iter()
             .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
             .map(PathBuf::from)
             .collect(),
-        None => step.filter_files(&all_write_keys)?,
+        None => {
+            let all_keys: Vec<PathBuf> = test
+                .write
+                .keys()
+                .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
+                .map(PathBuf::from)
+                .collect();
+            step.filter_files(&all_keys)?
+        }
     };
     tctx.with_files(step.shell_type(), &files);
 
     // Handle `workspace_indicator`
-    if let Some(workspaces) = step.workspaces_for_files(&all_write_keys)? {
+    if let Some(workspaces) = step.workspaces_for_files(&files)? {
         let workspace_indicator = match workspaces.len() {
-            0 => eyre::bail!(
-                "{}: no workspace_indicator found for files in {:?}",
-                step.name,
-                &all_write_keys
-            ),
+            0 => eyre::bail!("{}: no workspace_indicator found for files", step.name,),
             1 => workspaces.into_iter().next().unwrap(),
             n => eyre::bail!(
                 "{}: expected exactly one workspace_indicator, found {}: {:?}",
