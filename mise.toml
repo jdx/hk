@@ -57,17 +57,42 @@ run   = "cargo test --all --all-features"
 alias = "tb"
 depends = ["build"]
 run = '''
-tests={{arg(name='test', var=true, default='test')}}
-mise run test:bats:libgit2 $tests ::: test:bats:nolibgit2 $tests
+tests="{{arg(name='test', var=true, default='test')}}"
+mise run test:bats:libgit2 "$tests" ::: test:bats:nolibgit2 "$tests" ::: test:bats:nogit "$tests"
 '''
 
 [tasks."test:bats:libgit2"]
 depends = ["build"]
-run     = "HK_LIBGIT2=1 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
+env = { "HK_LIBGIT2" = "1" }
+run = '''
+tests="{{arg(name='test', var=true, default='test')}}"
+tests=$(rg --files-with-matches git -g test/*.bats "$tests" || true | tr '\n' ' ')
+if [ "$tests" ]; then
+  bats --jobs 16 $tests
+fi
+'''
 
 [tasks."test:bats:nolibgit2"]
 depends = ["build"]
-run     = "HK_LIBGIT2=0 bats --jobs 16 {{arg(name='test', var=true, default='test')}}"
+env = { "HK_LIBGIT2" = "0" }
+run = '''
+tests="{{arg(name='test', var=true, default='test')}}"
+tests=$(rg --files-with-matches git -g test/*.bats "$tests" || true | tr '\n' ' ')
+if [ "$tests" ]; then
+  bats --jobs 16 $tests
+fi
+'''
+
+[tasks."test:bats:nogit"]
+depends = ["build"]
+env = { "HK_LIBGIT2" = "" }
+run = '''
+tests="{{arg(name='test', var=true, default='test')}}"
+tests=$(rg --files-without-match git -g test/*.bats "$tests" || true | tr '\n' ' ')
+if [ "$tests" ]; then
+  bats --jobs 16 $tests
+fi
+'''
 
 [tasks.dist]
 run = "pkl project package pkl --output-path docs/public/pkl"
