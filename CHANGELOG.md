@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.28.0](https://github.com/jdx/hk/compare/v1.27.0..v1.28.0) - 2025-12-18
+
+### 🚀 Features
+
+- Cache config based on xtive imports by [@thejcannon](https://github.com/thejcannon) in [#531](https://github.com/jdx/hk/pull/531)
+
+### 🐛 Bug Fixes
+
+- **(yq)** implement proper format checking with diff by [@thejcannon](https://github.com/thejcannon) in [#507](https://github.com/jdx/hk/pull/507)
+- `hk test` now works with `workspace_indicator` by [@thejcannon](https://github.com/thejcannon) in [#532](https://github.com/jdx/hk/pull/532)
+
+### 🚜 Refactor
+
+- Simplify Config.pkl (namely Regex stuff) and deprecate `Types.pkl` by [@thejcannon](https://github.com/thejcannon) in [#517](https://github.com/jdx/hk/pull/517)
+- Clean up some yaml-related stuff by [@thejcannon](https://github.com/thejcannon) in [#519](https://github.com/jdx/hk/pull/519)
+- Reformat `pkl` (with `pkl format`) by [@thejcannon](https://github.com/thejcannon) in [#518](https://github.com/jdx/hk/pull/518)
+
+### 📚 Documentation
+
+- fix a missing quote by [@muzimuzhi](https://github.com/muzimuzhi) in [#520](https://github.com/jdx/hk/pull/520)
+
+### 🧪 Testing
+
+- hadolint by [@thejcannon](https://github.com/thejcannon) in [#522](https://github.com/jdx/hk/pull/522)
+- Test swiftlint Builtin by [@thejcannon](https://github.com/thejcannon) in [#521](https://github.com/jdx/hk/pull/521)
+- Test stylelint Builtin by [@thejcannon](https://github.com/thejcannon) in [#523](https://github.com/jdx/hk/pull/523)
+- Introduce a `TestMaker` helper, and use it for test-a-palooza by [@thejcannon](https://github.com/thejcannon) in [#528](https://github.com/jdx/hk/pull/528)
+- Test shellcheck in builtin by [@thejcannon](https://github.com/thejcannon) in [#530](https://github.com/jdx/hk/pull/530)
+- Split bats testing into 3 (git vs nogit) by [@thejcannon](https://github.com/thejcannon) in [#529](https://github.com/jdx/hk/pull/529)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to f0c8eb2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#513](https://github.com/jdx/hk/pull/513)
+- update rust crate codegen to 0.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#514](https://github.com/jdx/hk/pull/514)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#526](https://github.com/jdx/hk/pull/526)
+
+### New Contributors
+
+- @muzimuzhi made their first contribution in [#520](https://github.com/jdx/hk/pull/520)
+
 ## [1.27.0](https://github.com/jdx/hk/compare/v1.26.0..v1.27.0) - 2025-12-12
 
 ### 🚀 Features
