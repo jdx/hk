@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Data Formats"
@@ -9,5 +10,29 @@ jq = new Config.Step {
   glob = "**/*.json"
   stage = "<JOB_FILES>"
   check = "jq . {{ files }}"
-  fix = "jq -S . {{ files }}"
+  check_diff =
+    """
+      failed=0
+      for f in {{ files }}; do
+        jq . "$f" | diff -u "$f" - || failed=1
+      done
+      exit $failed
+    """
+  fix =
+    """
+      for f in {{ files }}; do
+        tmp=$(mktemp) && jq -S . "$f" > "$tmp" && mv "$tmp" "$f"
+      done
+    """
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.json"
+    }
+    local const before = "{\"test\": 123}"
+    local const after = "{\n  \"test\": 123\n}\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
 }
