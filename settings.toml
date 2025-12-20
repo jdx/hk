@@ -26,6 +26,27 @@ Default location: `~/.cache/hk`
 Cache includes tool binary locations, parsed configurations, and other performance optimizations.
 """
 
+[default_branch]
+type = "string"
+sources.pkl = ["default_branch"]
+docs = """
+Specifies the preferred default branch to compare against when hk needs a reference
+(e.g., suggestions in pre-commit warnings).
+If unset or empty, hk attempts to detect it via `origin/HEAD`, the current branch's remote,
+or falls back to `main`/`master` if they exist on the remote.
+
+Both local branch names (e.g., `main`) and remote-qualified refs (e.g., `origin/main`) are supported.
+"""
+
+[env]
+type = "map<string, string>"
+sources.pkl = ["env"]
+docs = """
+Environment variables to set when running linter commands.
+
+These variables are set before executing any step commands and are merged with step-level env settings.
+"""
+
 [check]
 type = "bool"
 default = false
