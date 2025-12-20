@@ -66,7 +66,7 @@ depends = ["build"]
 env = { "HK_LIBGIT2" = "1" }
 run = '''
 tests="{{arg(name='test', var=true, default='test')}}"
-tests=$(rg --files-with-matches git -g test/*.bats "$tests" || true | tr '\n' ' ')
+tests=$(rg --files-with-matches git "$tests" --glob "test/*.bats" || true | tr '\n' ' ')
 if [ "$tests" ]; then
   bats --jobs 16 $tests
 fi
@@ -77,7 +77,7 @@ depends = ["build"]
 env = { "HK_LIBGIT2" = "0" }
 run = '''
 tests="{{arg(name='test', var=true, default='test')}}"
-tests=$(rg --files-with-matches git -g test/*.bats "$tests" || true | tr '\n' ' ')
+tests=$(rg --files-with-matches git "$tests" --glob "test/*.bats" || true | tr '\n' ' ')
 if [ "$tests" ]; then
   bats --jobs 16 $tests
 fi
@@ -88,7 +88,7 @@ depends = ["build"]
 env = { "HK_LIBGIT2" = "" }
 run = '''
 tests="{{arg(name='test', var=true, default='test')}}"
-tests=$(rg --files-without-match git -g test/*.bats "$tests" || true | tr '\n' ' ')
+tests=$(rg --files-without-match git "$tests" --glob "test/*.bats" || true | tr '\n' ' ')
 if [ "$tests" ]; then
   bats --jobs 16 $tests
 fi
