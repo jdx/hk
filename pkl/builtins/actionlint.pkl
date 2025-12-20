@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Infrastructure"
@@ -9,4 +10,37 @@ const actionlint = new Config.Step {
   glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
   batch = true
   check = "actionlint {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = ".github/workflows/test.yml"
+      before = "cd {{tmp}} && git init"
+    }
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+          on:
+            push:
+              branch: main
+          jobs:
+            test:
+              runs-on: ubuntu-latest
+              steps:
+                - run: echo "Pass"
+        """,
+        1,
+      )
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+          on:
+            push:
+              branches: main
+          jobs:
+            test:
+              runs-on: ubuntu-latest
+              steps:
+                - run: echo "Pass"
+        """,
+      )
+  }
 }

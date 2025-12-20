@@ -11,26 +11,30 @@ class TestMaker {
   /// (These will be rooted in `{{tmp}}`)
   extra_files: Mapping<String, String> = new Mapping {}
 
+  /// (Copied to the test)
+  before: String?
+
   local rooted_extra_files: Mapping<String, String> =
     extra_files.toMap().mapKeys((key, value) -> "{{tmp}}/\(key)").toMapping()
 
   /// Make a config test
   local function makeTest(
     runType: String,
-    before: String,
-    after: String,
+    contentBefore: String,
+    contentAfter: String,
     expectedCode: Int,
   ): Config.StepTest = new Config.StepTest {
     local sandboxFilename = "{{tmp}}/\(filename)"
     run = runType
+    before = outer.before
     write = new Mapping<String, String> {
-      [sandboxFilename] = before
+      [sandboxFilename] = contentBefore
       ...rooted_extra_files
     }
     expect = new Config.StepTestExpect {
       code = expectedCode
       files = new Mapping<String, String> {
-        [sandboxFilename] = after
+        [sandboxFilename] = contentAfter
       }
     }
   }
