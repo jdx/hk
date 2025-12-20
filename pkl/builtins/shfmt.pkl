@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Shell"
@@ -19,4 +20,24 @@ shfmt = new Config.Step {
     fi
     """
   fix = "shfmt -w {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.sh" }
+    local const before =
+      """
+      foo() {
+        (( $bar ))
+      }
+      """
+    local const after =
+      """
+      foo() {
+      	(($bar))
+      }
+
+      """
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
 }
