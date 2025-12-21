@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Rust"
@@ -11,4 +12,24 @@ cargo_fmt = new Config.Step {
   workspace_indicator = "Cargo.toml"
   check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
   fix = "cargo fmt --manifest-path {{workspace_indicator}}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "src/main.rs"
+      extra_files = new Mapping<String, String> {
+        ["Cargo.toml"] =
+          """
+            [package]
+            name = "test"
+            version = "0.1.0"
+            edition = "2021"
+          """
+      }
+    }
+    local const before = "fn    main()    {}"
+    local const after = "fn main() {}\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
 }
