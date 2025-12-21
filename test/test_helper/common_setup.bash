@@ -18,7 +18,9 @@ _common_setup() {
     export GIT_CONFIG_NOSYSTEM=1
     export HK_JOBS=2
     export MISE_INSTALLS_DIR="${MISE_INSTALLS_DIR:-$HOME/.local/share/mise/installs}"
+    export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
     export HOME="$TEST_TEMP_DIR"
+
     git config --global init.defaultBranch main
 
     # Only set user config if not already set (to avoid overriding existing config)
