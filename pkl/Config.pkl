@@ -284,7 +284,7 @@ class Step {
   ///
   /// **Supported types include:**
   ///
-  /// - **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`
+  /// - **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`, "lua"
   /// - **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
   /// - **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`
   /// - **Markup:** `html`, `markdown`, `css`
