@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.29.0"
+tool = "aqua:Kampfkarren/selene/light"
