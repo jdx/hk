@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.29.0](https://github.com/jdx/hk/compare/v1.28.0..v1.29.0) - 2025-12-26
+
+### 🚀 Features
+
+- add rumdl config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#541](https://github.com/jdx/hk/pull/541)
+- add selene config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#544](https://github.com/jdx/hk/pull/544)
+
+### 🐛 Bug Fixes
+
+- Fix the `jq` builtin by [@thejcannon](https://github.com/thejcannon) in [#533](https://github.com/jdx/hk/pull/533)
+- Fix the `rg` command in the tasks by [@thejcannon](https://github.com/thejcannon) in [#534](https://github.com/jdx/hk/pull/534)
+- Make `settings.toml` and `Config.pkl` agree on keys by [@thejcannon](https://github.com/thejcannon) in [#539](https://github.com/jdx/hk/pull/539)
+
+### 🧪 Testing
+
+- Add `actionlint` test by [@thejcannon](https://github.com/thejcannon) in [#537](https://github.com/jdx/hk/pull/537)
+- shfmt by [@thejcannon](https://github.com/thejcannon) in [#538](https://github.com/jdx/hk/pull/538)
+- Clean up some `check_` builtin tests by [@thejcannon](https://github.com/thejcannon) in [#536](https://github.com/jdx/hk/pull/536)
+- Test `rustfmt` and `cargo_format` by [@thejcannon](https://github.com/thejcannon) in [#540](https://github.com/jdx/hk/pull/540)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 7145c3e by [@renovate[bot]](https://github.com/renovate[bot]) in [#545](https://github.com/jdx/hk/pull/545)
+- update rust crate serde_json to v1.0.147 by [@renovate[bot]](https://github.com/renovate[bot]) in [#546](https://github.com/jdx/hk/pull/546)
+
 ## [1.28.0](https://github.com/jdx/hk/compare/v1.27.0..v1.28.0) - 2025-12-18
 
 ### 🚀 Features
