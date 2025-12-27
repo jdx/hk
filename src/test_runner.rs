@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::hook::RunMode;
+use crate::hook::RunType;
 use crate::{
     Result,
     step::Step,
@@ -142,12 +142,12 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     // Render command
-    let run_mode = match test.run {
-        RunKind::Fix => RunMode::Fix,
-        RunKind::Check => RunMode::Check,
+    let run_type = match test.run {
+        RunKind::Fix => RunType::Fix,
+        RunKind::Check => RunType::Check,
     };
 
-    let Some(mut run) = step.run_cmd(run_mode).map(|s| s.to_string()) else {
+    let Some(mut run) = step.run_cmd(run_type).map(|s| s.to_string()) else {
         eyre::bail!("{}: no command for test", step.name);
     };
     if let Some(prefix) = &step.prefix {

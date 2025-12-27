@@ -1,7 +1,7 @@
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
-use crate::{hook::RunMode, hook::SkipReason, timings::StepTimingGuard};
+use crate::{hook::RunType, hook::SkipReason, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -237,16 +237,16 @@ impl Step {
     }
 
     /// The command to be run.
-    pub fn run_cmd(&self, run_mode: RunMode) -> Option<&Script> {
-        match run_mode {
-            RunMode::Fix => {
+    pub fn run_cmd(&self, run_type: RunType) -> Option<&Script> {
+        match run_type {
+            RunType::Fix => {
                 self.fix
                     .as_ref()
                     // NB: Even if we don't have a fix command,
                     // we still can run the `check` command.
-                    .or(self.run_cmd(RunMode::Check))
+                    .or(self.run_cmd(RunType::Check))
             }
-            RunMode::Check => self
+            RunType::Check => self
                 .check
                 .as_ref()
                 .or(self.check_diff.as_ref())
@@ -263,8 +263,8 @@ impl Step {
     }
 
     /// Does this step have a command for the given run mode?
-    pub fn has_command_for(&self, run_mode: RunMode) -> bool {
-        self.run_cmd(run_mode).is_some()
+    pub fn has_command_for(&self, run_type: RunType) -> bool {
+        self.run_cmd(run_type).is_some()
     }
 
     pub fn enabled_profiles(&self) -> Option<IndexSet<String>> {
@@ -467,7 +467,7 @@ impl Step {
 
                 // Create batched jobs - use the StepJob constructor to properly handle private fields
                 for chunk in job.files.chunks(batch_size) {
-                    let new_job = StepJob::new(job.step.clone(), chunk.to_vec(), job.run_mode);
+                    let new_job = StepJob::new(job.step.clone(), chunk.to_vec(), job.run_type);
                     // Note: we can't preserve workspace_indicator or other private fields
                     // without adding public methods to StepJob. For now, batching will
                     // break workspace_indicator jobs, but that's acceptable since those
@@ -486,20 +486,20 @@ impl Step {
     pub(crate) fn build_step_jobs(
         &self,
         files: &[PathBuf],
-        run_mode: RunMode,
+        run_type: RunType,
         files_in_contention: &HashSet<PathBuf>,
         skip_steps: &indexmap::IndexMap<String, crate::hook::SkipReason>,
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
             let reason = skip_steps.get(&self.name).unwrap().clone();
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
-        if !self.has_command_for(run_mode) {
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
-            j.skip_reason = Some(SkipReason::NoCommandForRunMode(run_mode));
+        if !self.has_command_for(run_type) {
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
             return Ok(vec![j]);
         }
         let files = self.filter_files(files)?;
@@ -511,7 +511,7 @@ impl Step {
             || self.types.is_some();
         if files.is_empty() && has_filters {
             debug!("{self}: no file matches for step");
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(SkipReason::NoFilesToProcess);
             return Ok(vec![j]);
         }
@@ -539,20 +539,20 @@ impl Step {
                         }
                     }
 
-                    StepJob::new(Arc::new((*self).clone()), workspace_files, run_mode)
+                    StepJob::new(Arc::new((*self).clone()), workspace_files, run_type)
                         .with_workspace_indicator(workspace_indicator)
                 })
                 .collect()
         } else if self.batch {
             files
                 .chunks((files.len() / Settings::get().jobs().get()).max(1))
-                .map(|chunk| StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_mode))
+                .map(|chunk| StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_type))
                 .collect()
         } else {
             vec![StepJob::new(
                 Arc::new((*self).clone()),
                 files.clone(),
-                run_mode,
+                run_type,
             )]
         };
 
@@ -601,7 +601,7 @@ impl Step {
         let ctx = Arc::new(ctx);
         let mut jobs = self.build_step_jobs(
             &files,
-            ctx.hook_ctx.run_mode,
+            ctx.hook_ctx.run_type,
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
             &ctx.hook_ctx.skip_steps,
         )?;
@@ -643,8 +643,8 @@ impl Step {
                     return Ok(vec![]);
                 }
                 if job.check_first {
-                    let prev_run_mode = job.run_mode;
-                    job.run_mode = RunMode::Check;
+                    let prev_run_type = job.run_type;
+                    job.run_type = RunType::Check;
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
@@ -691,7 +691,7 @@ impl Step {
                             debug!("{step}: failed check step first: {e}");
                         }
                     }
-                    job.run_mode = prev_run_mode;
+                    job.run_type = prev_run_type;
                     job.check_first = false;
                 }
                 let result = step.run(&ctx, &mut job).await;
@@ -735,7 +735,7 @@ impl Step {
         // Skip staging if no jobs actually processed any files (e.g., all jobs skipped by condition)
         if non_skip_jobs > 0
             && !actual_job_files.is_empty()
-            && matches!(ctx.hook_ctx.run_mode, RunMode::Fix)
+            && matches!(ctx.hook_ctx.run_type, RunType::Fix)
         {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
             // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
@@ -915,7 +915,7 @@ impl Step {
         // Only skip if this is a check_first check that FAILED (will be followed by a fix)
         // If the check passed, we want to show its output since no fix will run
         let is_check_first_check_that_failed =
-            job.check_first && matches!(job.run_mode, RunMode::Check) && is_failure;
+            job.check_first && matches!(job.run_type, RunType::Check) && is_failure;
         if is_check_first_check_that_failed {
             return;
         }
@@ -1005,7 +1005,7 @@ impl Step {
         let run_cmd = if job.check_first {
             self.check_first_cmd()
         } else {
-            self.run_cmd(job.run_mode)
+            self.run_cmd(job.run_type)
         };
         let Some(mut run) = run_cmd.map(|s| s.to_string()) else {
             eyre::bail!("{self}: no run command");
@@ -1134,7 +1134,7 @@ impl Step {
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
                     self.collect_fix_suggestion(ctx, job, Some(&e.3));
                 }
-                if job.check_first && job.run_mode == RunMode::Check {
+                if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
@@ -1261,7 +1261,7 @@ impl Step {
     ) {
         // Only suggest fixes when the entire hook run is in check mode,
         // not when an individual job temporarily runs a check (e.g., check_first during a fix run)
-        if !matches!(ctx.hook_ctx.run_mode, RunMode::Check) || self.fix.is_none() {
+        if !matches!(ctx.hook_ctx.run_type, RunType::Check) || self.fix.is_none() {
             return;
         }
         // Prefer filtering files if check_list_files output is available
@@ -1276,9 +1276,9 @@ impl Step {
             }
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace
-        let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunMode::Fix);
+        let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
         let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
-        if let Some(mut fix_cmd) = self.run_cmd(RunMode::Fix).map(|s| s.to_string()) {
+        if let Some(mut fix_cmd) = self.run_cmd(RunType::Fix).map(|s| s.to_string()) {
             if let Some(prefix) = &self.prefix {
                 fix_cmd = format!("{prefix} {fix_cmd}");
             }
