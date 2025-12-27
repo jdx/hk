@@ -1,7 +1,7 @@
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
-use crate::{hook::SkipReason, timings::StepTimingGuard};
+use crate::{hook::RunMode, hook::SkipReason, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -210,19 +210,6 @@ impl fmt::Display for Step {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RunType {
-    Check(CheckType),
-    Fix,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckType {
-    Check,
-    ListFiles,
-    Diff,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputSummary {
@@ -249,30 +236,33 @@ impl Step {
         Ok(())
     }
 
-    pub fn run_cmd(&self, run_type: RunType) -> Option<&Script> {
-        match run_type {
-            RunType::Check(c) => match c {
-                CheckType::Check => self.check.as_ref(),
-                CheckType::Diff => self.check_diff.as_ref(),
-                CheckType::ListFiles => self.check_list_files.as_ref(),
-            }
-            .or(self.check.as_ref())
-            .or(self.check_list_files.as_ref())
-            .or(self.check_diff.as_ref()),
-            RunType::Fix => self
-                .fix
+    /// The command to be run.
+    pub fn run_cmd(&self, run_mode: RunMode) -> Option<&Script> {
+        match run_mode {
+            RunMode::Fix => self.fix.as_ref(),
+            RunMode::Check => self
+                .check
                 .as_ref()
-                .or_else(|| self.run_cmd(RunType::Check(CheckType::Check))),
+                .or(self.check_diff.as_ref())
+                .or(self.check_list_files.as_ref()),
         }
     }
 
-    pub fn check_type(&self) -> CheckType {
-        if self.check_diff.is_some() {
-            CheckType::Diff
-        } else if self.check_list_files.is_some() {
-            CheckType::ListFiles
-        } else {
-            CheckType::Check
+    /// The command to run in "check first" mode
+    pub fn check_first_cmd(&self) -> Option<&Script> {
+        self.check_diff
+            .as_ref()
+            .or(self.check.as_ref())
+            .or(self.check_list_files.as_ref())
+    }
+
+    /// Does this step have a command for the given run mode?
+    pub fn has_command_for(&self, run_mode: RunMode) -> bool {
+        match run_mode {
+            RunMode::Fix => self.fix.is_some(),
+            RunMode::Check => {
+                self.check.is_some() || self.check_diff.is_some() || self.check_list_files.is_some()
+            }
         }
     }
 
@@ -476,7 +466,7 @@ impl Step {
 
                 // Create batched jobs - use the StepJob constructor to properly handle private fields
                 for chunk in job.files.chunks(batch_size) {
-                    let new_job = StepJob::new(job.step.clone(), chunk.to_vec(), job.run_type);
+                    let new_job = StepJob::new(job.step.clone(), chunk.to_vec(), job.run_mode);
                     // Note: we can't preserve workspace_indicator or other private fields
                     // without adding public methods to StepJob. For now, batching will
                     // break workspace_indicator jobs, but that's acceptable since those
@@ -495,20 +485,20 @@ impl Step {
     pub(crate) fn build_step_jobs(
         &self,
         files: &[PathBuf],
-        run_type: RunType,
+        run_mode: RunMode,
         files_in_contention: &HashSet<PathBuf>,
         skip_steps: &indexmap::IndexMap<String, crate::hook::SkipReason>,
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
             let reason = skip_steps.get(&self.name).unwrap().clone();
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
             j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
-        if self.run_cmd(run_type).is_none() {
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
-            j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
+        if !self.has_command_for(run_mode) {
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
+            j.skip_reason = Some(SkipReason::NoCommandForRunMode(run_mode));
             return Ok(vec![j]);
         }
         let files = self.filter_files(files)?;
@@ -520,7 +510,7 @@ impl Step {
             || self.types.is_some();
         if files.is_empty() && has_filters {
             debug!("{self}: no file matches for step");
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
             j.skip_reason = Some(SkipReason::NoFilesToProcess);
             return Ok(vec![j]);
         }
@@ -548,20 +538,20 @@ impl Step {
                         }
                     }
 
-                    StepJob::new(Arc::new((*self).clone()), workspace_files, run_type)
+                    StepJob::new(Arc::new((*self).clone()), workspace_files, run_mode)
                         .with_workspace_indicator(workspace_indicator)
                 })
                 .collect()
         } else if self.batch {
             files
                 .chunks((files.len() / Settings::get().jobs().get()).max(1))
-                .map(|chunk| StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_type))
+                .map(|chunk| StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_mode))
                 .collect()
         } else {
             vec![StepJob::new(
                 Arc::new((*self).clone()),
                 files.clone(),
-                run_type,
+                run_mode,
             )]
         };
 
@@ -610,7 +600,7 @@ impl Step {
         let ctx = Arc::new(ctx);
         let mut jobs = self.build_step_jobs(
             &files,
-            ctx.hook_ctx.run_type,
+            ctx.hook_ctx.run_mode,
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
             &ctx.hook_ctx.skip_steps,
         )?;
@@ -652,8 +642,8 @@ impl Step {
                     return Ok(vec![]);
                 }
                 if job.check_first {
-                    let prev_run_type = job.run_type;
-                    job.run_type = RunType::Check(step.check_type());
+                    let prev_run_mode = job.run_mode;
+                    job.run_mode = RunMode::Check;
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
@@ -670,7 +660,8 @@ impl Step {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
                                 // Use check_diff parser if check_diff is defined, otherwise check_list_files
-                                let (files, extras) = if step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
+                                let is_check_diff = step.check_diff.is_some();
+                                let (files, extras) = if is_check_diff {
                                     step.filter_files_from_check_diff(&job.files, stdout, stderr)
                                 } else {
                                     step.filter_files_from_check_list(&job.files, stdout)
@@ -683,7 +674,7 @@ impl Step {
                                 }
 
                                 // For check_diff: if no parseable files, keep all original files
-                                if files.is_empty() && step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
+                                if files.is_empty() && is_check_diff {
                                     debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
                                     // Keep all original files for check_diff when diff parsing fails
                                 } else if files.is_empty() {
@@ -699,7 +690,8 @@ impl Step {
                             debug!("{step}: failed check step first: {e}");
                         }
                     }
-                    job.run_type = prev_run_type;
+                    job.run_mode = prev_run_mode;
+                    job.check_first = false;
                 }
                 let result = step.run(&ctx, &mut job).await;
                 if let Err(err) = &result {
@@ -742,7 +734,7 @@ impl Step {
         // Skip staging if no jobs actually processed any files (e.g., all jobs skipped by condition)
         if non_skip_jobs > 0
             && !actual_job_files.is_empty()
-            && matches!(ctx.hook_ctx.run_type, RunType::Fix)
+            && matches!(ctx.hook_ctx.run_mode, RunMode::Fix)
         {
             // Build stage pathspecs; if `dir` is set, stage entries are relative to it
             // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
@@ -922,7 +914,7 @@ impl Step {
         // Only skip if this is a check_first check that FAILED (will be followed by a fix)
         // If the check passed, we want to show its output since no fix will run
         let is_check_first_check_that_failed =
-            job.check_first && matches!(job.run_type, RunType::Check(_)) && is_failure;
+            job.check_first && matches!(job.run_mode, RunMode::Check) && is_failure;
         if is_check_first_check_that_failed {
             return;
         }
@@ -1009,7 +1001,12 @@ impl Step {
                 if files.len() == 1 { "" } else { "s" }
             )
         };
-        let Some(mut run) = self.run_cmd(job.run_type).map(|s| s.to_string()) else {
+        let run_cmd = if job.check_first {
+            self.check_first_cmd()
+        } else {
+            self.run_cmd(job.run_mode)
+        };
+        let Some(mut run) = run_cmd.map(|s| s.to_string()) else {
             eyre::bail!("{self}: no run command");
         };
         if let Some(prefix) = &self.prefix {
@@ -1078,7 +1075,7 @@ impl Step {
             Ok(result) => {
                 // For both check_list_files and check_diff: stderr is informational only
                 // Files are read from stdout; stderr may contain warnings, debug info, etc.
-                if let RunType::Check(CheckType::ListFiles) = job.run_type {
+                if run_cmd == self.check_list_files.as_ref() {
                     debug!(
                         "{self}: check_list_files succeeded (exit 0), stdout len={}, stderr len={}",
                         result.stdout.len(),
@@ -1093,7 +1090,7 @@ impl Step {
                             "{self}: check_list_files exited 0 (success) but returned files in stdout. This may indicate misconfiguration - the tool should exit non-zero when files need fixing."
                         );
                     }
-                } else if let RunType::Check(CheckType::Diff) = job.run_type {
+                } else if run_cmd == self.check_diff.as_ref() {
                     // For check_diff, stderr with exit 0 is just informational (e.g., "N files already formatted")
                     debug!(
                         "{self}: check_diff succeeded (exit 0), stdout len={}, stderr len={}",
@@ -1113,17 +1110,14 @@ impl Step {
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
-                    if matches!(
-                        job.run_type,
-                        RunType::Check(CheckType::ListFiles | CheckType::Diff)
-                    ) {
-                        let result = &e.3;
-                        let stdout = result.stdout.clone();
-                        let stderr = result.stderr.clone();
+                    if job.check_first
+                        && (run_cmd == self.check_list_files.as_ref()
+                            || run_cmd == self.check_diff.as_ref())
+                    {
                         return Err(Error::CheckListFailed {
                             source: eyre!("{}", err),
-                            stdout,
-                            stderr,
+                            stdout: e.3.stdout.clone(),
+                            stderr: e.3.stderr.clone(),
                         })?;
                     }
                     // Save output from a failed command as well
@@ -1139,7 +1133,7 @@ impl Step {
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
                     self.collect_fix_suggestion(ctx, job, Some(&e.3));
                 }
-                if job.check_first && matches!(job.run_type, RunType::Check(_)) {
+                if job.check_first && job.run_mode == RunMode::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
@@ -1266,7 +1260,7 @@ impl Step {
     ) {
         // Only suggest fixes when the entire hook run is in check mode,
         // not when an individual job temporarily runs a check (e.g., check_first during a fix run)
-        if !matches!(ctx.hook_ctx.run_type, RunType::Check(_)) || self.fix.is_none() {
+        if !matches!(ctx.hook_ctx.run_mode, RunMode::Check) || self.fix.is_none() {
             return;
         }
         // Prefer filtering files if check_list_files output is available
@@ -1281,9 +1275,9 @@ impl Step {
             }
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace
-        let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
+        let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunMode::Fix);
         let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
-        if let Some(mut fix_cmd) = self.run_cmd(RunType::Fix).map(|s| s.to_string()) {
+        if let Some(mut fix_cmd) = self.run_cmd(RunMode::Fix).map(|s| s.to_string()) {
             if let Some(prefix) = &self.prefix {
                 fix_cmd = format!("{prefix} {fix_cmd}");
             }

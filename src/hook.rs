@@ -23,7 +23,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
-    step::{CheckType, EXPR_CTX, OutputSummary, RunType, Script, Step},
+    step::{EXPR_CTX, OutputSummary, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -43,7 +43,7 @@ pub enum SkipReason {
     ProfileNotEnabled(Vec<String>),
     ProfileExplicitlyDisabled,
     #[strum(serialize = "no-command-for-run-type")]
-    NoCommandForRunType(RunType),
+    NoCommandForRunMode(RunMode),
     NoFilesToProcess,
     ConditionFalse,
 }
@@ -67,7 +67,7 @@ impl SkipReason {
                 }
             }
             SkipReason::ProfileExplicitlyDisabled => "skipped: disabled by profile".to_string(),
-            SkipReason::NoCommandForRunType(_) => "skipped: no command for run type".to_string(),
+            SkipReason::NoCommandForRunMode(_) => "skipped: no command for run type".to_string(),
             SkipReason::NoFilesToProcess => "skipped: no files to process".to_string(),
             SkipReason::ConditionFalse => "skipped: condition is false".to_string(),
         }
@@ -120,12 +120,22 @@ impl StepOrGroup {
         Ok(())
     }
 }
+
+/// The "mode" for the command we're running.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunMode {
+    /// Running in "check" mode (E.g. either `hk run check` or the `check` setting is enabled)
+    Check,
+    /// Running in "fix" mode (E.g. either `hk run fix` or the `fix` setting is enabled)
+    Fix,
+}
+
 pub struct HookContext {
     pub file_locks: FileRwLocks,
     pub git: Arc<Mutex<Git>>,
     pub groups: Vec<StepGroup>,
     pub tctx: crate::tera::Context,
-    pub run_type: RunType,
+    pub run_mode: RunMode,
     semaphore: Arc<Semaphore>,
     pub failed: CancellationToken,
     pub hk_progress: Option<Arc<ProgressJob>>,
@@ -152,7 +162,7 @@ impl HookContext {
         groups: Vec<StepGroup>,
         tctx: crate::tera::Context,
         expr_ctx: expr::Context,
-        run_type: RunType,
+        run_mode: RunMode,
         hk_progress: Option<Arc<ProgressJob>>,
         skip_steps: IndexMap<String, SkipReason>,
         should_stage: bool,
@@ -175,7 +185,7 @@ impl HookContext {
             completed_jobs: StdMutex::new(0),
             groups,
             tctx,
-            run_type,
+            run_mode,
             step_contexts: StdMutex::new(Default::default()),
             files_in_contention: StdMutex::new(Default::default()),
             semaphore: Arc::new(Semaphore::new(settings.jobs().get())),
@@ -291,12 +301,12 @@ impl Hook {
         Ok(())
     }
 
-    fn run_type(&self, opts: &HookOptions) -> RunType {
+    fn run_mode(&self, opts: &HookOptions) -> RunMode {
         let fix = self.fix.unwrap_or(self.name == "fix");
         if (*env::HK_FIX && fix) || opts.fix {
-            RunType::Fix
+            RunMode::Fix
         } else {
-            RunType::Check(CheckType::Check)
+            RunMode::Check
         }
     }
 
@@ -335,7 +345,7 @@ impl Hook {
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
-        let run_type = self.run_type(&opts);
+        let run_mode = self.run_mode(&opts);
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
@@ -352,7 +362,7 @@ impl Hook {
         let files = self
             .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
             .await?;
-        if files.is_empty() && can_exit_early(&groups, &files, run_type, &IndexMap::new()) {
+        if files.is_empty() && can_exit_early(&groups, &files, run_mode, &IndexMap::new()) {
             info!("no files to run");
             return Ok(());
         }
@@ -367,7 +377,7 @@ impl Hook {
 
     pub async fn stats(&self, opts: HookOptions, hook_name: &str) -> Result<()> {
         let settings = Settings::get();
-        let run_type = self.run_type(&opts);
+        let run_mode = self.run_mode(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
         let stash_method = if let Some(stash_str) = &opts.stash {
@@ -422,7 +432,7 @@ impl Hook {
         println!("Total files: {}", style::ncyan(total_files));
         println!(
             "Run type: {}",
-            style::nblue(if run_type == RunType::Fix {
+            style::nblue(if run_mode == RunMode::Fix {
                 "fix"
             } else {
                 "check"
@@ -443,11 +453,11 @@ impl Hook {
                 }
 
                 // Check if step has a command for this run type
-                if step.run_cmd(run_type).is_none() {
+                if !step.has_command_for(run_mode) {
                     step_stats.push((
                         step_name.clone(),
                         0,
-                        Some(SkipReason::NoCommandForRunType(run_type)),
+                        Some(SkipReason::NoCommandForRunMode(run_mode)),
                     ));
                     continue;
                 }
@@ -526,7 +536,7 @@ impl Hook {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
             return Ok(());
         }
-        let run_type = self.run_type(&opts);
+        let run_mode = self.run_mode(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let groups = self.get_step_groups(&opts);
         let stash_method = if let Some(stash_str) = &opts.stash {
@@ -537,7 +547,7 @@ impl Hook {
             self.resolve_stash_method(*env::HK_STASH)
         };
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
-        let hk_progress = self.start_hk_progress(run_type, total_steps);
+        let hk_progress = self.start_hk_progress(run_mode, total_steps);
         let file_progress = ProgressJobBuilder::new().body(
             "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}"
         )
@@ -580,7 +590,7 @@ impl Hook {
             }
             m
         };
-        if files.is_empty() && can_exit_early(&groups, &files, run_type, &skip_steps) {
+        if files.is_empty() && can_exit_early(&groups, &files, run_mode, &skip_steps) {
             info!("no files to run");
             if let Some(hk_progress) = &hk_progress {
                 hk_progress.set_status(ProgressStatus::Hide);
@@ -603,7 +613,7 @@ impl Hook {
             groups,
             tctx,
             expr_ctx,
-            run_type,
+            run_mode,
             hk_progress,
             skip_steps,
             should_stage,
@@ -953,7 +963,7 @@ impl Hook {
         Ok(files)
     }
 
-    fn start_hk_progress(&self, run_type: RunType, total_jobs: usize) -> Option<Arc<ProgressJob>> {
+    fn start_hk_progress(&self, run_mode: RunMode, total_jobs: usize) -> Option<Arc<ProgressJob>> {
         if clx::progress::output() == ProgressOutput::Text {
             return None;
         }
@@ -980,7 +990,7 @@ impl Hook {
                 &style::edim(format!(" – {}", self.name)).to_string(),
             );
         }
-        if run_type == RunType::Fix {
+        if run_mode == RunMode::Fix {
             hk_progress = hk_progress.prop("message", &style::edim(" – fix").to_string());
         } else {
             hk_progress = hk_progress.prop("message", &style::edim(" – check").to_string());
@@ -1024,14 +1034,14 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
 fn can_exit_early(
     groups: &[StepGroup],
     files: &BTreeSet<PathBuf>,
-    run_type: RunType,
+    run_mode: RunMode,
     skip_steps: &IndexMap<String, SkipReason>,
 ) -> bool {
     let files = files.iter().cloned().collect::<Vec<_>>();
     groups.iter().all(|g| {
         g.steps.iter().all(|(_, s)| {
             // Reuse job builder to determine if this step has any runnable work
-            s.build_step_jobs(&files, run_type, &Default::default(), skip_steps)
+            s.build_step_jobs(&files, run_mode, &Default::default(), skip_steps)
                 .is_ok_and(|jobs| jobs.iter().all(|j| j.skip_reason.is_some()))
         })
     })

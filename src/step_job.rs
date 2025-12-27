@@ -1,12 +1,10 @@
-use crate::{Result, file_rw_locks::Flocks, hook::SkipReason};
+use crate::{Result, file_rw_locks::Flocks, hook::RunMode, hook::SkipReason};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use itertools::Itertools;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{env, step::Step, step_context::StepContext, step_locks::StepLocks, tera};
 use std::{path::PathBuf, sync::Arc};
-
-use crate::step::RunType;
 
 /// Represents a single work item for the scheduler
 ///
@@ -18,7 +16,7 @@ use crate::step::RunType;
 pub struct StepJob {
     pub step: Arc<Step>,
     pub files: Vec<PathBuf>,
-    pub run_type: RunType,
+    pub run_mode: RunMode,
     pub check_first: bool,
     pub skip_reason: Option<SkipReason>,
     pub progress: Option<Arc<ProgressJob>>,
@@ -37,10 +35,10 @@ pub enum StepJobStatus {
 }
 
 impl StepJob {
-    pub fn new(step: Arc<Step>, files: Vec<PathBuf>, run_type: RunType) -> Self {
+    pub fn new(step: Arc<Step>, files: Vec<PathBuf>, run_mode: RunMode) -> Self {
         Self {
             files,
-            run_type,
+            run_mode,
             workspace_indicator: None,
             check_first: *env::HK_CHECK_FIRST
                 && step.check_first
@@ -48,7 +46,7 @@ impl StepJob {
                 && (step.check.is_some()
                     || step.check_diff.is_some()
                     || step.check_list_files.is_some())
-                && matches!(run_type, RunType::Fix),
+                && matches!(run_mode, RunMode::Fix),
             step,
             status: StepJobStatus::Pending,
             skip_reason: None,
@@ -152,7 +150,7 @@ impl StepJob {
     async fn flocks(&self, ctx: &StepContext) -> Flocks {
         if self.step.stomp {
             Default::default()
-        } else if self.run_type == RunType::Fix {
+        } else if self.run_mode == RunMode::Fix {
             ctx.hook_ctx.file_locks.write_locks(&self.files).await
         } else {
             ctx.hook_ctx.file_locks.read_locks(&self.files).await
@@ -165,7 +163,7 @@ impl Clone for StepJob {
         Self {
             step: self.step.clone(),
             files: self.files.clone(),
-            run_type: self.run_type,
+            run_mode: self.run_mode,
             check_first: self.check_first,
             skip_reason: self.skip_reason.clone(),
             workspace_indicator: self.workspace_indicator.clone(),
