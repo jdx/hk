@@ -4,7 +4,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Result, glob, hook::StepOrGroup, step::RunType, step_context::StepContext,
+    Result, glob, hook::RunMode, hook::StepOrGroup, step_context::StepContext,
     step_depends::StepDepends,
 };
 use crate::{hook::HookContext, step::Step};
@@ -193,7 +193,7 @@ impl StepGroup {
     }
 
     fn files_in_contention(&self, ctx: &StepGroupContext) -> Result<HashSet<PathBuf>> {
-        if ctx.hook_ctx.run_type != RunType::Fix || !self.steps.values().any(|j| j.check_first) {
+        if ctx.hook_ctx.run_mode != RunMode::Fix || !self.steps.values().any(|j| j.check_first) {
             return Ok(Default::default());
         }
         let files = ctx.hook_ctx.files();
