@@ -1122,6 +1122,16 @@ impl Step {
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
+                    if job.check_first
+                        && (run_cmd == self.check_list_files.as_ref()
+                            || run_cmd == self.check_diff.as_ref())
+                    {
+                        return Err(Error::CheckListFailed {
+                            source: eyre!("{}", err),
+                            stdout: e.3.stdout.clone(),
+                            stderr: e.3.stderr.clone(),
+                        })?;
+                    }
                     // Save output from a failed command as well
                     self.save_output_summary(
                         ctx,
@@ -1134,15 +1144,6 @@ impl Step {
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
                     self.collect_fix_suggestion(ctx, job, Some(&e.3));
-                    if run_cmd == self.check_list_files.as_ref()
-                        || run_cmd == self.check_diff.as_ref()
-                    {
-                        return Err(Error::CheckListFailed {
-                            source: eyre!("{}", err),
-                            stdout: e.3.stdout.clone(),
-                            stderr: e.3.stderr.clone(),
-                        })?;
-                    }
                 }
                 ctx.progress.set_status(if job.check_first {
                     ProgressStatus::Warn
