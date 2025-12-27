@@ -1,7 +1,7 @@
 use crate::{Result, error::Error, step_job::StepJob};
 use crate::{env, step_job::StepJobStatus};
 use crate::{glob, settings::Settings};
-use crate::{hook::RunType, hook::SkipReason, timings::StepTimingGuard};
+use crate::{hook::SkipReason, timings::StepTimingGuard};
 use crate::{step_context::StepContext, tera, ui::style};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use ensembler::CmdLineRunner;
@@ -208,6 +208,12 @@ impl fmt::Display for Step {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunType {
+    Check,
+    Fix,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]

@@ -1,4 +1,4 @@
-use crate::{Result, file_rw_locks::Flocks, hook::RunType, hook::SkipReason};
+use crate::{Result, file_rw_locks::Flocks, hook::SkipReason, step::RunType};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use itertools::Itertools;
 use tokio::sync::OwnedSemaphorePermit;

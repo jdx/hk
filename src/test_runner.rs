@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use crate::hook::RunType;
 use crate::{
     Result,
+    step::RunType,
     step::Step,
     step_test::{RunKind, StepTest},
 };

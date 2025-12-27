@@ -4,7 +4,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Result, glob, hook::RunType, hook::StepOrGroup, step_context::StepContext,
+    Result, glob, hook::StepOrGroup, step::RunType, step_context::StepContext,
     step_depends::StepDepends,
 };
 use crate::{hook::HookContext, step::Step};

@@ -23,7 +23,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
-    step::{EXPR_CTX, OutputSummary, Script, Step},
+    step::{EXPR_CTX, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -119,15 +119,6 @@ impl StepOrGroup {
         }
         Ok(())
     }
-}
-
-/// The "mode" for the command we're running.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RunType {
-    /// Running in "check" mode (E.g. either `hk run check` or the `check` setting is enabled)
-    Check,
-    /// Running in "fix" mode (E.g. either `hk run fix` or the `fix` setting is enabled)
-    Fix,
 }
 
 pub struct HookContext {
