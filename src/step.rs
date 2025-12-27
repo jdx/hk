@@ -239,7 +239,13 @@ impl Step {
     /// The command to be run.
     pub fn run_cmd(&self, run_mode: RunMode) -> Option<&Script> {
         match run_mode {
-            RunMode::Fix => self.fix.as_ref(),
+            RunMode::Fix => {
+                self.fix
+                    .as_ref()
+                    // NB: Even if we don't have a fix command,
+                    // we still can run the `check` command.
+                    .or(self.run_cmd(RunMode::Check))
+            }
             RunMode::Check => self
                 .check
                 .as_ref()
@@ -258,12 +264,7 @@ impl Step {
 
     /// Does this step have a command for the given run mode?
     pub fn has_command_for(&self, run_mode: RunMode) -> bool {
-        match run_mode {
-            RunMode::Fix => self.fix.is_some(),
-            RunMode::Check => {
-                self.check.is_some() || self.check_diff.is_some() || self.check_list_files.is_some()
-            }
-        }
+        self.run_cmd(run_mode).is_some()
     }
 
     pub fn enabled_profiles(&self) -> Option<IndexSet<String>> {

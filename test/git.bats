@@ -105,7 +105,7 @@ hooks {
 EOF
 
     # Test files between base and feature
-    run hk fix --from-ref=$BASE_COMMIT --to-ref=$FEATURE_COMMIT
+    run hk fix -v --from-ref=$BASE_COMMIT --to-ref=$FEATURE_COMMIT
     assert_success
     assert_output --partial "print-files – 1 file –  – echo 'feature.txt'"
     assert_output --partial "print-files – feature.txt"
