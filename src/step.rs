@@ -1122,19 +1122,6 @@ impl Step {
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
-                    if run_cmd == self.check_list_files.as_ref()
-                        || run_cmd == self.check_diff.as_ref()
-                    {
-                        println!("HERE");
-                        let result = &e.3;
-                        let stdout = result.stdout.clone();
-                        let stderr = result.stderr.clone();
-                        return Err(Error::CheckListFailed {
-                            source: eyre!("{}", err),
-                            stdout,
-                            stderr,
-                        })?;
-                    }
                     // Save output from a failed command as well
                     self.save_output_summary(
                         ctx,
