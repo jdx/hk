@@ -240,16 +240,11 @@ impl Step {
     pub fn run_cmd(&self, run_mode: RunMode) -> Option<&Script> {
         match run_mode {
             RunMode::Fix => self.fix.as_ref(),
-            RunMode::Check =>
-            // Prefer `check_diff` (which gives actionable, contextual feedback),
-            // then `check` (which also provides contextual feedback),
-            // then last `check_list_files`.
-            {
-                self.check_diff
-                    .as_ref()
-                    .or(self.check.as_ref())
-                    .or(self.check_list_files.as_ref())
-            }
+            RunMode::Check => self
+                .check
+                .as_ref()
+                .or(self.check_diff.as_ref())
+                .or(self.check_list_files.as_ref()),
         }
     }
 
@@ -652,8 +647,6 @@ impl Step {
                     return Ok(vec![]);
                 }
                 if job.check_first {
-                    // @TODO(thejcannon): The locks here might be write locks even though we need read locks?
-                    // (See also `step_job.rs:151` (`flocks`))
                     let prev_run_mode = job.run_mode;
                     job.run_mode = RunMode::Check;
                     match step.run(&ctx, &mut job).await {
