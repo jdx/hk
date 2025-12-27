@@ -250,9 +250,6 @@ impl Step {
 
     /// The command to run in "check first" mode
     pub fn check_first_cmd(&self) -> Option<&Script> {
-        // Prefer `check_diff` (which gives actionable, contextual feedback),
-        // then `check` (which also provides contextual feedback),
-        // then last `check_list_files`.
         self.check_diff
             .as_ref()
             .or(self.check.as_ref())
@@ -493,19 +490,17 @@ impl Step {
         skip_steps: &indexmap::IndexMap<String, crate::hook::SkipReason>,
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
-        if !self.has_command_for(run_mode) {
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
-            j.skip_reason = Some(SkipReason::NoCommandForRunMode(run_mode));
-            return Ok(vec![j]);
-        }
-
         if skip_steps.contains_key(&self.name) {
             let reason = skip_steps.get(&self.name).unwrap().clone();
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
             j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
-
+        if !self.has_command_for(run_mode) {
+            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_mode);
+            j.skip_reason = Some(SkipReason::NoCommandForRunMode(run_mode));
+            return Ok(vec![j]);
+        }
         let files = self.filter_files(files)?;
         // Skip if no files and step has file filters
         // This means the step was explicitly looking for specific files and found none
