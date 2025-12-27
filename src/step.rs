@@ -1133,7 +1133,7 @@ impl Step {
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
                     self.collect_fix_suggestion(ctx, job, Some(&e.3));
                 }
-                if job.check_first && job.run_type == RunMode::Check {
+                if job.check_first && job.run_mode == RunMode::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
