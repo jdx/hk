@@ -1,0 +1,46 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "GitHub Actions workflow linter"
+}
+const ghalint_workflow = new Config.Step {
+  glob = List(".github/workflows/*")
+  types = List("yaml")
+  check = "ghalint run"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = ".github/workflows/test.yml"
+    }
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+        on:
+          push:
+        permissions: {}
+        jobs:
+          test:
+            runs-on: ubuntu-latest
+            steps:
+              - run: echo "Pass"
+        """,
+        1,
+      )
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+        on:
+          push:
+        permissions: {}
+        jobs:
+          test:
+            runs-on: ubuntu-latest
+            steps:
+              - run: echo "Pass"
+                timeout-minutes: 1
+        """,
+      )
+  }
+}
