@@ -112,3 +112,4 @@ xo = Builtins["builtins/xo.pkl"].xo
 yamlfmt = Builtins["builtins/yamlfmt.pkl"].yamlfmt
 yamllint = Builtins["builtins/yamllint.pkl"].yamllint
 yq = Builtins["builtins/yq.pkl"].yq
+zizmor = Builtins["builtins/zizmor.pkl"].zizmor
