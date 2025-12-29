@@ -34,8 +34,6 @@ mod trace;
 mod ui;
 mod version;
 
-use std::fs;
-
 #[cfg(unix)]
 use tokio::signal;
 #[cfg(unix)]
