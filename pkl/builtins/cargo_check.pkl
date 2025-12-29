@@ -8,15 +8,15 @@ import "./test/helpers.pkl"
 }
 cargo_check = new Config.Step {
   glob = "**/*.rs"
-  check = "cargo check --quiet"
+  // NB: We need nightly to enable `warnings` unstable feature: https://doc.rust-lang.org/cargo/reference/unstable.html#warnings
+  // (See the comment for `CARGO_BUILD_WARNINGS` below)
+  check = "cargo +nightly check -Zwarnings --quiet"
   fix = "cargo fix --allow-dirty --allow-staged --quiet"
   env {
     ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
     // NB: This is needed to treat warnings as errors.
     // (which, since `cargo fix` will maintain parity between `check` and `fix`)
-    // It is unfortunate, though that changing `RUSTFLAGS` is somewhat of a cache-buster.
-    // See https://github.com/rust-lang/cargo/issues/14802
-    ["RUSTFLAGS"] = "-D warnings"
+    ["CARGO_BUILD_WARNINGS"] = "deny"
   }
   tests {
     local const testMaker = new helpers.TestMaker {
