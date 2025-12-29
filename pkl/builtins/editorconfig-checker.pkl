@@ -1,0 +1,35 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "EditorConfig"
+  description = "Validate files against EditorConfig rules"
+}
+editorconfig_checker = new Config.Step {
+  types = List("text")
+  check = "ec {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.txt"
+      extra_files = new Mapping<String, String> {
+        [".editorconfig"] =
+          """
+          root = true
+
+          [*]
+          indent_style = space
+          indent_size = 2
+          tab_width = 4
+          end_of_line = lf
+          charset = utf-8
+          trim_trailing_whitespace = true
+          insert_final_newline = true
+
+          """
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("insert final newline", 1)
+    ["check good file"] = testMaker.checkPass("insert final newline\n")
+  }
+}
