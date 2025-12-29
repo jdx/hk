@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Rust"
@@ -8,7 +9,39 @@ import "../Config.pkl"
 cargo_check = new Config.Step {
   glob = "**/*.rs"
   check = "cargo check -q"
+  fix = "cargo fix -q --allow-dirty"
   env {
     ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
+    // NB: This is needed to treat warnings as errors.
+    // (which, since `cargo fix` will maintain parity between `check` and `fix`)
+    // It is unfortunate, though that changing `RUSTFLAGS` is somewhat of a cache-buster.
+    // See https://github.com/rust-lang/cargo/issues/14802
+    ["RUSTFLAGS"] = "-D warnings"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "src/main.rs"
+      before = "git init"
+      extra_files = new Mapping<String, String> {
+        ["Cargo.toml"] =
+          """
+            [package]
+            name = "test"
+            version = "0.1.0"
+            edition = "2021"
+          """
+      }
+    }
+    local const before =
+      """
+        use std::{fmt};
+
+        pub fn main() {}
+      """
+    local const after = "  \n\n  pub fn main() {}"
+    ["check bad file"] = testMaker.checkFail(before, 101)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
   }
 }
