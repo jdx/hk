@@ -107,6 +107,7 @@ tsc = Builtins["builtins/tsc.pkl"].tsc
 tsserver = Builtins["builtins/tsserver.pkl"].tsserver
 typos = Builtins["builtins/typos.pkl"].typos
 vacuum = Builtins["builtins/vacuum.pkl"].vacuum
+vale = Builtins["builtins/vale.pkl"].vale
 xmllint = Builtins["builtins/xmllint.pkl"].xmllint
 xo = Builtins["builtins/xo.pkl"].xo
 yamlfmt = Builtins["builtins/yamlfmt.pkl"].yamlfmt
