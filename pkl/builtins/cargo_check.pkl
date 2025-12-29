@@ -8,8 +8,8 @@ import "./test/helpers.pkl"
 }
 cargo_check = new Config.Step {
   glob = "**/*.rs"
-  check = "cargo check -q"
-  fix = "cargo fix -q --allow-dirty"
+  check = "cargo check --quiet"
+  fix = "cargo fix --allow-dirty --allow-staged --quiet"
   env {
     ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
     // NB: This is needed to treat warnings as errors.
