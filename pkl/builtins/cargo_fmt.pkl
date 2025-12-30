@@ -11,6 +11,8 @@ cargo_fmt = new Config.Step {
   stage = "<JOB_FILES>"
   workspace_indicator = "Cargo.toml"
   check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
+  check_list_files =
+    "cargo fmt --check --manifest-path {{workspace_indicator}} -- --files-with-diff"
   fix = "cargo fmt --manifest-path {{workspace_indicator}}"
   tests {
     local const testMaker = new helpers.TestMaker {
