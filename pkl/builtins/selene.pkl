@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Lua linter"
 }
 selene = new Config.Step {
-  glob = "**/*.lua"
+  types = List("lua")
   check_diff = "selene {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {

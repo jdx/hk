@@ -316,6 +316,10 @@ fn get_types_by_extension(ext: &str) -> Option<HashSet<String>> {
             types.insert("text".to_string());
             types.insert("csharp".to_string());
         }
+        "lua" => {
+            types.insert("text".to_string());
+            types.insert("lua".to_string());
+        }
         "sh" | "bash" => {
             types.insert("text".to_string());
             types.insert("shell".to_string());
