@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -10,4 +11,13 @@ isort = new Config.Step {
   stage = "<JOB_FILES>"
   check = "isort --check-only {{ files }}"
   fix = "isort {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.py" }
+    local const before = "import base64\nimport ast\n"
+    local const after = "import ast\nimport base64\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
 }
