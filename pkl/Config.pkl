@@ -362,6 +362,12 @@ class Step {
 
   /// A command that shows the diff of what would be changed.
   /// This is an alternative to `check` that can provide more detailed information about what would be changed.
+  ///
+  /// When defined, hk will attempt to apply the diff output directly using `git apply`
+  /// instead of running the fix command. This is more efficient for tools that
+  /// produce standard unified diffs (black, ruff, shfmt, etc.).
+  ///
+  /// Falls back to running the fix command if patch application fails.
   check_diff: (String | Script)?
 
   /// A command to run that modifies files.

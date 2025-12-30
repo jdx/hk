@@ -241,7 +241,6 @@ impl Step {
                 name
             );
         }
-
         self.name = name.to_string();
         if self.interactive {
             self.exclusive = true;
@@ -579,20 +578,25 @@ impl Step {
                 }
             }
         }
-        for job in jobs.iter_mut().filter(|j| j.check_first) {
-            // If stage=<JOB_FILES> and check_list_files or check_diff is defined, always run check_first
-            // to ensure files are filtered correctly, even when there's no contention
-            let needs_filtering_for_stage = self
-                .stage
-                .as_ref()
-                .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
-                .unwrap_or(false)
-                && (self.check_list_files.is_some() || self.check_diff.is_some());
+        // If stage=<JOB_FILES> and check_list_files or check_diff is defined, always run check_first
+        // to ensure files are filtered correctly, even when there's no contention
+        let needs_filtering_for_stage = self
+            .stage
+            .as_ref()
+            .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
+            .unwrap_or(false)
+            && (self.check_list_files.is_some() || self.check_diff.is_some());
 
-            if needs_filtering_for_stage {
+        // Always run check_first when check_diff is defined so we can apply the diff directly
+        let can_apply_diff = self.check_diff.is_some();
+
+        for job in jobs.iter_mut() {
+            if needs_filtering_for_stage || can_apply_diff {
                 // Always run check_first when we need to filter files for stage=<JOB_FILES>
+                // or when we can apply the diff directly
                 job.check_first = true;
-            } else {
+            } else if job.check_first {
+                // Only adjust check_first for jobs where it was already enabled from config
                 // Default behavior: only set check_first if there are any files in contention
                 job.check_first = job.files.iter().any(|f| files_in_contention.contains(f));
             }
@@ -693,6 +697,27 @@ impl Step {
                                     return Err(e);
                                 } else {
                                     job.files = files;
+                                }
+
+                                // Try to apply diff directly when check_diff is defined
+                                if step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
+                                    match step.apply_diff_output(stdout, stderr) {
+                                        Ok(true) => {
+                                            // Diff applied successfully - no need to run fixer
+                                            debug!("{step}: diff applied successfully, skipping fixer");
+                                            job.run_type = prev_run_type;
+                                            ctx.hook_ctx.inc_completed_jobs(1);
+                                            return Ok(job.files.clone());
+                                        }
+                                        Ok(false) => {
+                                            // Diff application failed - fall through to run fixer
+                                            debug!("{step}: diff application failed, falling back to fixer");
+                                        }
+                                        Err(err) => {
+                                            // Unexpected error - fall through to run fixer
+                                            warn!("{step}: unexpected error applying diff: {err}");
+                                        }
+                                    }
                                 }
                             }
                             // For regular check commands that fail: fall through to run fixer
@@ -1256,6 +1281,70 @@ impl Step {
             .filter(|f| !canonicalized_files.contains(f))
             .collect();
         (files.into_iter().collect(), extras)
+    }
+
+    /// Apply a unified diff directly to files using git apply.
+    /// Returns Ok(true) if patch was applied successfully.
+    /// Returns Ok(false) if patch application failed (caller should fall back to fixer).
+    fn apply_diff_output(&self, stdout: &str, stderr: &str) -> Result<bool> {
+        // Combine stdout and stderr - some tools output to stderr
+        let diff_content = if !stdout.trim().is_empty() {
+            stdout
+        } else if !stderr.trim().is_empty() {
+            stderr
+        } else {
+            debug!("{}: no diff content to apply", self.name);
+            return Ok(false);
+        };
+
+        // Use git apply with -p1 to strip a/ and b/ prefixes
+        // Use --whitespace=nowarn to avoid warnings about whitespace
+        // Run in the step's directory if configured (same as check_diff command)
+        let mut cmd = std::process::Command::new("git");
+        cmd.args(["apply", "-p1", "--whitespace=nowarn", "-"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        if let Some(dir) = &self.dir {
+            cmd.current_dir(dir);
+        }
+
+        let result = cmd.spawn();
+
+        let mut child = match result {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("{}: failed to spawn git apply: {}", self.name, e);
+                return Ok(false);
+            }
+        };
+
+        // Write diff to stdin
+        if let Some(stdin) = child.stdin.as_mut() {
+            use std::io::Write;
+            if let Err(e) = stdin.write_all(diff_content.as_bytes()) {
+                warn!("{}: failed to write diff to git apply: {}", self.name, e);
+                return Ok(false);
+            }
+        }
+
+        let output = match child.wait_with_output() {
+            Ok(o) => o,
+            Err(e) => {
+                warn!("{}: git apply failed to complete: {}", self.name, e);
+                return Ok(false);
+            }
+        };
+
+        if output.status.success() {
+            debug!("{}: successfully applied diff", self.name);
+            Ok(true)
+        } else {
+            let stderr_output = String::from_utf8_lossy(&output.stderr);
+            debug!("{}: git apply failed: {}", self.name, stderr_output);
+            Ok(false)
+        }
     }
 
     fn collect_fix_suggestion(
