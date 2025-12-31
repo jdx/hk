@@ -86,6 +86,7 @@ ruff = Builtins["builtins/ruff.pkl"].ruff
 ruff_format = Builtins["builtins/ruff_format.pkl"].ruff_format
 rumdl = Builtins["builtins/rumdl.pkl"].rumdl
 rustfmt = Builtins["builtins/rustfmt.pkl"].rustfmt
+ryl = Builtins["builtins/ryl.pkl"].ryl
 selene = Builtins["builtins/selene.pkl"].selene
 shellcheck = Builtins["builtins/shellcheck.pkl"].shellcheck
 shfmt = Builtins["builtins/shfmt.pkl"].shfmt
