@@ -16,6 +16,7 @@ biome = Builtins["builtins/biome.pkl"].biome
 black = Builtins["builtins/black.pkl"].black
 brakeman = Builtins["builtins/brakeman.pkl"].brakeman
 buf_format = Builtins["builtins/buf_format.pkl"].buf_format
+buf_lint = Builtins["builtins/buf_lint.pkl"].buf_lint
 bundle_audit = Builtins["builtins/bundle_audit.pkl"].bundle_audit
 cargo_check = Builtins["builtins/cargo_check.pkl"].cargo_check
 cargo_clippy = Builtins["builtins/cargo_clippy.pkl"].cargo_clippy
