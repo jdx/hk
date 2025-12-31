@@ -8,6 +8,6 @@ import "../Config.pkl"
 stylua = new Config.Step {
   glob = "**/*.lua"
   stage = "<JOB_FILES>"
-  check = "stylua --check {{ files }}"
+  check_diff = "stylua --check {{ files }}"
   fix = "stylua {{ files }}"
 }
