@@ -6,6 +6,6 @@ import "../Config.pkl"
   description = "Code smell detector"
 }
 reek = new Config.Step {
-  glob = "**/*.rb"
+  types = List("ruby")
   check = "reek {{ files }}"
 }
