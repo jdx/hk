@@ -11,4 +11,33 @@ stylua = new Config.Step {
   stage = "<JOB_FILES>"
   check_diff = "stylua --check {{ files }}"
   fix = "stylua {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.lua"
+      extra_files = new Mapping<String, String> {
+        [".stylua.toml"] =
+          """
+          syntax = "All"
+          column_width = 120
+          line_endings = "Unix"
+          indent_type = "Tabs"
+          indent_width = 4
+          quote_style = "AutoPreferDouble"
+          call_parentheses = "Always"
+          collapse_simple_statement = "Never"
+          space_after_function_names = "Never"
+          block_newline_gaps = "Never"
+
+          [sort_requires]
+          enabled = false
+          """
+      }
+    }
+    local const bad = "print \"foo\"\n"
+    local const good = "print(\"foo\")\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(bad, good)
+  }
 }
