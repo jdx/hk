@@ -1,12 +1,13 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
-  category = "Other Languages"
+  category = "Lua"
   description = "Lua formatter"
 }
 stylua = new Config.Step {
-  glob = "**/*.lua"
+  types = List("lua")
   stage = "<JOB_FILES>"
   check_diff = "stylua --check {{ files }}"
   fix = "stylua {{ files }}"
