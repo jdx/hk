@@ -1,0 +1,32 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Prose linter for markup and code comments"
+}
+vale = new Config.Step {
+  types = List("text")
+  // `vale sync` command downloads and installs external configuration sources.
+  check = "vale sync && vale {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.rs"
+      extra_files = new Mapping<String, String> {
+        [".vale.ini"] =
+          """
+          StylesPath = styles
+
+          Vocab = hk-test
+
+          [*]
+          BasedOnStyles = Vale
+          """
+        ["styles/config/vocabularies/hk-test/accept.txt"] = "hk"
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("// ahk", 1)
+    ["check good file"] = testMaker.checkPass("// hk")
+  }
+}

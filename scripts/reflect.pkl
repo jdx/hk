@@ -1,5 +1,5 @@
 /// A PKL script to help output a reflected module.
-/// Example Invocation: pkl eval <pkl file> --format json -x 'import("file:/<repopath>/scripts/reflect.pkl").render(module)'
+/// Example Invocation: pkl eval <pkl file> --format json -x "import (\"file:$PWD/scripts/reflect.pkl\").render(module)"
 module hk.reflect
 import "pkl:reflect"
 

@@ -1,0 +1,64 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Data Formats"
+  description = "Protocol Buffers linter"
+}
+buf_lint = new Config.Step {
+  glob = "**/*.proto"
+  check = "buf lint {{workspace}}"
+  workspace_indicator = "buf.yaml"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      extra_files = new Mapping<String, String> {
+        ["buf.yaml"] =
+          """
+            version: v2
+            modules:
+              - path: proto
+                name: buf.build/tutorials/lint
+            lint:
+              use:
+                - STANDARD
+            breaking:
+              use:
+                - FILE
+          """
+      }
+    }
+    ["check bad file"] =
+      testMaker
+        .withFilename("proto/condition.proto")
+        .checkFail(
+          """
+            syntax = "proto3";
+
+            package weather;
+
+            enum Condition {
+              SUNNY = 0;
+              RAINY = 1;
+            }
+          """,
+          100,
+        )
+    ["check good file"] =
+      testMaker
+        .withFilename("proto/weather/v1/condition.proto")
+        .checkPass(
+          """
+            syntax = "proto3";
+
+            package weather.v1;
+
+            enum Condition {
+              CONDITION_UNSPECIFIED = 0;
+              CONDITION_SUNNY = 1;
+              CONDITION_RAINY = 2;
+            }
+          """,
+        )
+  }
+}

@@ -408,6 +408,9 @@ pub struct Config {
     /// Global file patterns to exclude from all steps
     pub exclude: Option<StringOrList>,
     pub stage: Option<bool>,
+    pub profiles: Option<Vec<String>>,
+    pub skip_hooks: Option<Vec<String>>,
+    pub skip_steps: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {

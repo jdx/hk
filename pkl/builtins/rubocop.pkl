@@ -6,7 +6,7 @@ import "../Config.pkl"
   description = "Ruby style guide"
 }
 rubocop = new Config.Step {
-  glob = "**/*.rb"
+  types = List("ruby")
   stage = "<JOB_FILES>"
   check = "rubocop {{ files }}"
   fix = "rubocop --fix {{ files }}"

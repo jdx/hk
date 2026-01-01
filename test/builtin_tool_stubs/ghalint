@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "1.5.4"
+tool = "aqua:suzuki-shunsuke/ghalint"

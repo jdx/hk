@@ -106,7 +106,68 @@ display_skip_reasons: List<String> = List("profile-not-enabled")
 /// Available tags include: "missing-profiles"
 warnings: List<String> = List()
 
+/// Warning tags to suppress. Allows hiding specific warning messages that you don't want to see.
+///
+/// Available warning tags:
+/// - `missing-profiles`: Suppresses warnings about steps being skipped due to missing profiles
+///
+/// Example: `hide_warnings = List("missing-profiles")`
+///
+/// All hide configurations from different sources are **unioned** together.
+hide_warnings: List<String> = List()
+
+/// The number of parallel processes that hk will use to execute steps concurrently.
+/// This affects performance by controlling how many linting/formatting tasks can run simultaneously.
+///
+/// Set to `0` (default) to auto-detect based on CPU cores.
+jobs: UInt?
+
+/// Profiles to enable or disable. Profiles allow you to group steps that should run only in certain contexts (e.g., CI, slow tests).
+///
+/// Prefix with `!` to explicitly disable a profile.
+///
+/// Example usage:
+/// ```pkl
+/// profiles = List("ci", "slow")
+/// profiles = List("!slow")  // explicitly disable
+/// ```
+profiles: List<String> = List()
+
+/// A list of hook names to skip entirely. This allows you to disable specific git hooks from running.
+///
+/// For example: `skip_hooks = List("pre-commit", "pre-push")` would skip running those hooks completely.
+///
+/// This is useful when you want to temporarily disable certain hooks while still keeping them configured in your `hk.pkl` file.
+/// Unlike `skip_steps` which skips individual steps, this skips the entire hook and all its steps.
+///
+/// **All skip configurations from different sources are unioned together.**
+skip_hooks: List<String> = List()
+
+/// A list of step names to skip when running hooks. This allows you to bypass specific linting or formatting tasks.
+///
+/// For example: `skip_steps = List("lint", "test")` would skip any steps named "lint" or "test".
+///
+/// **All skip configurations from different sources are unioned together.**
+skip_steps: List<String> = List()
+
+/// When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration.html#hooks-hook-stage-boolean).
+///
+/// This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
 stage: Boolean?
+
+/// Number of backup patch files to keep per repository when using git stash.
+///
+/// Each time git stash is used, hk creates a backup patch file in
+/// `$HK_STATE_DIR/patches/`. This setting controls how many of these
+/// backups are retained per repository (oldest are automatically deleted).
+///
+/// Set to 0 to disable patch backup creation entirely.
+///
+/// Default: 20
+stash_backup_count: UInt?
+
+/// Enables or disables reporting progress via OSC sequences to compatible terminals.
+terminal_progress: Boolean?
 
 /// Hooks define when and how linters are run. See [hooks](https://hk.jdx.dev/hooks) for more information.
 hooks: Mapping<String, Hook> = new Mapping<String, Hook> {}
@@ -223,7 +284,7 @@ class Step {
   ///
   /// **Supported types include:**
   ///
-  /// - **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`
+  /// - **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`, "lua"
   /// - **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
   /// - **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`
   /// - **Markup:** `html`, `markdown`, `css`

@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "7.0.0"
+tool = "pipx:isort"

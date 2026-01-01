@@ -9,7 +9,6 @@ import "./test/helpers.pkl"
 jq = new Config.Step {
   glob = "**/*.json"
   stage = "<JOB_FILES>"
-  check = "jq . {{ files }}"
   check_diff =
     """
       failed=0
