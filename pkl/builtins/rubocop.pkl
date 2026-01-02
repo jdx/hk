@@ -11,6 +11,7 @@ rubocop = new Config.Step {
   stage = "<JOB_FILES>"
   // `--force-exclusion`: Any files excluded by `Exclude` in RuboCop configuration files will be excluded, even if given explicitly as arguments.
   check = "rubocop --force-exclusion {{ files }}"
+  check_list_files = "rubocop --force-exclusion --list-target-files {{ files }}"
   fix = "rubocop --force-exclusion --autocorrect {{ files }}"
   tests {
     local const excluded_file = "foo.rb"
