@@ -9,5 +9,5 @@ rubocop = new Config.Step {
   types = List("ruby")
   stage = "<JOB_FILES>"
   check = "rubocop {{ files }}"
-  fix = "rubocop --fix {{ files }}"
+  fix = "rubocop --autocorrect {{ files }}"
 }
