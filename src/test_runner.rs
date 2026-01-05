@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use crate::{
     Result,
+    step::RunType,
     step::Step,
     step_test::{RunKind, StepTest},
 };
@@ -141,15 +142,12 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     // Render command
-    let cmd_string = match test.run {
-        RunKind::Check => step
-            .run_cmd(crate::step::RunType::Check(step.check_type()))
-            .map(|s| s.to_string()),
-        RunKind::Fix => step
-            .run_cmd(crate::step::RunType::Fix)
-            .map(|s| s.to_string()),
+    let run_type = match test.run {
+        RunKind::Fix => RunType::Fix,
+        RunKind::Check => RunType::Check,
     };
-    let Some(mut run) = cmd_string else {
+
+    let Some(mut run) = step.run_cmd(run_type).map(|s| s.to_string()) else {
         eyre::bail!("{}: no command for test", step.name);
     };
     if let Some(prefix) = &step.prefix {

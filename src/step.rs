@@ -212,15 +212,8 @@ impl fmt::Display for Step {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RunType {
-    Check(CheckType),
-    Fix,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckType {
     Check,
-    ListFiles,
-    Diff,
+    Fix,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
@@ -249,31 +242,35 @@ impl Step {
         Ok(())
     }
 
+    /// The command to be run.
     pub fn run_cmd(&self, run_type: RunType) -> Option<&Script> {
         match run_type {
-            RunType::Check(c) => match c {
-                CheckType::Check => self.check.as_ref(),
-                CheckType::Diff => self.check_diff.as_ref(),
-                CheckType::ListFiles => self.check_list_files.as_ref(),
+            RunType::Fix => {
+                self.fix
+                    .as_ref()
+                    // NB: Even if we don't have a fix command,
+                    // we still can run the `check` command.
+                    .or(self.run_cmd(RunType::Check))
             }
-            .or(self.check.as_ref())
-            .or(self.check_list_files.as_ref())
-            .or(self.check_diff.as_ref()),
-            RunType::Fix => self
-                .fix
+            RunType::Check => self
+                .check
                 .as_ref()
-                .or_else(|| self.run_cmd(RunType::Check(CheckType::Check))),
+                .or(self.check_diff.as_ref())
+                .or(self.check_list_files.as_ref()),
         }
     }
 
-    pub fn check_type(&self) -> CheckType {
-        if self.check_diff.is_some() {
-            CheckType::Diff
-        } else if self.check_list_files.is_some() {
-            CheckType::ListFiles
-        } else {
-            CheckType::Check
-        }
+    /// The command to run in "check first" mode
+    pub fn check_first_cmd(&self) -> Option<&Script> {
+        self.check_diff
+            .as_ref()
+            .or(self.check.as_ref())
+            .or(self.check_list_files.as_ref())
+    }
+
+    /// Does this step have a command for the given run mode?
+    pub fn has_command_for(&self, run_type: RunType) -> bool {
+        self.run_cmd(run_type).is_some()
     }
 
     pub fn enabled_profiles(&self) -> Option<IndexSet<String>> {
@@ -506,7 +503,7 @@ impl Step {
             j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
-        if self.run_cmd(run_type).is_none() {
+        if !self.has_command_for(run_type) {
             let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
             j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
             return Ok(vec![j]);
@@ -653,7 +650,7 @@ impl Step {
                 }
                 if job.check_first {
                     let prev_run_type = job.run_type;
-                    job.run_type = RunType::Check(step.check_type());
+                    job.run_type = RunType::Check;
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
@@ -670,7 +667,8 @@ impl Step {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
                                 // Use check_diff parser if check_diff is defined, otherwise check_list_files
-                                let (files, extras) = if step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
+                                let is_check_diff = step.check_diff.is_some();
+                                let (files, extras) = if is_check_diff {
                                     step.filter_files_from_check_diff(&job.files, stdout, stderr)
                                 } else {
                                     step.filter_files_from_check_list(&job.files, stdout)
@@ -683,7 +681,7 @@ impl Step {
                                 }
 
                                 // For check_diff: if no parseable files, keep all original files
-                                if files.is_empty() && step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) {
+                                if files.is_empty() && is_check_diff {
                                     debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
                                     // Keep all original files for check_diff when diff parsing fails
                                 } else if files.is_empty() {
@@ -700,6 +698,7 @@ impl Step {
                         }
                     }
                     job.run_type = prev_run_type;
+                    job.check_first = false;
                 }
                 let result = step.run(&ctx, &mut job).await;
                 if let Err(err) = &result {
@@ -922,7 +921,7 @@ impl Step {
         // Only skip if this is a check_first check that FAILED (will be followed by a fix)
         // If the check passed, we want to show its output since no fix will run
         let is_check_first_check_that_failed =
-            job.check_first && matches!(job.run_type, RunType::Check(_)) && is_failure;
+            job.check_first && matches!(job.run_type, RunType::Check) && is_failure;
         if is_check_first_check_that_failed {
             return;
         }
@@ -1009,7 +1008,12 @@ impl Step {
                 if files.len() == 1 { "" } else { "s" }
             )
         };
-        let Some(mut run) = self.run_cmd(job.run_type).map(|s| s.to_string()) else {
+        let run_cmd = if job.check_first {
+            self.check_first_cmd()
+        } else {
+            self.run_cmd(job.run_type)
+        };
+        let Some(mut run) = run_cmd.map(|s| s.to_string()) else {
             eyre::bail!("{self}: no run command");
         };
         if let Some(prefix) = &self.prefix {
@@ -1078,7 +1082,7 @@ impl Step {
             Ok(result) => {
                 // For both check_list_files and check_diff: stderr is informational only
                 // Files are read from stdout; stderr may contain warnings, debug info, etc.
-                if let RunType::Check(CheckType::ListFiles) = job.run_type {
+                if run_cmd == self.check_list_files.as_ref() {
                     debug!(
                         "{self}: check_list_files succeeded (exit 0), stdout len={}, stderr len={}",
                         result.stdout.len(),
@@ -1093,7 +1097,7 @@ impl Step {
                             "{self}: check_list_files exited 0 (success) but returned files in stdout. This may indicate misconfiguration - the tool should exit non-zero when files need fixing."
                         );
                     }
-                } else if let RunType::Check(CheckType::Diff) = job.run_type {
+                } else if run_cmd == self.check_diff.as_ref() {
                     // For check_diff, stderr with exit 0 is just informational (e.g., "N files already formatted")
                     debug!(
                         "{self}: check_diff succeeded (exit 0), stdout len={}, stderr len={}",
@@ -1113,17 +1117,14 @@ impl Step {
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
-                    if matches!(
-                        job.run_type,
-                        RunType::Check(CheckType::ListFiles | CheckType::Diff)
-                    ) {
-                        let result = &e.3;
-                        let stdout = result.stdout.clone();
-                        let stderr = result.stderr.clone();
+                    if job.check_first
+                        && (run_cmd == self.check_list_files.as_ref()
+                            || run_cmd == self.check_diff.as_ref())
+                    {
                         return Err(Error::CheckListFailed {
                             source: eyre!("{}", err),
-                            stdout,
-                            stderr,
+                            stdout: e.3.stdout.clone(),
+                            stderr: e.3.stderr.clone(),
                         })?;
                     }
                     // Save output from a failed command as well
@@ -1139,7 +1140,7 @@ impl Step {
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
                     self.collect_fix_suggestion(ctx, job, Some(&e.3));
                 }
-                if job.check_first && matches!(job.run_type, RunType::Check(_)) {
+                if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
                 } else {
                     ctx.progress.set_status(ProgressStatus::Failed);
@@ -1266,7 +1267,7 @@ impl Step {
     ) {
         // Only suggest fixes when the entire hook run is in check mode,
         // not when an individual job temporarily runs a check (e.g., check_first during a fix run)
-        if !matches!(ctx.hook_ctx.run_type, RunType::Check(_)) || self.fix.is_none() {
+        if !matches!(ctx.hook_ctx.run_type, RunType::Check) || self.fix.is_none() {
             return;
         }
         // Prefer filtering files if check_list_files output is available

@@ -23,7 +23,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
-    step::{CheckType, EXPR_CTX, OutputSummary, RunType, Script, Step},
+    step::{EXPR_CTX, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -120,6 +120,7 @@ impl StepOrGroup {
         Ok(())
     }
 }
+
 pub struct HookContext {
     pub file_locks: FileRwLocks,
     pub git: Arc<Mutex<Git>>,
@@ -296,7 +297,7 @@ impl Hook {
         if (*env::HK_FIX && fix) || opts.fix {
             RunType::Fix
         } else {
-            RunType::Check(CheckType::Check)
+            RunType::Check
         }
     }
 
@@ -443,7 +444,7 @@ impl Hook {
                 }
 
                 // Check if step has a command for this run type
-                if step.run_cmd(run_type).is_none() {
+                if !step.has_command_for(run_type) {
                     step_stats.push((
                         step_name.clone(),
                         0,
