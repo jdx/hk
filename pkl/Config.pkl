@@ -410,10 +410,9 @@ class Step {
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
   ///     ["cargo-clippy"] {
+  ///         glob = "*.rs"
   ///         workspace_indicator = "Cargo.toml"
-  ///             glob = "*.rs"
-  ///             workspace_indicator = "Cargo.toml"
-  ///             check = "cargo clippy --manifest-path {{workspace_indicator}}"
+  ///         check = "cargo clippy --manifest-path {{workspace_indicator}}"
   ///     }
   /// }
   /// ```
