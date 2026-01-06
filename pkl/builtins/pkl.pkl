@@ -3,7 +3,7 @@ import "../Config.pkl"
 import "./test/helpers.pkl"
 
 @Builtins.meta {
-  category = "Configuration"
+  category = "Pkl"
   description = "Pkl configuration language"
 }
 pkl = new Config.Step {
