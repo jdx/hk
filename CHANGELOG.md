@@ -1,5 +1,61 @@
 # Changelog
 
+## [1.29.0](https://github.com/jdx/hk/compare/v1.28.0..v1.29.0) - 2026-01-06
+
+### 🚀 Features
+
+- **(ghalint)** add ghalint config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#551](https://github.com/jdx/hk/pull/551)
+- **(pinact)** add pinact config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#552](https://github.com/jdx/hk/pull/552)
+- **(pkl)** add pkl file type by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#571](https://github.com/jdx/hk/pull/571)
+- **(stylua)** use check_diff instead of check command by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#563](https://github.com/jdx/hk/pull/563)
+- **(vale)** add vale config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#554](https://github.com/jdx/hk/pull/554)
+- **(zizmor)** add zizmor config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#550](https://github.com/jdx/hk/pull/550)
+- add rumdl config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#541](https://github.com/jdx/hk/pull/541)
+- add selene config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#544](https://github.com/jdx/hk/pull/544)
+- Add `fix` to `cargo_check` builtin (running `cargo fix`) by [@thejcannon](https://github.com/thejcannon) in [#555](https://github.com/jdx/hk/pull/555)
+- Lua file type support by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#558](https://github.com/jdx/hk/pull/558)
+- add editorconfig-checker config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#557](https://github.com/jdx/hk/pull/557)
+- add ryl config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#543](https://github.com/jdx/hk/pull/543)
+- add buf_format builtin using buf cli by [@joonas](https://github.com/joonas) in [#565](https://github.com/jdx/hk/pull/565)
+- add buf_lint builtin using buf cli by [@joonas](https://github.com/joonas) in [#562](https://github.com/jdx/hk/pull/562)
+- apply check_diff output directly using git apply by [@jdx](https://github.com/jdx) in [#561](https://github.com/jdx/hk/pull/561)
+
+### 🐛 Bug Fixes
+
+- **(ci)** pre-install nightly toolchain for cargo_check tests by [@joonas](https://github.com/joonas) in [#567](https://github.com/jdx/hk/pull/567)
+- **(rubocop)** fix rubocop fix command by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#572](https://github.com/jdx/hk/pull/572)
+- Fix the `jq` builtin by [@thejcannon](https://github.com/thejcannon) in [#533](https://github.com/jdx/hk/pull/533)
+- Fix the `rg` command in the tasks by [@thejcannon](https://github.com/thejcannon) in [#534](https://github.com/jdx/hk/pull/534)
+- Make `settings.toml` and `Config.pkl` agree on keys by [@thejcannon](https://github.com/thejcannon) in [#539](https://github.com/jdx/hk/pull/539)
+- Add `check_list_files` to `cargo_fmt` builtin by [@thejcannon](https://github.com/thejcannon) in [#542](https://github.com/jdx/hk/pull/542)
+- Remove `jq`'s `check` command by [@thejcannon](https://github.com/thejcannon) in [#549](https://github.com/jdx/hk/pull/549)
+
+### 🚜 Refactor
+
+- **(ruby)** use types instead of glob for Ruby builtins by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#564](https://github.com/jdx/hk/pull/564)
+- Simplify RunType/CheckType by [@thejcannon](https://github.com/thejcannon) in [#547](https://github.com/jdx/hk/pull/547)
+
+### 📚 Documentation
+
+- **(config)** fix indentations in `workspace_indicator` example by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#573](https://github.com/jdx/hk/pull/573)
+
+### 🧪 Testing
+
+- Add `actionlint` test by [@thejcannon](https://github.com/thejcannon) in [#537](https://github.com/jdx/hk/pull/537)
+- shfmt by [@thejcannon](https://github.com/thejcannon) in [#538](https://github.com/jdx/hk/pull/538)
+- Clean up some `check_` builtin tests by [@thejcannon](https://github.com/thejcannon) in [#536](https://github.com/jdx/hk/pull/536)
+- Test `rustfmt` and `cargo_format` by [@thejcannon](https://github.com/thejcannon) in [#540](https://github.com/jdx/hk/pull/540)
+- Add tests to the mypy builtin by [@thejcannon](https://github.com/thejcannon) in [#560](https://github.com/jdx/hk/pull/560)
+- Add tests to the isort builtin by [@thejcannon](https://github.com/thejcannon) in [#559](https://github.com/jdx/hk/pull/559)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 7145c3e by [@renovate[bot]](https://github.com/renovate[bot]) in [#545](https://github.com/jdx/hk/pull/545)
+- update rust crate serde_json to v1.0.147 by [@renovate[bot]](https://github.com/renovate[bot]) in [#546](https://github.com/jdx/hk/pull/546)
+- update rust crate serde_json to v1.0.148 by [@renovate[bot]](https://github.com/renovate[bot]) in [#569](https://github.com/jdx/hk/pull/569)
+- update rust crate tracing to v0.1.44 by [@renovate[bot]](https://github.com/renovate[bot]) in [#570](https://github.com/jdx/hk/pull/570)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#553](https://github.com/jdx/hk/pull/553)
+
 ## [1.28.0](https://github.com/jdx/hk/compare/v1.27.0..v1.28.0) - 2025-12-18
 
 ### 🚀 Features
