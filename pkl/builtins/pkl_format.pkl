@@ -3,11 +3,11 @@ import "../Config.pkl"
 import "./test/helpers.pkl"
 
 @Builtins.meta {
-  category = "Configuration"
+  category = "Pkl"
   description = "Pkl formatter"
 }
 pkl_format = new Config.Step {
-  glob = "**/*.pkl"
+  types = List("pkl")
   stage = "<JOB_FILES>"
   check_list_files = "pkl format --diff-name-only {{ files }}"
   // NB: pkl format exits 11 even if it fixes files

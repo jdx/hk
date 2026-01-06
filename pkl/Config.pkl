@@ -286,7 +286,7 @@ class Step {
   ///
   /// - **Languages:** `python`, `javascript`, `typescript`, `ruby`, `go`, `rust`, `java`, `kotlin`, `swift`, `c`, `c++`, `csharp`, `php`, "lua"
   /// - **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
-  /// - **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`
+  /// - **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`, 'pkl'
   /// - **Markup:** `html`, `markdown`, `css`
   /// - **Special:** `text`, `binary`, `executable`, `symlink`, `dockerfile`
   /// - **Images:** `image`, `png`, `jpeg`, `gif`, `svg`, `webp`
