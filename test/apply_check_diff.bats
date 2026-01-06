@@ -183,6 +183,57 @@ EOF
     assert_output "modified"
 }
 
+@test "check_diff does not modify files during check mode" {
+    # Regression test: check mode should be read-only
+    # Even with check_diff defined, files should not be modified during `hk check`
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+if [ -f "$file" ]; then
+    echo "--- a/$file"
+    echo "+++ b/$file"
+    echo "@@ -1 +1 @@"
+    echo "-$(cat "$file")"
+    echo "+modified_content"
+fi
+exit 1  # Indicates files need changes
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "original" > test.txt
+    git add .
+    git commit -m "initial"
+
+    # Run CHECK (not fix) - should fail but NOT modify the file
+    run hk check test.txt
+    assert_failure
+
+    # File should be unchanged - neither diff applied nor fixer ran
+    run cat test.txt
+    assert_output "original"
+}
+
 @test "check_diff handles diff output mixed with extra diagnostic text" {
     # Some tools like ruff output diagnostic information alongside the diff
     # e.g., "Would reformat: file.py" or fix summaries
