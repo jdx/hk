@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "1.82.1"
+tool = "gem:rubocop"

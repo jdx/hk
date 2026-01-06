@@ -1,0 +1,24 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "YAML"
+  description = "YAML linter"
+}
+ryl = new Config.Step {
+  types = List("yaml")
+  check = "ryl {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.yaml"
+      extra_files = new Mapping<String, String> {
+        // ryl reads `.yamllint.yaml` as a configuration file.
+        // https://github.com/owenlamont/ryl/tree/v0.3.1#configuration
+        [".yamllint.yaml"] = "extends: default\n"
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("x: 1\nx: 2\n", 1)
+    ["check good file"] = testMaker.checkPass("x: 1\n")
+  }
+}

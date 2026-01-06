@@ -1,13 +1,57 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Ruby"
   description = "Ruby style guide"
 }
 rubocop = new Config.Step {
-  glob = "**/*.rb"
+  types = List("ruby")
   stage = "<JOB_FILES>"
   check = "rubocop {{ files }}"
-  fix = "rubocop --fix {{ files }}"
+  fix = "rubocop --autocorrect {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.rb"
+      extra_files = new Mapping<String, String> {
+        [".rubocop.yml"] =
+          """
+          AllCops:
+            NewCops: enable
+
+          """
+      }
+    }
+    local const bad =
+      """
+      # frozen_string_literal: true
+
+      pp "Hello World"
+
+      """
+    local const good =
+      """
+      # frozen_string_literal: true
+
+      pp 'Hello World'
+
+      """
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file violations remain"] =
+      testMaker.fixFail(
+        """
+        pp "Hello World"
+
+        """,
+        """
+        pp 'Hello World'
+
+        """,
+        1,
+      )
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
 }

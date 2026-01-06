@@ -58,6 +58,11 @@ jobs:
         with:
           submodules: recursive
       - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
+        with:
+          toolchain: nightly
+          override: false
+          cache: false
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: hk-${{ matrix.os }}
@@ -89,6 +94,11 @@ jobs:
         with:
           submodules: recursive
       - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
+        with:
+          toolchain: nightly
+          override: false
+          cache: false
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: hk-${{ matrix.os }}
@@ -120,6 +130,11 @@ jobs:
         with:
           submodules: recursive
       - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
+        with:
+          toolchain: nightly
+          override: false
+          cache: false
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: hk-${{ matrix.os }}
