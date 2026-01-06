@@ -699,7 +699,7 @@ impl Step {
 
                                 // Try to apply diff directly when check_diff is defined and we're in Fix mode
                                 // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
-                                if step.check_diff.is_some() && matches!(job.run_type, RunType::Check(CheckType::Diff)) && prev_run_type == RunType::Fix {
+                                if is_check_diff && prev_run_type == RunType::Fix {
                                     match step.apply_diff_output(stdout, stderr) {
                                         Ok(true) => {
                                             // Diff applied successfully - no need to run fixer
