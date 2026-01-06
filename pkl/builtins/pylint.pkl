@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Python"
@@ -8,4 +9,11 @@ import "../Config.pkl"
 pylint = new Config.Step {
   glob = "**/*.py"
   check = "pylint {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.py"
+    }
+    ["check bad file"] = testMaker.checkFail("from __future__ import print_function", 16)
+    ["check good file"] = testMaker.checkPass("'''docstring'''\nprint('hello')\n")
+  }
 }
