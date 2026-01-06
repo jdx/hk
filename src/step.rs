@@ -673,7 +673,7 @@ impl Step {
                                 // Use check_diff parser if check_diff is defined, otherwise check_list_files
                                 let is_check_diff = step.check_diff.is_some();
                                 let (files, extras) = if is_check_diff {
-                                    step.filter_files_from_check_diff(&job.files, stdout, stderr)
+                                    step.filter_files_from_check_diff(&job.files, stdout)
                                 } else {
                                     step.filter_files_from_check_list(&job.files, stdout)
                                 };
@@ -700,7 +700,7 @@ impl Step {
                                 // Try to apply diff directly when check_diff is defined and we're in Fix mode
                                 // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
                                 if is_check_diff && prev_run_type == RunType::Fix {
-                                    match step.apply_diff_output(stdout, stderr) {
+                                    match step.apply_diff_output(stdout) {
                                         Ok(true) => {
                                             // Diff applied successfully - no need to run fixer
                                             debug!("{step}: diff applied successfully, skipping fixer");
@@ -1205,25 +1205,18 @@ impl Step {
         &self,
         original_files: &[PathBuf],
         stdout: &str,
-        stderr: &str,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
         // Parse unified diff format to extract file names from --- and +++ lines
-        // Check both stdout and stderr since some tools output diffs to stderr
         let mut listed: HashSet<PathBuf> = HashSet::new();
 
         // First pass: detect if this diff uses a/ and b/ prefixes (git-style)
         let mut has_a_prefix = false;
         let mut has_b_prefix = false;
-        for output in [stdout, stderr] {
-            for line in output.lines() {
-                if line.starts_with("--- a/") {
-                    has_a_prefix = true;
-                } else if line.starts_with("+++ b/") {
-                    has_b_prefix = true;
-                }
-                if has_a_prefix && has_b_prefix {
-                    break;
-                }
+        for line in stdout.lines() {
+            if line.starts_with("--- a/") {
+                has_a_prefix = true;
+            } else if line.starts_with("+++ b/") {
+                has_b_prefix = true;
             }
             if has_a_prefix && has_b_prefix {
                 break;
@@ -1232,43 +1225,41 @@ impl Step {
         let should_strip_prefixes = has_a_prefix && has_b_prefix;
 
         // Second pass: extract file paths
-        for output in [stdout, stderr] {
-            for line in output.lines() {
-                if line.starts_with("--- ") {
-                    if let Some(path_str) = line.strip_prefix("--- ") {
-                        // Strip timestamp if present (tab-separated: "--- file.py	2025-01-01 12:00:00")
-                        let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
-                            before_tab.trim()
-                        } else {
-                            path_str.trim()
-                        };
-                        // Strip standard diff path prefixes (a/ or b/) if detected
-                        let path = if should_strip_prefixes {
-                            path.strip_prefix("a/")
-                                .or_else(|| path.strip_prefix("b/"))
-                                .unwrap_or(path)
-                        } else {
-                            path
-                        };
-                        listed.insert(try_canonicalize(&PathBuf::from(path)));
-                    }
-                } else if line.starts_with("+++ ") {
-                    if let Some(path_str) = line.strip_prefix("+++ ") {
-                        let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
-                            before_tab.trim()
-                        } else {
-                            path_str.trim()
-                        };
-                        // Strip standard diff path prefixes (a/ or b/) if detected
-                        let path = if should_strip_prefixes {
-                            path.strip_prefix("a/")
-                                .or_else(|| path.strip_prefix("b/"))
-                                .unwrap_or(path)
-                        } else {
-                            path
-                        };
-                        listed.insert(try_canonicalize(&PathBuf::from(path)));
-                    }
+        for line in stdout.lines() {
+            if line.starts_with("--- ") {
+                if let Some(path_str) = line.strip_prefix("--- ") {
+                    // Strip timestamp if present (tab-separated: "--- file.py	2025-01-01 12:00:00")
+                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
+                        before_tab.trim()
+                    } else {
+                        path_str.trim()
+                    };
+                    // Strip standard diff path prefixes (a/ or b/) if detected
+                    let path = if should_strip_prefixes {
+                        path.strip_prefix("a/")
+                            .or_else(|| path.strip_prefix("b/"))
+                            .unwrap_or(path)
+                    } else {
+                        path
+                    };
+                    listed.insert(try_canonicalize(&PathBuf::from(path)));
+                }
+            } else if line.starts_with("+++ ") {
+                if let Some(path_str) = line.strip_prefix("+++ ") {
+                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
+                        before_tab.trim()
+                    } else {
+                        path_str.trim()
+                    };
+                    // Strip standard diff path prefixes (a/ or b/) if detected
+                    let path = if should_strip_prefixes {
+                        path.strip_prefix("a/")
+                            .or_else(|| path.strip_prefix("b/"))
+                            .unwrap_or(path)
+                    } else {
+                        path
+                    };
+                    listed.insert(try_canonicalize(&PathBuf::from(path)));
                 }
             }
         }
@@ -1288,16 +1279,12 @@ impl Step {
     /// Apply a unified diff directly to files using git apply.
     /// Returns Ok(true) if patch was applied successfully.
     /// Returns Ok(false) if patch application failed (caller should fall back to fixer).
-    fn apply_diff_output(&self, stdout: &str, stderr: &str) -> Result<bool> {
-        // Combine stdout and stderr - some tools output to stderr
-        let diff_content = if !stdout.trim().is_empty() {
-            stdout
-        } else if !stderr.trim().is_empty() {
-            stderr
-        } else {
+    fn apply_diff_output(&self, stdout: &str) -> Result<bool> {
+        if stdout.trim().is_empty() {
             debug!("{}: no diff content to apply", self.name);
             return Ok(false);
-        };
+        }
+        let diff_content = stdout;
 
         // Use git apply with -p1 to strip a/ and b/ prefixes
         // Use --whitespace=nowarn to avoid warnings about whitespace
