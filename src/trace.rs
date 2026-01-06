@@ -109,11 +109,11 @@ impl JsonLayer {
     }
 
     fn write_json<T: Serialize>(&self, value: &T) {
-        if let Ok(json) = serde_json::to_string(value) {
-            if let Ok(mut writer) = self.writer.lock() {
-                let _ = writeln!(writer, "{}", json);
-                let _ = writer.flush();
-            }
+        if let Ok(json) = serde_json::to_string(value)
+            && let Ok(mut writer) = self.writer.lock()
+        {
+            let _ = writeln!(writer, "{}", json);
+            let _ = writer.flush();
         }
     }
 }
@@ -155,15 +155,15 @@ where
     }
 
     fn on_close(&self, id: Id, ctx: Context<'_, S>) {
-        if let Some(span) = ctx.span(&id) {
-            if let Some(data) = span.extensions().get::<SpanData>() {
-                let event = JsonSpanEnd {
-                    r#type: "span_end",
-                    ts_ns: Self::timestamp_ns(),
-                    id: data.id.clone(),
-                };
-                self.write_json(&event);
-            }
+        if let Some(span) = ctx.span(&id)
+            && let Some(data) = span.extensions().get::<SpanData>()
+        {
+            let event = JsonSpanEnd {
+                r#type: "span_end",
+                ts_ns: Self::timestamp_ns(),
+                id: data.id.clone(),
+            };
+            self.write_json(&event);
         }
     }
 

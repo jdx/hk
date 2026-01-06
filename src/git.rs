@@ -152,14 +152,13 @@ impl Git {
         let mut patch_files: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
         if let Ok(entries) = std::fs::read_dir(&patches_dir) {
             for entry in entries.flatten() {
-                if let Ok(file_name) = entry.file_name().into_string() {
-                    if file_name.starts_with(&prefix) && file_name.ends_with(".patch") {
-                        if let Ok(metadata) = entry.metadata() {
-                            if let Ok(modified) = metadata.modified() {
-                                patch_files.push((entry.path(), modified));
-                            }
-                        }
-                    }
+                if let Ok(file_name) = entry.file_name().into_string()
+                    && file_name.starts_with(&prefix)
+                    && file_name.ends_with(".patch")
+                    && let Ok(metadata) = entry.metadata()
+                    && let Ok(modified) = metadata.modified()
+                {
+                    patch_files.push((entry.path(), modified));
                 }
             }
         }
@@ -251,12 +250,12 @@ impl Git {
         // Try origin/HEAD -> refs/remotes/origin/HEAD -> symbolic-ref
         // Shell git path (works with or without libgit2 enabled)
         let head_sym = git_cmd(["symbolic-ref", "refs/remotes/origin/HEAD"]).read();
-        if let Ok(symref) = head_sym {
-            if let Some(target) = symref.lines().next() {
-                // Expect something like: refs/remotes/main
-                if let Some(short) = target.strip_prefix("refs/remotes/") {
-                    return Ok(short.to_string());
-                }
+        if let Ok(symref) = head_sym
+            && let Some(target) = symref.lines().next()
+        {
+            // Expect something like: refs/remotes/main
+            if let Some(short) = target.strip_prefix("refs/remotes/") {
+                return Ok(short.to_string());
             }
         }
 
@@ -287,12 +286,11 @@ impl Git {
     /// Resolve the effective default branch, honoring a configured override in project config.
     /// If `Config.default_branch` is set and non-empty, it is returned as-is. Otherwise, falls back to detection.
     pub fn resolve_default_branch(&self) -> String {
-        if let Ok(cfg) = crate::config::Config::get() {
-            if let Some(val) = cfg.default_branch {
-                if !val.trim().is_empty() {
-                    return val;
-                }
-            }
+        if let Ok(cfg) = crate::config::Config::get()
+            && let Some(val) = cfg.default_branch
+            && !val.trim().is_empty()
+        {
+            return val;
         }
         self.default_branch().unwrap_or_else(|_| "main".to_string())
     }
@@ -575,10 +573,10 @@ impl Git {
         if method == StashMethod::None {
             return Ok(());
         }
-        if let Some(repo) = &self.repo {
-            if repo.head().is_err() {
-                return Ok(());
-            }
+        if let Some(repo) = &self.repo
+            && repo.head().is_err()
+        {
+            return Ok(());
         }
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
         job.prop("message", "Fetching unstaged files");
@@ -714,15 +712,15 @@ impl Git {
         // If after filtering there are no tracked paths left:
         // - When HK_STASH_UNTRACKED=true, do a full stash (no pathspecs) to stash all untracked files
         // - Otherwise, no need to stash anything
-        if let Some(ref ts) = tracked_subset {
-            if ts.is_empty() {
-                if *env::HK_STASH_UNTRACKED {
-                    // No tracked files to stash, but we want to stash all untracked files
-                    // So do a full stash with --include-untracked (no pathspecs)
-                    return self.push_stash(None, status);
-                } else {
-                    return Ok(None);
-                }
+        if let Some(ref ts) = tracked_subset
+            && ts.is_empty()
+        {
+            if *env::HK_STASH_UNTRACKED {
+                // No tracked files to stash, but we want to stash all untracked files
+                // So do a full stash with --include-untracked (no pathspecs)
+                return self.push_stash(None, status);
+            } else {
+                return Ok(None);
             }
         }
         if let Some(repo) = &mut self.repo {
@@ -831,10 +829,10 @@ impl Git {
                     let p = PathBuf::from(path);
                     entries.push((mode, oid.to_string(), p.clone()));
                     // Capture current worktree contents to preserve exact EOF newline state
-                    if p.exists() {
-                        if let Ok(contents) = xx::file::read_to_string(&p) {
-                            wt_map.insert(p.clone(), contents);
-                        }
+                    if p.exists()
+                        && let Ok(contents) = xx::file::read_to_string(&p)
+                    {
+                        wt_map.insert(p.clone(), contents);
                     }
                 }
             }
@@ -861,11 +859,11 @@ impl Git {
                     let mut found: Option<String> = None;
                     for line in list.lines() {
                         let mut parts = line.split_whitespace();
-                        if let (Some(h), Some(gd)) = (parts.next(), parts.next()) {
-                            if h == hash {
-                                found = Some(gd.to_string());
-                                break;
-                            }
+                        if let (Some(h), Some(gd)) = (parts.next(), parts.next())
+                            && h == hash
+                        {
+                            found = Some(gd.to_string());
+                            break;
                         }
                     }
                     found.unwrap_or_else(|| "stash@{0}".to_string())
@@ -918,10 +916,11 @@ impl Git {
                                 let mode = parts.next().unwrap_or("100644");
                                 let oid = parts.next().unwrap_or("");
                                 let path_buf = PathBuf::from(path);
-                                if !oid.is_empty() && staged_changed_set.contains(&path_buf) {
-                                    if let Ok(mode_num) = u32::from_str_radix(mode, 8) {
-                                        fixer_map.insert(path_buf, (mode_num, oid.to_string()));
-                                    }
+                                if !oid.is_empty()
+                                    && staged_changed_set.contains(&path_buf)
+                                    && let Ok(mode_num) = u32::from_str_radix(mode, 8)
+                                {
+                                    fixer_map.insert(path_buf, (mode_num, oid.to_string()));
                                 }
                             }
                         }
@@ -967,14 +966,13 @@ impl Git {
                             "cat-file",
                             "-p",
                             &format!("{}^3:{}", &stash_ref, path_str),
-                        ]) {
-                            if let Err(err) = xx::file::write(&path, &contents) {
-                                warn!(
-                                    "failed to write untracked file {}: {err:?}",
-                                    display_path(&path)
-                                );
-                                restoration_failed = true;
-                            }
+                        ]) && let Err(err) = xx::file::write(&path, &contents)
+                        {
+                            warn!(
+                                "failed to write untracked file {}: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
                         }
                         // Skip normal merge path for untracked files
                         continue;
@@ -995,14 +993,13 @@ impl Git {
                         if let Ok(contents) =
                             git_cmd(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
                                 .read()
+                            && let Err(err) = xx::file::write(&path, &contents)
                         {
-                            if let Err(err) = xx::file::write(&path, &contents) {
-                                warn!(
-                                    "failed to write large worktree snapshot for {}: {err:?}",
-                                    display_path(&path)
-                                );
-                                restoration_failed = true;
-                            }
+                            warn!(
+                                "failed to write large worktree snapshot for {}: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
                         }
                         // Skip normal merge path for large files
                         continue;
@@ -1140,18 +1137,18 @@ impl Git {
                         _ => false,
                     };
                     // Preserve EOF newline-only differences without discarding fixer changes.
-                    if newline_only_change {
-                        if let (Some(w), Some(i)) = (work_pre.as_deref(), index_pre.as_deref()) {
-                            let w_has_nl = w.ends_with('\n');
-                            let i_has_nl = i.ends_with('\n');
-                            if w_has_nl && !i_has_nl {
-                                if !merged.ends_with('\n') {
-                                    merged.push('\n');
-                                }
-                            } else if !w_has_nl && i_has_nl {
-                                while merged.ends_with('\n') {
-                                    merged.pop();
-                                }
+                    if newline_only_change
+                        && let (Some(w), Some(i)) = (work_pre.as_deref(), index_pre.as_deref())
+                    {
+                        let w_has_nl = w.ends_with('\n');
+                        let i_has_nl = i.ends_with('\n');
+                        if w_has_nl && !i_has_nl {
+                            if !merged.ends_with('\n') {
+                                merged.push('\n');
+                            }
+                        } else if !w_has_nl && i_has_nl {
+                            while merged.ends_with('\n') {
+                                merged.pop();
                             }
                         }
                     }
@@ -1159,29 +1156,26 @@ impl Git {
                     // If there were no unstaged changes at stash time for this path
                     // (worktree identical to index), prefer writing the fixer result to the worktree
                     // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
-                    if !newline_only_change {
-                        if let (Some(wc), Some(ic), Some(fc)) =
+                    if !newline_only_change
+                        && let (Some(wc), Some(ic), Some(fc)) =
                             (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
-                        {
-                            if wc == ic {
-                                merged = fc.clone();
-                            }
-                        }
+                        && wc == ic
+                    {
+                        merged = fc.clone();
                     }
 
                     // Determine which side the merged result matches
                     let mut chosen = "mixed";
-                    if let Some(w) = work_pre.as_deref() {
-                        if merged == w {
-                            chosen = "worktree";
-                        }
+                    if let Some(w) = work_pre.as_deref()
+                        && merged == w
+                    {
+                        chosen = "worktree";
                     }
-                    if chosen == "mixed" {
-                        if let Some(f) = fixer.as_deref() {
-                            if merged == f {
-                                chosen = "fixer";
-                            }
-                        }
+                    if chosen == "mixed"
+                        && let Some(f) = fixer.as_deref()
+                        && merged == f
+                    {
+                        chosen = "fixer";
                     }
                     if chosen == "mixed" && merged == base {
                         chosen = "base";

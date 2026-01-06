@@ -267,17 +267,16 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                 }
             } else if let Some(check_list) =
                 info.step.get("check_list_files").and_then(|v| v.as_str())
+                && !check_list.is_empty()
             {
-                if !check_list.is_empty() {
-                    md.push_str(&format!("- **Check (list-files):** `{}`\n", check_list));
-                }
+                md.push_str(&format!("- **Check (list-files):** `{}`\n", check_list));
             }
 
             // Show fix command if present
-            if let Some(fix) = info.step.get("fix").and_then(|v| v.as_str()) {
-                if !fix.is_empty() {
-                    md.push_str(&format!("- **Fix:** `{}`\n", fix));
-                }
+            if let Some(fix) = info.step.get("fix").and_then(|v| v.as_str())
+                && !fix.is_empty()
+            {
+                md.push_str(&format!("- **Fix:** `{}`\n", fix));
             }
 
             md.push('\n');

@@ -643,10 +643,8 @@ impl Hook {
         for (i, group) in hook_ctx.groups.iter().enumerate() {
             debug!("running group: {i}");
             let mut ctx = StepGroupContext::new(hook_ctx.clone(), fail_fast);
-            if multiple_groups {
-                if let Some(name) = &group.name {
-                    ctx = ctx.with_progress(group.build_group_progress(name));
-                }
+            if multiple_groups && let Some(name) = &group.name {
+                ctx = ctx.with_progress(group.build_group_progress(name));
             }
             result = result.and(group.run(ctx).await);
             if fail_fast && result.is_err() {
@@ -767,22 +765,22 @@ impl Hook {
         }
 
         // Run hook-level report if configured
-        if let Some(report) = &self.report {
-            if let Ok(json) = hook_ctx.timing.to_json_string() {
-                let mut cmd = ensembler::CmdLineRunner::new("sh")
-                    .arg("-o")
-                    .arg("errexit")
-                    .arg("-c");
-                let run = report.to_string();
-                cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
-                let pr = ProgressJobBuilder::new()
-                    .body("report: {{message}}")
-                    .prop("message", &run)
-                    .start();
-                cmd = cmd.with_pr(pr);
-                if let Err(err) = cmd.execute().await {
-                    warn!("Report command failed: {err}");
-                }
+        if let Some(report) = &self.report
+            && let Ok(json) = hook_ctx.timing.to_json_string()
+        {
+            let mut cmd = ensembler::CmdLineRunner::new("sh")
+                .arg("-o")
+                .arg("errexit")
+                .arg("-c");
+            let run = report.to_string();
+            cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
+            let pr = ProgressJobBuilder::new()
+                .body("report: {{message}}")
+                .prop("message", &run)
+                .start();
+            cmd = cmd.with_pr(pr);
+            if let Err(err) = cmd.execute().await {
+                warn!("Report command failed: {err}");
             }
         }
         // Emit collected fix suggestions at the end (after progress bars and summaries)

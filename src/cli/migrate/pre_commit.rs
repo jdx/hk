@@ -724,11 +724,11 @@ impl PreCommit {
                 }
 
                 // Add property comments for things we can't directly map
-                if hook.files.is_some() {
-                    if let Some(ref files) = hook.files {
-                        step.properties_as_comments
-                            .push(format!("files pattern from pre-commit: {}", files));
-                    }
+                if hook.files.is_some()
+                    && let Some(ref files) = hook.files
+                {
+                    step.properties_as_comments
+                        .push(format!("files pattern from pre-commit: {}", files));
                 }
 
                 if !hook.types.is_empty() {
@@ -1708,16 +1708,15 @@ impl PreCommit {
             if let Ok(entries) = std::fs::read_dir(vendor_path) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.is_file() {
-                        if let Some(ext) = path.extension() {
-                            if ext == "py" || ext == "sh" {
-                                // Make executable
-                                if let Ok(metadata) = std::fs::metadata(&path) {
-                                    let mut perms = metadata.permissions();
-                                    perms.set_mode(perms.mode() | 0o111); // Add execute permission
-                                    let _ = std::fs::set_permissions(&path, perms);
-                                }
-                            }
+                    if path.is_file()
+                        && let Some(ext) = path.extension()
+                        && (ext == "py" || ext == "sh")
+                    {
+                        // Make executable
+                        if let Ok(metadata) = std::fs::metadata(&path) {
+                            let mut perms = metadata.permissions();
+                            perms.set_mode(perms.mode() | 0o111); // Add execute permission
+                            let _ = std::fs::set_permissions(&path, perms);
                         }
                     }
                 }
@@ -1725,21 +1724,19 @@ impl PreCommit {
 
             // Also check pre_commit_hooks subdirectory if it exists
             let hooks_dir = vendor_path.join("pre_commit_hooks");
-            if hooks_dir.exists() {
-                if let Ok(entries) = std::fs::read_dir(&hooks_dir) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.is_file() {
-                            if let Some(ext) = path.extension() {
-                                if ext == "py" {
-                                    if let Ok(metadata) = std::fs::metadata(&path) {
-                                        let mut perms = metadata.permissions();
-                                        perms.set_mode(perms.mode() | 0o111);
-                                        let _ = std::fs::set_permissions(&path, perms);
-                                    }
-                                }
-                            }
-                        }
+            if hooks_dir.exists()
+                && let Ok(entries) = std::fs::read_dir(&hooks_dir)
+            {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file()
+                        && let Some(ext) = path.extension()
+                        && ext == "py"
+                        && let Ok(metadata) = std::fs::metadata(&path)
+                    {
+                        let mut perms = metadata.permissions();
+                        perms.set_mode(perms.mode() | 0o111);
+                        let _ = std::fs::set_permissions(&path, perms);
                     }
                 }
             }
@@ -1771,22 +1768,22 @@ impl PreCommit {
         // Check for other common Python package structures
         // Look for setup.py to parse entry_points (basic parsing)
         let setup_py = vendor_path.join("setup.py");
-        if setup_py.exists() {
-            if let Ok(content) = std::fs::read_to_string(&setup_py) {
-                // Look for entry_points console_scripts
-                if let Some(start) = content.find("\"console_scripts\"") {
-                    let after_start = &content[start..];
-                    // Look for the entry pattern
-                    let entry_pattern = format!("{} = ", entry);
-                    if let Some(entry_pos) = after_start.find(&entry_pattern) {
-                        let after_entry = &after_start[entry_pos + entry_pattern.len()..];
-                        // Extract module:function
-                        if let Some(end_quote) = after_entry.find('"') {
-                            let module_func = &after_entry[..end_quote];
-                            // Split on : to get module name
-                            if let Some(module) = module_func.split(':').next() {
-                                return Some(module.to_string());
-                            }
+        if setup_py.exists()
+            && let Ok(content) = std::fs::read_to_string(&setup_py)
+        {
+            // Look for entry_points console_scripts
+            if let Some(start) = content.find("\"console_scripts\"") {
+                let after_start = &content[start..];
+                // Look for the entry pattern
+                let entry_pattern = format!("{} = ", entry);
+                if let Some(entry_pos) = after_start.find(&entry_pattern) {
+                    let after_entry = &after_start[entry_pos + entry_pattern.len()..];
+                    // Extract module:function
+                    if let Some(end_quote) = after_entry.find('"') {
+                        let module_func = &after_entry[..end_quote];
+                        // Split on : to get module name
+                        if let Some(module) = module_func.split(':').next() {
+                            return Some(module.to_string());
                         }
                     }
                 }
@@ -1799,16 +1796,15 @@ impl PreCommit {
     /// Find the Node.js package name from package.json
     fn find_node_package_name(vendor_path: &Path) -> Option<String> {
         let package_json = vendor_path.join("package.json");
-        if package_json.exists() {
-            if let Ok(content) = std::fs::read_to_string(&package_json) {
-                // Parse package.json to find the name
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(name) = json.get("name") {
-                        if let Some(name_str) = name.as_str() {
-                            return Some(name_str.to_string());
-                        }
-                    }
-                }
+        if package_json.exists()
+            && let Ok(content) = std::fs::read_to_string(&package_json)
+        {
+            // Parse package.json to find the name
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(name) = json.get("name")
+                && let Some(name_str) = name.as_str()
+            {
+                return Some(name_str.to_string());
             }
         }
         None

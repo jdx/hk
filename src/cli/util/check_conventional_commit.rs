@@ -66,10 +66,10 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
         return Err(eyre::eyre!("Invalid commit type: '{commit_type}'"));
     }
 
-    if let Some(scope) = type_and_scope.next() {
-        if !scope.ends_with(')') {
-            return Err(eyre::eyre!("Invalid scope, missing closing parentheses"));
-        }
+    if let Some(scope) = type_and_scope.next()
+        && !scope.ends_with(')')
+    {
+        return Err(eyre::eyre!("Invalid scope, missing closing parentheses"));
     }
 
     // Ensure description has been provided and isn't an empty string
