@@ -19,10 +19,10 @@ pub fn get_file_types(path: &Path) -> HashSet<String> {
     let mut types = HashSet::new();
 
     // 1. Check if it's a symlink (but continue to detect target's type)
-    if let Ok(metadata) = std::fs::symlink_metadata(path) {
-        if metadata.is_symlink() {
-            types.insert("symlink".to_string());
-        }
+    if let Ok(metadata) = std::fs::symlink_metadata(path)
+        && metadata.is_symlink()
+    {
+        types.insert("symlink".to_string());
     }
 
     // 2. Check if it's executable (follows symlinks)
@@ -45,31 +45,31 @@ pub fn get_file_types(path: &Path) -> HashSet<String> {
     };
 
     // 4. Check by filename (e.g., Dockerfile, Makefile)
-    if let Some(filename) = check_path.file_name().and_then(|n| n.to_str()) {
-        if let Some(name_types) = get_types_by_filename(filename) {
-            types.extend(name_types);
-        }
+    if let Some(filename) = check_path.file_name().and_then(|n| n.to_str())
+        && let Some(name_types) = get_types_by_filename(filename)
+    {
+        types.extend(name_types);
     }
 
     // 5. Check by extension
-    if let Some(ext) = check_path.extension().and_then(|e| e.to_str()) {
-        if let Some(ext_types) = get_types_by_extension(ext) {
-            types.extend(ext_types);
-        }
+    if let Some(ext) = check_path.extension().and_then(|e| e.to_str())
+        && let Some(ext_types) = get_types_by_extension(ext)
+    {
+        types.extend(ext_types);
     }
 
     // 6. Check shebang for executable text files
-    if types.contains("executable") || types.is_empty() {
-        if let Some(shebang_types) = detect_shebang(path) {
-            types.extend(shebang_types);
-        }
+    if (types.contains("executable") || types.is_empty())
+        && let Some(shebang_types) = detect_shebang(path)
+    {
+        types.extend(shebang_types);
     }
 
     // 7. Check magic number / content-based detection
-    if types.is_empty() || !types.contains("text") {
-        if let Some(content_types) = detect_by_content(path) {
-            types.extend(content_types);
-        }
+    if (types.is_empty() || !types.contains("text"))
+        && let Some(content_types) = detect_by_content(path)
+    {
+        types.extend(content_types);
     }
 
     // 8. If still no type detected, default to text if not binary

@@ -101,17 +101,15 @@ impl<'de> Deserialize<'de> for Pattern {
         let value = Value::deserialize(deserializer)?;
 
         // Check if it's a regex object with _type field
-        if let Value::Object(ref map) = value {
-            if let Some(Value::String(type_str)) = map.get("_type") {
-                if type_str == "regex" {
-                    if let Some(Value::String(pattern)) = map.get("pattern") {
-                        return Ok(Pattern::Regex {
-                            _type: "regex".to_string(),
-                            pattern: pattern.clone(),
-                        });
-                    }
-                }
-            }
+        if let Value::Object(ref map) = value
+            && let Some(Value::String(type_str)) = map.get("_type")
+            && type_str == "regex"
+            && let Some(Value::String(pattern)) = map.get("pattern")
+        {
+            return Ok(Pattern::Regex {
+                _type: "regex".to_string(),
+                pattern: pattern.clone(),
+            });
         }
 
         // Try to deserialize as a string
@@ -568,11 +566,11 @@ impl Step {
 
         // Apply profile skip only after determining files/no-files, so NoFilesToProcess wins
         // Also, if a condition is present, defer profile checks to run() so ConditionFalse wins
-        if self.condition.is_none() {
-            if let Some(reason) = self.profile_skip_reason() {
-                for job in jobs.iter_mut() {
-                    job.skip_reason = Some(reason.clone());
-                }
+        if self.condition.is_none()
+            && let Some(reason) = self.profile_skip_reason()
+        {
+            for job in jobs.iter_mut() {
+                job.skip_reason = Some(reason.clone());
             }
         }
         // If stage=<JOB_FILES> and check_list_files or check_diff is defined, always run check_first
@@ -801,13 +799,13 @@ impl Step {
 
                 // If the original (un-prefixed) pattern starts with "**/", also include a root-level variant
                 // without that prefix. When `dir` is set, make the root variant relative to `dir`.
-                if let Some(rest) = pat.strip_prefix("**/") {
-                    if !rest.is_empty() {
-                        if let Some(dir) = &self.dir {
-                            stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), rest));
-                        } else {
-                            stage_globs.push(rest.to_string());
-                        }
+                if let Some(rest) = pat.strip_prefix("**/")
+                    && !rest.is_empty()
+                {
+                    if let Some(dir) = &self.dir {
+                        stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), rest));
+                    } else {
+                        stage_globs.push(rest.to_string());
                     }
                 }
             }
@@ -1244,23 +1242,23 @@ impl Step {
                     };
                     listed.insert(try_canonicalize(&PathBuf::from(path)));
                 }
-            } else if line.starts_with("+++ ") {
-                if let Some(path_str) = line.strip_prefix("+++ ") {
-                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
-                        before_tab.trim()
-                    } else {
-                        path_str.trim()
-                    };
-                    // Strip standard diff path prefixes (a/ or b/) if detected
-                    let path = if should_strip_prefixes {
-                        path.strip_prefix("a/")
-                            .or_else(|| path.strip_prefix("b/"))
-                            .unwrap_or(path)
-                    } else {
-                        path
-                    };
-                    listed.insert(try_canonicalize(&PathBuf::from(path)));
-                }
+            } else if line.starts_with("+++ ")
+                && let Some(path_str) = line.strip_prefix("+++ ")
+            {
+                let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
+                    before_tab.trim()
+                } else {
+                    path_str.trim()
+                };
+                // Strip standard diff path prefixes (a/ or b/) if detected
+                let path = if should_strip_prefixes {
+                    path.strip_prefix("a/")
+                        .or_else(|| path.strip_prefix("b/"))
+                        .unwrap_or(path)
+                } else {
+                    path
+                };
+                listed.insert(try_canonicalize(&PathBuf::from(path)));
             }
         }
         let files: IndexSet<PathBuf> = original_files
@@ -1368,13 +1366,12 @@ impl Step {
         }
         // Prefer filtering files if check_list_files output is available
         let mut suggest_files = job.files.clone();
-        if let Some(result) = cmd_result {
-            if self.check_list_files.is_some() {
-                let (files, _extras) =
-                    self.filter_files_from_check_list(&job.files, &result.stdout);
-                if !files.is_empty() {
-                    suggest_files = files;
-                }
+        if let Some(result) = cmd_result
+            && self.check_list_files.is_some()
+        {
+            let (files, _extras) = self.filter_files_from_check_list(&job.files, &result.stdout);
+            if !files.is_empty() {
+                suggest_files = files;
             }
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace

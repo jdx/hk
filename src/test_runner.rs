@@ -207,17 +207,17 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         pass = false;
         reasons.push(format!("after failed with code {}", a_code));
     }
-    if let Some(needle) = &test.expect.stdout {
-        if !stdout.contains(needle) {
-            pass = false;
-            reasons.push(format!("stdout missing: {}", needle));
-        }
+    if let Some(needle) = &test.expect.stdout
+        && !stdout.contains(needle)
+    {
+        pass = false;
+        reasons.push(format!("stdout missing: {}", needle));
     }
-    if let Some(needle) = &test.expect.stderr {
-        if !stderr.contains(needle) {
-            pass = false;
-            reasons.push(format!("stderr missing: {}", needle));
-        }
+    if let Some(needle) = &test.expect.stderr
+        && !stderr.contains(needle)
+    {
+        pass = false;
+        reasons.push(format!("stderr missing: {}", needle));
     }
     for (rel, expected) in &test.expect.files {
         let rendered = crate::tera::render(rel, &tctx)?;
