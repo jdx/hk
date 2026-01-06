@@ -234,7 +234,6 @@ impl Step {
                 name
             );
         }
-
         self.name = name.to_string();
         if self.interactive {
             self.exclusive = true;
@@ -576,20 +575,25 @@ impl Step {
                 }
             }
         }
-        for job in jobs.iter_mut().filter(|j| j.check_first) {
-            // If stage=<JOB_FILES> and check_list_files or check_diff is defined, always run check_first
-            // to ensure files are filtered correctly, even when there's no contention
-            let needs_filtering_for_stage = self
-                .stage
-                .as_ref()
-                .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
-                .unwrap_or(false)
-                && (self.check_list_files.is_some() || self.check_diff.is_some());
+        // If stage=<JOB_FILES> and check_list_files or check_diff is defined, always run check_first
+        // to ensure files are filtered correctly, even when there's no contention
+        let needs_filtering_for_stage = self
+            .stage
+            .as_ref()
+            .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
+            .unwrap_or(false)
+            && (self.check_list_files.is_some() || self.check_diff.is_some());
 
-            if needs_filtering_for_stage {
+        // Always run check_first when check_diff is defined so we can apply the diff directly
+        let can_apply_diff = self.check_diff.is_some();
+
+        for job in jobs.iter_mut() {
+            if needs_filtering_for_stage || can_apply_diff {
                 // Always run check_first when we need to filter files for stage=<JOB_FILES>
+                // or when we can apply the diff directly
                 job.check_first = true;
-            } else {
+            } else if job.check_first {
+                // Only adjust check_first for jobs where it was already enabled from config
                 // Default behavior: only set check_first if there are any files in contention
                 job.check_first = job.files.iter().any(|f| files_in_contention.contains(f));
             }
@@ -669,7 +673,7 @@ impl Step {
                                 // Use check_diff parser if check_diff is defined, otherwise check_list_files
                                 let is_check_diff = step.check_diff.is_some();
                                 let (files, extras) = if is_check_diff {
-                                    step.filter_files_from_check_diff(&job.files, stdout, stderr)
+                                    step.filter_files_from_check_diff(&job.files, stdout)
                                 } else {
                                     step.filter_files_from_check_list(&job.files, stdout)
                                 };
@@ -691,6 +695,28 @@ impl Step {
                                     return Err(e);
                                 } else {
                                     job.files = files;
+                                }
+
+                                // Try to apply diff directly when check_diff is defined and we're in Fix mode
+                                // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
+                                if is_check_diff && prev_run_type == RunType::Fix {
+                                    match step.apply_diff_output(stdout) {
+                                        Ok(true) => {
+                                            // Diff applied successfully - no need to run fixer
+                                            debug!("{step}: diff applied successfully, skipping fixer");
+                                            job.run_type = prev_run_type;
+                                            ctx.hook_ctx.inc_completed_jobs(1);
+                                            return Ok(job.files.clone());
+                                        }
+                                        Ok(false) => {
+                                            // Diff application failed - fall through to run fixer
+                                            debug!("{step}: diff application failed, falling back to fixer");
+                                        }
+                                        Err(err) => {
+                                            // Unexpected error - fall through to run fixer
+                                            warn!("{step}: unexpected error applying diff: {err}");
+                                        }
+                                    }
                                 }
                             }
                             // For regular check commands that fail: fall through to run fixer
@@ -1179,25 +1205,18 @@ impl Step {
         &self,
         original_files: &[PathBuf],
         stdout: &str,
-        stderr: &str,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
         // Parse unified diff format to extract file names from --- and +++ lines
-        // Check both stdout and stderr since some tools output diffs to stderr
         let mut listed: HashSet<PathBuf> = HashSet::new();
 
         // First pass: detect if this diff uses a/ and b/ prefixes (git-style)
         let mut has_a_prefix = false;
         let mut has_b_prefix = false;
-        for output in [stdout, stderr] {
-            for line in output.lines() {
-                if line.starts_with("--- a/") {
-                    has_a_prefix = true;
-                } else if line.starts_with("+++ b/") {
-                    has_b_prefix = true;
-                }
-                if has_a_prefix && has_b_prefix {
-                    break;
-                }
+        for line in stdout.lines() {
+            if line.starts_with("--- a/") {
+                has_a_prefix = true;
+            } else if line.starts_with("+++ b/") {
+                has_b_prefix = true;
             }
             if has_a_prefix && has_b_prefix {
                 break;
@@ -1206,43 +1225,41 @@ impl Step {
         let should_strip_prefixes = has_a_prefix && has_b_prefix;
 
         // Second pass: extract file paths
-        for output in [stdout, stderr] {
-            for line in output.lines() {
-                if line.starts_with("--- ") {
-                    if let Some(path_str) = line.strip_prefix("--- ") {
-                        // Strip timestamp if present (tab-separated: "--- file.py	2025-01-01 12:00:00")
-                        let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
-                            before_tab.trim()
-                        } else {
-                            path_str.trim()
-                        };
-                        // Strip standard diff path prefixes (a/ or b/) if detected
-                        let path = if should_strip_prefixes {
-                            path.strip_prefix("a/")
-                                .or_else(|| path.strip_prefix("b/"))
-                                .unwrap_or(path)
-                        } else {
-                            path
-                        };
-                        listed.insert(try_canonicalize(&PathBuf::from(path)));
-                    }
-                } else if line.starts_with("+++ ") {
-                    if let Some(path_str) = line.strip_prefix("+++ ") {
-                        let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
-                            before_tab.trim()
-                        } else {
-                            path_str.trim()
-                        };
-                        // Strip standard diff path prefixes (a/ or b/) if detected
-                        let path = if should_strip_prefixes {
-                            path.strip_prefix("a/")
-                                .or_else(|| path.strip_prefix("b/"))
-                                .unwrap_or(path)
-                        } else {
-                            path
-                        };
-                        listed.insert(try_canonicalize(&PathBuf::from(path)));
-                    }
+        for line in stdout.lines() {
+            if line.starts_with("--- ") {
+                if let Some(path_str) = line.strip_prefix("--- ") {
+                    // Strip timestamp if present (tab-separated: "--- file.py	2025-01-01 12:00:00")
+                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
+                        before_tab.trim()
+                    } else {
+                        path_str.trim()
+                    };
+                    // Strip standard diff path prefixes (a/ or b/) if detected
+                    let path = if should_strip_prefixes {
+                        path.strip_prefix("a/")
+                            .or_else(|| path.strip_prefix("b/"))
+                            .unwrap_or(path)
+                    } else {
+                        path
+                    };
+                    listed.insert(try_canonicalize(&PathBuf::from(path)));
+                }
+            } else if line.starts_with("+++ ") {
+                if let Some(path_str) = line.strip_prefix("+++ ") {
+                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
+                        before_tab.trim()
+                    } else {
+                        path_str.trim()
+                    };
+                    // Strip standard diff path prefixes (a/ or b/) if detected
+                    let path = if should_strip_prefixes {
+                        path.strip_prefix("a/")
+                            .or_else(|| path.strip_prefix("b/"))
+                            .unwrap_or(path)
+                    } else {
+                        path
+                    };
+                    listed.insert(try_canonicalize(&PathBuf::from(path)));
                 }
             }
         }
@@ -1257,6 +1274,85 @@ impl Step {
             .filter(|f| !canonicalized_files.contains(f))
             .collect();
         (files.into_iter().collect(), extras)
+    }
+
+    /// Apply a unified diff directly to files using git apply.
+    /// Returns Ok(true) if patch was applied successfully.
+    /// Returns Ok(false) if patch application failed (caller should fall back to fixer).
+    fn apply_diff_output(&self, stdout: &str) -> Result<bool> {
+        if stdout.trim().is_empty() {
+            debug!("{}: no diff content to apply", self.name);
+            return Ok(false);
+        }
+        let diff_content = stdout;
+
+        // Detect if this diff uses a/ and b/ prefixes (git-style)
+        // Use -p1 to strip prefixes if present, -p0 otherwise
+        let mut has_a_prefix = false;
+        let mut has_b_prefix = false;
+        for line in stdout.lines() {
+            if line.starts_with("--- a/") {
+                has_a_prefix = true;
+            } else if line.starts_with("+++ b/") {
+                has_b_prefix = true;
+            }
+            if has_a_prefix && has_b_prefix {
+                break;
+            }
+        }
+        let strip_level = if has_a_prefix && has_b_prefix {
+            "-p1"
+        } else {
+            "-p0"
+        };
+
+        // Use --whitespace=nowarn to avoid warnings about whitespace
+        // Run in the step's directory if configured (same as check_diff command)
+        let mut cmd = std::process::Command::new("git");
+        cmd.args(["apply", strip_level, "--whitespace=nowarn", "-"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        if let Some(dir) = &self.dir {
+            cmd.current_dir(dir);
+        }
+
+        let result = cmd.spawn();
+
+        let mut child = match result {
+            Ok(c) => c,
+            Err(e) => {
+                warn!("{}: failed to spawn git apply: {}", self.name, e);
+                return Ok(false);
+            }
+        };
+
+        // Write diff to stdin
+        if let Some(stdin) = child.stdin.as_mut() {
+            use std::io::Write;
+            if let Err(e) = stdin.write_all(diff_content.as_bytes()) {
+                warn!("{}: failed to write diff to git apply: {}", self.name, e);
+                return Ok(false);
+            }
+        }
+
+        let output = match child.wait_with_output() {
+            Ok(o) => o,
+            Err(e) => {
+                warn!("{}: git apply failed to complete: {}", self.name, e);
+                return Ok(false);
+            }
+        };
+
+        if output.status.success() {
+            debug!("{}: successfully applied diff", self.name);
+            Ok(true)
+        } else {
+            let stderr_output = String::from_utf8_lossy(&output.stderr);
+            debug!("{}: git apply failed: {}", self.name, stderr_output);
+            Ok(false)
+        }
     }
 
     fn collect_fix_suggestion(
