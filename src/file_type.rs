@@ -362,6 +362,10 @@ fn get_types_by_extension(ext: &str) -> Option<HashSet<String>> {
             types.insert("text".to_string());
             types.insert("csv".to_string());
         }
+        "pkl" => {
+            types.insert("text".to_string());
+            types.insert("pkl".to_string());
+        }
 
         // Markup and documentation
         "md" | "markdown" => {

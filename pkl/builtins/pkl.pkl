@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Pkl configuration language"
 }
 pkl = new Config.Step {
-  glob = "**/*.pkl"
+  types = List("pkl")
   check = "pkl eval {{files}} >/dev/null"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.pkl" }
