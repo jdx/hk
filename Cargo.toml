@@ -22,7 +22,7 @@ include = [
 license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
-rust-version = "1.85"
+rust-version = "1.88.0"
 version = "1.28.0"
 
 [[bin]]
