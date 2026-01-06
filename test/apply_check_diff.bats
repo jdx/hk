@@ -291,3 +291,55 @@ EOF
     run cat test.txt
     assert_output "fixed_content"
 }
+
+@test "check_diff handles diffs without a/b prefixes" {
+    # Some tools output diffs without the git-style a/ and b/ prefixes
+    # e.g., "--- src/file.py" instead of "--- a/src/file.py"
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+if [ -f "$file" ]; then
+    # Output diff WITHOUT a/ and b/ prefixes
+    echo "--- $file"
+    echo "+++ $file"
+    echo "@@ -1 +1 @@"
+    echo "-$(cat "$file")"
+    echo "+no_prefix_diff"
+fi
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "original" > test.txt
+    git add .
+    git commit -m "initial"
+
+    run hk fix test.txt
+    assert_success
+
+    # Verify the diff was applied (uses -p0 since no a/b prefixes)
+    run cat test.txt
+    assert_output "no_prefix_diff"
+}

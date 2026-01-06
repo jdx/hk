@@ -1286,11 +1286,30 @@ impl Step {
         }
         let diff_content = stdout;
 
-        // Use git apply with -p1 to strip a/ and b/ prefixes
+        // Detect if this diff uses a/ and b/ prefixes (git-style)
+        // Use -p1 to strip prefixes if present, -p0 otherwise
+        let mut has_a_prefix = false;
+        let mut has_b_prefix = false;
+        for line in stdout.lines() {
+            if line.starts_with("--- a/") {
+                has_a_prefix = true;
+            } else if line.starts_with("+++ b/") {
+                has_b_prefix = true;
+            }
+            if has_a_prefix && has_b_prefix {
+                break;
+            }
+        }
+        let strip_level = if has_a_prefix && has_b_prefix {
+            "-p1"
+        } else {
+            "-p0"
+        };
+
         // Use --whitespace=nowarn to avoid warnings about whitespace
         // Run in the step's directory if configured (same as check_diff command)
         let mut cmd = std::process::Command::new("git");
-        cmd.args(["apply", "-p1", "--whitespace=nowarn", "-"])
+        cmd.args(["apply", strip_level, "--whitespace=nowarn", "-"])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
