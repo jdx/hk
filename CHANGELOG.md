@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.29.1](https://github.com/jdx/hk/compare/v1.29.0..v1.29.1) - 2026-01-10
+
+### 🔍 Other Changes
+
+- skip release-plz workflow on forks by [@joonas](https://github.com/joonas) in [#575](https://github.com/jdx/hk/pull/575)
+- (re)sort entries in Builtins.pkl by [@muzimuzhi](https://github.com/muzimuzhi) in [#580](https://github.com/jdx/hk/pull/580)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 1b8ee3b by [@renovate[bot]](https://github.com/renovate[bot]) in [#578](https://github.com/jdx/hk/pull/578)
+- update rust crate libc to v0.2.180 by [@renovate[bot]](https://github.com/renovate[bot]) in [#579](https://github.com/jdx/hk/pull/579)
+
 ## [1.29.0](https://github.com/jdx/hk/compare/v1.28.0..v1.29.0) - 2026-01-06
 
 ### 🚀 Features
