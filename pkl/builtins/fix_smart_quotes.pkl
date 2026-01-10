@@ -8,10 +8,14 @@ import "./test/helpers.pkl"
 }
 fix_smart_quotes = new Config.Step {
   glob = "**/*"
-  fix = "hk util fix-smart-quotes {{files}}"
   stage = "<JOB_FILES>"
+  check_list_files = "hk util fix-smart-quotes --check {{files}}"
+  fix = "hk util fix-smart-quotes {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker {}
+    ["check file with smart quotes"] = testMaker.checkFail("\u{FF02}Hello, world!\u{FF02}", 1)
+    ["check file without smart quotes"] = testMaker.checkPass("\"Hello, world!\"")
+    ["check empty file"] = testMaker.checkPass("")
     ["fix file with smart quotes"] =
       testMaker.fixPass("\u{FF02}Hello, world!\u{FF02}", "\"Hello, world!\"")
     ["fix file without smart quotes"] = testMaker.fixPass("\"Hello, world!\"", "\"Hello, world!\"")
