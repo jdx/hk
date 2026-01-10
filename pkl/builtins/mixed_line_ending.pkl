@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 mixed_line_ending = new Config.Step {
   glob = "**/*"
   stage = "<JOB_FILES>"
-  check = "hk util mixed-line-ending {{files}}"
+  check_diff = "hk util mixed-line-ending --diff {{files}}"
   fix = "hk util mixed-line-ending --fix {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker {}
