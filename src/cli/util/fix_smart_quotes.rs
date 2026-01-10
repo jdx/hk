@@ -22,6 +22,10 @@ const UTF8_SINGLE_QUOTE_CODEPOINTS: &[char] = &[
 
 #[derive(Debug, clap::Args)]
 pub struct FixSmartQuotes {
+    /// Check for smart quotes without fixing them
+    #[clap(long)]
+    pub check: bool,
+
     /// Files to replace smart quotes in
     #[clap(required = true)]
     pub files: Vec<PathBuf>,
@@ -29,12 +33,48 @@ pub struct FixSmartQuotes {
 
 impl FixSmartQuotes {
     pub async fn run(&self) -> Result<()> {
+        let mut found_issues = false;
+
         for file_path in &self.files {
-            replace_smart_quotes(file_path)?;
+            if self.check {
+                // Check mode: report files with smart quotes
+                if has_smart_quotes(file_path)? {
+                    println!("{}", file_path.display());
+                    found_issues = true;
+                }
+            } else {
+                // Fix mode: replace smart quotes
+                replace_smart_quotes(file_path)?;
+            }
+        }
+
+        // In check mode: exit with code 1 if issues found
+        // Fix mode always succeeds
+        if self.check && found_issues {
+            std::process::exit(1);
         }
 
         Ok(())
     }
+}
+
+fn has_smart_quotes(path: &PathBuf) -> Result<bool> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut buf = String::new();
+
+    while let Ok(read) = reader.read_line(&mut buf) {
+        if read == 0 {
+            break;
+        }
+        if buf.contains(UTF8_DOUBLE_QUOTE_CODEPOINTS) || buf.contains(UTF8_SINGLE_QUOTE_CODEPOINTS)
+        {
+            return Ok(true);
+        }
+        buf.clear();
+    }
+
+    Ok(false)
 }
 
 fn replace_smart_quotes(path: &PathBuf) -> Result<()> {
@@ -149,5 +189,29 @@ mod tests {
 
         let after = fs::metadata(file.path()).unwrap().permissions();
         assert!(after.readonly());
+    }
+
+    #[test]
+    fn test_has_smart_quotes_true() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), "This has \u{201C}smart quotes\u{201D}").unwrap();
+
+        assert!(has_smart_quotes(&file.path().to_path_buf()).unwrap());
+    }
+
+    #[test]
+    fn test_has_smart_quotes_false() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), "This has \"normal quotes\"").unwrap();
+
+        assert!(!has_smart_quotes(&file.path().to_path_buf()).unwrap());
+    }
+
+    #[test]
+    fn test_has_smart_quotes_empty() {
+        let file = NamedTempFile::new().unwrap();
+        fs::write(file.path(), "").unwrap();
+
+        assert!(!has_smart_quotes(&file.path().to_path_buf()).unwrap());
     }
 }
