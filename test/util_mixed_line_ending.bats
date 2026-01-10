@@ -77,6 +77,14 @@ teardown() {
     refute_output
 }
 
+@test "util mixed-line-ending - diff mode outputs unified diff" {
+    printf "line1\r\nline2\nline3\r\n" > file.txt
+
+    run hk util mixed-line-ending --diff file.txt
+    assert_failure
+    echo "--- a/file.txt\n+++ b/file.txt\n@@ -1,3 +1,3 @@\n-line1\r\n+line1\nline2\n-line3\r\n+line3\n" | assert_output
+}
+
 @test "util mixed-line-ending - builtin integration" {
     cat > hk.pkl <<HK
 amends "$PKL_PATH/Config.pkl"

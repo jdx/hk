@@ -85,6 +85,19 @@ more trailing"
     assert_output --partial "file1.txt"
 }
 
+@test "util trailing-whitespace - diff mode outputs unified diff" {
+    echo "trailing  " > file1.txt
+
+    run hk util trailing-whitespace --diff file1.txt
+    assert_failure
+    assert_output "--- a/file1.txt
++++ b/file1.txt
+@@ -1 +1 @@
+-trailing  \
+
++trailing"
+}
+
 @test "util trailing-whitespace - builtin integration" {
     cat > hk.pkl <<HK
 amends "$PKL_PATH/Config.pkl"
