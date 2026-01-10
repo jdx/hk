@@ -5,8 +5,12 @@ use std::path::PathBuf;
 #[derive(Debug, clap::Args)]
 pub struct MixedLineEnding {
     /// Fix mixed line endings by normalizing to LF
-    #[clap(short, long)]
+    #[clap(short, long, conflicts_with = "diff")]
     pub fix: bool,
+
+    /// Output a diff of the change. Cannot use with `fix`.
+    #[clap(short, long)]
+    pub diff: bool,
 
     /// Files to check or fix
     #[clap(required = true)]
@@ -18,22 +22,45 @@ impl MixedLineEnding {
         let mut found_mixed = false;
 
         for file_path in &self.files {
-            if has_mixed_line_endings(file_path)? {
-                if self.fix {
+            if self.fix {
+                if has_mixed_line_endings(file_path)? {
                     fix_line_endings(file_path)?;
-                } else {
-                    println!("{}", file_path.display());
+                }
+            } else if self.diff {
+                if let Some(diff) = generate_diff(file_path)? {
+                    print!("{}", diff);
                     found_mixed = true;
                 }
+            } else if has_mixed_line_endings(file_path)? {
+                println!("{}", file_path.display());
+                found_mixed = true;
             }
         }
 
         if !self.fix && found_mixed {
-            return Err(eyre::eyre!("Files with mixed line endings found"));
+            std::process::exit(1);
         }
 
         Ok(())
     }
+}
+
+fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
+    if !has_mixed_line_endings(path)? {
+        return Ok(None);
+    }
+
+    let original = fs::read_to_string(path)?;
+    let fixed = original.replace("\r\n", "\n");
+    let path_str = path.display().to_string();
+    let diff = crate::diff::render_unified_diff(
+        &original,
+        &fixed,
+        &format!("a/{}", path_str),
+        &format!("b/{}", path_str),
+    );
+
+    Ok(Some(diff))
 }
 
 fn has_mixed_line_endings(path: &PathBuf) -> Result<bool> {

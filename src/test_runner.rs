@@ -232,7 +232,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         let contents = xx::file::read_to_string(&path)?;
         if &contents != expected {
             pass = false;
-            let udiff = render_unified_diff(expected, &contents);
+            let udiff = crate::diff::render_unified_diff(expected, &contents, "expected", "actual");
             reasons.push(format!("file mismatch: {}\n{}", path.display(), udiff));
         }
     }
@@ -263,13 +263,4 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         duration_ms: started_at.elapsed().as_millis(),
         reasons,
     })
-}
-
-fn render_unified_diff(expected: &str, actual: &str) -> String {
-    use similar::TextDiff;
-    let diff = TextDiff::from_lines(expected, actual);
-    diff.unified_diff()
-        .context_radius(3)
-        .header("expected", "actual")
-        .to_string()
 }
