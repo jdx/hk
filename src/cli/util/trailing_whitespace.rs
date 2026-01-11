@@ -6,13 +6,13 @@ use std::path::PathBuf;
 /// Check for and optionally fix trailing whitespace in files
 #[derive(Debug, clap::Args)]
 pub struct TrailingWhitespace {
-    /// Fix trailing whitespace by removing it
-    #[clap(short, long, conflicts_with = "diff")]
-    pub fix: bool,
-
     /// Output a diff of the change. Cannot use with `fix`.
     #[clap(short, long)]
     pub diff: bool,
+
+    /// Fix trailing whitespace by removing it
+    #[clap(short, long, conflicts_with = "diff")]
+    pub fix: bool,
 
     /// Files to check/fix
     #[clap(required = true)]
