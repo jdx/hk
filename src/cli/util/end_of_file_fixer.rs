@@ -7,11 +7,11 @@ use std::path::PathBuf;
 #[derive(Debug, clap::Args)]
 pub struct EndOfFileFixer {
     /// Output a diff of the change. Cannot use with `fix`.
-    #[clap(short, long)]
+    #[clap(short, long, conflicts_with = "fix")]
     pub diff: bool,
 
     /// Fix files by adding final newline
-    #[clap(short, long, conflicts_with = "diff")]
+    #[clap(short, long)]
     pub fix: bool,
 
     /// Files to check/fix
