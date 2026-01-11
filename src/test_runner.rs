@@ -85,9 +85,19 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .iter()
         .map(|(f, contents)| (tera::render(f, &tctx).unwrap_or(f.clone()).into(), contents))
         .collect();
+    let rendered_files: Option<Vec<PathBuf>> = test.files.as_ref().map(|files| {
+        files
+            .iter()
+            .map(|f| tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
+            .map(PathBuf::from)
+            .collect()
+    });
     // Decide whether to use a sandbox based on whether files reference {{tmp}}.
     // If not, operate from the project root instead.
-    let uses_sandbox = rendered_write.keys().any(|p| p.starts_with(sandbox));
+    let uses_sandbox = rendered_write.keys().any(|p| p.starts_with(sandbox))
+        || rendered_files
+            .as_ref()
+            .is_some_and(|files| files.iter().any(|p| p.starts_with(sandbox)));
 
     let cwd = std::env::current_dir().unwrap_or_default();
     let root = xx::file::find_up(&cwd, &[".git"])
@@ -113,14 +123,10 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         xx::file::write(&path, contents)?;
     }
 
-    let files: Vec<PathBuf> = match &test.files {
-        Some(files) => files
-            .iter()
-            .map(|f| tera::render(f, &tctx).unwrap_or(f.clone()))
-            .map(PathBuf::from)
-            .collect(),
+    let files = match rendered_files {
+        Some(files) => files.to_vec(),
         None => {
-            let all_keys: Vec<PathBuf> = rendered_write.keys().map(PathBuf::from).collect();
+            let all_keys: Vec<PathBuf> = rendered_write.keys().cloned().collect();
             step.filter_files(&all_keys)?
         }
     };
