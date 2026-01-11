@@ -4,13 +4,13 @@ use std::path::PathBuf;
 
 #[derive(Debug, clap::Args)]
 pub struct MixedLineEnding {
-    /// Fix mixed line endings by normalizing to LF
-    #[clap(short, long, conflicts_with = "diff")]
-    pub fix: bool,
-
     /// Output a diff of the change. Cannot use with `fix`.
     #[clap(short, long)]
     pub diff: bool,
+
+    /// Fix mixed line endings by normalizing to LF
+    #[clap(short, long, conflicts_with = "diff")]
+    pub fix: bool,
 
     /// Files to check or fix
     #[clap(required = true)]
