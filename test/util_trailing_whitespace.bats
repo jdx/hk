@@ -129,3 +129,20 @@ HK
     run cat test.txt
     assert_output "trailing"
 }
+
+@test "util trailing-whitespace - works on windows" {
+    printf "contents  \r\n" > crlf.txt
+
+    run hk util trailing-whitespace crlf.txt
+    assert_failure
+    assert_output --partial "crlf.txt"
+
+    run hk util trailing-whitespace --diff crlf.txt
+    assert_failure
+    printf "--- a/crlf.txt\n+++ b/crlf.txt\n@@ -1 +1 @@\n-contents  \r\n+contents" | assert_output
+
+    run hk util trailing-whitespace --fix crlf.txt
+    assert_success
+    run cat crlf.txt
+    echo "contents\n" | assert_output
+}
