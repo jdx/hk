@@ -8,6 +8,7 @@ pub use eyre::Result;
 mod cache;
 mod cli;
 mod config;
+mod diff;
 mod env;
 mod error;
 mod file_rw_locks;

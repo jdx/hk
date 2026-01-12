@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 trailing_whitespace = new Config.Step {
   glob = "**/*"
   stage = "<JOB_FILES>"
-  check_list_files = "hk util trailing-whitespace {{files}}"
+  check_diff = "hk util trailing-whitespace --diff {{files}}"
   fix = "hk util trailing-whitespace --fix {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker {}
