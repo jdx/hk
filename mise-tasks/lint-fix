@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE alias=["fix", "format"]
+#MISE depends=["build"]
+
+set -eu
+
+hk fix --all
+hk fix --all --slow

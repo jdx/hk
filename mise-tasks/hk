@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE alias="dev"
+#MISE depends=["build"]
+
+set -eu
+
+hk

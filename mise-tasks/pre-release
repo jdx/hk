@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE depends=["render"]
+#USAGE option "--version <version>"
+
+set -eu
+
+git cliff -o CHANGELOG.md --tag "${usage_version}"
+VERSION="${usage_version}" mise run update-version

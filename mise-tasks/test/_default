@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE alias=["t"]
+#MISE depends=["test:cargo", "test:bats"]
+
+set -eu
+
+echo "All tests completed"

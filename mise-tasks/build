@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE alias="b"
+#MISE depends=["init"]
+#MISE outputs=["target/debug/hk"]
+#MISE sources=["build.rs", "src/**/*", "pkl/**/*", "ensembler/src/**/*", "xx/src/**/*", "clx/**/*"]
+
+set -eu
+
+cargo build
