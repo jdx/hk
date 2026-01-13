@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE depends=["test", "lint"]
+
+set -eu
+
+echo "CI completed successfully"

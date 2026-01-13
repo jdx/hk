@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE tools = { lefthook = "latest", "pre-commit" = "latest" }
+
+set -eu
+
+./benchmark/benchmark.sh
