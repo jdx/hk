@@ -111,6 +111,7 @@ tombi_format = Builtins["builtins/tombi_format.pkl"].tombi_format
 trailing_whitespace = Builtins["builtins/trailing_whitespace.pkl"].trailing_whitespace
 tsc = Builtins["builtins/tsc.pkl"].tsc
 tsserver = Builtins["builtins/tsserver.pkl"].tsserver
+ty = Builtins["builtins/ty.pkl"].ty
 typos = Builtins["builtins/typos.pkl"].typos
 vacuum = Builtins["builtins/vacuum.pkl"].vacuum
 vale = Builtins["builtins/vale.pkl"].vale
