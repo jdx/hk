@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE depends=["build"]
-#MISE env = { "HK_LIBGIT2" = "1" }
+#MISE env = { "HK_LIBGIT2" = "" }
 #USAGE arg "<test>..." default="test"
 
 set -eu
