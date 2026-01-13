@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Generate pkl/Builtins.pkl from all builtins/*.pkl files
+
+cat > pkl/Builtins.pkl << 'HEADER'
+// THIS FILE IS GENERATED: Run 'mise run pkl:gen' to generate.
+
+import* "builtins/*.pkl" as Builtins
+
+/// Internal class for annotating hk builtins for documentation generation
+class meta extends Annotation {
+  /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
+  category: String?
+
+  /// Human-readable description of the step for documentation
+  description: String?
+}
+
+HEADER
+
+for filepath in pkl/builtins/*.pkl; do
+    filename=$(basename "$filepath" .pkl)
+    identifier=${filename//-/_}
+    echo "$identifier = Builtins[\"builtins/$filename.pkl\"].$identifier" >> pkl/Builtins.pkl
+done
