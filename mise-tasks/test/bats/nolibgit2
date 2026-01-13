@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE depends=["build"]
+#MISE env = { "HK_LIBGIT2" = "0" }
+#USAGE arg "<test>..." default="test"
+
+set -eu
+
+tests=$(rg --files-with-matches git "${usage_test}" --glob "test/*.bats" || true | tr '\n' ' ')
+if [ "$tests" ]; then
+  bats --jobs 16 $tests
+fi

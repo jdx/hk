@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 _common_setup() {
-    load 'test_helper/bats-support/load'
-    load 'test_helper/bats-assert/load'
-    load 'test_helper/bats-file/load'
-    load 'test_helper/cache_setup'
+    export PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/../.."
+    load "$PROJECT_ROOT/test/test_helper/bats-support/load"
+    load "$PROJECT_ROOT/test/test_helper/bats-assert/load"
+    load "$PROJECT_ROOT/test/test_helper/bats-file/load"
+    load "$PROJECT_ROOT/test/test_helper/cache_setup"
 
-    export PROJECT_ROOT="$BATS_TEST_DIRNAME/.."
     export PKL_PATH="$PROJECT_ROOT/pkl"
 
     # Create a temporary directory for each test

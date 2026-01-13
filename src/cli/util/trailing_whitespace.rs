@@ -99,7 +99,7 @@ fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
 fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
     let original = fs::read_to_string(path)?;
     let fixed: String = original
-        .lines()
+        .split_inclusive('\n')
         .map(|line| line.trim_end())
         .collect::<Vec<_>>()
         .join("\n")

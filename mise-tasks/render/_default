@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE depends=["render:*"]
+
+set -eu
+
+echo "All renders completed"

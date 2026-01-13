@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE depends=["build"]
+
+set -eu
+
+hk usage > hk.usage.kdl
+rm -rf docs/cli && mkdir -p docs/cli
+usage g markdown -mf hk.usage.kdl --out-dir docs/cli --url-prefix /cli
+usage g json -f hk.usage.kdl > docs/cli/commands.json
+prettier --write docs/cli
+git add hk.usage.kdl docs

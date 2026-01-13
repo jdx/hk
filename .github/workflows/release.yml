@@ -88,7 +88,7 @@ jobs:
           echo "Building pkl package for version: $VERSION"
 
           # Use the mise task which outputs to docs/public/pkl
-          VERSION="${VERSION}" mise run dist
+          VERSION="${VERSION}" mise run pkl:dist
 
           echo "Contents of docs/public/pkl:"
           ls -la docs/public/pkl || true
