@@ -7,3 +7,4 @@
 set -eu
 
 cargo build
+mise run pkl:gen
