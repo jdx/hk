@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-set -euo pipefail
+#MISE description="Generate pkl/Builtins.pkl from all builtins/*.pkl files"
+#MISE sources = ["pkl/builtins/*/*.pkl", "mise-tasks/pkl/gen"]
+#MISE outputs=["pkl/Builtins.pkl"]
 
-# Generate pkl/Builtins.pkl from all builtins/*.pkl files
+set -euo pipefail
 
 cat > pkl/Builtins.pkl << 'HEADER'
 // THIS FILE IS GENERATED: Run 'mise run pkl:gen' to generate.
