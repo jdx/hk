@@ -54,7 +54,7 @@ local linters = new Mapping<String, Step> {
     // linters can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
-        glob = List("*.js"; "*.ts")
+        glob = List("*.js", "*.ts")
         // a command that returns non-zero to fail the check
         check = "eslint {{files}}"
     }
@@ -62,7 +62,7 @@ local linters = new Mapping<String, Step> {
     ["prettier"] = Builtins.prettier
     // with pkl, builtins can also be extended:
     ["prettier-yaml"] = (Builtins.prettier) {
-        glob = List("*.yaml"; "*.yml")
+        glob = List("*.yaml", "*.yml")
     }
 }
 
