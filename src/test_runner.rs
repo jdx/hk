@@ -71,7 +71,10 @@ async fn execute_cmd(
 pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<TestResult> {
     let started_at = Instant::now();
     let tmp = tempfile::tempdir().unwrap();
-    let sandbox = tmp.path().to_path_buf();
+    let sandbox = tmp
+        .path()
+        .canonicalize()
+        .unwrap_or_else(|_| tmp.path().to_path_buf());
     let mut tctx = crate::tera::Context::default();
     tctx.insert("tmp", &sandbox.display().to_string());
     // Decide whether to use a sandbox based on whether files reference {{tmp}}.
