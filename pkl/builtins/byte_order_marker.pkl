@@ -8,6 +8,7 @@ import "./test/helpers.pkl"
 }
 byte_order_marker = new Config.Step {
   glob = "**/*"
+  stage = "<JOB_FILES>"
   check = "hk util check-byte-order-marker {{files}}"
   fix = "hk util fix-byte-order-marker {{files}}"
   tests {
