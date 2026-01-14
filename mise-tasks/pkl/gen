@@ -26,3 +26,5 @@ for filepath in pkl/builtins/*.pkl; do
     identifier=${filename//-/_}
     echo "$identifier = Builtins[\"builtins/$filename.pkl\"].$identifier" >> pkl/Builtins.pkl
 done
+
+hk fix -S pkl-format pkl/Builtins.pkl
