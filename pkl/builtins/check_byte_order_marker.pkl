@@ -1,18 +1,10 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./byte_order_marker.pkl"
 import "./test/helpers.pkl"
 
-@Builtins.meta {
-  category = "Special Purpose"
-  description = "Detect UTF-8 BOM"
+@Deprecated {
+  since = "1.30.0"
+  message = "Use `Builtins/byte_order_marker.pkl`"
 }
-check_byte_order_marker = new Config.Step {
-  glob = "**/*"
-  check = "hk util check-byte-order-marker {{files}}"
-  tests {
-    local const testMaker = new helpers.TestMaker { filename = "test.txt" }
-    ["detects BOM"] = testMaker.checkFail("\u{FEFF}Hello, world!", 1)
-    ["passes without BOM"] = testMaker.checkPass("Hello, world!")
-    ["passes empty file"] = testMaker.checkPass("")
-  }
-}
+check_byte_order_marker = byte_order_marker.byte_order_marker
