@@ -1,23 +1,10 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./byte_order_marker.pkl"
 import "./test/helpers.pkl"
 
-@Builtins.meta {
-  category = "Special Purpose"
-  description = "Remove UTF-8 BOM"
-}
 @Deprecated {
   since = "1.30.0"
   message = "Use `Builtins/byte_order_marker.pkl`"
 }
-fix_byte_order_marker = new Config.Step {
-  glob = "**/*"
-  stage = "<JOB_FILES>"
-  fix = "hk util fix-byte-order-marker {{files}}"
-  tests {
-    local const testMaker = new helpers.TestMaker {}
-    ["fix file with BOM"] = testMaker.fixPass("\u{FEFF}Hello, world!", "Hello, world!")
-    ["fix file without BOM"] = testMaker.fixPass("Hello, world!", "Hello, world!")
-    ["fix empty file"] = testMaker.fixPass("", "")
-  }
-}
+fix_byte_order_marker = byte_order_marker.byte_order_marker
