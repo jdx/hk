@@ -6,6 +6,10 @@ import "./test/helpers.pkl"
   category = "Special Purpose"
   description = "Detect UTF-8 BOM"
 }
+@Deprecated {
+  since = "1.30.0"
+  message = "Use `Builtins/byte_order_marker.pkl`"
+}
 check_byte_order_marker = new Config.Step {
   glob = "**/*"
   check = "hk util check-byte-order-marker {{files}}"
