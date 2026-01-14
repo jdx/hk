@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE alias="b"
-#MISE depends=["init"]
+#MISE depends=["init", "pkl:gen"]
 #MISE outputs=["target/debug/hk"]
 #MISE sources=["build.rs", "src/**/*", "pkl/**/*", "ensembler/src/**/*", "xx/src/**/*", "clx/**/*"]
 
