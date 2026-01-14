@@ -26,7 +26,11 @@ pub struct FixSmartQuotes {
     #[clap(long)]
     pub check: bool,
 
-    /// Files to replace smart quotes in
+    /// Output a diff of the change (implies `--check`)
+    #[clap(short, long)]
+    pub diff: bool,
+
+    /// Files to check/fix
     #[clap(required = true)]
     pub files: Vec<PathBuf>,
 }
@@ -36,21 +40,22 @@ impl FixSmartQuotes {
         let mut found_issues = false;
 
         for file_path in &self.files {
-            if self.check {
-                // Check mode: report files with smart quotes
+            if self.diff {
+                if let Some(diff) = generate_diff(file_path)? {
+                    print!("{}", diff);
+                    found_issues = true;
+                }
+            } else if self.check {
                 if has_smart_quotes(file_path)? {
                     println!("{}", file_path.display());
                     found_issues = true;
                 }
             } else {
-                // Fix mode: replace smart quotes
                 replace_smart_quotes(file_path)?;
             }
         }
 
-        // In check mode: exit with code 1 if issues found
-        // Fix mode always succeeds
-        if self.check && found_issues {
+        if (self.check || self.diff) && found_issues {
             std::process::exit(1);
         }
 
@@ -75,6 +80,27 @@ fn has_smart_quotes(path: &PathBuf) -> Result<bool> {
     }
 
     Ok(false)
+}
+
+fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
+    if !has_smart_quotes(path)? {
+        return Ok(None);
+    }
+
+    let original = fs::read_to_string(path)?;
+    let fixed = original
+        .replace(UTF8_DOUBLE_QUOTE_CODEPOINTS, "\"")
+        .replace(UTF8_SINGLE_QUOTE_CODEPOINTS, "'");
+
+    let path_str = path.display().to_string();
+    let diff = crate::diff::render_unified_diff(
+        &original,
+        &fixed,
+        &format!("a/{}", path_str),
+        &format!("b/{}", path_str),
+    );
+
+    Ok(Some(diff))
 }
 
 fn replace_smart_quotes(path: &PathBuf) -> Result<()> {

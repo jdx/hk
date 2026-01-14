@@ -78,3 +78,15 @@ teardown() {
     run hk util fix-smart-quotes --check file2.txt
     assert_failure
 }
+
+@test "util fix-smart-quotes --diff - outputs unified diff" {
+    python3 -c "print('\u201Csmart\u201D')" > file1.txt
+
+    run hk util fix-smart-quotes --diff file1.txt
+    assert_failure
+    assert_output --partial '--- a/file1.txt
++++ b/file1.txt
+@@ -1 +1 @@
+-“smart”
++"smart"'
+}
