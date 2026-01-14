@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Generate pkl/Builtins.pkl from all builtins/*.pkl files"
-#MISE sources = ["pkl/builtins/*/*.pkl", "mise-tasks/pkl/gen"]
+#MISE sources = ["pkl/builtins/*.pkl", "mise-tasks/pkl/gen"]
 #MISE outputs=["pkl/Builtins.pkl"]
 
 set -euo pipefail
