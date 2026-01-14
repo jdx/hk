@@ -6,6 +6,10 @@ import "./test/helpers.pkl"
   category = "Special Purpose"
   description = "Remove UTF-8 BOM"
 }
+@Deprecated {
+  since = "1.30.0"
+  message = "Use `Builtins/byte_order_marker.pkl`"
+}
 fix_byte_order_marker = new Config.Step {
   glob = "**/*"
   stage = "<JOB_FILES>"
