@@ -40,14 +40,14 @@ impl FixSmartQuotes {
         let mut found_issues = false;
 
         for file_path in &self.files {
-            if self.check {
-                if has_smart_quotes(file_path)? {
-                    println!("{}", file_path.display());
-                    found_issues = true;
-                }
-            } else if self.diff {
+            if self.diff {
                 if let Some(diff) = generate_diff(file_path)? {
                     print!("{}", diff);
+                    found_issues = true;
+                }
+            } else if self.check {
+                if has_smart_quotes(file_path)? {
+                    println!("{}", file_path.display());
                     found_issues = true;
                 }
             } else {
