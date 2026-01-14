@@ -27,4 +27,5 @@ for filepath in pkl/builtins/*.pkl; do
     echo "$identifier = Builtins[\"builtins/$filename.pkl\"].$identifier" >> pkl/Builtins.pkl
 done
 
+# NB: `|| true` to workaround `pkl format` exiting 11 after formatting...
 pkl format --write pkl/Builtins.pkl || true
