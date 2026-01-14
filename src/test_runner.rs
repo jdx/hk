@@ -85,7 +85,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .iter()
         .map(|(f, contents)| (tera::render(f, &tctx).unwrap_or(f.clone()).into(), contents))
         .collect();
-    let files: Vec<PathBuf> = match &test.files {
+    let mut files: Vec<PathBuf> = match &test.files {
         Some(files) => files
             .iter()
             .map(|f| tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
@@ -94,7 +94,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         None => rendered_write.keys().cloned().collect(),
     };
     if test.files.is_none() {
-        step.filter_files(&files)?;
+        files = step.filter_files(&files)?;
     }
 
     // Decide whether to use a sandbox based on whether files reference {{tmp}}.
