@@ -822,7 +822,6 @@ impl Hook {
             files
                 .iter()
                 .map(|f| {
-                    let f = f.strip_prefix("./").unwrap_or(f);
                     let p = PathBuf::from(f);
                     if p.is_dir() {
                         all_files_in_dir(&p)
@@ -879,6 +878,17 @@ impl Hook {
                 .cloned()
                 .collect()
         };
+
+        // Strip leading "./" from all paths for consistent matching
+        files = files
+            .into_iter()
+            .map(|f| {
+                f.to_str()
+                    .and_then(|s| s.strip_prefix("./"))
+                    .map(PathBuf::from)
+                    .unwrap_or(f)
+            })
+            .collect();
 
         // Filter out directories (including symlinks to directories)
         // git ls-files includes symlinks, which may point to directories
