@@ -106,4 +106,7 @@ EOF
 
     run hk check ./file.txt
     assert_success
+
+    run hk check .
+    assert_success
 }
