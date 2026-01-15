@@ -81,3 +81,29 @@ EOF
 '
     assert_output --partial '[warn] Code style issues found in 2 files.'
 }
+
+
+@test "exclude with leading dot" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["error"] {
+                glob = "*.txt"
+                exclude = List("file.txt")
+                check = "echo {{ files }} && exit 1"
+            }
+        }
+    }
+}
+EOF
+    touch file.txt
+
+    run hk check --all
+    assert_success
+
+    run hk check ./file.txt
+    assert_success
+}

@@ -822,6 +822,8 @@ impl Hook {
             files
                 .iter()
                 .map(|f| {
+                    // Strip leading "./" from paths for consistent matching
+                    let f = f.strip_prefix("./").unwrap_or(f);
                     let p = PathBuf::from(f);
                     if p.is_dir() {
                         all_files_in_dir(&p)
