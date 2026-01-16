@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -6,6 +7,7 @@ use crate::{
     step::RunType,
     step::Step,
     step_test::{RunKind, StepTest},
+    tera,
 };
 use ensembler::CmdLineRunner;
 
@@ -23,7 +25,7 @@ pub struct TestResult {
 
 async fn execute_cmd(
     step: &Step,
-    tctx: &crate::tera::Context,
+    tctx: &tera::Context,
     base_dir: &Path,
     test: &StepTest,
     cmd_str: &str,
@@ -38,12 +40,12 @@ async fn execute_cmd(
         CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
     };
     if let Some(stdin) = stdin {
-        let rendered_stdin = crate::tera::render(stdin, tctx)?;
+        let rendered_stdin = tera::render(stdin, tctx)?;
         runner = runner.stdin_string(rendered_stdin);
     }
     runner = runner.arg(cmd_str).current_dir(base_dir);
     for (k, v) in &step.env {
-        let v = crate::tera::render(v, tctx)?;
+        let v = tera::render(v, tctx)?;
         runner = runner.env(k, v);
     }
     for (k, v) in &test.env {
@@ -77,50 +79,58 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .unwrap_or_else(|_| tmp.path().to_path_buf());
     let mut tctx = crate::tera::Context::default();
     tctx.insert("tmp", &sandbox.display().to_string());
+
+    let rendered_write: IndexMap<PathBuf, &String> = test
+        .write
+        .iter()
+        .map(|(f, contents)| {
+            (
+                tera::render(f, &tctx).unwrap_or_else(|_| f.clone()).into(),
+                contents,
+            )
+        })
+        .collect();
+    let mut files: Vec<PathBuf> = match &test.files {
+        Some(files) => files
+            .iter()
+            .map(|f| tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
+            .map(PathBuf::from)
+            .collect(),
+        None => rendered_write.keys().cloned().collect(),
+    };
+
     // Decide whether to use a sandbox based on whether files reference {{tmp}}.
     // If not, operate from the project root instead.
-    let use_sandbox = match &test.files {
-        Some(files) => files.iter().any(|f| f.contains("{{tmp}}")),
-        None => test.write.keys().any(|f| f.contains("{{tmp}}")),
-    };
+    let uses_sandbox = files.iter().any(|p| p.starts_with(&sandbox));
+
+    if test.files.is_none() {
+        files = step.filter_files(&files)?;
+    }
+
     let cwd = std::env::current_dir().unwrap_or_default();
     let root = xx::file::find_up(&cwd, &[".git"])
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or(cwd);
-    let base_dir = if use_sandbox { &sandbox } else { &root };
+    let base_dir = if uses_sandbox {
+        sandbox.to_path_buf()
+    } else {
+        root
+    };
     if let Some(fixture) = &test.fixture {
         let src = PathBuf::from(fixture);
-        xx::file::copy_dir_all(&src, base_dir)?;
+        xx::file::copy_dir_all(&src, &base_dir)?;
     }
-    for (rel, contents) in &test.write {
-        let rendered = crate::tera::render(rel, &tctx)?;
+    for (p, contents) in &rendered_write {
         let path = {
-            let p = PathBuf::from(&rendered);
             if p.is_absolute() {
-                p
+                p.clone()
             } else {
-                base_dir.join(&rendered)
+                base_dir.join(p)
             }
         };
         xx::file::write(&path, contents)?;
     }
 
-    let files: Vec<PathBuf> = match &test.files {
-        Some(files) => files
-            .iter()
-            .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
-            .map(PathBuf::from)
-            .collect(),
-        None => {
-            let all_keys: Vec<PathBuf> = test
-                .write
-                .keys()
-                .map(|f| crate::tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
-                .map(PathBuf::from)
-                .collect();
-            step.filter_files(&all_keys)?
-        }
-    };
     tctx.with_files(step.shell_type(), &files);
 
     // Handle `workspace_indicator`
@@ -156,15 +166,15 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     if let Some(prefix) = &step.prefix {
         run = format!("{prefix} {run}");
     }
-    let run = crate::tera::render(&run, &tctx)?;
+    let run = tera::render(&run, &tctx)?;
 
     // Run pre-command (before)
     let mut before_stdout = String::new();
     let mut before_stderr = String::new();
     if let Some(cmd_str) = &test.before {
-        let rendered = crate::tera::render(cmd_str, &tctx)?;
+        let rendered = tera::render(cmd_str, &tctx)?;
         let (stdout, stderr, code) =
-            execute_cmd(step, &tctx, base_dir, test, &rendered, &None).await?;
+            execute_cmd(step, &tctx, &base_dir, test, &rendered, &None).await?;
         before_stdout = stdout.clone();
         before_stderr = stderr.clone();
         if code != 0 {
@@ -184,14 +194,14 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     // Run main command
 
     let (stdout, stderr, code) =
-        execute_cmd(step, &tctx, base_dir, test, &run, &step.stdin).await?;
+        execute_cmd(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
 
     // Run post-command (after) before evaluating expectations so it can contribute to assertions
     let mut after_fail: Option<(i32, String, String)> = None;
     if let Some(cmd_str) = &test.after {
-        let rendered = crate::tera::render(cmd_str, &tctx)?;
+        let rendered = tera::render(cmd_str, &tctx)?;
         let (a_stdout, a_stderr, a_code) =
-            execute_cmd(step, &tctx, base_dir, test, &rendered, &None).await?;
+            execute_cmd(step, &tctx, &base_dir, test, &rendered, &None).await?;
         if a_code != 0 {
             after_fail = Some((a_code, a_stdout, a_stderr));
         }
@@ -223,7 +233,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         reasons.push(format!("stderr missing: {}", needle));
     }
     for (rel, expected) in &test.expect.files {
-        let rendered = crate::tera::render(rel, &tctx)?;
+        let rendered = tera::render(rel, &tctx)?;
         let path = {
             let p = PathBuf::from(&rendered);
             if p.is_absolute() {
