@@ -1,6 +1,6 @@
 use crate::Result;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
@@ -69,7 +69,7 @@ fn read_if_has_bom(path: &PathBuf) -> Result<Option<Vec<u8>>> {
     }
 }
 
-fn generate_diff(path: &PathBuf, content_with_bom: &[u8]) -> String {
+fn generate_diff(path: &Path, content_with_bom: &[u8]) -> String {
     let original = String::from_utf8_lossy(content_with_bom);
     let without_bom = String::from_utf8_lossy(&content_with_bom[UTF8_BOM.len()..]);
     let path_str = path.display().to_string();
