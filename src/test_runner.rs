@@ -101,7 +101,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Decide whether to use a sandbox based on whether files reference {{tmp}}.
     // If not, operate from the project root instead.
-    let uses_sandbox = files.iter().any(|p| p.starts_with(sandbox));
+    let uses_sandbox = files.iter().any(|p| p.starts_with(&sandbox));
 
     if test.files.is_none() {
         files = step.filter_files(&files)?;
