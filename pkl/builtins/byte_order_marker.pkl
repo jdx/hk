@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 byte_order_marker = new Config.Step {
   glob = "**/*"
   stage = "<JOB_FILES>"
-  check = "hk util check-byte-order-marker {{files}}"
+  check_diff = "hk util check-byte-order-marker --diff {{files}}"
   fix = "hk util fix-byte-order-marker {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.txt" }

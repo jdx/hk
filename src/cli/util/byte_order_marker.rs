@@ -1,11 +1,15 @@
 use crate::Result;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
 #[derive(Debug, clap::Args)]
 pub struct CheckByteOrderMarker {
+    /// Output a diff of the change.
+    #[clap(short, long)]
+    pub diff: bool,
+
     /// Files to check
     #[clap(required = true)]
     pub files: Vec<PathBuf>,
@@ -16,8 +20,12 @@ impl CheckByteOrderMarker {
         let mut found_bom = false;
 
         for file_path in &self.files {
-            if has_bom(file_path)? {
-                println!("{}", file_path.display());
+            if let Some(content) = read_if_has_bom(file_path)? {
+                if self.diff {
+                    print!("{}", generate_diff(file_path, &content));
+                } else {
+                    println!("{}", file_path.display());
+                }
                 found_bom = true;
             }
         }
@@ -47,14 +55,30 @@ impl FixByteOrderMarker {
     }
 }
 
-fn has_bom(path: &PathBuf) -> Result<bool> {
-    // Read first 3 bytes to check for UTF-8 BOM
+/// Returns the file content if it has a BOM, None otherwise
+fn read_if_has_bom(path: &PathBuf) -> Result<Option<Vec<u8>>> {
     let bytes = match fs::read(path) {
         Ok(b) => b,
-        Err(_) => return Ok(false), // File doesn't exist or can't be read
+        Err(_) => return Ok(None),
     };
 
-    Ok(bytes.starts_with(UTF8_BOM))
+    if bytes.starts_with(UTF8_BOM) {
+        Ok(Some(bytes))
+    } else {
+        Ok(None)
+    }
+}
+
+fn generate_diff(path: &Path, content_with_bom: &[u8]) -> String {
+    let original = String::from_utf8_lossy(content_with_bom);
+    let without_bom = String::from_utf8_lossy(&content_with_bom[UTF8_BOM.len()..]);
+    let path_str = path.display().to_string();
+    crate::diff::render_unified_diff(
+        &original,
+        &without_bom,
+        &format!("a/{}", path_str),
+        &format!("b/{}", path_str),
+    )
 }
 
 fn remove_bom(path: &PathBuf) -> Result<()> {
@@ -84,7 +108,7 @@ mod tests {
         content.extend_from_slice(b"Hello, world!");
         fs::write(&file, content).unwrap();
 
-        let result = has_bom(&file).unwrap();
+        let result = read_if_has_bom(&file).unwrap().is_some();
         assert!(result);
     }
 
@@ -95,8 +119,8 @@ mod tests {
 
         fs::write(&file, "Hello, world!").unwrap();
 
-        let result = has_bom(&file).unwrap();
-        assert!(!result);
+        let result = read_if_has_bom(&file).unwrap().is_none();
+        assert!(result);
     }
 
     #[test]
@@ -106,8 +130,8 @@ mod tests {
 
         fs::write(&file, "").unwrap();
 
-        let result = has_bom(&file).unwrap();
-        assert!(!result);
+        let result = read_if_has_bom(&file).unwrap().is_none();
+        assert!(result);
     }
 
     #[test]
@@ -117,8 +141,8 @@ mod tests {
 
         fs::write(&file, "Hi").unwrap();
 
-        let result = has_bom(&file).unwrap();
-        assert!(!result);
+        let result = read_if_has_bom(&file).unwrap().is_none();
+        assert!(result);
     }
 
     #[test]
@@ -126,8 +150,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let file = dir.path().join("nonexistent");
 
-        let result = has_bom(&file).unwrap();
-        assert!(!result);
+        let result = read_if_has_bom(&file).unwrap().is_none();
+        assert!(result);
     }
 
     #[test]
@@ -138,8 +162,8 @@ mod tests {
         // Only first 2 bytes of BOM
         fs::write(&file, [0xEF, 0xBB, 0x00]).unwrap();
 
-        let result = has_bom(&file).unwrap();
-        assert!(!result);
+        let result = read_if_has_bom(&file).unwrap().is_none();
+        assert!(result);
     }
 
     #[test]
