@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "JavaScript/TypeScript"
@@ -10,4 +11,13 @@ biome = new Config.Step {
   stage = "<JOB_FILES>"
   check = "biome check {{ files }}"
   fix = "biome check --write {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.ts" }
+    local const before = "x=1"
+    local const after = "x = 1;\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
 }
