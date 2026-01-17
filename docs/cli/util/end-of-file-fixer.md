@@ -2,7 +2,7 @@
 
 # `hk util end-of-file-fixer`
 
-- **Usage**: `hk util end-of-file-fixer [-f --fix] <FILES>…`
+- **Usage**: `hk util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…`
 
 Check for and optionally fix missing final newlines
 
@@ -13,6 +13,10 @@ Check for and optionally fix missing final newlines
 Files to check/fix
 
 ## Flags
+
+### `-d --diff`
+
+Output a diff of the change. Cannot use with `fix`
 
 ### `-f --fix`
 

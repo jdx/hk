@@ -2241,7 +2241,7 @@
           },
           "check-byte-order-marker": {
             "full_cmd": ["util", "check-byte-order-marker"],
-            "usage": "util check-byte-order-marker <FILES>…",
+            "usage": "util check-byte-order-marker [-d --diff] <FILES>…",
             "subcommands": {},
             "args": [
               {
@@ -2255,7 +2255,18 @@
                 "hide": false
               }
             ],
-            "flags": [],
+            "flags": [
+              {
+                "name": "diff",
+                "usage": "-d --diff",
+                "help": "Output a diff of the change",
+                "help_first_line": "Output a diff of the change",
+                "short": ["d"],
+                "long": ["diff"],
+                "hide": false,
+                "global": false
+              }
+            ],
             "mounts": [],
             "hide": false,
             "help": "Check for UTF-8 byte order marker (BOM)",
@@ -2444,7 +2455,7 @@
           },
           "end-of-file-fixer": {
             "full_cmd": ["util", "end-of-file-fixer"],
-            "usage": "util end-of-file-fixer [-f --fix] <FILES>…",
+            "usage": "util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…",
             "subcommands": {},
             "args": [
               {
@@ -2459,6 +2470,16 @@
               }
             ],
             "flags": [
+              {
+                "name": "diff",
+                "usage": "-d --diff",
+                "help": "Output a diff of the change. Cannot use with `fix`",
+                "help_first_line": "Output a diff of the change. Cannot use with `fix`",
+                "short": ["d"],
+                "long": ["diff"],
+                "hide": false,
+                "global": false
+              },
               {
                 "name": "fix",
                 "usage": "-f --fix",
@@ -2505,21 +2526,42 @@
           },
           "fix-smart-quotes": {
             "full_cmd": ["util", "fix-smart-quotes"],
-            "usage": "util fix-smart-quotes <FILES>…",
+            "usage": "util fix-smart-quotes [--check] [-d --diff] <FILES>…",
             "subcommands": {},
             "args": [
               {
                 "name": "FILES",
                 "usage": "<FILES>…",
-                "help": "Files to replace smart quotes in",
-                "help_first_line": "Files to replace smart quotes in",
+                "help": "Files to check/fix",
+                "help_first_line": "Files to check/fix",
                 "required": true,
                 "double_dash": "Optional",
                 "var": true,
                 "hide": false
               }
             ],
-            "flags": [],
+            "flags": [
+              {
+                "name": "check",
+                "usage": "--check",
+                "help": "Check for smart quotes without fixing them",
+                "help_first_line": "Check for smart quotes without fixing them",
+                "short": [],
+                "long": ["check"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "diff",
+                "usage": "-d --diff",
+                "help": "Output a diff of the change (implies `--check`)",
+                "help_first_line": "Output a diff of the change (implies `--check`)",
+                "short": ["d"],
+                "long": ["diff"],
+                "hide": false,
+                "global": false
+              }
+            ],
             "mounts": [],
             "hide": false,
             "help": "Replace UTF-8 smart quotes",
@@ -2530,7 +2572,7 @@
           },
           "mixed-line-ending": {
             "full_cmd": ["util", "mixed-line-ending"],
-            "usage": "util mixed-line-ending [-f --fix] <FILES>…",
+            "usage": "util mixed-line-ending [-d --diff] [-f --fix] <FILES>…",
             "subcommands": {},
             "args": [
               {
@@ -2545,6 +2587,16 @@
               }
             ],
             "flags": [
+              {
+                "name": "diff",
+                "usage": "-d --diff",
+                "help": "Output a diff of the change. Cannot use with `fix`",
+                "help_first_line": "Output a diff of the change. Cannot use with `fix`",
+                "short": ["d"],
+                "long": ["diff"],
+                "hide": false,
+                "global": false
+              },
               {
                 "name": "fix",
                 "usage": "-f --fix",
@@ -2649,7 +2701,7 @@
           },
           "trailing-whitespace": {
             "full_cmd": ["util", "trailing-whitespace"],
-            "usage": "util trailing-whitespace [-f --fix] <FILES>…",
+            "usage": "util trailing-whitespace [-d --diff] [-f --fix] <FILES>…",
             "subcommands": {},
             "args": [
               {
@@ -2664,6 +2716,16 @@
               }
             ],
             "flags": [
+              {
+                "name": "diff",
+                "usage": "-d --diff",
+                "help": "Output a diff of the change. Cannot use with `fix`",
+                "help_first_line": "Output a diff of the change. Cannot use with `fix`",
+                "short": ["d"],
+                "long": ["diff"],
+                "hide": false,
+                "global": false
+              },
               {
                 "name": "fix",
                 "usage": "-f --fix",
@@ -2861,7 +2923,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.29.0",
+  "version": "1.30.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

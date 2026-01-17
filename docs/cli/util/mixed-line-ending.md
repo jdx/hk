@@ -2,7 +2,7 @@
 
 # `hk util mixed-line-ending`
 
-- **Usage**: `hk util mixed-line-ending [-f --fix] <FILES>…`
+- **Usage**: `hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`
 
 Detect and fix mixed line endings
 
@@ -13,6 +13,10 @@ Detect and fix mixed line endings
 Files to check or fix
 
 ## Flags
+
+### `-d --diff`
+
+Output a diff of the change. Cannot use with `fix`
 
 ### `-f --fix`
 
