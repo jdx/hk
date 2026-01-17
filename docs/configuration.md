@@ -11,8 +11,8 @@ hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.or
 Here's a basic `hk.pkl` file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.29.0/hk@1.29.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.29.0/hk@1.29.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // linters can be manually defined
@@ -160,8 +160,8 @@ The hkrc file follows the same format as `hk.pkl` and can be used to define glob
 Example hkrc file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.29.0/hk@1.29.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.29.0/hk@1.29.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Builtins.pkl"
 
 local linters {
     ["prettier"] = Builtins.prettier

@@ -2,7 +2,7 @@
 
 # `hk util trailing-whitespace`
 
-- **Usage**: `hk util trailing-whitespace [-f --fix] <FILES>…`
+- **Usage**: `hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`
 
 Check for and optionally fix trailing whitespace
 
@@ -13,6 +13,10 @@ Check for and optionally fix trailing whitespace
 Files to check/fix
 
 ## Flags
+
+### `-d --diff`
+
+Output a diff of the change. Cannot use with `fix`
 
 ### `-f --fix`
 

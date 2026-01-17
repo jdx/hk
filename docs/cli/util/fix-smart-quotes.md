@@ -2,7 +2,7 @@
 
 # `hk util fix-smart-quotes`
 
-- **Usage**: `hk util fix-smart-quotes <FILES>…`
+- **Usage**: `hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`
 
 Replace UTF-8 smart quotes
 
@@ -10,4 +10,14 @@ Replace UTF-8 smart quotes
 
 ### `<FILES>…`
 
-Files to replace smart quotes in
+Files to check/fix
+
+## Flags
+
+### `--check`
+
+Check for smart quotes without fixing them
+
+### `-d --diff`
+
+Output a diff of the change (implies `--check`)

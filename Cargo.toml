@@ -23,7 +23,7 @@ license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
 rust-version = "1.88.0"
-version = "1.29.0"
+version = "1.30.0"
 
 [[bin]]
 name = "generate-docs"
