@@ -24,7 +24,7 @@ static BASE_CONTEXT: LazyLock<tera::Context> = LazyLock::new(|| {
 
 #[derive(Clone)]
 pub struct Context {
-    ctx: tera::Context,
+    pub ctx: tera::Context,
 }
 
 impl Default for Context {

@@ -70,7 +70,7 @@ async fn execute_cmd(
     Ok((stdout, stderr, code))
 }
 
-pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<TestResult> {
+pub async fn run_test_named(step: &mut Step, name: &str, test: &StepTest) -> Result<TestResult> {
     let started_at = Instant::now();
     let tmp = tempfile::tempdir().unwrap();
     let sandbox = tmp
@@ -99,23 +99,25 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         None => rendered_write.keys().cloned().collect(),
     };
 
-    // Decide whether to use a sandbox based on whether files reference {{tmp}}.
-    // If not, operate from the project root instead.
-    let uses_sandbox = files.iter().any(|p| p.starts_with(&sandbox));
-
-    if test.files.is_none() {
-        files = step.filter_files(&files)?;
-    }
-
     let cwd = std::env::current_dir().unwrap_or_default();
     let root = xx::file::find_up(&cwd, &[".git"])
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or(cwd);
+    // Decide whether to use a sandbox based on whether files reference {{tmp}}.
+    // If not, operate from the project root instead.
+    let uses_sandbox = files.iter().any(|p| p.starts_with(&sandbox));
     let base_dir = if uses_sandbox {
         sandbox.to_path_buf()
     } else {
         root
     };
+    // Set the step dir to the base_dir (this ensures correct filtering)
+    step.dir = Some(base_dir.display().to_string());
+
+    if test.files.is_none() {
+        files = step.filter_files(&files)?;
+    }
+
     if let Some(fixture) = &test.fixture {
         let src = PathBuf::from(fixture);
         xx::file::copy_dir_all(&src, &base_dir)?;
@@ -265,6 +267,22 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     } else {
         format!("[before]\n{}\n[main]\n{}", before_stderr, stderr)
     };
+
+    for (varname, expected) in &test.expect.tera {
+        if let Some(actual) = tctx.ctx.get(varname) {
+            let expected = tera::render(expected, &tctx)?;
+            if *expected != *actual {
+                pass = false;
+                reasons.push(format!(
+                    "tera variable '{}' had '{}' expected '{}'",
+                    varname, actual, expected
+                ));
+            }
+        } else {
+            pass = false;
+            reasons.push(format!("Unexpected tera variable: {}", varname));
+        }
+    }
 
     Ok(TestResult {
         step: step.name.clone(),

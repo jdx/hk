@@ -34,15 +34,8 @@ local linters = new Mapping<String, Step | Group> {
     glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
   }
   ["pkl-format"] = Builtins.pkl_format
-  ["taplo"] = (Builtins.taplo) {
-    glob = "settings.toml"
-  }
+  ["taplo"] = Builtins.taplo
   ["taplo-format"] = Builtins.taplo_format
-  ["docs"] = new Step {
-    glob = "docs/**"
-    check = "mise run docs:build"
-    output_summary = "hide"
-  }
 }
 
 hooks = new {

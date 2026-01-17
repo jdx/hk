@@ -826,6 +826,11 @@ class StepTestExpect {
 
   /// Expected files after run: path => full contents (exact match)
   files: Mapping<String, String> = new Mapping<String, String> {}
+
+  /// Expected value of tera variables). Some examples:
+  /// - files: string-escaped, space-separated list of files (can use {{tmp}}))
+  ///          (relevant if you aren't specifying the test `files`)
+  tera: Mapping<String, String> = new Mapping<String, String> {}
 }
 
 class Group {
