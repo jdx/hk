@@ -879,6 +879,17 @@ impl Hook {
                 .collect()
         };
 
+        // Strip leading "./" from all paths for consistent matching
+        files = files
+            .into_iter()
+            .map(|f| {
+                f.to_str()
+                    .and_then(|s| s.strip_prefix("./"))
+                    .map(PathBuf::from)
+                    .unwrap_or(f)
+            })
+            .collect();
+
         // Filter out directories (including symlinks to directories)
         // git ls-files includes symlinks, which may point to directories
         files.retain(|f| {
