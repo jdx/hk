@@ -52,10 +52,10 @@ fi
 # Create the release header with appropriate URL format
 RELEASE_DATE="$(date +%Y-%m-%d)"
 if [[ -n $prev_tag ]]; then
-  RELEASE_HEADER="## [$version](https://github.com/jdx/hk/compare/$prev_tag..$version) - $RELEASE_DATE"
+  RELEASE_HEADER="## [${version#v}](https://github.com/jdx/hk/compare/$prev_tag..$version) - $RELEASE_DATE"
 else
   # No previous tag - link to the tag directly instead of a compare URL
-  RELEASE_HEADER="## [$version](https://github.com/jdx/hk/releases/tag/$version) - $RELEASE_DATE"
+  RELEASE_HEADER="## [${version#v}](https://github.com/jdx/hk/releases/tag/$version) - $RELEASE_DATE"
 fi
 
 # Insert the new release before the first existing release section (## [)
