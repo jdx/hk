@@ -376,6 +376,10 @@ fn get_types_by_extension(ext: &str) -> Option<HashSet<String>> {
             types.insert("text".to_string());
             types.insert("rst".to_string());
         }
+        "adoc" => {
+            types.insert("text".to_string());
+            types.insert("asciidoc".to_string());
+        }
         "html" | "htm" => {
             types.insert("text".to_string());
             types.insert("html".to_string());
