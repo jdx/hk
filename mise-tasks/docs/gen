@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#MISE depends=["pkl:gen"]
 
 set -eu
 
