@@ -143,6 +143,8 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
     builtin_files.sort_by_key(|e| e.path());
 
     let mut builtins_info: Vec<BuiltinInfo> = Vec::new();
+    let total_files = builtin_files.len();
+    let mut failed_files = 0;
 
     for entry in builtin_files {
         let path = entry.path();
@@ -166,48 +168,57 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                 path.display(),
                 String::from_utf8_lossy(&output.stderr)
             );
-            continue;
-        }
+            failed_files += 1;
+        } else {
+            let json_str = String::from_utf8(output.stdout)?;
+            let reflected: serde_json::Value = serde_json::from_str(&json_str)?;
 
-        let json_str = String::from_utf8(output.stdout)?;
-        let reflected: serde_json::Value = serde_json::from_str(&json_str)?;
+            // Extract metadata from the reflected module
+            let module_class = reflected.get("moduleClass");
+            let properties = module_class.and_then(|mc| mc.get("properties"));
 
-        // Extract metadata from the reflected module
-        let module_class = reflected.get("moduleClass");
-        let properties = module_class.and_then(|mc| mc.get("properties"));
-
-        if let Some(serde_json::Value::Object(props)) = properties {
-            for (name, prop) in props {
-                // Get annotations from the property
-                let annotations = prop.get("annnotations"); // Note: typo in reflect.pkl
-                let (category, description) =
-                    if let Some(serde_json::Value::Array(anns)) = annotations {
-                        let mut cat = "Uncategorized".to_string();
-                        let mut desc = String::new();
-                        for ann in anns {
-                            if let Some(c) = ann.get("category").and_then(|v| v.as_str()) {
-                                cat = c.to_string();
+            if let Some(serde_json::Value::Object(props)) = properties {
+                for (name, prop) in props {
+                    // Get annotations from the property
+                    let annotations = prop.get("annnotations"); // Note: typo in reflect.pkl
+                    let (category, description) =
+                        if let Some(serde_json::Value::Array(anns)) = annotations {
+                            let mut cat = "Uncategorized".to_string();
+                            let mut desc = String::new();
+                            for ann in anns {
+                                if let Some(c) = ann.get("category").and_then(|v| v.as_str()) {
+                                    cat = c.to_string();
+                                }
+                                if let Some(d) = ann.get("description").and_then(|v| v.as_str()) {
+                                    desc = d.to_string();
+                                }
                             }
-                            if let Some(d) = ann.get("description").and_then(|v| v.as_str()) {
-                                desc = d.to_string();
-                            }
-                        }
-                        (cat, desc)
-                    } else {
-                        ("Uncategorized".to_string(), String::new())
-                    };
+                            (cat, desc)
+                        } else {
+                            ("Uncategorized".to_string(), String::new())
+                        };
 
-                let step: serde_json::Value =
-                    serde_json::from_str(prop.get("defaultValue").unwrap().as_str().unwrap())?;
+                    let step: serde_json::Value =
+                        serde_json::from_str(prop.get("defaultValue").unwrap().as_str().unwrap())?;
 
-                builtins_info.push(BuiltinInfo {
-                    name: name.clone(),
-                    category,
-                    description,
-                    step,
-                });
+                    builtins_info.push(BuiltinInfo {
+                        name: name.clone(),
+                        category,
+                        description,
+                        step,
+                    });
+                }
             }
         }
+    }
+
+    // Fail if all builtins failed to reflect (likely a setup issue like missing pkl/Builtins.pkl)
+    if failed_files == total_files && total_files > 0 {
+        return Err(format!(
+            "All {} builtin files failed to reflect. Is pkl/Builtins.pkl generated? Run 'mise run pkl:gen'",
+            total_files
+        )
+        .into());
     }
 
     // Group by category
