@@ -108,7 +108,10 @@ jobs:
           fetch-depth: 0
       - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3
       - name: Generate release notes
-        run: git cliff --latest > release-notes.md && cat release-notes.md
+        run: |
+          # Extract the latest release section from CHANGELOG.md (includes LLM summary)
+          awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
+          cat release-notes.md
       - name: Download all artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
