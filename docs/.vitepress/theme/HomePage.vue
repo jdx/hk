@@ -134,12 +134,16 @@ import { ref } from 'vue'
 
 const copied = ref(false)
 
-const copyToClipboard = () => {
-  navigator.clipboard.writeText('mise use hk')
-  copied.value = true
-  setTimeout(() => {
-    copied.value = false
-  }, 2000)
+const copyToClipboard = async () => {
+  try {
+    await navigator.clipboard.writeText('mise use hk')
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 2000)
+  } catch {
+    // Clipboard write failed - don't show success state
+  }
 }
 </script>
 
