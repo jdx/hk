@@ -11,8 +11,8 @@ hk provides 90+ pre-configured linters and formatters through the `Builtins` mod
 Import and use builtins in your `hk.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.31.0/hk@1.31.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.31.0/hk@1.31.0#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
