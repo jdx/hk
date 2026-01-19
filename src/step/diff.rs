@@ -78,11 +78,11 @@ impl Step {
         };
 
         // Write diff to stdin
-        if let Some(stdin) = child.stdin.as_mut() {
-            if let Err(e) = stdin.write_all(diff_content.as_bytes()) {
-                warn!("{}: failed to write diff to git apply: {}", self.name, e);
-                return Ok(false);
-            }
+        if let Some(stdin) = child.stdin.as_mut()
+            && let Err(e) = stdin.write_all(diff_content.as_bytes())
+        {
+            warn!("{}: failed to write diff to git apply: {}", self.name, e);
+            return Ok(false);
         }
 
         let output = match child.wait_with_output() {
