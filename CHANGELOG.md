@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.32.0](https://github.com/jdx/hk/compare/v1.31.0..v1.32.0) - 2026-01-19
+
+### 🚀 Features
+
+- **(docs)** add nautical theme to feature cards by [@jdx](https://github.com/jdx) in [#617](https://github.com/jdx/hk/pull/617)
+
+### 🐛 Bug Fixes
+
+- skip config loading for completion/usage/version commands by [@jdx](https://github.com/jdx) in [#615](https://github.com/jdx/hk/pull/615)
+- install Claude Code CLI in release workflow by [@jdx](https://github.com/jdx) in [#614](https://github.com/jdx/hk/pull/614)
+
+### 📚 Documentation
+
+- update branding with new logo and electric blue theme by [@jdx](https://github.com/jdx) in [#616](https://github.com/jdx/hk/pull/616)
+
 ## [1.31.0](https://github.com/jdx/hk/compare/v1.30.0..v1.31.0) - 2026-01-19
 
 ### 🚀 Features
@@ -13,6 +28,7 @@
 - make pkl:dist task executable by [@joonas](https://github.com/joonas) in [#607](https://github.com/jdx/hk/pull/607)
 - prevent docs build from silently failing when pkl:gen is skipped by [@jdx](https://github.com/jdx) in [#609](https://github.com/jdx/hk/pull/609)
 - add ci-nogit to final job dependencies by [@jdx](https://github.com/jdx) in [#611](https://github.com/jdx/hk/pull/611)
+- update claude CLI model and add bypassPermissions by [@jdx](https://github.com/jdx) in [#612](https://github.com/jdx/hk/pull/612)
 
 ### 🚜 Refactor
 

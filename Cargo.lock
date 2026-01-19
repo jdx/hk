@@ -1167,7 +1167,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hk"
-version = "1.31.0"
+version = "1.32.0"
 dependencies = [
  "arc-swap",
  "chrono",
@@ -3562,9 +3562,9 @@ dependencies = [
 
 [[package]]
 name = "usage-lib"
-version = "2.12.0"
+version = "2.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc4aa51ba63f3a75ed3a0ae077ceb3f65fb685c90b616508f7e32f846176a727"
+checksum = "740feb3935827422f9e7c1311a48c138d8c7c3788e802b274afd029080b77d53"
 dependencies = [
  "clap",
  "heck",
@@ -3573,7 +3573,6 @@ dependencies = [
  "kdl",
  "log",
  "miette",
- "once_cell",
  "regex",
  "roff",
  "serde",
@@ -3582,7 +3581,7 @@ dependencies = [
  "tera",
  "thiserror",
  "versions",
- "xx 2.3.0",
+ "xx 2.3.1",
 ]
 
 [[package]]
@@ -4216,9 +4215,9 @@ dependencies = [
 
 [[package]]
 name = "xx"
-version = "2.3.0"
+version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "704f7d8fce796d9206ab2f0a04a0c59c54394105b838b236d6687e8eef721440"
+checksum = "b2df0028c106b318c37108eaa6930ee85c73e0ad03e2d54dfe7fea44975c1259"
 dependencies = [
  "duct",
  "filetime",
