@@ -124,7 +124,15 @@ jobs:
           # Get previous version for context
           PREV_TAG=$(git describe --tags --abbrev=0 "$TAG_NAME^" 2>/dev/null || echo "")
 
-          mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > release-notes.md
+          # Generate release notes (first line is creative title, rest is body)
+          mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > /tmp/release-full.txt
+
+          # Extract title and body
+          RELEASE_TITLE="$TAG_NAME - $(head -1 /tmp/release-full.txt)"
+          tail -n +3 /tmp/release-full.txt > release-notes.md
+
+          echo "Release title: $RELEASE_TITLE"
+          echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
           cat release-notes.md
       - name: Download all artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
@@ -148,6 +156,6 @@ jobs:
             TAG_NAME="${{ github.ref_name }}"
           fi
           gh release create "$TAG_NAME" \
-            --title "$TAG_NAME" \
+            --title "$RELEASE_TITLE" \
             --notes-file release-notes.md \
             release-assets/*
