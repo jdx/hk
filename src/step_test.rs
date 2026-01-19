@@ -49,4 +49,7 @@ pub struct StepTestExpect {
     /// Map of path -> full expected file contents (exact match)
     #[serde(default)]
     pub files: IndexMap<String, String>,
+    /// Map of tera variable -> expected value
+    #[serde(default)]
+    pub tera: IndexMap<String, String>,
 }

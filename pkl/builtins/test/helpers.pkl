@@ -36,6 +36,9 @@ class TestMaker {
       files = new Mapping<String, String> {
         [sandboxFilename] = contentAfter
       }
+      tera = new Mapping<String, String> {
+        ["files"] = sandboxFilename
+      }
     }
   }
 
