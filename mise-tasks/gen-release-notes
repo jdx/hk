@@ -34,18 +34,28 @@ prompt=$(
 	printf '%s\n' "Here is the raw changelog from git-cliff:"
 	printf '%s\n' "$changelog"
 	printf '\n'
-	cat <<INSTRUCTIONS
-Write user-friendly release notes:
+	cat <<'INSTRUCTIONS'
+Write user-friendly release notes with a creative title:
 
-1. Start with a "## ${version}" header
-2. Follow with 1-2 paragraphs summarizing key changes
-3. Organize details into ### sections (Highlights, Bug Fixes, etc.)
-4. Explain WHY changes matter to users
-5. Include PR links and documentation links (https://hk.jdx.dev/)
-6. Include contributor usernames (@username)
-7. Skip internal changes
+FORMAT:
+- First line: A short, creative release title (2-6 words, no version number, captures the theme of the release)
+- Second line: Empty
+- Rest: The release notes
 
-Output ONLY the release notes starting with the ## header, no preamble.
+TITLE GUIDELINES:
+- Be creative and memorable (e.g., "Hook Line and Sinker", "Parallel Universe", "Lock and Load")
+- Reference the main theme or biggest feature of the release
+- Keep it fun but professional
+
+RELEASE NOTES:
+1. Start with 1-2 paragraphs summarizing key changes
+2. Organize into ### sections (Highlights, Bug Fixes, etc.)
+3. Explain WHY changes matter to users
+4. Include PR links and documentation links (https://hk.jdx.dev/)
+5. Include contributor usernames (@username)
+6. Skip internal changes
+
+Output ONLY the title, blank line, and release notes - no other preamble.
 INSTRUCTIONS
 )
 
@@ -79,17 +89,27 @@ if [[ -z $output ]]; then
 	exit 1
 fi
 
-# Strip any preamble text before the first markdown header
-output=$(echo "$output" | sed -n '/^#/,$p')
+# Extract title (first non-empty line) and body (rest after blank line)
+title=$(echo "$output" | head -1)
+body=$(echo "$output" | tail -n +3)
 
-# Validate output after stripping
-if [[ -z $output ]]; then
-	echo "Error: No markdown headers found in Claude output" >&2
+# Strip any preamble text before the first markdown header in body
+body=$(echo "$body" | sed -n '/^#\|^[A-Z]/,$p')
+
+# Validate we have both title and body
+if [[ -z $title ]]; then
+	echo "Error: No title found in Claude output" >&2
+	exit 1
+fi
+if [[ -z $body ]]; then
+	echo "Error: No body found in Claude output" >&2
 	exit 1
 fi
 
-# Output LLM summary followed by full git-cliff changelog
-echo "$output"
+# Output title on first line, blank line, then body
+echo "$title"
+echo ""
+echo "$body"
 echo ""
 echo "<details>"
 echo "<summary>Changelog</summary>"
