@@ -110,6 +110,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
       - name: Generate release notes
         run: |
           # Determine version from tag or input
@@ -122,16 +124,7 @@ jobs:
           # Get previous version for context
           PREV_TAG=$(git describe --tags --abbrev=0 "$TAG_NAME^" 2>/dev/null || echo "")
 
-          # Try to generate LLM-enhanced release notes
-          echo "Generating LLM-enhanced release notes for $TAG_NAME..."
-          if mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > release-notes.md; then
-            echo "Successfully generated LLM release notes"
-          else
-            echo "LLM generation failed, falling back to CHANGELOG.md"
-            # Extract the latest release section from CHANGELOG.md
-            awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
-          fi
-
+          mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > release-notes.md
           cat release-notes.md
       - name: Download all artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
