@@ -128,7 +128,7 @@ jobs:
           mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > /tmp/release-full.txt
 
           # Extract title and body
-          RELEASE_TITLE="$TAG_NAME - $(head -1 /tmp/release-full.txt)"
+          RELEASE_TITLE="$TAG_NAME: $(head -1 /tmp/release-full.txt)"
           tail -n +3 /tmp/release-full.txt > release-notes.md
 
           echo "Release title: $RELEASE_TITLE"
