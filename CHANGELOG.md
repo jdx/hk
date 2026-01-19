@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.31.0](https://github.com/jdx/hk/compare/v1.30.0..v1.31.0) - 2026-01-19
+
+### 🚀 Features
+
+- **(asciidoctor)** add asciidoctor config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#604](https://github.com/jdx/hk/pull/604)
+
+### 🐛 Bug Fixes
+
+- glob syntax for linters in getting_started.md by [@makp0](https://github.com/makp0) in [#593](https://github.com/jdx/hk/pull/593)
+- docs builtins generation by [@makp0](https://github.com/makp0) in [#606](https://github.com/jdx/hk/pull/606)
+- make pkl:dist task executable by [@joonas](https://github.com/joonas) in [#607](https://github.com/jdx/hk/pull/607)
+- prevent docs build from silently failing when pkl:gen is skipped by [@jdx](https://github.com/jdx) in [#609](https://github.com/jdx/hk/pull/609)
+- add ci-nogit to final job dependencies by [@jdx](https://github.com/jdx) in [#611](https://github.com/jdx/hk/pull/611)
+
+### 🚜 Refactor
+
+- break up step.rs into modular components by [@jdx](https://github.com/jdx) in [#610](https://github.com/jdx/hk/pull/610)
+- move LLM release notes to GitHub release workflow by [@jdx](https://github.com/jdx) in [#608](https://github.com/jdx/hk/pull/608)
+
+### New Contributors
+
+- @makp0 made their first contribution in [#606](https://github.com/jdx/hk/pull/606)
+
 ## [1.30.0](https://github.com/jdx/hk/compare/v1.29.0..v1.30.0) - 2026-01-17
 
 ### 🚀 Features
