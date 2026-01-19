@@ -34,17 +34,18 @@ prompt=$(
 	printf '%s\n' "Here is the raw changelog from git-cliff:"
 	printf '%s\n' "$changelog"
 	printf '\n'
-	cat <<'INSTRUCTIONS'
+	cat <<INSTRUCTIONS
 Write user-friendly release notes:
 
-1. Start with 1-2 paragraphs summarizing key changes
-2. Organize into ### sections (Highlights, Bug Fixes, etc.)
-3. Explain WHY changes matter to users
-4. Include PR links and documentation links (https://hk.jdx.dev/)
-5. Include contributor usernames (@username)
-6. Skip internal changes
+1. Start with a "## ${version}" header
+2. Follow with 1-2 paragraphs summarizing key changes
+3. Organize details into ### sections (Highlights, Bug Fixes, etc.)
+4. Explain WHY changes matter to users
+5. Include PR links and documentation links (https://hk.jdx.dev/)
+6. Include contributor usernames (@username)
+7. Skip internal changes
 
-Output ONLY the release notes, no preamble.
+Output ONLY the release notes starting with the ## header, no preamble.
 INSTRUCTIONS
 )
 
@@ -78,4 +79,20 @@ if [[ -z $output ]]; then
 	exit 1
 fi
 
+# Strip any preamble text before the first markdown header
+output=$(echo "$output" | sed -n '/^#/,$p')
+
+# Validate output after stripping
+if [[ -z $output ]]; then
+	echo "Error: No markdown headers found in Claude output" >&2
+	exit 1
+fi
+
+# Output LLM summary followed by full git-cliff changelog
 echo "$output"
+echo ""
+echo "<details>"
+echo "<summary>Changelog</summary>"
+echo ""
+echo "$changelog"
+echo "</details>"
