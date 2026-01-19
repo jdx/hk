@@ -61,7 +61,8 @@ trap 'rm -f "$stderr_file"' EXIT
 
 if ! output=$(
 	printf '%s' "$prompt" | claude -p \
-		--model claude-opus-4-20250514 \
+		--model claude-opus-4-5-20251101 \
+		--permission-mode bypassPermissions \
 		--output-format text \
 		--allowedTools "Read,Grep,Glob" 2>"$stderr_file"
 ); then
