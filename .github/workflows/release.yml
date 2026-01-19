@@ -124,7 +124,7 @@ jobs:
 
           # Try to generate LLM-enhanced release notes
           echo "Generating LLM-enhanced release notes for $TAG_NAME..."
-          if mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > release-notes.md 2>&1; then
+          if mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > release-notes.md; then
             echo "Successfully generated LLM release notes"
           else
             echo "LLM generation failed, falling back to CHANGELOG.md"
