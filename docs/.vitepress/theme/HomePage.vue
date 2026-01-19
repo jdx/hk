@@ -60,8 +60,8 @@
               <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <h3>Lightning Fast</h3>
-          <p>Built with Rust, runs hook steps in parallel for maximum speed</p>
+          <h3>Shipshape</h3>
+          <p>Clean, efficient, and built to perform</p>
         </div>
 
         <div class="feature-card">
@@ -72,8 +72,8 @@
               <path d="M7 3v5h8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <h3>Smart Stashing</h3>
-          <p>Fixes staged changes without touching unstaged hunks, preserving your workflow</p>
+          <h3>Batten Down the Hatches</h3>
+          <p>Secures staged changes while keeping unstaged work safe in port</p>
         </div>
 
         <div class="feature-card">
@@ -83,8 +83,8 @@
               <path d="M21 12V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <h3>Built-in Linters</h3>
-          <p>Extensive collection of pre-configured linters and formatters</p>
+          <h3>Tackle Box</h3>
+          <p>A well-stocked collection of pre-rigged linters and formatters</p>
         </div>
 
         <div class="feature-card">
@@ -96,8 +96,8 @@
               <path d="M9 15L12 12L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <h3>Pkl Configuration</h3>
-          <p>Type-safe, readable configuration using Apple's Pkl language</p>
+          <h3>Captain's Log</h3>
+          <p>Type-safe, readable configuration that charts your course</p>
         </div>
 
         <div class="feature-card">
@@ -108,8 +108,8 @@
               <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <h3>Mise Integration</h3>
-          <p>Seamless tool management with automatic dependency handling</p>
+          <h3>First Mate</h3>
+          <p>Your trusted crew member handling tool provisioning</p>
         </div>
 
         <div class="feature-card">
@@ -121,8 +121,8 @@
               <path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89318 18.7122 8.75608 18.1676 9.45769C17.623 10.1593 16.8604 10.6597 16 10.88" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </div>
-          <h3>Parallel Execution</h3>
-          <p>Smart file locking enables maximum concurrent step execution</p>
+          <h3>All Hands on Deck</h3>
+          <p>Smart file locking lets your whole crew work simultaneously</p>
         </div>
       </div>
     </section>

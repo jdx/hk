@@ -39,6 +39,7 @@ export default defineConfig({
     ],
     sidebar: [
       { text: 'About', link: '/about' },
+      { text: 'Sea Shanty', link: '/shanty' },
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },
       {
