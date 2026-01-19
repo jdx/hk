@@ -38,53 +38,13 @@ if [ "$version" = "v$cur_version" ]; then
   exit 0
 fi
 
-# Generate editorialized release notes using LLM
-echo "Generating editorialized release notes..."
-prev_tag="$(git describe --tags --abbrev=0 2>/dev/null || echo "")"
-EDITORIALIZED_NOTES="$(mise run gen-release-summary "$version" "$prev_tag")"
+# Generate changelog using git-cliff (LLM editorialization happens in release.yml after merge)
+git cliff --bump -o CHANGELOG.md
 
-# Validate we got non-empty release notes
-if [[ -z $EDITORIALIZED_NOTES ]]; then
-  echo "Error: Failed to generate release notes (empty output)" >&2
-  exit 1
-fi
+# Get the unreleased notes for PR body
+# Strip version header since PR title already has version
+PR_BODY="$(git cliff --bump --unreleased --strip all | tail -n +3)"
 
-# Create the release header with appropriate URL format
-RELEASE_DATE="$(date +%Y-%m-%d)"
-if [[ -n $prev_tag ]]; then
-  RELEASE_HEADER="## [${version#v}](https://github.com/jdx/hk/compare/$prev_tag..$version) - $RELEASE_DATE"
-else
-  # No previous tag - link to the tag directly instead of a compare URL
-  RELEASE_HEADER="## [${version#v}](https://github.com/jdx/hk/releases/tag/$version) - $RELEASE_DATE"
-fi
-
-# Insert the new release before the first existing release section (## [)
-# Use ENVIRON for notes to avoid awk interpreting backslash escape sequences
-export RELEASE_HEADER EDITORIALIZED_NOTES
-awk_exit_code=0
-awk '
-  /^## \[/ && !inserted {
-    # Insert new release before the first existing release
-    print ENVIRON["RELEASE_HEADER"]
-    print ""
-    print ENVIRON["EDITORIALIZED_NOTES"]
-    print ""
-    inserted = 1
-  }
-  { print }
-  END {
-    # Signal whether insertion happened via exit code
-    exit (inserted ? 0 : 1)
-  }
-' CHANGELOG.md >CHANGELOG.md.tmp || awk_exit_code=$?
-
-if [[ $awk_exit_code -ne 0 ]]; then
-  echo "Error: Failed to insert release notes into CHANGELOG.md (no existing release section found)" >&2
-  rm -f CHANGELOG.md.tmp
-  exit 1
-fi
-mv CHANGELOG.md.tmp CHANGELOG.md
-echo "Editorialized release notes added to CHANGELOG.md"
 cargo set-version --package hk "${version#v}"
 
 git config user.name mise-en-dev
@@ -113,5 +73,5 @@ git add \
 git checkout -B release
 git commit -m "chore: release $version"
 git push origin release --force
-gh pr create --title "chore: release $version" --body "$EDITORIALIZED_NOTES" --label "release" ||
-  gh pr edit --title "chore: release $version" --body "$EDITORIALIZED_NOTES"
+gh pr create --title "chore: release $version" --body "$PR_BODY" --label "release" ||
+  gh pr edit --title "chore: release $version" --body "$PR_BODY"
