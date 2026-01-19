@@ -1,4 +1,4 @@
-# The Ballad of HK
+# Haul Away, HK
 
 *A sea shanty celebrating the hk git hook manager*
 
