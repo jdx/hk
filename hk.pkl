@@ -1,4 +1,4 @@
-// amends "package://github.com/jdx/hk/releases/download/v1.31.0/hk@1.31.0#/Config.pkl"
+// amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
 amends "pkl/Config.pkl"
 import "pkl/Builtins.pkl"
 
