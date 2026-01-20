@@ -87,19 +87,19 @@ fn check_after_fail(after_fail: &Option<(i32, String, String)>) -> Option<String
 }
 
 fn check_stdout_contains(stdout: &str, expected: &Option<String>) -> Option<String> {
-    if let Some(needle) = expected {
-        if !stdout.contains(needle) {
-            return Some(format!("stdout missing: {}", needle));
-        }
+    if let Some(needle) = expected
+        && !stdout.contains(needle)
+    {
+        return Some(format!("stdout missing: {}", needle));
     }
     None
 }
 
 fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<String> {
-    if let Some(needle) = expected {
-        if !stderr.contains(needle) {
-            return Some(format!("stderr missing: {}", needle));
-        }
+    if let Some(needle) = expected
+        && !stderr.contains(needle)
+    {
+        return Some(format!("stderr missing: {}", needle));
     }
     None
 }
