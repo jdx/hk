@@ -70,6 +70,65 @@ async fn execute_cmd(
     Ok((stdout, stderr, code))
 }
 
+fn check_exit_code(actual: i32, expected: i32) -> Option<String> {
+    if actual != expected {
+        Some(format!("exit code {} != expected {}", actual, expected))
+    } else {
+        None
+    }
+}
+
+fn check_after_fail(after_fail: &Option<(i32, String, String)>) -> Option<String> {
+    if let Some((code, _, _)) = after_fail {
+        Some(format!("after failed with code {}", code))
+    } else {
+        None
+    }
+}
+
+fn check_stdout_contains(stdout: &str, expected: &Option<String>) -> Option<String> {
+    if let Some(needle) = expected {
+        if !stdout.contains(needle) {
+            return Some(format!("stdout missing: {}", needle));
+        }
+    }
+    None
+}
+
+fn check_stderr_contains(stderr: &str, expected: &Option<String>) -> Option<String> {
+    if let Some(needle) = expected {
+        if !stderr.contains(needle) {
+            return Some(format!("stderr missing: {}", needle));
+        }
+    }
+    None
+}
+
+fn check_file_contents(
+    expected_files: &IndexMap<String, String>,
+    tctx: &tera::Context,
+    base_dir: &Path,
+) -> Result<Vec<String>> {
+    let mut reasons = Vec::new();
+    for (rel, expected) in expected_files {
+        let rendered = tera::render(rel, tctx)?;
+        let path = {
+            let p = PathBuf::from(&rendered);
+            if p.is_absolute() {
+                p
+            } else {
+                base_dir.join(&rendered)
+            }
+        };
+        let contents = xx::file::read_to_string(&path)?;
+        if contents != *expected {
+            let udiff = crate::diff::render_unified_diff(expected, &contents, "expected", "actual");
+            reasons.push(format!("file mismatch: {}\n{}", path.display(), udiff));
+        }
+    }
+    Ok(reasons)
+}
+
 pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<TestResult> {
     let started_at = Instant::now();
     let tmp = tempfile::tempdir().unwrap();
@@ -209,46 +268,11 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Evaluate expectations
     let mut reasons: Vec<String> = Vec::new();
-    let mut pass = code == test.expect.code;
-    if code != test.expect.code {
-        reasons.push(format!(
-            "exit code {} != expected {}",
-            code, test.expect.code
-        ));
-    }
-    if let Some((a_code, _a_stdout, _a_stderr)) = after_fail {
-        pass = false;
-        reasons.push(format!("after failed with code {}", a_code));
-    }
-    if let Some(needle) = &test.expect.stdout
-        && !stdout.contains(needle)
-    {
-        pass = false;
-        reasons.push(format!("stdout missing: {}", needle));
-    }
-    if let Some(needle) = &test.expect.stderr
-        && !stderr.contains(needle)
-    {
-        pass = false;
-        reasons.push(format!("stderr missing: {}", needle));
-    }
-    for (rel, expected) in &test.expect.files {
-        let rendered = tera::render(rel, &tctx)?;
-        let path = {
-            let p = PathBuf::from(&rendered);
-            if p.is_absolute() {
-                p
-            } else {
-                base_dir.join(&rendered)
-            }
-        };
-        let contents = xx::file::read_to_string(&path)?;
-        if &contents != expected {
-            pass = false;
-            let udiff = crate::diff::render_unified_diff(expected, &contents, "expected", "actual");
-            reasons.push(format!("file mismatch: {}\n{}", path.display(), udiff));
-        }
-    }
+    reasons.extend(check_exit_code(code, test.expect.code));
+    reasons.extend(check_after_fail(&after_fail));
+    reasons.extend(check_stdout_contains(&stdout, &test.expect.stdout));
+    reasons.extend(check_stderr_contains(&stderr, &test.expect.stderr));
+    reasons.extend(check_file_contents(&test.expect.files, &tctx, &base_dir)?);
 
     // TODO: Consider adding a user-defined "cleanup" script in hk.pkl that tests can use
     // to clean up after themselves. The previous automatic cleanup caused race conditions
@@ -269,7 +293,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     Ok(TestResult {
         step: step.name.clone(),
         name: name.to_string(),
-        ok: pass,
+        ok: reasons.is_empty(),
         stdout: final_stdout,
         stderr: final_stderr,
         code,
