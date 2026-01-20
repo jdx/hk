@@ -11,7 +11,7 @@ go_fmt = new Config.Step {
   stage = "<JOB_FILES>"
   check_list_files =
     """
-    FILES=$(gofmt -s -l {{files}})
+    FILES=$(go fmt -s -l {{files}})
     if [ -n "$FILES" ]; then
       echo "$FILES"
       exit 1
@@ -19,13 +19,13 @@ go_fmt = new Config.Step {
     """
   check_diff =
     """
-    DIFF=$(gofmt -s -d {{files}})
+    DIFF=$(go fmt -s -d {{files}})
     if [ -n "$DIFF" ]; then
       echo "$DIFF"
       exit 1
     fi
     """
-  fix = "gofmt -s -w {{files}}"
+  fix = "go fmt -s -w {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.go" }
     local const before = "package name"
