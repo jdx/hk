@@ -186,6 +186,7 @@ jobs:
       - build
       - ci-libgit2
       - ci-nolibgit2
+      - ci-nogit
       - ci-other
       - msrv
     runs-on: ubuntu-latest
@@ -204,6 +205,10 @@ jobs:
           fi
           if [ "${{ needs.ci-nolibgit2.result }}" != "success" ]; then
             echo "ci-nolibgit2 failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.ci-nogit.result }}" != "success" ]; then
+            echo "ci-nogit failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.ci-other.result }}" != "success" ]; then

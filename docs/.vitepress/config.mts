@@ -25,12 +25,13 @@ export default defineConfig({
   description: "git hook manager",
   lang: "en-US",
   lastUpdated: true,
-  appearance: "dark",
+  appearance: "force-dark",
   sitemap: {
     hostname: "https://hk.jdx.dev",
   },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
+    logo: '/logo-small.png',
     nav: [
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },
@@ -38,6 +39,7 @@ export default defineConfig({
     ],
     sidebar: [
       { text: 'About', link: '/about' },
+      { text: 'Sea Shanty', link: '/shanty' },
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },
       {

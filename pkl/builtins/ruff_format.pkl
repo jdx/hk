@@ -19,12 +19,13 @@ ruff_format = new Config.Step {
         ["ruff.toml"] = "exclude = [\"excluded.py\"]\n"
       }
     }
-    ["check bad file"] = testMaker.checkFail("x=1+2", 1)
-    ["check good file"] = testMaker.checkPass("x = 1 + 2\n")
-    ["fix bad file"] = testMaker.fixPass("x=1+2", "x = 1 + 2\n")
-    ["fix good file"] = testMaker.fixPass("x = 1 + 2\n", "x = 1 + 2\n")
-    ["check respects config exclude"] = testMaker.withFilename("excluded.py").checkPass("x=1+2")
-    ["fix respects config exclude"] =
-      testMaker.withFilename("excluded.py").fixPass("x=1+2", "x=1+2")
+    local const before = "x=1+2"
+    local const after = "x = 1 + 2\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+    ["check respects config exclude"] = testMaker.withFilename("excluded.py").checkPass(before)
+    ["fix respects config exclude"] = testMaker.withFilename("excluded.py").fixPass(before, before)
   }
 }

@@ -1,6 +1,5 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
-import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Infrastructure"
@@ -13,66 +12,5 @@ const pinact_update = new Config.Step {
   // `verify` flag to verify pairs of commit CHA and version are correct
   check_diff = "pinact run --update --verify --check {{ files }}"
   fix = "pinact run --update --verify {{ files }}"
-  tests {
-    local const testMaker = new helpers.TestMaker {
-      before = "pinact init" // create the pinact configuration file
-      filename = ".github/workflows/test.yml"
-    }
-    local const bad =
-      """
-      name: pinact update test
-      on:
-        push:
-      jobs:
-        test:
-          runs-on: ubuntu-latest
-          steps:
-            - uses: jdx/mise-action@v3.5.0
-
-      """
-    local const good =
-      """
-      name: pinact update test
-      on:
-        push:
-      jobs:
-        test:
-          runs-on: ubuntu-latest
-          steps:
-            - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3.5.1
-
-      """
-    ["check bad file"] = testMaker.checkFail(bad, 1)
-    ["check good file"] = testMaker.checkPass(good)
-    ["fix bad file violations remain"] =
-      testMaker.fixFail(
-        """
-        name: pinact update test
-        on:
-          push:
-        jobs:
-          test:
-            runs-on: ubuntu-latest
-            steps:
-              - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.0
-              - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
-
-        """,
-        """
-        name: pinact update test
-        on:
-          push:
-        jobs:
-          test:
-            runs-on: ubuntu-latest
-            steps:
-              - uses: jdx/mise-action@146a28175021df8ca24f8ee1828cc2a60f980bd5 # v3.5.1
-              - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
-
-        """,
-        1,
-      )
-    ["fix bad file all violations are fixed"] = testMaker.fixPass(bad, good)
-    ["fix good file"] = testMaker.fixPass(good, good)
-  }
+  // Tests removed: they check against live GitHub Action versions, making them flaky
 }

@@ -7,8 +7,8 @@
 /// * Uses conditions and workspace indicators
 /// * Shows test configuration
 
-amends "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.30.0/hk@1.30.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
 
 local custom_linters = new Mapping<String, Step> {
   // Custom SQL formatter
