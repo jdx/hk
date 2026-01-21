@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.40.0"
+tool = "npm:markdownlint-cli"
