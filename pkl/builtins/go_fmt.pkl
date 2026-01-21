@@ -25,7 +25,7 @@ go_fmt = new Config.Step {
       exit 1
     fi
     """
-  fix = "g fmt -s -w {{files}}"
+  fix = "gofmt -s -w {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.go" }
     local const before = "package name"
