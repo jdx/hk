@@ -95,6 +95,7 @@ impl StepJob {
             .body_text(Some(
                 "{% if ensembler_stdout %}  {{name}} – {{ensembler_stdout | truncate_text}}{% elif message %}{{spinner()}} {{name}} – {{message | truncate_text}}{% endif %}".to_string(),
             ))
+            .status(ProgressStatus::Hide)
             .on_done(ProgressJobDoneBehavior::Hide)
             .build();
         ctx.progress.add(job)

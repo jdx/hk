@@ -143,7 +143,8 @@ impl StepContext {
         self.progress.prop("message", &msg);
         match &*self.status.lock().unwrap() {
             StepStatus::Pending => {
-                // Keep hidden until started - don't show spinners for queued work
+                self.progress
+                    .set_status(ProgressStatus::RunningCustom(style::edim("❯").to_string()));
             }
             StepStatus::Started => {
                 self.progress
