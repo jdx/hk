@@ -20,12 +20,13 @@ local linters = new Mapping<String, Step> {
         // the files to run the linter on, if no files are matched, the linter will be skipped
         // this will filter the staged files and return the subset matching these globs
         glob = List("*.js", "*.ts")
-        // these files will be staged after the fix step modifies them
-        stage = List("*.js", "*.ts")
         // the command to run that makes no changes
         check = "eslint {{files}}"
         // the command to run that fixes the files (used by default)
         fix = "eslint --fix {{files}}"
+        // optional: files matching these globs will be staged after fix modifies them
+        // defaults to the step's glob when staging is enabled, so usually not needed
+        // stage = List("*.js", "*.ts")
     }
     // linters can also be specified with the Builtins pkl library
     ["prettier"] = Builtins.prettier

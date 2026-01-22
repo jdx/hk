@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 newlines = new Config.Step {
   glob = "**/*"
-  stage = "<JOB_FILES>"
   check_diff = "hk util end-of-file-fixer --diff {{files}}"
   fix = "hk util end-of-file-fixer --fix {{files}}"
   tests {

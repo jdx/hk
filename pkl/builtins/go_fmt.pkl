@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 go_fmt = new Config.Step {
   glob = "**/*.go"
-  stage = "<JOB_FILES>"
   check_list_files =
     """
     FILES=$(gofmt -s -l {{files}})

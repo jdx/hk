@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 biome = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
-  stage = "<JOB_FILES>"
   check = "biome check {{ files }}"
   fix = "biome check --write {{ files }}"
   tests {

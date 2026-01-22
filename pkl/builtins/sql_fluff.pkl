@@ -7,7 +7,6 @@ import "../Config.pkl"
 }
 sql_fluff = new Config.Step {
   glob = "**/*.sql"
-  stage = "<JOB_FILES>"
   check = "sqlfluff lint {{ files }}"
   fix = "sqlfluff fix {{ files }}"
 }

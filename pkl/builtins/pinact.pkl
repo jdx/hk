@@ -9,7 +9,6 @@ import "./test/helpers.pkl"
 const pinact = new Config.Step {
   glob = List(".github/workflows/*", "*/action.*")
   types = List("yaml")
-  stage = "<JOB_FILES>"
   // `verify` flag to verify pairs of commit CHA and version are correct
   check_diff = "pinact run --verify --check {{ files }}"
   fix = "pinact run --verify {{ files }}"

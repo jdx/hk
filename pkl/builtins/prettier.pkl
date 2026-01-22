@@ -35,7 +35,6 @@ prettier = new Config.Step {
       "**/*.htmlangular",
       "**/*.vue",
     )
-  stage = "<JOB_FILES>"
   batch = true
   check = "prettier --check {{ files }}"
   check_list_files = "prettier --list-different {{ files }}"

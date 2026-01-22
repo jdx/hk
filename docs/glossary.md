@@ -117,7 +117,6 @@ Example:
 steps {
   ["eslint"] {
     glob = List("*.js", "*.ts")
-    stage = List("*.js", "*.ts")
     check = "eslint {{files}}"
     fix = "eslint --fix {{files}}"
     depends = List("prettier")  // Run after prettier

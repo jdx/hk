@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 yq = new Config.Step {
   glob = List("**/*.yaml", "**/*.yml")
-  stage = "<JOB_FILES>"
   check_diff =
     """
     failed=0

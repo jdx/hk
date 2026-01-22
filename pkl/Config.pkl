@@ -540,6 +540,9 @@ class Step {
 
   /// A list of globs of files to add to the git index after running a fix step.
   ///
+  /// When staging is enabled and the step has a `fix` command, this defaults to the step's
+  /// glob. Set explicitly if your fix modifies different files than those it reads.
+  ///
   /// ```pkl
   /// hooks {
   ///     ["pre-commit"] {

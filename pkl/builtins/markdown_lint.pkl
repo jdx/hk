@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 markdown_lint = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
-  stage = "<JOB_FILES>"
   check = "markdownlint {{ files }}"
   fix = "markdownlint --fix {{ files }}"
   tests {

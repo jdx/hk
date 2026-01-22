@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 stylelint = new Config.Step {
   glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")
-  stage = "<JOB_FILES>"
   check = "stylelint {{ files }}"
   fix = "stylelint --fix {{ files }}"
   tests {

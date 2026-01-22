@@ -18,10 +18,13 @@ use itertools::Itertools;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::OwnedSemaphorePermit;
 
 use super::types::{RunType, Step};
+
+/// Default stage pattern for steps with fix commands when staging is enabled.
+static DEFAULT_STAGE: LazyLock<Vec<String>> = LazyLock::new(|| vec!["<JOB_FILES>".to_string()]);
 
 impl Step {
     /// Execute all jobs for this step.
@@ -254,10 +257,18 @@ impl Step {
     ) -> Result<()> {
         // Build stage pathspecs; if `dir` is set, stage entries are relative to it
         // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
+        // Determine effective stage: explicit setting wins, otherwise default to <JOB_FILES>
+        // for steps with fix commands when staging is enabled.
+        let effective_stage: Option<&Vec<String>> = if self.stage.is_some() {
+            self.stage.as_ref()
+        } else if ctx.hook_ctx.should_stage && self.fix.is_some() {
+            Some(&DEFAULT_STAGE)
+        } else {
+            None
+        };
+
         // Special case: if stage is exactly "<JOB_FILES>", use actual_job_files directly
-        let stage_only_job_files = self
-            .stage
-            .as_ref()
+        let stage_only_job_files = effective_stage
             .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
             .unwrap_or(false);
 
@@ -265,8 +276,7 @@ impl Step {
             // Don't render the template, we'll use actual_job_files directly
             vec![]
         } else {
-            self.stage
-                .as_ref()
+            effective_stage
                 .unwrap_or(&vec![])
                 .iter()
                 .map(|s| tera::render(s, &ctx.hook_ctx.tctx))

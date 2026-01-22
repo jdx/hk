@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 fix_smart_quotes = new Config.Step {
   glob = "**/*"
-  stage = "<JOB_FILES>"
   check_diff = "hk util fix-smart-quotes --diff {{files}}"
   fix = "hk util fix-smart-quotes {{files}}"
   tests {
