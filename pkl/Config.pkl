@@ -644,7 +644,7 @@ class Step {
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
   ///     ["prettier"] {
-  ///         condition = "eval('test -f check.js')"
+  ///         condition = "exec('test -f check.js')"
   ///     }
   /// }
   /// ```
