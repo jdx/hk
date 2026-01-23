@@ -22,10 +22,32 @@ hooks {
     }
 }
 EOF
-    git add hk.pkl
-    git commit -m "initial commit"
     hk fix -v
     assert_file_exists a.txt
     assert_file_not_exists b.txt
     assert_file_exists c.txt
+}
+
+@test "condition evaluates once per step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["fix"] {
+        steps {
+            ["step"] {
+                glob = "**/*"
+                fix = ""
+                workspace_indicator = "ws"
+                condition = "true"
+            }
+        }
+    }
+}
+EOF
+    mkdir subdirA subdirB
+    touch subdirA/ws subdirB/ws
+    output=$(hk fix -v 2>&1)
+    count=$(echo "$output" | grep -c "step: condition: true = true")
+    assert_equal "$count" "1"
 }

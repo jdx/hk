@@ -3,7 +3,6 @@
 //! This module contains the `run` method that executes a single job.
 //! It handles:
 //!
-//! - Condition evaluation
 //! - Profile checking
 //! - Template rendering
 //! - Command building and execution
@@ -22,7 +21,6 @@ use itertools::Itertools;
 use std::path::PathBuf;
 use std::process::Stdio;
 
-use super::expr_env::EXPR_ENV;
 use super::shell::ShellType;
 use super::types::{Pattern, RunType, Script, Step};
 use crate::error::Error;
@@ -63,15 +61,8 @@ impl Step {
             }
             return Ok(());
         }
-        if let Some(condition) = &self.condition {
-            let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
-            debug!("{self}: condition: {condition} = {val}");
-            if val == expr::Value::Bool(false) {
-                self.mark_skipped(ctx, &SkipReason::ConditionFalse)?;
-                return Ok(());
-            }
-        }
-        // After evaluating the condition, check profiles so condition-false wins over profiles
+        // Note: condition is evaluated once in run_all_jobs before jobs are created
+        // Check profiles here (condition-false would have already returned before reaching this point)
         if let Some(reason) = self.profile_skip_reason() {
             self.mark_skipped(ctx, &reason)?;
             return Ok(());

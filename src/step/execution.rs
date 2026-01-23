@@ -21,7 +21,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::OwnedSemaphorePermit;
 
+use super::expr_env::EXPR_ENV;
 use super::types::{RunType, Step};
+use crate::hook::SkipReason;
 
 impl Step {
     /// Execute all jobs for this step.
@@ -48,6 +50,15 @@ impl Step {
         semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
+        // Evaluate condition once per step (before creating jobs)
+        if let Some(condition) = &self.condition {
+            let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
+            debug!("{self}: condition: {condition} = {val}");
+            if val == expr::Value::Bool(false) {
+                self.mark_skipped(&ctx, &SkipReason::ConditionFalse)?;
+                return Ok(());
+            }
+        }
         let files = ctx.hook_ctx.files();
         let ctx = Arc::new(ctx);
         let mut jobs = self.build_step_jobs(
