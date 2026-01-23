@@ -59,6 +59,11 @@ impl Step {
             }
             return Ok(());
         }
+        if let Some(reason) = self.profile_skip_reason() {
+            self.mark_skipped(&ctx, &reason)?;
+            return Ok(());
+        }
+
         job.progress = Some(job.build_progress(ctx));
         job.status = StepJobStatus::Pending;
         let semaphore = if let Some(semaphore) = job.semaphore.take() {
