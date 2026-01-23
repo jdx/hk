@@ -35,14 +35,12 @@ impl Step {
     /// # Execution Flow
     ///
     /// 1. Check if hook has already failed (abort early)
-    /// 2. Evaluate condition expression (if configured)
-    /// 3. Check profile requirements
-    /// 4. Filter out deleted files
-    /// 5. Acquire semaphore and start job
-    /// 6. Render command template
-    /// 7. Execute command
-    /// 8. Handle success/failure
-    /// 9. Update progress
+    /// 2. Filter out deleted files
+    /// 3. Acquire semaphore and start job
+    /// 4. Render command template
+    /// 5. Execute command
+    /// 6. Handle success/failure
+    /// 7. Update progress
     ///
     /// # Arguments
     ///
@@ -59,12 +57,6 @@ impl Step {
             if let Some(progress) = &job.progress {
                 progress.set_status(ProgressStatus::Hide);
             }
-            return Ok(());
-        }
-        // Note: condition is evaluated once in run_all_jobs before jobs are created
-        // Check profiles here (condition-false would have already returned before reaching this point)
-        if let Some(reason) = self.profile_skip_reason() {
-            self.mark_skipped(ctx, &reason)?;
             return Ok(());
         }
         job.progress = Some(job.build_progress(ctx));

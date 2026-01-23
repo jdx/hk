@@ -59,6 +59,11 @@ impl Step {
                 return Ok(());
             }
         }
+        if let Some(reason) = self.profile_skip_reason() {
+            self.mark_skipped(&ctx, &reason)?;
+            return Ok(());
+        }
+
         let files = ctx.hook_ctx.files();
         let ctx = Arc::new(ctx);
         let mut jobs = self.build_step_jobs(
