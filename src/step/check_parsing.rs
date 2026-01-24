@@ -125,6 +125,8 @@ impl Step {
                     } else {
                         path
                     };
+                    // Strip .orig suffix (Go tools like gofmt add this to --- paths)
+                    let path = path.strip_suffix(".orig").unwrap_or(path);
                     listed.insert(try_canonicalize(&PathBuf::from(path)));
                 }
             } else if line.starts_with("+++ ")

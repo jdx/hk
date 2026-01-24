@@ -60,15 +60,12 @@ EOF
     # Create a file without trailing newline
     printf "hello" > test.txt
 
-    git add .
-    git commit -m "initial"
-
     # Run fix
     run hk fix test.txt
     assert_success
 
     # The file should have a newline added (from the diff), NOT "FIXED:" prefix
-    # If git apply worked, content is "hello\n"
+    # If the apply worked, content is "hello\n"
     # If fixer ran, content would be "FIXED:hello"
     run cat test.txt
     assert_output "hello"  # With newline from diff
@@ -78,7 +75,7 @@ EOF
     assert_failure
 }
 
-@test "check_diff falls back to fixer when git apply fails" {
+@test "check_diff falls back to fixer when apply fails" {
     # Create a "formatter" that outputs invalid diff
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash
@@ -113,9 +110,6 @@ hooks {
 EOF
 
     echo "hello" > test.txt
-
-    git add .
-    git commit -m "initial"
 
     # Run fix - should fall back to fixer since diff is invalid
     run hk fix test.txt
@@ -171,8 +165,6 @@ hooks {
 EOF
 
     echo "original" > test.txt
-    git add .
-    git commit -m "initial"
 
     run hk fix test.txt
     assert_success
@@ -222,8 +214,6 @@ hooks {
 EOF
 
     echo "original" > test.txt
-    git add .
-    git commit -m "initial"
 
     # Run CHECK (not fix) - should fail but NOT modify the file
     run hk check test.txt
@@ -281,8 +271,6 @@ hooks {
 EOF
 
     echo "original" > test.txt
-    git add .
-    git commit -m "initial"
 
     run hk fix test.txt
     assert_success
@@ -293,7 +281,7 @@ EOF
 }
 
 @test "check_diff handles diffs without a/b prefixes" {
-    # Some tools output diffs without the git-style a/ and b/ prefixes
+    # Some tools output diffs without the a/ and b/ prefixes
     # e.g., "--- src/file.py" instead of "--- a/src/file.py"
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash
@@ -333,13 +321,60 @@ hooks {
 EOF
 
     echo "original" > test.txt
-    git add .
-    git commit -m "initial"
-
     run hk fix test.txt
     assert_success
 
     # Verify the diff was applied (uses -p0 since no a/b prefixes)
     run cat test.txt
     assert_output "no_prefix_diff"
+}
+
+@test "check_diff handles diffs with .orig suffix on --- line" {
+    # Go tools like gofmt output diffs with .orig suffix on the --- line
+    # e.g., "--- file.go.orig" instead of "--- file.go"
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+if [ -f "$file" ]; then
+    # Output diff with .orig suffix (like gofmt -d)
+    echo "--- $file.orig"
+    echo "+++ $file"
+    echo "@@ -1 +1 @@"
+    echo "-$(cat "$file")"
+    echo "+gofmt_fixed"
+fi
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "original" > test.txt
+
+    run hk fix test.txt
+    assert_success
+
+    # Verify the diff was applied (should strip .orig suffix)
+    run cat test.txt
+    assert_output "gofmt_fixed"
 }

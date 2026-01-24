@@ -19,6 +19,9 @@ impl Step {
     /// Automatically detects whether the diff uses `a/` and `b/` prefixes (git-style)
     /// and sets the appropriate strip level (`-p1` or `-p0`).
     ///
+    /// Also handles Go-style diffs where the `---` line has a `.orig` suffix
+    /// (e.g., `--- file.go.orig` instead of `--- file.go`).
+    ///
     /// # Arguments
     ///
     /// * `stdout` - The unified diff output from the check_diff command
@@ -33,7 +36,28 @@ impl Step {
             debug!("{}: no diff content to apply", self.name);
             return Ok(false);
         }
-        let diff_content = stdout;
+        // Transform diff content: remove .orig suffix from --- lines
+        // Go tools like gofmt output "--- file.go.orig" which git apply can't handle
+        let diff_content: String = stdout
+            .lines()
+            .map(|line| {
+                if line.starts_with("--- ") {
+                    let path_str = &line[4..];
+                    // Handle timestamp case: "--- file.go.orig\t2025-01-01"
+                    let (path_part, suffix) = if let Some(tab_pos) = path_str.find('\t') {
+                        (&path_str[..tab_pos], &path_str[tab_pos..])
+                    } else {
+                        (path_str, "")
+                    };
+                    if let Some(stripped) = path_part.strip_suffix(".orig") {
+                        return format!("--- {}{}", stripped, suffix);
+                    }
+                }
+                line.to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            + "\n"; // Preserve trailing newline for git apply
 
         // Detect if this diff uses a/ and b/ prefixes (git-style)
         // Use -p1 to strip prefixes if present, -p0 otherwise
