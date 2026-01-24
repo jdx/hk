@@ -789,8 +789,13 @@ class Step {
 }
 
 class StepTest {
-  /// What to run: "check", "fix", or "command"
-  run: "check" | "fix" = "check"
+  /// What to run: "check", "check_diff", "fix"
+  /// - "check": Prefer "check" command (if defined), otherwise uses "check_diff" or "check_list_files".
+  /// - "check_list_files": Runs the "check_list_files".
+  /// - "check_diff": Runs the "check_diff" command.
+  /// - "fix": Runs the "fix" command.
+  /// - "fix+check_diff": Runs the "check_diff" command and attempts to apply the diff (a la "fix").
+  run: "check" | "check_list_files" | "check_diff" | "fix" | "fix+check_diff" = "check"
 
   /// Files to pass to the command (used to render {{ files }})
   files: (String | List<String>)?
@@ -826,6 +831,10 @@ class StepTestExpect {
 
   /// Expected files after run: path => full contents (exact match)
   files: Mapping<String, String> = new Mapping<String, String> {}
+
+  /// If `run` was `check_list_files` or `check_diff`, then expect `hk` to have
+  /// parsed these files out of the output.
+  listed_files: List<String>?
 }
 
 class Group {

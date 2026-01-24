@@ -25,6 +25,8 @@ ruff = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+    ["fix+check_diff bad file"] = testMaker.fixWithDiffPass(before, after)
+    ["fix+check_diff good file"] = testMaker.fixWithDiffPass(after, after)
     ["check respects config exclude"] = testMaker.withFilename("excluded.py").checkPass(before)
     ["fix respects config exclude"] = testMaker.withFilename("excluded.py").fixPass(before, before)
   }

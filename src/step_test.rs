@@ -33,7 +33,11 @@ pub struct StepTest {
 pub enum RunKind {
     #[default]
     Check,
+    CheckDiff,
+    CheckListFiles,
     Fix,
+    #[serde(rename = "fix+check_diff")]
+    FixCheckDiff,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]
@@ -49,4 +53,6 @@ pub struct StepTestExpect {
     /// Map of path -> full expected file contents (exact match)
     #[serde(default)]
     pub files: IndexMap<String, String>,
+    /// Files expected to be listed (in `check_list_files`/`check_diff` mode)
+    pub listed_files: Option<Vec<String>>,
 }
