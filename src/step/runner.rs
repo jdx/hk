@@ -60,7 +60,7 @@ impl Step {
             return Ok(());
         }
         if let Some(reason) = self.profile_skip_reason() {
-            self.mark_skipped(&ctx, &reason)?;
+            self.mark_skipped(ctx, &reason)?;
             return Ok(());
         }
 
