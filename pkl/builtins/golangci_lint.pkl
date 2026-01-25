@@ -7,7 +7,6 @@ import "../Config.pkl"
 }
 golangci_lint = new Config.Step {
   glob = "**/*.go"
-  stage = "<JOB_FILES>"
   check = "golangci-lint run --fix=false {{ files }}"
   fix = "golangci-lint run --fix {{ files }}"
 }

@@ -7,7 +7,6 @@ import "../Config.pkl"
 }
 deno = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
-  stage = "<JOB_FILES>"
   check = "deno fmt --check {{ files }}"
   fix = "deno fmt {{ files }}"
 }

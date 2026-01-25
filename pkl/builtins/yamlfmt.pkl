@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 yamlfmt = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
-  stage = "<JOB_FILES>"
   check_diff = "yamlfmt -lint {{ files }}"
   fix = "yamlfmt {{ files }}"
   tests {

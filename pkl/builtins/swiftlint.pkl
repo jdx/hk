@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 swiftlint = new Config.Step {
   glob = "**/*.swift"
-  stage = "<JOB_FILES>"
   check = "swiftlint lint {{ files }}"
   fix = "swiftlint --fix {{ files }}"
   tests {

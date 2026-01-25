@@ -15,7 +15,6 @@ zizmor = new Config.Step {
       "**/action.yml",
       "**/action.yaml",
     )
-  stage = "<JOB_FILES>"
   check_diff = "zizmor --no-progress {{ files }}"
   fix = "zizmor --no-progress --fix {{ files }}"
   tests {

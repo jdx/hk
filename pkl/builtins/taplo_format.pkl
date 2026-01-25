@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 taplo_format = new Config.Step {
   glob = "**/*.toml"
-  stage = "<JOB_FILES>"
   check = "taplo format --check {{ files }}"
   check_diff = "taplo format --check --diff {{ files }}"
   fix = "taplo format {{ files }}"

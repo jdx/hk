@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 stylua = new Config.Step {
   types = List("lua")
-  stage = "<JOB_FILES>"
   check_diff = "stylua --check {{ files }}"
   fix = "stylua {{ files }}"
   tests {

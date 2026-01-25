@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 black = new Config.Step {
   glob = List("**/*.py")
-  stage = "<JOB_FILES>"
   check = "black --check {{ files }}"
   check_diff = "black --check --diff {{ files }}"
   fix = "black {{ files }}"

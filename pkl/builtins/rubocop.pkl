@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 rubocop = new Config.Step {
   types = List("ruby")
-  stage = "<JOB_FILES>"
   // `--force-exclusion`: Any files excluded by `Exclude` in RuboCop configuration files will be excluded, even if given explicitly as arguments.
   check = "rubocop --force-exclusion {{ files }}"
   check_list_files = "rubocop --force-exclusion --list-target-files {{ files }}"

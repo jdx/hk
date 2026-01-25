@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 tombi_format = new Config.Step {
   glob = "**/*.toml"
-  stage = "<JOB_FILES>"
   check_diff = "tombi format --check --diff {{ files }}"
   fix = "tombi format {{ files }}"
   tests {

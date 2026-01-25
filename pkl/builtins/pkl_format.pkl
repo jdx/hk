@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 pkl_format = new Config.Step {
   types = List("pkl")
-  stage = "<JOB_FILES>"
   check_list_files = "pkl format --diff-name-only {{ files }}"
   // NB: pkl format exits 11 even if it fixes files
   //  (If you're using a version of pkl that includes https://github.com/apple/pkl/pull/1340
