@@ -124,12 +124,16 @@ jobs:
           # Get previous version for context
           PREV_TAG=$(git describe --tags --abbrev=0 "$TAG_NAME^" 2>/dev/null || echo "")
 
-          # Generate release notes (first line is creative title, rest is body)
-          mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > /tmp/release-full.txt
+          # Generate release notes (format: "# vX.X.X - Creative Title" followed by body)
+          mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > /tmp/release-raw.txt
 
-          # Extract title and body
-          RELEASE_TITLE="$TAG_NAME: $(head -1 /tmp/release-full.txt)"
-          tail -n +3 /tmp/release-full.txt > release-notes.md
+          # Strip any preamble before the "# vX.X.X -" line
+          sed -n '/^# v[0-9]/,$p' /tmp/release-raw.txt > /tmp/release-full.txt
+
+          # Extract title from first line (format: "# vX.X.X - Creative Title")
+          RELEASE_TITLE="$(head -1 /tmp/release-full.txt | sed 's/^# //')"
+          # Body is everything after the first line
+          tail -n +2 /tmp/release-full.txt > release-notes.md
 
           echo "Release title: $RELEASE_TITLE"
           echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
