@@ -130,10 +130,19 @@ jobs:
           # Strip any preamble before the "# vX.X.X -" line
           sed -n '/^# v[0-9]/,$p' /tmp/release-raw.txt > /tmp/release-full.txt
 
-          # Extract title from first line (format: "# vX.X.X - Creative Title")
-          RELEASE_TITLE="$(head -1 /tmp/release-full.txt | sed 's/^# //')"
-          # Body is everything after the first line
-          tail -n +2 /tmp/release-full.txt > release-notes.md
+          if [[ -s /tmp/release-full.txt ]]; then
+            # Extract title from first line (format: "# vX.X.X - Creative Title")
+            RELEASE_TITLE="$(head -1 /tmp/release-full.txt | sed 's/^# //')"
+            # Body is everything after the first line
+            tail -n +2 /tmp/release-full.txt > release-notes.md
+          else
+            echo "LLM output missing expected format, using git-cliff output"
+            RELEASE_TITLE="$TAG_NAME"
+            git cliff --strip all "${PREV_TAG}..${TAG_NAME}" > release-notes.md 2>/dev/null || echo "No changelog available" > release-notes.md
+          fi
+
+          # Fallback if title is still empty
+          RELEASE_TITLE="${RELEASE_TITLE:-$TAG_NAME}"
 
           echo "Release title: $RELEASE_TITLE"
           echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
