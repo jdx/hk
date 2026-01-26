@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.33.0](https://github.com/jdx/hk/compare/v1.32.0..v1.33.0) - 2026-01-26
+
+### 🚀 Features
+
+- add LLM-generated creative release titles by [@jdx](https://github.com/jdx) in [#624](https://github.com/jdx/hk/pull/624)
+- add `hook` and `step` tera contexts by [@thejcannon](https://github.com/thejcannon) in [#645](https://github.com/jdx/hk/pull/645)
+
+### 🐛 Bug Fixes
+
+- strip LLM preamble from generated release notes by [@jdx](https://github.com/jdx) in [#618](https://github.com/jdx/hk/pull/618)
+- start the job progress hidden by [@thejcannon](https://github.com/thejcannon) in [#631](https://github.com/jdx/hk/pull/631)
+- default stage to <JOB_FILES> for fix steps by [@chadxz](https://github.com/chadxz) in [#632](https://github.com/jdx/hk/pull/632)
+- remove verbose output from taplo by [@vmeurisse](https://github.com/vmeurisse) in [#364](https://github.com/jdx/hk/pull/364)
+- shfmt should use `--apply-ignore` by [@thejcannon](https://github.com/thejcannon) in [#643](https://github.com/jdx/hk/pull/643)
+- Tell biome not to error on unmatched files by [@thejcannon](https://github.com/thejcannon) in [#641](https://github.com/jdx/hk/pull/641)
+
+### 🚜 Refactor
+
+- Add `before`/`after` variables to `ruff_format.pkl` tests by [@thejcannon](https://github.com/thejcannon) in [#623](https://github.com/jdx/hk/pull/623)
+- test expectations into helpers by [@thejcannon](https://github.com/thejcannon) in [#625](https://github.com/jdx/hk/pull/625)
+- Remove dead code in `markdownlint` tests by [@thejcannon](https://github.com/thejcannon) in [#642](https://github.com/jdx/hk/pull/642)
+
+### 📚 Documentation
+
+- improve CLAUDE.md with workspace structure and testing info by [@jdx](https://github.com/jdx) in [#621](https://github.com/jdx/hk/pull/621)
+- Add linebreaks to shanty by [@thejcannon](https://github.com/thejcannon) in [#626](https://github.com/jdx/hk/pull/626)
+- Fix `condition` docstring to use `exec` by [@thejcannon](https://github.com/thejcannon) in [#630](https://github.com/jdx/hk/pull/630)
+- add conventional commit guidance to CLAUDE.md by [@jdx](https://github.com/jdx) in [4d59edf](https://github.com/jdx/hk/commit/4d59edf9f7c91177e007123d96e69888cff90d57)
+
+### 🧪 Testing
+
+- markdownlint builtin by [@thejcannon](https://github.com/thejcannon) in [#628](https://github.com/jdx/hk/pull/628)
+- gofmt by [@thejcannon](https://github.com/thejcannon) in [#603](https://github.com/jdx/hk/pull/603)
+
+### 🔍 Other Changes
+
+- improve release title format for robustness by [@jdx](https://github.com/jdx) in [#639](https://github.com/jdx/hk/pull/639)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action digest to 6d1e696 by [@renovate[bot]](https://github.com/renovate[bot]) in [#634](https://github.com/jdx/hk/pull/634)
+- update anthropics/claude-code-action digest to 8341a56 by [@renovate[bot]](https://github.com/renovate[bot]) in [#633](https://github.com/jdx/hk/pull/633)
+- update actions/checkout action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#635](https://github.com/jdx/hk/pull/635)
+- update apple-actions/import-codesign-certs action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#636](https://github.com/jdx/hk/pull/636)
+
+### New Contributors
+
+- @vmeurisse made their first contribution in [#364](https://github.com/jdx/hk/pull/364)
+- @chadxz made their first contribution in [#632](https://github.com/jdx/hk/pull/632)
+
 ## [1.32.0](https://github.com/jdx/hk/compare/v1.31.0..v1.32.0) - 2026-01-19
 
 ### 🚀 Features
