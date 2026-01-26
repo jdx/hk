@@ -69,5 +69,5 @@ pub(crate) fn strip_orig_suffix(diff: &str) -> String {
         }
         result.push(line.to_string());
     }
-    result.join("\n")
+    result.join("\n") + "\n"
 }
