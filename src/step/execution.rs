@@ -10,6 +10,7 @@
 //! - Progress tracking and error aggregation
 
 use crate::error::Error;
+use crate::hook::SkipReason;
 use crate::step_context::StepContext;
 use crate::step_job::StepJobStatus;
 use crate::{Result, glob, tera};
@@ -21,6 +22,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::OwnedSemaphorePermit;
 
+use super::expr_env::EXPR_ENV;
 use super::types::{RunType, Step};
 
 /// Default stage pattern for steps with fix commands when staging is enabled.
@@ -51,8 +53,19 @@ impl Step {
         semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
-        let files = ctx.hook_ctx.files();
         let ctx = Arc::new(ctx);
+
+        if let Some(step_condition) = &self.step_condition {
+            let val = EXPR_ENV.eval(step_condition, &ctx.hook_ctx.expr_ctx())?;
+            debug!("{self}: condition: {step_condition} = {val}");
+            if val == expr::Value::Bool(false) {
+                self.mark_skipped(&ctx, &SkipReason::ConditionFalse)?;
+                ctx.hook_ctx.dec_total_jobs(1);
+                return Ok(());
+            }
+        }
+
+        let files = ctx.hook_ctx.files();
         let mut jobs = self.build_step_jobs(
             &files,
             ctx.hook_ctx.run_type,

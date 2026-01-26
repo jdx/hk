@@ -63,9 +63,9 @@ impl Step {
             }
             return Ok(());
         }
-        if let Some(condition) = &self.condition {
-            let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
-            debug!("{self}: condition: {condition} = {val}");
+        if let Some(job_condition) = &self.job_condition {
+            let val = EXPR_ENV.eval(job_condition, &ctx.hook_ctx.expr_ctx())?;
+            debug!("{self}: condition: {job_condition} = {val}");
             if val == expr::Value::Bool(false) {
                 self.mark_skipped(ctx, &SkipReason::ConditionFalse)?;
                 return Ok(());
