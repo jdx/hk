@@ -203,6 +203,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_preserve_file_permissions() {
         let file = NamedTempFile::new().unwrap();
 
