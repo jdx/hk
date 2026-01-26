@@ -54,6 +54,17 @@ class TestMaker {
   function fixFail(contentsBefore: String, contentsAfter: String, code: Int): Config.StepTest =
     makeTest("fix", contentsBefore, contentsAfter, code)
 
+  /// Make a "fix" test, where the output of `check_diff` should be used
+  function fixWithDiffPass(contentsBefore: String, contentsAfter: String): Config.StepTest =
+    makeTest("fix+check_diff", contentsBefore, contentsAfter, 0)
+
+  /// Make a "fix" test, where the output of `check_diff` should be used
+  function fixWithDiffFail(
+    contentsBefore: String,
+    contentsAfter: String,
+    code: Int,
+  ): Config.StepTest = makeTest("fix+check_diff", contentsBefore, contentsAfter, code)
+
   /// Make a TestMaker (same as this one) but using the provided filename
   function withFilename(newFilename: String): TestMaker = (this) {
     filename = newFilename

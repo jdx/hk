@@ -4,7 +4,6 @@ use std::time::Instant;
 
 use crate::{
     Result,
-    step::RunType,
     step::Step,
     step_test::{RunKind, StepTest},
     tera,
@@ -70,6 +69,25 @@ async fn execute_cmd(
     Ok((stdout, stderr, code))
 }
 
+fn expect_diff_application(step: &Step, test: &StepTest, stdout: &str) -> Option<String> {
+    if test.run == RunKind::FixCheckDiff {
+        match step.apply_diff_output(&stdout) {
+            Ok(true) => {
+                // Diff applied successfully
+            }
+            Ok(false) => {
+                // Diff application failed - fall through to run fixer
+                return Some(format!("Diff application failed (stdout below)\n"));
+            }
+            Err(err) => {
+                // Unexpected error
+                return Some(format!("Unexpected error while applying diff: {}", &err));
+            }
+        }
+    }
+    None
+}
+
 fn check_exit_code(actual: i32, expected: i32) -> Option<String> {
     if actual != expected {
         Some(format!("exit code {} != expected {}", actual, expected))
@@ -78,8 +96,8 @@ fn check_exit_code(actual: i32, expected: i32) -> Option<String> {
     }
 }
 
-fn check_after_fail(after_fail: &Option<(i32, String, String)>) -> Option<String> {
-    if let Some((code, _, _)) = after_fail {
+fn check_after_fail(after_fail: &Option<(String, String, i32)>) -> Option<String> {
+    if let Some((_, _, code)) = after_fail {
         Some(format!("after failed with code {}", code))
     } else {
         None
@@ -129,7 +147,7 @@ fn check_file_contents(
     Ok(reasons)
 }
 
-pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<TestResult> {
+pub async fn run_test_named(step: &mut Step, name: &str, test: &StepTest) -> Result<TestResult> {
     let started_at = Instant::now();
     let tmp = tempfile::tempdir().unwrap();
     let sandbox = tmp
@@ -214,14 +232,22 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     // Render command
-    let run_type = match test.run {
-        RunKind::Fix => RunType::Fix,
-        RunKind::Check => RunType::Check,
+    let run = match test.run {
+        RunKind::Check => step
+            .check
+            .as_ref()
+            .or(step.check_diff.as_ref())
+            .or(step.check_list_files.as_ref()),
+        RunKind::CheckListFiles => step.check_list_files.as_ref(),
+        RunKind::CheckDiff => step.check_diff.as_ref(),
+        RunKind::Fix => step.fix.as_ref(),
+        RunKind::FixCheckDiff => step.check_diff.as_ref(),
     };
 
-    let Some(mut run) = step.run_cmd(run_type).map(|s| s.to_string()) else {
+    let Some(mut run) = run.map(|s| s.to_string()) else {
         eyre::bail!("{}: no command for test", step.name);
     };
+
     if let Some(prefix) = &step.prefix {
         run = format!("{prefix} {run}");
     }
@@ -251,23 +277,30 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     // Run main command
-
     let (stdout, stderr, code) =
         execute_cmd(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
 
+    step.dir = Some(
+        match &step.dir {
+            Some(dir) => base_dir.join(dir),
+            None => base_dir.clone(),
+        }
+        .to_string_lossy()
+        .to_string(),
+    );
+
+    let mut reasons: Vec<String> = Vec::new();
+    // If the command was `fix+check_diff`, try and apply the diff
+    reasons.extend(expect_diff_application(step, test, &stdout));
+
     // Run post-command (after) before evaluating expectations so it can contribute to assertions
-    let mut after_fail: Option<(i32, String, String)> = None;
+    let mut after_fail: Option<(String, String, i32)> = None;
     if let Some(cmd_str) = &test.after {
         let rendered = tera::render(cmd_str, &tctx)?;
-        let (a_stdout, a_stderr, a_code) =
-            execute_cmd(step, &tctx, &base_dir, test, &rendered, &None).await?;
-        if a_code != 0 {
-            after_fail = Some((a_code, a_stdout, a_stderr));
-        }
+        after_fail = Some(execute_cmd(step, &tctx, &base_dir, test, &rendered, &None).await?);
     }
 
     // Evaluate expectations
-    let mut reasons: Vec<String> = Vec::new();
     reasons.extend(check_exit_code(code, test.expect.code));
     reasons.extend(check_after_fail(&after_fail));
     reasons.extend(check_stdout_contains(&stdout, &test.expect.stdout));

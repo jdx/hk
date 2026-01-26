@@ -70,11 +70,11 @@ impl Test {
         let jobs = crate::settings::Settings::try_get()?.jobs().get();
         let semaphore = std::sync::Arc::new(Semaphore::new(jobs));
         let mut handles = vec![];
-        for (step_name, step, test_name, test) in to_run {
+        for (step_name, mut step, test_name, test) in to_run {
             let sem = semaphore.clone();
             handles.push(tokio::spawn(async move {
                 let _permit = sem.acquire_owned().await.unwrap();
-                let r = crate::test_runner::run_test_named(&step, &test_name, &test).await;
+                let r = crate::test_runner::run_test_named(&mut step, &test_name, &test).await;
                 (step_name, test_name, r)
             }));
         }
