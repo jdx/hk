@@ -25,7 +25,6 @@ jobs:
           - macos-latest
           - ubuntu-latest
           #- ubuntu-24.04-arm
-          #- windows-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
@@ -39,6 +38,20 @@ jobs:
         with:
           name: hk-${{ matrix.os }}
           path: target/debug/hk
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          submodules: recursive
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+      - name: Build
+        run: cargo build --features git2/vendored-libgit2,git2/vendored-openssl
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        with:
+          name: hk-windows-latest
+          path: target/debug/hk.exe
   ci-libgit2:
     needs: build
     strategy:
@@ -181,13 +194,54 @@ jobs:
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
       - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
       - run: mise run msrv
+  ci-windows:
+    needs: build-windows
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          submodules: recursive
+      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: hk-windows-latest
+          path: target/debug
+      - name: Install pkl
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/apple/pkl/releases/download/0.27.2/pkl-windows-amd64.exe" -OutFile "$env:USERPROFILE\pkl.exe"
+          echo "$env:USERPROFILE" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Run cargo tests
+        run: cargo test --features git2/vendored-libgit2,git2/vendored-openssl
+      - name: Smoke test - version
+        run: target/debug/hk.exe --version
+      - name: Smoke test - help
+        run: target/debug/hk.exe --help
+      - name: Smoke test - init
+        run: |
+          cd $env:TEMP
+          mkdir hk-test
+          cd hk-test
+          git init
+          git config user.email "test@test.com"
+          git config user.name "Test"
+          $env:PKL_PATH = "${{ github.workspace }}/pkl"
+          & "${{ github.workspace }}/target/debug/hk.exe" init
+          if (Test-Path "hk.pkl") { Write-Host "hk.pkl created successfully" } else { exit 1 }
+      - name: Smoke test - validate
+        run: |
+          cd $env:TEMP/hk-test
+          $env:PKL_PATH = "${{ github.workspace }}/pkl"
+          & "${{ github.workspace }}/target/debug/hk.exe" validate
   final:
     needs:
       - build
+      - build-windows
       - ci-libgit2
       - ci-nolibgit2
       - ci-nogit
       - ci-other
+      - ci-windows
       - msrv
     runs-on: ubuntu-latest
     timeout-minutes: 1
@@ -197,6 +251,10 @@ jobs:
         run: |
           if [ "${{ needs.build.result }}" != "success" ]; then
             echo "build failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.build-windows.result }}" != "success" ]; then
+            echo "build-windows failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.ci-libgit2.result }}" != "success" ]; then
@@ -213,6 +271,10 @@ jobs:
           fi
           if [ "${{ needs.ci-other.result }}" != "success" ]; then
             echo "ci-other failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.ci-windows.result }}" != "success" ]; then
+            echo "ci-windows failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.msrv.result }}" != "success" ]; then

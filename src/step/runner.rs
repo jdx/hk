@@ -150,6 +150,8 @@ impl Step {
                 cmd = cmd.arg(arg);
             }
             cmd
+        } else if cfg!(windows) {
+            CmdLineRunner::new("cmd.exe").arg("/c")
         } else {
             CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
         };
@@ -326,7 +328,7 @@ impl Step {
     /// Get the shell type for this step.
     ///
     /// Parses the shell configuration to determine the shell type,
-    /// defaulting to Sh if not specified.
+    /// defaulting to Sh on Unix or Cmd on Windows if not specified.
     pub fn shell_type(&self) -> ShellType {
         let shell = self
             .shell
@@ -334,13 +336,17 @@ impl Step {
             .map(|s| s.to_string())
             .unwrap_or_default();
         let shell = shell.split_whitespace().next().unwrap_or_default();
-        let shell = shell.split("/").last().unwrap_or_default();
+        let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
         match shell {
-            "bash" => ShellType::Bash,
+            "bash" | "bash.exe" => ShellType::Bash,
             "dash" => ShellType::Dash,
             "fish" => ShellType::Fish,
             "sh" => ShellType::Sh,
             "zsh" => ShellType::Zsh,
+            "cmd" | "cmd.exe" => ShellType::Cmd,
+            "powershell" | "powershell.exe" | "pwsh" | "pwsh.exe" => ShellType::PowerShell,
+            "" if cfg!(windows) => ShellType::Cmd,
+            "" => ShellType::Sh,
             _ => ShellType::Other(shell.to_string()),
         }
     }
