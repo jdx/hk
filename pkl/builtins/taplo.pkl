@@ -8,6 +8,10 @@ import "./test/helpers.pkl"
 }
 taplo = new Config.Step {
   glob = "**/*.toml"
+  env {
+    // prevent logs to stderr with the list of checked files
+    ["RUST_LOG"] = "warn"
+  }
   check = "taplo lint {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.toml" }
