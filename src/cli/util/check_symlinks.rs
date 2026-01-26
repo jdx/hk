@@ -51,10 +51,13 @@ fn is_broken_symlink(path: &PathBuf) -> Result<bool> {
 mod tests {
     use super::*;
     use std::fs;
-    use std::os::unix::fs::symlink;
     use tempfile::TempDir;
 
+    #[cfg(unix)]
+    use std::os::unix::fs::symlink;
+
     #[test]
+    #[cfg(unix)]
     fn test_valid_symlink() {
         let dir = TempDir::new().unwrap();
         let target = dir.path().join("target.txt");
@@ -68,6 +71,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_broken_symlink() {
         let dir = TempDir::new().unwrap();
         let target = dir.path().join("target.txt");
@@ -100,6 +104,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_symlink_to_directory() {
         let dir = TempDir::new().unwrap();
         let target_dir = dir.path().join("target_dir");
@@ -113,6 +118,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn test_broken_symlink_to_directory() {
         let dir = TempDir::new().unwrap();
         let target_dir = dir.path().join("nonexistent_dir");
