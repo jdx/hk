@@ -18,17 +18,17 @@ biome = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
-    ["no error on ignored file"] {
-      run = "check"
-      write {
-        ["{{tmp}}/test.json"] = "{    }"
-        ["{{tmp}}/biome.json"] =
+
+    local const ignoredTestMaker = new helpers.TestMaker {
+      filename = "test.ts"
+      extra_files {
+        ["biome.json"] =
           """
           {
             "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
             "files": {
-              "includes": [],
-              "ignoreUnknown": true
+              "includes": ["**/*.js"],
+              "ignoreUnknown": false
             },
             "formatter": {
               "enabled": true,
@@ -38,11 +38,10 @@ biome = new Config.Step {
           }
           """ + "\n"
       }
-      expect {
-        files { ["{{tmp}}/test.json"] = "{    }" }
-        stderr = ""
-        code = 0
-      }
     }
+    ["check ignored bad file"] = ignoredTestMaker.checkPass(before)
+    ["check ignored good file"] = ignoredTestMaker.checkPass(after)
+    ["fix ignored bad file"] = ignoredTestMaker.fixPass(before, before)
+    ["fix ignored good file"] = ignoredTestMaker.fixPass(after, after)
   }
 }
