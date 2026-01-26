@@ -60,6 +60,7 @@ impl Step {
             debug!("{self}: condition: {step_condition} = {val}");
             if val == expr::Value::Bool(false) {
                 self.mark_skipped(&ctx, &SkipReason::ConditionFalse)?;
+                ctx.hook_ctx.dec_total_jobs(1);
                 return Ok(());
             }
         }
