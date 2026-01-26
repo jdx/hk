@@ -63,6 +63,8 @@ impl StepJob {
     pub fn tctx(&self, base: &tera::Context) -> tera::Context {
         let mut tctx = base.clone();
 
+        tctx.insert("step", &self.step.name);
+
         // Handle directory stripping for command execution context
         let command_files = if let Some(dir) = &self.step.dir {
             self.files
