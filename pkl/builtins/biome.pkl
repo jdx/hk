@@ -8,8 +8,8 @@ import "./test/helpers.pkl"
 }
 biome = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
-  check = "biome check {{ files }}"
-  fix = "biome check --write {{ files }}"
+  check = "biome check --no-errors-on-unmatched {{ files }}"
+  fix = "biome check --write --no-errors-on-unmatched {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.ts" }
     local const before = "x=1"
@@ -18,5 +18,31 @@ biome = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+    ["no error on ignored file"] {
+      run = "check"
+      write {
+        ["{{tmp}}/test.json"] = "{    }"
+        ["biome.json"] =
+          """
+          {
+            "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
+            "files": {
+              "includes": [],
+              "ignoreUnknown": true
+            },
+            "formatter": {
+              "enabled": true,
+              "indentStyle": "space",
+              "indentWidth": 2
+            }
+          }
+          """ + "\n"
+      }
+      expect {
+        files { ["{{tmp}}/test.json"] = "{    }" }
+        stderr = ""
+        code = 0
+      }
+    }
   }
 }
