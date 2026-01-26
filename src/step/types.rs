@@ -171,8 +171,12 @@ pub struct Step {
     /// Working directory for commands (relative to repo root)
     pub dir: Option<String>,
 
+    /// Expression that must evaluate to true for step job to run
+    #[serde(rename = "condition")]
+    pub job_condition: Option<String>,
+
     /// Expression that must evaluate to true for step to run
-    pub condition: Option<String>,
+    pub step_condition: Option<String>,
 
     /// Run check command before fix to identify files needing changes
     #[serde(default)]
