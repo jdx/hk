@@ -9,7 +9,7 @@ teardown() {
 
 @test "builtins lists all available builtin linters" {
     run hk builtins
-    
+
     assert_success
     assert_line --regexp '^actionlint$'
     assert_line --regexp '^prettier$'
@@ -19,7 +19,7 @@ teardown() {
 
 @test "builtins output is sorted" {
     run hk builtins
-    
+
     assert_success
     # Check that the output is sorted alphabetically
     assert_output --partial 'actionlint'
@@ -31,8 +31,8 @@ teardown() {
 @test "builtins works in any directory" {
     cd "$TEST_TEMP_DIR"
     run hk builtins
-    
+
     assert_success
     assert_line --regexp '^actionlint$'
     assert_line --regexp '^prettier$'
-} 
+}

@@ -1,28 +1,20 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Detect and remove trailing whitespace"
+}
 trailing_whitespace = new Config.Step {
-    glob = "*"
-    stage = "*"
-    check_list_files = "hk util trailing-whitespace {{files}}"
-    fix = "hk util trailing-whitespace --fix {{files}}"
-    tests {
-        ["removes trailing whitespace"] {
-            run = "fix"
-            write { ["{{tmp}}/a.txt"] = "trailing  \n" }
-            files = List("{{tmp}}/a.txt")
-            expect { files { ["{{tmp}}/a.txt"] = "trailing\n" } }
-        }
-        ["detects trailing whitespace"] {
-            run = "check"
-            write { ["{{tmp}}/a.txt"] = "trailing  \n" }
-            files = List("{{tmp}}/a.txt")
-            expect { code = 1 }
-        }
-        ["passes clean files"] {
-            run = "check"
-            write { ["{{tmp}}/a.txt"] = "clean\n" }
-            files = List("{{tmp}}/a.txt")
-            expect { code = 0 }
-        }
-    }
+  glob = "**/*"
+  check_diff = "hk util trailing-whitespace --diff {{files}}"
+  fix = "hk util trailing-whitespace --fix {{files}}"
+  tests {
+    local const testMaker = new helpers.TestMaker {}
+    ["check bad file"] = testMaker.checkFail("trailing  \n", 1)
+    ["check good file"] = testMaker.checkPass("trailing\n")
+    ["fix bad file"] = testMaker.fixPass("trailing  \n", "trailing\n")
+    ["fix good file"] = testMaker.fixPass("trailing\n", "trailing\n")
+  }
 }

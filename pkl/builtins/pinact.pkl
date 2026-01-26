@@ -1,0 +1,77 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Pin GitHub Actions to commit SHA for security"
+}
+const pinact = new Config.Step {
+  glob = List(".github/workflows/*", "*/action.*")
+  types = List("yaml")
+  // `verify` flag to verify pairs of commit CHA and version are correct
+  check_diff = "pinact run --verify --check {{ files }}"
+  fix = "pinact run --verify {{ files }}"
+  tests {
+    local const bad =
+      """
+      name: pinact test
+      on:
+        push:
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v6.0.1
+
+      """
+    local const good =
+      """
+      name: pinact test
+      on:
+        push:
+      jobs:
+        test:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+
+      """
+    local const testMaker = new helpers.TestMaker {
+      before = "pinact init" // create the pinact configuration file
+      filename = ".github/workflows/test.yml"
+    }
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file violations remain"] =
+      testMaker.fixFail(
+        """
+        name: pinact test
+        on:
+          push:
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@v6.0.1
+              - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
+
+        """,
+        """
+        name: pinact test
+        on:
+          push:
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+              - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
+
+        """,
+        1,
+      )
+    ["fix bad file all violations are fixed"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}

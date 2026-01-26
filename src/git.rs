@@ -6,6 +6,7 @@ use std::{
 
 use crate::Result;
 use crate::merge;
+use crate::settings::Settings;
 use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
@@ -27,6 +28,16 @@ where
     xx::process::cmd("git", args).on_stderr_line(|line| {
         clx::progress::with_terminal_lock(|| eprintln!("{} {}", style::edim("git"), line))
     })
+}
+
+fn git_cmd_silent<I, S>(args: I) -> xx::process::XXExpression
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
+    // Silently ignore stderr output by using an empty handler
+    xx::process::cmd("git", args).on_stderr_line(|_line| {})
 }
 
 fn git_run<I, S>(args: I) -> Result<()>
@@ -113,6 +124,123 @@ impl Git {
         })
     }
 
+    /// Get the patches directory for this repository
+    fn patches_dir(&self) -> Result<PathBuf> {
+        let patches_dir = env::HK_STATE_DIR.join("patches");
+        std::fs::create_dir_all(&patches_dir)?;
+        Ok(patches_dir)
+    }
+
+    /// Get a unique name for the repository based on its directory
+    fn repo_name(&self) -> Result<String> {
+        let cwd = std::env::current_dir()?;
+        let name = cwd
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        Ok(name)
+    }
+
+    /// Rotate patch files, keeping only the last N patches for this repository
+    fn rotate_patch_files(&self, keep_count: usize) -> Result<()> {
+        let patches_dir = self.patches_dir()?;
+        let repo_name = self.repo_name()?;
+        let prefix = format!("{}-", repo_name);
+
+        // Collect all patch files for this repo
+        let mut patch_files: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
+        if let Ok(entries) = std::fs::read_dir(&patches_dir) {
+            for entry in entries.flatten() {
+                if let Ok(file_name) = entry.file_name().into_string()
+                    && file_name.starts_with(&prefix)
+                    && file_name.ends_with(".patch")
+                    && let Ok(metadata) = entry.metadata()
+                    && let Ok(modified) = metadata.modified()
+                {
+                    patch_files.push((entry.path(), modified));
+                }
+            }
+        }
+
+        // Sort by modification time, newest first
+        patch_files.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // Remove old patches beyond keep_count
+        for (path, _) in patch_files.iter().skip(keep_count) {
+            debug!("Rotating old patch file: {}", path.display());
+            let _ = std::fs::remove_file(path);
+        }
+
+        Ok(())
+    }
+
+    /// Save a patch backup of the stash
+    fn save_stash_patch(&self, stash_ref: &str) {
+        // If backup_count is 0, skip patch backup entirely
+        let backup_count = Settings::get().stash_backup_count;
+        if backup_count == 0 {
+            return;
+        }
+
+        // Get patches directory and repo name
+        let (patches_dir, repo_name) = match (self.patches_dir(), self.repo_name()) {
+            (Ok(dir), Ok(name)) => (dir, name),
+            (Err(e), _) => {
+                warn!("Failed to get patches directory: {}", e);
+                return;
+            }
+            (_, Err(e)) => {
+                warn!("Failed to get repository name: {}", e);
+                return;
+            }
+        };
+
+        // Generate timestamp and short hash for unique filename
+        let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let short_hash = if let Some(commit) = &self.stash_commit {
+            commit.chars().take(8).collect::<String>()
+        } else {
+            "unknown".to_string()
+        };
+
+        let patch_filename = format!("{}-{}-{}.patch", repo_name, timestamp, short_hash);
+        let patch_path = patches_dir.join(&patch_filename);
+
+        // Generate patch using git stash show
+        let mut cmd = git_cmd_silent(["stash", "show", "-p"]);
+        if *env::HK_STASH_UNTRACKED {
+            cmd = cmd.arg("--include-untracked");
+        }
+        cmd = cmd.arg(stash_ref);
+
+        // Read patch content from git
+        let patch_content = match cmd.read() {
+            Ok(content) => content,
+            Err(e) => {
+                warn!("Failed to generate stash patch: {}", e);
+                return;
+            }
+        };
+
+        // Write patch file
+        if let Err(e) = std::fs::write(&patch_path, patch_content) {
+            warn!(
+                "Failed to write stash patch to {}: {}",
+                patch_path.display(),
+                e
+            );
+            return;
+        }
+        debug!("Saved stash patch: {}", patch_path.display());
+
+        // Rotate old patches based on configured backup count
+        if let Err(e) = self.rotate_patch_files(backup_count) {
+            warn!("Failed to rotate old patch files: {}", e);
+            // Continue anyway - at least we saved the current patch
+        }
+    }
+
     /// Determine the repository's default branch reference.
     /// Strategy:
     /// 1) Use `origin/HEAD` if it points to a branch
@@ -122,12 +250,12 @@ impl Git {
         // Try origin/HEAD -> refs/remotes/origin/HEAD -> symbolic-ref
         // Shell git path (works with or without libgit2 enabled)
         let head_sym = git_cmd(["symbolic-ref", "refs/remotes/origin/HEAD"]).read();
-        if let Ok(symref) = head_sym {
-            if let Some(target) = symref.lines().next() {
-                // Expect something like: refs/remotes/main
-                if let Some(short) = target.strip_prefix("refs/remotes/") {
-                    return Ok(short.to_string());
-                }
+        if let Ok(symref) = head_sym
+            && let Some(target) = symref.lines().next()
+        {
+            // Expect something like: refs/remotes/main
+            if let Some(short) = target.strip_prefix("refs/remotes/") {
+                return Ok(short.to_string());
             }
         }
 
@@ -158,12 +286,11 @@ impl Git {
     /// Resolve the effective default branch, honoring a configured override in project config.
     /// If `Config.default_branch` is set and non-empty, it is returned as-is. Otherwise, falls back to detection.
     pub fn resolve_default_branch(&self) -> String {
-        if let Ok(cfg) = crate::config::Config::get() {
-            if let Some(val) = cfg.default_branch {
-                if !val.trim().is_empty() {
-                    return val;
-                }
-            }
+        if let Ok(cfg) = crate::config::Config::get()
+            && let Some(val) = cfg.default_branch
+            && !val.trim().is_empty()
+        {
+            return val;
         }
         self.default_branch().unwrap_or_else(|_| "main".to_string())
     }
@@ -446,10 +573,10 @@ impl Git {
         if method == StashMethod::None {
             return Ok(());
         }
-        if let Some(repo) = &self.repo {
-            if repo.head().is_err() {
-                return Ok(());
-            }
+        if let Some(repo) = &self.repo
+            && repo.head().is_err()
+        {
+            return Ok(());
         }
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
         job.prop("message", "Fetching unstaged files");
@@ -585,15 +712,15 @@ impl Git {
         // If after filtering there are no tracked paths left:
         // - When HK_STASH_UNTRACKED=true, do a full stash (no pathspecs) to stash all untracked files
         // - Otherwise, no need to stash anything
-        if let Some(ref ts) = tracked_subset {
-            if ts.is_empty() {
-                if *env::HK_STASH_UNTRACKED {
-                    // No tracked files to stash, but we want to stash all untracked files
-                    // So do a full stash with --include-untracked (no pathspecs)
-                    return self.push_stash(None, status);
-                } else {
-                    return Ok(None);
-                }
+        if let Some(ref ts) = tracked_subset
+            && ts.is_empty()
+        {
+            if *env::HK_STASH_UNTRACKED {
+                // No tracked files to stash, but we want to stash all untracked files
+                // So do a full stash with --include-untracked (no pathspecs)
+                return self.push_stash(None, status);
+            } else {
+                return Ok(None);
             }
         }
         if let Some(repo) = &mut self.repo {
@@ -615,17 +742,22 @@ impl Git {
                     cmd = cmd.args(utf8_paths);
                 }
                 cmd.run()?;
-                // Record the stash commit we just created
+                // Record the stash commit we just created and save patch backup
                 if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
-                    self.stash_commit = Some(h.trim().to_string());
+                    let commit_hash = h.trim().to_string();
+                    self.stash_commit = Some(commit_hash.clone());
+                    self.save_stash_patch(&commit_hash);
                 }
                 Ok(Some(StashType::Git))
             } else {
                 match repo.stash_save(&sig, "hk", Some(flags)) {
                     Ok(_) => {
+                        // Record the stash commit we just created and save patch backup
                         if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read()
                         {
-                            self.stash_commit = Some(h.trim().to_string());
+                            let commit_hash = h.trim().to_string();
+                            self.stash_commit = Some(commit_hash.clone());
+                            self.save_stash_patch(&commit_hash);
                         }
                         Ok(Some(StashType::LibGit))
                     }
@@ -636,9 +768,12 @@ impl Git {
                             cmd = cmd.arg("--include-untracked");
                         }
                         cmd.run()?;
+                        // Record the stash commit we just created and save patch backup
                         if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read()
                         {
-                            self.stash_commit = Some(h.trim().to_string());
+                            let commit_hash = h.trim().to_string();
+                            self.stash_commit = Some(commit_hash.clone());
+                            self.save_stash_patch(&commit_hash);
                         }
                         Ok(Some(StashType::Git))
                     }
@@ -657,8 +792,11 @@ impl Git {
                 }
             }
             cmd.run()?;
+            // Record the stash commit we just created and save patch backup
             if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
-                self.stash_commit = Some(h.trim().to_string());
+                let commit_hash = h.trim().to_string();
+                self.stash_commit = Some(commit_hash.clone());
+                self.save_stash_patch(&commit_hash);
             }
             Ok(Some(StashType::Git))
         }
@@ -691,10 +829,10 @@ impl Git {
                     let p = PathBuf::from(path);
                     entries.push((mode, oid.to_string(), p.clone()));
                     // Capture current worktree contents to preserve exact EOF newline state
-                    if p.exists() {
-                        if let Ok(contents) = xx::file::read_to_string(&p) {
-                            wt_map.insert(p.clone(), contents);
-                        }
+                    if p.exists()
+                        && let Ok(contents) = xx::file::read_to_string(&p)
+                    {
+                        wt_map.insert(p.clone(), contents);
                     }
                 }
             }
@@ -721,11 +859,11 @@ impl Git {
                     let mut found: Option<String> = None;
                     for line in list.lines() {
                         let mut parts = line.split_whitespace();
-                        if let (Some(h), Some(gd)) = (parts.next(), parts.next()) {
-                            if h == hash {
-                                found = Some(gd.to_string());
-                                break;
-                            }
+                        if let (Some(h), Some(gd)) = (parts.next(), parts.next())
+                            && h == hash
+                        {
+                            found = Some(gd.to_string());
+                            break;
                         }
                     }
                     found.unwrap_or_else(|| "stash@{0}".to_string())
@@ -778,10 +916,11 @@ impl Git {
                                 let mode = parts.next().unwrap_or("100644");
                                 let oid = parts.next().unwrap_or("");
                                 let path_buf = PathBuf::from(path);
-                                if !oid.is_empty() && staged_changed_set.contains(&path_buf) {
-                                    if let Ok(mode_num) = u32::from_str_radix(mode, 8) {
-                                        fixer_map.insert(path_buf, (mode_num, oid.to_string()));
-                                    }
+                                if !oid.is_empty()
+                                    && staged_changed_set.contains(&path_buf)
+                                    && let Ok(mode_num) = u32::from_str_radix(mode, 8)
+                                {
+                                    fixer_map.insert(path_buf, (mode_num, oid.to_string()));
                                 }
                             }
                         }
@@ -792,18 +931,30 @@ impl Git {
                 // the merge logic when no fixer output exists for the path.
                 const LARGE_STASH_FILE_BYTES: usize = 1_000_000; // 1 MiB
 
+                // Track whether any file restoration failed so we can preserve the stash
+                let mut restoration_failed = false;
+
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
                     // Lightweight size probe for the worktree snapshot stored in the stash
                     // Check if this is an untracked file (exists in stash^3 but not in stash^1 or stash^2)
+                    // Use silent commands to avoid noisy "exists on disk, but not in ref" errors
                     let is_untracked = *env::HK_STASH_UNTRACKED
-                        && git_cmd(["cat-file", "-e", &format!("{}^3:{}", &stash_ref, path_str)])
-                            .run()
-                            .is_ok()
-                        && git_cmd(["cat-file", "-e", &format!("{}^2:{}", &stash_ref, path_str)])
-                            .run()
-                            .is_err();
+                        && git_cmd_silent([
+                            "cat-file",
+                            "-e",
+                            &format!("{}^3:{}", &stash_ref, path_str),
+                        ])
+                        .run()
+                        .is_ok()
+                        && git_cmd_silent([
+                            "cat-file",
+                            "-e",
+                            &format!("{}^2:{}", &stash_ref, path_str),
+                        ])
+                        .run()
+                        .is_err();
 
                     // Handle untracked files specially - just restore from stash^3
                     if is_untracked {
@@ -815,13 +966,13 @@ impl Git {
                             "cat-file",
                             "-p",
                             &format!("{}^3:{}", &stash_ref, path_str),
-                        ]) {
-                            if let Err(err) = xx::file::write(&path, &contents) {
-                                warn!(
-                                    "failed to write untracked file {}: {err:?}",
-                                    display_path(&path)
-                                );
-                            }
+                        ]) && let Err(err) = xx::file::write(&path, &contents)
+                        {
+                            warn!(
+                                "failed to write untracked file {}: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
                         }
                         // Skip normal merge path for untracked files
                         continue;
@@ -842,13 +993,13 @@ impl Git {
                         if let Ok(contents) =
                             git_cmd(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
                                 .read()
+                            && let Err(err) = xx::file::write(&path, &contents)
                         {
-                            if let Err(err) = xx::file::write(&path, &contents) {
-                                warn!(
-                                    "failed to write large worktree snapshot for {}: {err:?}",
-                                    display_path(&path)
-                                );
-                            }
+                            warn!(
+                                "failed to write large worktree snapshot for {}: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
                         }
                         // Skip normal merge path for large files
                         continue;
@@ -986,18 +1137,18 @@ impl Git {
                         _ => false,
                     };
                     // Preserve EOF newline-only differences without discarding fixer changes.
-                    if newline_only_change {
-                        if let (Some(w), Some(i)) = (work_pre.as_deref(), index_pre.as_deref()) {
-                            let w_has_nl = w.ends_with('\n');
-                            let i_has_nl = i.ends_with('\n');
-                            if w_has_nl && !i_has_nl {
-                                if !merged.ends_with('\n') {
-                                    merged.push('\n');
-                                }
-                            } else if !w_has_nl && i_has_nl {
-                                while merged.ends_with('\n') {
-                                    merged.pop();
-                                }
+                    if newline_only_change
+                        && let (Some(w), Some(i)) = (work_pre.as_deref(), index_pre.as_deref())
+                    {
+                        let w_has_nl = w.ends_with('\n');
+                        let i_has_nl = i.ends_with('\n');
+                        if w_has_nl && !i_has_nl {
+                            if !merged.ends_with('\n') {
+                                merged.push('\n');
+                            }
+                        } else if !w_has_nl && i_has_nl {
+                            while merged.ends_with('\n') {
+                                merged.pop();
                             }
                         }
                     }
@@ -1005,29 +1156,26 @@ impl Git {
                     // If there were no unstaged changes at stash time for this path
                     // (worktree identical to index), prefer writing the fixer result to the worktree
                     // so that files formatted by fixers (e.g., Prettier) appear in the worktree post-commit.
-                    if !newline_only_change {
-                        if let (Some(wc), Some(ic), Some(fc)) =
+                    if !newline_only_change
+                        && let (Some(wc), Some(ic), Some(fc)) =
                             (work_pre.as_ref(), index_pre.as_ref(), fixer.as_ref())
-                        {
-                            if wc == ic {
-                                merged = fc.clone();
-                            }
-                        }
+                        && wc == ic
+                    {
+                        merged = fc.clone();
                     }
 
                     // Determine which side the merged result matches
                     let mut chosen = "mixed";
-                    if let Some(w) = work_pre.as_deref() {
-                        if merged == w {
-                            chosen = "worktree";
-                        }
+                    if let Some(w) = work_pre.as_deref()
+                        && merged == w
+                    {
+                        chosen = "worktree";
                     }
-                    if chosen == "mixed" {
-                        if let Some(f) = fixer.as_deref() {
-                            if merged == f {
-                                chosen = "fixer";
-                            }
-                        }
+                    if chosen == "mixed"
+                        && let Some(f) = fixer.as_deref()
+                        && merged == f
+                    {
+                        chosen = "fixer";
                     }
                     if chosen == "mixed" && merged == base {
                         chosen = "base";
@@ -1051,6 +1199,7 @@ impl Git {
                             "failed to write merged worktree for {}: {err:?}",
                             display_path(&path)
                         );
+                        restoration_failed = true;
                     }
                     // If fixer differs from base, ensure index has fixer blob unless newline-only change
                     if newline_only_change {
@@ -1067,6 +1216,7 @@ impl Git {
                             .run()
                         {
                             warn!("failed to set index for {}: {err:?}", display_path(&path));
+                            restoration_failed = true;
                         } else {
                             debug!(
                                 "manual-unstash: set index cacheinfo path={} mode={mode:o} oid={oid}",
@@ -1080,9 +1230,23 @@ impl Git {
                         );
                     }
                 }
-                // Drop the specific stash we manually consumed
-                if let Err(err) = git_cmd(["stash", "drop", &stash_ref]).run() {
-                    warn!("failed to drop stash: {err:?}");
+                // Only drop the stash if all file restorations succeeded
+                if restoration_failed {
+                    error!(
+                        "Failed to restore some files from stash. Stash has been preserved at '{stash_ref}'."
+                    );
+                    error!(
+                        "You can manually recover your changes with: git stash show {stash_ref} && git stash apply {stash_ref}"
+                    );
+                    // Keep the stash around and return an error
+                    return Err(eyre!(
+                        "Stash restoration failed - stash preserved at {stash_ref}"
+                    ));
+                } else {
+                    // All files restored successfully, safe to drop the stash
+                    if let Err(err) = git_cmd(["stash", "drop", &stash_ref]).run() {
+                        warn!("failed to drop stash: {err:?}");
+                    }
                 }
             }
         }

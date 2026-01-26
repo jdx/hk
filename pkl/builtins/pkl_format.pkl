@@ -1,0 +1,34 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Pkl"
+  description = "Pkl formatter"
+}
+pkl_format = new Config.Step {
+  types = List("pkl")
+  check_list_files = "pkl format --diff-name-only {{ files }}"
+  // NB: pkl format exits 11 even if it fixes files
+  //  (If you're using a version of pkl that includes https://github.com/apple/pkl/pull/1340
+  //  you can override this command to just use `pkl format --write {{ files }}`
+  //  and remove the `shell` definition)
+  shell = "sh -c"
+  fix =
+    """
+        pkl format --write {{ files }}
+        code=$?
+        if [ $code -eq 11 ]; then
+            exit 0
+        else
+            exit $code
+        fi
+    """
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.pkl" }
+    ["check bad file"] = testMaker.checkFail("x = new {  }", 11)
+    ["check good file"] = testMaker.checkPass("x = new {}\n")
+    ["fix bad file"] = testMaker.fixPass("x = new {  }", "x = new {}\n")
+    ["fix good file"] = testMaker.fixPass("x = new {}\n", "x = new {}\n")
+  }
+}

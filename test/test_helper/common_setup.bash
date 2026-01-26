@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 _common_setup() {
-    load 'test_helper/bats-support/load'
-    load 'test_helper/bats-assert/load'
-    load 'test_helper/bats-file/load'
-    load 'test_helper/cache_setup'
+    export PROJECT_ROOT="$(dirname "${BASH_SOURCE[0]}")/../.."
+    load "$PROJECT_ROOT/test/test_helper/bats-support/load"
+    load "$PROJECT_ROOT/test/test_helper/bats-assert/load"
+    load "$PROJECT_ROOT/test/test_helper/bats-file/load"
+    load "$PROJECT_ROOT/test/test_helper/cache_setup"
 
-    export PROJECT_ROOT="$BATS_TEST_DIRNAME/.."
     export PKL_PATH="$PROJECT_ROOT/pkl"
 
     # Create a temporary directory for each test
@@ -17,7 +17,10 @@ _common_setup() {
     # Initialize a git repository
     export GIT_CONFIG_NOSYSTEM=1
     export HK_JOBS=2
+    export MISE_INSTALLS_DIR="${MISE_INSTALLS_DIR:-$HOME/.local/share/mise/installs}"
+    export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
     export HOME="$TEST_TEMP_DIR"
+
     git config --global init.defaultBranch main
 
     # Only set user config if not already set (to avoid overriding existing config)

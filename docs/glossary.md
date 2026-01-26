@@ -20,11 +20,11 @@ steps {
 }
 ```
 
-See: [Step Dependencies](/reference/schema.md#depends)
+See: [Step Dependencies](/configuration.md#step-depends-list-string)
 
 ## Group
 
-A organizational unit that contains multiple steps, allowing you to structure your configuration hierarchically. Groups help organize related steps together and can be used to create logical divisions like "frontend" and "backend" tasks.
+An organizational unit that contains multiple steps, allowing you to structure your configuration hierarchically. Groups help organize related steps together and can be used to create logical divisions like "frontend" and "backend" tasks.
 
 Example:
 ```pkl
@@ -38,7 +38,7 @@ steps {
 }
 ```
 
-See: [Group Configuration](/reference/schema.md#group-configuration)
+See: [Group Configuration](/configuration.md#group)
 
 ## Hook
 
@@ -89,10 +89,10 @@ See: [HK_SKIP_STEPS](/environment_variables.md#hk_skip_steps), [HK_SKIP_HOOK](/e
 
 ## Stash
 
-A strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and the automated fixes applied by linting tools.
+A strategy for temporarily saving unstaged changes before running hooks that might modify files. This prevents conflicts between your working directory changes and the automated fixes applied by linting tools.
 
 Stash strategies:
-- `git`: Uses `git stash` (default)
+- `git`: Uses `git stash`
 - `patch-file`: Uses hk-generated patch files (faster, avoids lock conflicts)
 - `none`: No stashing (fastest, but may cause staging conflicts)
 
@@ -117,7 +117,6 @@ Example:
 steps {
   ["eslint"] {
     glob = List("*.js", "*.ts")
-    stage = List("*.js", "*.ts")
     check = "eslint {{files}}"
     fix = "eslint --fix {{files}}"
     depends = List("prettier")  // Run after prettier
@@ -125,4 +124,4 @@ steps {
 }
 ```
 
-See: [Step Configuration](/reference/schema.md#step-configuration)
+See: [Step Configuration](/configuration.md#hooks-hook-steps-step-group)

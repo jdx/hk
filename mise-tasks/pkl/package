@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE depends=["pkl:gen"]
+
+set -euxo pipefail
+
+pkl project package pkl

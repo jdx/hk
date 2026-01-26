@@ -1,0 +1,12 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "OpenTofu formatter"
+}
+tofu = new Config.Step {
+  glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
+  check_list_files = "tofu fmt -check {{ files }}"
+  fix = "tofu fmt {{ files }}"
+}

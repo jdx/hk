@@ -12,6 +12,7 @@ teardown() {
 }
 
 @test "cache is enabled and speeds up repeated config loads" {
+    export HK_CACHE=1
     # Create a pkl config
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -52,8 +53,9 @@ EOF
     touch -t $(date -r "$orig_mtime" "+%Y%m%d%H%M.%S" 2>/dev/null || date -d "@$orig_mtime" "+%Y%m%d%H%M.%S") hk.pkl 2>/dev/null || true
 
     # Should succeed using cache (ignoring broken file content)
-    run hk validate
+    run hk validate -vv
     assert_success
+    assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.hit"
 
     # Now update mtime to current time
     touch hk.pkl
@@ -61,19 +63,7 @@ EOF
     # Should fail now - cache invalidated, reads broken file
     run hk validate
     assert_failure
-    assert_output --partial "Failed to read config file"
-
-    # Restore valid content
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["step1"] { shell = "echo step1" }
-        }
-    }
-}
-EOF
+    assert_output --partial "Failed to load configuration"
 }
 
 @test "cache can be disabled with HK_CACHE=0" {
@@ -93,11 +83,13 @@ EOF
     # Clear any existing cache
     rm -rf "$HK_CACHE_DIR" 2>/dev/null || true
 
-    run hk validate
+    run hk validate -vv
     assert_success
+    refute_output --partial "cache.hit"
 
-    # With HK_CACHE=0, cache should not be used (but file may still be written)
-    # The key test is that changes aren't cached
+    run hk validate -vv
+    assert_success
+    refute_output --partial "cache.hit"
 }
 
 
@@ -125,7 +117,6 @@ EOF
     [ -n "$(find "$HK_CACHE_DIR" -name "*.json" -type f 2>/dev/null)" ]
 
     # Modify the file (change mtime)
-    sleep 0.01  # Ensure mtime changes even on fast filesystems
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -136,12 +127,62 @@ hooks {
     }
 }
 EOF
+    sleep 0.01  # Ensure mtime changes even on fast filesystems
 
     # Should detect change and update cache
+    run hk check -vv test.txt
+    assert_success
+    assert_output --partial "checking modified"
+    assert_output --partial "cache.miss"
+}
+
+@test "cache handles imports" {
+    export HK_CACHE=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "./other.pkl"
+hooks {
+    ["check"] {
+        steps = other.STEPS
+    }
+}
+EOF
+    cat <<EOF > other.pkl
+import "./other_other.pkl"
+STEPS = other_other.STEPS
+EOF
+    cat <<EOF > other_other.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS = new Mapping<String, Config.Step> {
+    ["original"] { check = "echo 'checking original'" }
+}
+EOF
+
+    # Create a dummy file to check
+    echo "test" > test.txt
+
+    # First run - creates cache
     run hk check test.txt
     assert_success
+    assert_output --partial "checking original"
 
-    # The config should have been reloaded due to mtime change
+    run hk check -vv test.txt
+    assert_success
+    refute_output --partial "cache.miss"
+
+    cat <<EOF > other_other.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS = new Mapping<String, Config.Step> {
+    ["modified"] { check = "echo 'checking modified'" }
+}
+EOF
+    sleep 0.01  # Ensure mtime changes even on fast filesystems
+
+    # Should detect change and update cache
+    run hk check -vv test.txt
+    assert_success
+    assert_output --partial "checking modified"
+    assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
 }
 
 @test "cache handles concurrent access safely" {
@@ -196,6 +237,7 @@ EOF
     [ -z "$(find "$HK_CACHE_DIR" -name "*.json" -type f 2>/dev/null)" ]
 
     # Should still work (will recreate cache)
-    run hk validate
+    run hk validate -vv
     assert_success
+    assert_output --partial "cache.miss"
 }

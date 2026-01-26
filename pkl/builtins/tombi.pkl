@@ -1,0 +1,23 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Data Formats"
+  description = "TOML linter"
+}
+tombi = new Config.Step {
+  glob = "**/*.toml"
+  check = "tombi lint {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "file.toml"
+      extra_files = new Mapping<String, String> {
+        ["tombi.toml"] = "toml-version = \"v1.0.0\"\n"
+      }
+    }
+    // NB: Formatting is bad, but `tombi lint` doesn't check formatting
+    ["check bad file"] = testMaker.checkFail("[table]\nkey  =  0\nkey  =  1\n", 1)
+    ["check good file"] = testMaker.checkPass("[table]\nkey  =  0\n")
+  }
+}

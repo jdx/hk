@@ -1,0 +1,39 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "GitHub Actions action linter"
+}
+const ghalint_action = new Config.Step {
+  glob = List("**/action.*")
+  types = List("yaml")
+  check = "ghalint run-action {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "action.yml"
+    }
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+        name: test
+        description: hk test
+        runs:
+          steps:
+            - uses: actions/cache@v5.0.1
+        """,
+        1,
+      )
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+        name: test
+        description: hk test
+        runs:
+          steps:
+            - uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
+        """,
+      )
+  }
+}

@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use indexmap::IndexSet;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
 
@@ -23,7 +24,7 @@ impl Config {
                 let raw = xx::file::read_to_string(path)?;
                 toml::from_str(&raw)?
             }
-            "yaml" => {
+            "yaml" | "yml" => {
                 let raw = xx::file::read_to_string(path)?;
                 serde_yaml::from_str(&raw)?
             }
@@ -31,22 +32,7 @@ impl Config {
                 let raw = xx::file::read_to_string(path)?;
                 serde_json::from_str(&raw)?
             }
-            "pkl" => {
-                match parse_pkl("pkl", path) {
-                    Ok(raw) => raw,
-                    Err(err) => {
-                        // if pkl bin is not installed
-                        if which::which("pkl").is_err() {
-                            if let Ok(out) = parse_pkl("mise x -- pkl", path) {
-                                return Ok(out);
-                            };
-                            bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
-                        } else {
-                            return Err(err).wrap_err("failed to read pkl config file");
-                        }
-                    }
-                }
-            }
+            "pkl" => run_pkl(&["eval"], path)?,
             _ => {
                 bail!("Unsupported file extension: {}", ext);
             }
@@ -55,13 +41,30 @@ impl Config {
         Ok(config)
     }
 
+    /// Analyze pkl imports to get all transitive dependencies.
+    /// Returns a set of local file paths that the config depends on.
+    fn analyze_imports(path: &Path) -> Result<IndexSet<PathBuf>> {
+        let imports: PklImports =
+            run_pkl(&["analyze", "imports"], path).wrap_err("failed to analyze pkl")?;
+
+        // Extract all local file paths from the imports map keys
+        let mut paths = IndexSet::new();
+        for uri in imports.resolvedImports.keys() {
+            if let Some(file_path) = uri.strip_prefix("file://") {
+                paths.insert(PathBuf::from(file_path));
+            }
+        }
+
+        Ok(paths)
+    }
+
     fn init(&mut self, path: &Path) -> Result<()> {
         self.path = path.to_path_buf();
         if let Some(min_hk_version) = &self.min_hk_version {
             version::version_cmp_or_bail(min_hk_version)?;
         }
         for (name, hook) in self.hooks.iter_mut() {
-            hook.init(name);
+            hook.init(name)?;
         }
         for (key, value) in self.env.iter() {
             unsafe { std::env::set_var(key, value) };
@@ -72,39 +75,80 @@ impl Config {
 
     #[tracing::instrument(level = "info", name = "config.load_project")]
     fn load_project_config() -> Result<Self> {
-        let default_path = env::HK_FILE
-            .as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or("hk.pkl");
-        let paths = vec![default_path, "hk.toml", "hk.yaml", "hk.yml", "hk.json"];
+        let paths: Vec<&str> = if let Some(hk_file) = env::HK_FILE.as_ref() {
+            // If HK_FILE is explicitly set, only use that path (no fallbacks)
+            vec![hk_file.as_str()]
+        } else {
+            // Default search order when HK_FILE is not set
+            vec![
+                // User-local config
+                "hk.local.pkl",
+                ".config/hk.local.pkl",
+                // Standard config
+                "hk.pkl",
+                ".config/hk.pkl",
+                // Soon-to-be-deprecated
+                "hk.toml",
+                "hk.yaml",
+                "hk.yml",
+                "hk.json",
+            ]
+        };
         let mut cwd = std::env::current_dir()?;
         while cwd != Path::new("/") {
             for path in &paths {
                 let path = cwd.join(path);
                 if path.exists() {
-                    let hash_key = format!("{}.json", hash::hash_to_str(&path));
-                    let hash_key_path = env::HK_CACHE_DIR.join("configs").join(hash_key);
-                    let cache_mgr = CacheManagerBuilder::new(hash_key_path)
-                        .with_fresh_file(path.to_path_buf())
-                        .build();
-                    // Load from cache if fresh; otherwise read from disk. In both cases, run init
-                    // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
-                    let mut config = cache_mgr
-                        .get_or_try_init(|| {
-                            Self::read(&path).wrap_err_with(|| {
-                                format!("Failed to read config file: {}", path.display())
-                            })
-                        })?
-                        .clone();
-                    config.init(&path)?;
-                    return Ok(config);
+                    return Self::load_config_cached(path);
                 }
             }
             cwd = cwd.parent().map(PathBuf::from).unwrap_or_default();
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
-        config.init(Path::new(default_path))?;
+        config.init(Path::new(paths[0]))?;
+        Ok(config)
+    }
+
+    fn load_config_cached(path: PathBuf) -> Result<Config> {
+        let hash_key = format!("{}.json", hash::hash_to_str(&path));
+        let cache_dir = env::HK_CACHE_DIR.join("configs");
+
+        // For pkl files, we need to track all transitive imports for cache invalidation
+        let is_pkl = path.extension().is_some_and(|ext| ext == "pkl");
+
+        let fresh_files: Vec<PathBuf> = if is_pkl {
+            // First, get the imports (cached separately, invalidated only by the main config file)
+            let imports_cache_path =
+                cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
+            let imports_cache_mgr = CacheManagerBuilder::new(imports_cache_path)
+                .with_fresh_files(vec![path.clone()])
+                .build::<IndexSet<PathBuf>>();
+
+            let imports = imports_cache_mgr
+                .get_or_try_init(|| Self::analyze_imports(&path))?
+                .clone();
+
+            imports.into_iter().collect()
+        } else {
+            vec![path.clone()]
+        };
+
+        // Build the config cache with all fresh files (imports + main config)
+        let config_cache_path = cache_dir.join(hash_key);
+        let config_cache_mgr = CacheManagerBuilder::new(config_cache_path)
+            .with_fresh_files(fresh_files)
+            .build::<Config>();
+
+        // Load from cache if fresh; otherwise read from disk. In both cases, run init
+        // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
+        let mut config = config_cache_mgr
+            .get_or_try_init(|| {
+                Self::read(&path)
+                    .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))
+            })?
+            .clone();
+        config.init(&path)?;
         Ok(config)
     }
 
@@ -119,6 +163,9 @@ impl Config {
             }
             if user_config.warnings.is_some() {
                 self.warnings = user_config.warnings.clone();
+            }
+            if user_config.stage.is_some() {
+                self.stage = user_config.stage
             }
 
             for (key, value) in &user_config.environment {
@@ -196,7 +243,7 @@ impl UserConfig {
             .expect("Config path should always be set by CLI");
 
         if user_config_path.exists() {
-            let user_config: UserConfig = parse_pkl("pkl", &user_config_path)?;
+            let user_config: UserConfig = run_pkl(&["eval"], &user_config_path)?;
             Ok(Some(user_config))
         } else {
             let default_path = PathBuf::from(".hkrc.pkl");
@@ -208,25 +255,99 @@ impl UserConfig {
     }
 }
 
-fn parse_pkl<T: DeserializeOwned>(bin: &str, path: &Path) -> Result<T> {
+/// Get the HTTP proxy address from environment variables.
+/// Checks http_proxy, HTTP_PROXY, https_proxy, HTTPS_PROXY in that order.
+fn get_http_proxy() -> Option<String> {
+    std::env::var("http_proxy")
+        .or_else(|_| std::env::var("HTTP_PROXY"))
+        .or_else(|_| std::env::var("https_proxy"))
+        .or_else(|_| std::env::var("HTTPS_PROXY"))
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
+/// Get the no_proxy list from environment variables.
+/// Checks no_proxy and NO_PROXY.
+fn get_no_proxy() -> Option<String> {
+    std::env::var("no_proxy")
+        .or_else(|_| std::env::var("NO_PROXY"))
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
+fn run_pkl<T: DeserializeOwned>(subcommand: &[&str], path: &Path) -> Result<T> {
     use std::process::{Command, Stdio};
 
-    // Run pkl with captured stderr to check for specific error patterns
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(format!("{bin} eval -f json {}", path.display()))
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .wrap_err("failed to execute pkl command")?;
+    let try_run = |bin: &str| -> Result<T> {
+        // Parse bin as shell words (e.g., "mise x -- pkl" -> ["mise", "x", "--", "pkl"])
+        let bin_parts = shell_words::split(bin).wrap_err("failed to parse pkl command")?;
+        let (cmd, bin_args) = bin_parts
+            .split_first()
+            .ok_or_else(|| eyre::eyre!("empty pkl command"))?;
 
-    if !output.status.success() {
-        handle_pkl_error(&output, path)?;
+        // Build pkl command args - flags must come before the positional path argument
+        let mut args: Vec<String> = bin_args.to_vec();
+        args.extend(subcommand.iter().map(|s| s.to_string()));
+        args.extend(["-f".to_string(), "json".to_string()]);
+
+        // Add --http-proxy if proxy env vars are set
+        // Note: pkl only supports http:// proxies, not https:// proxy addresses
+        if let Some(proxy) = get_http_proxy() {
+            // pkl requires http:// scheme and doesn't support authentication
+            if !proxy.starts_with("http://") {
+                debug!("Ignoring proxy {proxy}: pkl only supports http:// proxies");
+            } else if proxy.contains('@') {
+                debug!("Ignoring proxy {proxy}: pkl does not support proxy authentication");
+            } else {
+                args.push("--http-proxy".to_string());
+                args.push(proxy);
+            }
+        }
+
+        // Add --http-no-proxy if no_proxy env var is set
+        if let Some(no_proxy) = get_no_proxy() {
+            args.push("--http-no-proxy".to_string());
+            args.push(no_proxy);
+        }
+
+        if let Some(http_rewrite) = env::HK_PKL_HTTP_REWRITE.as_ref() {
+            args.push("--http-rewrite".to_string());
+            args.push(http_rewrite.to_string());
+        }
+
+        // Add the path last (positional argument must come after flags)
+        args.push(path.display().to_string());
+
+        // Run pkl directly without shell - safer and simpler
+        let output = Command::new(cmd)
+            .args(&args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .wrap_err("failed to execute pkl command")?;
+
+        if !output.status.success() {
+            handle_pkl_error(&output, path)?;
+        }
+
+        let json = String::from_utf8_lossy(&output.stdout);
+        serde_json::from_str(&json).wrap_err("failed to parse pkl output")
+    };
+
+    match try_run("pkl") {
+        Ok(result) => Ok(result),
+        Err(err) => {
+            // if pkl bin is not installed, try via mise
+            if which::which("pkl").is_err() {
+                if let Ok(result) = try_run("mise x -- pkl") {
+                    return Ok(result);
+                }
+                bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
+            }
+            Err(err).wrap_err("failed to run pkl")
+        }
     }
-
-    let json = String::from_utf8_lossy(&output.stdout);
-    serde_json::from_str(&json).wrap_err("failed to parse pkl config file")
 }
 
 fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
@@ -248,7 +369,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
             Make sure your 'amends' declaration uses a valid path or package URL.\n\
             Examples:\n\
             • amends \"pkl/Config.pkl\" (if vendored)\n\
-            • amends \"package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl\"",
+            • amends \"package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl\"",
             path.display()
         );
     }
@@ -286,6 +407,10 @@ pub struct Config {
     pub warnings: Option<Vec<String>>,
     /// Global file patterns to exclude from all steps
     pub exclude: Option<StringOrList>,
+    pub stage: Option<bool>,
+    pub profiles: Option<Vec<String>>,
+    pub skip_hooks: Option<Vec<String>>,
+    pub skip_steps: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {
@@ -345,6 +470,7 @@ pub struct UserConfig {
     pub hide_warnings: Option<Vec<String>>,
     #[serde(rename = "warnings")]
     pub warnings: Option<Vec<String>>,
+    pub stage: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -407,4 +533,11 @@ impl IntoIterator for StringOrList {
             StringOrList::List(list) => list.into_iter(),
         }
     }
+}
+
+/// Output of `pkl analyze imports -f json`
+#[derive(Debug, Deserialize)]
+#[allow(non_snake_case)]
+struct PklImports {
+    resolvedImports: std::collections::HashMap<String, String>,
 }

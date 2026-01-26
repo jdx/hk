@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "3.12.0"
+tool = "aqua:mvdan/sh"

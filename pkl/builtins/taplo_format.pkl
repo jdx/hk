@@ -1,0 +1,23 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Data Formats"
+  description = "TOML formatter"
+}
+taplo_format = new Config.Step {
+  glob = "**/*.toml"
+  check = "taplo format --check {{ files }}"
+  check_diff = "taplo format --check --diff {{ files }}"
+  fix = "taplo format {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.toml" }
+    ["check bad file"] = testMaker.checkFail("[table]\nkey  =  \"value\"\n", 1)
+    ["check good file"] = testMaker.checkPass("[table]\nkey = \"value\"\n")
+    ["fix bad file"] =
+      testMaker.fixPass("[table]\nkey  =  \"value\"\n", "[table]\nkey = \"value\"\n")
+    ["fix good file"] =
+      testMaker.fixPass("[table]\nkey = \"value\"\n", "[table]\nkey = \"value\"\n")
+  }
+}

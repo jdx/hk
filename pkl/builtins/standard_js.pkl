@@ -1,8 +1,12 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "JavaScript Standard Style"
+}
 standard_js = new Config.Step {
-    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
-    stage = glob
-    check = "standard {{ files }}"
-    fix = "standard --fix {{ files }}"
-} 
+  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
+  check = "standard {{ files }}"
+  fix = "standard --fix {{ files }}"
+}

@@ -1,8 +1,63 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Ruby"
+  description = "Ruby style guide"
+}
 rubocop = new Config.Step {
-    glob = "*.rb"
-    stage = "*.rb"
-    check = "rubocop {{ files }}"
-    fix = "rubocop --fix {{ files }}"
-} 
+  types = List("ruby")
+  // `--force-exclusion`: Any files excluded by `Exclude` in RuboCop configuration files will be excluded, even if given explicitly as arguments.
+  check = "rubocop --force-exclusion {{ files }}"
+  check_list_files = "rubocop --force-exclusion --list-target-files {{ files }}"
+  fix = "rubocop --force-exclusion --autocorrect {{ files }}"
+  tests {
+    local const excluded_file = "foo.rb"
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.rb"
+      extra_files = new Mapping<String, String> {
+        [".rubocop.yml"] =
+          """
+          AllCops:
+            NewCops: enable
+            Exclude:
+              - \(excluded_file)
+
+          """
+      }
+    }
+    local const bad =
+      """
+      # frozen_string_literal: true
+
+      pp "Hello World"
+
+      """
+    local const good =
+      """
+      # frozen_string_literal: true
+
+      pp 'Hello World'
+
+      """
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file violations remain"] =
+      testMaker.fixFail(
+        """
+        pp "Hello World"
+
+        """,
+        """
+        pp 'Hello World'
+
+        """,
+        1,
+      )
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+    ["check respects config exclude"] = testMaker.withFilename(excluded_file).checkPass(bad)
+    ["fix respects config exclude"] = testMaker.withFilename(excluded_file).fixPass(bad, bad)
+  }
+}

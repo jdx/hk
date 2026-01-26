@@ -23,17 +23,17 @@ impl log::Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        if record.level() <= self.file_level {
-            if let Some(log_file) = &self.log_file {
-                let mut log_file = log_file.lock().unwrap();
-                let out = format!(
-                    "{now} {level} {args}",
-                    now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                    level = self.styled_level(record.level()),
-                    args = record.args()
-                );
-                let _ = writeln!(log_file, "{}", console::strip_ansi_codes(&out));
-            }
+        if record.level() <= self.file_level
+            && let Some(log_file) = &self.log_file
+        {
+            let mut log_file = log_file.lock().unwrap();
+            let out = format!(
+                "{now} {level} {args}",
+                now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                level = self.styled_level(record.level()),
+                args = record.args()
+            );
+            let _ = writeln!(log_file, "{}", console::strip_ansi_codes(&out));
         }
         if record.level() <= self.term_level {
             let out = self.render(record, self.term_level);

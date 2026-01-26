@@ -1,0 +1,90 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Markdown"
+  description = "Markdown linter and formatter"
+}
+rumdl = new Config.Step {
+  glob = List("**/*.md", "**/*.markdown")
+  check_diff = "rumdl check --diff {{ files }}"
+  fix = "rumdl check --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "file.md"
+      extra_files = new Mapping<String, String> {
+        [".rumdl.toml"] = "[MD007]\nindent = 2\n"
+      }
+    }
+    ["check bad file"] =
+      testMaker.checkFail(
+        """
+        # Hello
+
+        - indent 1
+                   - indent 2
+
+        """,
+        1,
+      )
+    ["check good file"] =
+      testMaker.checkPass(
+        """
+        # Hello
+
+        - indent 1
+          - indent 2
+
+        """,
+      )
+    ["fix bad file violations remain"] =
+      testMaker.fixFail(
+        """
+        - indent 1
+                   - indent 2
+
+        """,
+        """
+        - indent 1
+          - indent 2
+
+        """,
+        1,
+      )
+    ["fix bad file all violations are fixed"] =
+      testMaker.fixPass(
+        """
+        # Hello
+
+        - indent 1
+                   - indent 2
+
+        """,
+        """
+        # Hello
+
+        - indent 1
+          - indent 2
+
+        """,
+      )
+    ["fix good file"] =
+      testMaker.fixPass(
+        """
+        # Hello
+
+        - indent 1
+          - indent 2
+
+        """,
+        """
+        # Hello
+
+        - indent 1
+          - indent 2
+
+        """,
+      )
+  }
+}

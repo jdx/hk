@@ -1,14 +1,37 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Go"
+  description = "Go formatter"
+}
 go_fmt = new Config.Step {
-    glob = "*.go"
-    stage = "*.go"
-    check_list_files = """
-FILES=$(gofmt -s -l {{files}})
-if [ -n "$FILES" ]; then
-  echo "$FILES"
-  exit 1
-fi
-"""
-    fix = "gofmt -s -w {{files}}"
- } 
+  glob = "**/*.go"
+  check_list_files =
+    """
+    FILES=$(gofmt -s -l {{files}})
+    if [ -n "$FILES" ]; then
+      echo "$FILES"
+      exit 1
+    fi
+    """
+  check_diff =
+    """
+    DIFF=$(gofmt -s -d {{files}})
+    if [ -n "$DIFF" ]; then
+      echo "$DIFF"
+      exit 1
+    fi
+    """
+  fix = "gofmt -s -w {{files}}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.go" }
+    local const before = "package name"
+    local const after = "package name\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}

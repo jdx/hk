@@ -30,10 +30,10 @@ fn collect_builtin_files(builtins_dir: &Path) -> Result<BTreeSet<String>, std::i
         let entry = entry?;
         let path = entry.path();
 
-        if path.extension().and_then(|s| s.to_str()) == Some("pkl") {
-            if let Some(name) = path.file_stem().and_then(|s| s.to_str()) {
-                builtins.insert(name.to_string());
-            }
+        if path.extension().and_then(|s| s.to_str()) == Some("pkl")
+            && let Some(name) = path.file_stem().and_then(|s| s.to_str())
+        {
+            builtins.insert(name.to_string());
         }
     }
 

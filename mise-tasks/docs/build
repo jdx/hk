@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE depends=["docs:gen"]
+#MISE dir="docs"
+
+set -eu
+
+bun i && bun run docs:build

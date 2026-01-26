@@ -1,6 +1,473 @@
 # Changelog
 
+## [1.32.0](https://github.com/jdx/hk/compare/v1.31.0..v1.32.0) - 2026-01-19
+
+### 🚀 Features
+
+- **(docs)** add nautical theme to feature cards by [@jdx](https://github.com/jdx) in [#617](https://github.com/jdx/hk/pull/617)
+
+### 🐛 Bug Fixes
+
+- skip config loading for completion/usage/version commands by [@jdx](https://github.com/jdx) in [#615](https://github.com/jdx/hk/pull/615)
+- install Claude Code CLI in release workflow by [@jdx](https://github.com/jdx) in [#614](https://github.com/jdx/hk/pull/614)
+
+### 📚 Documentation
+
+- update branding with new logo and electric blue theme by [@jdx](https://github.com/jdx) in [#616](https://github.com/jdx/hk/pull/616)
+
+## [1.31.0](https://github.com/jdx/hk/compare/v1.30.0..v1.31.0) - 2026-01-19
+
+### 🚀 Features
+
+- **(asciidoctor)** add asciidoctor config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#604](https://github.com/jdx/hk/pull/604)
+
+### 🐛 Bug Fixes
+
+- glob syntax for linters in getting_started.md by [@makp0](https://github.com/makp0) in [#593](https://github.com/jdx/hk/pull/593)
+- docs builtins generation by [@makp0](https://github.com/makp0) in [#606](https://github.com/jdx/hk/pull/606)
+- make pkl:dist task executable by [@joonas](https://github.com/joonas) in [#607](https://github.com/jdx/hk/pull/607)
+- prevent docs build from silently failing when pkl:gen is skipped by [@jdx](https://github.com/jdx) in [#609](https://github.com/jdx/hk/pull/609)
+- add ci-nogit to final job dependencies by [@jdx](https://github.com/jdx) in [#611](https://github.com/jdx/hk/pull/611)
+- update claude CLI model and add bypassPermissions by [@jdx](https://github.com/jdx) in [#612](https://github.com/jdx/hk/pull/612)
+
+### 🚜 Refactor
+
+- break up step.rs into modular components by [@jdx](https://github.com/jdx) in [#610](https://github.com/jdx/hk/pull/610)
+- move LLM release notes to GitHub release workflow by [@jdx](https://github.com/jdx) in [#608](https://github.com/jdx/hk/pull/608)
+
+### New Contributors
+
+- @makp0 made their first contribution in [#606](https://github.com/jdx/hk/pull/606)
+
+## [1.30.0](https://github.com/jdx/hk/compare/v1.29.0..v1.30.0) - 2026-01-17
+
+### 🚀 Features
+
+- **(rubocop)** add check_list_files command to rubocop builtin by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#597](https://github.com/jdx/hk/pull/597)
+- Give `fix-smart-quotes` util `check_list_files` capabilities by [@thejcannon](https://github.com/thejcannon) in [#584](https://github.com/jdx/hk/pull/584)
+- Add `check_diff` to some `hk util`s by [@thejcannon](https://github.com/thejcannon) in [#583](https://github.com/jdx/hk/pull/583)
+- Add `check_diff` to `fix-smart-quotes` by [@thejcannon](https://github.com/thejcannon) in [#585](https://github.com/jdx/hk/pull/585)
+- Add diff capabilities to BOM util by [@thejcannon](https://github.com/thejcannon) in [#600](https://github.com/jdx/hk/pull/600)
+
+### 🐛 Bug Fixes
+
+- **(rubocop)** add `--force-exclusion` flag to respect RuboCop config excludes by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#574](https://github.com/jdx/hk/pull/574)
+- Unset `HK_LIBGIT2` in `nogit` bats tests by [@thejcannon](https://github.com/thejcannon) in [#589](https://github.com/jdx/hk/pull/589)
+- test:bats arg handling by [@thejcannon](https://github.com/thejcannon) in [#592](https://github.com/jdx/hk/pull/592)
+- Format the generated pkl file by [@thejcannon](https://github.com/thejcannon) in [#594](https://github.com/jdx/hk/pull/594)
+- make hook `exclude` strip leading `./` by [@thejcannon](https://github.com/thejcannon) in [#598](https://github.com/jdx/hk/pull/598)
+
+### 🚜 Refactor
+
+- Move completely to `mise-tasks` tasks by [@thejcannon](https://github.com/thejcannon) in [#588](https://github.com/jdx/hk/pull/588)
+- Make `pkl/` taskdir by [@thejcannon](https://github.com/thejcannon) in [#590](https://github.com/jdx/hk/pull/590)
+- Generate `pkl/Builtins.pkl` from the builtins by [@thejcannon](https://github.com/thejcannon) in [#591](https://github.com/jdx/hk/pull/591)
+- Change to a single `byte_order_marker` builtin by [@thejcannon](https://github.com/thejcannon) in [#595](https://github.com/jdx/hk/pull/595)
+- Combine both BOM rust files into one by [@thejcannon](https://github.com/thejcannon) in [#596](https://github.com/jdx/hk/pull/596)
+- Render `test_runner` file keys once by [@thejcannon](https://github.com/thejcannon) in [#581](https://github.com/jdx/hk/pull/581)
+
+### 🧪 Testing
+
+- Add support for tests in subdir of `test/` by [@thejcannon](https://github.com/thejcannon) in [#587](https://github.com/jdx/hk/pull/587)
+- Add tests to `biome` builtin by [@thejcannon](https://github.com/thejcannon) in [#599](https://github.com/jdx/hk/pull/599)
+
+### 🔍 Other Changes
+
+- skip release-plz workflow on forks by [@joonas](https://github.com/joonas) in [#575](https://github.com/jdx/hk/pull/575)
+- (re)sort entries in Builtins.pkl by [@muzimuzhi](https://github.com/muzimuzhi) in [#580](https://github.com/jdx/hk/pull/580)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 1b8ee3b by [@renovate[bot]](https://github.com/renovate[bot]) in [#578](https://github.com/jdx/hk/pull/578)
+- update rust crate libc to v0.2.180 by [@renovate[bot]](https://github.com/renovate[bot]) in [#579](https://github.com/jdx/hk/pull/579)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#586](https://github.com/jdx/hk/pull/586)
+
+## [1.29.0](https://github.com/jdx/hk/compare/v1.28.0..v1.29.0) - 2026-01-06
+
+### 🚀 Features
+
+- **(ghalint)** add ghalint config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#551](https://github.com/jdx/hk/pull/551)
+- **(pinact)** add pinact config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#552](https://github.com/jdx/hk/pull/552)
+- **(pkl)** add pkl file type by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#571](https://github.com/jdx/hk/pull/571)
+- **(stylua)** use check_diff instead of check command by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#563](https://github.com/jdx/hk/pull/563)
+- **(vale)** add vale config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#554](https://github.com/jdx/hk/pull/554)
+- **(zizmor)** add zizmor config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#550](https://github.com/jdx/hk/pull/550)
+- add rumdl config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#541](https://github.com/jdx/hk/pull/541)
+- add selene config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#544](https://github.com/jdx/hk/pull/544)
+- Add `fix` to `cargo_check` builtin (running `cargo fix`) by [@thejcannon](https://github.com/thejcannon) in [#555](https://github.com/jdx/hk/pull/555)
+- Lua file type support by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#558](https://github.com/jdx/hk/pull/558)
+- add editorconfig-checker config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#557](https://github.com/jdx/hk/pull/557)
+- add ryl config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#543](https://github.com/jdx/hk/pull/543)
+- add buf_format builtin using buf cli by [@joonas](https://github.com/joonas) in [#565](https://github.com/jdx/hk/pull/565)
+- add buf_lint builtin using buf cli by [@joonas](https://github.com/joonas) in [#562](https://github.com/jdx/hk/pull/562)
+- apply check_diff output directly using git apply by [@jdx](https://github.com/jdx) in [#561](https://github.com/jdx/hk/pull/561)
+
+### 🐛 Bug Fixes
+
+- **(ci)** pre-install nightly toolchain for cargo_check tests by [@joonas](https://github.com/joonas) in [#567](https://github.com/jdx/hk/pull/567)
+- **(rubocop)** fix rubocop fix command by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#572](https://github.com/jdx/hk/pull/572)
+- Fix the `jq` builtin by [@thejcannon](https://github.com/thejcannon) in [#533](https://github.com/jdx/hk/pull/533)
+- Fix the `rg` command in the tasks by [@thejcannon](https://github.com/thejcannon) in [#534](https://github.com/jdx/hk/pull/534)
+- Make `settings.toml` and `Config.pkl` agree on keys by [@thejcannon](https://github.com/thejcannon) in [#539](https://github.com/jdx/hk/pull/539)
+- Add `check_list_files` to `cargo_fmt` builtin by [@thejcannon](https://github.com/thejcannon) in [#542](https://github.com/jdx/hk/pull/542)
+- Remove `jq`'s `check` command by [@thejcannon](https://github.com/thejcannon) in [#549](https://github.com/jdx/hk/pull/549)
+
+### 🚜 Refactor
+
+- **(ruby)** use types instead of glob for Ruby builtins by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#564](https://github.com/jdx/hk/pull/564)
+- Simplify RunType/CheckType by [@thejcannon](https://github.com/thejcannon) in [#547](https://github.com/jdx/hk/pull/547)
+
+### 📚 Documentation
+
+- **(config)** fix indentations in `workspace_indicator` example by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#573](https://github.com/jdx/hk/pull/573)
+
+### 🧪 Testing
+
+- Add `actionlint` test by [@thejcannon](https://github.com/thejcannon) in [#537](https://github.com/jdx/hk/pull/537)
+- shfmt by [@thejcannon](https://github.com/thejcannon) in [#538](https://github.com/jdx/hk/pull/538)
+- Clean up some `check_` builtin tests by [@thejcannon](https://github.com/thejcannon) in [#536](https://github.com/jdx/hk/pull/536)
+- Test `rustfmt` and `cargo_format` by [@thejcannon](https://github.com/thejcannon) in [#540](https://github.com/jdx/hk/pull/540)
+- Add tests to the mypy builtin by [@thejcannon](https://github.com/thejcannon) in [#560](https://github.com/jdx/hk/pull/560)
+- Add tests to the isort builtin by [@thejcannon](https://github.com/thejcannon) in [#559](https://github.com/jdx/hk/pull/559)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 7145c3e by [@renovate[bot]](https://github.com/renovate[bot]) in [#545](https://github.com/jdx/hk/pull/545)
+- update rust crate serde_json to v1.0.147 by [@renovate[bot]](https://github.com/renovate[bot]) in [#546](https://github.com/jdx/hk/pull/546)
+- update rust crate serde_json to v1.0.148 by [@renovate[bot]](https://github.com/renovate[bot]) in [#569](https://github.com/jdx/hk/pull/569)
+- update rust crate tracing to v0.1.44 by [@renovate[bot]](https://github.com/renovate[bot]) in [#570](https://github.com/jdx/hk/pull/570)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#553](https://github.com/jdx/hk/pull/553)
+
+## [1.28.0](https://github.com/jdx/hk/compare/v1.27.0..v1.28.0) - 2025-12-18
+
+### 🚀 Features
+
+- Cache config based on xtive imports by [@thejcannon](https://github.com/thejcannon) in [#531](https://github.com/jdx/hk/pull/531)
+
+### 🐛 Bug Fixes
+
+- **(yq)** implement proper format checking with diff by [@thejcannon](https://github.com/thejcannon) in [#507](https://github.com/jdx/hk/pull/507)
+- `hk test` now works with `workspace_indicator` by [@thejcannon](https://github.com/thejcannon) in [#532](https://github.com/jdx/hk/pull/532)
+
+### 🚜 Refactor
+
+- Simplify Config.pkl (namely Regex stuff) and deprecate `Types.pkl` by [@thejcannon](https://github.com/thejcannon) in [#517](https://github.com/jdx/hk/pull/517)
+- Clean up some yaml-related stuff by [@thejcannon](https://github.com/thejcannon) in [#519](https://github.com/jdx/hk/pull/519)
+- Reformat `pkl` (with `pkl format`) by [@thejcannon](https://github.com/thejcannon) in [#518](https://github.com/jdx/hk/pull/518)
+
+### 📚 Documentation
+
+- fix a missing quote by [@muzimuzhi](https://github.com/muzimuzhi) in [#520](https://github.com/jdx/hk/pull/520)
+
+### 🧪 Testing
+
+- hadolint by [@thejcannon](https://github.com/thejcannon) in [#522](https://github.com/jdx/hk/pull/522)
+- Test swiftlint Builtin by [@thejcannon](https://github.com/thejcannon) in [#521](https://github.com/jdx/hk/pull/521)
+- Test stylelint Builtin by [@thejcannon](https://github.com/thejcannon) in [#523](https://github.com/jdx/hk/pull/523)
+- Introduce a `TestMaker` helper, and use it for test-a-palooza by [@thejcannon](https://github.com/thejcannon) in [#528](https://github.com/jdx/hk/pull/528)
+- Test shellcheck in builtin by [@thejcannon](https://github.com/thejcannon) in [#530](https://github.com/jdx/hk/pull/530)
+- Split bats testing into 3 (git vs nogit) by [@thejcannon](https://github.com/thejcannon) in [#529](https://github.com/jdx/hk/pull/529)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to f0c8eb2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#513](https://github.com/jdx/hk/pull/513)
+- update rust crate codegen to 0.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#514](https://github.com/jdx/hk/pull/514)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#526](https://github.com/jdx/hk/pull/526)
+
+### New Contributors
+
+- @muzimuzhi made their first contribution in [#520](https://github.com/jdx/hk/pull/520)
+
+## [1.27.0](https://github.com/jdx/hk/compare/v1.26.0..v1.27.0) - 2025-12-12
+
+### 🚀 Features
+
+- **(lychee)** new builtin by [@scop](https://github.com/scop) in [#510](https://github.com/jdx/hk/pull/510)
+- **(tombi)** add tombi config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#511](https://github.com/jdx/hk/pull/511)
+- Apply the step glob to the test files fallback by [@thejcannon](https://github.com/thejcannon) in [#498](https://github.com/jdx/hk/pull/498)
+- Support `hk.local.pkl` by [@thejcannon](https://github.com/thejcannon) in [#504](https://github.com/jdx/hk/pull/504)
+- add yamlfmt config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#505](https://github.com/jdx/hk/pull/505)
+- add `HK_PKL_HTTP_REWRITE` envvar by [@thejcannon](https://github.com/thejcannon) in [#512](https://github.com/jdx/hk/pull/512)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** use `stage = "<JOB_FILES>"` for fix_smart_quotes builtin by [@joonas](https://github.com/joonas) in [#503](https://github.com/jdx/hk/pull/503)
+- add new mise builtin to Builtins.pkl by [@hisaac](https://github.com/hisaac) in [#492](https://github.com/jdx/hk/pull/492)
+- preserve file permissions in fix-smart-quotes util by [@joonas](https://github.com/joonas) in [#506](https://github.com/jdx/hk/pull/506)
+
+### 🚜 Refactor
+
+- Turn on `taplo-format` by [@thejcannon](https://github.com/thejcannon) in [#501](https://github.com/jdx/hk/pull/501)
+
+### 📚 Documentation
+
+- Generate config docs from the pkl by [@thejcannon](https://github.com/thejcannon) in [#499](https://github.com/jdx/hk/pull/499)
+
+### 🧪 Testing
+
+- Move `ruff` to tool stub and fix up tests by [@thejcannon](https://github.com/thejcannon) in [#487](https://github.com/jdx/hk/pull/487)
+- Do some test gardening by [@thejcannon](https://github.com/thejcannon) in [#497](https://github.com/jdx/hk/pull/497)
+- Clean up `test/pkl_config_errors.bats` by [@thejcannon](https://github.com/thejcannon) in [#500](https://github.com/jdx/hk/pull/500)
+- add yamllint tests by [@thejcannon](https://github.com/thejcannon) in [#509](https://github.com/jdx/hk/pull/509)
+
+### 📦️ Dependency Updates
+
+- update swatinem/rust-cache digest to 779680d by [@renovate[bot]](https://github.com/renovate[bot]) in [#495](https://github.com/jdx/hk/pull/495)
+- update anthropics/claude-code-action digest to 6337623 by [@renovate[bot]](https://github.com/renovate[bot]) in [#494](https://github.com/jdx/hk/pull/494)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#502](https://github.com/jdx/hk/pull/502)
+
+### New Contributors
+
+- @hituzi-no-sippo made their first contribution in [#511](https://github.com/jdx/hk/pull/511)
+
+## [1.26.0](https://github.com/jdx/hk/compare/v1.25.0..v1.26.0) - 2025-12-04
+
+### 🚀 Features
+
+- Split `taplo` into `taplo` and `taplo_format` by [@thejcannon](https://github.com/thejcannon) in [#466](https://github.com/jdx/hk/pull/466)
+- add pkl_format builtin for pkl 0.30 formatter by [@jdx](https://github.com/jdx) in [#475](https://github.com/jdx/hk/pull/475)
+- add check-conventional-commit utility and built-in by [@joonas](https://github.com/joonas) in [#477](https://github.com/jdx/hk/pull/477)
+- add mise builtin by [@hisaac](https://github.com/hisaac) in [#480](https://github.com/jdx/hk/pull/480)
+- forward HTTP proxy env vars to pkl by [@jdx](https://github.com/jdx) in [#486](https://github.com/jdx/hk/pull/486)
+
+### 🐛 Bug Fixes
+
+- Fix docs build GHA by [@thejcannon](https://github.com/thejcannon) in [#471](https://github.com/jdx/hk/pull/471)
+- improve progress bar accuracy for skipped steps and OSC alignment by [@jdx](https://github.com/jdx) in [#472](https://github.com/jdx/hk/pull/472)
+- cleaner error output for command failures by [@jdx](https://github.com/jdx) in [#474](https://github.com/jdx/hk/pull/474)
+- update mise builtin glob by [@hisaac](https://github.com/hisaac) in [#482](https://github.com/jdx/hk/pull/482)
+
+### 🚜 Refactor
+
+- Remove pointless stage test by [@thejcannon](https://github.com/thejcannon) in [#484](https://github.com/jdx/hk/pull/484)
+- Move `black` from mise config to tool stub, for testing, and test the builtin by [@thejcannon](https://github.com/thejcannon) in [#483](https://github.com/jdx/hk/pull/483)
+- Move category/description to annotation by [@thejcannon](https://github.com/thejcannon) in [#485](https://github.com/jdx/hk/pull/485)
+
+### 📚 Documentation
+
+- Generate `configuration` docs from `settings.toml` in-build by [@thejcannon](https://github.com/thejcannon) in [#461](https://github.com/jdx/hk/pull/461)
+- generate builtins docs from Pkl instead of manual sync by [@jdx](https://github.com/jdx) in [#476](https://github.com/jdx/hk/pull/476)
+
+### 🧪 Testing
+
+- Stub ktlint and add tests to builtin by [@thejcannon](https://github.com/thejcannon) in [#488](https://github.com/jdx/hk/pull/488)
+- Bump pkl, fix the builtin, and add tests by [@thejcannon](https://github.com/thejcannon) in [#489](https://github.com/jdx/hk/pull/489)
+
+### 🔍 Other Changes
+
+- updated mise lockfile by [@jdx](https://github.com/jdx) in [b10d2e6](https://github.com/jdx/hk/commit/b10d2e6070c373b218379f3b13187e821c698365)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action digest to 146a281 by [@renovate[bot]](https://github.com/renovate[bot]) in [#479](https://github.com/jdx/hk/pull/479)
+- update anthropics/claude-code-action digest to a7e4c51 by [@renovate[bot]](https://github.com/renovate[bot]) in [#478](https://github.com/jdx/hk/pull/478)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#481](https://github.com/jdx/hk/pull/481)
+
+### New Contributors
+
+- @hisaac made their first contribution in [#482](https://github.com/jdx/hk/pull/482)
+
+## [1.25.0](https://github.com/jdx/hk/compare/v1.24.1..v1.25.0) - 2025-11-25
+
+### 🚀 Features
+
+- add fix_smart_quotes builtin by [@joonas](https://github.com/joonas) in [#463](https://github.com/jdx/hk/pull/463)
+
+### 🐛 Bug Fixes
+
+- Use `stage = "<JOB_FILES>"` for the builtins by [@thejcannon](https://github.com/thejcannon) in [#465](https://github.com/jdx/hk/pull/465)
+- Actually makes `files` for step tests default to write keys by [@thejcannon](https://github.com/thejcannon) in [#464](https://github.com/jdx/hk/pull/464)
+- remove test cleanup to prevent race conditions by [@jdx](https://github.com/jdx) in [#468](https://github.com/jdx/hk/pull/468)
+
+## [1.24.1](https://github.com/jdx/hk/compare/v1.24.0..v1.24.1) - 2025-11-22
+
+### ⚡ Performance
+
+- show progress bars before expensive git status call by [@jdx](https://github.com/jdx) in [#459](https://github.com/jdx/hk/pull/459)
+
+## [1.24.0](https://github.com/jdx/hk/compare/v1.23.0..v1.24.0) - 2025-11-21
+
+### 🚀 Features
+
+- hook stage by [@thejcannon](https://github.com/thejcannon) in [#448](https://github.com/jdx/hk/pull/448)
+
+### 🐛 Bug Fixes
+
+- Pass/render `stdin` for `hk test` tests by [@thejcannon](https://github.com/thejcannon) in [#455](https://github.com/jdx/hk/pull/455)
+
+### 📚 Documentation
+
+- Fix `from_ref` docstring by [@thejcannon](https://github.com/thejcannon) in [#454](https://github.com/jdx/hk/pull/454)
+
+### ⚡ Performance
+
+- skip stash operations when no unstaged changes by [@jdx](https://github.com/jdx) in [#457](https://github.com/jdx/hk/pull/457)
+- skip staging when jobs are skipped by conditions by [@jdx](https://github.com/jdx) in [#458](https://github.com/jdx/hk/pull/458)
+
+## [1.23.0](https://github.com/jdx/hk/compare/v1.22.0..v1.23.0) - 2025-11-21
+
+### 🚀 Features
+
+- **(vacuum)** new builtin by [@scop](https://github.com/scop) in [#414](https://github.com/jdx/hk/pull/414)
+- add --stats flag to show file counts per step by [@jdx](https://github.com/jdx) in [#446](https://github.com/jdx/hk/pull/446)
+- Plumb `stage` through CLI and PKL by [@thejcannon](https://github.com/thejcannon) in [#442](https://github.com/jdx/hk/pull/442)
+
+### 🐛 Bug Fixes
+
+- **(cli)** check help description by [@scop](https://github.com/scop) in [#439](https://github.com/jdx/hk/pull/439)
+
+### 📚 Documentation
+
+- **(stash)** rephrase uncommitted -> unstaged by [@scop](https://github.com/scop) in [#451](https://github.com/jdx/hk/pull/451)
+- re-Remove "auto" stash value by [@thejcannon](https://github.com/thejcannon) in [#444](https://github.com/jdx/hk/pull/444)
+- Delete `schema.md` by [@thejcannon](https://github.com/thejcannon) in [#445](https://github.com/jdx/hk/pull/445)
+- fix --fix description by [@scop](https://github.com/scop) in [#450](https://github.com/jdx/hk/pull/450)
+
+### 📦️ Dependency Updates
+
+- update actions/checkout digest to 93cb6ef by [@renovate[bot]](https://github.com/renovate[bot]) in [#452](https://github.com/jdx/hk/pull/452)
+- update anthropics/claude-code-action digest to 6902c22 by [@renovate[bot]](https://github.com/renovate[bot]) in [#453](https://github.com/jdx/hk/pull/453)
+
+## [1.22.0](https://github.com/jdx/hk/compare/v1.21.1..v1.22.0) - 2025-11-19
+
+### 🚀 Features
+
+- Add `stdin` to step config by [@thejcannon](https://github.com/thejcannon) in [#435](https://github.com/jdx/hk/pull/435)
+
+### 🐛 Bug Fixes
+
+- save patch backup files when using git as stash method by [@jdx](https://github.com/jdx) in [#434](https://github.com/jdx/hk/pull/434)
+
+### 📚 Documentation
+
+- Clarify `stash` default (behavior) by [@thejcannon](https://github.com/thejcannon) in [#431](https://github.com/jdx/hk/pull/431)
+- Clarify hook fix default by [@thejcannon](https://github.com/thejcannon) in [#433](https://github.com/jdx/hk/pull/433)
+
+## [1.21.1](https://github.com/jdx/hk/compare/v1.21.0..v1.21.1) - 2025-11-19
+
+### 🐛 Bug Fixes
+
+- **(ruff)** Make `ruff` respect user config `exclude` by [@thejcannon](https://github.com/thejcannon) in [#421](https://github.com/jdx/hk/pull/421)
+- **(ruff_format)** Pass `--force-exclude` to `ruff format` (as well) by [@thejcannon](https://github.com/thejcannon) in [#428](https://github.com/jdx/hk/pull/428)
+- Fix --check docstring by [@thejcannon](https://github.com/thejcannon) in [#423](https://github.com/jdx/hk/pull/423)
+- Configuration Read Support YML File Extension by [@hcoona](https://github.com/hcoona) in [#427](https://github.com/jdx/hk/pull/427)
+- treat check_list_files stderr as informational, not an error by [@jdx](https://github.com/jdx) in [#425](https://github.com/jdx/hk/pull/425)
+- remove trailing whitespace in ruff_format.pkl by [@jdx](https://github.com/jdx) in [9f4abdc](https://github.com/jdx/hk/commit/9f4abdc13d91faeacd39771996cbf66fae7ffc2c)
+
+### 🚜 Refactor
+
+- Enable `trailing-whitespace` in this repo by [@thejcannon](https://github.com/thejcannon) in [#429](https://github.com/jdx/hk/pull/429)
+
+### 📚 Documentation
+
+- Don't suggest configuring hk in config env by [@thejcannon](https://github.com/thejcannon) in [#424](https://github.com/jdx/hk/pull/424)
+
+### New Contributors
+
+- @thejcannon made their first contribution in [#428](https://github.com/jdx/hk/pull/428)
+- @hcoona made their first contribution in [#427](https://github.com/jdx/hk/pull/427)
+
+## [1.21.0](https://github.com/jdx/hk/compare/v1.20.0..v1.21.0) - 2025-11-15
+
+### 🚀 Features
+
+- **(dprint)** new builtin by [@scop](https://github.com/scop) in [#402](https://github.com/jdx/hk/pull/402)
+- **(mypy,ruff,ruff_format)** associate with .pyi by [@scop](https://github.com/scop) in [#404](https://github.com/jdx/hk/pull/404)
+- **(prettier)** support Vue files by [@minusfive](https://github.com/minusfive) in [#388](https://github.com/jdx/hk/pull/388)
+- **(terraform,tofu)** include .tftest.hcl in glob by [@scop](https://github.com/scop) in [#397](https://github.com/jdx/hk/pull/397)
+- **(tflint)** add fix command by [@scop](https://github.com/scop) in [#401](https://github.com/jdx/hk/pull/401)
+- **(typos)** new builtin by [@scop](https://github.com/scop) in [#400](https://github.com/jdx/hk/pull/400)
+- use recursive glob patterns in all builtins by [@jdx](https://github.com/jdx) in [#383](https://github.com/jdx/hk/pull/383)
+- shfmt improvements by [@scop](https://github.com/scop) in [#410](https://github.com/jdx/hk/pull/410)
+- add content-based file type matching by [@jdx](https://github.com/jdx) in [#416](https://github.com/jdx/hk/pull/416)
+- add clap-sort unit test and sort CLI flags alphabetically by [@jdx](https://github.com/jdx) in [#419](https://github.com/jdx/hk/pull/419)
+- Add alternate config directory support with tests by [@jdx](https://github.com/jdx) in [#407](https://github.com/jdx/hk/pull/407)
+
+### 🐛 Bug Fixes
+
+- **(golangci-lint)** check with --fix=false by [@scop](https://github.com/scop) in [#399](https://github.com/jdx/hk/pull/399)
+- **(shfmt)** don't pass -s by [@scop](https://github.com/scop) in [#398](https://github.com/jdx/hk/pull/398)
+- **(tf_lint)** don't pass filenames by [@scop](https://github.com/scop) in [#396](https://github.com/jdx/hk/pull/396)
+- Import elixir builtins by [@arthurcogo](https://github.com/arthurcogo) in [#390](https://github.com/jdx/hk/pull/390)
+- Add warning for existing Git hooks path by [@jdx](https://github.com/jdx) in [#409](https://github.com/jdx/hk/pull/409)
+- prevent untracked files from being staged with <JOB_FILES> by [@jdx](https://github.com/jdx) in [#408](https://github.com/jdx/hk/pull/408)
+
+### 📚 Documentation
+
+- Add Elixir builtins to docs by [@arthurcogo](https://github.com/arthurcogo) in [#389](https://github.com/jdx/hk/pull/389)
+- glossary grammar fix by [@scop](https://github.com/scop) in [#395](https://github.com/jdx/hk/pull/395)
+- fix link to Pkl language docs by [@scop](https://github.com/scop) in [#394](https://github.com/jdx/hk/pull/394)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 8a1c437 by [@renovate[bot]](https://github.com/renovate[bot]) in [#391](https://github.com/jdx/hk/pull/391)
+- update jdx/mise-action digest to be3be22 by [@renovate[bot]](https://github.com/renovate[bot]) in [#392](https://github.com/jdx/hk/pull/392)
+- update github artifact actions (major) by [@renovate[bot]](https://github.com/renovate[bot]) in [#393](https://github.com/jdx/hk/pull/393)
+- update rust crate infer to 0.19 by [@renovate[bot]](https://github.com/renovate[bot]) in [#418](https://github.com/jdx/hk/pull/418)
+- update jdx/mise-action digest to 9dc7d5d by [@renovate[bot]](https://github.com/renovate[bot]) in [#417](https://github.com/jdx/hk/pull/417)
+
+### New Contributors
+
+- @scop made their first contribution in [#410](https://github.com/jdx/hk/pull/410)
+- @arthurcogo made their first contribution in [#390](https://github.com/jdx/hk/pull/390)
+- @minusfive made their first contribution in [#388](https://github.com/jdx/hk/pull/388)
+
+## [1.20.0](https://github.com/jdx/hk/compare/v1.19.0..v1.20.0) - 2025-10-29
+
+### 🚀 Features
+
+- add tofu (OpenTofu) builtin for formatting by [@jdx](https://github.com/jdx) in [#380](https://github.com/jdx/hk/pull/380)
+- make `hk install` only install if in the tree of a git repo. by [@donalmacc](https://github.com/donalmacc) in [#382](https://github.com/jdx/hk/pull/382)
+
+### 🐛 Bug Fixes
+
+- **(shfmt)** use -s for check and fix by [@bhanuprasad14](https://github.com/bhanuprasad14) in [6b15e0d](https://github.com/jdx/hk/commit/6b15e0dc550d73d32d7c8430a463c99c58c7d07e)
+- add symlink filtering for steps to prevent prettier errors by [@jdx](https://github.com/jdx) in [#372](https://github.com/jdx/hk/pull/372)
+
+### 🔍 Other Changes
+
+- update clx submodule to add OSC progress bars by [@jdx](https://github.com/jdx) in [#373](https://github.com/jdx/hk/pull/373)
+
+### 📦️ Dependency Updates
+
+- update actions/download-artifact digest to d3f86a1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#369](https://github.com/jdx/hk/pull/369)
+- update actions/upload-artifact digest to ea165f8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#370](https://github.com/jdx/hk/pull/370)
+- update anthropics/claude-code-action digest to f30f5ee by [@renovate[bot]](https://github.com/renovate[bot]) in [#374](https://github.com/jdx/hk/pull/374)
+- update actions/download-artifact action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#375](https://github.com/jdx/hk/pull/375)
+- update amannn/action-semantic-pull-request action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#376](https://github.com/jdx/hk/pull/376)
+- update apple-actions/import-codesign-certs action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#377](https://github.com/jdx/hk/pull/377)
+- update jdx/mise-action action to v3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#378](https://github.com/jdx/hk/pull/378)
+
+### New Contributors
+
+- @donalmacc made their first contribution in [#382](https://github.com/jdx/hk/pull/382)
+
+## [1.19.0](https://github.com/jdx/hk/compare/v1.18.3..v1.19.0) - 2025-10-15
+
+### 🚀 Features
+
+- add nix flake compatibility by [@chadac](https://github.com/chadac) in [#361](https://github.com/jdx/hk/pull/361)
+- update biome pkl builtins to use biome v2 flags by [@ic4l4s9c](https://github.com/ic4l4s9c) in [#366](https://github.com/jdx/hk/pull/366)
+
+### 🐛 Bug Fixes
+
+- add nix version to package metadata by [@chadac](https://github.com/chadac) in [#363](https://github.com/jdx/hk/pull/363)
+- suppress stash probe stderr and preserve stash on restoration failure by [@jdx](https://github.com/jdx) in [#367](https://github.com/jdx/hk/pull/367)
+
+### 🔍 Other Changes
+
+- bump xx by [@jdx](https://github.com/jdx) in [#362](https://github.com/jdx/hk/pull/362)
+
+### New Contributors
+
+- @ic4l4s9c made their first contribution in [#366](https://github.com/jdx/hk/pull/366)
+- @chadac made their first contribution in [#363](https://github.com/jdx/hk/pull/363)
+
 ## [1.18.3](https://github.com/jdx/hk/compare/v1.18.2..v1.18.3) - 2025-10-07
+
+### 🚀 Features
+
+- add {{job_files}} template for dynamic staging by [@jdx](https://github.com/jdx) in [#358](https://github.com/jdx/hk/pull/358)
 
 ### 🐛 Bug Fixes
 

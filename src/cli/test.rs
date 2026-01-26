@@ -6,17 +6,17 @@ use tokio::sync::Semaphore;
 /// Run step-defined tests
 #[derive(Args)]
 pub struct Test {
-    /// Filter by step name (repeatable)
-    #[clap(long, value_name = "STEP", num_args = 1..)]
-    step: Vec<String>,
+    /// List tests without running
+    #[clap(long)]
+    list: bool,
 
     /// Filter by test name (repeatable)
     #[clap(long, value_name = "NAME", num_args = 1..)]
     name: Vec<String>,
 
-    /// List tests without running
-    #[clap(long)]
-    list: bool,
+    /// Filter by step name (repeatable)
+    #[clap(long, value_name = "STEP", num_args = 1..)]
+    step: Vec<String>,
 }
 
 impl Test {

@@ -1,13 +1,18 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Rust"
+  description = "Rust linter"
+}
 cargo_clippy = new Config.Step {
-    glob = "*.rs"
-    stage = "*.rs"
-    workspace_indicator = "Cargo.toml"
-    check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet"
-    fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
-    check_first = false
-    env {
-      ["CARGO_TERM_PROGRESS_WHEN"] = "never"
-    }
-} 
+  glob = "**/*.rs"
+  workspace_indicator = "Cargo.toml"
+  check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet"
+  fix =
+    "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
+  check_first = false
+  env {
+    ["CARGO_TERM_PROGRESS_WHEN"] = "never"
+  }
+}

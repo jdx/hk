@@ -1,6 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Ruby"
+  description = "Performance suggestions"
+}
 fasterer = new Config.Step {
-    glob = "*.rb"
-    check = "fasterer {{ files }}"
-} 
+  types = List("ruby")
+  check = "fasterer {{ files }}"
+}

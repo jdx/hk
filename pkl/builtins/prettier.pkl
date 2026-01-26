@@ -1,20 +1,52 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Opinionated code formatter"
+}
 prettier = new Config.Step {
-    glob = List("*.js", "*.jsx", "*.mjs", "*.cjs", "*.ts", "*.tsx", "*.mts", "*.cts", "*.css", "*.scss", "*.less", "*.html", "*.json", "*.json5", "*.jsonc", "*.yaml", "*.yml", "*.markdown", "*.markdown.mdx", "*.md", "*.graphql", "*.handlebars", "*.svelte", "*.astro", "*.htmlangular")
-    stage = List("*.js", "*.jsx", "*.mjs", "*.cjs", "*.ts", "*.tsx", "*.mts", "*.cts", "*.css", "*.scss", "*.less", "*.html", "*.json", "*.json5", "*.jsonc", "*.yaml", "*.yml", "*.markdown", "*.markdown.mdx", "*.md", "*.graphql", "*.handlebars", "*.svelte", "*.astro", "*.htmlangular")
-    batch = true
-    check = "prettier --check {{ files }}"
-    check_list_files = "prettier --list-different {{ files }}"
-    fix = "prettier --write {{ files }}"
-    tests {
-      ["formats json"] {
-        run = "fix"
-        write { ["{{tmp}}/a.json"] = #"{"b":1}"# }
-        files = List("{{tmp}}/a.json")
-        expect {
-          files { ["{{tmp}}/a.json"] = #"{ "b": 1 }\#n"# }
-        }
+  glob =
+    List(
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.mts",
+      "**/*.cts",
+      "**/*.css",
+      "**/*.scss",
+      "**/*.less",
+      "**/*.html",
+      "**/*.json",
+      "**/*.json5",
+      "**/*.jsonc",
+      "**/*.yaml",
+      "**/*.yml",
+      "**/*.markdown",
+      "**/*.markdown.mdx",
+      "**/*.md",
+      "**/*.graphql",
+      "**/*.handlebars",
+      "**/*.svelte",
+      "**/*.astro",
+      "**/*.htmlangular",
+      "**/*.vue",
+    )
+  batch = true
+  check = "prettier --check {{ files }}"
+  check_list_files = "prettier --list-different {{ files }}"
+  fix = "prettier --write {{ files }}"
+  tests {
+    ["formats json"] {
+      run = "fix"
+      write { ["{{tmp}}/a.json"] = #"{"b":1}"# }
+      files = List("{{tmp}}/a.json")
+      expect {
+        files { ["{{tmp}}/a.json"] = #"{ "b": 1 }\#n"# }
       }
     }
-} 
+  }
+}

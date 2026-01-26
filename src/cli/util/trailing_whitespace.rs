@@ -6,6 +6,10 @@ use std::path::PathBuf;
 /// Check for and optionally fix trailing whitespace in files
 #[derive(Debug, clap::Args)]
 pub struct TrailingWhitespace {
+    /// Output a diff of the change. Cannot use with `fix`.
+    #[clap(short, long, conflicts_with = "fix")]
+    pub diff: bool,
+
     /// Fix trailing whitespace by removing it
     #[clap(short, long)]
     pub fix: bool,
@@ -26,19 +30,19 @@ impl TrailingWhitespace {
             }
 
             if self.fix {
-                // Fix mode: remove trailing whitespace
-                // Always succeeds - just fixes silently
                 fix_trailing_whitespace(file_path)?;
-            } else {
-                // Check mode: report files with trailing whitespace
-                if has_trailing_whitespace(file_path)? {
-                    println!("{}", file_path.display());
+            } else if self.diff {
+                if let Some(diff) = generate_diff(file_path)? {
+                    print!("{}", diff);
                     found_issues = true;
                 }
+            } else if has_trailing_whitespace(file_path)? {
+                println!("{}", file_path.display());
+                found_issues = true;
             }
         }
 
-        // In check mode: exit with code 1 if issues found
+        // In check/diff mode: exit with code 1 if issues found
         // Fix mode always succeeds
         if !self.fix && found_issues {
             std::process::exit(1);
@@ -88,6 +92,32 @@ fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
     }
 
     Ok(false)
+}
+
+/// Generate a unified diff showing trailing whitespace removal
+/// Returns None if no changes needed
+fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
+    let original = fs::read_to_string(path)?;
+    let fixed: String = original
+        .split_inclusive('\n')
+        .map(|line| line.trim_end())
+        .collect::<Vec<_>>()
+        .join("\n")
+        + if original.ends_with('\n') { "\n" } else { "" };
+
+    if original == fixed {
+        return Ok(None);
+    }
+
+    let path_str = path.display().to_string();
+    let diff = crate::diff::render_unified_diff(
+        &original,
+        &fixed,
+        &format!("a/{}", path_str),
+        &format!("b/{}", path_str),
+    );
+
+    Ok(Some(diff))
 }
 
 /// Fix trailing whitespace in a file, returns true if file was modified

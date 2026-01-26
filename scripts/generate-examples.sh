@@ -21,12 +21,12 @@ for pkl_file in "$PUBLIC_DIR"/*.pkl; do
     if [ ! -f "$pkl_file" ]; then
         continue
     fi
-    
+
     basename=$(basename "$pkl_file" .pkl)
     output_file="$OUTPUT_DIR/${basename}.md"
-    
+
     echo "Processing $pkl_file -> $output_file"
-    
+
     cat > "$output_file" << EOF
 # Example: ${basename}
 

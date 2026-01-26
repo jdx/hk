@@ -1,0 +1,52 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Data Formats"
+  description = "Protocol Buffers formatter"
+}
+buf_format = new Config.Step {
+  glob = "**/*.proto"
+  check_diff = "buf format {{workspace}} --diff --exit-code"
+  fix = "buf format {{workspace}} --write"
+  workspace_indicator = "buf.yaml"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "proto/test/v1/test.proto"
+      extra_files = new Mapping<String, String> {
+        ["buf.yaml"] =
+          """
+            version: v2
+            modules:
+              - path: proto
+                name: buf.build/tutorials/lint
+            lint:
+              use:
+                - STANDARD
+            breaking:
+              use:
+                - FILE
+          """
+      }
+    }
+    local const before =
+      """
+      syntax = "proto3";
+      import "google/protobuf/timestamp.proto";
+      package test.v1;
+      """
+    local const after =
+      """
+      syntax = "proto3";
+      package test.v1;
+
+      import "google/protobuf/timestamp.proto";
+
+      """
+    ["check bad file"] = testMaker.checkFail(before, 100)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}

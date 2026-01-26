@@ -1,6 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Ruby"
+  description = "Type checker for Ruby"
+}
 sorbet = new Config.Step {
-    glob = "*.rb"
-    check = "srb tc {{ files }}"
-} 
+  types = List("ruby")
+  check = "srb tc {{ files }}"
+}

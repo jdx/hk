@@ -1,79 +1,79 @@
-amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-    // some linters are built into hk
-    ["actionlint"] = Builtins.actionlint
-    // linters can be manually defined
-    ["eslint"] {
-        // the files to run the hook on, if no files are matched, the hook will be skipped
-        // this will filter the staged files and return the subset matching these globs
-        glob = List("*.js", "*.ts")
-        // a command that returns non-zero to fail the step
-        check = "eslint {{files}}"
-        // a command that edits files in place
-        fix = "eslint --fix {{files}}"
+  // some linters are built into hk
+  ["actionlint"] = Builtins.actionlint
+  // linters can be manually defined
+  ["eslint"] {
+    // the files to run the hook on, if no files are matched, the hook will be skipped
+    // this will filter the staged files and return the subset matching these globs
+    glob = List("*.js", "*.ts")
+    // a command that returns non-zero to fail the step
+    check = "eslint {{files}}"
+    // a command that edits files in place
+    fix = "eslint --fix {{files}}"
 
-        // if multiple fixes run against the same file, run check first which only requires read locking
-        // if failure, then it gets write locks to run the "fix" step
-        // default: true
-        check_first = true 
+    // if multiple fixes run against the same file, run check first which only requires read locking
+    // if failure, then it gets write locks to run the "fix" step
+    // default: true
+    check_first = true
 
-        // instead of passing all files to check/fix, it will split them into batches
-        // this takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier
-        // default: false
-        batch = true
-    }
-    // linters can start from a builtin linter and be customized
-    ["prettier"] = (Builtins.prettier) {
-        // providing a "check_list_files" command will be used to help the "check_first" method work more efficiently
-        // rather than running fix against all the files that were checked, it only runs fix against the files returned by this command
-        check_list_files = "prettier --list-different {{files}}"
-    }
-    ["clippy"] {
-        // this linter works on directories instead of individual files.
-        // This tells hk what filename to look for to know if a directory is a workspace.
-        workspace_indicator = "Cargo.toml"
-        check = "cargo clippy --manifest-path {{workspace_indicator}}"
-        fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged"
-    }
-    ["gomod_tidy"] {
-        workspace_indicator = "go.mod"
-        // assists "check_first" method because this will return a patch to stdout that hk can simply apply
-        // without needing to actually run a "fix" step
-        check_diff = "cd {{workspace}} && go mod tidy -diff"
-    }
+    // instead of passing all files to check/fix, it will split them into batches
+    // this takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier
+    // default: false
+    batch = true
+  }
+  // linters can start from a builtin linter and be customized
+  ["prettier"] = (Builtins.prettier) {
+    // providing a "check_list_files" command will be used to help the "check_first" method work more efficiently
+    // rather than running fix against all the files that were checked, it only runs fix against the files returned by this command
+    check_list_files = "prettier --list-different {{files}}"
+  }
+  ["clippy"] {
+    // this linter works on directories instead of individual files.
+    // This tells hk what filename to look for to know if a directory is a workspace.
+    workspace_indicator = "Cargo.toml"
+    check = "cargo clippy --manifest-path {{workspace_indicator}}"
+    fix = "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged"
+  }
+  ["gomod_tidy"] {
+    workspace_indicator = "go.mod"
+    // assists "check_first" method because this will return a patch to stdout that hk can simply apply
+    // without needing to actually run a "fix" step
+    check_diff = "cd {{workspace}} && go mod tidy -diff"
+  }
 }
 
 hooks {
-    ["pre-commit"] {
-        fix = true // automatically modify files with available linter fixes
-        stash = "git" // or "patch-file" or "none"
-        steps {
-            // custom step can be defined to run a shell command
-            ["prelint"] {
-                check = "mise run prelint"
-                exclusive = true // prevent other steps from running before this one or starting before this one finishes
-            }
-            ...linters
-            ["postlint"] {
-                check = "mise run postlint"
-                exclusive = true // prevent other steps from running before this one or starting before this one finishes
-            }
-        }
+  ["pre-commit"] {
+    fix = true // automatically modify files with available linter fixes
+    stash = "git" // or "patch-file" or "none"
+    steps {
+      // custom step can be defined to run a shell command
+      ["prelint"] {
+        check = "mise run prelint"
+        exclusive = true // prevent other steps from running before this one or starting before this one finishes
+      }
+      ...linters
+      ["postlint"] {
+        check = "mise run postlint"
+        exclusive = true // prevent other steps from running before this one or starting before this one finishes
+      }
     }
-    // in this case, pre-push only checks files but doesn't run the fixes
-    // this will be faster since no write locking will be required
-    ["pre-push"] {
-        steps = linters
-    }
+  }
+  // in this case, pre-push only checks files but doesn't run the fixes
+  // this will be faster since no write locking will be required
+  ["pre-push"] {
+    steps = linters
+  }
 
-    // "fix" and "check" are special "hooks" for `hk fix` and `hk check` commands
-    ["fix"] {
-        fix = true // automatically modify files with available linter fixes
-        steps = linters
-    }
-    ["check"] {
-        steps = linters
-    }
+  // "fix" and "check" are special "hooks" for `hk fix` and `hk check` commands
+  ["fix"] {
+    fix = true // automatically modify files with available linter fixes
+    steps = linters
+  }
+  ["check"] {
+    steps = linters
+  }
 }

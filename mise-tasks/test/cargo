@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE alias="tc"
+#MISE depends=["pkl:gen"]
+
+set -eu
+
+cargo test --all --all-features

@@ -48,7 +48,7 @@ EOF
 
     git add hk.pkl .hkrc.pkl
     git commit -m "initial commit"
-    
+
     # Run the hook and verify environment variables are set
     run hk run pre-commit --all
     assert_success
@@ -62,7 +62,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         steps {
-            ["env_test"] { 
+            ["env_test"] {
                 check = "env | grep CUSTOM_VAR || echo 'CUSTOM_VAR not found'"
             }
         }
@@ -81,7 +81,7 @@ EOF
 
     git add hk.pkl
     git commit -m "initial commit"
-    
+
     # Run with custom config
     run hk --hkrc custom.hkrc.pkl run pre-commit --all
     assert_success
@@ -102,7 +102,7 @@ EOF
 
     git add hk.pkl
     git commit -m "initial commit"
-    
+
     # Try to use non-existent config
     run hk --hkrc nonexistent.pkl run pre-commit --all
     assert_failure
@@ -116,14 +116,14 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         steps {
-            ["check_hook_var"] { 
+            ["check_hook_var"] {
                 check = "test \"\$HOOK_SPECIFIC_VAR\" = \"hook_value\" && echo 'Hook var found'"
             }
         }
     }
     ["check"] {
         steps {
-            ["check_no_hook_var"] { 
+            ["check_no_hook_var"] {
                 check = "test -z \"\$HOOK_SPECIFIC_VAR\" && echo 'Hook var not found (correct)'"
             }
         }
@@ -145,12 +145,12 @@ EOF
 
     git add hk.pkl .hkrc.pkl
     git commit -m "initial commit"
-    
+
     # Test pre-commit hook has the variable
     run hk run pre-commit --all
     assert_success
     assert_output --partial "Hook var found"
-    
+
     # Test pre-push hook doesn't have the variable
     run hk run check --all
     assert_success
@@ -164,7 +164,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         steps {
-            ["test_glob"] { 
+            ["test_glob"] {
                 glob = "*.txt"
                 check = "echo 'Found files:' && echo {{ files }}"
             }
@@ -190,15 +190,15 @@ EOF
     # Create test files
     echo "test" > test.txt
     echo "test" > test.py
-    
+
     git add hk.pkl .hkrc.pkl test.txt test.py
     git commit -m "initial commit"
-    
+
     # Modify files to trigger the hook
     echo "modified" > test.txt
     echo "modified" > test.py
     git add test.txt test.py
-    
+
     # The user config should override glob to only match .py files
     run hk run pre-commit
     assert_success
@@ -213,7 +213,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         steps {
-            ["check_global"] { 
+            ["check_global"] {
                 check = "test \"\$GLOBAL_TEST_VAR\" = \"global_value\" && echo 'Global var found'"
             }
         }
@@ -231,7 +231,7 @@ EOF
 
     git add hk.pkl .hkrc.pkl
     git commit -m "initial commit"
-    
+
     run hk run pre-commit --all
     assert_success
     assert_output --partial "Global var found"
@@ -247,7 +247,7 @@ env {
 hooks {
     ["pre-commit"] {
         steps {
-            ["check_precedence"] { 
+            ["check_precedence"] {
                 check = "test \"\$PRECEDENCE_TEST\" = \"user_value\" && echo 'User config wins'"
             }
         }
@@ -265,7 +265,7 @@ EOF
 
     git add hk.pkl .hkrc.pkl
     git commit -m "initial commit"
-    
+
     run hk run pre-commit --all
     assert_success
     assert_output --partial "User config wins"
@@ -294,7 +294,7 @@ EOF
 
     git add hk.pkl .hkrc.pkl
     git commit -m "initial commit"
-    
+
     run hk validate
     assert_success
     assert_output --partial "is valid"
@@ -307,7 +307,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         steps {
-            ["test_exclude"] { 
+            ["test_exclude"] {
                 glob = "*.py"
                 check = "echo 'Processing:' && echo {{ files }}"
             }
@@ -333,18 +333,18 @@ EOF
     # Create test files
     echo "test" > main.py
     echo "test" > test_example.py
-    
+
     git add hk.pkl .hkrc.pkl main.py test_example.py
     git commit -m "initial commit"
-    
+
     # Modify files to trigger the hook
     echo "modified" > main.py
     echo "modified" > test_example.py
     git add main.py test_example.py
-    
+
     # The user config should exclude test_*.py files
     run hk run pre-commit
     assert_success
     assert_output --partial "main.py"
     refute_output --partial "test_example.py"
-} 
+}

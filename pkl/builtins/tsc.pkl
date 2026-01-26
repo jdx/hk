@@ -1,7 +1,23 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "TypeScript type checker"
+}
 tsc = new Config.Step {
-    workspace_indicator = "tsconfig.json"
-    glob = "*.{ts,tsx}"
-    check = "tsc --noEmit -p {{workspace_indicator}}"
-} 
+  workspace_indicator = "tsconfig.json"
+  glob = List("**/*.ts", "**/*.tsx")
+  check = "tsc --noEmit -p {{workspace_indicator}}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "src/test.ts"
+      extra_files = new Mapping<String, String> {
+        ["tsconfig.json"] = "{\"compilerOptions\": {\"strict\": true}}"
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("const x: number = 'hello';", 2)
+    ["check good file"] = testMaker.checkPass("const x: number = 1;")
+  }
+}

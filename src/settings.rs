@@ -84,6 +84,7 @@ impl Settings {
             .as_ref()
             .and_then(|s| s.hkrc.clone())
     }
+
     pub fn get() -> Arc<Settings> {
         // Return Arc directly, panic on config errors
         Self::get_snapshot().expect("Failed to load configuration")
@@ -278,17 +279,16 @@ impl Settings {
         // initialize defaults provenance
         for (name, meta) in generated::SETTINGS_META.iter() {
             let field = *name;
-            if meta.typ.starts_with("list<string>") {
-                if let Some(arr) = val.get(field).and_then(|v| v.as_array()) {
-                    if !arr.is_empty() {
-                        let mut m: indexmap::IndexMap<String, Vec<SettingSource>> =
-                            indexmap::IndexMap::new();
-                        for it in arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())) {
-                            m.insert(it, vec![SettingSource::Defaults]);
-                        }
-                        info.entry(field).or_default().list_items = Some(m);
-                    }
+            if meta.typ.starts_with("list<string>")
+                && let Some(arr) = val.get(field).and_then(|v| v.as_array())
+                && !arr.is_empty()
+            {
+                let mut m: indexmap::IndexMap<String, Vec<SettingSource>> =
+                    indexmap::IndexMap::new();
+                for it in arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())) {
+                    m.insert(it, vec![SettingSource::Defaults]);
                 }
+                info.entry(field).or_default().list_items = Some(m);
             }
             info.entry(field).or_default().last = Some(SettingSource::Defaults);
         }
@@ -397,29 +397,29 @@ impl Settings {
                         }
                     }
                     "usize" => {
-                        if let Ok(v) = cfg.get_i32(key) {
-                            if v > 0 {
-                                map.insert(setting_name, SettingValue::Usize(v as usize));
-                                break;
-                            }
+                        if let Ok(v) = cfg.get_i32(key)
+                            && v > 0
+                        {
+                            map.insert(setting_name, SettingValue::Usize(v as usize));
+                            break;
                         }
                     }
                     "u8" => {
-                        if let Ok(v) = cfg.get_i32(key) {
-                            if (0..=255).contains(&v) {
-                                map.insert(setting_name, SettingValue::U8(v as u8));
-                                break;
-                            }
+                        if let Ok(v) = cfg.get_i32(key)
+                            && (0..=255).contains(&v)
+                        {
+                            map.insert(setting_name, SettingValue::U8(v as u8));
+                            break;
                         }
                     }
                     t if t.starts_with("list<string>") => {
-                        if let Ok(list) = read_git_string_list(&cfg, key) {
-                            if !list.is_empty() {
-                                if let Some(acc) = &mut merged {
-                                    acc.extend(list.into_iter());
-                                } else {
-                                    merged = Some(list);
-                                }
+                        if let Ok(list) = read_git_string_list(&cfg, key)
+                            && !list.is_empty()
+                        {
+                            if let Some(acc) = &mut merged {
+                                acc.extend(list.into_iter());
+                            } else {
+                                merged = Some(list);
                             }
                         }
                     }
@@ -672,10 +672,10 @@ impl Settings {
             if let Some(v) = cli_map.get(field_name.as_str()) {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
             }
-            if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last {
-                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
-                }
+            if let Some(info) = sources.get(field_name.as_str())
+                && let Some(src) = &info.last
+            {
+                writeln!(&mut output, "    Source: {}", source_to_string(src))?;
             }
         }
 
@@ -689,10 +689,10 @@ impl Settings {
             if let Some(v) = env_map.get(field_name.as_str()) {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
             }
-            if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last {
-                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
-                }
+            if let Some(info) = sources.get(field_name.as_str())
+                && let Some(src) = &info.last
+            {
+                writeln!(&mut output, "    Source: {}", source_to_string(src))?;
             }
         }
 
@@ -702,10 +702,10 @@ impl Settings {
             if let Some(v) = git_map.get(field_name.as_str()) {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
             }
-            if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last {
-                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
-                }
+            if let Some(info) = sources.get(field_name.as_str())
+                && let Some(src) = &info.last
+            {
+                writeln!(&mut output, "    Source: {}", source_to_string(src))?;
             }
         }
 
@@ -715,10 +715,10 @@ impl Settings {
             if let Some(v) = pkl_map.get(field_name.as_str()) {
                 writeln!(&mut output, "    ✓ Set to: {}", display_value(v))?;
             }
-            if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(src) = &info.last {
-                    writeln!(&mut output, "    Source: {}", source_to_string(src))?;
-                }
+            if let Some(info) = sources.get(field_name.as_str())
+                && let Some(src) = &info.last
+            {
+                writeln!(&mut output, "    Source: {}", source_to_string(src))?;
             }
         }
 
@@ -731,15 +731,14 @@ impl Settings {
         }
 
         // For list<string> types, show per-item provenance
-        if meta.typ.starts_with("list<string>") {
-            if let Some(info) = sources.get(field_name.as_str()) {
-                if let Some(items) = &info.list_items {
-                    writeln!(&mut output, "\n  Items and their sources:")?;
-                    for (item, srcs) in items.iter() {
-                        let parts: Vec<String> = srcs.iter().map(&source_to_string).collect();
-                        writeln!(&mut output, "    - {}: {}", item, parts.join(", "))?;
-                    }
-                }
+        if meta.typ.starts_with("list<string>")
+            && let Some(info) = sources.get(field_name.as_str())
+            && let Some(items) = &info.list_items
+        {
+            writeln!(&mut output, "\n  Items and their sources:")?;
+            for (item, srcs) in items.iter() {
+                let parts: Vec<String> = srcs.iter().map(&source_to_string).collect();
+                writeln!(&mut output, "    - {}: {}", item, parts.join(", "))?;
             }
         }
 

@@ -1,20 +1,17 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Detect merge conflict markers"
+}
 check_merge_conflict = new Config.Step {
-    glob = "**/*"
-    check = "hk util check-merge-conflict --assume-in-merge {{files}}"
-    tests {
-        ["detects conflict markers"] {
-            run = "check"
-            write { ["{{tmp}}/a.txt"] = "<<<<<<< HEAD\nconflict\n" }
-            files = List("{{tmp}}/a.txt")
-            expect { code = 1 }
-        }
-        ["passes clean files"] {
-            run = "check"
-            write { ["{{tmp}}/a.txt"] = "normal line\n" }
-            files = List("{{tmp}}/a.txt")
-            expect { code = 0 }
-        }
-    }
+  glob = "**/*"
+  check = "hk util check-merge-conflict --assume-in-merge {{files}}"
+  tests {
+    local const testMaker = new helpers.TestMaker {}
+    ["check bad file"] = testMaker.checkFail("<<<<<<< HEAD\nconflict\n", 1)
+    ["check good file"] = testMaker.checkPass("normal line\n")
+  }
 }

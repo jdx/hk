@@ -23,7 +23,7 @@ use crate::{
     glob,
     hook_options::HookOptions,
     settings::Settings,
-    step::{CheckType, EXPR_CTX, OutputSummary, RunType, Script, Step},
+    step::{EXPR_CTX, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -92,6 +92,7 @@ pub struct Hook {
     pub steps: IndexMap<String, StepOrGroup>,
     pub fix: Option<bool>,
     pub stash: Option<StashSetting>,
+    pub stage: Option<bool>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
 }
@@ -111,13 +112,15 @@ pub enum StepOrGroup {
 }
 
 impl StepOrGroup {
-    pub fn init(&mut self, name: &str) {
+    pub fn init(&mut self, name: &str) -> Result<()> {
         match self {
-            StepOrGroup::Step(step) => step.init(name),
-            StepOrGroup::Group(group) => group.init(name),
+            StepOrGroup::Step(step) => step.init(name)?,
+            StepOrGroup::Group(group) => group.init(name)?,
         }
+        Ok(())
     }
 }
+
 pub struct HookContext {
     pub file_locks: FileRwLocks,
     pub git: Arc<Mutex<Git>>,
@@ -139,6 +142,7 @@ pub struct HookContext {
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
+    pub should_stage: bool,
 }
 
 impl HookContext {
@@ -152,6 +156,7 @@ impl HookContext {
         run_type: RunType,
         hk_progress: Option<Arc<ProgressJob>>,
         skip_steps: IndexMap<String, SkipReason>,
+        should_stage: bool,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = expr_ctx;
@@ -182,6 +187,7 @@ impl HookContext {
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
+            should_stage,
         }
     }
 
@@ -278,11 +284,12 @@ impl HookContext {
 }
 
 impl Hook {
-    pub fn init(&mut self, hook_name: &str) {
+    pub fn init(&mut self, hook_name: &str) -> Result<()> {
         self.name = hook_name.to_string();
         for (name, step) in self.steps.iter_mut() {
-            step.init(name);
+            step.init(name)?;
         }
+        Ok(())
     }
 
     fn run_type(&self, opts: &HookOptions) -> RunType {
@@ -290,7 +297,7 @@ impl Hook {
         if (*env::HK_FIX && fix) || opts.fix {
             RunType::Fix
         } else {
-            RunType::Check(CheckType::Check)
+            RunType::Check
         }
     }
 
@@ -359,26 +366,169 @@ impl Hook {
         Ok(())
     }
 
+    pub async fn stats(&self, opts: HookOptions, hook_name: &str) -> Result<()> {
+        let settings = Settings::get();
+        let run_type = self.run_type(&opts);
+        let repo = Arc::new(Mutex::new(Git::new()?));
+        let git_status = repo.lock().await.status(None)?;
+        let stash_method = if let Some(stash_str) = &opts.stash {
+            stash_str
+                .parse::<StashMethod>()
+                .unwrap_or(StashMethod::None)
+        } else {
+            self.resolve_stash_method(*env::HK_STASH)
+        };
+        let progress = ProgressJobBuilder::new()
+            .status(ProgressStatus::Hide)
+            .build();
+        let files = self
+            .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
+            .await?;
+        let all_files = files.iter().cloned().collect::<Vec<_>>();
+        let total_files = all_files.len();
+
+        // Build skip_steps map (same logic as run method)
+        let skip_steps = {
+            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
+
+            // First, check environment variable skips directly
+            for s in env::HK_SKIP_STEPS.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+                );
+            }
+
+            // Then add any additional skips from config/git that aren't from env
+            for s in settings.skip_steps.iter() {
+                // Only add if not already marked as env skip
+                if !m.contains_key::<str>(s) {
+                    m.insert(s.clone(), SkipReason::DisabledByConfig);
+                }
+            }
+            for s in opts.skip_step.iter() {
+                m.insert(
+                    s.clone(),
+                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
+                );
+            }
+            m
+        };
+
+        println!(
+            "{}",
+            style::nbold(&format!("Statistics for hook: {}", hook_name))
+        );
+        println!();
+        println!("Total files: {}", style::ncyan(total_files));
+        println!(
+            "Run type: {}",
+            style::nblue(if run_type == RunType::Fix {
+                "fix"
+            } else {
+                "check"
+            })
+        );
+        println!();
+
+        // Collect stats for each step
+        let groups = self.get_step_groups(&opts);
+        let mut step_stats: Vec<(String, usize, Option<SkipReason>)> = Vec::new();
+
+        for group in &groups {
+            for (step_name, step) in &group.steps {
+                // Check if step is in skip list
+                if let Some(skip_reason) = skip_steps.get(step_name) {
+                    step_stats.push((step_name.clone(), 0, Some(skip_reason.clone())));
+                    continue;
+                }
+
+                // Check if step has a command for this run type
+                if !step.has_command_for(run_type) {
+                    step_stats.push((
+                        step_name.clone(),
+                        0,
+                        Some(SkipReason::NoCommandForRunType(run_type)),
+                    ));
+                    continue;
+                }
+
+                // Check profile skip reason
+                if let Some(skip_reason) = step.profile_skip_reason() {
+                    step_stats.push((step_name.clone(), 0, Some(skip_reason)));
+                    continue;
+                }
+
+                let filtered_files = step.filter_files(&all_files)?;
+                step_stats.push((step_name.clone(), filtered_files.len(), None));
+            }
+        }
+
+        if step_stats.is_empty() {
+            println!("No steps found in hook '{}'", hook_name);
+            return Ok(());
+        }
+
+        println!("{}", style::nbold("Files matching each step:"));
+        println!();
+
+        // Find the longest step name for alignment
+        let max_name_len = step_stats
+            .iter()
+            .map(|(name, _, _)| name.len())
+            .max()
+            .unwrap_or(0);
+
+        for (step_name, count, skip_reason) in step_stats {
+            if let Some(reason) = skip_reason {
+                println!(
+                    "  {:width$}  {}",
+                    style::nyellow(&step_name),
+                    style::ndim(format!("(skipped: {})", reason.message())),
+                    width = max_name_len
+                );
+            } else {
+                let percentage = if total_files > 0 {
+                    (count as f64 / total_files as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                println!(
+                    "  {:width$}  {}  ({:.1}%)",
+                    style::nyellow(&step_name),
+                    style::ncyan(count),
+                    percentage,
+                    width = max_name_len
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
-        // Handle fail_fast effective value locally (no global mutation)
-        let base_settings = Settings::get();
-        let fail_fast_effective = if opts.fail_fast {
+        let settings = Settings::get();
+        let fail_fast = if opts.fail_fast {
             true
         } else if opts.no_fail_fast {
             false
         } else {
-            base_settings.fail_fast
+            settings.fail_fast
         };
+        let should_stage = opts
+            .should_stage()
+            .or(settings.stage)
+            .or(self.stage)
+            .unwrap_or(true);
 
-        let settings = Settings::get();
         if settings.skip_hooks.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
             return Ok(());
         }
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
         let groups = self.get_step_groups(&opts);
         let stash_method = if let Some(stash_str) = &opts.stash {
             stash_str
@@ -394,6 +544,7 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
+        let git_status = repo.lock().await.status(None)?;
         let files = self
             .file_list(
                 &opts,
@@ -456,20 +607,30 @@ impl Hook {
             run_type,
             hk_progress,
             skip_steps,
+            should_stage,
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
 
         if stash_method != StashMethod::None {
-            // Capture exact staged index entries for files under consideration so we can
-            // ensure index hunks survive formatting and stash apply.
-            let files_vec = hook_ctx.files();
-            {
-                let mut r = repo.lock().await;
-                r.capture_index(&files_vec)?;
-                // Stash ALL unstaged changes in the repository (not only files under consideration)
-                // so that unrelated worktree changes do not affect or get affected by fixers.
-                r.stash_unstaged(&file_progress, stash_method, &git_status)?;
+            // Only run stash logic if there are actually unstaged changes to stash
+            let has_unstaged_changes = !git_status.unstaged_files.is_empty()
+                || (*env::HK_STASH_UNTRACKED && !git_status.untracked_files.is_empty());
+
+            if has_unstaged_changes {
+                // Capture exact staged index entries for files under consideration so we can
+                // ensure index hunks survive formatting and stash apply.
+                let files_vec = hook_ctx.files();
+                {
+                    let mut r = repo.lock().await;
+                    r.capture_index(&files_vec)?;
+                    // Stash ALL unstaged changes in the repository (not only files under consideration)
+                    // so that unrelated worktree changes do not affect or get affected by fixers.
+                    r.stash_unstaged(&file_progress, stash_method, &git_status)?;
+                }
+            } else {
+                file_progress.prop("message", "No unstaged changes to stash");
+                file_progress.set_status(ProgressStatus::Done);
             }
         }
 
@@ -481,14 +642,12 @@ impl Hook {
         let multiple_groups = hook_ctx.groups.len() > 1;
         for (i, group) in hook_ctx.groups.iter().enumerate() {
             debug!("running group: {i}");
-            let mut ctx = StepGroupContext::new(hook_ctx.clone(), fail_fast_effective);
-            if multiple_groups {
-                if let Some(name) = &group.name {
-                    ctx = ctx.with_progress(group.build_group_progress(name));
-                }
+            let mut ctx = StepGroupContext::new(hook_ctx.clone(), fail_fast);
+            if multiple_groups && let Some(name) = &group.name {
+                ctx = ctx.with_progress(group.build_group_progress(name));
             }
             result = result.and(group.run(ctx).await);
-            if fail_fast_effective && result.is_err() {
+            if fail_fast && result.is_err() {
                 break;
             }
         }
@@ -550,7 +709,6 @@ impl Hook {
 
         // Display summary of profile-skipped steps
         // Only show summary if user has enabled the warning tag and it's not hidden
-        let settings = Settings::get();
         if settings.warnings.contains("missing-profiles")
             && !settings.hide_warnings.contains("missing-profiles")
         {
@@ -607,22 +765,22 @@ impl Hook {
         }
 
         // Run hook-level report if configured
-        if let Some(report) = &self.report {
-            if let Ok(json) = hook_ctx.timing.to_json_string() {
-                let mut cmd = ensembler::CmdLineRunner::new("sh")
-                    .arg("-o")
-                    .arg("errexit")
-                    .arg("-c");
-                let run = report.to_string();
-                cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
-                let pr = ProgressJobBuilder::new()
-                    .body("report: {{message}}")
-                    .prop("message", &run)
-                    .start();
-                cmd = cmd.with_pr(pr);
-                if let Err(err) = cmd.execute().await {
-                    warn!("Report command failed: {err}");
-                }
+        if let Some(report) = &self.report
+            && let Ok(json) = hook_ctx.timing.to_json_string()
+        {
+            let mut cmd = ensembler::CmdLineRunner::new("sh")
+                .arg("-o")
+                .arg("errexit")
+                .arg("-c");
+            let run = report.to_string();
+            cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
+            let pr = ProgressJobBuilder::new()
+                .body("report: {{message}}")
+                .prop("message", &run)
+                .start();
+            cmd = cmd.with_pr(pr);
+            if let Err(err) = cmd.execute().await {
+                warn!("Report command failed: {err}");
             }
         }
         // Emit collected fix suggestions at the end (after progress bars and summaries)
@@ -633,7 +791,17 @@ impl Hook {
             }
         }
         if let Err(err) = &result {
-            error!("{self}: hook finished with error: {err:?}");
+            // ScriptFailed is handled by main.rs handle_script_failed(), skip logging here
+            // Other errors are unexpected, show full trace for debugging
+            let is_script_failed = err.chain().any(|e| {
+                matches!(
+                    e.downcast_ref::<ensembler::Error>(),
+                    Some(ensembler::Error::ScriptFailed(_))
+                )
+            });
+            if !is_script_failed {
+                error!("{self}: hook finished with error: {err:?}");
+            }
         } else {
             debug!("{self}: hook finished successfully");
         }
@@ -710,6 +878,17 @@ impl Hook {
                 .cloned()
                 .collect()
         };
+
+        // Strip leading "./" from all paths for consistent matching
+        files = files
+            .into_iter()
+            .map(|f| {
+                f.to_str()
+                    .and_then(|s| s.strip_prefix("./"))
+                    .map(PathBuf::from)
+                    .unwrap_or(f)
+            })
+            .collect();
 
         // Filter out directories (including symlinks to directories)
         // git ls-files includes symlinks, which may point to directories

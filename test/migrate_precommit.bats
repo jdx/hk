@@ -21,10 +21,10 @@ PRECOMMIT
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
-    
+
     # Verify hk.pkl was created
     [ -f hk.pkl ]
-    
+
     # Verify it contains expected content
     run cat hk.pkl
     assert_output --partial "Builtins.prettier"
@@ -45,10 +45,10 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify exclude is preserved (as regex)
     run cat hk.pkl
-    assert_output --partial 'exclude = Types.Regex'
+    assert_output --partial 'exclude = Regex'
     assert_output --partial 'pre_commit/resources'
 }
 
@@ -64,7 +64,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify args are noted in comments
     # The hook is unknown so it goes to custom_steps
     run cat hk.pkl
@@ -84,7 +84,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify additional_dependencies are handled with mise x
     run cat hk.pkl
     assert_output --partial "additional_dependencies: types-pyyaml, types-requests"
@@ -104,7 +104,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify type filtering is documented
     run cat hk.pkl
     assert_output --partial "types (AND): javascript, typescript"
@@ -125,7 +125,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify both stages are created
     run cat hk.pkl
     assert_output --partial '["pre-push"]'
@@ -146,7 +146,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify local hooks are generated with check command
     run cat hk.pkl
     assert_output --partial "local_hooks"
@@ -192,7 +192,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify meta hooks are not included
     run cat hk.pkl
     refute_output --partial "check-hooks-apply"
@@ -210,7 +210,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     # Verify unknown hooks are in custom_steps with TODO
     run cat hk.pkl
     assert_output --partial "custom_steps"
@@ -229,16 +229,16 @@ PRECOMMIT
 
     # Create existing hk.pkl
     echo "existing content" > hk.pkl
-    
+
     # Try without force - should fail
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_failure
     assert_output --partial "already exists"
-    
+
     # Try with force - should succeed
     run hk migrate pre-commit --force
     assert_success
-    
+
     run cat hk.pkl
     assert_output --partial "Builtins.black"
 }
@@ -254,10 +254,10 @@ PRECOMMIT
 
     run hk migrate pre-commit --config custom-precommit.yaml --output custom-hk.pkl
     assert_success
-    
+
     # Verify custom output was created
     [ -f custom-hk.pkl ]
-    
+
     run cat custom-hk.pkl
     assert_output --partial "Builtins.shellcheck"
 }
@@ -287,7 +287,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     run cat hk.pkl
     # Verify known hooks
     assert_output --partial "Builtins.black"
@@ -312,7 +312,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     run cat hk.pkl
     assert_output --partial "fail_fast"
     assert_output --partial "hk uses --fail-fast"
@@ -332,7 +332,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     run cat hk.pkl
     assert_output --partial "default_language_version"
     assert_output --partial "python: python3.11"
@@ -353,7 +353,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     run cat hk.pkl
     assert_output --partial "always_run: true"
 }
@@ -370,7 +370,7 @@ PRECOMMIT
 
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
-    
+
     run cat hk.pkl
     assert_output --partial "pass_filenames: false"
     assert_output --partial "not use {{files}}"
@@ -453,44 +453,44 @@ PRECOMMIT
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
-    
+
     # Verify .hk directory was created with vendored repo
     [ -d .hk/vendors ]
     [ -d .hk/vendors/Lucas-C-pre-commit-hooks ]
     [ -f .hk/vendors/Lucas-C-pre-commit-hooks/.pre-commit-hooks.yaml ]
-    
+
     # Verify .git directory was removed
     [ ! -d .hk/vendors/Lucas-C-pre-commit-hooks/.git ]
-    
+
     # Verify hk.pkl references vendored hooks
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl"'
     assert_output --partial "remove-crlf"
     assert_output --partial "Builtins.prettier"
-    
+
     # Verify vendored PKL file was created
     [ -f .hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl ]
-    
+
     # Verify the generated PKL file has correct structure
     run cat .hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl
     assert_output --partial "remove_crlf"
-    
+
     # Verify hooks use the vendored scripts and are in linters
     run cat hk.pkl
     assert_output --partial "local linters"
     assert_output --partial "Vendors_Lucas_C_pre_commit_hooks.remove_crlf"
     refute_output --partial "custom_steps"
-    
+
     # Create a test file with CRLF line endings to test the vendored hook
     printf "line1\r\nline2\r\n" > test.txt
     git add test.txt
-    
+
     # Dependencies will be installed automatically when the hook runs
-    
+
     # Run hk fix - should install dependencies and remove CRLF
     run hk fix
     assert_success
-    
+
     # Verify CRLF was removed - check file directly for \r bytes
     run od -c test.txt
     refute_output --partial '\r'
@@ -513,40 +513,40 @@ PRECOMMIT
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
-    
+
     # Verify .hk directory was created with vendored repo
     [ -d .hk/vendors ]
     [ -d .hk/vendors/thlorenz-doctoc ]
     [ -f .hk/vendors/thlorenz-doctoc/.pre-commit-hooks.yaml ]
-    
+
     # Verify .git directory was removed
     [ ! -d .hk/vendors/thlorenz-doctoc/.git ]
-    
+
     # Verify package.json exists in the vendored repo
     [ -f .hk/vendors/thlorenz-doctoc/package.json ]
-    
+
     # Verify hk.pkl references vendored hooks
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/thlorenz-doctoc/hooks.pkl"'
     assert_output --partial "doctoc"
     assert_output --partial "Builtins.prettier"
-    
+
     # Verify vendored PKL file was created
     [ -f .hk/vendors/thlorenz-doctoc/hooks.pkl ]
-    
+
     # Verify the generated PKL file has correct structure for Node.js
     run cat .hk/vendors/thlorenz-doctoc/hooks.pkl
     assert_output --partial "doctoc"
     assert_output --partial "node_modules"
     assert_output --partial "npm install"
     assert_output --partial "npx --prefix .hk/vendors/thlorenz-doctoc doctoc"
-    
+
     # Verify hooks use the vendored scripts and are in linters
     run cat hk.pkl
     assert_output --partial "local linters"
     assert_output --partial "Vendors_thlorenz_doctoc.doctoc"
     refute_output --partial "custom_steps"
-    
+
     # Create a test markdown file without TOC to test the vendored hook
     cat <<'MARKDOWN' > README.md
 # Test Document
@@ -566,13 +566,13 @@ More content.
 Final section.
 MARKDOWN
     git add README.md
-    
+
     # Dependencies will be installed automatically when the hook runs
-    
+
     # Run hk fix - should install dependencies and add TOC to README.md
     run hk fix
     assert_success
-    
+
     # Verify TOC was added to the markdown file
     run cat README.md
     assert_output --partial "<!-- START doctoc"
@@ -598,28 +598,28 @@ PRECOMMIT
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
-    
+
     # Verify .hk directory was created with vendored repo
     [ -d .hk/vendors ]
     [ -d .hk/vendors/bufbuild-buf ]
     [ -f .hk/vendors/bufbuild-buf/.pre-commit-hooks.yaml ]
-    
+
     # Verify .git directory was removed
     [ ! -d .hk/vendors/bufbuild-buf/.git ]
-    
+
     # Verify go.mod exists (buf is a Go project)
     [ -f .hk/vendors/bufbuild-buf/go.mod ]
-    
+
     # Verify hk.pkl references vendored hooks
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/bufbuild-buf/hooks.pkl"'
     assert_output --partial "buf-format"
     assert_output --partial "buf-lint"
     assert_output --partial "Builtins.prettier"
-    
+
     # Verify vendored PKL file was created
     [ -f .hk/vendors/bufbuild-buf/hooks.pkl ]
-    
+
     # Verify the generated PKL file has correct structure for language: golang
     run cat .hk/vendors/bufbuild-buf/hooks.pkl
     assert_output --partial "buf_format"
@@ -627,14 +627,14 @@ PRECOMMIT
     assert_output --partial ".gopath/bin"
     assert_output --partial "go install ./..."
     assert_output --partial "export GOPATH"
-    
+
     # Verify hooks use the vendored Go binaries and are in linters
     run cat hk.pkl
     assert_output --partial "local linters"
     assert_output --partial "Vendors_bufbuild_buf.buf_format"
     assert_output --partial "Vendors_bufbuild_buf.buf_lint"
     refute_output --partial "custom_steps"
-    
+
     # Note: buf uses language: golang so it will install via go install
     # The actual buf commands would require Go and proto files to test
 }
@@ -659,40 +659,40 @@ PRECOMMIT
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
     assert_output --partial "Successfully migrated to hk.pkl"
-    
+
     # Verify .hk directory was created with vendored repo
     [ -d .hk/vendors ]
     [ -d .hk/vendors/swiftlang-swift-format ]
     [ -f .hk/vendors/swiftlang-swift-format/.pre-commit-hooks.yaml ]
-    
+
     # Verify .git directory was removed
     [ ! -d .hk/vendors/swiftlang-swift-format/.git ]
-    
+
     # Verify Package.swift exists (swift-format is a Swift package)
     [ -f .hk/vendors/swiftlang-swift-format/Package.swift ]
-    
+
     # Verify hk.pkl references vendored hooks
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/swiftlang-swift-format/hooks.pkl"'
     assert_output --partial "swift-format"
     assert_output --partial "Builtins.prettier"
-    
+
     # Verify vendored PKL file was created
     [ -f .hk/vendors/swiftlang-swift-format/hooks.pkl ]
-    
+
     # Verify the generated PKL file has correct structure for language: swift
     run cat .hk/vendors/swiftlang-swift-format/hooks.pkl
     assert_output --partial "swift_format ="
     assert_output --partial ".swift_env/.build/release"
     assert_output --partial "swift build"
     assert_output --partial "format --in-place --recursive --parallel"
-    
+
     # Verify hooks use the vendored Swift binaries and are in linters
     run cat hk.pkl
     assert_output --partial "local linters"
     assert_output --partial "Vendors_swiftlang_swift_format.swift_format"
     refute_output --partial "custom_steps"
-    
+
     # Note: swift uses language: swift so it will build via swift build
     # The actual swift-format execution would require Swift to be installed
     # and takes ~3 minutes to build, so we only verify the vendoring structure

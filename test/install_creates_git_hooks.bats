@@ -17,4 +17,4 @@ hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     hk install
     assert_file_exists ".git/hooks/pre-commit"
-} 
+}

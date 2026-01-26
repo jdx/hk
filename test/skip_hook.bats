@@ -19,7 +19,7 @@ hooks {
         stash = "patch-file"
         steps {
             ["prettier"] = Builtins.prettier
-            ["shellcheck"] = Builtins.shellcheck
+            ["newlines"] = Builtins.newlines
         }
     }
 }
@@ -33,4 +33,4 @@ EOF
     run hk run pre-commit -v
     assert_success
     assert_output --partial "pre-commit: skipping hook due to HK_SKIP_HOOK"
-} 
+}

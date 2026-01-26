@@ -1,31 +1,30 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Python"
+  description = "Fast Python linter"
+}
 ruff = new Config.Step {
-    glob = "*.py"
-    stage = "*.py"
-    check = "ruff check {{ files }}"
-    fix = "ruff check --fix {{ files }}"
-    tests {
-        ["detects unused import"] {
-            run = "check"
-            write { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
-            files = List("{{tmp}}/test.py")
-            expect { code = 1 }
-        }
-        ["fixes unused import"] {
-            run = "fix"
-            write { ["{{tmp}}/test.py"] = "import sys\nprint('hello')\n" }
-            files = List("{{tmp}}/test.py")
-            expect {
-                code = 0
-                files { ["{{tmp}}/test.py"] = "print('hello')\n" }
-            }
-        }
-        ["passes clean file"] {
-            run = "check"
-            write { ["{{tmp}}/test.py"] = "print('hello')\n" }
-            files = List("{{tmp}}/test.py")
-            expect { code = 0 }
-        }
+  glob = List("**/*.py", "**/*.pyi")
+  check = "ruff check --force-exclude {{ files }}"
+  check_diff = "ruff check --force-exclude --diff {{ files }}"
+  fix = "ruff check --force-exclude --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.py"
+      extra_files = new Mapping<String, String> {
+        ["ruff.toml"] = "exclude = [\"excluded.py\"]\n"
+      }
     }
-} 
+    local const before = "import sys\nprint('hello')\n"
+    local const after = "print('hello')\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+    ["check respects config exclude"] = testMaker.withFilename("excluded.py").checkPass(before)
+    ["fix respects config exclude"] = testMaker.withFilename("excluded.py").fixPass(before, before)
+  }
+}

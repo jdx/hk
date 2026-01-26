@@ -1,0 +1,5 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "1.25"
+tool = "go"
+bin = "gofmt"

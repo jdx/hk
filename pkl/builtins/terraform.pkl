@@ -1,8 +1,12 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Terraform formatter"
+}
 terraform = new Config.Step {
-    glob = List("*.tf", "*.tfvars")
-    stage = glob
-    check_list_files = "terraform fmt -check {{ files }}"
-    fix = "terraform fmt {{ files }}"
-} 
+  glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
+  check_list_files = "terraform fmt -check {{ files }}"
+  fix = "terraform fmt {{ files }}"
+}

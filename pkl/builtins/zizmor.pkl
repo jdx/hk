@@ -1,0 +1,89 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "GitHub Actions security static analysis tool"
+}
+zizmor = new Config.Step {
+  glob =
+    List(
+      ".github/workflows/*.yml",
+      ".github/workflows/*.yaml",
+      ".github/dependabot.yml",
+      "**/action.yml",
+      "**/action.yaml",
+    )
+  check_diff = "zizmor --no-progress {{ files }}"
+  fix = "zizmor --no-progress --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = ".github/workflows/action.yaml"
+    }
+    local const bad =
+      """
+      name: hk test
+      on:
+        push:
+      permissions: {}
+      jobs:
+        build:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout/////@v4
+              with:
+                persist-credentials: false
+
+      """
+    local const good =
+      """
+      name: hk test
+      on:
+        push:
+      permissions: {}
+      jobs:
+        build:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v4
+              with:
+                persist-credentials: false
+
+      """
+    ["check bad file"] = testMaker.checkFail(bad, 12)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file violations remain"] =
+      testMaker.fixFail(
+        """
+        name: hk test
+        on:
+          push:
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout/////@v4
+                with:
+                  persist-credentials: false
+
+        """,
+        """
+        name: hk test
+        on:
+          push:
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@v4
+                with:
+                  persist-credentials: false
+
+        """,
+        13,
+      )
+    ["fix bad file all violations are fixed"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}

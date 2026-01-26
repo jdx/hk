@@ -1,0 +1,23 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Replace smart quotes with regular quotes"
+}
+fix_smart_quotes = new Config.Step {
+  glob = "**/*"
+  check_diff = "hk util fix-smart-quotes --diff {{files}}"
+  fix = "hk util fix-smart-quotes {{files}}"
+  tests {
+    local const testMaker = new helpers.TestMaker {}
+    ["check file with smart quotes"] = testMaker.checkFail("\u{FF02}Hello, world!\u{FF02}", 1)
+    ["check file without smart quotes"] = testMaker.checkPass("\"Hello, world!\"")
+    ["check empty file"] = testMaker.checkPass("")
+    ["fix file with smart quotes"] =
+      testMaker.fixPass("\u{FF02}Hello, world!\u{FF02}", "\"Hello, world!\"")
+    ["fix file without smart quotes"] = testMaker.fixPass("\"Hello, world!\"", "\"Hello, world!\"")
+    ["fix empty file"] = testMaker.fixPass("", "")
+  }
+}

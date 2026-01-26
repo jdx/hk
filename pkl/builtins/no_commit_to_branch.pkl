@@ -1,21 +1,24 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Prevent direct commits to protected branches"
+}
 no_commit_to_branch = new Config.Step {
-    check = "hk util no-commit-to-branch"
-    tests {
-        ["passes on feature branch"] {
-            run = "check"
-            write { ["{{tmp}}/.gitkeep"] = "" }
-            files = List("{{tmp}}/.gitkeep")
-            before = "git init -q && git checkout -q -b feature-branch"
-            expect { code = 0 }
-        }
-        ["fails on main branch"] {
-            run = "check"
-            write { ["{{tmp}}/.gitkeep"] = "" }
-            files = List("{{tmp}}/.gitkeep")
-            before = "git init -q && git checkout -q -b main"
-            expect { code = 1 }
-        }
+  check = "hk util no-commit-to-branch"
+  tests {
+    ["passes on feature branch"] {
+      run = "check"
+      write { ["{{tmp}}/.gitkeep"] = "" }
+      before = "git init -q && git checkout -q -b feature-branch"
+      expect { code = 0 }
     }
+    ["fails on main branch"] {
+      run = "check"
+      write { ["{{tmp}}/.gitkeep"] = "" }
+      before = "git init -q && git checkout -q -b main"
+      expect { code = 1 }
+    }
+  }
 }

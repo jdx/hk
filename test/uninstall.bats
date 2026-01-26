@@ -11,10 +11,10 @@ teardown() {
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
 hooks {
-    ["pre-commit"] { steps { ["tsc"] = Builtins.tsc } }
-    ["pre-push"] { steps { ["tsc"] = Builtins.tsc } }
-    ["fix"] { steps { ["tsc"] = Builtins.tsc } }
-    ["check"] { steps { ["tsc"] = Builtins.tsc } }
+    ["pre-commit"] { steps { ["newlines"] = Builtins.newlines } }
+    ["pre-push"] { steps { ["newlines"] = Builtins.newlines } }
+    ["fix"] { steps { ["newlines"] = Builtins.newlines } }
+    ["check"] { steps { ["newlines"] = Builtins.newlines } }
 }
 EOF
     rm -f .git/hooks/*

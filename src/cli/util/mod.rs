@@ -1,12 +1,12 @@
+mod byte_order_marker;
 mod check_added_large_files;
-mod check_byte_order_marker;
 mod check_case_conflict;
+mod check_conventional_commit;
 mod check_executables_have_shebangs;
 mod check_merge_conflict;
 mod check_symlinks;
 mod detect_private_key;
 mod end_of_file_fixer;
-mod fix_byte_order_marker;
 mod fix_smart_quotes;
 mod mixed_line_ending;
 mod no_commit_to_branch;
@@ -14,15 +14,15 @@ mod python_check_ast;
 mod python_debug_statements;
 mod trailing_whitespace;
 
+pub use byte_order_marker::{CheckByteOrderMarker, FixByteOrderMarker};
 pub use check_added_large_files::CheckAddedLargeFiles;
-pub use check_byte_order_marker::CheckByteOrderMarker;
 pub use check_case_conflict::CheckCaseConflict;
+pub use check_conventional_commit::CheckConventionalCommit;
 pub use check_executables_have_shebangs::CheckExecutablesHaveShebangs;
 pub use check_merge_conflict::CheckMergeConflict;
 pub use check_symlinks::CheckSymlinks;
 pub use detect_private_key::DetectPrivateKey;
 pub use end_of_file_fixer::EndOfFileFixer;
-pub use fix_byte_order_marker::FixByteOrderMarker;
 pub use fix_smart_quotes::FixSmartQuotes;
 pub use mixed_line_ending::MixedLineEnding;
 pub use no_commit_to_branch::NoCommitToBranch;
@@ -47,6 +47,8 @@ enum UtilCommands {
     CheckByteOrderMarker(CheckByteOrderMarker),
     /// Check for case-insensitive filename conflicts
     CheckCaseConflict(CheckCaseConflict),
+    /// Check for conventional commit message
+    CheckConventionalCommit(CheckConventionalCommit),
     /// Check that executable files have shebangs
     CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),
     /// Check for merge conflict markers
@@ -79,6 +81,7 @@ impl Util {
             UtilCommands::CheckAddedLargeFiles(cmd) => cmd.run().await,
             UtilCommands::CheckByteOrderMarker(cmd) => cmd.run().await,
             UtilCommands::CheckCaseConflict(cmd) => cmd.run().await,
+            UtilCommands::CheckConventionalCommit(cmd) => cmd.run().await,
             UtilCommands::CheckExecutablesHaveShebangs(cmd) => cmd.run().await,
             UtilCommands::CheckMergeConflict(cmd) => cmd.run().await,
             UtilCommands::CheckSymlinks(cmd) => cmd.run().await,

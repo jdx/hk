@@ -1,8 +1,12 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Deno formatter"
+}
 deno = new Config.Step {
-    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
-    stage = glob
-    check = "deno fmt --check {{ files }}"
-    fix = "deno fmt {{ files }}"
-} 
+  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
+  check = "deno fmt --check {{ files }}"
+  fix = "deno fmt {{ files }}"
+}

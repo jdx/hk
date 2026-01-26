@@ -1,7 +1,12 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Elixir"
+  description = "Compile Elixir with Mix"
+}
 mix_compile = new Config.Step {
-    glob = "*.ex"
-    exclude = List("deps/**/*")
-    check = "mix compile --warnings-as-errors --strict-errors {{files}}"
+  glob = "**/*.ex"
+  exclude = List("deps/**/*")
+  check = "mix compile --warnings-as-errors --strict-errors {{files}}"
 }

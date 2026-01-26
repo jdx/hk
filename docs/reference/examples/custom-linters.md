@@ -7,8 +7,8 @@
 /// * Uses conditions and workspace indicators
 /// * Shows test configuration
 
-amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
 
 local custom_linters = new Mapping<String, Step> {
   // Custom SQL formatter
@@ -19,7 +19,7 @@ local custom_linters = new Mapping<String, Step> {
     fix = "sql-formatter --write {{files}}"
     batch = true
   }
-  
+
   // Platform-specific security scanner
   ["security_scan"] {
     check = new Script {
@@ -32,7 +32,7 @@ local custom_linters = new Mapping<String, Step> {
     // Run exclusively to avoid conflicts
     exclusive = true
   }
-  
+
   // Custom workspace-based build tool
   ["custom_build"] {
     workspace_indicator = "build.toml"
@@ -41,7 +41,7 @@ local custom_linters = new Mapping<String, Step> {
     // Use check_diff for efficient patching
     check_diff = "cd {{workspace}} && custom-build diff"
   }
-  
+
   // Interactive migration tool
   ["migrate"] {
     glob = List("**/migrations/*.sql")
@@ -50,13 +50,13 @@ local custom_linters = new Mapping<String, Step> {
     // Enable interactive mode for prompts
     interactive = true
   }
-  
+
   // Custom linter with tests
   ["custom_validator"] {
     glob = List("**/*.custom")
     check = "validator {{files}}"
     fix = "validator --fix {{files}}"
-    
+
     // Define tests for this step
     tests {
       ["validates correct syntax"] {

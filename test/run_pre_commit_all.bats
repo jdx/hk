@@ -32,4 +32,4 @@ EOF
     assert_file_exists hk.pkl
     run cat test.js
     assert_output 'console.log("test");'
-} 
+}

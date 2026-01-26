@@ -1,8 +1,24 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Other Languages"
+  description = "Kotlin linter and formatter"
+}
 ktlint = new Config.Step {
-    glob = "*.kt"
-    stage = "*.kt"
-    check = "ktlint {{ files }}"
-    fix = "ktlint -F {{ files }}"
-} 
+  glob = "**/*.kt"
+  check = "ktlint {{ files }}"
+  fix = "ktlint -F {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "Test.kt" }
+    ["check bad file"] = testMaker.checkFail("const val FOO_1  =  \"foo1\"", 1)
+    ["check good file"] = testMaker.checkPass("const val FOO_1 = \"foo1\"\n")
+    ["fix bad file"] =
+      testMaker.fixPass("const val FOO_1  =  \"foo1\"", "const val FOO_1 = \"foo1\"\n")
+    ["fix good file"] =
+      testMaker.fixPass("const val FOO_1 = \"foo1\"\n", "const val FOO_1 = \"foo1\"\n")
+    ["fixes formatting but not unfixable lint error"] =
+      testMaker.fixFail("const val fooBar  =  \"FOO-BAR\"", "const val fooBar = \"FOO-BAR\"\n", 1)
+  }
+}

@@ -44,8 +44,8 @@ impl CacheManagerBuilder {
     //     self
     // }
 
-    pub fn with_fresh_file(mut self, path: PathBuf) -> Self {
-        self.fresh_files.push(path);
+    pub fn with_fresh_files(mut self, paths: impl IntoIterator<Item = PathBuf>) -> Self {
+        self.fresh_files.extend(paths);
         self
     }
 
@@ -162,12 +162,11 @@ where
         if !self.cache_file_path.exists() {
             return false;
         }
-        if let Some(fresh_duration) = self.freshest_duration() {
-            if let Ok(metadata) = self.cache_file_path.metadata() {
-                if let Ok(modified) = metadata.modified() {
-                    return modified.elapsed().unwrap_or_default() < fresh_duration;
-                }
-            }
+        if let Some(fresh_duration) = self.freshest_duration()
+            && let Ok(metadata) = self.cache_file_path.metadata()
+            && let Ok(modified) = metadata.modified()
+        {
+            return modified.elapsed().unwrap_or_default() < fresh_duration;
         }
         true
     }

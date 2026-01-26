@@ -1,6 +1,12 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Other Languages"
+  description = "C++ style checker"
+}
 cpp_lint = new Config.Step {
-    glob = "*.{c,h,cpp,hpp,cc,hh,cxx,hxx}"
-    check = "cpplint {{ files }}"
-} 
+  glob =
+    List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
+  check = "cpplint {{ files }}"
+}

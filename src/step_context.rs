@@ -127,7 +127,7 @@ impl StepContext {
         let jobs_remaining = *self.jobs_remaining.lock().unwrap();
         let jobs_total = *self.jobs_total.lock().unwrap();
         let msg = if jobs_total > 1 && jobs_remaining > 0 {
-            "".to_string() // progress bar is shows instead
+            "".to_string() // progress bar is shown instead
         } else if files_added.len() > 3 {
             format!("{} files modified", files_added.len())
         } else if files_added.len() > 1 {

@@ -89,6 +89,9 @@ pub static HK_JSON: LazyLock<bool> = LazyLock::new(|| var_true("HK_JSON"));
 
 pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));
 
+pub static HK_PKL_HTTP_REWRITE: LazyLock<Option<String>> =
+    LazyLock::new(|| var("HK_PKL_HTTP_REWRITE").ok());
+
 /// System's ARG_MAX value, memoized for performance
 pub static ARG_MAX: LazyLock<usize> = LazyLock::new(|| {
     #[cfg(unix)]

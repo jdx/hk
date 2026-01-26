@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "2.0.26"
+tool = "gem:asciidoctor"

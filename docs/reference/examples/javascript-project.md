@@ -3,12 +3,12 @@
 ```pkl
 /// Example configuration for a JavaScript/TypeScript project
 /// * Uses prettier for formatting
-/// * Uses eslint for linting  
+/// * Uses eslint for linting
 /// * Runs type checking with tsc
 /// * Enables automatic fixes in pre-commit
 
-amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
 
 // Configure environment for all tools
 env {
@@ -58,7 +58,7 @@ hooks {
 
 Example configuration for a JavaScript/TypeScript project
 * Uses prettier for formatting
-* Uses eslint for linting  
+* Uses eslint for linting
 * Runs type checking with tsc
 * Enables automatic fixes in pre-commit
 

@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "16.23.1"
+tool = "npm:stylelint"

@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "2.12.1-beta"
+tool = "aqua:hadolint/hadolint"

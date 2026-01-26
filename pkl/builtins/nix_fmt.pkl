@@ -1,8 +1,12 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Nix"
+  description = "Nix formatter"
+}
 nix_fmt = new Config.Step {
-    glob = "*.nix"
-    stage = "*.nix"
-    check = "nixfmt --check {{ files }}"
-    fix = "nixfmt {{ files }}"
-} 
+  glob = "**/*.nix"
+  check = "nixfmt --check {{ files }}"
+  fix = "nixfmt {{ files }}"
+}

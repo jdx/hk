@@ -1,22 +1,26 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Prevent committing large files"
+}
 check_added_large_files = new Config.Step {
-    glob = "**/*"
-    check = "hk util check-added-large-files {{files}}"
-    tests {
-        ["detects large file with default 500KB limit"] {
-            run = "check"
-            before = "dd if=/dev/zero of={{tmp}}/large.bin bs=1024 count=501 2>/dev/null"
-            files = List("{{tmp}}/large.bin")
-            expect { code = 1 }
-        }
-        ["passes small file"] {
-            run = "check"
-            write {
-                ["{{tmp}}/small.txt"] = "small content"
-            }
-            files = List("{{tmp}}/small.txt")
-            expect { code = 0 }
-        }
+  glob = "**/*"
+  check = "hk util check-added-large-files {{files}}"
+  tests {
+    ["detects large file with default 500KB limit"] {
+      run = "check"
+      before = "dd if=/dev/zero of={{tmp}}/large.bin bs=1024 count=501 2>/dev/null"
+      files = List("{{tmp}}/large.bin")
+      expect { code = 1 }
     }
+    ["passes small file"] {
+      run = "check"
+      write {
+        ["{{tmp}}/small.txt"] = "small content"
+      }
+      expect { code = 0 }
+    }
+  }
 }

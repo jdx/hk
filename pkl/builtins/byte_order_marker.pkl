@@ -1,0 +1,22 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Detect UTF-8 BOM"
+}
+byte_order_marker = new Config.Step {
+  glob = "**/*"
+  check_diff = "hk util check-byte-order-marker --diff {{files}}"
+  fix = "hk util fix-byte-order-marker {{files}}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.txt" }
+    ["detects BOM"] = testMaker.checkFail("\u{FEFF}Hello, world!", 1)
+    ["passes without BOM"] = testMaker.checkPass("Hello, world!")
+    ["passes empty file"] = testMaker.checkPass("")
+    ["fix file with BOM"] = testMaker.fixPass("\u{FEFF}Hello, world!", "Hello, world!")
+    ["fix file without BOM"] = testMaker.fixPass("Hello, world!", "Hello, world!")
+    ["fix empty file"] = testMaker.fixPass("", "")
+  }
+}

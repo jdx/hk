@@ -1,12 +1,23 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Data Formats"
+  description = "TOML linter"
+}
 taplo = new Config.Step {
-    glob = "*.toml"
-    stage = "*.toml"
-    env {
-        // prevent logs to stderr with the list of checked files
-        ["RUST_LOG"] = "warn"
-    }
-    check = "taplo lint {{ files }}"
-    fix = "taplo format {{ files }}"
-} 
+  glob = "**/*.toml"
+  env {
+    // prevent logs to stderr with the list of checked files
+    ["RUST_LOG"] = "warn"
+  }
+  check = "taplo lint {{ files }}"
+  fix = "taplo format {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.toml" }
+    ["check bad file"] = testMaker.checkFail("[table]\nkey = 0\nkey = 1\n", 1)
+    // NB: Formatting is bad, but `lint` doesn't check formatting
+    ["check good file"] = testMaker.checkPass("[table]\nkey   =   0\n")
+  }
+}

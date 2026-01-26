@@ -1,8 +1,22 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Fast formatter and linter"
+}
 biome = new Config.Step {
-    glob = List("*.js", "*.jsx", "*.ts", "*.tsx", "*.json")
-    stage = glob
-    check = "biome check {{ files }}"
-    fix = "biome check --apply {{ files }}"
-} 
+  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
+  check = "biome check {{ files }}"
+  fix = "biome check --write {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.ts" }
+    local const before = "x=1"
+    local const after = "x = 1;\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}

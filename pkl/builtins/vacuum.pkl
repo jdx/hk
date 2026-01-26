@@ -1,0 +1,20 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Other Languages"
+  description = "Fast OpenAPI linter"
+}
+vacuum = new Config.Step {
+  glob =
+    List(
+      "**/*openapi*.yaml",
+      "**/*openapi*.yml",
+      "**/*openapi*.json",
+      "**/*swagger*.yaml",
+      "**/*swagger*.yml",
+      "**/*swagger*.json",
+    )
+  check = "vacuum lint {{files}}"
+  fix = "vacuum lint --fix {{files}}"
+}

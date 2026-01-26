@@ -1,8 +1,12 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Oxidation compiler linter"
+}
 ox_lint = new Config.Step {
-    glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
-    stage = glob
-    check = "oxlint {{ files }}"
-    fix = "oxlint --fix {{ files }}"
-} 
+  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
+  check = "oxlint {{ files }}"
+  fix = "oxlint --fix {{ files }}"
+}

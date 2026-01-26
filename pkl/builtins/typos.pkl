@@ -1,0 +1,18 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Source code spell checker"
+}
+typos = new Config.Step {
+  glob = "**/*"
+  check_diff =
+    """
+    output=$(typos --diff {{files}})
+    [ -z "$output" ] && exit 0
+    printf "%s" "$output"
+    exit 1
+    """
+  fix = "typos --write-changes {{ files }}"
+}

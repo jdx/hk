@@ -1,8 +1,40 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "CSS"
+  description = "CSS linter"
+}
 stylelint = new Config.Step {
-    glob = List("*.css", "*.scss", "*.sass", "*.less")
-    stage = glob
-    check = "stylelint {{ files }}"
-    fix = "stylelint --fix {{ files }}"
-} 
+  glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")
+  check = "stylelint {{ files }}"
+  fix = "stylelint --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.css"
+      extra_files = new Mapping<String, String> {
+        ["stylelint.config.mjs"] =
+          """
+          /** @type {import('stylelint').Config} */
+          export default {
+            "rules": {
+              "declaration-property-value-keyword-no-deprecated": true,
+              "media-type-no-deprecated": true,
+            }
+          };
+          """
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("a { overflow: overlay; }\n", 2)
+    ["check good file"] = testMaker.checkPass("a { overflow: auto; }\n")
+    ["fix bad file"] = testMaker.fixPass("a { overflow: overlay; }\n", "a { overflow: auto; }\n")
+    ["fix good file"] = testMaker.fixPass("a { overflow: auto; }\n", "a { overflow: auto; }\n")
+    ["fix semi-fixable"] =
+      testMaker.fixFail(
+        "a { overflow: overlay; }\n\n@media tty {}\n",
+        "a { overflow: auto; }\n\n@media tty {}\n",
+        2,
+      )
+  }
+}

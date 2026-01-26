@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE alias="tb"
+#MISE depends=["build"]
+#USAGE arg "<test>..." default="test"
+
+set -eu
+
+mise run test:bats:libgit2 "${usage_test}" ::: test:bats:nolibgit2 "${usage_test}" ::: test:bats:nogit "${usage_test}"

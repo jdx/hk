@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.13.3"
+tool = "aqua:astral-sh/ruff"

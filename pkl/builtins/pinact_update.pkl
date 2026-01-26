@@ -1,0 +1,15 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Pin GitHub Actions to update actions to latest versions"
+}
+const pinact_update = new Config.Step {
+  glob = List(".github/workflows/*", "*/action.*")
+  types = List("yaml")
+  // `verify` flag to verify pairs of commit CHA and version are correct
+  check_diff = "pinact run --update --verify --check {{ files }}"
+  fix = "pinact run --update --verify {{ files }}"
+  // Tests removed: they check against live GitHub Action versions, making them flaky
+}

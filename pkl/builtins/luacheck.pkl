@@ -1,6 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Lua"
+  description = "Lua linter"
+}
 luacheck = new Config.Step {
-    glob = "*.lua"
-    check = "luacheck {{ files }}"
-} 
+  types = List("lua")
+  check = "luacheck {{ files }}"
+}

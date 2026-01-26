@@ -1,0 +1,38 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "mise-en-place's built-in formatter and linter"
+}
+mise = new Config.Step {
+  glob =
+    List(
+      "mise.toml",
+      "mise.*.toml",
+      ".mise.toml",
+      ".mise.*.toml",
+      "mise/config.toml",
+      "mise/config.*.toml",
+      ".mise/config.toml",
+      ".mise/config.*.toml",
+      ".config/mise.toml",
+      ".config/mise.*.toml",
+      ".config/mise/config.toml",
+      ".config/mise/config.*.toml",
+      ".config/mise/mise.toml",
+      ".config/mise/mise.*.toml",
+      ".config/mise/conf.d/*.toml",
+    )
+  batch = true
+  check = "mise fmt --check"
+  fix = "mise fmt"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "mise.toml" }
+    ["check bad file"] = testMaker.checkFail("x  =  1", 1)
+    ["check good file"] = testMaker.checkPass("x = 1\n")
+    ["fix bad file"] = testMaker.fixPass("x  =  1", "x = 1\n")
+    ["fix good file"] = testMaker.fixPass("x = 1\n", "x = 1\n")
+  }
+}

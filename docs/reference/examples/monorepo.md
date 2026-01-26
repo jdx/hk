@@ -3,12 +3,12 @@
 ```pkl
 /// Example configuration for a monorepo with multiple languages
 /// * Frontend: JavaScript/TypeScript with React
-/// * Backend: Rust  
+/// * Backend: Rust
 /// * Infrastructure: Terraform
 /// * Uses groups to organize steps by component
 
-amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
 
 // Frontend linters (JavaScript/TypeScript)
 local frontend = new Group {
@@ -96,7 +96,7 @@ hooks {
 
 Example configuration for a monorepo with multiple languages
 * Frontend: JavaScript/TypeScript with React
-* Backend: Rust  
+* Backend: Rust
 * Infrastructure: Terraform
 * Uses groups to organize steps by component
 

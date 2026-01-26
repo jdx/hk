@@ -26,6 +26,27 @@ Default location: `~/.cache/hk`
 Cache includes tool binary locations, parsed configurations, and other performance optimizations.
 """
 
+[default_branch]
+type = "string"
+sources.pkl = ["default_branch"]
+docs = """
+Specifies the preferred default branch to compare against when hk needs a reference
+(e.g., suggestions in pre-commit warnings).
+If unset or empty, hk attempts to detect it via `origin/HEAD`, the current branch's remote,
+or falls back to `main`/`master` if they exist on the remote.
+
+Both local branch names (e.g., `main`) and remote-qualified refs (e.g., `origin/main`) are supported.
+"""
+
+[env]
+type = "map<string, string>"
+sources.pkl = ["env"]
+docs = """
+Environment variables to set when running linter commands.
+
+These variables are set before executing any step commands and are merged with step-level env settings.
+"""
+
 [check]
 type = "bool"
 default = false
@@ -157,6 +178,15 @@ Path to the user configuration file.
 Default: `.hkrc.pkl` in the current directory or parent directories.
 
 This file can override project-level settings and is useful for personal preferences.
+"""
+
+[pkl_http_rewrite]
+type = "string"
+sources.env = ["HK_PKL_HTTP_REWRITE"]
+docs = """
+A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`.
+
+(`pkl` expects this in the form `http(s)://<FROM>/=http(s)://<TO>/`)ß
 """
 
 [jobs]
@@ -365,32 +395,26 @@ Useful for thorough checking in CI or before major releases.
 
 [stage]
 type = "bool"
-default = true
+sources.cli = ["--stage", "--no-stage"]
 sources.env = ["HK_STAGE"]
 sources.git = ["hk.stage"]
+sources.pkl = ["stage"]
 docs = """
-Controls whether hk automatically stages files that were fixed by pre-commit hooks.
-
-When enabled (default), files modified by fix commands will be automatically staged.
-When disabled (`HK_STAGE=0`), fixed files will remain as unstaged changes, allowing you to review them before committing.
+When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration.html#hooks-hook-stage-boolean).
 
 This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
-
-Example: `HK_STAGE=0 git commit -m "test"` to prevent auto-staging of generated files.
 """
 
 [stash]
 type = "enum"
-default = "auto"
-validate.enum = ["auto", "git", "patch-file", "none"]
+validate.enum = ["git", "patch-file", "none"]
 sources.cli = ["--stash"]
 sources.env = ["HK_STASH"]
 sources.git = ["hk.stash"]
 docs = """
-Strategy for temporarily saving uncommitted changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
+Strategy for temporarily saving unstaged changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
 
 Available strategies:
-- `auto`: Automatically choose the best strategy (default)
 - `git`: Use `git stash` to stash changes
 - `patch-file`: Use hk-generated patch files (typically faster, avoids "index is locked" errors)
 - `none`: No stashing (fastest, but may cause staging conflicts if fixes modify unstaged changes in the same file)
@@ -406,6 +430,24 @@ Controls whether untracked files are included when stashing before running hooks
 
 When enabled (default), untracked files will be temporarily stashed along with tracked changes.
 This ensures a clean working directory for hook execution.
+"""
+
+[stash_backup_count]
+type = "usize"
+default = 20
+sources.env = ["HK_STASH_BACKUP_COUNT"]
+sources.git = ["hk.stashBackupCount"]
+sources.pkl = ["stash_backup_count"]
+docs = """
+Number of backup patch files to keep per repository when using git stash.
+
+Each time git stash is used, hk creates a backup patch file in
+$HK_STATE_DIR/patches/. This setting controls how many of these
+backups are retained per repository (oldest are automatically deleted).
+
+Set to 0 to disable patch backup creation entirely.
+
+Default: 20
 """
 
 [state_dir]
@@ -430,6 +472,16 @@ By default, summaries are only shown when hk is rendering progress bars (non-tex
 Set to `true` to force summaries to appear in text mode, useful for CI environments.
 
 Example: `HK_SUMMARY_TEXT=1 hk check`
+"""
+
+[terminal_progress]
+type = "bool"
+default = true
+sources.env = ["HK_TERMINAL_PROGRESS"]
+sources.git = ["hk.terminalProgress"]
+sources.pkl = ["terminal_progress"]
+docs = """
+Enables or disables reporting progress via OSC sequences to compatible terminals.
 """
 
 [timing_json]

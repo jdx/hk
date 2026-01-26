@@ -1,9 +1,47 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Rust"
+  description = "Fast Rust type checking"
+}
 cargo_check = new Config.Step {
-    glob = "*.rs"
-    check = "cargo check -q"
-    env {
-        ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
+  glob = "**/*.rs"
+  // NB: We need nightly to enable `warnings` unstable feature: https://doc.rust-lang.org/cargo/reference/unstable.html#warnings
+  // (See the comment for `CARGO_BUILD_WARNINGS` below)
+  check = "cargo +nightly check -Zwarnings --quiet"
+  fix = "cargo fix --allow-dirty --allow-staged --quiet"
+  env {
+    ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
+    // NB: This is needed to treat warnings as errors.
+    // (which, since `cargo fix` will maintain parity between `check` and `fix`)
+    ["CARGO_BUILD_WARNINGS"] = "deny"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "src/main.rs"
+      before = "git init"
+      extra_files = new Mapping<String, String> {
+        ["Cargo.toml"] =
+          """
+            [package]
+            name = "test"
+            version = "0.1.0"
+            edition = "2021"
+          """
+      }
     }
-} 
+    local const before =
+      """
+        use std::{fmt};
+
+        pub fn main() {}
+      """
+    local const after = "  \n\n  pub fn main() {}"
+    ["check bad file"] = testMaker.checkFail(before, 101)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}

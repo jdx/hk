@@ -6,6 +6,10 @@ use std::path::PathBuf;
 /// Check for and optionally fix missing final newlines in files
 #[derive(Debug, clap::Args)]
 pub struct EndOfFileFixer {
+    /// Output a diff of the change. Cannot use with `fix`.
+    #[clap(short, long, conflicts_with = "fix")]
+    pub diff: bool,
+
     /// Fix files by adding final newline
     #[clap(short, long)]
     pub fix: bool,
@@ -26,14 +30,15 @@ impl EndOfFileFixer {
             }
 
             if self.fix {
-                // Fix mode: add final newline if missing
                 fix_end_of_file(file_path)?;
-            } else {
-                // Check mode: report files without final newline
-                if !has_final_newline(file_path)? {
-                    println!("{}", file_path.display());
+            } else if self.diff {
+                if let Some(diff) = generate_diff(file_path)? {
+                    print!("{}", diff);
                     found_issues = true;
                 }
+            } else if !has_final_newline(file_path)? {
+                println!("{}", file_path.display());
+                found_issues = true;
             }
         }
 
@@ -72,6 +77,26 @@ fn is_text_file(path: &PathBuf) -> Result<bool> {
 
     // Try to validate as UTF-8
     Ok(std::str::from_utf8(&buffer).is_ok())
+}
+
+/// Generate a unified diff showing the addition of a final newline
+/// Returns None if file already has final newline
+fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
+    if has_final_newline(path)? {
+        return Ok(None);
+    }
+
+    let original = fs::read_to_string(path)?;
+    let fixed = format!("{}\n", original);
+    let path_str = path.display().to_string();
+    let diff = crate::diff::render_unified_diff(
+        &original,
+        &fixed,
+        &format!("a/{}", path_str),
+        &format!("b/{}", path_str),
+    );
+
+    Ok(Some(diff))
 }
 
 /// Check if a file has a final newline

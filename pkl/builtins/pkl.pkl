@@ -1,6 +1,17 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Pkl"
+  description = "Pkl configuration language"
+}
 pkl = new Config.Step {
-    glob = "*.pkl"
-    check = "pkl eval {{files}} >/dev/null"
+  types = List("pkl")
+  check = "pkl eval {{files}} >/dev/null"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.pkl" }
+    ["check bad file"] = testMaker.checkFail("x == 1", 1)
+    ["check good file"] = testMaker.checkPass("x = 1")
+  }
 }

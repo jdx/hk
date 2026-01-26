@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "3.13.0"
+tool = "aqua:errata-ai/vale"

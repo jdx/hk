@@ -1,32 +1,10 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./byte_order_marker.pkl"
+import "./test/helpers.pkl"
 
-check_byte_order_marker = new Config.Step {
-    glob = "**/*"
-    check = "hk util check-byte-order-marker {{files}}"
-    tests {
-        ["detects BOM"] {
-            run = "check"
-            write {
-                ["{{tmp}}/with_bom.txt"] = "\u{FEFF}Hello, world!"
-            }
-            files = List("{{tmp}}/with_bom.txt")
-            expect { code = 1 }
-        }
-        ["passes without BOM"] {
-            run = "check"
-            write {
-                ["{{tmp}}/without_bom.txt"] = "Hello, world!"
-            }
-            files = List("{{tmp}}/without_bom.txt")
-            expect { code = 0 }
-        }
-        ["passes empty file"] {
-            run = "check"
-            write {
-                ["{{tmp}}/empty.txt"] = ""
-            }
-            files = List("{{tmp}}/empty.txt")
-            expect { code = 0 }
-        }
-    }
+@Deprecated {
+  since = "1.30.0"
+  message = "Use `Builtins/byte_order_marker.pkl`"
 }
+check_byte_order_marker = byte_order_marker.byte_order_marker

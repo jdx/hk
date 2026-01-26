@@ -47,14 +47,14 @@ The global configuration file follows the same format as `hk.pkl` and can be use
 This will generate a `hk.pkl` file in the root of the repository, here's an example `hk.pkl` with eslint and prettier linters:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.18.3/hk@1.18.3#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // linters can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
-        glob = List("*.js"; "*.ts")
+        glob = List("*.js", "*.ts")
         // a command that returns non-zero to fail the check
         check = "eslint {{files}}"
     }
@@ -62,7 +62,7 @@ local linters = new Mapping<String, Step> {
     ["prettier"] = Builtins.prettier
     // with pkl, builtins can also be extended:
     ["prettier-yaml"] = (Builtins.prettier) {
-        glob = List("*.yaml"; "*.yml")
+        glob = List("*.yaml", "*.yml")
     }
 }
 

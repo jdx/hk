@@ -1,6 +1,17 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Data Formats"
+  description = "YAML linter"
+}
 yamllint = new Config.Step {
-    glob = "*.{yml,yaml}"
-    check = "yamllint {{ files }}"
-} 
+  glob = List("**/*.yml", "**/*.yaml")
+  check = "yamllint {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.yaml" }
+    ["check bad file"] = testMaker.checkFail("x: 1\nx: 2\n", 1)
+    ["check good file"] = testMaker.checkPass("x: 1\n")
+  }
+}

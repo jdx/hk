@@ -1,8 +1,27 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Markdown"
+  description = "Markdown linter"
+}
 markdown_lint = new Config.Step {
-    glob = List("*.md", "*.markdown")
-    stage = glob
-    check = "markdownlint {{ files }}"
-    fix = "markdownlint --fix {{ files }}"
-} 
+  glob = List("**/*.md", "**/*.markdown")
+  check = "markdownlint {{ files }}"
+  fix = "markdownlint --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.md"
+      extra_files = new Mapping<String, String> {
+        ["ruff.toml"] = "exclude = [\"excluded.py\"]\n"
+      }
+    }
+    local const before = "# Title\ncontent."
+    local const after = "# Title\n\ncontent.\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}

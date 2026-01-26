@@ -1,15 +1,42 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Shell"
+  description = "Shell formatter"
+}
 shfmt = new Config.Step {
-    batch = true
-    glob = List("*.sh", "*.bash")
-    stage = glob
-    check_list_files = """
-files=$(shfmt -l -s {{ files }})
-if [ -n "$files" ]; then
-  echo "$files"
-  exit 1
-fi
-"""
-    fix = "shfmt -w {{ files }}"
-} 
+  batch = true
+  glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
+  check_diff = "shfmt -d {{ files }}"
+  check_list_files =
+    """
+    files=$(shfmt -l {{ files }})
+    if [ -n "$files" ]; then
+      echo "$files"
+      exit 1
+    fi
+    """
+  fix = "shfmt -w {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.sh" }
+    local const before =
+      """
+      foo() {
+        (( $bar ))
+      }
+      """
+    local const after =
+      """
+      foo() {
+      	(($bar))
+      }
+
+      """
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}

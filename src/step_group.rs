@@ -44,11 +44,12 @@ impl StepGroupContext {
 }
 
 impl StepGroup {
-    pub fn init(&mut self, name: &str) {
+    pub fn init(&mut self, name: &str) -> Result<()> {
         self.name = Some(name.to_string());
         for (step_name, step) in self.steps.iter_mut() {
-            step.init(step_name);
+            step.init(step_name)?;
         }
+        Ok(())
     }
 
     pub fn build_all(steps: Vec<StepOrGroup>) -> Vec<Self> {

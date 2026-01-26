@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE depends=["build"]
+
+set -eu
+
+hk check --all
+hk check --all --slow

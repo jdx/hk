@@ -14,4 +14,4 @@ class MyClass extends Base {
 }
 
 let mc = new MyClass()
-console . log ( `Hello World! ${mc.method()}` ); 
+console . log ( `Hello World! ${mc.method()}` );

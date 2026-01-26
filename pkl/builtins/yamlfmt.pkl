@@ -1,0 +1,30 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Data Formats"
+  description = "YAML formatter"
+}
+yamlfmt = new Config.Step {
+  glob = List("**/*.yml", "**/*.yaml")
+  check_diff = "yamlfmt -lint {{ files }}"
+  fix = "yamlfmt {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.yaml"
+      extra_files = new Mapping<String, String> {
+        ["yamlfmt.yaml"] =
+          """
+          formatter:
+            type: basic
+
+          """
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("-  a\n", 1)
+    ["check good file"] = testMaker.checkPass("- a\n")
+    ["fix bad file"] = testMaker.fixPass("-  a\n", "- a\n")
+    ["fix good file"] = testMaker.fixPass("- a\n", "- a\n")
+  }
+}

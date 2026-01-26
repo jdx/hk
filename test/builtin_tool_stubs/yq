@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "4.49.2"
+tool = "aqua:mikefarah/yq"

@@ -1,6 +1,11 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Go"
+  description = "Security scanner"
+}
 go_sec = new Config.Step {
-    glob = "*.go"
-    check = "gosec {{ files }}"
-} 
+  glob = "**/*.go"
+  check = "gosec {{ files }}"
+}

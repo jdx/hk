@@ -1,34 +1,21 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Detect and fix mixed line endings"
+}
 mixed_line_ending = new Config.Step {
-    glob = "*"
-    stage = "*"
-    check = "hk util mixed-line-ending {{files}}"
-    fix = "hk util mixed-line-ending --fix {{files}}"
-    tests {
-        ["detects mixed line endings"] {
-            run = "check"
-            write { ["{{tmp}}/a.txt"] = "line1\r\nline2\nline3\r\n" }
-            files = List("{{tmp}}/a.txt")
-            expect { code = 1 }
-        }
-        ["passes LF only"] {
-            run = "check"
-            write { ["{{tmp}}/a.txt"] = "line1\nline2\nline3\n" }
-            files = List("{{tmp}}/a.txt")
-            expect { code = 0 }
-        }
-        ["passes CRLF only"] {
-            run = "check"
-            write { ["{{tmp}}/a.txt"] = "line1\r\nline2\r\nline3\r\n" }
-            files = List("{{tmp}}/a.txt")
-            expect { code = 0 }
-        }
-        ["fixes mixed line endings"] {
-            run = "fix"
-            write { ["{{tmp}}/a.txt"] = "line1\r\nline2\nline3\r\n" }
-            files = List("{{tmp}}/a.txt")
-            expect { files { ["{{tmp}}/a.txt"] = "line1\nline2\nline3\n" } }
-        }
-    }
+  glob = "**/*"
+  check_diff = "hk util mixed-line-ending --diff {{files}}"
+  fix = "hk util mixed-line-ending --fix {{files}}"
+  tests {
+    local const testMaker = new helpers.TestMaker {}
+    ["check bad file"] = testMaker.checkFail("line1\r\nline2\nline3\r\n", 1)
+    ["check good file (LF only)"] = testMaker.checkPass("line1\nline2\nline3\n")
+    ["check good file (CRLF only)"] = testMaker.checkPass("line1\r\nline2\r\nline3\r\n")
+    ["fix bad file"] = testMaker.fixPass("line1\r\nline2\nline3\r\n", "line1\nline2\nline3\n")
+    ["fix good file"] = testMaker.fixPass("line1\nline2\nline3\n", "line1\nline2\nline3\n")
+  }
 }

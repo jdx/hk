@@ -1,8 +1,13 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
 
+@Builtins.meta {
+  category = "Other Languages"
+  description = "C/C++ formatter"
+}
 clang_format = new Config.Step {
-    glob = List("*.c", "*.h", "*.cpp", "*.hpp", "*.cc", "*.hh", "*.cxx", "*.hxx")
-    stage = glob
-    check = "clang-format --dry-run -Werror {{ files }}"
-    fix = "clang-format -i {{ files }}"
-} 
+  glob =
+    List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
+  check = "clang-format --dry-run -Werror {{ files }}"
+  fix = "clang-format -i {{ files }}"
+}

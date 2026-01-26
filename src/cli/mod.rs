@@ -1,6 +1,7 @@
 use crate::version as version_lib;
 use std::num::NonZero;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::{Result, env, logger, settings::Settings};
 use clap::Parser;
@@ -146,6 +147,22 @@ pub async fn run() -> Result<()> {
         crate::trace::init_tracing(json_output)?;
     }
 
+    // Skip config loading for commands that don't need it
+    // - Migrate: avoid errors during migration with potentially invalid configs
+    // - Completion/Usage: shell completion generation shouldn't require valid config
+    // - Version: just prints version info
+    let settings = if matches!(
+        args.command,
+        Commands::Migrate(_) | Commands::Completion(_) | Commands::Usage(_) | Commands::Version(_)
+    ) {
+        Arc::new(crate::settings::generated::settings::Settings::default())
+    } else {
+        Settings::get()
+    };
+    if !settings.terminal_progress {
+        clx::osc::configure(settings.terminal_progress);
+    }
+
     // CLI settings snapshot applied above; settings are built from snapshot
     match args.command {
         Commands::Builtins(cmd) => cmd.run().await,
@@ -164,5 +181,20 @@ pub async fn run() -> Result<()> {
         Commands::Validate(cmd) => cmd.run().await,
         Commands::Version(cmd) => cmd.run().await,
         Commands::Test(cmd) => cmd.run().await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn test_subcommands_are_sorted() {
+        let cmd = Cli::command();
+        // Check all subcommands for alphabetical ordering
+        for subcmd in cmd.get_subcommands() {
+            clap_sort::assert_sorted(subcmd);
+        }
     }
 }

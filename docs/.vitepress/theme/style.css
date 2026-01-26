@@ -18,55 +18,41 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-/* Custom properties */
+/* Custom properties - Dark mode only */
 :root {
-  /* Brand colors */
-  --hk-purple-primary: #667eea;
-  --hk-purple-secondary: #764ba2;
-  --hk-accent: #f093fb;
+  /* Brand colors - Electric Blue */
+  --hk-blue-primary: #4CC9F0;
+  --hk-blue-secondary: #00B4D8;
+  --hk-accent: #3ABFF8;
 
   /* Override VitePress defaults */
   --vp-font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   --vp-font-family-display: 'Bebas Neue', 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 
-  /* Light theme colors */
-  --vp-c-brand-1: var(--hk-purple-primary);
-  --vp-c-brand-2: var(--hk-purple-secondary);
-  --vp-c-brand-3: #8b5cf6;
-  --vp-c-brand-soft: rgba(102, 126, 234, 0.14);
-
-  /* Custom accent colors */
-  --vp-c-tip-1: var(--hk-purple-primary);
-  --vp-c-tip-2: rgba(102, 126, 234, 0.14);
-  --vp-c-tip-3: var(--hk-purple-secondary);
-
-  /* Button styling - removed global overrides that may affect other components */
-
-  /* Home hero - removed to prevent bleeding */
-
-  /* Code block styling */
-  --vp-code-block-bg: #f6f6f7;
-  --vp-code-line-highlight-color: rgba(102, 126, 234, 0.1);
-  --vp-code-copy-code-bg: rgba(102, 126, 234, 0.9);
-  --vp-code-copy-code-hover-bg: var(--hk-purple-secondary);
-  --vp-code-color: #383a42;
-  --vp-code-link-color: #0969da;
-  --vp-code-link-hover-color: var(--hk-purple-primary);
-}
-
-/* Dark theme overrides */
-.dark {
-  --vp-c-bg: #0f0f23;
-  --vp-c-bg-soft: #161629;
-  --vp-c-bg-mute: #1a1a2e;
+  /* Dark theme colors */
+  --vp-c-bg: #0a1628;
+  --vp-c-bg-soft: #0f1f35;
+  --vp-c-bg-mute: #142840;
 
   --vp-c-brand-1: var(--hk-accent);
-  --vp-c-brand-2: var(--hk-purple-primary);
-  --vp-c-brand-3: var(--hk-purple-secondary);
+  --vp-c-brand-2: var(--hk-blue-primary);
+  --vp-c-brand-3: var(--hk-blue-secondary);
+  --vp-c-brand-soft: rgba(76, 201, 240, 0.14);
 
-  --vp-code-block-bg: #1a1a2e;
+  /* Custom accent colors */
+  --vp-c-tip-1: var(--hk-blue-primary);
+  --vp-c-tip-2: rgba(76, 201, 240, 0.14);
+  --vp-c-tip-3: var(--hk-blue-secondary);
+
+  /* Code block styling */
+  --vp-code-block-bg: #142840;
+  --vp-code-line-highlight-color: rgba(76, 201, 240, 0.1);
+  --vp-code-copy-code-bg: rgba(76, 201, 240, 0.9);
+  --vp-code-copy-code-hover-bg: var(--hk-blue-secondary);
   --vp-code-color: #e4e4e7;
+  --vp-code-link-color: var(--hk-blue-primary);
+  --vp-code-link-hover-color: var(--hk-accent);
 }
 
 /* Navigation bar - ensure full width and proper background */
@@ -77,19 +63,11 @@
   z-index: 1000 !important;
 }
 
-.dark .VPNav {
-  background: var(--vp-c-bg) !important;
-}
-
 .VPNavBar {
   width: 100% !important;
   background: var(--vp-c-bg) !important;
   position: relative;
   z-index: 1000 !important;
-}
-
-.dark .VPNavBar {
-  background: var(--vp-c-bg) !important;
 }
 
 /* Ensure nav screen (mobile menu) also has proper background */
@@ -98,32 +76,37 @@
   z-index: 1000 !important;
 }
 
-/* Sidebar - match header background in dark mode */
-.dark .VPSidebar {
+/* Sidebar styling */
+.VPSidebar {
   background: var(--vp-c-bg) !important;
 }
 
-.dark .VPSidebarNav {
+.VPSidebarNav {
   background: var(--vp-c-bg) !important;
 }
 
-/* Search box - darker background in dark mode */
-.dark .VPNavBarSearch .DocSearch-Button {
+/* Search box styling */
+.VPNavBarSearch .DocSearch-Button {
   background: var(--vp-c-bg-mute) !important;
 }
 
-.dark .VPNavBarSearch .DocSearch-Button:hover {
+.VPNavBarSearch .DocSearch-Button:hover {
   background: var(--vp-c-bg-soft) !important;
 }
 
 /* Custom nav brand styling */
+.VPNavBarTitle .logo {
+  height: 36px !important;
+  width: auto !important;
+}
+
 .VPNavBarTitle .title {
   font-family: 'Bebas Neue', sans-serif !important;
   font-weight: 400;
   font-size: 1.8rem;
   letter-spacing: 2px;
   text-transform: uppercase;
-  background: linear-gradient(135deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  background: linear-gradient(135deg, var(--hk-blue-primary), var(--hk-blue-secondary));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -133,7 +116,7 @@
 }
 
 .VPNavBarTitle:hover .title {
-  background: linear-gradient(135deg, #f093fb, #f5576c);
+  background: linear-gradient(135deg, #3ABFF8, #00B4D8);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -154,19 +137,19 @@
 
 /* Only apply gradient to brand buttons on specific pages, not globally */
 .home-page .VPButton.brand {
-  background: linear-gradient(135deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  background: linear-gradient(135deg, var(--hk-blue-primary), var(--hk-blue-secondary));
   border: none;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 15px rgba(76, 201, 240, 0.3);
 }
 
 .home-page .VPButton.brand:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 6px 20px rgba(76, 201, 240, 0.4);
 }
 
 /* Code blocks with custom styling */
 .vp-code-group .tabs {
-  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  background: linear-gradient(90deg, var(--hk-blue-primary), var(--hk-blue-secondary));
   padding: 2px;
   border-radius: 8px 8px 0 0;
 }
@@ -180,7 +163,7 @@
 }
 
 .vp-code-group .tabs label:hover {
-  color: var(--hk-purple-primary);
+  color: var(--hk-blue-primary);
 }
 
 .vp-code-group input:checked + label {
@@ -192,7 +175,7 @@
 /* Removed sidebar gradient to fix dark mode appearance */
 
 .VPSidebarItem.is-active > .item > .link > .text {
-  color: var(--hk-purple-primary);
+  color: var(--hk-blue-primary);
   font-weight: 600;
   position: relative;
 }
@@ -205,7 +188,7 @@
   transform: translateY(-50%);
   width: 3px;
   height: 20px;
-  background: var(--hk-purple-primary);
+  background: var(--hk-blue-primary);
   border-radius: 2px;
 }
 
@@ -213,12 +196,12 @@
 
 /* Custom tip/warning/danger blocks */
 .custom-block.tip {
-  border-color: var(--hk-purple-primary);
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+  border-color: var(--hk-blue-primary);
+  background: linear-gradient(135deg, rgba(76, 201, 240, 0.05), rgba(0, 180, 216, 0.05));
 }
 
 .custom-block.tip .custom-block-title {
-  color: var(--hk-purple-primary);
+  color: var(--hk-blue-primary);
   font-weight: 700;
 }
 
@@ -228,11 +211,11 @@ table {
   border-spacing: 0;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 2px 8px rgba(76, 201, 240, 0.1);
 }
 
 thead tr {
-  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  background: linear-gradient(90deg, var(--hk-blue-primary), var(--hk-blue-secondary));
 }
 
 thead th {
@@ -242,26 +225,18 @@ thead th {
 }
 
 tbody tr:hover {
-  background: rgba(102, 126, 234, 0.05);
+  background: rgba(76, 201, 240, 0.05);
   transition: background 0.2s ease;
 }
 
-/* Code blocks - ensure good contrast */
+/* Code blocks - dark mode styling */
 .vp-doc div[class*='language-'] {
-  background-color: #f8f8f8;
-}
-
-.dark .vp-doc div[class*='language-'] {
-  background-color: #1a1a2e;
+  background-color: #142840;
 }
 
 .vp-doc div[class*='language-'] code {
-  color: #383a42;
-  font-weight: 500;
-}
-
-.dark .vp-doc div[class*='language-'] code {
   color: #e4e4e7;
+  font-weight: 500;
 }
 
 /* Terminal-style code blocks */
@@ -281,7 +256,7 @@ pre.language-sh::before {
   left: 0;
   right: 0;
   padding: 8px 16px;
-  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  background: linear-gradient(90deg, var(--hk-blue-primary), var(--hk-blue-secondary));
   color: white;
   font-size: 12px;
   font-weight: 600;
@@ -299,17 +274,17 @@ pre.language-sh::before {
 }
 
 .VPFeature:hover {
-  border-color: var(--hk-purple-primary);
+  border-color: var(--hk-blue-primary);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  box-shadow: 0 4px 12px rgba(76, 201, 240, 0.15);
 }
 
 /* Removed gradient-rotate animation */
 
 /* Search modal styling */
 .VPLocalSearchBox {
-  --vp-local-search-highlight-bg: rgba(102, 126, 234, 0.2);
-  --vp-local-search-highlight-text: var(--hk-purple-primary);
+  --vp-local-search-highlight-bg: rgba(76, 201, 240, 0.2);
+  --vp-local-search-highlight-text: var(--hk-blue-primary);
 }
 
 /* Custom scrollbar */
@@ -323,29 +298,26 @@ pre.language-sh::before {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  background: linear-gradient(180deg, var(--hk-blue-primary), var(--hk-blue-secondary));
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--hk-purple-secondary);
+  background: var(--hk-blue-secondary);
 }
 
-/* Smooth transitions */
-* {
-  transition: color 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
-}
+/* Smooth transitions - only apply to interactive elements, not globally */
 
 /* Custom link styling */
 a {
-  color: var(--hk-purple-primary);
+  color: var(--hk-blue-primary);
   text-decoration: none;
   position: relative;
   transition: color 0.3s ease;
 }
 
 a:hover {
-  color: var(--hk-purple-secondary);
+  color: var(--hk-blue-secondary);
 }
 
 .vp-doc a {
@@ -359,7 +331,7 @@ a:hover {
   bottom: -2px;
   width: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--hk-purple-primary), var(--hk-purple-secondary));
+  background: linear-gradient(90deg, var(--hk-blue-primary), var(--hk-blue-secondary));
   transition: width 0.3s ease;
 }
 

@@ -1,8 +1,25 @@
+import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
+@Builtins.meta {
+  category = "Other Languages"
+  description = "Swift style and conventions"
+}
 swiftlint = new Config.Step {
-    glob = "*.swift"
-    stage = "*.swift"
-    check = "swiftlint lint {{ files }}"
-    fix = "swiftlint --fix {{ files }}"
-} 
+  glob = "**/*.swift"
+  check = "swiftlint lint {{ files }}"
+  fix = "swiftlint --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.swift"
+      extra_files = new Mapping<String, String> {
+        [".swiftlint.yml"] = "strict: true\n"
+      }
+    }
+    ["check bad file"] = testMaker.checkFail("let abc:Void\n", 2)
+    ["check good file"] = testMaker.checkPass("let abc: Void\n")
+    ["fix bad file"] = testMaker.fixPass("let abc:Void\n", "let abc: Void\n")
+    ["fix good file"] = testMaker.fixPass("let abc: Void\n", "let abc: Void\n")
+  }
+}
