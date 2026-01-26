@@ -337,7 +337,9 @@ impl Step {
             .unwrap_or_default();
         let shell = shell.split_whitespace().next().unwrap_or_default();
         let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
-        match shell {
+        // Use case-insensitive matching for Windows shell names
+        let shell_lower = shell.to_lowercase();
+        match shell_lower.as_str() {
             "bash" | "bash.exe" => ShellType::Bash,
             "dash" => ShellType::Dash,
             "fish" => ShellType::Fish,

@@ -207,12 +207,16 @@ jobs:
         with:
           name: hk-windows-latest
           path: target/debug
+      - name: Install pkl
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/apple/pkl/releases/download/0.27.2/pkl-windows-amd64.exe" -OutFile "$env:USERPROFILE\pkl.exe"
+          echo "$env:USERPROFILE" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Run cargo tests
         run: cargo test --features git2/vendored-libgit2,git2/vendored-openssl -- --skip settings::tests::test_settings
-      - name: Smoke test - version
-        run: target/debug/hk.exe --version
-      - name: Smoke test - help
-        run: target/debug/hk.exe --help
+      - name: Run Pester e2e tests
+        run: |
+          $env:PKL_PATH = "${{ github.workspace }}/pkl"
+          ./e2e-win/run.ps1
   final:
     needs:
       - build
