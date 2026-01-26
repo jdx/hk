@@ -360,7 +360,7 @@ hooks {
         fix = true
         steps {
             ["fmt"] {
-                glob = List("*.txt")
+                glob = List("*.go")
                 check_diff = "./formatter.sh {{files}}"
                 fix = "./fixer.sh {{files}}"
             }
@@ -369,12 +369,58 @@ hooks {
 }
 EOF
 
-    echo "original" > test.txt
+    echo "original" > test.go
 
-    run hk fix test.txt
+    run hk fix test.go
     assert_success
 
     # Verify the diff was applied (should strip .orig suffix)
-    run cat test.txt
+    run cat test.go
     assert_output "gofmt_fixed"
+}
+
+@test "check_diff works if the file has .orig suffix" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+if [ -f "$file" ]; then
+    echo "--- $file"
+    echo "+++ $file"
+    echo "@@ -1 +1 @@"
+    echo "-$(cat "$file")"
+    echo "+diffed"
+fi
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.orig")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "original" > test.orig
+
+    run hk fix test.orig
+    assert_success
+
+    run cat test.orig
+    assert_output "diffed"
 }
