@@ -593,6 +593,7 @@ impl Hook {
         let mut tctx = opts.tctx;
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
+        tctx.insert("hook", &self.name);
         // Build expression context with the same data under "git"
         let mut expr_ctx = EXPR_CTX.clone();
         if let Ok(val) = expr::to_value(&git_status_for_ctx) {
