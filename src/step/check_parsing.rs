@@ -11,6 +11,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use xx::file::display_path;
 
+use super::strip_orig_suffix;
 use super::types::Step;
 
 /// Attempt to canonicalize a path, falling back to the original if it fails.
@@ -89,6 +90,8 @@ impl Step {
         original_files: &[PathBuf],
         stdout: &str,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
+        let stdout = strip_orig_suffix(stdout);
+
         // Parse unified diff format to extract file names from --- and +++ lines
         let mut listed: HashSet<PathBuf> = HashSet::new();
 
@@ -125,8 +128,6 @@ impl Step {
                     } else {
                         path
                     };
-                    // Strip .orig suffix (Go tools like gofmt add this to --- paths)
-                    let path = path.strip_suffix(".orig").unwrap_or(path);
                     listed.insert(try_canonicalize(&PathBuf::from(path)));
                 }
             } else if line.starts_with("+++ ")
