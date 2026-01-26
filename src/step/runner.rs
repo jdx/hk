@@ -337,14 +337,15 @@ impl Step {
             .unwrap_or_default();
         let shell = shell.split_whitespace().next().unwrap_or_default();
         let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
-        // Use case-insensitive matching for Windows shell names
+        // Use case-insensitive matching for shell names
+        // Include .exe variants for Windows environments (Git Bash, MSYS2, Cygwin)
         let shell_lower = shell.to_lowercase();
         match shell_lower.as_str() {
             "bash" | "bash.exe" => ShellType::Bash,
-            "dash" => ShellType::Dash,
-            "fish" => ShellType::Fish,
-            "sh" => ShellType::Sh,
-            "zsh" => ShellType::Zsh,
+            "dash" | "dash.exe" => ShellType::Dash,
+            "fish" | "fish.exe" => ShellType::Fish,
+            "sh" | "sh.exe" => ShellType::Sh,
+            "zsh" | "zsh.exe" => ShellType::Zsh,
             "cmd" | "cmd.exe" => ShellType::Cmd,
             "powershell" | "powershell.exe" | "pwsh" | "pwsh.exe" => ShellType::PowerShell,
             "" if cfg!(windows) => ShellType::Cmd,
