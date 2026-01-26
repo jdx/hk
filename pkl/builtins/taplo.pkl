@@ -13,7 +13,6 @@ taplo = new Config.Step {
     ["RUST_LOG"] = "warn"
   }
   check = "taplo lint {{ files }}"
-  fix = "taplo format {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.toml" }
     ["check bad file"] = testMaker.checkFail("[table]\nkey = 0\nkey = 1\n", 1)
