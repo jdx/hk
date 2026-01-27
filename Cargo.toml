@@ -74,7 +74,7 @@ tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 which              = "8"
-xx                 = { path = "xx", features = ["http", "hash", "rustls"] }
+xx                 = { path = "xx", features = ["http", "hash", "rustls", "rustls-native-roots"] }
 
 [build-dependencies]
 codegen    = "0.3"
