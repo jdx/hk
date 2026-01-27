@@ -1,5 +1,5 @@
-amends "package://github.com/jdx/hk/releases/download/v1.33.0/hk@1.33.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.33.0/hk@1.33.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.34.0/hk@1.34.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.34.0/hk@1.34.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
   // some linters are built into hk

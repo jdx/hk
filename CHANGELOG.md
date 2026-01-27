@@ -1,11 +1,30 @@
 # Changelog
 
+## [1.34.0](https://github.com/jdx/hk/compare/v1.33.0..v1.34.0) - 2026-01-27
+
+### 🚀 Features
+
+- add Windows CI testing and improve Windows support by [@jdx](https://github.com/jdx) in [#648](https://github.com/jdx/hk/pull/648)
+
+### 🐛 Bug Fixes
+
+- use system CA certificates for HTTPS requests by [@lobaorn-bitso](https://github.com/lobaorn-bitso) in [#650](https://github.com/jdx/hk/pull/650)
+
+### 📚 Documentation
+
+- clarify fix type is for CLI bugs only by [@jdx](https://github.com/jdx) in [#649](https://github.com/jdx/hk/pull/649)
+
+### New Contributors
+
+- @lobaorn-bitso made their first contribution in [#650](https://github.com/jdx/hk/pull/650)
+
 ## [1.33.0](https://github.com/jdx/hk/compare/v1.32.0..v1.33.0) - 2026-01-26
 
 ### 🚀 Features
 
 - add LLM-generated creative release titles by [@jdx](https://github.com/jdx) in [#624](https://github.com/jdx/hk/pull/624)
 - add `hook` and `step` tera contexts by [@thejcannon](https://github.com/thejcannon) in [#645](https://github.com/jdx/hk/pull/645)
+- Add `step_condition` by [@thejcannon](https://github.com/thejcannon) in [#644](https://github.com/jdx/hk/pull/644)
 
 ### 🐛 Bug Fixes
 
@@ -15,6 +34,7 @@
 - remove verbose output from taplo by [@vmeurisse](https://github.com/vmeurisse) in [#364](https://github.com/jdx/hk/pull/364)
 - shfmt should use `--apply-ignore` by [@thejcannon](https://github.com/thejcannon) in [#643](https://github.com/jdx/hk/pull/643)
 - Tell biome not to error on unmatched files by [@thejcannon](https://github.com/thejcannon) in [#641](https://github.com/jdx/hk/pull/641)
+- don't thank @jdx in LLM-generated release notes by [@jdx](https://github.com/jdx) in [#646](https://github.com/jdx/hk/pull/646)
 
 ### 🚜 Refactor
 
