@@ -2,6 +2,20 @@ use crate::settings::generated::SETTINGS_META;
 use crate::{Result, settings::Settings};
 use serde_json::json;
 
+fn unknown_config_key_error(key: &str) -> eyre::Report {
+    let all_keys: Vec<&str> = SETTINGS_META
+        .keys()
+        .copied()
+        .chain(["jobs", "enabled_profiles", "disabled_profiles"])
+        .collect();
+    let msg = if let Some(suggestion) = xx::suggest::did_you_mean(key, &all_keys) {
+        format!("Unknown configuration key: '{}'. {}", key, suggestion)
+    } else {
+        format!("Unknown configuration key: '{}'", key)
+    };
+    eyre::eyre!("{}", msg)
+}
+
 /// Configuration introspection and management
 ///
 /// View and inspect hk's configuration from all sources.
@@ -140,7 +154,7 @@ impl ConfigGet {
                 eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
             })?
         } else {
-            return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
+            return Err(unknown_config_key_error(&self.key));
         };
 
         println!("{}", serde_json::to_string(&value)?);
@@ -165,7 +179,7 @@ impl ConfigExplain {
                 eyre::eyre!("Key present in meta but missing in settings: {}", self.key)
             })?
         } else {
-            return Err(eyre::eyre!("Unknown configuration key: {}", self.key));
+            return Err(unknown_config_key_error(&self.key));
         };
 
         // Build a resolution report
