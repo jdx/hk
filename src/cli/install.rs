@@ -1,4 +1,4 @@
-use crate::{Result, config::Config, env};
+use crate::{Result, config::Config, env, git_util};
 use log::warn;
 use std::process::Command;
 
@@ -18,15 +18,12 @@ pub struct Install {
 impl Install {
     pub async fn run(&self) -> Result<()> {
         let config = Config::get()?;
-        let cwd = std::env::current_dir()?;
-        let git_dir = xx::file::find_up(&cwd, &[".git"]).ok_or_else(|| {
-            eyre::eyre!("No .git directory found in this or any parent directory")
-        })?;
+        let git_path = git_util::find_git_path()?;
 
         // Check for core.hooksPath in git config
         check_hooks_path_config()?;
 
-        let hooks = git_dir.join("hooks");
+        let hooks = git_util::resolve_git_hooks_dir(&git_path)?;
         let add_hook = |hook: &str| {
             let hook_file = hooks.join(hook);
             let command = if *env::HK_MISE || self.mise {

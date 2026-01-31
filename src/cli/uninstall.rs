@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-use crate::Result;
+use crate::{Result, git_util};
 
 /// Removes hk hooks from the current git repository
 #[derive(Debug, clap::Args)]
@@ -8,7 +6,8 @@ pub struct Uninstall {}
 
 impl Uninstall {
     pub async fn run(&self) -> Result<()> {
-        let hooks = PathBuf::from(".git/hooks");
+        let git_path = git_util::find_git_path()?;
+        let hooks = git_util::resolve_git_hooks_dir(&git_path)?;
         for p in xx::file::ls(&hooks)? {
             let content = match xx::file::read_to_string(&p) {
                 Ok(content) => content,
