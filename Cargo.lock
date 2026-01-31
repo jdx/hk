@@ -1259,7 +1259,7 @@ dependencies = [
  "tracing-log",
  "tracing-serde",
  "tracing-subscriber",
- "xx 2.5.0",
+ "xx 2.5.1",
 ]
 
 [[package]]
@@ -3715,7 +3715,7 @@ dependencies = [
  "tera",
  "thiserror 2.0.18",
  "versions",
- "xx 2.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xx 2.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4368,7 +4368,7 @@ dependencies = [
 
 [[package]]
 name = "xx"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "blake3",
  "bzip2",
@@ -4406,9 +4406,9 @@ dependencies = [
 
 [[package]]
 name = "xx"
-version = "2.5.0"
+version = "2.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6934a060c1373fe0c2eeb7830ada7e31084c05b37d30c63c7d4b7c2a2f8bb79"
+checksum = "82a174a1d4ba003417df5f1ac4f66fa5a198aa08abcc9c0b67bb2e4b8a9bf9b5"
 dependencies = [
  "duct",
  "filetime",
