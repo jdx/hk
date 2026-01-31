@@ -83,7 +83,15 @@ impl HookOptions {
                 }
                 Ok(())
             }
-            None => Err(eyre::eyre!("Hook {} not found", name)),
+            None => {
+                let hook_names: Vec<&str> = config.hooks.keys().map(|s| s.as_str()).collect();
+                let msg = if let Some(suggestion) = xx::suggest::did_you_mean(name, &hook_names) {
+                    format!("Hook '{}' not found. {}", name, suggestion)
+                } else {
+                    format!("Hook '{}' not found", name)
+                };
+                Err(eyre::eyre!("{}", msg))
+            }
         }
     }
 }
