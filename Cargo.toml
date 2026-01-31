@@ -42,7 +42,6 @@ dirs               = "6"
 ensembler          = { path = "ensembler" }
 expr-lang          = { version = "0.3.0", features = ["serde"] }
 eyre               = "0.6"
-getrandom          = "0.3"
 git2               = { version = "0.20", features = ["vendored-libgit2"] }
 globset            = "0.4"
 indexmap           = { version = "2", features = ["serde"] }
@@ -73,7 +72,6 @@ tracing-error      = "0.2"
 tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
-which              = "8"
 xx                 = { path = "xx", features = ["http", "hash", "rustls", "rustls-native-roots"] }
 
 [build-dependencies]
