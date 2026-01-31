@@ -8,6 +8,18 @@ cat > pkl/Builtins.pkl << 'HEADER'
 
 import* "builtins/*.pkl" as Builtins
 
+/// Indicator for detecting if a builtin is relevant to a project
+class ProjectIndicator {
+  /// Exact file path to check for existence
+  file: String?
+
+  /// Glob pattern to match any file
+  glob: String?
+
+  /// Content pattern to grep for (requires file to be set)
+  contains: String?
+}
+
 /// Internal class for annotating hk builtins for documentation generation
 class meta extends Annotation {
   /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
@@ -15,6 +27,9 @@ class meta extends Annotation {
 
   /// Human-readable description of the step for documentation
   description: String?
+
+  /// Project indicators for auto-detection
+  project_indicators: Listing<ProjectIndicator>?
 }
 
 HEADER
@@ -27,3 +42,61 @@ done
 
 # NB: `|| true` to workaround `pkl format` exiting 11 after formatting...
 pkl format --write pkl/Builtins.pkl || true
+
+# Generate builtins metadata JSON for build script
+REFLECT_SCRIPT="$(pwd)/scripts/reflect.pkl"
+REFLECT_URI="file://$REFLECT_SCRIPT"
+
+echo "[" > pkl/builtins_meta.json
+first=true
+for filepath in pkl/builtins/*.pkl; do
+    filename=$(basename "$filepath" .pkl)
+
+    # Use pkl reflection to extract metadata
+    json=$(pkl eval "$filepath" --format json -x "import(\"$REFLECT_URI\").render(module)" 2>/dev/null) || continue
+
+    # Extract category, description, and project_indicators from the reflected JSON
+    # The structure is: { moduleClass: { properties: { <name>: { annotations: [...], defaultValue: "..." } } } }
+    meta=$(echo "$json" | python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+props = data.get('moduleClass', {}).get('properties', {})
+for name, prop in props.items():
+    category = ''
+    description = ''
+    project_indicators = []
+
+    # Get annotations
+    for ann in prop.get('annotations', []):
+        if 'category' in ann:
+            category = ann['category']
+        if 'description' in ann:
+            description = ann['description']
+        if 'project_indicators' in ann:
+            indicators = ann['project_indicators']
+            if isinstance(indicators, list):
+                # Each indicator is an object with file/glob/contains
+                project_indicators = indicators
+
+    result = {
+        'name': name,
+        'category': category,
+        'description': description,
+        'project_indicators': project_indicators
+    }
+    print(json.dumps(result))
+    break  # Only first property (the builtin definition)
+" 2>/dev/null) || continue
+
+    if [ -n "$meta" ]; then
+        if [ "$first" = true ]; then
+            first=false
+        else
+            echo "," >> pkl/builtins_meta.json
+        fi
+        echo "$meta" >> pkl/builtins_meta.json
+    fi
+done
+echo "]" >> pkl/builtins_meta.json
+
+echo "pkl/builtins_meta.json"

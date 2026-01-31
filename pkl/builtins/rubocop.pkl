@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "Ruby style guide"
+  project_indicators {
+    new { file = "Gemfile" }
+  }
 }
 rubocop = new Config.Step {
   types = List("ruby")

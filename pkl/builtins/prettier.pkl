@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Opinionated code formatter"
+  project_indicators {
+    new { file = "package.json" }
+  }
 }
 prettier = new Config.Step {
   glob =

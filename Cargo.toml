@@ -38,6 +38,7 @@ clx                = { path = "clx" }
 color-eyre         = "0.6"
 console            = "0.16"
 dashmap            = "6.1.0"
+demand             = "1"
 dirs               = "6"
 ensembler          = { path = "ensembler" }
 expr-lang          = { version = "0.3.0", features = ["serde"] }

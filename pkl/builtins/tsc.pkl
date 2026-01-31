@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "TypeScript type checker"
+  project_indicators {
+    new { file = "tsconfig.json" }
+  }
 }
 tsc = new Config.Step {
   workspace_indicator = "tsconfig.json"

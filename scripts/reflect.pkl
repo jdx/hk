@@ -19,7 +19,7 @@ output {
         type = p.type
         docComment = p.docComment
         defaultValue = if (p.name == "output") null else renderer.renderValue(p.defaultValue)
-        annnotations = p.annotations
+        annotations = p.annotations
       }
       [reflect.StringLiteralType] = (s) -> s.value
       [reflect.NullableType] = (t) -> "\(outer[t.member.getClass()].apply(t.member))?"

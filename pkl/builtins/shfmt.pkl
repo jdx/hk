@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Shell"
   description = "Shell formatter"
+  project_indicators {
+    new { glob = "*.sh" }
+  }
 }
 shfmt = new Config.Step {
   batch = true

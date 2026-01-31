@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE depends=["render:*"]
+#MISE depends=["render:*", "pkl:gen"]
 
 set -eu
 

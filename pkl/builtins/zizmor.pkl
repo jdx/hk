@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "GitHub Actions security static analysis tool"
+  project_indicators {
+    new { file = ".github/workflows" }
+  }
 }
 zizmor = new Config.Step {
   glob =

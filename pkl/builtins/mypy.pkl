@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Python"
   description = "Static type checker for Python"
+  project_indicators {
+    new { file = "pyproject.toml"; contains = "mypy" }
+  }
 }
 mypy = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")

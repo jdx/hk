@@ -5,6 +5,7 @@ use std::{panic, time::Duration};
 
 pub use eyre::Result;
 
+mod builtins;
 mod cache;
 mod cli;
 mod config;

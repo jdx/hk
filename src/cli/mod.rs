@@ -148,12 +148,17 @@ pub async fn run() -> Result<()> {
     }
 
     // Skip config loading for commands that don't need it
+    // - Init: may be run before hk.pkl exists or when existing one is invalid
     // - Migrate: avoid errors during migration with potentially invalid configs
     // - Completion/Usage: shell completion generation shouldn't require valid config
     // - Version: just prints version info
     let settings = if matches!(
         args.command,
-        Commands::Migrate(_) | Commands::Completion(_) | Commands::Usage(_) | Commands::Version(_)
+        Commands::Init(_)
+            | Commands::Migrate(_)
+            | Commands::Completion(_)
+            | Commands::Usage(_)
+            | Commands::Version(_)
     ) {
         Arc::new(crate::settings::generated::settings::Settings::default())
     } else {

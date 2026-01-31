@@ -5,6 +5,10 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Fast formatter and linter"
+  project_indicators {
+    new { file = "package.json"; contains = "\"@biomejs/biome\"" }
+    new { file = "biome.json" }
+  }
 }
 biome = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
