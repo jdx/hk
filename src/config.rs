@@ -339,7 +339,7 @@ fn run_pkl<T: DeserializeOwned>(subcommand: &[&str], path: &Path) -> Result<T> {
         Ok(result) => Ok(result),
         Err(err) => {
             // if pkl bin is not installed, try via mise
-            if which::which("pkl").is_err() {
+            if xx::file::which("pkl").is_none() {
                 if let Ok(result) = try_run("mise x -- pkl") {
                     return Ok(result);
                 }
