@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use crate::{Result, env};
 
 /// Default hooks to configure when none are specified
-const DEFAULT_HOOKS: &[&str] = &["pre-commit", "check", "fix"];
+pub(crate) const DEFAULT_HOOKS: &[&str] = &["pre-commit", "check", "fix"];
 
 /// Generates a new hk.pkl file for a project
 #[derive(Debug, clap::Args)]

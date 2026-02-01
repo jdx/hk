@@ -35,7 +35,7 @@ pub fn generate(out_dir: &Path) -> Result<(), std::io::Error> {
     let meta_path = Path::new("pkl/builtins_meta.json");
     let builtins_meta: Vec<BuiltinMeta> = if meta_path.exists() {
         let content = fs::read_to_string(meta_path)?;
-        serde_json::from_str(&content).unwrap_or_default()
+        serde_json::from_str(&content).expect("failed to parse pkl/builtins_meta.json")
     } else {
         Vec::new()
     };

@@ -3,6 +3,7 @@ use demand::DemandOption;
 use crate::Result;
 use crate::builtins::{BUILTINS_META, BuiltinMeta};
 
+use super::DEFAULT_HOOKS;
 use super::detector::Detection;
 
 /// Let user select builtins interactively
@@ -54,19 +55,19 @@ pub fn pick_builtins(detected: &[Detection]) -> Result<Vec<&'static BuiltinMeta>
 /// Let user select which hooks to configure
 pub fn pick_hooks() -> Result<Vec<String>> {
     let hooks = vec![
-        ("pre-commit", "Run linters before committing", true),
-        ("check", "Manual check command (hk check)", true),
-        ("fix", "Manual fix command (hk fix)", true),
-        ("pre-push", "Run linters before pushing", false),
+        ("pre-commit", "Run linters before committing"),
+        ("check", "Manual check command (hk check)"),
+        ("fix", "Manual fix command (hk fix)"),
+        ("pre-push", "Run linters before pushing"),
     ];
 
     let mut ms = demand::MultiSelect::new("Select hooks to configure")
         .description("Space to toggle, Enter to confirm");
 
-    for (name, desc, default) in &hooks {
+    for (name, desc) in &hooks {
         let opt = DemandOption::new(*name)
             .description(desc)
-            .selected(*default);
+            .selected(DEFAULT_HOOKS.contains(name));
         ms = ms.option(opt);
     }
 
