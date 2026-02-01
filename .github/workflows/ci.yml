@@ -203,14 +203,13 @@ jobs:
         with:
           submodules: recursive
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+      - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: hk-windows-latest
           path: target/debug
-      - name: Install pkl
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/apple/pkl/releases/download/0.27.2/pkl-windows-amd64.exe" -OutFile "$env:USERPROFILE\pkl.exe"
-          echo "$env:USERPROFILE" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Generate builtins metadata
+        run: mise run pkl:gen
       - name: Run cargo tests
         run: cargo test --features git2/vendored-libgit2,git2/vendored-openssl -- --skip settings::tests::test_settings
       - name: Run Pester e2e tests

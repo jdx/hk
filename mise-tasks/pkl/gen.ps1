@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env pwsh
 #MISE description="Generate pkl/Builtins.pkl from all builtins/*.pkl files"
-set -euo pipefail
+$ErrorActionPreference = "Stop"
 python3 scripts/gen_builtins.py

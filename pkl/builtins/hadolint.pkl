@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "Dockerfile linter"
+  project_indicators {
+    new { file = "Dockerfile" }
+  }
 }
 hadolint = new Config.Step {
   glob = "**/Dockerfile*"

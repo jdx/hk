@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Rust"
   description = "Rust linter"
+  project_indicators {
+    new { file = "Cargo.toml" }
+  }
 }
 cargo_clippy = new Config.Step {
   glob = "**/*.rs"

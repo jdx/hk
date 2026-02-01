@@ -8,3 +8,4 @@ node_modules
 .hkrc.pkl
 *.log
 !/build
+pkl/builtins_meta.json
