@@ -47,7 +47,8 @@ pkl format --write pkl/Builtins.pkl || true
 REFLECT_SCRIPT="$(pwd)/scripts/reflect.pkl"
 REFLECT_URI="file://$REFLECT_SCRIPT"
 
-echo "[" > pkl/builtins_meta.json
+tmpfile=$(mktemp pkl/builtins_meta.json.XXXXXX)
+echo "[" > "$tmpfile"
 first=true
 for filepath in pkl/builtins/*.pkl; do
     filename=$(basename "$filepath" .pkl)
@@ -92,11 +93,12 @@ for name, prop in props.items():
         if [ "$first" = true ]; then
             first=false
         else
-            echo "," >> pkl/builtins_meta.json
+            echo "," >> "$tmpfile"
         fi
-        echo "$meta" >> pkl/builtins_meta.json
+        echo "$meta" >> "$tmpfile"
     fi
 done
-echo "]" >> pkl/builtins_meta.json
+echo "]" >> "$tmpfile"
+mv "$tmpfile" pkl/builtins_meta.json
 
 echo "pkl/builtins_meta.json"
