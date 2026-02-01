@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.35.0](https://github.com/jdx/hk/compare/v1.34.0..v1.35.0) - 2026-02-01
+
+### 🚀 Features
+
+- **(init)** add auto-detection and interactive mode by [@jdx](https://github.com/jdx) in [#656](https://github.com/jdx/hk/pull/656)
+- **(stash)** use haiku names for stash patch backups by [@jdx](https://github.com/jdx) in [#655](https://github.com/jdx/hk/pull/655)
+- add git worktree support by [@jdx](https://github.com/jdx) in [#651](https://github.com/jdx/hk/pull/651)
+- add "did you mean?" suggestions for typos by [@jdx](https://github.com/jdx) in [#654](https://github.com/jdx/hk/pull/654)
+
+### 🚜 Refactor
+
+- use xx utilities and drop unused dependencies by [@jdx](https://github.com/jdx) in [#653](https://github.com/jdx/hk/pull/653)
+
 ## [1.34.0](https://github.com/jdx/hk/compare/v1.33.0..v1.34.0) - 2026-01-27
 
 ### 🚀 Features

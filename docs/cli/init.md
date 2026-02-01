@@ -2,7 +2,7 @@
 
 # `hk init`
 
-- **Usage**: `hk init [-f --force] [--mise]`
+- **Usage**: `hk init [FLAGS]`
 
 Generates a new hk.pkl file for a project
 
@@ -11,6 +11,10 @@ Generates a new hk.pkl file for a project
 ### `-f --force`
 
 Overwrite existing hk.pkl file
+
+### `-i --interactive`
+
+Interactive mode: select linters and hooks manually
 
 ### `--mise`
 
