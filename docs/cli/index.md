@@ -4,7 +4,7 @@
 
 **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
-**Version**: 1.34.0
+**Version**: 1.35.0
 
 - **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
@@ -62,7 +62,7 @@ Output in JSON format
 - [`hk config get <KEY>`](/cli/config/get.md)
 - [`hk config sources`](/cli/config/sources.md)
 - [`hk fix [FLAGS] [FILES]…`](/cli/fix.md)
-- [`hk init [-f --force] [--mise]`](/cli/init.md)
+- [`hk init [FLAGS]`](/cli/init.md)
 - [`hk install [--mise]`](/cli/install.md)
 - [`hk migrate <SUBCOMMAND>`](/cli/migrate.md)
 - [`hk migrate pre-commit [FLAGS]`](/cli/migrate/pre-commit.md)
