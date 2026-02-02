@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Special Purpose"
@@ -9,10 +10,26 @@ typos = new Config.Step {
   glob = "**/*"
   check_diff =
     """
-    output=$(typos --diff {{files}})
+    output=$(typos --force-exclude --diff {{files}})
     [ -z "$output" ] && exit 0
     printf "%s" "$output"
     exit 1
     """
-  fix = "typos --write-changes {{ files }}"
+  fix = "typos --force-exclude --write-changes {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.txt"
+      extra_files = new Mapping<String, String> {
+        ["typos.toml"] = "[files]\nextend-exclude = [\"excluded.txt\"]\n"
+      }
+    }
+    local const before = "maintainance\n"
+    local const after = "maintenance\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+    ["check respects config exclude"] = testMaker.withFilename("excluded.txt").checkPass(before)
+    ["fix respects config exclude"] = testMaker.withFilename("excluded.txt").fixPass(before, before)
+  }
 }
