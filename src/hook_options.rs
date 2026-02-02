@@ -1,4 +1,4 @@
-use crate::{Result, config::Config, tera::Context};
+use crate::{Result, config::Config, git::Git, tera::Context};
 
 #[derive(clap::Args)]
 pub(crate) struct HookOptions {
@@ -39,6 +39,9 @@ pub(crate) struct HookOptions {
     /// Disable auto-staging of fixed files
     #[clap(long, overrides_with = "stage")]
     pub no_stage: bool,
+    /// Check only files changed in the current PR/branch (shortcut for --from-ref <default-branch> --to-ref HEAD)
+    #[clap(long, conflicts_with_all = &["files", "all", "from_ref", "glob", "to_ref"])]
+    pub pr: bool,
     /// Skip specific step(s)
     #[clap(long, value_name = "STEP")]
     pub skip_step: Vec<String>,
@@ -70,8 +73,19 @@ impl HookOptions {
         }
     }
 
-    pub(crate) async fn run(self, name: &str) -> Result<()> {
+    pub(crate) async fn run(mut self, name: &str) -> Result<()> {
         let config = Config::get()?;
+        if self.pr {
+            let repo = Git::new()?;
+            let default_branch = config
+                .default_branch
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+                .map(str::to_string)
+                .unwrap_or_else(|| repo.default_branch().unwrap_or_else(|_| "main".to_string()));
+            self.from_ref = Some(default_branch);
+            self.to_ref = Some("HEAD".to_string());
+        }
         match config.hooks.get(name) {
             Some(hook) => {
                 if self.stats {
