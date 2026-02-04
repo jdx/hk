@@ -26,6 +26,10 @@ pub struct StepTest {
     pub before: Option<String>,
     /// Command to run after the main command, before evaluating expectations
     pub after: Option<String>,
+    /// Whether to run in a temporary directory
+    /// If true, always use a sandbox; if false, always use repo root
+    /// If None, auto-detect based on whether files reference {{tmp}}
+    pub tmpdir: Option<bool>,
 }
 
 #[derive(Debug, Default, Clone, Deserialize, Serialize, PartialEq, Eq)]

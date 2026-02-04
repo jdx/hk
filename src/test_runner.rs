@@ -158,9 +158,12 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         None => rendered_write.keys().cloned().collect(),
     };
 
-    // Decide whether to use a sandbox based on whether files reference {{tmp}}.
-    // If not, operate from the project root instead.
-    let uses_sandbox = files.iter().any(|p| p.starts_with(&sandbox));
+    // Decide whether to use a sandbox based on the explicit `tmpdir` setting,
+    // or auto-detect based on whether files reference {{tmp}}.
+    // If not using sandbox, operate from the project root instead.
+    let uses_sandbox = test
+        .tmpdir
+        .unwrap_or_else(|| files.iter().any(|p| p.starts_with(&sandbox)));
 
     if test.files.is_none() {
         files = step.filter_files(&files)?;

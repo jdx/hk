@@ -827,6 +827,11 @@ class StepTest {
   /// Command to run after the main command, before expectations (cleanup or extra verification)
   after: String?
 
+  /// Whether to run in a temporary directory sandbox
+  /// If true, always use a sandbox; if false, always use repo root
+  /// If not specified, auto-detects based on whether files reference {{tmp}}
+  tmpdir: Boolean?
+
   /// Expectations for the test result
   expect: StepTestExpect = new StepTestExpect {}
 }
