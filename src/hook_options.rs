@@ -39,7 +39,7 @@ pub(crate) struct HookOptions {
     /// Disable auto-staging of fixed files
     #[clap(long, overrides_with = "stage")]
     pub no_stage: bool,
-    /// Check only files changed in the current PR/branch (shortcut for --from-ref <default-branch> --to-ref HEAD)
+    /// Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
     #[clap(long, conflicts_with_all = &["files", "all", "from_ref", "glob", "to_ref"])]
     pub pr: bool,
     /// Skip specific step(s)
