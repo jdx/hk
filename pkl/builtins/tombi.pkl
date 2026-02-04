@@ -8,7 +8,7 @@ import "./test/helpers.pkl"
 }
 tombi = new Config.Step {
   glob = "**/*.toml"
-  check = "tombi lint {{ files }}"
+  check = "tombi lint --quiet {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "file.toml"
