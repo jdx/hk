@@ -45,6 +45,7 @@ expr-lang          = { version = "0.3.0", features = ["serde"] }
 eyre               = "0.6"
 git2               = { version = "0.20", features = ["vendored-libgit2"] }
 globset            = "0.4"
+ignore             = "0.4"
 indexmap           = { version = "2", features = ["serde"] }
 infer              = "0.19"
 itertools          = "0.14"

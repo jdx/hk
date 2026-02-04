@@ -169,6 +169,11 @@ stash_backup_count: UInt?
 /// Enables or disables reporting progress via OSC sequences to compatible terminals.
 terminal_progress: Boolean?
 
+/// Controls whether hk respects .gitignore and other ignore files when walking directories.
+///
+/// Default: true
+walk_ignore: Boolean?
+
 /// Hooks define when and how linters are run. See [hooks](https://hk.jdx.dev/hooks) for more information.
 hooks: Mapping<String, Hook> = new Mapping<String, Hook> {}
 
