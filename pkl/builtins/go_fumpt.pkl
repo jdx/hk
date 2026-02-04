@@ -7,6 +7,8 @@ import "../Config.pkl"
 }
 go_fumpt = new Config.Step {
   glob = "**/*.go"
-  check = "gofumpt -l {{ files }}"
+  // check = "gofumpt -l {{ files }}" // broken, gofumpt always exits with 0
+  // check_list_files = "gofumpt -l {{ files }}" // broken, gofumpt always exits with 0
+  // check_diff = "gofumpt -d {{ files }}" // won't work until #640 is merged
   fix = "gofumpt -w {{ files }}"
 }
