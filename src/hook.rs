@@ -1022,11 +1022,17 @@ fn watch_for_ctrl_c(cancel: CancellationToken) {
 
 fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut files = vec![];
-    for entry in xx::file::ls(dir)? {
-        if entry.is_dir() {
-            files.extend(all_files_in_dir(&entry)?);
-        } else {
-            files.push(entry);
+    let walker = ignore::WalkBuilder::new(dir)
+        .hidden(false) // Allow dotfiles like .gitignore, .env, etc.
+        .filter_entry(|entry| {
+            // Always skip .git directories
+            entry.file_name() != ".git"
+        })
+        .build();
+    for entry in walker.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
     Ok(files)

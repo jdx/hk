@@ -1254,6 +1254,7 @@ dependencies = [
  "eyre",
  "git2",
  "globset",
+ "ignore",
  "indexmap 2.13.0",
  "infer",
  "itertools",
