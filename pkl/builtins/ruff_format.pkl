@@ -12,9 +12,9 @@ import "./test/helpers.pkl"
 }
 ruff_format = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")
-  check = "ruff format --force-exclude --check {{ files }}"
-  check_diff = "ruff format --force-exclude --diff {{ files }}"
-  fix = "ruff format --force-exclude {{ files }}"
+  check = "ruff format --quiet --force-exclude --check {{ files }}"
+  check_diff = "ruff format --quiet --force-exclude --diff {{ files }}"
+  fix = "ruff format --quiet --force-exclude {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.py"
