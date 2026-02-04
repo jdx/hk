@@ -1027,7 +1027,7 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
         .build();
     for result in walker {
         let entry = result?;
-        if entry.file_type().map_or(false, |ft| ft.is_file()) {
+        if entry.file_type().is_some_and(|ft| ft.is_file()) {
             files.push(entry.into_path());
         }
     }
