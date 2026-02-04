@@ -1024,15 +1024,11 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut files = vec![];
     let walker = ignore::WalkBuilder::new(dir)
         .hidden(false) // Allow dotfiles like .gitignore, .env, etc.
-        .filter_entry(|entry| {
-            // Always skip .git directories
-            entry.file_name() != ".git"
-        })
         .build();
-    for entry in walker.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            files.push(path.to_path_buf());
+    for result in walker {
+        let entry = result?;
+        if entry.file_type().map_or(false, |ft| ft.is_file()) {
+            files.push(entry.into_path());
         }
     }
     Ok(files)
