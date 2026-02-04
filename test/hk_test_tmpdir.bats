@@ -33,6 +33,7 @@ PKL
 
     PROJECT_ROOT="$(pwd)"
     run hk test --step cwd
+    assert_failure
     assert_output --partial "pwd: "
     refute_output --partial "pwd: $PROJECT_ROOT"
 }
@@ -59,6 +60,7 @@ PKL
 
     PROJECT_ROOT="$(pwd)"
     run hk test --step cwd
+    assert_failure
     assert_output --partial "pwd: $PROJECT_ROOT"
 }
 
@@ -85,6 +87,7 @@ PKL
 
     PROJECT_ROOT="$(pwd)"
     run hk test --step cwd
+    assert_failure
     assert_output --partial "pwd: $PROJECT_ROOT"
 }
 
@@ -110,6 +113,7 @@ PKL
 
     PROJECT_ROOT="$(pwd)"
     run hk test --step demo
+    assert_failure
     assert_output --partial "pwd: "
     refute_output --partial "pwd: $PROJECT_ROOT"
 }
