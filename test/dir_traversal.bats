@@ -48,3 +48,18 @@ teardown() {
     run cat processed_files.log
     refute_output --partial ".git"
 }
+
+@test "HK_WALK_IGNORE=0 includes .gitignore'd files" {
+    echo "tracked" > tracked.txt
+    mkdir -p ignored_dir
+    echo "ignored" > ignored_dir/ignored.txt
+
+    echo "ignored_dir/" > .gitignore
+
+    run env HK_WALK_IGNORE=0 hk check .
+    assert_success
+
+    run cat processed_files.log
+    assert_output --partial "tracked.txt"
+    assert_output --partial "ignored_dir/ignored.txt"
+}
