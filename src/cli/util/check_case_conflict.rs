@@ -1,5 +1,5 @@
 use crate::Result;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -15,9 +15,15 @@ impl CheckCaseConflict {
         // Get all files from the repo
         let repo_files = get_repo_files()?;
 
-        // Combine repo files with files being checked
-        let mut all_files = repo_files;
-        all_files.extend(self.files.iter().cloned());
+        // Combine repo files with files being checked, deduplicating to avoid
+        // false positives when the same file appears in both lists (e.g., a staged
+        // file that's already tracked by git)
+        let all_files: Vec<PathBuf> = repo_files
+            .into_iter()
+            .chain(self.files.iter().cloned())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
 
         let conflicts = find_case_conflicts(&all_files);
 
