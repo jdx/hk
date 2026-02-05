@@ -1,0 +1,11 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Hashicorp's hclfmt"
+}
+hclfmt = new Config.Step {
+  glob = "**/*.hcl"
+  fix = "hclfmt -w {{ files }}"
+}
