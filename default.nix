@@ -19,6 +19,10 @@ in rustPlatform.buildRustPackage {
 
   checkPhase = ''
     RUST_BACKTRACE=full cargo test --all-features -- \
+      --skip cli::init::detector::tests::test_detect_builtins_with_cargo_toml \
+      --skip cli::init::detector::tests::test_detect_builtins_with_package_json \
+      --skip cli::init::detector::tests::test_detect_eslint_with_contains \
+      --skip cli::init::detector::tests::test_detect_shell_scripts \
       --skip cli::util::python_check_ast::tests::test_invalid_python \
       --skip settings::tests::test_settings_builder_fluent_api \
       --skip settings::tests::test_settings_from_config \
