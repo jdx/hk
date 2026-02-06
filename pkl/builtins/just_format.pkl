@@ -1,0 +1,11 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Justfile formatter"
+}
+just_format = new Config.Step {
+  glob = List("**/justfile", "**/*.just")
+  fix = "just --fmt --unstable --justfile {{ files }}"
+}
