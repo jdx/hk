@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.35.0"
+version "1.36.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file" global=#true {
@@ -44,6 +44,7 @@ cmd check help="Checks code" {
     }
     flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --no-stage help="Disable auto-staging of fixed files"
+    flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
@@ -106,6 +107,7 @@ cmd fix help="Fixes code" {
     }
     flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --no-stage help="Disable auto-staging of fixed files"
+    flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
@@ -170,6 +172,7 @@ cmd run help="Run a hook" {
     }
     flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
     flag --no-stage help="Disable auto-staging of fixed files"
+    flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
@@ -206,6 +209,7 @@ cmd run help="Run a hook" {
         }
         flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -243,6 +247,7 @@ cmd run help="Run a hook" {
         }
         flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -279,6 +284,7 @@ cmd run help="Run a hook" {
         }
         flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -317,6 +323,7 @@ cmd run help="Run a hook" {
         }
         flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
         flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }

@@ -61,6 +61,10 @@ Continue on failures (opposite of --fail-fast)
 
 Disable auto-staging of fixed files
 
+### `--pr`
+
+Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
+
 ### `--skip-step… <STEP>`
 
 Skip specific step(s)
