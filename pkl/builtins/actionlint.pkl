@@ -16,7 +16,7 @@ const actionlint = new Config.Step {
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = ".github/workflows/test.yml"
-      before = "cd {{tmp}} && git init"
+      before = "git init"
     }
     ["check bad file"] =
       testMaker.checkFail(

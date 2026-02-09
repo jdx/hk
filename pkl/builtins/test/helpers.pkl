@@ -4,18 +4,13 @@ import "../../Config.pkl"
 
 class TestMaker {
   /// The name of the file to run the command on.
-  /// (This will be rooted in `{{tmp}}`)
   filename: String = "file.txt"
 
   /// Extra files to include in the sandbox, useful for config files.
-  /// (These will be rooted in `{{tmp}}`)
   extra_files: Mapping<String, String> = new Mapping {}
 
   /// (Copied to the test)
   before: String?
-
-  local rooted_extra_files: Mapping<String, String> =
-    extra_files.toMap().mapKeys((key, value) -> "{{tmp}}/\(key)").toMapping()
 
   /// Make a config test
   local function makeTest(
@@ -24,17 +19,17 @@ class TestMaker {
     contentAfter: String,
     expectedCode: Int,
   ): Config.StepTest = new Config.StepTest {
-    local sandboxFilename = "{{tmp}}/\(filename)"
     run = runType
     before = outer.before
+    tmpdir = true
     write = new Mapping<String, String> {
-      [sandboxFilename] = contentBefore
-      ...rooted_extra_files
+      [filename] = contentBefore
+      ...extra_files
     }
     expect = new Config.StepTestExpect {
       code = expectedCode
       files = new Mapping<String, String> {
-        [sandboxFilename] = contentAfter
+        [filename] = contentAfter
       }
     }
   }
