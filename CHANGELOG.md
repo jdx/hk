@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.36.0](https://github.com/jdx/hk/compare/v1.35.0..v1.36.0) - 2026-02-09
+
+### 🚀 Features
+
+- **(cmake_format)** init by [@matdibu](https://github.com/matdibu) in [#672](https://github.com/jdx/hk/pull/672)
+- **(deadnix)** init by [@matdibu](https://github.com/matdibu) in [#670](https://github.com/jdx/hk/pull/670)
+- **(hclfmt)** init by [@matdibu](https://github.com/matdibu) in [#675](https://github.com/jdx/hk/pull/675)
+- **(nil)** init by [@matdibu](https://github.com/matdibu) in [#669](https://github.com/jdx/hk/pull/669)
+- **(nixf_diagnose)** init by [@matdibu](https://github.com/matdibu) in [#671](https://github.com/jdx/hk/pull/671)
+- **(ruff_format)** use `--quiet` by [@matdibu](https://github.com/matdibu) in [#667](https://github.com/jdx/hk/pull/667)
+- **(tombi)** use `--quiet` by [@matdibu](https://github.com/matdibu) in [#676](https://github.com/jdx/hk/pull/676)
+- add ty builtin by [@joonas](https://github.com/joonas) in [#566](https://github.com/jdx/hk/pull/566)
+- add --pr shortcut flag for checking PR-changed files by [@jdx](https://github.com/jdx) in [#660](https://github.com/jdx/hk/pull/660)
+- add tmpdir step test option by [@thejcannon](https://github.com/thejcannon) in [#663](https://github.com/jdx/hk/pull/663)
+
+### 🐛 Bug Fixes
+
+- **(bultins)** respect typos exclusions with --force-exclude by [@CallumKerson](https://github.com/CallumKerson) in [#659](https://github.com/jdx/hk/pull/659)
+- **(docs)** escape angle brackets in --pr flag description by [@jdx](https://github.com/jdx) in [#666](https://github.com/jdx/hk/pull/666)
+- **(docs)** use valid <br> tags instead of </br> in sea shanty by [@jdx](https://github.com/jdx) in [12e17f8](https://github.com/jdx/hk/commit/12e17f85a8a13ea67d1e7d0f2ea03f25e7db390d)
+- **(go_fumpt)** comment out broken check by [@matdibu](https://github.com/matdibu) in [#668](https://github.com/jdx/hk/pull/668)
+- **(yamllint)** enable strict mode by [@matdibu](https://github.com/matdibu) in [#673](https://github.com/jdx/hk/pull/673)
+- respect ignore when recursing by [@thejcannon](https://github.com/thejcannon) in [#661](https://github.com/jdx/hk/pull/661)
+- Deduplicate files in check-case-conflict to prevent false positives by [@safinn](https://github.com/safinn) in [#678](https://github.com/jdx/hk/pull/678)
+- Fix building of nix flake wiwth the inclusion of git subomdules by [@jeffutter](https://github.com/jeffutter) in [#681](https://github.com/jdx/hk/pull/681)
+
+### 🛡️ Security
+
+- add tone calibration to release notes prompt by [@jdx](https://github.com/jdx) in [#679](https://github.com/jdx/hk/pull/679)
+- add opengraph meta tags by [@jdx](https://github.com/jdx) in [#685](https://github.com/jdx/hk/pull/685)
+
+### 🔍 Other Changes
+
+- Use tmpdir for the tests by [@thejcannon](https://github.com/thejcannon) in [#677](https://github.com/jdx/hk/pull/677)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#658](https://github.com/jdx/hk/pull/658)
+- update anthropics/claude-code-action digest to b113f49 by [@renovate[bot]](https://github.com/renovate[bot]) in [#684](https://github.com/jdx/hk/pull/684)
+- update actions/checkout digest to de0fac2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#683](https://github.com/jdx/hk/pull/683)
+
+### New Contributors
+
+- @jeffutter made their first contribution in [#681](https://github.com/jdx/hk/pull/681)
+- @matdibu made their first contribution in [#673](https://github.com/jdx/hk/pull/673)
+- @safinn made their first contribution in [#678](https://github.com/jdx/hk/pull/678)
+- @CallumKerson made their first contribution in [#659](https://github.com/jdx/hk/pull/659)
+
 ## [1.35.0](https://github.com/jdx/hk/compare/v1.34.0..v1.35.0) - 2026-02-01
 
 ### 🚀 Features
