@@ -194,9 +194,14 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     tctx.with_files(step.shell_type(), &files);
+    let abs_files = files
+        .clone()
+        .into_iter()
+        .map(|f| base_dir.join(&f))
+        .collect::<Vec<_>>();
 
     // Handle `workspace_indicator`
-    if let Some(workspaces) = step.workspaces_for_files(&files)? {
+    if let Some(workspaces) = step.workspaces_for_files(&abs_files)? {
         let workspace_indicator = match workspaces.len() {
             0 => eyre::bail!("{}: no workspace_indicator found for files", step.name,),
             1 => workspaces.into_iter().next().unwrap(),
