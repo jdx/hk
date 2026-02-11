@@ -167,6 +167,10 @@ jobs:
           else
             TAG_NAME="${{ github.ref_name }}"
           fi
+          # Ensure release-notes.md exists even if generation step failed
+          if [[ ! -s release-notes.md ]]; then
+            echo "No release notes available" > release-notes.md
+          fi
           gh release create "$TAG_NAME" \
             --title "$RELEASE_TITLE" \
             --notes-file release-notes.md \
