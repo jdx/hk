@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.36.1](https://github.com/jdx/hk/compare/v1.36.0..v1.36.1) - 2026-02-13
+
+### 🐛 Bug Fixes
+
+- **(release)** write release notes to file instead of capturing stdout by [@jdx](https://github.com/jdx) in [#688](https://github.com/jdx/hk/pull/688)
+- **(release)** make release notes editorialization non-blocking by [@jdx](https://github.com/jdx) in [#690](https://github.com/jdx/hk/pull/690)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#686](https://github.com/jdx/hk/pull/686)
+- update taiki-e/upload-rust-binary-action digest to f391289 by [@renovate[bot]](https://github.com/renovate[bot]) in [#692](https://github.com/jdx/hk/pull/692)
+- update anthropics/claude-code-action digest to c22f7c3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#691](https://github.com/jdx/hk/pull/691)
+- update rust crate libc to v0.2.181 by [@renovate[bot]](https://github.com/renovate[bot]) in [#694](https://github.com/jdx/hk/pull/694)
+- update rust crate clap to v4.5.58 by [@renovate[bot]](https://github.com/renovate[bot]) in [#693](https://github.com/jdx/hk/pull/693)
+
 ## [1.36.0](https://github.com/jdx/hk/compare/v1.35.0..v1.36.0) - 2026-02-09
 
 ### 🚀 Features
