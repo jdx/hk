@@ -7,6 +7,6 @@ import "../Config.pkl"
 }
 gomod_tidy = new Config.Step {
   glob = "**/go.mod"
-  check_diff = "go mod tidy -diff"
+  // check_diff = "go mod tidy -diff" // won't work until #640 is merged
   fix = "go mod tidy"
 }
