@@ -7,6 +7,7 @@
 use crate::Result;
 use std::io::Write;
 
+use super::strip_orig_suffix;
 use super::types::Step;
 
 impl Step {
@@ -18,6 +19,9 @@ impl Step {
     ///
     /// Automatically detects whether the diff uses `a/` and `b/` prefixes (git-style)
     /// and sets the appropriate strip level (`-p1` or `-p0`).
+    ///
+    /// Also handles Go-style diffs where the `---` line has a `.orig` suffix
+    /// (e.g., `--- file.go.orig` instead of `--- file.go`).
     ///
     /// # Arguments
     ///
@@ -33,7 +37,7 @@ impl Step {
             debug!("{}: no diff content to apply", self.name);
             return Ok(false);
         }
-        let diff_content = stdout;
+        let diff_content = strip_orig_suffix(stdout);
 
         // Detect if this diff uses a/ and b/ prefixes (git-style)
         // Use -p1 to strip prefixes if present, -p0 otherwise
