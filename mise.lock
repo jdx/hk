@@ -43,6 +43,11 @@ backend = "cargo:cargo-msrv"
 version = "0.25.22"
 backend = "cargo:cargo-release"
 
+[[tools.communique]]
+version = "0.1.8"
+backend = "github:jdx/communique"
+"platforms.linux-x64" = { checksum = "sha256:bca0dcb9588d6fc186641c8135efc660f6f2d45c56c28568279538fd04a7e757", url = "https://github.com/jdx/communique/releases/download/v0.1.8/communique-x86_64-unknown-linux-gnu.tar.gz", url_api = "https://api.github.com/repos/jdx/communique/releases/assets/357980500"}
+
 [[tools.git-cliff]]
 version = "2.10.1"
 backend = "aqua:orhun/git-cliff"
