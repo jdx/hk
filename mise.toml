@@ -5,6 +5,7 @@ _.path = ["test/bats/bin", "{{ env.CARGO_TARGET_DIR | default(value='target') }}
 actionlint            = "latest"
 bun                   = "latest"
 cargo-binstall        = "latest"
+communique            = "latest"
 "cargo:cargo-edit"    = "latest"
 "cargo:cargo-msrv"    = "latest"
 "cargo:cargo-release" = "latest"
