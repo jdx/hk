@@ -8,6 +8,26 @@ outline: "deep"
 
 hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.org/) from Apple.
 
+### Config File Paths
+
+hk searches for config files in the following order (first match wins):
+
+| Precedence | Path | Purpose |
+|---|---|---|
+| 1 | `hk.local.pkl` | Local overrides, should not be committed to source control |
+| 2 | `.config/hk.local.pkl` | Same, nested under `.config/` |
+| 3 | `hk.pkl` | Standard project config |
+| 4 | `.config/hk.pkl` | Same, nested under `.config/` |
+
+hk walks up from the current directory to `/`, checking each directory for these files. The first file found is used.
+
+Set [`HK_FILE`](/environment_variables#hk-file) to override the search and use a specific path.
+
+> [!NOTE]
+> Unlike mise, hk does not merge multiple config files or support `conf.d/` directories. Local overrides use Pkl's `amends` mechanism instead (see [`hk.local.pkl`](#hk-local-pkl)).
+
+### Example
+
 Here's a basic `hk.pkl` file:
 
 ```pkl
