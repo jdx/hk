@@ -103,49 +103,17 @@ jobs:
   create-release:
     needs: [build-binaries, build-pkl]
     runs-on: ubuntu-latest
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-      - name: Generate release notes
-        continue-on-error: true
+      - name: Extract release notes from CHANGELOG.md
         run: |
-          # Determine version from tag or input
-          if [[ -n "${{ inputs.version }}" ]]; then
-            TAG_NAME="v${{ inputs.version }}"
-          else
-            TAG_NAME="${{ github.ref_name }}"
-          fi
-
-          # Get previous version for context
-          PREV_TAG=$(git describe --tags --abbrev=0 "$TAG_NAME^" 2>/dev/null || echo "")
-
-          OUTPUT_DIR=$(mktemp -d)
-          if mise run gen-release-notes "$TAG_NAME" "$OUTPUT_DIR" "$PREV_TAG"; then
-            RELEASE_TITLE="$(cat "$OUTPUT_DIR/title")"
-            cp "$OUTPUT_DIR/notes" release-notes.md
-          fi
-
-          # Fallback if release notes generation failed or output was invalid
+          awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
           if [[ ! -s release-notes.md ]]; then
-            echo "LLM release notes failed, using git-cliff output"
-            RELEASE_TITLE="$TAG_NAME"
-            git cliff --strip all "${PREV_TAG}..${TAG_NAME}" > release-notes.md 2>/dev/null || echo "No changelog available" > release-notes.md
+            echo "No release notes available" > release-notes.md
           fi
-
-          # Fallback if title is still empty
-          RELEASE_TITLE="${RELEASE_TITLE:-$TAG_NAME}"
-
-          echo "Release title: $RELEASE_TITLE"
-          echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
-          cat release-notes.md
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       - name: Download all artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
@@ -153,9 +121,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          # Move all binary artifacts to release-assets
           find artifacts/binary-* -type f \( -name "*.tar.gz" -o -name "*.tar.xz" -o -name "*.zip" \) -exec mv {} release-assets/ \;
-          # Move pkl packages to release-assets
           if [ -d "artifacts/pkl-packages" ]; then
             find artifacts/pkl-packages -type f -exec mv {} release-assets/ \;
           fi
@@ -167,11 +133,26 @@ jobs:
           else
             TAG_NAME="${{ github.ref_name }}"
           fi
-          # Ensure release-notes.md exists even if generation step failed
-          if [[ ! -s release-notes.md ]]; then
-            echo "No release notes available" > release-notes.md
-          fi
           gh release create "$TAG_NAME" \
-            --title "$RELEASE_TITLE" \
+            --title "$TAG_NAME" \
             --notes-file release-notes.md \
             release-assets/*
+
+  enhance-release:
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
+      - name: Enhance release notes with communique
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            TAG_NAME="v${{ inputs.version }}"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+          fi
+          communique generate "$TAG_NAME" --github-release
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

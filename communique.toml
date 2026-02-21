@@ -1,0 +1,4 @@
+context = "hk is a git hook manager and project linting tool written in Rust with emphasis on performance and concurrent execution."
+
+[defaults]
+emoji = false
