@@ -15,9 +15,9 @@ hk searches for config files in the following order (first match wins):
 | Precedence | Path | Purpose |
 |---|---|---|
 | 1 | `hk.local.pkl` | Local overrides, should not be committed to source control |
-| 2 | `.config/hk.local.pkl` | Same, nested under `.config/` |
+| 2 | `.config/hk.local.pkl` | Local overrides, nested under `.config/` |
 | 3 | `hk.pkl` | Standard project config |
-| 4 | `.config/hk.pkl` | Same, nested under `.config/` |
+| 4 | `.config/hk.pkl` | Standard project config, nested under `.config/` |
 
 hk walks up from the current directory to `/`, checking each directory for these files. The first file found is used.
 
