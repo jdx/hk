@@ -43,6 +43,10 @@ backend = "cargo:cargo-msrv"
 version = "0.25.22"
 backend = "cargo:cargo-release"
 
+[[tools.communique]]
+version = "0.1.8"
+backend = "github:jdx/communique"
+
 [[tools.git-cliff]]
 version = "2.10.1"
 backend = "aqua:orhun/git-cliff"
