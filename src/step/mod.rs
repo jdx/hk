@@ -59,21 +59,20 @@ pub(crate) fn strip_orig_suffix(diff: &str) -> String {
     let mut result: Vec<String> = Vec::new();
     let mut lines = diff.lines().peekable();
     while let Some(line) = lines.next() {
-        if line.starts_with("--- ") {
-            if let Some(next) = lines.peek() {
-                if next.starts_with("+++ ") && !next.contains(".orig") {
-                    // Extract path portion (before any tab-separated timestamp)
-                    let after_prefix = &line["--- ".len()..];
-                    let (path, rest) = after_prefix.split_once('\t').unwrap_or((after_prefix, ""));
-                    if let Some(stripped) = path.strip_suffix(".orig") {
-                        if rest.is_empty() {
-                            result.push(format!("--- {stripped}"));
-                        } else {
-                            result.push(format!("--- {stripped}\t{rest}"));
-                        }
-                        continue;
-                    }
+        if let Some(after_prefix) = line.strip_prefix("--- ")
+            && let Some(next) = lines.peek()
+            && next.starts_with("+++ ")
+            && !next.contains(".orig")
+        {
+            // Extract path portion (before any tab-separated timestamp)
+            let (path, rest) = after_prefix.split_once('\t').unwrap_or((after_prefix, ""));
+            if let Some(stripped) = path.strip_suffix(".orig") {
+                if rest.is_empty() {
+                    result.push(format!("--- {stripped}"));
+                } else {
+                    result.push(format!("--- {stripped}\t{rest}"));
                 }
+                continue;
             }
         }
         result.push(line.to_string());
