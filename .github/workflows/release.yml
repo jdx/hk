@@ -41,7 +41,7 @@ jobs:
             os: windows-latest
             build-tool: cargo
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           submodules: recursive
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
@@ -52,7 +52,7 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
           p12-password: ${{ secrets.CERTIFICATES_P12_PASS }}
-      - uses: taiki-e/upload-rust-binary-action@3962470d6e7f1993108411bc3f75a135ec67fc8c # v1
+      - uses: taiki-e/upload-rust-binary-action@f391289bcff6a7f36b6301c0a74199657bbb4561 # v1
         with:
           bin: hk
           target: ${{ matrix.target }}
@@ -76,7 +76,7 @@ jobs:
   build-pkl:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
       - name: Package Pkl
         run: |
@@ -103,37 +103,17 @@ jobs:
   create-release:
     needs: [build-binaries, build-pkl]
     runs-on: ubuntu-latest
-    env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-      - name: Generate release notes
+      - name: Extract release notes from CHANGELOG.md
         run: |
-          # Determine version from tag or input
-          if [[ -n "${{ inputs.version }}" ]]; then
-            TAG_NAME="v${{ inputs.version }}"
-          else
-            TAG_NAME="${{ github.ref_name }}"
+          awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
+          if [[ ! -s release-notes.md ]]; then
+            echo "No release notes available" > release-notes.md
           fi
-
-          # Get previous version for context
-          PREV_TAG=$(git describe --tags --abbrev=0 "$TAG_NAME^" 2>/dev/null || echo "")
-
-          # Generate release notes (first line is creative title, rest is body)
-          mise run gen-release-notes "$TAG_NAME" "$PREV_TAG" > /tmp/release-full.txt
-
-          # Extract title and body
-          RELEASE_TITLE="$TAG_NAME: $(head -1 /tmp/release-full.txt)"
-          tail -n +3 /tmp/release-full.txt > release-notes.md
-
-          echo "Release title: $RELEASE_TITLE"
-          echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
-          cat release-notes.md
       - name: Download all artifacts
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
@@ -141,9 +121,7 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release-assets
-          # Move all binary artifacts to release-assets
           find artifacts/binary-* -type f \( -name "*.tar.gz" -o -name "*.tar.xz" -o -name "*.zip" \) -exec mv {} release-assets/ \;
-          # Move pkl packages to release-assets
           if [ -d "artifacts/pkl-packages" ]; then
             find artifacts/pkl-packages -type f -exec mv {} release-assets/ \;
           fi
@@ -156,6 +134,25 @@ jobs:
             TAG_NAME="${{ github.ref_name }}"
           fi
           gh release create "$TAG_NAME" \
-            --title "$RELEASE_TITLE" \
+            --title "$TAG_NAME" \
             --notes-file release-notes.md \
             release-assets/*
+
+  enhance-release:
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8 # v3
+      - name: Enhance release notes with communique
+        run: |
+          if [[ -n "${{ inputs.version }}" ]]; then
+            TAG_NAME="v${{ inputs.version }}"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+          fi
+          communique generate "$TAG_NAME" --github-release
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -2,6 +2,39 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Conventional Commits
+
+All commit messages and PR titles MUST follow conventional commit format:
+
+**Format:** `<type>(<scope>): <description>`
+
+**Types:**
+- `feat:` - New features
+- `fix:` - Bug fixes that affect the CLI behavior (not CI, docs, or infrastructure)
+- `refactor:` - Code refactoring
+- `docs:` - Documentation changes
+- `style:` - Code style/formatting (no logic changes)
+- `perf:` - Performance improvements
+- `test:` - Testing changes
+- `chore:` - Maintenance tasks, releases, dependency updates, CI/infrastructure changes
+- `security:` - Security-related changes
+
+**Scopes:**
+- For command-specific changes, use the command name: `check`, `fix`, `run`, `init`, `install`, `validate`, etc.
+- For subsystem changes: `hook`, `step`, `config`, `lock`, `pkl`, `builtins`, `stash`, `deps`
+
+**Description Style:**
+- Use lowercase after the colon
+- Use imperative mood ("add feature" not "added feature")
+- Keep it concise but descriptive
+
+**Examples:**
+- `fix(step): resolve race condition in file locking`
+- `feat(check): add --slow flag for expensive linters`
+- `feat(builtins): add biome linter`
+- `docs: update pkl configuration examples`
+- `chore: release 0.5.0`
+
 ## Development Commands
 
 **Build the project:**

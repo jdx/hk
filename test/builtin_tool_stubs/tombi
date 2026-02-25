@@ -1,4 +1,4 @@
 #!/usr/bin/env -S mise tool-stub
 
-version = "0.7.4"
+version = "0.7.27"
 tool = "tombi"

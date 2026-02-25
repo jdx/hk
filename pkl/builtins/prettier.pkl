@@ -4,6 +4,9 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Opinionated code formatter"
+  project_indicators {
+    new { file = "package.json" }
+  }
 }
 prettier = new Config.Step {
   glob =
@@ -35,7 +38,6 @@ prettier = new Config.Step {
       "**/*.htmlangular",
       "**/*.vue",
     )
-  stage = "<JOB_FILES>"
   batch = true
   check = "prettier --check {{ files }}"
   check_list_files = "prettier --list-different {{ files }}"

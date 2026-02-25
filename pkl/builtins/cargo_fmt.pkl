@@ -5,10 +5,12 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Rust"
   description = "Rust code formatter"
+  project_indicators {
+    new { file = "Cargo.toml" }
+  }
 }
 cargo_fmt = new Config.Step {
   glob = "**/*.rs"
-  stage = "<JOB_FILES>"
   workspace_indicator = "Cargo.toml"
   check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
   check_list_files =

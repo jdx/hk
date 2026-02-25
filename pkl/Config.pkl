@@ -169,6 +169,11 @@ stash_backup_count: UInt?
 /// Enables or disables reporting progress via OSC sequences to compatible terminals.
 terminal_progress: Boolean?
 
+/// Controls whether hk respects .gitignore and other ignore files when walking directories.
+///
+/// Default: true
+walk_ignore: Boolean?
+
 /// Hooks define when and how linters are run. See [hooks](https://hk.jdx.dev/hooks) for more information.
 hooks: Mapping<String, Hook> = new Mapping<String, Hook> {}
 
@@ -540,6 +545,9 @@ class Step {
 
   /// A list of globs of files to add to the git index after running a fix step.
   ///
+  /// When staging is enabled and the step has a `fix` command, this defaults to the step's
+  /// glob. Set explicitly if your fix modifies different files than those it reads.
+  ///
   /// ```pkl
   /// hooks {
   ///     ["pre-commit"] {
@@ -638,7 +646,8 @@ class Step {
   /// ```
   stdin: String?
 
-  /// If set, the step will only run if this condition evaluates to true.
+  /// If set, the jobs in this step will only run if this condition evaluates to true.
+  /// This is evaluated per step-job (e.g. multiple times if hk batches, or if there are multiple workspaces)
   /// Evaluated with [`expr`](https://github.com/jdx/expr-rs).
   ///
   /// ```pkl
@@ -649,6 +658,19 @@ class Step {
   /// }
   /// ```
   condition: String?
+
+  /// If set, the step will only run if this condition evaluates to true.
+  /// Evaluated once (regardless of batching or workspaces).
+  /// Evaluated with [`expr`](https://github.com/jdx/expr-rs).
+  ///
+  /// ```pkl
+  /// local linters = new Mapping<String, Step> {
+  ///     ["prettier"] {
+  ///         condition = "exec('test -f check.js')"
+  ///     }
+  /// }
+  /// ```
+  step_condition: String?
 
   /// Default: `false`
   ///
@@ -809,6 +831,11 @@ class StepTest {
 
   /// Command to run after the main command, before expectations (cleanup or extra verification)
   after: String?
+
+  /// Whether to run in a temporary directory sandbox
+  /// If true, always use a sandbox; if false, always use repo root
+  /// If not specified, auto-detects based on whether files reference {{tmp}}
+  tmpdir: Boolean?
 
   /// Expectations for the test result
   expect: StepTestExpect = new StepTestExpect {}

@@ -5,10 +5,12 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "CSS"
   description = "CSS linter"
+  project_indicators {
+    new { file = "package.json"; contains = "stylelint" }
+  }
 }
 stylelint = new Config.Step {
   glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")
-  stage = "<JOB_FILES>"
   check = "stylelint {{ files }}"
   fix = "stylelint --fix {{ files }}"
   tests {

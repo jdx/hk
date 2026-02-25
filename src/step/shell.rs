@@ -21,6 +21,10 @@ pub enum ShellType {
     Sh,
     /// Z shell
     Zsh,
+    /// Windows Command Prompt
+    Cmd,
+    /// Windows PowerShell
+    PowerShell,
     /// Other/unknown shell
     #[allow(unused)]
     Other(String),
@@ -43,6 +47,18 @@ impl ShellType {
         match self {
             ShellType::Bash | ShellType::Zsh => s.quoted(shell_quote::Bash),
             ShellType::Fish => s.quoted(shell_quote::Fish),
+            ShellType::Cmd => {
+                // Windows cmd.exe quoting: wrap in double quotes, escape special characters
+                // - Double quotes are escaped as ""
+                // - Percent signs are escaped as %% to prevent environment variable expansion
+                let escaped = s.replace('%', "%%").replace('"', "\"\"");
+                format!("\"{}\"", escaped)
+            }
+            ShellType::PowerShell => {
+                // PowerShell quoting: wrap in single quotes, double internal single quotes
+                let escaped = s.replace('\'', "''");
+                format!("'{}'", escaped)
+            }
             ShellType::Dash | ShellType::Sh | ShellType::Other(_) => {
                 let mut o = vec![];
                 shell_quote::Sh::quote_into(s, &mut o);

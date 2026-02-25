@@ -158,9 +158,12 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         None => rendered_write.keys().cloned().collect(),
     };
 
-    // Decide whether to use a sandbox based on whether files reference {{tmp}}.
-    // If not, operate from the project root instead.
-    let uses_sandbox = files.iter().any(|p| p.starts_with(&sandbox));
+    // Decide whether to use a sandbox based on the explicit `tmpdir` setting,
+    // or auto-detect based on whether files reference {{tmp}}.
+    // If not using sandbox, operate from the project root instead.
+    let uses_sandbox = test
+        .tmpdir
+        .unwrap_or_else(|| files.iter().any(|p| p.starts_with(&sandbox)));
 
     if test.files.is_none() {
         files = step.filter_files(&files)?;
@@ -191,9 +194,14 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     tctx.with_files(step.shell_type(), &files);
+    let abs_files = files
+        .clone()
+        .into_iter()
+        .map(|f| base_dir.join(&f))
+        .collect::<Vec<_>>();
 
     // Handle `workspace_indicator`
-    if let Some(workspaces) = step.workspaces_for_files(&files)? {
+    if let Some(workspaces) = step.workspaces_for_files(&abs_files)? {
         let workspace_indicator = match workspaces.len() {
             0 => eyre::bail!("{}: no workspace_indicator found for files", step.name,),
             1 => workspaces.into_iter().next().unwrap(),

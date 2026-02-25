@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 ktlint = new Config.Step {
   glob = "**/*.kt"
-  stage = "<JOB_FILES>"
   check = "ktlint {{ files }}"
   fix = "ktlint -F {{ files }}"
   tests {

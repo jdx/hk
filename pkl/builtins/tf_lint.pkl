@@ -7,7 +7,6 @@ import "../Config.pkl"
 }
 tf_lint = new Config.Step {
   glob = "**/*.tf"
-  stage = "<JOB_FILES>"
   check = "tflint"
   fix = "tflint --fix"
 }

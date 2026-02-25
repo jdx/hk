@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Infrastructure"
   description = "GitHub Actions workflow linter"
+  project_indicators {
+    new { file = ".github/workflows" }
+  }
 }
 const actionlint = new Config.Step {
   glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
@@ -13,7 +16,7 @@ const actionlint = new Config.Step {
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = ".github/workflows/test.yml"
-      before = "cd {{tmp}} && git init"
+      before = "git init"
     }
     ["check bad file"] =
       testMaker.checkFail(

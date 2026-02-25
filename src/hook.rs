@@ -593,6 +593,7 @@ impl Hook {
         let mut tctx = opts.tctx;
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
+        tctx.insert("hook", &self.name);
         // Build expression context with the same data under "git"
         let mut expr_ctx = EXPR_CTX.clone();
         if let Ok(val) = expr::to_value(&git_status_for_ctx) {
@@ -1021,11 +1022,23 @@ fn watch_for_ctrl_c(cancel: CancellationToken) {
 
 fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut files = vec![];
-    for entry in xx::file::ls(dir)? {
-        if entry.is_dir() {
-            files.extend(all_files_in_dir(&entry)?);
-        } else {
-            files.push(entry);
+    if Settings::get().walk_ignore {
+        let walker = ignore::WalkBuilder::new(dir)
+            .hidden(false) // Allow dotfiles like .gitignore, .env, etc.
+            .build();
+        for result in walker {
+            let entry = result?;
+            if entry.file_type().is_some_and(|ft| ft.is_file()) {
+                files.push(entry.into_path());
+            }
+        }
+    } else {
+        for entry in xx::file::ls(dir)? {
+            if entry.is_dir() {
+                files.extend(all_files_in_dir(&entry)?);
+            } else {
+                files.push(entry);
+            }
         }
     }
     Ok(files)

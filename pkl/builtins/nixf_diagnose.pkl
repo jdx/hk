@@ -1,0 +1,11 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Nix"
+  description = "Nix linter based on libnixf"
+}
+nixf_diagnose = new Config.Step {
+  glob = "**/*.nix"
+  check = "nixf-diagnose {{ files }}"
+}

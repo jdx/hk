@@ -5,10 +5,13 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Python"
   description = "Fast Python linter"
+  project_indicators {
+    new { file = "pyproject.toml" }
+    new { file = "requirements.txt" }
+  }
 }
 ruff = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")
-  stage = "<JOB_FILES>"
   check = "ruff check --force-exclude {{ files }}"
   check_diff = "ruff check --force-exclude --diff {{ files }}"
   fix = "ruff check --force-exclude --fix {{ files }}"

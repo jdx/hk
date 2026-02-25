@@ -531,6 +531,24 @@ Useful for debugging performance issues or understanding execution flow.
 Example: `HK_TRACE=text hk check` to see detailed execution traces.
 """
 
+[walk_ignore]
+type = "bool"
+default = true
+sources.env = ["HK_WALK_IGNORE"]
+sources.git = ["hk.walkIgnore"]
+sources.pkl = ["walk_ignore"]
+docs = """
+Controls whether hk respects .gitignore and other ignore files when walking directories.
+
+When enabled (default), hk will skip files matching patterns in .gitignore, .ignore, and other
+standard ignore files when discovering files for linting. This improves performance by not
+processing generated files, build artifacts, or vendored dependencies.
+
+When disabled, all files are included regardless of ignore patterns.
+
+Example: `HK_WALK_IGNORE=0 hk check --all` to include all files.
+"""
+
 [verbose]
 type = "u8"
 default = 0

@@ -18,7 +18,7 @@ hk hooks perform the following assuming `fix = true`:
   * if a `check_list_files` command is available on the linter, hk will use the output of that command to filter the list of files to get write locks for and call "fix" on.
   * if `check_first = false` on the linter, hk will run the "fix" command after fetching write locks, blocking other linters from running. You
     should avoid this performance.
-  * if any of the files have been modified and match the `stage` globs, they will be added to the git index
+  * if any of the files have been modified and match the `stage` globs, they will be added to the git index (defaults to the step's `glob` for steps with a `fix` command)
 * untracked/unstaged changes are unstashed
 
 If `fix = false`, hk will just run the `check` steps and won't need to deal with read/write locks as nothing should be making modifications.
@@ -34,7 +34,6 @@ hooks {
         steps {
             ["cargo-fmt"] {
                 glob = "*.rs"
-                stage = "*.rs"
                 check_first = true
                 check = "cargo fmt --check"
                 fix = "cargo fmt"

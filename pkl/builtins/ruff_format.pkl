@@ -5,13 +5,16 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Python"
   description = "Fast Python formatter (part of ruff)"
+  project_indicators {
+    new { file = "pyproject.toml" }
+    new { file = "requirements.txt" }
+  }
 }
 ruff_format = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")
-  stage = "<JOB_FILES>"
-  check = "ruff format --force-exclude --check {{ files }}"
-  check_diff = "ruff format --force-exclude --diff {{ files }}"
-  fix = "ruff format --force-exclude {{ files }}"
+  check = "ruff format --quiet --force-exclude --check {{ files }}"
+  check_diff = "ruff format --quiet --force-exclude --diff {{ files }}"
+  fix = "ruff format --quiet --force-exclude {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.py"

@@ -49,10 +49,11 @@ PKL
     assert_success
     assert_output --partial "unstaged content"
 
-    # Verify patch filename format: {repo}-{timestamp}-{hash}.patch
+    # Verify patch filename format: {repo}-{timestamp}-{haiku}.patch
+    # Haiku format is {word}-{2digits}, e.g., "forest-42"
     run bash -c "ls $HK_STATE_DIR/patches/*.patch"
     assert_success
-    assert_output --regexp ".*-[0-9]{8}-[0-9]{6}-[a-f0-9]{8}\.patch"
+    assert_output --regexp ".*-[0-9]{8}-[0-9]{6}-[a-z]+-[0-9]{2}\.patch"
 }
 
 

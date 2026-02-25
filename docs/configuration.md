@@ -8,11 +8,31 @@ outline: "deep"
 
 hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.org/) from Apple.
 
+### Config File Paths
+
+hk searches for config files in the following order (first match wins):
+
+| Precedence | Path | Purpose |
+|---|---|---|
+| 1 | `hk.local.pkl` | Local overrides, should not be committed to source control |
+| 2 | `.config/hk.local.pkl` | Local overrides, nested under `.config/` |
+| 3 | `hk.pkl` | Standard project config |
+| 4 | `.config/hk.pkl` | Standard project config, nested under `.config/` |
+
+hk walks up from the current directory to `/`, checking each directory for these files. The first file found is used.
+
+Set [`HK_FILE`](/environment_variables#hk-file) to override the search and use a specific path.
+
+> [!NOTE]
+> Unlike mise, hk does not merge multiple config files or support `conf.d/` directories. Local overrides use Pkl's `amends` mechanism instead (see [`hk.local.pkl`](#hk-local-pkl)).
+
+### Example
+
 Here's a basic `hk.pkl` file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // linters can be manually defined
@@ -20,12 +40,13 @@ local linters = new Mapping<String, Step> {
         // the files to run the linter on, if no files are matched, the linter will be skipped
         // this will filter the staged files and return the subset matching these globs
         glob = List("*.js", "*.ts")
-        // these files will be staged after the fix step modifies them
-        stage = List("*.js", "*.ts")
         // the command to run that makes no changes
         check = "eslint {{files}}"
         // the command to run that fixes the files (used by default)
         fix = "eslint --fix {{files}}"
+        // optional: files matching these globs will be staged after fix modifies them
+        // defaults to the step's glob when staging is enabled, so usually not needed
+        // stage = List("*.js", "*.ts")
     }
     // linters can also be specified with the Builtins pkl library
     ["prettier"] = Builtins.prettier
@@ -160,8 +181,8 @@ The hkrc file follows the same format as `hk.pkl` and can be used to define glob
 Example hkrc file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Builtins.pkl"
 
 local linters {
     ["prettier"] = Builtins.prettier

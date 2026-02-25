@@ -1,29 +1,4 @@
 #!/usr/bin/env bash
 #MISE description="Generate pkl/Builtins.pkl from all builtins/*.pkl files"
-
 set -euo pipefail
-
-cat > pkl/Builtins.pkl << 'HEADER'
-// THIS FILE IS GENERATED: Run 'mise run pkl:gen' to generate.
-
-import* "builtins/*.pkl" as Builtins
-
-/// Internal class for annotating hk builtins for documentation generation
-class meta extends Annotation {
-  /// Category for documentation grouping (e.g., "JavaScript/TypeScript", "Python", "Rust")
-  category: String?
-
-  /// Human-readable description of the step for documentation
-  description: String?
-}
-
-HEADER
-
-for filepath in pkl/builtins/*.pkl; do
-    filename=$(basename "$filepath" .pkl)
-    identifier=${filename//-/_}
-    echo "$identifier = Builtins[\"builtins/$filename.pkl\"].$identifier" >> pkl/Builtins.pkl
-done
-
-# NB: `|| true` to workaround `pkl format` exiting 11 after formatting...
-pkl format --write pkl/Builtins.pkl || true
+python3 scripts/gen_builtins.py

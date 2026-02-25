@@ -5,12 +5,15 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Fast formatter and linter"
+  project_indicators {
+    new { file = "package.json"; contains = "\"@biomejs/biome\"" }
+    new { file = "biome.json" }
+  }
 }
 biome = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
-  stage = "<JOB_FILES>"
-  check = "biome check {{ files }}"
-  fix = "biome check --write {{ files }}"
+  check = "biome check --no-errors-on-unmatched {{ files }}"
+  fix = "biome check --write --no-errors-on-unmatched {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.ts" }
     local const before = "x=1"
@@ -19,5 +22,30 @@ biome = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+
+    local const ignoredTestMaker = new helpers.TestMaker {
+      filename = "test.ts"
+      extra_files {
+        ["biome.json"] =
+          """
+          {
+            "$schema": "https://biomejs.dev/schemas/2.3.11/schema.json",
+            "files": {
+              "includes": ["**/*.js"],
+              "ignoreUnknown": false
+            },
+            "formatter": {
+              "enabled": true,
+              "indentStyle": "space",
+              "indentWidth": 2
+            }
+          }
+          """ + "\n"
+      }
+    }
+    ["check ignored bad file"] = ignoredTestMaker.checkPass(before)
+    ["check ignored good file"] = ignoredTestMaker.checkPass(after)
+    ["fix ignored bad file"] = ignoredTestMaker.fixPass(before, before)
+    ["fix ignored good file"] = ignoredTestMaker.fixPass(after, after)
   }
 }

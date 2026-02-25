@@ -63,9 +63,9 @@ impl Step {
             }
             return Ok(());
         }
-        if let Some(condition) = &self.condition {
-            let val = EXPR_ENV.eval(condition, &ctx.hook_ctx.expr_ctx())?;
-            debug!("{self}: condition: {condition} = {val}");
+        if let Some(job_condition) = &self.job_condition {
+            let val = EXPR_ENV.eval(job_condition, &ctx.hook_ctx.expr_ctx())?;
+            debug!("{self}: condition: {job_condition} = {val}");
             if val == expr::Value::Bool(false) {
                 self.mark_skipped(ctx, &SkipReason::ConditionFalse)?;
                 return Ok(());
@@ -150,6 +150,8 @@ impl Step {
                 cmd = cmd.arg(arg);
             }
             cmd
+        } else if cfg!(windows) {
+            CmdLineRunner::new("cmd.exe").arg("/c")
         } else {
             CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
         };
@@ -326,7 +328,7 @@ impl Step {
     /// Get the shell type for this step.
     ///
     /// Parses the shell configuration to determine the shell type,
-    /// defaulting to Sh if not specified.
+    /// defaulting to Sh on Unix or Cmd on Windows if not specified.
     pub fn shell_type(&self) -> ShellType {
         let shell = self
             .shell
@@ -334,13 +336,20 @@ impl Step {
             .map(|s| s.to_string())
             .unwrap_or_default();
         let shell = shell.split_whitespace().next().unwrap_or_default();
-        let shell = shell.split("/").last().unwrap_or_default();
-        match shell {
-            "bash" => ShellType::Bash,
-            "dash" => ShellType::Dash,
-            "fish" => ShellType::Fish,
-            "sh" => ShellType::Sh,
-            "zsh" => ShellType::Zsh,
+        let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
+        // Use case-insensitive matching for shell names
+        // Include .exe variants for Windows environments (Git Bash, MSYS2, Cygwin)
+        let shell_lower = shell.to_lowercase();
+        match shell_lower.as_str() {
+            "bash" | "bash.exe" => ShellType::Bash,
+            "dash" | "dash.exe" => ShellType::Dash,
+            "fish" | "fish.exe" => ShellType::Fish,
+            "sh" | "sh.exe" => ShellType::Sh,
+            "zsh" | "zsh.exe" => ShellType::Zsh,
+            "cmd" | "cmd.exe" => ShellType::Cmd,
+            "powershell" | "powershell.exe" | "pwsh" | "pwsh.exe" => ShellType::PowerShell,
+            "" if cfg!(windows) => ShellType::Cmd,
+            "" => ShellType::Sh,
             _ => ShellType::Other(shell.to_string()),
         }
     }

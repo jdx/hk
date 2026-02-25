@@ -122,7 +122,7 @@ impl Step {
 
         // Apply profile skip only after determining files/no-files, so NoFilesToProcess wins
         // Also, if a condition is present, defer profile checks to run() so ConditionFalse wins
-        if self.condition.is_none()
+        if self.job_condition.is_none()
             && let Some(reason) = self.profile_skip_reason()
         {
             for job in jobs.iter_mut() {

@@ -5,10 +5,12 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Python"
   description = "Opinionated Python formatter"
+  project_indicators {
+    new { file = "pyproject.toml"; contains = "black" }
+  }
 }
 black = new Config.Step {
   glob = List("**/*.py")
-  stage = "<JOB_FILES>"
   check = "black --check {{ files }}"
   check_diff = "black --check --diff {{ files }}"
   fix = "black {{ files }}"

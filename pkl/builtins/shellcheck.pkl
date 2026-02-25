@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Shell"
   description = "Shell script analyzer"
+  project_indicators {
+    new { glob = "*.sh" }
+  }
 }
 shellcheck = new Config.Step {
   batch = true

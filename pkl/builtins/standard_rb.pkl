@@ -4,10 +4,12 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "Ruby Standard Style"
+  project_indicators {
+    new { file = "Gemfile"; contains = "standard" }
+  }
 }
 standard_rb = new Config.Step {
   types = List("ruby")
-  stage = "<JOB_FILES>"
   check = "standardrb {{ files }}"
   fix = "standardrb --fix {{ files }}"
 }

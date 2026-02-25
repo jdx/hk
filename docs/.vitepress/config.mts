@@ -114,5 +114,11 @@ export default defineConfig({
         src: "//gc.zgo.at/count.js",
       },
     ],
+    // OpenGraph
+    ["meta", { property: "og:site_name", content: "hk" }],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:image", content: "https://hk.jdx.dev/android-chrome-512x512.png" }],
+    ["meta", { name: "twitter:card", content: "summary" }],
+    ["meta", { name: "twitter:image", content: "https://hk.jdx.dev/android-chrome-512x512.png" }],
   ],
 })

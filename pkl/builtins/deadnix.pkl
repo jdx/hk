@@ -1,0 +1,12 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Nix"
+  description = "Scan Nix files for dead code"
+}
+deadnix = new Config.Step {
+  glob = "**/*.nix"
+  check = "deadnix --fail {{ files }}"
+  fix = "deadnix --edit {{ files }}"
+}

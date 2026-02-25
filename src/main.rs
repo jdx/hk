@@ -5,6 +5,7 @@ use std::{panic, time::Duration};
 
 pub use eyre::Result;
 
+mod builtins;
 mod cache;
 mod cli;
 mod config;
@@ -14,6 +15,7 @@ mod error;
 mod file_rw_locks;
 mod file_type;
 mod git;
+mod git_util;
 mod glob;
 mod hash;
 mod hook;

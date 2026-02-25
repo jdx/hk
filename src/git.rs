@@ -196,15 +196,14 @@ impl Git {
             }
         };
 
-        // Generate timestamp and short hash for unique filename
+        // Generate timestamp and haiku for unique, memorable filename
         let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-        let short_hash = if let Some(commit) = &self.stash_commit {
-            commit.chars().take(8).collect::<String>()
-        } else {
-            "unknown".to_string()
-        };
+        let haiku = xx::rand::haiku(&xx::rand::HaikuOptions {
+            words: 1,
+            ..Default::default()
+        });
 
-        let patch_filename = format!("{}-{}-{}.patch", repo_name, timestamp, short_hash);
+        let patch_filename = format!("{}-{}-{}.patch", repo_name, timestamp, haiku);
         let patch_path = patches_dir.join(&patch_filename);
 
         // Generate patch using git stash show

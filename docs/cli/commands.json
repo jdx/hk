@@ -208,6 +208,16 @@
             "global": false
           },
           {
+            "name": "pr",
+            "usage": "--pr",
+            "help": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+            "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+            "short": [],
+            "long": ["pr"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "skip-step",
             "usage": "--skip-step… <STEP>",
             "help": "Skip specific step(s)",
@@ -593,6 +603,16 @@
             "global": false
           },
           {
+            "name": "pr",
+            "usage": "--pr",
+            "help": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+            "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+            "short": [],
+            "long": ["pr"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "skip-step",
             "usage": "--skip-step… <STEP>",
             "help": "Skip specific step(s)",
@@ -678,7 +698,7 @@
       },
       "init": {
         "full_cmd": ["init"],
-        "usage": "init [-f --force] [--mise]",
+        "usage": "init [FLAGS]",
         "subcommands": {},
         "args": [],
         "flags": [
@@ -689,6 +709,16 @@
             "help_first_line": "Overwrite existing hk.pkl file",
             "short": ["f"],
             "long": ["force"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "interactive",
+            "usage": "-i --interactive",
+            "help": "Interactive mode: select linters and hooks manually",
+            "help_first_line": "Interactive mode: select linters and hooks manually",
+            "short": ["i"],
+            "long": ["interactive"],
             "hide": false,
             "global": false
           },
@@ -1004,6 +1034,16 @@
                 "global": false
               },
               {
+                "name": "pr",
+                "usage": "--pr",
+                "help": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "short": [],
+                "long": ["pr"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -1241,6 +1281,16 @@
                 "help_first_line": "Disable auto-staging of fixed files",
                 "short": [],
                 "long": ["no-stage"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "pr",
+                "usage": "--pr",
+                "help": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "short": [],
+                "long": ["pr"],
                 "hide": false,
                 "global": false
               },
@@ -1501,6 +1551,16 @@
                 "help_first_line": "Disable auto-staging of fixed files",
                 "short": [],
                 "long": ["no-stage"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "pr",
+                "usage": "--pr",
+                "help": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "short": [],
+                "long": ["pr"],
                 "hide": false,
                 "global": false
               },
@@ -1773,6 +1833,16 @@
                 "global": false
               },
               {
+                "name": "pr",
+                "usage": "--pr",
+                "help": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+                "short": [],
+                "long": ["pr"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -2014,6 +2084,16 @@
             "help_first_line": "Disable auto-staging of fixed files",
             "short": [],
             "long": ["no-stage"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "pr",
+            "usage": "--pr",
+            "help": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+            "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
+            "short": [],
+            "long": ["pr"],
             "hide": false,
             "global": false
           },
@@ -2923,7 +3003,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.32.0",
+  "version": "1.36.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

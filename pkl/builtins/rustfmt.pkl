@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 rustfmt = new Config.Step {
   glob = "**/*.rs"
-  stage = "<JOB_FILES>"
   check = "rustfmt --check --edition 2024 {{ files }}"
   check_list_files = "rustfmt --check --edition 2024 --files-with-diff {{ files }}"
   fix = "rustfmt --edition 2024 {{ files }}"

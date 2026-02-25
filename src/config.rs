@@ -339,7 +339,7 @@ fn run_pkl<T: DeserializeOwned>(subcommand: &[&str], path: &Path) -> Result<T> {
         Ok(result) => Ok(result),
         Err(err) => {
             // if pkl bin is not installed, try via mise
-            if which::which("pkl").is_err() {
+            if xx::file::which("pkl").is_none() {
                 if let Ok(result) = try_run("mise x -- pkl") {
                     return Ok(result);
                 }
@@ -369,7 +369,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
             Make sure your 'amends' declaration uses a valid path or package URL.\n\
             Examples:\n\
             • amends \"pkl/Config.pkl\" (if vendored)\n\
-            • amends \"package://github.com/jdx/hk/releases/download/v1.32.0/hk@1.32.0#/Config.pkl\"",
+            • amends \"package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Config.pkl\"",
             path.display()
         );
     }

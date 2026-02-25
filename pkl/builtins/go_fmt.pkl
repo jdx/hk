@@ -5,10 +5,12 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Go formatter"
+  project_indicators {
+    new { file = "go.mod" }
+  }
 }
 go_fmt = new Config.Step {
   glob = "**/*.go"
-  stage = "<JOB_FILES>"
   check_list_files =
     """
     FILES=$(gofmt -s -l {{files}})

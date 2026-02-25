@@ -8,7 +8,6 @@ import "./test/helpers.pkl"
 }
 rumdl = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
-  stage = "<JOB_FILES>"
   check_diff = "rumdl check --diff {{ files }}"
   fix = "rumdl check --fix {{ files }}"
   tests {

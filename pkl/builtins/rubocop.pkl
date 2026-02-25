@@ -5,10 +5,12 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Ruby"
   description = "Ruby style guide"
+  project_indicators {
+    new { file = "Gemfile" }
+  }
 }
 rubocop = new Config.Step {
   types = List("ruby")
-  stage = "<JOB_FILES>"
   // `--force-exclusion`: Any files excluded by `Exclude` in RuboCop configuration files will be excluded, even if given explicitly as arguments.
   check = "rubocop --force-exclusion {{ files }}"
   check_list_files = "rubocop --force-exclusion --list-target-files {{ files }}"

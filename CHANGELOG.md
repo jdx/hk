@@ -1,5 +1,136 @@
 # Changelog
 
+## [1.36.0](https://github.com/jdx/hk/compare/v1.35.0..v1.36.0) - 2026-02-09
+
+### 🚀 Features
+
+- **(cmake_format)** init by [@matdibu](https://github.com/matdibu) in [#672](https://github.com/jdx/hk/pull/672)
+- **(deadnix)** init by [@matdibu](https://github.com/matdibu) in [#670](https://github.com/jdx/hk/pull/670)
+- **(hclfmt)** init by [@matdibu](https://github.com/matdibu) in [#675](https://github.com/jdx/hk/pull/675)
+- **(nil)** init by [@matdibu](https://github.com/matdibu) in [#669](https://github.com/jdx/hk/pull/669)
+- **(nixf_diagnose)** init by [@matdibu](https://github.com/matdibu) in [#671](https://github.com/jdx/hk/pull/671)
+- **(ruff_format)** use `--quiet` by [@matdibu](https://github.com/matdibu) in [#667](https://github.com/jdx/hk/pull/667)
+- **(tombi)** use `--quiet` by [@matdibu](https://github.com/matdibu) in [#676](https://github.com/jdx/hk/pull/676)
+- add ty builtin by [@joonas](https://github.com/joonas) in [#566](https://github.com/jdx/hk/pull/566)
+- add --pr shortcut flag for checking PR-changed files by [@jdx](https://github.com/jdx) in [#660](https://github.com/jdx/hk/pull/660)
+- add tmpdir step test option by [@thejcannon](https://github.com/thejcannon) in [#663](https://github.com/jdx/hk/pull/663)
+
+### 🐛 Bug Fixes
+
+- **(bultins)** respect typos exclusions with --force-exclude by [@CallumKerson](https://github.com/CallumKerson) in [#659](https://github.com/jdx/hk/pull/659)
+- **(docs)** escape angle brackets in --pr flag description by [@jdx](https://github.com/jdx) in [#666](https://github.com/jdx/hk/pull/666)
+- **(docs)** use valid <br> tags instead of </br> in sea shanty by [@jdx](https://github.com/jdx) in [12e17f8](https://github.com/jdx/hk/commit/12e17f85a8a13ea67d1e7d0f2ea03f25e7db390d)
+- **(go_fumpt)** comment out broken check by [@matdibu](https://github.com/matdibu) in [#668](https://github.com/jdx/hk/pull/668)
+- **(yamllint)** enable strict mode by [@matdibu](https://github.com/matdibu) in [#673](https://github.com/jdx/hk/pull/673)
+- respect ignore when recursing by [@thejcannon](https://github.com/thejcannon) in [#661](https://github.com/jdx/hk/pull/661)
+- Deduplicate files in check-case-conflict to prevent false positives by [@safinn](https://github.com/safinn) in [#678](https://github.com/jdx/hk/pull/678)
+- Fix building of nix flake wiwth the inclusion of git subomdules by [@jeffutter](https://github.com/jeffutter) in [#681](https://github.com/jdx/hk/pull/681)
+
+### 🛡️ Security
+
+- add tone calibration to release notes prompt by [@jdx](https://github.com/jdx) in [#679](https://github.com/jdx/hk/pull/679)
+- add opengraph meta tags by [@jdx](https://github.com/jdx) in [#685](https://github.com/jdx/hk/pull/685)
+
+### 🔍 Other Changes
+
+- Use tmpdir for the tests by [@thejcannon](https://github.com/thejcannon) in [#677](https://github.com/jdx/hk/pull/677)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#658](https://github.com/jdx/hk/pull/658)
+- update anthropics/claude-code-action digest to b113f49 by [@renovate[bot]](https://github.com/renovate[bot]) in [#684](https://github.com/jdx/hk/pull/684)
+- update actions/checkout digest to de0fac2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#683](https://github.com/jdx/hk/pull/683)
+
+### New Contributors
+
+- @jeffutter made their first contribution in [#681](https://github.com/jdx/hk/pull/681)
+- @matdibu made their first contribution in [#673](https://github.com/jdx/hk/pull/673)
+- @safinn made their first contribution in [#678](https://github.com/jdx/hk/pull/678)
+- @CallumKerson made their first contribution in [#659](https://github.com/jdx/hk/pull/659)
+
+## [1.35.0](https://github.com/jdx/hk/compare/v1.34.0..v1.35.0) - 2026-02-01
+
+### 🚀 Features
+
+- **(init)** add auto-detection and interactive mode by [@jdx](https://github.com/jdx) in [#656](https://github.com/jdx/hk/pull/656)
+- **(stash)** use haiku names for stash patch backups by [@jdx](https://github.com/jdx) in [#655](https://github.com/jdx/hk/pull/655)
+- add git worktree support by [@jdx](https://github.com/jdx) in [#651](https://github.com/jdx/hk/pull/651)
+- add "did you mean?" suggestions for typos by [@jdx](https://github.com/jdx) in [#654](https://github.com/jdx/hk/pull/654)
+
+### 🚜 Refactor
+
+- use xx utilities and drop unused dependencies by [@jdx](https://github.com/jdx) in [#653](https://github.com/jdx/hk/pull/653)
+
+## [1.34.0](https://github.com/jdx/hk/compare/v1.33.0..v1.34.0) - 2026-01-27
+
+### 🚀 Features
+
+- add Windows CI testing and improve Windows support by [@jdx](https://github.com/jdx) in [#648](https://github.com/jdx/hk/pull/648)
+
+### 🐛 Bug Fixes
+
+- use system CA certificates for HTTPS requests by [@lobaorn-bitso](https://github.com/lobaorn-bitso) in [#650](https://github.com/jdx/hk/pull/650)
+
+### 📚 Documentation
+
+- clarify fix type is for CLI bugs only by [@jdx](https://github.com/jdx) in [#649](https://github.com/jdx/hk/pull/649)
+
+### New Contributors
+
+- @lobaorn-bitso made their first contribution in [#650](https://github.com/jdx/hk/pull/650)
+
+## [1.33.0](https://github.com/jdx/hk/compare/v1.32.0..v1.33.0) - 2026-01-26
+
+### 🚀 Features
+
+- add LLM-generated creative release titles by [@jdx](https://github.com/jdx) in [#624](https://github.com/jdx/hk/pull/624)
+- add `hook` and `step` tera contexts by [@thejcannon](https://github.com/thejcannon) in [#645](https://github.com/jdx/hk/pull/645)
+- Add `step_condition` by [@thejcannon](https://github.com/thejcannon) in [#644](https://github.com/jdx/hk/pull/644)
+
+### 🐛 Bug Fixes
+
+- strip LLM preamble from generated release notes by [@jdx](https://github.com/jdx) in [#618](https://github.com/jdx/hk/pull/618)
+- start the job progress hidden by [@thejcannon](https://github.com/thejcannon) in [#631](https://github.com/jdx/hk/pull/631)
+- default stage to <JOB_FILES> for fix steps by [@chadxz](https://github.com/chadxz) in [#632](https://github.com/jdx/hk/pull/632)
+- remove verbose output from taplo by [@vmeurisse](https://github.com/vmeurisse) in [#364](https://github.com/jdx/hk/pull/364)
+- shfmt should use `--apply-ignore` by [@thejcannon](https://github.com/thejcannon) in [#643](https://github.com/jdx/hk/pull/643)
+- Tell biome not to error on unmatched files by [@thejcannon](https://github.com/thejcannon) in [#641](https://github.com/jdx/hk/pull/641)
+- don't thank @jdx in LLM-generated release notes by [@jdx](https://github.com/jdx) in [#646](https://github.com/jdx/hk/pull/646)
+
+### 🚜 Refactor
+
+- Add `before`/`after` variables to `ruff_format.pkl` tests by [@thejcannon](https://github.com/thejcannon) in [#623](https://github.com/jdx/hk/pull/623)
+- test expectations into helpers by [@thejcannon](https://github.com/thejcannon) in [#625](https://github.com/jdx/hk/pull/625)
+- Remove dead code in `markdownlint` tests by [@thejcannon](https://github.com/thejcannon) in [#642](https://github.com/jdx/hk/pull/642)
+
+### 📚 Documentation
+
+- improve CLAUDE.md with workspace structure and testing info by [@jdx](https://github.com/jdx) in [#621](https://github.com/jdx/hk/pull/621)
+- Add linebreaks to shanty by [@thejcannon](https://github.com/thejcannon) in [#626](https://github.com/jdx/hk/pull/626)
+- Fix `condition` docstring to use `exec` by [@thejcannon](https://github.com/thejcannon) in [#630](https://github.com/jdx/hk/pull/630)
+- add conventional commit guidance to CLAUDE.md by [@jdx](https://github.com/jdx) in [4d59edf](https://github.com/jdx/hk/commit/4d59edf9f7c91177e007123d96e69888cff90d57)
+
+### 🧪 Testing
+
+- markdownlint builtin by [@thejcannon](https://github.com/thejcannon) in [#628](https://github.com/jdx/hk/pull/628)
+- gofmt by [@thejcannon](https://github.com/thejcannon) in [#603](https://github.com/jdx/hk/pull/603)
+
+### 🔍 Other Changes
+
+- improve release title format for robustness by [@jdx](https://github.com/jdx) in [#639](https://github.com/jdx/hk/pull/639)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action digest to 6d1e696 by [@renovate[bot]](https://github.com/renovate[bot]) in [#634](https://github.com/jdx/hk/pull/634)
+- update anthropics/claude-code-action digest to 8341a56 by [@renovate[bot]](https://github.com/renovate[bot]) in [#633](https://github.com/jdx/hk/pull/633)
+- update actions/checkout action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#635](https://github.com/jdx/hk/pull/635)
+- update apple-actions/import-codesign-certs action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#636](https://github.com/jdx/hk/pull/636)
+
+### New Contributors
+
+- @vmeurisse made their first contribution in [#364](https://github.com/jdx/hk/pull/364)
+- @chadxz made their first contribution in [#632](https://github.com/jdx/hk/pull/632)
+
 ## [1.32.0](https://github.com/jdx/hk/compare/v1.31.0..v1.32.0) - 2026-01-19
 
 ### 🚀 Features

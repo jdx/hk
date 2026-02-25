@@ -10,6 +10,7 @@
 //! - Progress tracking and error aggregation
 
 use crate::error::Error;
+use crate::hook::SkipReason;
 use crate::step_context::StepContext;
 use crate::step_job::StepJobStatus;
 use crate::{Result, glob, tera};
@@ -18,10 +19,14 @@ use itertools::Itertools;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::sync::OwnedSemaphorePermit;
 
+use super::expr_env::EXPR_ENV;
 use super::types::{RunType, Step};
+
+/// Default stage pattern for steps with fix commands when staging is enabled.
+static DEFAULT_STAGE: LazyLock<Vec<String>> = LazyLock::new(|| vec!["<JOB_FILES>".to_string()]);
 
 impl Step {
     /// Execute all jobs for this step.
@@ -48,8 +53,19 @@ impl Step {
         semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
         let semaphore = self.wait_for_depends(&ctx, semaphore).await?;
-        let files = ctx.hook_ctx.files();
         let ctx = Arc::new(ctx);
+
+        if let Some(step_condition) = &self.step_condition {
+            let val = EXPR_ENV.eval(step_condition, &ctx.hook_ctx.expr_ctx())?;
+            debug!("{self}: condition: {step_condition} = {val}");
+            if val == expr::Value::Bool(false) {
+                self.mark_skipped(&ctx, &SkipReason::ConditionFalse)?;
+                ctx.hook_ctx.dec_total_jobs(1);
+                return Ok(());
+            }
+        }
+
+        let files = ctx.hook_ctx.files();
         let mut jobs = self.build_step_jobs(
             &files,
             ctx.hook_ctx.run_type,
@@ -254,10 +270,18 @@ impl Step {
     ) -> Result<()> {
         // Build stage pathspecs; if `dir` is set, stage entries are relative to it
         // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
+        // Determine effective stage: explicit setting wins, otherwise default to <JOB_FILES>
+        // for steps with fix commands when staging is enabled.
+        let effective_stage: Option<&Vec<String>> = if self.stage.is_some() {
+            self.stage.as_ref()
+        } else if ctx.hook_ctx.should_stage && self.fix.is_some() {
+            Some(&DEFAULT_STAGE)
+        } else {
+            None
+        };
+
         // Special case: if stage is exactly "<JOB_FILES>", use actual_job_files directly
-        let stage_only_job_files = self
-            .stage
-            .as_ref()
+        let stage_only_job_files = effective_stage
             .map(|v| v.len() == 1 && v[0] == "<JOB_FILES>")
             .unwrap_or(false);
 
@@ -265,8 +289,7 @@ impl Step {
             // Don't render the template, we'll use actual_job_files directly
             vec![]
         } else {
-            self.stage
-                .as_ref()
+            effective_stage
                 .unwrap_or(&vec![])
                 .iter()
                 .map(|s| tera::render(s, &ctx.hook_ctx.tctx))

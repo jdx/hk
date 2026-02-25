@@ -4,10 +4,12 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Pluggable JavaScript linter"
+  project_indicators {
+    new { file = "package.json"; contains = "\"eslint\"" }
+  }
 }
 eslint = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
-  stage = "<JOB_FILES>"
   batch = true
   check = "eslint {{ files }}"
   fix = "eslint --fix {{ files }}"
