@@ -43,7 +43,7 @@ impl Step {
         // Use -p1 to strip prefixes if present, -p0 otherwise
         let mut has_a_prefix = false;
         let mut has_b_prefix = false;
-        for line in stdout.lines() {
+        for line in diff_content.lines() {
             if line.starts_with("--- a/") {
                 has_a_prefix = true;
             } else if line.starts_with("+++ b/") {

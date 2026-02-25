@@ -53,17 +53,26 @@ pub use types::{OutputSummary, Pattern, RunType, Script, Step};
 #[allow(unused_imports)]
 pub use filtering::{is_binary_file, is_symlink_file};
 
-/// Strip ".orig" from "---" lines when the next "+++" line doesn't have it.
+/// Strip ".orig" suffix from "---" lines when the next "+++" line doesn't have it.
 /// Go tools like gofmt add ".orig" only to the "---" line.
 pub(crate) fn strip_orig_suffix(diff: &str) -> String {
     let mut result: Vec<String> = Vec::new();
     let mut lines = diff.lines().peekable();
     while let Some(line) = lines.next() {
-        if line.starts_with("--- ") && line.contains(".orig") {
+        if line.starts_with("--- ") {
             if let Some(next) = lines.peek() {
                 if next.starts_with("+++ ") && !next.contains(".orig") {
-                    result.push(line.replace(".orig", ""));
-                    continue;
+                    // Extract path portion (before any tab-separated timestamp)
+                    let after_prefix = &line["--- ".len()..];
+                    let (path, rest) = after_prefix.split_once('\t').unwrap_or((after_prefix, ""));
+                    if let Some(stripped) = path.strip_suffix(".orig") {
+                        if rest.is_empty() {
+                            result.push(format!("--- {stripped}"));
+                        } else {
+                            result.push(format!("--- {stripped}\t{rest}"));
+                        }
+                        continue;
+                    }
                 }
             }
         }
