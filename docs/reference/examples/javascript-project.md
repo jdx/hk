@@ -65,4 +65,3 @@ Example configuration for a JavaScript/TypeScript project
 ## Key Features
 
 - Standard configuration
-

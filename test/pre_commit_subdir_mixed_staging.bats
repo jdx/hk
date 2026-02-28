@@ -95,5 +95,3 @@ prepare_repo_tree_with_mixed_states() {
     run bash -lc "grep -q '// u4' d/e/w.ts && echo ok || echo fail"
     assert_line 'ok'
 }
-
-

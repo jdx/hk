@@ -81,4 +81,3 @@ Example configuration for a Python project
 ## Key Features
 
 - Standard configuration
-
