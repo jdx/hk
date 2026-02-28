@@ -20,4 +20,4 @@ Output a diff of the change. Cannot use with `fix`
 
 ### `-f --fix`
 
-Fix files by adding final newline
+Fix files to end with exactly one newline
