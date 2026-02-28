@@ -1,6 +1,6 @@
 use crate::Result;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::PathBuf;
 
 /// Check for and optionally fix missing final newlines in files
@@ -36,7 +36,7 @@ impl EndOfFileFixer {
                     print!("{}", diff);
                     found_issues = true;
                 }
-            } else if !has_final_newline(file_path)? {
+            } else if !has_proper_ending(file_path)? {
                 println!("{}", file_path.display());
                 found_issues = true;
             }
@@ -79,15 +79,16 @@ fn is_text_file(path: &PathBuf) -> Result<bool> {
     Ok(std::str::from_utf8(&buffer).is_ok())
 }
 
-/// Generate a unified diff showing the addition of a final newline
-/// Returns None if file already has final newline
+/// Generate a unified diff showing the fix
+/// Returns None if file already has proper ending
 fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
-    if has_final_newline(path)? {
+    if has_proper_ending(path)? {
         return Ok(None);
     }
 
     let original = fs::read_to_string(path)?;
-    let fixed = format!("{}\n", original);
+    let trimmed = original.trim_end_matches('\n');
+    let fixed = format!("{trimmed}\n");
     let path_str = path.display().to_string();
     let diff = crate::diff::render_unified_diff(
         &original,
@@ -99,37 +100,46 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
     Ok(Some(diff))
 }
 
-/// Check if a file has a final newline
-fn has_final_newline(path: &PathBuf) -> Result<bool> {
+/// Check if a file has a proper ending (exactly one trailing newline)
+fn has_proper_ending(path: &PathBuf) -> Result<bool> {
     let metadata = fs::metadata(path)?;
     if metadata.len() == 0 {
         return Ok(true); // Empty files are considered correct
     }
 
-    // Read only the last byte
-    let mut file = fs::File::open(path)?;
-    let mut last_byte = [0u8; 1];
-
-    // Seek to last byte and read it
     use std::io::Seek;
-    file.seek(std::io::SeekFrom::End(-1))?;
-    file.read_exact(&mut last_byte)?;
+    let mut file = fs::File::open(path)?;
 
-    Ok(last_byte[0] == b'\n')
+    if metadata.len() == 1 {
+        let mut last_byte = [0u8; 1];
+        file.read_exact(&mut last_byte)?;
+        return Ok(last_byte[0] == b'\n');
+    }
+
+    // Read last 2 bytes to check for exactly one trailing newline
+    let mut last_two = [0u8; 2];
+    file.seek(std::io::SeekFrom::End(-2))?;
+    file.read_exact(&mut last_two)?;
+
+    // File should end with \n but the byte before it should not be \n
+    Ok(last_two[1] == b'\n' && last_two[0] != b'\n')
 }
 
-/// Add final newline to a file if missing
+/// Fix a file to end with exactly one newline
 fn fix_end_of_file(path: &PathBuf) -> Result<()> {
     let metadata = fs::metadata(path)?;
     if metadata.len() == 0 {
         return Ok(()); // Empty files don't need fixing
     }
 
-    if !has_final_newline(path)? {
-        // Open file in append mode and add newline
-        let mut file = fs::OpenOptions::new().append(true).open(path)?;
-        writeln!(file)?;
+    if has_proper_ending(path)? {
+        return Ok(());
     }
+
+    let content = fs::read_to_string(path)?;
+    let trimmed = content.trim_end_matches('\n');
+    let fixed = format!("{trimmed}\n");
+    fs::write(path, fixed)?;
 
     Ok(())
 }
@@ -141,24 +151,45 @@ mod tests {
     use tempfile::NamedTempFile;
 
     #[test]
-    fn test_has_final_newline_true() {
+    fn test_has_proper_ending_true() {
         let mut file = NamedTempFile::new().unwrap();
         writeln!(file, "line1").unwrap();
         writeln!(file, "line2").unwrap();
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();
-        assert!(has_final_newline(&path).unwrap());
+        assert!(has_proper_ending(&path).unwrap());
     }
 
     #[test]
-    fn test_has_final_newline_false() {
+    fn test_has_proper_ending_missing_newline() {
         let mut file = NamedTempFile::new().unwrap();
         write!(file, "line1\nline2").unwrap();
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();
-        assert!(!has_final_newline(&path).unwrap());
+        assert!(!has_proper_ending(&path).unwrap());
+    }
+
+    #[test]
+    fn test_has_proper_ending_extra_newlines() {
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "line1\nline2\n\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(!has_proper_ending(&path).unwrap());
+    }
+
+    #[test]
+    fn test_has_proper_ending_single_newline_file() {
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        // A file containing only \n has len==1, which is handled as a special case
+        assert!(has_proper_ending(&path).unwrap());
     }
 
     #[test]
@@ -170,13 +201,13 @@ mod tests {
         let path = file.path().to_path_buf();
 
         // Should not have final newline
-        assert!(!has_final_newline(&path).unwrap());
+        assert!(!has_proper_ending(&path).unwrap());
 
         // Fix it
         fix_end_of_file(&path).unwrap();
 
         // Should now have final newline
-        assert!(has_final_newline(&path).unwrap());
+        assert!(has_proper_ending(&path).unwrap());
 
         // Verify content
         let content = fs::read_to_string(&path).unwrap();
@@ -192,8 +223,8 @@ mod tests {
 
         let path = file.path().to_path_buf();
 
-        // Should already have final newline
-        assert!(has_final_newline(&path).unwrap());
+        // Should already have proper ending
+        assert!(has_proper_ending(&path).unwrap());
 
         let content_before = fs::read_to_string(&path).unwrap();
 
@@ -205,12 +236,34 @@ mod tests {
     }
 
     #[test]
+    fn test_fix_extra_trailing_newlines() {
+        let mut file = NamedTempFile::new().unwrap();
+        write!(file, "line1\nline2\n\n\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+
+        // Should detect extra trailing newlines
+        assert!(!has_proper_ending(&path).unwrap());
+
+        // Fix it
+        fix_end_of_file(&path).unwrap();
+
+        // Should now have proper ending
+        assert!(has_proper_ending(&path).unwrap());
+
+        // Verify content
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content, "line1\nline2\n");
+    }
+
+    #[test]
     fn test_empty_file() {
         let file = NamedTempFile::new().unwrap();
         let path = file.path().to_path_buf();
 
         // Empty file is considered correct
-        assert!(has_final_newline(&path).unwrap());
+        assert!(has_proper_ending(&path).unwrap());
 
         // Fix should do nothing
         fix_end_of_file(&path).unwrap();
