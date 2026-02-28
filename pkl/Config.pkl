@@ -218,6 +218,21 @@ class Hook {
   /// ```
   stash: StashMethod?
 
+  /// Environment variables specific to this hook.
+  /// These are merged into each step's environment variables, with step-level env taking precedence.
+  ///
+  /// ```pkl
+  /// hooks {
+  ///   ["pre-push"] {
+  ///     env {
+  ///       ["HK_PROFILES"] = "types"
+  ///     }
+  ///     steps = linters
+  ///   }
+  /// }
+  /// ```
+  env: Mapping<String, String> = new Mapping<String, String> {}
+
   /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
   report: (String | Script)?
 
