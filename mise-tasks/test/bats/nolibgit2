@@ -5,7 +5,7 @@
 
 set -eu
 
-tests=$(rg --files-with-matches git "${usage_test}" --glob "test/*.bats" || true | tr '\n' ' ')
+tests=$(rg --files-with-matches git "${usage_test}" --glob "test/**/*.bats" --glob "!test/bats/**" || true | tr '\n' ' ')
 if [ "$tests" ]; then
   bats --jobs 16 $tests
 fi
