@@ -3003,7 +3003,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.36.0",
+  "version": "1.37.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

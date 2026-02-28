@@ -31,8 +31,8 @@ Set [`HK_FILE`](/environment_variables#hk-file) to override the search and use a
 Here's a basic `hk.pkl` file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.37.0/hk@1.37.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.37.0/hk@1.37.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // linters can be manually defined
@@ -181,8 +181,8 @@ The hkrc file follows the same format as `hk.pkl` and can be used to define glob
 Example hkrc file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.37.0/hk@1.37.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.37.0/hk@1.37.0#/Builtins.pkl"
 
 local linters {
     ["prettier"] = Builtins.prettier

@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.37.0](https://github.com/jdx/hk/compare/v1.36.0..v1.37.0) - 2026-02-28
+
+### 🚀 Features
+
+- **(hook)** add env support to hooks by [@jdx](https://github.com/jdx) in [#709](https://github.com/jdx/hk/pull/709)
+- parse Go-style diffs by [@jdx](https://github.com/jdx) in [#704](https://github.com/jdx/hk/pull/704)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** strip extra trailing newlines in end-of-file-fixer by [@jdx](https://github.com/jdx) in [#708](https://github.com/jdx/hk/pull/708)
+- **(release)** write release notes to file instead of capturing stdout by [@jdx](https://github.com/jdx) in [#688](https://github.com/jdx/hk/pull/688)
+- **(release)** make release notes editorialization non-blocking by [@jdx](https://github.com/jdx) in [#690](https://github.com/jdx/hk/pull/690)
+
+### 📚 Documentation
+
+- document config file search paths by [@ivy](https://github.com/ivy) in [#701](https://github.com/jdx/hk/pull/701)
+- require AI disclosure on GitHub comments by [@jdx](https://github.com/jdx) in [#703](https://github.com/jdx/hk/pull/703)
+
+### 🔍 Other Changes
+
+- replace gen-release-notes script with communique by [@jdx](https://github.com/jdx) in [#700](https://github.com/jdx/hk/pull/700)
+- add autofix.ci workflow by [@jdx](https://github.com/jdx) in [#705](https://github.com/jdx/hk/pull/705)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#686](https://github.com/jdx/hk/pull/686)
+- update taiki-e/upload-rust-binary-action digest to f391289 by [@renovate[bot]](https://github.com/renovate[bot]) in [#692](https://github.com/jdx/hk/pull/692)
+- update anthropics/claude-code-action digest to c22f7c3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#691](https://github.com/jdx/hk/pull/691)
+- update rust crate libc to v0.2.181 by [@renovate[bot]](https://github.com/renovate[bot]) in [#694](https://github.com/jdx/hk/pull/694)
+- update rust crate clap to v4.5.58 by [@renovate[bot]](https://github.com/renovate[bot]) in [#693](https://github.com/jdx/hk/pull/693)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#695](https://github.com/jdx/hk/pull/695)
+- update anthropics/claude-code-action digest to edd85d6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#698](https://github.com/jdx/hk/pull/698)
+- update rust crate clap to v4.5.60 by [@renovate[bot]](https://github.com/renovate[bot]) in [#699](https://github.com/jdx/hk/pull/699)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#702](https://github.com/jdx/hk/pull/702)
+
+### New Contributors
+
+- @ivy made their first contribution in [#701](https://github.com/jdx/hk/pull/701)
+
 ## [1.36.0](https://github.com/jdx/hk/compare/v1.35.0..v1.36.0) - 2026-02-09
 
 ### 🚀 Features
