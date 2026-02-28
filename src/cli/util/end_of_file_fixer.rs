@@ -3,14 +3,14 @@ use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 
-/// Check for and optionally fix missing final newlines in files
+/// Check for and optionally fix files to end with exactly one newline
 #[derive(Debug, clap::Args)]
 pub struct EndOfFileFixer {
     /// Output a diff of the change. Cannot use with `fix`.
     #[clap(short, long, conflicts_with = "fix")]
     pub diff: bool,
 
-    /// Fix files by adding final newline
+    /// Fix files to end with exactly one newline
     #[clap(short, long)]
     pub fix: bool,
 
@@ -79,6 +79,12 @@ fn is_text_file(path: &PathBuf) -> Result<bool> {
     Ok(std::str::from_utf8(&buffer).is_ok())
 }
 
+/// Normalize content to end with exactly one newline
+fn normalize_ending(content: &str) -> String {
+    let trimmed = content.trim_end_matches('\n');
+    format!("{trimmed}\n")
+}
+
 /// Generate a unified diff showing the fix
 /// Returns None if file already has proper ending
 fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
@@ -87,8 +93,7 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
     }
 
     let original = fs::read_to_string(path)?;
-    let trimmed = original.trim_end_matches('\n');
-    let fixed = format!("{trimmed}\n");
+    let fixed = normalize_ending(&original);
     let path_str = path.display().to_string();
     let diff = crate::diff::render_unified_diff(
         &original,
@@ -137,9 +142,7 @@ fn fix_end_of_file(path: &PathBuf) -> Result<()> {
     }
 
     let content = fs::read_to_string(path)?;
-    let trimmed = content.trim_end_matches('\n');
-    let fixed = format!("{trimmed}\n");
-    fs::write(path, fixed)?;
+    fs::write(path, normalize_ending(&content))?;
 
     Ok(())
 }
