@@ -94,4 +94,3 @@ EOF
     assert_output --partial "config.load"
     assert_output --partial "hook.run"
 }
-

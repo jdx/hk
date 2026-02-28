@@ -133,4 +133,3 @@ Example configuration with custom linters and platform-specific commands
 ## Key Features
 
 - Standard configuration
-

@@ -2563,8 +2563,8 @@
               {
                 "name": "fix",
                 "usage": "-f --fix",
-                "help": "Fix files by adding final newline",
-                "help_first_line": "Fix files by adding final newline",
+                "help": "Fix files to end with exactly one newline",
+                "help_first_line": "Fix files to end with exactly one newline",
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,

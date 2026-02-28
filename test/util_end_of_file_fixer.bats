@@ -50,6 +50,27 @@ teardown() {
 +no newline"
 }
 
+@test "util end-of-file-fixer - detects extra trailing newlines" {
+    printf "content\n\n\n" > file.txt
+
+    run hk util end-of-file-fixer file.txt
+    assert_failure
+    assert_output --partial "file.txt"
+}
+
+@test "util end-of-file-fixer - fixes extra trailing newlines" {
+    printf "content\n\n\n" > file.txt
+
+    run hk util end-of-file-fixer --fix file.txt
+    assert_success
+
+    # Verify file ends with exactly one newline
+    run cat file.txt
+    assert_output "content"
+    run sh -c 'wc -c < file.txt'
+    assert_output --partial "8"
+}
+
 @test "util end-of-file-fixer - skips binary files" {
     printf "binary\x00data" > binary.bin
 

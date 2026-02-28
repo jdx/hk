@@ -391,7 +391,7 @@ cmd util subcommand_required=#true help="Utility commands for file operations" {
     }
     cmd end-of-file-fixer help="Check for and optionally fix missing final newlines" {
         flag "-d --diff" help="Output a diff of the change. Cannot use with `fix`"
-        flag "-f --fix" help="Fix files by adding final newline"
+        flag "-f --fix" help="Fix files to end with exactly one newline"
         arg <FILES>… help="Files to check/fix" var=#true
     }
     cmd fix-byte-order-marker help="Remove UTF-8 byte order marker (BOM)" {

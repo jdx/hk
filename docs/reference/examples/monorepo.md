@@ -103,4 +103,3 @@ Example configuration for a monorepo with multiple languages
 ## Key Features
 
 - Standard configuration
-

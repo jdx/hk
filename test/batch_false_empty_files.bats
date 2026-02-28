@@ -89,4 +89,3 @@ EOF
     assert_output --partial "prettier – skipped: no files to process"
     refute_output --partial "[error] No files matching the pattern"
 }
-
