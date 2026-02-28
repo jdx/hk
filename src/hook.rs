@@ -93,6 +93,8 @@ pub struct Hook {
     pub fix: Option<bool>,
     pub stash: Option<StashSetting>,
     pub stage: Option<bool>,
+    #[serde(default)]
+    pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
 }
@@ -286,8 +288,25 @@ impl HookContext {
 impl Hook {
     pub fn init(&mut self, hook_name: &str) -> Result<()> {
         self.name = hook_name.to_string();
-        for (name, step) in self.steps.iter_mut() {
-            step.init(name)?;
+        for (name, step_or_group) in self.steps.iter_mut() {
+            step_or_group.init(name)?;
+            // Merge hook-level env into steps (step-level env takes precedence)
+            if !self.env.is_empty() {
+                match step_or_group {
+                    StepOrGroup::Step(step) => {
+                        for (key, value) in &self.env {
+                            step.env.entry(key.clone()).or_insert_with(|| value.clone());
+                        }
+                    }
+                    StepOrGroup::Group(group) => {
+                        for step in group.steps.values_mut() {
+                            for (key, value) in &self.env {
+                                step.env.entry(key.clone()).or_insert_with(|| value.clone());
+                            }
+                        }
+                    }
+                }
+            }
         }
         Ok(())
     }
