@@ -264,7 +264,8 @@ impl Config {
             // Parse pkl output as raw JSON for format detection
             let json_value: serde_json::Value = run_pkl(&["eval"], &path)?;
 
-            // Discriminate format: UserConfig.pkl has "environment", Config.pkl has "env"
+            // Backward compat: legacy hkrc files amend UserConfig.pkl (has "environment" key),
+            // new-style hkrc files amend Config.pkl (has "env" key).
             if json_value.get("environment").is_some() {
                 let user_config: UserConfig = serde_json::from_value(json_value)
                     .wrap_err("failed to parse hkrc as UserConfig")?;
@@ -280,46 +281,25 @@ impl Config {
     }
 
     fn merge_from_hkrc(&mut self, hkrc: Config) {
-        // Environment: hkrc wins (matching existing apply_user_config behavior)
+        // Environment: hkrc wins (matching existing apply_user_config behavior).
+        // set_var is unsafe in Rust 2024 but required so child processes inherit these.
         for (key, value) in &hkrc.env {
             self.env.insert(key.clone(), value.clone());
             unsafe { std::env::set_var(key, value) };
         }
 
-        // Scalar settings: project wins (only use hkrc value when project has None)
-        if self.fail_fast.is_none() {
-            self.fail_fast = hkrc.fail_fast;
-        }
-        if self.stage.is_none() {
-            self.stage = hkrc.stage;
-        }
-        if self.display_skip_reasons.is_none() {
-            self.display_skip_reasons = hkrc.display_skip_reasons;
-        }
-        if self.hide_warnings.is_none() {
-            self.hide_warnings = hkrc.hide_warnings;
-        }
-        if self.warnings.is_none() {
-            self.warnings = hkrc.warnings;
-        }
-        if self.exclude.is_none() {
-            self.exclude = hkrc.exclude;
-        }
-        if self.profiles.is_none() {
-            self.profiles = hkrc.profiles;
-        }
-        if self.skip_hooks.is_none() {
-            self.skip_hooks = hkrc.skip_hooks;
-        }
-        if self.skip_steps.is_none() {
-            self.skip_steps = hkrc.skip_steps;
-        }
-        if self.default_branch.is_none() {
-            self.default_branch = hkrc.default_branch;
-        }
-        if self.min_hk_version.is_none() {
-            self.min_hk_version = hkrc.min_hk_version;
-        }
+        // Scalar settings: project wins — fall back to hkrc when project has None
+        self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
+        self.stage = self.stage.or(hkrc.stage);
+        self.display_skip_reasons = self.display_skip_reasons.take().or(hkrc.display_skip_reasons);
+        self.hide_warnings = self.hide_warnings.take().or(hkrc.hide_warnings);
+        self.warnings = self.warnings.take().or(hkrc.warnings);
+        self.exclude = self.exclude.take().or(hkrc.exclude);
+        self.profiles = self.profiles.take().or(hkrc.profiles);
+        self.skip_hooks = self.skip_hooks.take().or(hkrc.skip_hooks);
+        self.skip_steps = self.skip_steps.take().or(hkrc.skip_steps);
+        self.default_branch = self.default_branch.take().or(hkrc.default_branch);
+        self.min_hk_version = self.min_hk_version.take().or(hkrc.min_hk_version);
 
         // Hooks: additive, project wins on same-named step collision
         for (hook_name, hkrc_hook) in hkrc.hooks {

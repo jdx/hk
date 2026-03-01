@@ -209,7 +209,7 @@ hooks {
 }
 ```
 
-The hkrc is merged with the project configuration (`hk.pkl`) using "project wins" semantics:
+The hkrc is merged with the project configuration (`hk.pkl` or `hk.local.pkl`) using "project wins" semantics:
 
 - **Settings** (jobs, fail_fast, etc.): project config overrides hkrc values
 - **Environment variables**: hkrc values are set first; project config can override them
@@ -266,7 +266,7 @@ Git config supports both multivar entries (multiple values with the same key) an
 User-specific defaults can be set in `~/.hkrc.pkl` or `~/.config/hk/config.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.36.0/hk@1.36.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/latest/hk#/Config.pkl"
 
 jobs = 4
 fail_fast = false
