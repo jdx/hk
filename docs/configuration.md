@@ -222,11 +222,61 @@ hooks {
 }
 ```
 
-The hkrc is merged with the project configuration (`hk.pkl` or `hk.local.pkl`) using "project wins" semantics:
+The hkrc is merged with the project configuration using "project wins" semantics:
 
 - **Settings** (jobs, fail_fast, etc.): project config overrides hkrc values
 - **Environment variables**: hkrc values are set first; project config can override them
 - **Hooks/steps**: additive — hkrc can add hooks and steps the project doesn't define, but when both define the same step, the project's definition wins
+
+### How to manage global hook preferences
+
+**Run your own linters on every project**
+
+Add steps to your hkrc. hk merges them into every project's hooks — steps with names the project doesn't define always run:
+
+```pkl
+// ~/.config/hk/config.pkl
+amends "package://github.com/jdx/hk/releases/latest/hk#/Config.pkl"
+
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["gitleaks"] { check = "gitleaks git --staged" }
+        }
+    }
+}
+```
+
+**Skip steps you don't want from a project**
+
+hkrc can't remove project steps — project wins on collision. To skip a step, use git config in that repo (persists) or an environment variable (one session):
+
+```bash
+# Skip a step permanently in this repo
+git config --local hk.skipSteps "slow-linter,noisy-formatter"
+
+# Skip for one run
+HK_SKIP_STEPS=slow-linter hk run pre-commit
+```
+
+**Completely replace a project's hooks locally**
+
+Create `hk.local.pkl` in the project root (don't commit it). It replaces `hk.pkl` entirely — redefine only what you want:
+
+```pkl
+// hk.local.pkl  (add to .gitignore)
+amends "./hk.pkl"
+import "./hk.pkl" as upstream
+
+hooks = (upstream.hooks) {
+    ["pre-commit"] {
+        steps {
+            // keep only the steps you want
+            ["gitleaks"] = upstream.hooks["pre-commit"].steps["gitleaks"]
+        }
+    }
+}
+```
 
 ## Settings Reference
 
