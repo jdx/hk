@@ -291,7 +291,10 @@ impl Config {
         // Scalar settings: project wins — fall back to hkrc when project has None
         self.fail_fast = self.fail_fast.or(hkrc.fail_fast);
         self.stage = self.stage.or(hkrc.stage);
-        self.display_skip_reasons = self.display_skip_reasons.take().or(hkrc.display_skip_reasons);
+        self.display_skip_reasons = self
+            .display_skip_reasons
+            .take()
+            .or(hkrc.display_skip_reasons);
         self.hide_warnings = self.hide_warnings.take().or(hkrc.hide_warnings);
         self.warnings = self.warnings.take().or(hkrc.warnings);
         self.exclude = self.exclude.take().or(hkrc.exclude);
