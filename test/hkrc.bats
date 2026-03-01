@@ -317,7 +317,7 @@ hooks {
 }
 EOF
 
-    # Mirrors the docs example: hkrc with fix, glob, and check on steps
+    # Mirrors the docs example: hkrc with check/fix on steps
     cat <<EOF > my-hkrc.pkl
 amends "$PKL_PATH/Config.pkl"
 
@@ -326,7 +326,6 @@ hooks {
         fix = true
         steps {
             ["eslint"] {
-                glob = "*.js"
                 check = "echo 'eslint check'"
                 fix = "echo 'eslint fix'"
             }

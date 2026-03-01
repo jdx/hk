@@ -10,8 +10,7 @@ impl Config {
     #[tracing::instrument(level = "info", name = "config.load")]
     pub fn get() -> Result<Self> {
         let mut config = Self::load_project_config()?;
-        let user_config = UserConfig::load()?;
-        config.apply_user_config(&user_config)?;
+        config.apply_hkrc()?;
         config.validate()?;
         Ok(config)
     }
@@ -235,22 +234,99 @@ impl Config {
 
         Ok(())
     }
-}
 
-impl UserConfig {
-    fn load() -> Result<Option<Self>> {
-        let user_config_path = crate::settings::Settings::cli_user_config_path()
-            .expect("Config path should always be set by CLI");
+    fn apply_hkrc(&mut self) -> Result<()> {
+        let explicit_path = crate::settings::Settings::cli_user_config_path();
 
-        if user_config_path.exists() {
-            let user_config: UserConfig = run_pkl(&["eval"], &user_config_path)?;
-            Ok(Some(user_config))
-        } else {
-            let default_path = PathBuf::from(".hkrc.pkl");
-            if user_config_path != default_path {
-                bail!("Config file not found: {}", user_config_path.display());
+        let hkrc_path: Option<PathBuf> = if let Some(path) = explicit_path {
+            // --hkrc was explicitly set: must exist
+            if !path.exists() {
+                bail!("Config file not found: {}", path.display());
             }
-            Ok(None)
+            Some(path)
+        } else {
+            // Default discovery: CWD first, then $HOME
+            let cwd_path = PathBuf::from(".hkrc.pkl");
+            let home_path = env::HOME_DIR.join(".hkrc.pkl");
+            if cwd_path.exists() {
+                Some(cwd_path)
+            } else if home_path.exists() {
+                Some(home_path)
+            } else {
+                None
+            }
+        };
+
+        if let Some(path) = hkrc_path {
+            // Parse pkl output as raw JSON for format detection
+            let json_value: serde_json::Value = run_pkl(&["eval"], &path)?;
+
+            // Discriminate format: UserConfig.pkl has "environment", Config.pkl has "env"
+            if json_value.get("environment").is_some() {
+                let user_config: UserConfig = serde_json::from_value(json_value)
+                    .wrap_err("failed to parse hkrc as UserConfig")?;
+                self.apply_user_config(&Some(user_config))?;
+            } else {
+                let mut hkrc_config: Config = serde_json::from_value(json_value)
+                    .wrap_err("failed to parse hkrc as Config")?;
+                hkrc_config.init(&path)?;
+                self.merge_from_hkrc(hkrc_config);
+            }
+        }
+        Ok(())
+    }
+
+    fn merge_from_hkrc(&mut self, hkrc: Config) {
+        // Environment: hkrc wins (matching existing apply_user_config behavior)
+        for (key, value) in &hkrc.env {
+            self.env.insert(key.clone(), value.clone());
+            unsafe { std::env::set_var(key, value) };
+        }
+
+        // Scalar settings: project wins (only use hkrc value when project has None)
+        if self.fail_fast.is_none() {
+            self.fail_fast = hkrc.fail_fast;
+        }
+        if self.stage.is_none() {
+            self.stage = hkrc.stage;
+        }
+        if self.display_skip_reasons.is_none() {
+            self.display_skip_reasons = hkrc.display_skip_reasons;
+        }
+        if self.hide_warnings.is_none() {
+            self.hide_warnings = hkrc.hide_warnings;
+        }
+        if self.warnings.is_none() {
+            self.warnings = hkrc.warnings;
+        }
+        if self.exclude.is_none() {
+            self.exclude = hkrc.exclude;
+        }
+        if self.profiles.is_none() {
+            self.profiles = hkrc.profiles;
+        }
+        if self.skip_hooks.is_none() {
+            self.skip_hooks = hkrc.skip_hooks;
+        }
+        if self.skip_steps.is_none() {
+            self.skip_steps = hkrc.skip_steps;
+        }
+        if self.default_branch.is_none() {
+            self.default_branch = hkrc.default_branch;
+        }
+        if self.min_hk_version.is_none() {
+            self.min_hk_version = hkrc.min_hk_version;
+        }
+
+        // Hooks: additive, project wins on same-named step collision
+        for (hook_name, hkrc_hook) in hkrc.hooks {
+            if let Some(project_hook) = self.hooks.get_mut(&hook_name) {
+                for (step_name, hkrc_step) in hkrc_hook.steps {
+                    project_hook.steps.entry(step_name).or_insert(hkrc_step);
+                }
+            } else {
+                self.hooks.insert(hook_name, hkrc_hook);
+            }
         }
     }
 }
