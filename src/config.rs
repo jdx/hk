@@ -246,18 +246,13 @@ impl Config {
             Some(path)
         } else {
             // Default discovery: CWD, then $HOME, then XDG config dir
-            let cwd_path = PathBuf::from(".hkrc.pkl");
-            let home_path = env::HOME_DIR.join(".hkrc.pkl");
-            let xdg_path = env::HK_CONFIG_DIR.join("config.pkl");
-            if cwd_path.exists() {
-                Some(cwd_path)
-            } else if home_path.exists() {
-                Some(home_path)
-            } else if xdg_path.exists() {
-                Some(xdg_path)
-            } else {
-                None
-            }
+            [
+                PathBuf::from(".hkrc.pkl"),
+                env::HOME_DIR.join(".hkrc.pkl"),
+                env::HK_CONFIG_DIR.join("config.pkl"),
+            ]
+            .into_iter()
+            .find(|p| p.exists())
         };
 
         if let Some(path) = hkrc_path {
@@ -281,11 +276,13 @@ impl Config {
     }
 
     fn merge_from_hkrc(&mut self, hkrc: Config) {
-        // Environment: hkrc wins (matching existing apply_user_config behavior).
+        // Environment: project wins. hkrc values are set only if not defined by project.
         // set_var is unsafe in Rust 2024 but required so child processes inherit these.
-        for (key, value) in &hkrc.env {
-            self.env.insert(key.clone(), value.clone());
-            unsafe { std::env::set_var(key, value) };
+        for (key, value) in hkrc.env {
+            if let indexmap::map::Entry::Vacant(e) = self.env.entry(key.clone()) {
+                unsafe { std::env::set_var(&key, &value) };
+                e.insert(value);
+            }
         }
 
         // Scalar settings: project wins — fall back to hkrc when project has None
