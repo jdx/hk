@@ -25,6 +25,13 @@ pub static HK_CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
             .join("hk"),
     )
 });
+pub static HK_CONFIG_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    var_path("HK_CONFIG_DIR").unwrap_or(
+        dirs::config_dir()
+            .unwrap_or(HOME_DIR.join(".config"))
+            .join("hk"),
+    )
+});
 pub static HK_LOG: LazyLock<log::LevelFilter> = LazyLock::new(|| {
     var_log_level("HK_LOG")
         .or(var_log_level("HK_LOG_LEVEL"))

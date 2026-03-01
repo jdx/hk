@@ -89,13 +89,8 @@ pub async fn run() -> Result<()> {
     // Determine effective log level from CLI flags (env default applied by logger if None)
     let mut level: Option<log::LevelFilter> = None;
     // Derive verbosity overrides first
-    let config_path = if let Some(custom_path) = args.hkrc {
-        custom_path
-    } else {
-        PathBuf::from(".hkrc.pkl")
-    };
     Settings::set_cli_snapshot(crate::settings::CliSnapshot {
-        hkrc: Some(config_path),
+        hkrc: args.hkrc,
         jobs: args.jobs.map(|n| n.get()),
         profiles: args.profile.clone(),
         slow: args.slow,

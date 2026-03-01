@@ -300,6 +300,307 @@ EOF
     assert_output --partial "is valid"
 }
 
+@test "hkrc: Config-format hkrc with steps runs without panic" {
+    # Reproduces the docs' own hkrc example (docs/configuration.md).
+    # The hkrc amends Config.pkl (not UserConfig.pkl) and defines hooks with
+    # steps that have check/fix/glob — fields that exist on Step but not on
+    # UserConfig's HookConfig. hk currently deserializes hkrc as UserConfig,
+    # where "check" is Option<bool>, so any string command panics.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["trailing-whitespace"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # Mirrors the docs example: hkrc with check/fix on steps
+    cat <<EOF > my-hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        steps {
+            ["eslint"] {
+                check = "echo 'eslint check'"
+                fix = "echo 'eslint fix'"
+            }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    run hk --hkrc my-hkrc.pkl run pre-commit --all
+    assert_success
+    assert_output --partial "project step"
+    assert_output --partial "eslint"
+}
+
+@test "hkrc: Config-format hkrc adds hook the project doesn't have" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project pre-commit'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > my-hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["hkrc-only"] { check = "echo 'hkrc check hook'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # The hkrc adds the "check" hook that the project doesn't define
+    run hk --hkrc my-hkrc.pkl run check --all
+    assert_success
+    assert_output --partial "hkrc check hook"
+}
+
+@test "hkrc: project step overrides same-named hkrc step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["shared-step"] { check = "echo 'project wins'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > my-hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["shared-step"] { check = "echo 'hkrc loses'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # When both define the same step, project should win
+    run hk --hkrc my-hkrc.pkl run pre-commit --all
+    assert_success
+    assert_output --partial "project wins"
+    refute_output --partial "hkrc loses"
+}
+
+@test "hkrc: merges different steps from same hook" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["project-step"] { check = "echo 'from project'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > my-hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["hkrc-step"] { check = "echo 'from hkrc'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # Both steps should run — they have different names so they merge
+    run hk --hkrc my-hkrc.pkl run pre-commit --all
+    assert_success
+    assert_output --partial "from project"
+    assert_output --partial "from hkrc"
+}
+
+@test "hkrc: default path loads from home directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # HOME is set to TEST_TEMP_DIR by common_setup
+    cat <<EOF > "$HOME/.hkrc.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["home-step"] { check = "echo 'from home hkrc'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # Without --hkrc, should discover ~/.hkrc.pkl and merge it
+    run hk run pre-commit --all
+    assert_success
+    assert_output --partial "from home hkrc"
+    assert_output --partial "project step"
+}
+
+@test "hkrc: XDG config path loads from config dir" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # Place hkrc in the XDG config dir
+    export HK_CONFIG_DIR="$TEST_TEMP_DIR/.config/hk"
+    mkdir -p "$HK_CONFIG_DIR"
+    cat <<EOF > "$HK_CONFIG_DIR/config.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["xdg-step"] { check = "echo 'from xdg config'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # Without --hkrc and no ~/.hkrc.pkl, should discover XDG config
+    run hk run pre-commit --all
+    assert_success
+    assert_output --partial "from xdg config"
+    assert_output --partial "project step"
+}
+
+@test "hkrc: CWD hkrc wins over home hkrc" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # Both CWD and HOME have an hkrc — CWD should win
+    cat <<EOF > .hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from cwd'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > "$HOME/.hkrc.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from home'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl .hkrc.pkl
+    git commit -m "initial commit"
+
+    run hk run pre-commit --all
+    assert_success
+    assert_output --partial "from cwd"
+    refute_output --partial "from home"
+}
+
+@test "hkrc: home hkrc wins over XDG config" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # Both HOME and XDG have an hkrc — HOME should win
+    cat <<EOF > "$HOME/.hkrc.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from home'" }
+        }
+    }
+}
+EOF
+
+    export HK_CONFIG_DIR="$TEST_TEMP_DIR/.config/hk"
+    mkdir -p "$HK_CONFIG_DIR"
+    cat <<EOF > "$HK_CONFIG_DIR/config.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from xdg'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    run hk run pre-commit --all
+    assert_success
+    assert_output --partial "from home"
+    refute_output --partial "from xdg"
+}
+
 @test "hkrc: step exclude patterns from user config" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

@@ -763,7 +763,7 @@ mod tests {
     #[test]
     fn test_settings_builder_fluent_api() {
         Settings::set_cli_snapshot(CliSnapshot {
-            hkrc: Some(PathBuf::from(".hkrc.pkl")),
+            hkrc: None,
             ..Default::default()
         });
         // Test that the fluent API works correctly
@@ -776,7 +776,7 @@ mod tests {
     #[test]
     fn test_settings_snapshot_caching() {
         Settings::set_cli_snapshot(CliSnapshot {
-            hkrc: Some(PathBuf::from(".hkrc.pkl")),
+            hkrc: None,
             ..Default::default()
         });
         // Get multiple snapshots - they should be the same Arc
@@ -790,7 +790,7 @@ mod tests {
     #[test]
     fn test_settings_from_config() {
         Settings::set_cli_snapshot(CliSnapshot {
-            hkrc: Some(PathBuf::from(".hkrc.pkl")),
+            hkrc: None,
             ..Default::default()
         });
         // Backwards-compatible behavior validated at higher level; smoke test get()
