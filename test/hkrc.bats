@@ -301,7 +301,7 @@ EOF
 }
 
 @test "hkrc: Config-format hkrc with steps runs without panic" {
-    # Reproduces the docs' own hkrc example (docs/configuration.md lines 183-201).
+    # Reproduces the docs' own hkrc example (docs/configuration.md).
     # The hkrc amends Config.pkl (not UserConfig.pkl) and defines hooks with
     # steps that have check/fix/glob — fields that exist on Step but not on
     # UserConfig's HookConfig. hk currently deserializes hkrc as UserConfig,
