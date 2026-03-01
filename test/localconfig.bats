@@ -51,3 +51,34 @@ EOF
     assert_output --partial "STEP_VAR=step_value"
     assert_output --partial "hello"
 }
+
+@test "hk.local.pkl takes precedence over hk.pkl" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["greeting"] { check = "echo 'from hk.pkl'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > hk.local.pkl
+amends "./hk.pkl"
+import "./hk.pkl" as repo_config
+
+hooks = (repo_config.hooks) {
+    ["check"] {
+        steps {
+            ["greeting"] { check = "echo 'from hk.local.pkl'" }
+        }
+    }
+}
+EOF
+
+    run hk run check
+    assert_success
+    assert_output --partial "from hk.local.pkl"
+    refute_output --partial "from hk.pkl"
+}

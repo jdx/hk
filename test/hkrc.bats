@@ -511,6 +511,96 @@ EOF
     assert_output --partial "project step"
 }
 
+@test "hkrc: CWD hkrc wins over home hkrc" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # Both CWD and HOME have an hkrc — CWD should win
+    cat <<EOF > .hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from cwd'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > "$HOME/.hkrc.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from home'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl .hkrc.pkl
+    git commit -m "initial commit"
+
+    run hk run pre-commit --all
+    assert_success
+    assert_output --partial "from cwd"
+    refute_output --partial "from home"
+}
+
+@test "hkrc: home hkrc wins over XDG config" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # Both HOME and XDG have an hkrc — HOME should win
+    cat <<EOF > "$HOME/.hkrc.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from home'" }
+        }
+    }
+}
+EOF
+
+    export HK_CONFIG_DIR="$TEST_TEMP_DIR/.config/hk"
+    mkdir -p "$HK_CONFIG_DIR"
+    cat <<EOF > "$HK_CONFIG_DIR/config.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["source"] { check = "echo 'from xdg'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    run hk run pre-commit --all
+    assert_success
+    assert_output --partial "from home"
+    refute_output --partial "from xdg"
+}
+
 @test "hkrc: step exclude patterns from user config" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
