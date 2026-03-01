@@ -4,6 +4,19 @@ outline: "deep"
 
 # Configuration
 
+hk builds its effective configuration by layering sources from lowest to highest precedence:
+
+| Precedence | Source | Scope |
+|---|---|---|
+| 1 (lowest) | Built-in defaults | All projects |
+| 2 | [hkrc](#hkrc) (`~/.config/hk/config.pkl`, `~/.hkrc.pkl`, or `--hkrc`) | All projects (user-level) |
+| 3 | [Project config](#hk-pkl) (`hk.pkl` or `hk.local.pkl`) | Single project |
+| 4 | [Git config](#git-configuration) (global, then local) | Per-repo |
+| 5 | [Environment variables](#settings-reference) (`HK_*`) | Per-invocation |
+| 6 (highest) | [CLI flags](#settings-reference) | Per-invocation |
+
+Higher layers override lower. For hooks and steps, layers are **additive** — hkrc can define hooks the project doesn't have, but the project's definition wins on collision. See [hkrc merge semantics](#hkrc) for details.
+
 ## `hk.pkl`
 
 hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.org/) from Apple.
@@ -225,8 +238,8 @@ This section lists the configuration settings that control how hk behaves. Setti
 | 2 | Environment variables (HK_*) | `HK_JOBS=8 hk check` |
 | 3 | Git config (local repo) | `git config --local hk.jobs 4` |
 | 4 | Git config (global/system) | `git config --global hk.failFast false` |
-| 5 | User rc (hkrc) | `jobs = 4` in `~/.hkrc.pkl` or `~/.config/hk/config.pkl` |
-| 6 | Project config (hk.pkl) | `jobs = 4` in `hk.pkl` |
+| 5 | Project config (hk.pkl) | `jobs = 4` in `hk.pkl` |
+| 6 | User rc (hkrc) | `jobs = 4` in `~/.hkrc.pkl` or `~/.config/hk/config.pkl` |
 | 7 | Built-in defaults | `jobs = 0` (auto, CPU cores) |
 
 ### Git Configuration
