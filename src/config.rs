@@ -245,13 +245,16 @@ impl Config {
             }
             Some(path)
         } else {
-            // Default discovery: CWD first, then $HOME
+            // Default discovery: CWD, then $HOME, then XDG config dir
             let cwd_path = PathBuf::from(".hkrc.pkl");
             let home_path = env::HOME_DIR.join(".hkrc.pkl");
+            let xdg_path = env::HK_CONFIG_DIR.join("config.pkl");
             if cwd_path.exists() {
                 Some(cwd_path)
             } else if home_path.exists() {
                 Some(home_path)
+            } else if xdg_path.exists() {
+                Some(xdg_path)
             } else {
                 None
             }

@@ -475,6 +475,42 @@ EOF
     assert_output --partial "project step"
 }
 
+@test "hkrc: XDG config path loads from config dir" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    # Place hkrc in the XDG config dir
+    export HK_CONFIG_DIR="$TEST_TEMP_DIR/.config/hk"
+    mkdir -p "$HK_CONFIG_DIR"
+    cat <<EOF > "$HK_CONFIG_DIR/config.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["xdg-step"] { check = "echo 'from xdg config'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # Without --hkrc and no ~/.hkrc.pkl, should discover XDG config
+    run hk run pre-commit --all
+    assert_success
+    assert_output --partial "from xdg config"
+    assert_output --partial "project step"
+}
+
 @test "hkrc: step exclude patterns from user config" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
