@@ -895,6 +895,7 @@ impl Hook {
                 .staged_files
                 .iter()
                 .chain(git_status.unstaged_files.iter())
+                .chain(git_status.untracked_files.iter())
                 .cloned()
                 .collect()
         };
