@@ -1,0 +1,19 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Grammar checker for prose and documentation"
+}
+harper = new Config.Step {
+  types = List("text")
+  check = "harper-cli lint {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.md"
+    }
+    ["check bad file"] = testMaker.checkFail("That;s", 1)
+    ["check good file"] = testMaker.checkPass("That's")
+  }
+}
