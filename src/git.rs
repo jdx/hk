@@ -438,7 +438,7 @@ impl Git {
                     if st == git2::Status::WT_RENAMED {
                         unstaged_renamed_files.insert(path.clone());
                     }
-                    if exists {
+                    if exists && st != git2::Status::WT_NEW {
                         unstaged_files.insert(path);
                     }
                 }
@@ -518,8 +518,8 @@ impl Git {
                     }
                     _ => {}
                 }
-                // Unstaged files include actual worktree changes and untracked files
-                if (is_modified(workdir_status) || workdir_status == '?') && exists {
+                // Unstaged files include actual worktree changes (not untracked files)
+                if is_modified(workdir_status) && exists {
                     unstaged_files.insert(path.clone());
                 }
                 if workdir_status == '?' && exists {
