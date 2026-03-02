@@ -2,6 +2,10 @@
 
 *A sea shanty celebrating the hk git hook manager*
 
+<audio controls>
+  <source src="/haul-away-hk.mp3" type="audio/mpeg">
+</audio>
+
 ## Verse 1
 
 > Oh, gather 'round me hearties, let me tell you of a tool,<br>
