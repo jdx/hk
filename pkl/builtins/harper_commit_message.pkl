@@ -1,0 +1,10 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Grammar checker for commit message"
+}
+harper_commit_message = new Config.Step {
+  check = "harper-cli lint {{commit_msg_file}}"
+}
