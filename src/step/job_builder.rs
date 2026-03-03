@@ -138,8 +138,9 @@ impl Step {
             .unwrap_or(false)
             && (self.check_list_files.is_some() || self.check_diff.is_some());
 
-        // Always run check_first when check_diff is defined so we can apply the diff directly
-        let can_apply_diff = self.check_diff.is_some();
+        // In Fix mode, run check_first when check_diff is defined so we can apply the diff directly.
+        // In Check mode, this is avoided as check_diff may hide non-auto-fixable errors.
+        let can_apply_diff = self.check_diff.is_some() && matches!(run_type, RunType::Fix);
 
         for job in jobs.iter_mut() {
             if needs_filtering_for_stage || can_apply_diff {
