@@ -4,6 +4,19 @@ outline: "deep"
 
 # Configuration
 
+hk builds its effective configuration by layering sources from lowest to highest precedence:
+
+| Precedence | Source | Scope |
+|---|---|---|
+| 1 (lowest) | Built-in defaults | All projects |
+| 2 | [hkrc](#hkrc) (`~/.config/hk/config.pkl`) | All projects (user-level) |
+| 3 | [Project config](#hk-pkl) (`hk.pkl` or `hk.local.pkl`) | Single project |
+| 4 | [Git config](#git-configuration) (global, then local) | Per-repo |
+| 5 | [Environment variables](#settings-reference) (`HK_*`) | Per-invocation |
+| 6 (highest) | [CLI flags](#settings-reference) | Per-invocation |
+
+Higher layers override lower. For hooks and steps, layers are **additive** — hkrc can define hooks the project doesn't have, but the project's definition wins on collision. See [hkrc merge semantics](#hkrc) for details.
+
 ## `hk.pkl`
 
 hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.org/) from Apple.
@@ -174,7 +187,21 @@ These lists contain repository-relative paths for files currently in each state.
 
 ## `hkrc`
 
-The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. By default, hk will look for this file in your home directory. You can override its location using the `--hkrc` flag.
+> [!WARNING]
+> `.hkrc.pkl` and `--hkrc` are deprecated and will be removed in hk v2.
+>
+> - **Per-project overrides:** use `hk.local.pkl` in the project root (see [`hk.local.pkl`](#hk-local-pkl))
+> - **Global user config:** use `~/.config/hk/config.pkl`
+
+The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. hk discovers it in this order (first match wins):
+
+| Precedence | Path | Purpose |
+|---|---|---|
+| 1 | `.hkrc.pkl` (CWD) | Per-directory override **(deprecated)** |
+| 2 | `~/.hkrc.pkl` | Home directory **(deprecated)** |
+| 3 | `~/.config/hk/config.pkl` | XDG config directory **(recommended)** |
+
+~~Use the `--hkrc` flag to override discovery and use a specific path.~~ The `--hkrc` flag is deprecated.
 
 The hkrc file follows the same format as `hk.pkl` and can be used to define global hooks and linters that will be applied to all projects. This is useful for setting up consistent linting rules across multiple repositories.
 
@@ -201,10 +228,61 @@ hooks {
 }
 ```
 
-The hkrc configuration is applied after loading the project configuration (`hk.pkl`), which means:
+The hkrc is merged with the project configuration using "project wins" semantics:
 
-- User configuration takes precedence over project configuration
-- Project-specific settings in `hk.pkl` can override or extend the global configuration
+- **Settings** (jobs, fail_fast, etc.): project config overrides hkrc values
+- **Environment variables**: hkrc values are set first; project config can override them
+- **Hooks/steps**: additive — hkrc can add hooks and steps the project doesn't define, but when both define the same step, the project's definition wins
+
+### How to manage global hook preferences
+
+**Run your own linters on every project**
+
+Add steps to your hkrc. hk merges them into every project's hooks — steps with names the project doesn't define always run:
+
+```pkl
+// ~/.config/hk/config.pkl
+amends "package://github.com/jdx/hk/releases/latest/hk#/Config.pkl"
+
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["gitleaks"] { check = "gitleaks git --staged" }
+        }
+    }
+}
+```
+
+**Skip steps you don't want from a project**
+
+hkrc can't remove project steps — project wins on collision. To skip a step, use git config in that repo (persists) or an environment variable (one session):
+
+```bash
+# Skip a step permanently in this repo
+git config --local hk.skipSteps "slow-linter,noisy-formatter"
+
+# Skip for one run
+HK_SKIP_STEPS=slow-linter hk run pre-commit
+```
+
+**Completely replace a project's hooks locally**
+
+Create `hk.local.pkl` in the project root (don't commit it). It replaces `hk.pkl` entirely — redefine only what you want:
+
+```pkl
+// hk.local.pkl  (add to .gitignore)
+amends "./hk.pkl"
+import "./hk.pkl" as upstream
+
+hooks = (upstream.hooks) {
+    ["pre-commit"] {
+        steps {
+            // keep only the steps you want
+            ["gitleaks"] = upstream.hooks["pre-commit"].steps["gitleaks"]
+        }
+    }
+}
+```
 
 ## Settings Reference
 
@@ -216,8 +294,8 @@ This section lists the configuration settings that control how hk behaves. Setti
 | 2 | Environment variables (HK_*) | `HK_JOBS=8 hk check` |
 | 3 | Git config (local repo) | `git config --local hk.jobs 4` |
 | 4 | Git config (global/system) | `git config --global hk.failFast false` |
-| 5 | User rc (.hkrc.pkl) | `jobs = 4` in `~/.hkrc.pkl` |
-| 6 | Project config (hk.pkl) | `jobs = 4` in `hk.pkl` |
+| 5 | Project config (hk.pkl) | `jobs = 4` in `hk.pkl` |
+| 6 | User rc (hkrc) | `jobs = 4` in `~/.config/hk/config.pkl` |
 | 7 | Built-in defaults | `jobs = 0` (auto, CPU cores) |
 
 ### Git Configuration
@@ -252,12 +330,12 @@ git config --local hk.hideWarnings "missing-profiles"
 
 Git config supports both multivar entries (multiple values with the same key) and comma-separated values in a single entry.
 
-### User Configuration (`.hkrc.pkl`)
+### User Configuration (`~/.config/hk/config.pkl`)
 
-User-specific defaults can be set in `~/.hkrc.pkl`:
+User-specific defaults can be set in `~/.config/hk/config.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/latest/hk#/UserConfig.pkl"
+amends "package://github.com/jdx/hk/releases/latest/hk#/Config.pkl"
 
 jobs = 4
 fail_fast = false
@@ -265,6 +343,9 @@ exclude = List("node_modules", "dist", "build")
 skip_steps = List("slow-test")
 skip_hooks = List("pre-push")
 ```
+
+> [!NOTE]
+> Legacy hkrc files that amend `UserConfig.pkl` are still supported.
 
 ### Configuration Introspection
 

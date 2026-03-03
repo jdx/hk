@@ -27,8 +27,8 @@ mod version;
 #[derive(clap::Parser)]
 #[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
-    /// Path to user configuration file
-    #[clap(long, global = true, value_name = "PATH")]
+    /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
+    #[clap(long, global = true, value_name = "PATH", hide = true)]
     hkrc: Option<PathBuf>,
     /// Number of jobs to run in parallel
     #[clap(short, long, global = true)]
@@ -89,13 +89,8 @@ pub async fn run() -> Result<()> {
     // Determine effective log level from CLI flags (env default applied by logger if None)
     let mut level: Option<log::LevelFilter> = None;
     // Derive verbosity overrides first
-    let config_path = if let Some(custom_path) = args.hkrc {
-        custom_path
-    } else {
-        PathBuf::from(".hkrc.pkl")
-    };
     Settings::set_cli_snapshot(crate::settings::CliSnapshot {
-        hkrc: Some(config_path),
+        hkrc: args.hkrc,
         jobs: args.jobs.map(|n| n.get()),
         profiles: args.profile.clone(),
         slow: args.slow,

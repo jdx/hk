@@ -780,7 +780,8 @@ impl Hook {
                 let hide_warning_env = style::edim("HK_HIDE_WARNINGS=missing-profiles");
                 warn!("  To hide this warning: set {hide_warning_env}");
                 let hide_warning_pkl = style::edim(r#"hide_warnings = List("missing-profiles")"#);
-                warn!("  or set {hide_warning_pkl} in .hkrc.pkl");
+                let config_path = env::HK_CONFIG_DIR.join("config.pkl");
+                warn!("  or set {hide_warning_pkl} in {}", config_path.display());
             }
         }
 
