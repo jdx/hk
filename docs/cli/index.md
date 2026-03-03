@@ -4,15 +4,11 @@
 
 **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
-**Version**: 1.36.0
+**Version**: 1.37.0
 
 - **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
 ## Global Flags
-
-### `--hkrc <PATH>`
-
-Path to user configuration file
 
 ### `-j --jobs <JOBS>`
 

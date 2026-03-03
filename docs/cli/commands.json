@@ -2871,11 +2871,11 @@
       {
         "name": "hkrc",
         "usage": "--hkrc <PATH>",
-        "help": "Path to user configuration file",
-        "help_first_line": "Path to user configuration file",
+        "help": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
+        "help_first_line": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
         "short": [],
         "long": ["hkrc"],
-        "hide": false,
+        "hide": true,
         "global": true,
         "arg": {
           "name": "PATH",
@@ -3003,7 +3003,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.36.0",
+  "version": "1.37.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"
