@@ -7,12 +7,12 @@ type = "bool"
 default = false
 sources.cli = ["--all"]
 docs = """
-Enables running all available steps, including those that might be disabled by default or require specific profiles.
+Run on all files instead of just staged files.
 
-When enabled, hk will run all configured steps regardless of their profile requirements or other filtering criteria.
-This is useful for comprehensive checking or when you want to run every possible linting/formatting task.
+When enabled, hk will run steps against all tracked files in the repository rather than only the
+files currently staged in git. This is useful for running a full project-wide check or fix.
 
-Example: `hk check --all` to run all available checks.
+Example: `hk check --all` to check all files in the repository.
 """
 
 [cache_dir]
