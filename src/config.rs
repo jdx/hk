@@ -243,16 +243,42 @@ impl Config {
             if !path.exists() {
                 bail!("Config file not found: {}", path.display());
             }
+            deprecated_at!(
+                "1.37.0",
+                "2.0.0",
+                "hkrc-flag",
+                "--hkrc is deprecated. Use {}/config.pkl for global config \
+                 or hk.local.pkl for per-project overrides.",
+                env::HK_CONFIG_DIR.display()
+            );
             Some(path)
         } else {
             // Default discovery: CWD, then $HOME, then XDG config dir
-            [
-                PathBuf::from(".hkrc.pkl"),
-                env::HOME_DIR.join(".hkrc.pkl"),
-                env::HK_CONFIG_DIR.join("config.pkl"),
-            ]
-            .into_iter()
-            .find(|p| p.exists())
+            let cwd_path = PathBuf::from(".hkrc.pkl");
+            let home_path = env::HOME_DIR.join(".hkrc.pkl");
+            let xdg_path = env::HK_CONFIG_DIR.join("config.pkl");
+            if cwd_path.exists() {
+                deprecated_at!(
+                    "1.37.0",
+                    "2.0.0",
+                    "hkrc-cwd",
+                    ".hkrc.pkl is deprecated. Use hk.local.pkl in the project root instead."
+                );
+                Some(cwd_path)
+            } else if home_path.exists() {
+                deprecated_at!(
+                    "1.37.0",
+                    "2.0.0",
+                    "hkrc-home",
+                    "~/.hkrc.pkl is deprecated. Use {}/config.pkl instead.",
+                    env::HK_CONFIG_DIR.display()
+                );
+                Some(home_path)
+            } else if xdg_path.exists() {
+                Some(xdg_path) // blessed path — no warning
+            } else {
+                None
+            }
         };
 
         if let Some(path) = hkrc_path {

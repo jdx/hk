@@ -649,3 +649,135 @@ EOF
     assert_output --partial "main.py"
     refute_output --partial "test_example.py"
 }
+
+@test "hkrc: CWD .hkrc.pkl shows deprecation warning" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > .hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["extra"] { check = "echo 'extra'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl .hkrc.pkl
+    git commit -m "initial commit"
+
+    run hk run pre-commit --all -v
+    assert_success
+    assert_output --partial "deprecated"
+    assert_output --partial ".hkrc.pkl is deprecated"
+    assert_output --partial "hk.local.pkl"
+}
+
+@test "hkrc: HOME ~/.hkrc.pkl shows deprecation warning" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > "$HOME/.hkrc.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["home-step"] { check = "echo 'from home'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    run hk run pre-commit --all -v
+    assert_success
+    assert_output --partial "deprecated"
+    assert_output --partial "~/.hkrc.pkl is deprecated"
+    assert_output --partial "config.pkl"
+}
+
+@test "hkrc: --hkrc flag shows deprecation warning" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    cat <<EOF > custom.hkrc.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["custom"] { check = "echo 'custom'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    run hk --hkrc custom.hkrc.pkl run pre-commit --all -v
+    assert_success
+    assert_output --partial "deprecated"
+    assert_output --partial "--hkrc is deprecated"
+}
+
+@test "hkrc: XDG config.pkl does NOT show deprecation warning" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["echo"] { check = "echo 'project step'" }
+        }
+    }
+}
+EOF
+
+    export HK_CONFIG_DIR="$TEST_TEMP_DIR/.config/hk"
+    mkdir -p "$HK_CONFIG_DIR"
+    cat <<EOF > "$HK_CONFIG_DIR/config.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["xdg-step"] { check = "echo 'from xdg'" }
+        }
+    }
+}
+EOF
+
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    run hk run pre-commit --all -v
+    assert_success
+    assert_output --partial "from xdg"
+    refute_output --partial "deprecated"
+}

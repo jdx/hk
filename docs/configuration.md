@@ -9,7 +9,7 @@ hk builds its effective configuration by layering sources from lowest to highest
 | Precedence | Source | Scope |
 |---|---|---|
 | 1 (lowest) | Built-in defaults | All projects |
-| 2 | [hkrc](#hkrc) (`~/.config/hk/config.pkl`, `~/.hkrc.pkl`, or `--hkrc`) | All projects (user-level) |
+| 2 | [hkrc](#hkrc) (`~/.config/hk/config.pkl`) | All projects (user-level) |
 | 3 | [Project config](#hk-pkl) (`hk.pkl` or `hk.local.pkl`) | Single project |
 | 4 | [Git config](#git-configuration) (global, then local) | Per-repo |
 | 5 | [Environment variables](#settings-reference) (`HK_*`) | Per-invocation |
@@ -187,15 +187,21 @@ These lists contain repository-relative paths for files currently in each state.
 
 ## `hkrc`
 
+> [!WARNING]
+> `.hkrc.pkl` and `--hkrc` are deprecated and will be removed in hk v2.
+>
+> - **Per-project overrides:** use `hk.local.pkl` in the project root (see [`hk.local.pkl`](#hk-local-pkl))
+> - **Global user config:** use `~/.config/hk/config.pkl`
+
 The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. hk discovers it in this order (first match wins):
 
 | Precedence | Path | Purpose |
 |---|---|---|
-| 1 | `.hkrc.pkl` (CWD) | Per-directory override |
-| 2 | `~/.hkrc.pkl` | Home directory |
-| 3 | `~/.config/hk/config.pkl` | XDG config directory |
+| 1 | `.hkrc.pkl` (CWD) | Per-directory override **(deprecated)** |
+| 2 | `~/.hkrc.pkl` | Home directory **(deprecated)** |
+| 3 | `~/.config/hk/config.pkl` | XDG config directory **(recommended)** |
 
-Use the `--hkrc` flag to override discovery and use a specific path.
+~~Use the `--hkrc` flag to override discovery and use a specific path.~~ The `--hkrc` flag is deprecated.
 
 The hkrc file follows the same format as `hk.pkl` and can be used to define global hooks and linters that will be applied to all projects. This is useful for setting up consistent linting rules across multiple repositories.
 
@@ -289,7 +295,7 @@ This section lists the configuration settings that control how hk behaves. Setti
 | 3 | Git config (local repo) | `git config --local hk.jobs 4` |
 | 4 | Git config (global/system) | `git config --global hk.failFast false` |
 | 5 | Project config (hk.pkl) | `jobs = 4` in `hk.pkl` |
-| 6 | User rc (hkrc) | `jobs = 4` in `~/.hkrc.pkl` or `~/.config/hk/config.pkl` |
+| 6 | User rc (hkrc) | `jobs = 4` in `~/.config/hk/config.pkl` |
 | 7 | Built-in defaults | `jobs = 0` (auto, CPU cores) |
 
 ### Git Configuration
@@ -324,9 +330,9 @@ git config --local hk.hideWarnings "missing-profiles"
 
 Git config supports both multivar entries (multiple values with the same key) and comma-separated values in a single entry.
 
-### User Configuration (`.hkrc.pkl`)
+### User Configuration (`~/.config/hk/config.pkl`)
 
-User-specific defaults can be set in `~/.hkrc.pkl` or `~/.config/hk/config.pkl`:
+User-specific defaults can be set in `~/.config/hk/config.pkl`:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/latest/hk#/Config.pkl"

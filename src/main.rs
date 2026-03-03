@@ -1,5 +1,7 @@
 #[macro_use]
 extern crate log;
+#[macro_use]
+mod output;
 
 use std::{panic, time::Duration};
 

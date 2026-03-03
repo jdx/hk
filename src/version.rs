@@ -1,7 +1,15 @@
 use std::cmp::Ordering;
+use std::sync::LazyLock;
 
 use crate::Result;
 use eyre::bail;
+
+pub static VERSION: LazyLock<semver::Version> = LazyLock::new(|| {
+    env!("CARGO_PKG_VERSION")
+        .parse()
+        .expect("Malformed version")
+});
+
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
