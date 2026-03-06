@@ -233,6 +233,24 @@ class Hook {
   /// ```
   env: Mapping<String, String> = new Mapping<String, String> {}
 
+  /// Default: `false`
+  ///
+  /// If true, the hook will fail when fix commands modify files.
+  /// This is useful with `stage = false` in pre-commit hooks to apply fixes
+  /// but block the commit so you can review the changes before staging manually.
+  ///
+  /// ```pkl
+  /// hooks {
+  ///   ["pre-commit"] {
+  ///     fix = true
+  ///     stage = false
+  ///     fail_on_fix = true
+  ///     steps = linters
+  ///   }
+  /// }
+  /// ```
+  fail_on_fix: Boolean = false
+
   /// Command to run after the hook completes. Receives timing JSON in `HK_REPORT_JSON`.
   report: (String | Script)?
 

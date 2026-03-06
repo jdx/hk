@@ -94,6 +94,8 @@ pub struct Hook {
     pub stash: Option<StashSetting>,
     pub stage: Option<bool>,
     #[serde(default)]
+    pub fail_on_fix: bool,
+    #[serde(default)]
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
@@ -671,6 +673,26 @@ impl Hook {
                 break;
             }
         }
+        // When fail_on_fix is enabled, fail if fix commands modified files
+        if result.is_ok() && self.fail_on_fix && matches!(run_type, RunType::Fix) {
+            let status = repo.lock().await.status(None)?;
+            if !status.unstaged_files.is_empty() {
+                let file_list = status
+                    .unstaged_files
+                    .iter()
+                    .map(|p| format!("  {}", p.display()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                warn!(
+                    "Files were fixed but not staged (fail_on_fix=true). Review the changes and stage them manually:\n{}",
+                    file_list
+                );
+                result = Err(eyre::eyre!(
+                    "fail_on_fix: files were modified by fix commands"
+                ));
+            }
+        }
+
         if let Some(hk_progress) = hook_ctx.hk_progress.as_ref() {
             if result.is_ok() {
                 hk_progress.set_status(ProgressStatus::Done);
