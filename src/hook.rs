@@ -662,22 +662,23 @@ impl Hook {
         }
         // Snapshot file content hashes before running groups so fail_on_fix can detect
         // which files were actually modified by fixers (ignoring pre-existing changes).
-        let pre_file_hashes: std::collections::HashMap<PathBuf, u64> = if self.fail_on_fix {
-            use std::hash::{Hash, Hasher};
-            hook_ctx
-                .files()
-                .into_iter()
-                .filter_map(|f| {
-                    std::fs::read(&f).ok().map(|content| {
-                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-                        content.hash(&mut hasher);
-                        (f, hasher.finish())
+        let pre_file_hashes: std::collections::HashMap<PathBuf, u64> =
+            if self.fail_on_fix && matches!(run_type, RunType::Fix) {
+                use std::hash::{Hash, Hasher};
+                hook_ctx
+                    .files()
+                    .into_iter()
+                    .filter_map(|f| {
+                        std::fs::read(&f).ok().map(|content| {
+                            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                            content.hash(&mut hasher);
+                            (f, hasher.finish())
+                        })
                     })
-                })
-                .collect()
-        } else {
-            std::collections::HashMap::new()
-        };
+                    .collect()
+            } else {
+                std::collections::HashMap::new()
+            };
 
         let mut result = Ok(());
         let multiple_groups = hook_ctx.groups.len() > 1;
@@ -706,7 +707,7 @@ impl Hook {
                             content.hash(&mut hasher);
                             hasher.finish() != **pre_hash
                         })
-                        .unwrap_or(false)
+                        .unwrap_or(true) // file was deleted by fixer
                 })
                 .map(|(path, _)| path)
                 .collect();
