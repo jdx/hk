@@ -60,6 +60,35 @@ EOF
     hk run fix
 }
 
+@test "fail_on_fix=true ignores pre-existing unstaged files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["noop"] {
+                glob = "*.txt"
+                fix = "true"
+            }
+        }
+    }
+}
+EOF
+    echo "content" > file.txt
+    echo "other" > other.txt
+    git add hk.pkl file.txt other.txt
+    git commit -m "initial commit"
+
+    # Create pre-existing unstaged change in an unrelated file
+    echo "changed" > other.txt
+
+    # Fixer is a no-op, so fail_on_fix should NOT trigger despite unstaged other.txt
+    hk run fix
+}
+
 @test "fail_on_fix=false (default) passes when fixer modifies files" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

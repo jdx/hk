@@ -660,6 +660,25 @@ impl Hook {
             info!("no steps to run");
             return Ok(());
         }
+        // Snapshot file content hashes before running groups so fail_on_fix can detect
+        // which files were actually modified by fixers (ignoring pre-existing changes).
+        let pre_file_hashes: std::collections::HashMap<PathBuf, u64> = if self.fail_on_fix {
+            use std::hash::{Hash, Hasher};
+            hook_ctx
+                .files()
+                .into_iter()
+                .filter_map(|f| {
+                    std::fs::read(&f).ok().map(|content| {
+                        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                        content.hash(&mut hasher);
+                        (f, hasher.finish())
+                    })
+                })
+                .collect()
+        } else {
+            std::collections::HashMap::new()
+        };
+
         let mut result = Ok(());
         let multiple_groups = hook_ctx.groups.len() > 1;
         for (i, group) in hook_ctx.groups.iter().enumerate() {
@@ -673,12 +692,26 @@ impl Hook {
                 break;
             }
         }
-        // When fail_on_fix is enabled, fail if fix commands modified files
+        // When fail_on_fix is enabled, fail if fix commands actually modified files.
+        // Compares file content hashes against pre-run snapshot.
         if result.is_ok() && self.fail_on_fix && matches!(run_type, RunType::Fix) {
-            let status = repo.lock().await.status(None)?;
-            if !status.unstaged_files.is_empty() {
-                let file_list = status
-                    .unstaged_files
+            use std::hash::{Hash, Hasher};
+            let modified_files: Vec<_> = pre_file_hashes
+                .iter()
+                .filter(|(path, pre_hash)| {
+                    std::fs::read(path)
+                        .ok()
+                        .map(|content| {
+                            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                            content.hash(&mut hasher);
+                            hasher.finish() != **pre_hash
+                        })
+                        .unwrap_or(false)
+                })
+                .map(|(path, _)| path)
+                .collect();
+            if !modified_files.is_empty() {
+                let file_list = modified_files
                     .iter()
                     .map(|p| format!("  {}", p.display()))
                     .collect::<Vec<_>>()
