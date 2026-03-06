@@ -36,7 +36,7 @@ EOF
     assert_failure
 }
 
-@test "fail_on_fix=true passes when no files are modified" {
+@test "fail_on_fix=true passes when fixer does not modify files" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -57,6 +57,10 @@ EOF
     git add hk.pkl file.txt
     git commit -m "initial commit"
 
+    # Create an unstaged change so hk picks up the file
+    echo "modified" > file.txt
+
+    # Fixer is a no-op (true), so file content stays the same and fail_on_fix should not trigger
     hk run fix
 }
 

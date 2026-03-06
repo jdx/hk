@@ -718,7 +718,7 @@ impl Hook {
                     .collect::<Vec<_>>()
                     .join("\n");
                 warn!(
-                    "Files were fixed but not staged (fail_on_fix=true). Review the changes and stage them manually:\n{}",
+                    "Files were modified by fix commands (fail_on_fix=true):\n{}",
                     file_list
                 );
                 result = Err(eyre::eyre!(
