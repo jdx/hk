@@ -1,0 +1,119 @@
+#!/usr/bin/env bats
+
+setup() {
+    load 'test_helper/common_setup'
+    _common_setup
+}
+
+teardown() {
+    _common_teardown
+}
+
+@test "fail_on_fix=true fails when fixer modifies files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["add-newline"] {
+                glob = "*.txt"
+                fix = #"for f in {{ files }}; do echo >> \$f; done"#
+            }
+        }
+    }
+}
+EOF
+    echo -n "no newline" > file.txt
+    git add hk.pkl file.txt
+    git commit -m "initial commit"
+
+    echo "modified" > file.txt
+
+    run hk run fix
+    assert_failure
+}
+
+@test "fail_on_fix=true passes when fixer does not modify files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["noop"] {
+                glob = "*.txt"
+                fix = "true"
+            }
+        }
+    }
+}
+EOF
+    echo "content" > file.txt
+    git add hk.pkl file.txt
+    git commit -m "initial commit"
+
+    # Create an unstaged change so hk picks up the file
+    echo "modified" > file.txt
+
+    # Fixer is a no-op (true), so file content stays the same and fail_on_fix should not trigger
+    hk run fix
+}
+
+@test "fail_on_fix=true ignores pre-existing unstaged files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["noop"] {
+                glob = "*.txt"
+                fix = "true"
+            }
+        }
+    }
+}
+EOF
+    echo "content" > file.txt
+    echo "other" > other.txt
+    git add hk.pkl file.txt other.txt
+    git commit -m "initial commit"
+
+    # Create pre-existing unstaged change in an unrelated file
+    echo "changed" > other.txt
+
+    # Fixer is a no-op, so fail_on_fix should NOT trigger despite unstaged other.txt
+    hk run fix
+}
+
+@test "fail_on_fix=false (default) passes when fixer modifies files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = false
+        steps {
+            ["add-newline"] {
+                glob = "*.txt"
+                fix = #"for f in {{ files }}; do echo >> \$f; done"#
+            }
+        }
+    }
+}
+EOF
+    echo -n "no newline" > file.txt
+    git add hk.pkl file.txt
+    git commit -m "initial commit"
+
+    echo "modified" > file.txt
+
+    hk run fix
+}

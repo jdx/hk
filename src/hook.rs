@@ -94,6 +94,8 @@ pub struct Hook {
     pub stash: Option<StashSetting>,
     pub stage: Option<bool>,
     #[serde(default)]
+    pub fail_on_fix: bool,
+    #[serde(default)]
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
@@ -658,6 +660,26 @@ impl Hook {
             info!("no steps to run");
             return Ok(());
         }
+        // Snapshot file content hashes before running groups so fail_on_fix can detect
+        // which files were actually modified by fixers (ignoring pre-existing changes).
+        let pre_file_hashes: std::collections::HashMap<PathBuf, u64> =
+            if self.fail_on_fix && matches!(run_type, RunType::Fix) {
+                use std::hash::{Hash, Hasher};
+                hook_ctx
+                    .files()
+                    .into_iter()
+                    .filter_map(|f| {
+                        std::fs::read(&f).ok().map(|content| {
+                            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                            content.hash(&mut hasher);
+                            (f, hasher.finish())
+                        })
+                    })
+                    .collect()
+            } else {
+                std::collections::HashMap::new()
+            };
+
         let mut result = Ok(());
         let multiple_groups = hook_ctx.groups.len() > 1;
         for (i, group) in hook_ctx.groups.iter().enumerate() {
@@ -671,6 +693,40 @@ impl Hook {
                 break;
             }
         }
+        // When fail_on_fix is enabled, fail if fix commands actually modified files.
+        // Compares file content hashes against pre-run snapshot.
+        if result.is_ok() && self.fail_on_fix && matches!(run_type, RunType::Fix) {
+            use std::hash::{Hash, Hasher};
+            let modified_files: Vec<_> = pre_file_hashes
+                .iter()
+                .filter(|(path, pre_hash)| {
+                    std::fs::read(path)
+                        .ok()
+                        .map(|content| {
+                            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                            content.hash(&mut hasher);
+                            hasher.finish() != **pre_hash
+                        })
+                        .unwrap_or(true) // file was deleted by fixer
+                })
+                .map(|(path, _)| path)
+                .collect();
+            if !modified_files.is_empty() {
+                let file_list = modified_files
+                    .iter()
+                    .map(|p| format!("  {}", p.display()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                warn!(
+                    "Files were modified by fix commands (fail_on_fix=true):\n{}",
+                    file_list
+                );
+                result = Err(eyre::eyre!(
+                    "fail_on_fix: files were modified by fix commands"
+                ));
+            }
+        }
+
         if let Some(hk_progress) = hook_ctx.hk_progress.as_ref() {
             if result.is_ok() {
                 hk_progress.set_status(ProgressStatus::Done);
