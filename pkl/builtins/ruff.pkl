@@ -13,7 +13,6 @@ import "./test/helpers.pkl"
 ruff = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")
   check = "ruff check --force-exclude {{ files }}"
-  check_diff = "ruff check --force-exclude --diff {{ files }}"
   fix = "ruff check --force-exclude --fix {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {

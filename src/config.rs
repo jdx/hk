@@ -519,6 +519,15 @@ impl Config {
                                 hook_name
                             );
                         }
+                        if step.check.is_some() && step.check_diff.is_some() {
+                            bail!(
+                                "Step '{}' in hook '{}' has both 'check' and 'check_diff'. \
+                                These are mutually exclusive: use 'check_diff' for pure formatters \
+                                where the diff covers all issues, or 'check' for linters.",
+                                step_name,
+                                hook_name
+                            );
+                        }
                     }
                     crate::hook::StepOrGroup::Group(group) => {
                         for (group_step_name, group_step) in &group.steps {
@@ -526,6 +535,16 @@ impl Config {
                                 bail!(
                                     "Step '{}' in group '{}' of hook '{}' has 'stage' attribute but no 'fix' command. \
                                     Steps that stage files must have a fix command.",
+                                    group_step_name,
+                                    step_name,
+                                    hook_name
+                                );
+                            }
+                            if group_step.check.is_some() && group_step.check_diff.is_some() {
+                                bail!(
+                                    "Step '{}' in group '{}' of hook '{}' has both 'check' and 'check_diff'. \
+                                    These are mutually exclusive: use 'check_diff' for pure formatters \
+                                    where the diff covers all issues, or 'check' for linters.",
                                     group_step_name,
                                     step_name,
                                     hook_name

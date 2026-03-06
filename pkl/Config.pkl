@@ -381,13 +381,15 @@ class Step {
   check_list_files: (String | Script)?
 
   /// A command that shows the diff of what would be changed.
-  /// This is an alternative to `check` that can provide more detailed information about what would be changed.
+  /// Mutually exclusive with `check`. Use `check_diff` for pure formatters where
+  /// the diff covers 100% of detected issues (e.g., black, ruff format, shfmt, taplo format).
+  ///
+  /// Avoid using `check_diff` on linters that also detect non-fixable errors (e.g., `ruff check`).
+  /// Their diff output may only cover auto-fixable issues, which can cause hk to miss
+  /// remaining errors. Use `check` for those tools instead.
   ///
   /// When defined, hk will attempt to apply the diff output directly using `git apply`
-  /// instead of running the fix command. This is more efficient for tools that
-  /// produce standard unified diffs (black, ruff, shfmt, etc.).
-  ///
-  /// Falls back to running the fix command if patch application fails.
+  /// instead of running the fix command. Falls back to the fix command if patch application fails.
   check_diff: (String | Script)?
 
   /// A command to run that modifies files.

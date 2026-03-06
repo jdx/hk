@@ -33,13 +33,13 @@ local custom_linters = new Mapping<String, Step> {
     exclusive = true
   }
 
-  // Custom workspace-based build tool
+  // Custom workspace-based build tool (pure formatter)
+  // Use check_diff only for pure formatters where the diff covers all issues.
+  // Do not use check_diff on linters that detect non-fixable errors.
   ["custom_build"] {
     workspace_indicator = "build.toml"
-    check = "cd {{workspace}} && custom-build check"
-    fix = "cd {{workspace}} && custom-build fix"
-    // Use check_diff for efficient patching
     check_diff = "cd {{workspace}} && custom-build diff"
+    fix = "cd {{workspace}} && custom-build fix"
   }
 
   // Interactive migration tool
