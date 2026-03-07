@@ -497,6 +497,7 @@ fn get_types_by_filename(filename: &str) -> Option<HashSet<String>> {
             types.insert("text".to_string());
             types.insert("json".to_string());
             types.insert("javascript".to_string());
+            types.insert("package.json".to_string());
         }
         "go.mod" | "go.sum" => {
             types.insert("text".to_string());
