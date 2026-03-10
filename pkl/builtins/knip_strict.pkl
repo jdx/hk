@@ -19,7 +19,8 @@ knip_strict = new Config.Step {
       """
       {
         "dependencies": {
-          "express": "^4.18.0"
+          "express": "^4.18.0",
+          "zod": "^3.22.0"
         }
       }
 
@@ -27,7 +28,9 @@ knip_strict = new Config.Step {
     local const good =
       """
       {
-        "dependencies": {}
+        "dependencies": {
+          "zod": "^3.22.0"
+        }
       }
 
       """
@@ -36,12 +39,22 @@ knip_strict = new Config.Step {
       extra_files = new Mapping<String, String> {
         ["src/index.ts"] =
           """
-            import type { Request, Response } from "express";
+          import type { Request, Response } from "express";
+          import { z } from "zod";
 
-            export function handleRequest(req: Request): Response {
-              console.log(req.body);
-              return {} as Response;
-            }
+          const UserSchema = z.object({
+            name: z.string(),
+            email: z.string().email(),
+          });
+
+          export function handleRequest(req: Request): Response {
+            const user = UserSchema.parse(req.body);
+            console.log(user);
+
+            console.log(req.body);
+            return {} as Response;
+          }
+
           """
       }
     }
