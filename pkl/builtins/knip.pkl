@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Find unused files, dependencies, and exports"
+  project_indicators {
+    new { file = "package.json"; contains = "\"knip\"" }
+  }
 }
 knip = new Config.Step {
   workspace_indicator = "package.json"

@@ -5,6 +5,9 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Find unused files, dependencies, and exports with strict mode enabled"
+  project_indicators {
+    new { file = "package.json"; contains = "\"knip\"" }
+  }
 }
 knip_strict = new Config.Step {
   workspace_indicator = "package.json"
