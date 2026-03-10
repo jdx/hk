@@ -1,0 +1,44 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Find unused files, dependencies, and exports"
+}
+knip = new Config.Step {
+  workspace_indicator = "package.json"
+  // https://knip.dev/explanations/entry-files
+  types = List("javascript", "typescript")
+  check = "knip  --no-progress --directory {{workspace}}"
+  fix = "knip --fix  --no-progress --directory {{workspace}}"
+  tests {
+    local const bad =
+      """
+      const foo = 1
+      const bar = 2
+
+      export { foo,  bar }
+
+      """
+    local const good =
+      """
+      const foo = 1
+      const bar = 2
+
+      export { foo,   }
+
+      """
+    local const testMaker = new helpers.TestMaker {
+      filename = "src/export.ts"
+      extra_files = new Mapping<String, String> {
+        ["package.json"] = "{}"
+        ["src/index.ts"] = "import { foo } from './export';"
+      }
+    }
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}

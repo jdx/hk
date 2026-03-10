@@ -1,0 +1,53 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Find unused files, dependencies, and exports with strict mode enabled"
+}
+knip_strict = new Config.Step {
+  workspace_indicator = "package.json"
+  // https://knip.dev/explanations/entry-files
+  types = List("javascript", "typescript")
+  // Using `--strict` implies `--production`
+  // https://knip.dev/features/production-mode#strict-mode
+  check = "knip --strict  --no-progress --directory {{workspace}}"
+  fix = "knip --fix --strict  --no-progress --directory {{workspace}}"
+  tests {
+    local const bad =
+      """
+      {
+        "dependencies": {
+          "express": "^4.18.0"
+        }
+      }
+
+      """
+    local const good =
+      """
+      {
+        "dependencies": {}
+      }
+
+      """
+    local const testMaker = new helpers.TestMaker {
+      filename = "package.json"
+      extra_files = new Mapping<String, String> {
+        ["src/index.ts"] =
+          """
+            import type { Request, Response } from "express";
+
+            export function handleRequest(req: Request): Response {
+              console.log(req.body);
+              return {} as Response;
+            }
+          """
+      }
+    }
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
