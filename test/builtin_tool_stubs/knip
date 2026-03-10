@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "5.86.0"
+tool = "npm:knip"
