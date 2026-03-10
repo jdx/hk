@@ -12,8 +12,8 @@ knip_strict = new Config.Step {
   types = List("javascript", "typescript")
   // Using `--strict` implies `--production`
   // https://knip.dev/features/production-mode#strict-mode
-  check = "knip --strict  --no-progress --directory {{workspace}}"
-  fix = "knip --fix --strict  --no-progress --directory {{workspace}}"
+  check = "knip --strict --no-progress --directory {{workspace}}"
+  fix = "knip --fix --strict --no-progress --directory {{workspace}}"
   tests {
     local const bad =
       """

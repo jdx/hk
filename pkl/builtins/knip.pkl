@@ -10,8 +10,8 @@ knip = new Config.Step {
   workspace_indicator = "package.json"
   // https://knip.dev/explanations/entry-files
   types = List("javascript", "typescript")
-  check = "knip  --no-progress --directory {{workspace}}"
-  fix = "knip --fix  --no-progress --directory {{workspace}}"
+  check = "knip --no-progress --directory {{workspace}}"
+  fix = "knip --fix --no-progress --directory {{workspace}}"
   tests {
     local const bad =
       """
