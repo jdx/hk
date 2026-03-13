@@ -100,7 +100,11 @@ impl Step {
         // Build a minimal context based on the suggested files, honoring dir/workspace
         let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
         let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
-        if let Some(mut fix_cmd) = self.run_cmd(RunType::Fix).map(|s| s.to_string()) {
+        if let Some(mut fix_cmd) = self
+            .run_cmd(RunType::Fix)
+            .map(|s| s.to_string())
+            .filter(|s| !s.trim().is_empty())
+        {
             if let Some(prefix) = &self.prefix {
                 fix_cmd = format!("{prefix} {fix_cmd}");
             }

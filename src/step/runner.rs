@@ -119,7 +119,10 @@ impl Step {
         } else {
             self.run_cmd(job.run_type)
         };
-        let Some(mut run) = run_cmd.map(|s| s.to_string()) else {
+        let Some(mut run) = run_cmd
+            .map(|s| s.to_string())
+            .filter(|s| !s.trim().is_empty())
+        else {
             eyre::bail!("{self}: no run command");
         };
         if let Some(prefix) = &self.prefix {
@@ -322,7 +325,9 @@ impl Step {
 
     /// Check if this step has a command for the given run type.
     pub fn has_command_for(&self, run_type: RunType) -> bool {
-        self.run_cmd(run_type).is_some()
+        self.run_cmd(run_type)
+            .map(|cmd| !cmd.to_string().trim().is_empty())
+            .unwrap_or(false)
     }
 
     /// Get the shell type for this step.
@@ -372,5 +377,71 @@ impl Step {
         }
         ctx.depends.mark_done(&self.name)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_has_command_for_empty_command() {
+        // Mirror the nix_fmt.pkl pattern: windows is empty, other has the real command.
+        // On Windows the empty string should make has_command_for return false;
+        // on every other platform the `other` fallback provides a valid command.
+        let step = Step {
+            name: "test_step".to_string(),
+            check: Some(Script {
+                linux: None,
+                macos: None,
+                windows: Some("".to_string()),
+                other: Some("other_cmd".to_string()),
+            }),
+            fix: None,
+            ..Default::default()
+        };
+
+        #[cfg(target_os = "windows")]
+        {
+            assert!(!step.has_command_for(RunType::Check));
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            assert!(step.has_command_for(RunType::Check));
+        }
+    }
+
+    #[test]
+    fn test_has_command_for_valid_command() {
+        // Test that has_command_for returns true when command is valid
+        let step = Step {
+            name: "test_step".to_string(),
+            check: Some(Script {
+                linux: Some("cmd".to_string()),
+                macos: Some("cmd".to_string()),
+                windows: Some("cmd".to_string()),
+                other: Some("cmd".to_string()),
+            }),
+            fix: None,
+            ..Default::default()
+        };
+
+        // Should have a command on all platforms
+        assert!(step.has_command_for(RunType::Check));
+    }
+
+    #[test]
+    fn test_has_command_for_no_command() {
+        // Test that has_command_for returns false when no command is defined
+        let step = Step {
+            name: "test_step".to_string(),
+            check: None,
+            fix: None,
+            ..Default::default()
+        };
+
+        assert!(!step.has_command_for(RunType::Check));
+        assert!(!step.has_command_for(RunType::Fix));
     }
 }
