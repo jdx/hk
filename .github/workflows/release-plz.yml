@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
           token: ${{ secrets.HK_GH_TOKEN }}
-      - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
           experimental: true
