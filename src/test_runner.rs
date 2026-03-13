@@ -227,7 +227,11 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         RunKind::Check => RunType::Check,
     };
 
-    let Some(mut run) = step.run_cmd(run_type).map(|s| s.to_string()) else {
+    let Some(mut run) = step
+        .run_cmd(run_type)
+        .map(|s| s.to_string())
+        .filter(|s| !s.trim().is_empty())
+    else {
         eyre::bail!("{}: no command for test", step.name);
     };
     if let Some(prefix) = &step.prefix {
