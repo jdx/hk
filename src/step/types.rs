@@ -26,7 +26,6 @@ use std::{fmt, fmt::Display, path::PathBuf, str::FromStr};
 pub enum Pattern {
     /// A regex pattern with explicit type marker
     Regex {
-        #[serde(skip_serializing)]
         _type: String,
         /// The regex pattern string
         pattern: String,
