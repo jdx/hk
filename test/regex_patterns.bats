@@ -505,6 +505,33 @@ EOF
     assert_output --partial 'echo echo echo'
 }
 
+@test "regex glob pattern cache roundtrip" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["trailing-ws"] {
+                check = "echo {{files}}"
+                glob = Regex(#"(^|/)\s|\s($|/)"#)
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    # First run populates the cache
+    run hk check
+    assert_success
+
+    # Second run reads from cache – should not produce a parse warning
+    run hk check 2>&1
+    assert_success
+    refute_output --partial 'failed to parse cache file'
+}
+
 # Note: User config tests with .hkrc.pkl would require a separate Pkl schema for UserConfig
 # which doesn't currently exist. The Rust changes to support Pattern in UserStepConfig
 # are tested implicitly through the API, but end-to-end .hkrc.pkl tests would need
