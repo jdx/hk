@@ -322,7 +322,9 @@ impl Step {
 
     /// Check if this step has a command for the given run type.
     pub fn has_command_for(&self, run_type: RunType) -> bool {
-        self.run_cmd(run_type).is_some()
+        self.run_cmd(run_type)
+            .map(|cmd| !cmd.to_string().trim().is_empty())
+            .unwrap_or(false)
     }
 
     /// Get the shell type for this step.
@@ -372,5 +374,71 @@ impl Step {
         }
         ctx.depends.mark_done(&self.name)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_has_command_for_empty_command() {
+        // Test that has_command_for returns false when command is empty after platform selection
+        let step = Step {
+            name: "test_step".to_string(),
+            check: Some(Script {
+                linux: Some("linux_cmd".to_string()),
+                macos: Some("macos_cmd".to_string()),
+                windows: Some("".to_string()),
+                other: None,
+            }),
+            fix: None,
+            ..Default::default()
+        };
+
+        #[cfg(target_os = "windows")]
+        {
+            // On Windows with empty command, should return false
+            assert!(!step.has_command_for(RunType::Check));
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            // On non-Windows platforms, should have a command
+            assert!(step.has_command_for(RunType::Check));
+        }
+    }
+
+    #[test]
+    fn test_has_command_for_valid_command() {
+        // Test that has_command_for returns true when command is valid
+        let step = Step {
+            name: "test_step".to_string(),
+            check: Some(Script {
+                linux: Some("cmd".to_string()),
+                macos: Some("cmd".to_string()),
+                windows: Some("cmd".to_string()),
+                other: Some("cmd".to_string()),
+            }),
+            fix: None,
+            ..Default::default()
+        };
+
+        // Should have a command on all platforms
+        assert!(step.has_command_for(RunType::Check));
+    }
+
+    #[test]
+    fn test_has_command_for_no_command() {
+        // Test that has_command_for returns false when no command is defined
+        let step = Step {
+            name: "test_step".to_string(),
+            check: None,
+            fix: None,
+            ..Default::default()
+        };
+
+        assert!(!step.has_command_for(RunType::Check));
+        assert!(!step.has_command_for(RunType::Fix));
     }
 }

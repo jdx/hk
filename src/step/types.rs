@@ -315,3 +315,59 @@ impl Display for Script {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_script_empty_windows_command() {
+        // Test that an empty windows command results in an empty string on Windows
+        let script = Script {
+            linux: Some("linux_cmd".to_string()),
+            macos: Some("macos_cmd".to_string()),
+            windows: Some("".to_string()),
+            other: None,
+        };
+
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(script.to_string(), "");
+            assert!(script.to_string().trim().is_empty());
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            // On non-Windows, should use platform-specific command
+            assert!(!script.to_string().is_empty());
+        }
+    }
+
+    #[test]
+    fn test_script_none_windows_command_with_other() {
+        // Test that None windows with Some other falls back to other
+        let script = Script {
+            linux: None,
+            macos: None,
+            windows: None,
+            other: Some("fallback_cmd".to_string()),
+        };
+
+        // On all platforms, should use the fallback
+        assert_eq!(script.to_string(), "fallback_cmd");
+    }
+
+    #[test]
+    fn test_script_all_none_produces_empty() {
+        // Test that all None produces empty string
+        let script = Script {
+            linux: None,
+            macos: None,
+            windows: None,
+            other: None,
+        };
+
+        assert_eq!(script.to_string(), "");
+        assert!(script.to_string().trim().is_empty());
+    }
+}
