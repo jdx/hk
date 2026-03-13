@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
       - name: Package Pkl
         run: |
           if [[ -n "${{ inputs.version }}" ]]; then
@@ -107,7 +107,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
       - name: Extract release notes from CHANGELOG.md
         run: |
           awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
@@ -145,7 +145,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@e79ddf65a11cec7b0e882bedced08d6e976efb2d # v3
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
       - name: Enhance release notes with communique
         run: |
           if [[ -n "${{ inputs.version }}" ]]; then
