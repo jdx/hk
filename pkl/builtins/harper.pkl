@@ -1,0 +1,21 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Grammar checker for prose and documentation"
+}
+harper = new Config.Step {
+  types = List("text")
+  check = "harper-cli lint {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.txt"
+    }
+    ["check bad file"] = testMaker.checkFail("That;s", 1)
+    // It will work as expected once this issue (https://github.com/webpro-nl/knip/commit/c182c29e35748ff044048c578b6bf7dd99dae9a8)
+    // is fixed.
+    ["check good file"] = testMaker.checkPass("That's", 0)
+  }
+}
