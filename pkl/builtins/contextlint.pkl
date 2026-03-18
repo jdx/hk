@@ -17,7 +17,7 @@ contextlint = new Config.Step {
     local const testMaker = new helpers.TestMaker {
       filename = "foo.md"
       extra_files = new Mapping<String, String> {
-        // Adapted on: https://github.com/nozomi-koborinai/contextlint/blob/v0.7.0/tests/e2e/fixtures/todo-app/contextlint.config.json
+        // Adapted from: https://github.com/nozomi-koborinai/contextlint/blob/v0.7.0/tests/e2e/fixtures/todo-app/contextlint.config.json
         ["contextlint.config.json"] =
           """
           {
