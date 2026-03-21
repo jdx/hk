@@ -18,6 +18,26 @@ use crate::{Result, tera};
 use clx::progress::ProgressStatus;
 use ensembler::CmdLineRunner;
 use eyre::WrapErr;
+
+/// Returns a [`CmdLineRunner`] configured with the platform default shell.
+///
+/// - **Windows**: passes `run` directly to [`CmdLineRunner::new`] because ensembler
+///   already wraps every invocation with `cmd.exe /c`. Adding an explicit
+///   `cmd.exe /c` here would double-wrap and break when `%PATH%` does not
+///   include the system directory.
+/// - **Unix**: `sh -o errexit -c <run>`
+pub(crate) fn default_shell_cmd(run: &str) -> CmdLineRunner {
+    if cfg!(windows) {
+        CmdLineRunner::new(run)
+    } else {
+        CmdLineRunner::new("sh")
+            .arg("-o")
+            .arg("errexit")
+            .arg("-c")
+            .arg(run)
+    }
+}
+
 use itertools::Itertools;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -152,14 +172,11 @@ impl Step {
             for arg in shell[1..].iter() {
                 cmd = cmd.arg(arg);
             }
-            cmd
-        } else if cfg!(windows) {
-            CmdLineRunner::new("cmd.exe").arg("/c")
+            cmd.arg(&run)
         } else {
-            CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+            default_shell_cmd(&run)
         };
         cmd = cmd
-            .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
@@ -443,5 +460,10 @@ mod tests {
 
         assert!(!step.has_command_for(RunType::Check));
         assert!(!step.has_command_for(RunType::Fix));
+    }
+
+    #[test]
+    fn test_default_shell_cmd_constructs_without_panic() {
+        let _runner = default_shell_cmd("echo hello");
     }
 }

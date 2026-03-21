@@ -35,15 +35,15 @@ async fn execute_cmd(
         let shell = shell.to_string();
         let mut parts = shell.split_whitespace();
         let bin = parts.next().unwrap_or("sh");
-        CmdLineRunner::new(bin).args(parts)
+        CmdLineRunner::new(bin).args(parts).arg(cmd_str)
     } else {
-        CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+        crate::step::default_shell_cmd(cmd_str)
     };
     if let Some(stdin) = stdin {
         let rendered_stdin = tera::render(stdin, tctx)?;
         runner = runner.stdin_string(rendered_stdin);
     }
-    runner = runner.arg(cmd_str).current_dir(base_dir);
+    runner = runner.current_dir(base_dir);
     for (k, v) in &step.env {
         let v = tera::render(v, tctx)?;
         runner = runner.env(k, v);

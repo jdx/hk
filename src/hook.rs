@@ -845,12 +845,9 @@ impl Hook {
         if let Some(report) = &self.report
             && let Ok(json) = hook_ctx.timing.to_json_string()
         {
-            let mut cmd = ensembler::CmdLineRunner::new("sh")
-                .arg("-o")
-                .arg("errexit")
-                .arg("-c");
             let run = report.to_string();
-            cmd = cmd.arg(&run).env("HK_REPORT_JSON", json);
+            let mut cmd = crate::step::default_shell_cmd(&run);
+            cmd = cmd.env("HK_REPORT_JSON", json);
             let pr = ProgressJobBuilder::new()
                 .body("report: {{message}}")
                 .prop("message", &run)

@@ -141,7 +141,7 @@ pub struct Step {
     /// Steps that must complete before this one runs
     pub depends: Vec<String>,
 
-    /// Custom shell to use (default: `sh -o errexit -c`)
+    /// Custom shell to use (default: `sh -o errexit -c` on Unix, `cmd.exe /c` on Windows)
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub shell: Option<Script>,
 

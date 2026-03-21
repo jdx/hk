@@ -70,10 +70,14 @@ fn friendly_error(e: eyre::Report) -> Result<()> {
 
 fn handle_script_failed(bin: &str, args: &[String], output: &str, result: &ensembler::CmdResult) {
     clx::progress::flush();
-    let mut cmd = format!("{} {}", bin, args.join(" "));
-    if cmd.starts_with("sh -o errexit -c ") {
-        cmd = cmd[17..].to_string();
-    }
+    // Strip default shell prefix for cleaner error messages.
+    // On Unix the default shell produces: bin="sh", args=["-o", "errexit", "-c", "<cmd>"]
+    // On Windows, ensembler wraps with cmd.exe /c internally, so bin is the command itself.
+    let cmd = if args.len() >= 4 && args[0] == "-o" && args[1] == "errexit" && args[2] == "-c" {
+        args[3..].join(" ")
+    } else {
+        format!("{} {}", bin, args.join(" "))
+    };
     eprintln!("{}\n{output}", style::ered(format!("Error running {cmd}")));
     if let Err(e) = write_output_file(result) {
         eprintln!("Error writing output file: {e:?}");
