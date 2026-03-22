@@ -60,6 +60,26 @@ fn resolve_common_git_dir(git_dir: &Path) -> Result<PathBuf> {
     }
 }
 
+/// Given a path like `.git/COMMIT_EDITMSG`, resolve it for worktrees.
+/// In worktrees, `.git` is a file (not a directory), so paths like
+/// `.git/COMMIT_EDITMSG` passed by git to hooks need to be resolved
+/// through the actual git directory.
+pub fn resolve_git_relative_path(path: &Path) -> Result<PathBuf> {
+    if path.exists() {
+        return Ok(path.to_path_buf());
+    }
+    // Check if path starts with .git/ and resolve through actual git dir
+    if let Ok(rest) = path.strip_prefix(".git") {
+        let git_path = find_git_path()?;
+        let git_dir = resolve_git_dir(&git_path)?;
+        let resolved = git_dir.join(rest);
+        if resolved.exists() {
+            return Ok(resolved);
+        }
+    }
+    Ok(path.to_path_buf())
+}
+
 /// Given a `.git` path (found by find_up), resolve the hooks directory.
 /// Git always looks for hooks in the **common** git directory, not the
 /// worktree-specific one. So for worktrees we follow the `commondir` pointer.

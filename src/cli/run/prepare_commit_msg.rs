@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::Result;
+use crate::git_util;
 use crate::hook_options::HookOptions;
 
 #[derive(clap::Args)]
@@ -18,9 +19,10 @@ pub struct PrepareCommitMsg {
 
 impl PrepareCommitMsg {
     pub async fn run(mut self) -> Result<()> {
+        let resolved = git_util::resolve_git_relative_path(&self.commit_msg_file)?;
         self.hook
             .tctx
-            .insert("commit_msg_file", &self.commit_msg_file.to_string_lossy());
+            .insert("commit_msg_file", &resolved.to_string_lossy());
         self.hook.tctx.insert("source", &self.source);
         self.hook.tctx.insert("sha", &self.sha.as_ref());
         self.hook.run("prepare-commit-msg").await

@@ -400,6 +400,11 @@ fn run_pkl<T: DeserializeOwned>(subcommand: &[&str], path: &Path) -> Result<T> {
             args.push(http_rewrite.to_string());
         }
 
+        if let Some(ca_certificates) = env::HK_PKL_CA_CERTIFICATES.as_ref() {
+            args.push("--ca-certificates".to_string());
+            args.push(ca_certificates.to_string());
+        }
+
         // Add the path last (positional argument must come after flags)
         args.push(path.display().to_string());
 
