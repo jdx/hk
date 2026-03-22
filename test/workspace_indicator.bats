@@ -93,6 +93,6 @@ EOF
   job_count=$(echo "$output" | grep -c '^\s*DEBUG \$ echo "ws=')
   [ "$job_count" -eq 2 ]
 
-  # Each job should have a subset of files, not all 8
-  refute_output --partial "f1.js ws1/f2.js ws1/f3.js ws1/f4.js ws1/f5.js ws1/f6.js ws1/f7.js ws1/f8.js"
+  # No single job should contain all 8 files — they must be split across batches
+  refute_output --partial "ws1/f1.js ws1/f2.js ws1/f3.js ws1/f4.js ws1/f5.js ws1/f6.js ws1/f7.js ws1/f8.js"
 }
