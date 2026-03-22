@@ -846,7 +846,7 @@ impl Hook {
             && let Ok(json) = hook_ctx.timing.to_json_string()
         {
             let run = report.to_string();
-            let cmd = crate::step::default_shell_cmd(&run).env("HK_REPORT_JSON", json);
+            let mut cmd = crate::step::default_shell_cmd(&run).env("HK_REPORT_JSON", json);
             let pr = ProgressJobBuilder::new()
                 .body("report: {{message}}")
                 .prop("message", &run)
