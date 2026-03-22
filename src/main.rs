@@ -73,7 +73,12 @@ fn handle_script_failed(bin: &str, args: &[String], output: &str, result: &ensem
     // Strip default shell prefix for cleaner error messages.
     // On Unix the default shell produces: bin="sh", args=["-o", "errexit", "-c", "<cmd>"]
     // On Windows, ensembler wraps with cmd.exe /c internally, so bin is the command itself.
-    let cmd = if bin == "sh" && args.len() >= 4 && args[0] == "-o" && args[1] == "errexit" && args[2] == "-c" {
+    let cmd = if bin == "sh"
+        && args.len() >= 4
+        && args[0] == "-o"
+        && args[1] == "errexit"
+        && args[2] == "-c"
+    {
         args[3..].join(" ")
     } else {
         format!("{} {}", bin, args.join(" "))
