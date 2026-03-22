@@ -1,6 +1,46 @@
 # Changelog
 
-## [1.38.0](https://github.com/jdx/hk/compare/v1.37.0..v1.38.0) - 2026-03-06
+## [1.39.0](https://github.com/jdx/hk/compare/v1.38.0..v1.39.0) - 2026-03-22
+
+### 🚀 Features
+
+- **(config)** support HK_PKL_CA_CERTIFICATES env var for corporate proxies by [@jdx](https://github.com/jdx) in [#760](https://github.com/jdx/hk/pull/760)
+- **(contextlint)** add contextlint config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#747](https://github.com/jdx/hk/pull/747)
+- **(javascript)** add knip config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#713](https://github.com/jdx/hk/pull/713)
+- **(just_format)** init by [@matdibu](https://github.com/matdibu) in [#729](https://github.com/jdx/hk/pull/729)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** make nixfmt no-op on Windows by [@azais-corentin](https://github.com/azais-corentin) in [#741](https://github.com/jdx/hk/pull/741)
+- **(config)** preserve regex _type field in cached config JSON by [@jdx](https://github.com/jdx) in [#740](https://github.com/jdx/hk/pull/740)
+- **(hook)** resolve commit message file path in git worktrees by [@jdx](https://github.com/jdx) in [#761](https://github.com/jdx/hk/pull/761)
+- **(stash)** preserve binary files during stash/unstash cycle by [@jdx](https://github.com/jdx) in [#759](https://github.com/jdx/hk/pull/759)
+- **(step)** apply batch splitting within workspace jobs by [@jdx](https://github.com/jdx) in [#757](https://github.com/jdx/hk/pull/757)
+- **(util)** strip carriage returns in trailing-whitespace --fix by [@jdx](https://github.com/jdx) in [#758](https://github.com/jdx/hk/pull/758)
+
+### 🔍 Other Changes
+
+- updated mise lockfile by [@jdx](https://github.com/jdx) in [627fb85](https://github.com/jdx/hk/commit/627fb85362dbd4651a1fb22bd21f3ee3564f39d4)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#727](https://github.com/jdx/hk/pull/727)
+- update anthropics/claude-code-action digest to 5d0cc74 by [@renovate[bot]](https://github.com/renovate[bot]) in [#732](https://github.com/jdx/hk/pull/732)
+- update taiki-e/upload-rust-binary-action digest to 381995c by [@renovate[bot]](https://github.com/renovate[bot]) in [#735](https://github.com/jdx/hk/pull/735)
+- update jdx/mise-action digest to 5228313 by [@renovate[bot]](https://github.com/renovate[bot]) in [#733](https://github.com/jdx/hk/pull/733)
+- update rust crate once_cell to v1.21.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#736](https://github.com/jdx/hk/pull/736)
+- update rust crate clap to v4.6.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#737](https://github.com/jdx/hk/pull/737)
+- update swatinem/rust-cache digest to e18b497 by [@renovate[bot]](https://github.com/renovate[bot]) in [#734](https://github.com/jdx/hk/pull/734)
+- update rust crate tempfile to v3.27.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#738](https://github.com/jdx/hk/pull/738)
+- update rust crate expr-lang to 0.4.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#739](https://github.com/jdx/hk/pull/739)
+- update anthropics/claude-code-action digest to df37d2f by [@renovate[bot]](https://github.com/renovate[bot]) in [#753](https://github.com/jdx/hk/pull/753)
+- update actions-rust-lang/setup-rust-toolchain digest to 150fca8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#752](https://github.com/jdx/hk/pull/752)
+
+### New Contributors
+
+- @azais-corentin made their first contribution in [#741](https://github.com/jdx/hk/pull/741)
+
+## [1.38.0](https://github.com/jdx/hk/compare/v1.37.0..v1.38.0) - 2026-03-07
 
 ### 🚀 Features
 
