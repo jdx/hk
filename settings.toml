@@ -192,6 +192,16 @@ A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`.
 (`pkl` expects this in the form `http(s)://<FROM>/=http(s)://<TO>/`)ß
 """
 
+[pkl_ca_certificates]
+type = "string"
+sources.env = ["HK_PKL_CA_CERTIFICATES"]
+docs = """
+A path to a CA certificates file to provide `pkl`'s `--ca-certificates` flag when invoking `pkl`.
+
+This is useful in corporate environments with SSL-intercepting proxies where pkl
+needs to trust custom CA certificates to download packages.
+"""
+
 [jobs]
 type = "usize"
 default = 0 # 0 means auto-detect from environment or CPU count
