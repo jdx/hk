@@ -40,6 +40,11 @@ fn generate_settings_struct(
 
     // Add fields to the struct with documentation
     for (name, opt) in &registry.options {
+        // Skip env-only settings — they are read directly from env vars
+        // before pkl loads (e.g., HK_PKL_CA_CERTIFICATES)
+        if opt.env_only {
+            continue;
+        }
         let field_name = name.replace('-', "_");
         let base_type = rust_type(&opt.typ);
 
@@ -129,6 +134,9 @@ fn generate_settings_struct(
     let mut body = vec!["Self {".to_string()];
 
     for (name, opt) in &registry.options {
+        if opt.env_only {
+            continue;
+        }
         let field_name = name.replace('-', "_");
         let default_value = get_default_value(opt, name);
         body.push(format!("    {}: {},", field_name, default_value));
@@ -267,6 +275,9 @@ fn generate_settings_meta(
     build_fn.ret("IndexMap<&'static str, SettingMeta>");
     build_fn.line("let mut m: IndexMap<&'static str, SettingMeta> = IndexMap::new();");
     for (name, opt) in &registry.options {
+        if opt.env_only {
+            continue;
+        }
         let cli_sources = format_string_array(&opt.sources.cli);
         let env_sources = format_string_array(&opt.sources.env);
         let git_sources = format_string_array(&opt.sources.git);

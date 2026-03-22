@@ -25,6 +25,8 @@ pub struct OptionConfig {
     pub deprecated: Option<String>,
     #[serde(default)]
     pub since: Option<String>,
+    #[serde(default)]
+    pub env_only: bool,
 }
 
 #[derive(Debug, Deserialize)]

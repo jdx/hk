@@ -185,11 +185,29 @@ This setting and the `--hkrc` flag will be removed in hk v2.
 
 [pkl_http_rewrite]
 type = "string"
+env_only = true
 sources.env = ["HK_PKL_HTTP_REWRITE"]
 docs = """
 A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`.
 
-(`pkl` expects this in the form `http(s)://<FROM>/=http(s)://<TO>/`)ß
+This setting is read directly from the environment variable before pkl is invoked, \
+so it cannot be configured in `hk.pkl`.
+
+(`pkl` expects this in the form `http(s)://<FROM>/=http(s)://<TO>/`)
+"""
+
+[pkl_ca_certificates]
+type = "path"
+env_only = true
+sources.env = ["HK_PKL_CA_CERTIFICATES"]
+docs = """
+A path to a CA certificates file to provide `pkl`'s `--ca-certificates` flag when invoking `pkl`.
+
+This setting is read directly from the environment variable before pkl is invoked, \
+so it cannot be configured in `hk.pkl`.
+
+This is useful in corporate environments with SSL-intercepting proxies where pkl
+needs to trust custom CA certificates to download packages.
 """
 
 [jobs]
