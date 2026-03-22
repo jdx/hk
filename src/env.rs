@@ -99,8 +99,8 @@ pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path
 pub static HK_PKL_HTTP_REWRITE: LazyLock<Option<String>> =
     LazyLock::new(|| var("HK_PKL_HTTP_REWRITE").ok());
 
-pub static HK_PKL_CA_CERTIFICATES: LazyLock<Option<String>> =
-    LazyLock::new(|| var("HK_PKL_CA_CERTIFICATES").ok());
+pub static HK_PKL_CA_CERTIFICATES: LazyLock<Option<PathBuf>> =
+    LazyLock::new(|| var_path("HK_PKL_CA_CERTIFICATES"));
 
 /// System's ARG_MAX value, memoized for performance
 pub static ARG_MAX: LazyLock<usize> = LazyLock::new(|| {
