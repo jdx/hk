@@ -1,0 +1,13 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Justfile formatter"
+}
+just_format = new Config.Step {
+  glob = List("**/justfile", "**/*.just")
+  stdin = "{{ files_list | join(sep='\n') }}"
+  // use xargs because `just --fmt` accepts only one file
+  fix = "xargs -d'\n' -I {} -- just --fmt --unstable --justfile {}"
+}
