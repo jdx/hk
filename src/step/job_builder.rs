@@ -76,7 +76,9 @@ impl Step {
         }
         let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
             let mut files = files.clone();
-            let jobs_count = Settings::get().jobs().get();
+            // Compute chunk size from total file count so the total number of
+            // jobs across all workspaces stays ~jobs_count, not per-workspace.
+            let chunk_size = (files.len() / Settings::get().jobs().get()).max(1);
 
             workspace_indicators
                 // Sort the files in reverse so the longest directory can take files in their directories
@@ -100,7 +102,6 @@ impl Step {
                     }
 
                     if self.batch {
-                        let chunk_size = (workspace_files.len() / jobs_count).max(1);
                         workspace_files
                             .chunks(chunk_size)
                             .map(|chunk| {
