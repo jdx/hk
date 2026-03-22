@@ -76,12 +76,15 @@ impl Step {
         }
         let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
             let mut files = files.clone();
+            // Compute chunk size from total file count so the total number of
+            // jobs across all workspaces stays ~jobs_count, not per-workspace.
+            let chunk_size = (files.len() / Settings::get().jobs().get()).max(1);
 
             workspace_indicators
                 // Sort the files in reverse so the longest directory can take files in their directories
                 // and then the shortest path will take the rest of them.
                 .sorted_by(|a, b| b.as_os_str().len().cmp(&a.as_os_str().len()))
-                .map(|workspace_indicator| {
+                .flat_map(|workspace_indicator| {
                     let workspace_dir = workspace_indicator.parent();
                     let mut workspace_files = Vec::new();
                     let mut i = 0;
@@ -98,8 +101,20 @@ impl Step {
                         }
                     }
 
-                    StepJob::new(Arc::new((*self).clone()), workspace_files, run_type)
-                        .with_workspace_indicator(workspace_indicator)
+                    if self.batch {
+                        workspace_files
+                            .chunks(chunk_size)
+                            .map(|chunk| {
+                                StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_type)
+                                    .with_workspace_indicator(workspace_indicator.clone())
+                            })
+                            .collect::<Vec<_>>()
+                    } else {
+                        vec![
+                            StepJob::new(Arc::new((*self).clone()), workspace_files, run_type)
+                                .with_workspace_indicator(workspace_indicator),
+                        ]
+                    }
                 })
                 .collect()
         } else if self.batch {
