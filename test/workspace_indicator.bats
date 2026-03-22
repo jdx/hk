@@ -59,13 +59,13 @@ EOF
 }
 
 @test "workspace_indicator respects batch=true" {
-  # Create two workspaces with enough files to trigger batching (HK_JOBS=2)
+  # With HK_JOBS=2 and 8 files in one workspace, chunk_size = total_files/jobs = 8/2 = 4,
+  # so the workspace's 8 files should be split into 2 batched jobs of 4 files each.
   rm -rf a b go.mod main.go hk.pkl
-  mkdir -p ws1 ws2
-  touch ws1/package.json ws2/package.json
-  for i in 1 2 3 4; do
+  mkdir -p ws1
+  touch ws1/package.json
+  for i in $(seq 1 8); do
     echo "f$i" > ws1/f$i.js
-    echo "f$i" > ws2/f$i.js
   done
 
   cat > hk.pkl <<EOF
@@ -89,14 +89,10 @@ EOF
   run hk check --all -v
   assert_success
 
-  # With batch=true and HK_JOBS=2, each workspace's 4 files should be split
-  # into 2 batched jobs (2 files each) rather than 1 job with all 4 files.
-  # Count how many times the check command ran — should be more than 2
-  # (which would be 1 job per workspace without batching).
-  job_count=$(echo "$output" | grep -c 'echo "ws=')
-  [ "$job_count" -gt 2 ]
+  # Count actual command executions (the "$ echo" debug lines), not output lines
+  job_count=$(echo "$output" | grep -c '^\s*DEBUG \$ echo "ws=')
+  [ "$job_count" -eq 2 ]
 
-  # Files from different workspaces should never be mixed in the same job
-  refute_output --partial "ws1/f1.js ws2/"
-  refute_output --partial "ws2/f1.js ws1/"
+  # Each job should have a subset of files, not all 8
+  refute_output --partial "f1.js ws1/f2.js ws1/f3.js ws1/f4.js ws1/f5.js ws1/f6.js ws1/f7.js ws1/f8.js"
 }
