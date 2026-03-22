@@ -1,6 +1,6 @@
 use crate::Result;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::Read;
 use std::path::PathBuf;
 
 /// Check for and optionally fix trailing whitespace in files
@@ -81,12 +81,11 @@ fn is_text_file(path: &PathBuf) -> Result<bool> {
 
 /// Check if a file has trailing whitespace
 fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
-    let file = fs::File::open(path)?;
-    let reader = BufReader::new(file);
+    let content = fs::read_to_string(path)?;
 
-    for line in reader.lines() {
-        let line = line?;
-        if line.ends_with(char::is_whitespace) {
+    for line in content.split('\n') {
+        // Check for whitespace (including \r) before the newline
+        if line != line.trim_end() {
             return Ok(true);
         }
     }
@@ -94,16 +93,21 @@ fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
     Ok(false)
 }
 
-/// Generate a unified diff showing trailing whitespace removal
-/// Returns None if no changes needed
-fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
-    let original = fs::read_to_string(path)?;
-    let fixed: String = original
+/// Strip trailing whitespace from each line in the content
+fn strip_trailing_whitespace(original: &str) -> String {
+    original
         .split_inclusive('\n')
         .map(|line| line.trim_end())
         .collect::<Vec<_>>()
         .join("\n")
-        + if original.ends_with('\n') { "\n" } else { "" };
+        + if original.ends_with('\n') { "\n" } else { "" }
+}
+
+/// Generate a unified diff showing trailing whitespace removal
+/// Returns None if no changes needed
+fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
+    let original = fs::read_to_string(path)?;
+    let fixed = strip_trailing_whitespace(&original);
 
     if original == fixed {
         return Ok(None);
@@ -122,48 +126,21 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
 
 /// Fix trailing whitespace in a file, returns true if file was modified
 fn fix_trailing_whitespace(path: &PathBuf) -> Result<bool> {
-    // Read entire file to check if it ends with newline
-    let content = fs::read_to_string(path)?;
-    let ends_with_newline = content.ends_with('\n');
+    let original = fs::read_to_string(path)?;
+    let fixed = strip_trailing_whitespace(&original);
 
-    let file = fs::File::open(path)?;
-    let reader = BufReader::new(file);
-
-    let mut lines = Vec::new();
-    let mut modified = false;
-
-    for line in reader.lines() {
-        let line = line?;
-        let trimmed = line.trim_end();
-        if trimmed.len() != line.len() {
-            modified = true;
-        }
-        lines.push(trimmed.to_string());
+    if original == fixed {
+        return Ok(false);
     }
 
-    if modified {
-        let mut file = fs::File::create(path)?;
-        for (i, line) in lines.iter().enumerate() {
-            if i < lines.len() - 1 {
-                // Not the last line - always add newline
-                writeln!(file, "{}", line)?;
-            } else {
-                // Last line - only add newline if original had one
-                if ends_with_newline {
-                    writeln!(file, "{}", line)?;
-                } else {
-                    write!(file, "{}", line)?;
-                }
-            }
-        }
-    }
-
-    Ok(modified)
+    fs::write(path, &fixed)?;
+    Ok(true)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use tempfile::NamedTempFile;
 
     #[test]
@@ -282,5 +259,34 @@ mod tests {
         let content = fs::read_to_string(&path).unwrap();
         assert_eq!(content, "line1\nline2\n");
         assert!(content.ends_with('\n'));
+    }
+
+    #[test]
+    fn test_has_trailing_whitespace_crlf() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"hello\r\nworld\r\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+        assert!(has_trailing_whitespace(&path).unwrap());
+    }
+
+    #[test]
+    fn test_fix_trailing_whitespace_crlf() {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(b"hello\r\nworld\r\n").unwrap();
+        file.flush().unwrap();
+
+        let path = file.path().to_path_buf();
+
+        // Should detect and fix
+        assert!(fix_trailing_whitespace(&path).unwrap());
+
+        // Should be clean now
+        assert!(!has_trailing_whitespace(&path).unwrap());
+
+        // Verify \r is stripped
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content, "hello\nworld\n");
     }
 }
