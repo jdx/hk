@@ -1,0 +1,109 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Markdown"
+  description = "Rule-based linter for structured Markdown documents"
+  project_indicators {
+    new { file = "contextlint.config.json" }
+  }
+}
+contextlint = new Config.Step {
+  workspace_indicator = "contextlint.config.json"
+  types = List("markdown")
+  check = "contextlint {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.md"
+      extra_files = new Mapping<String, String> {
+        // Adapted from: https://github.com/nozomi-koborinai/contextlint/blob/v0.7.0/tests/e2e/fixtures/todo-app/contextlint.config.json
+        ["contextlint.config.json"] =
+          """
+          {
+            "$schema": "https://raw.githubusercontent.com/nozomi-koborinai/contextlint/main/schema.json",
+            "include": ["**/*.md"],
+            "rules": [
+              {
+                "rule": "tbl001",
+                "options": {
+                  "requiredColumns": ["ID", "Requirement", "Stability"],
+                  "files": "foo.md"
+                }
+              },
+              {
+                "rule": "tbl003",
+                "options": {
+                  "column": "Stability",
+                  "values": ["draft", "review", "stable"]
+                }
+              },
+              {
+                "rule": "tbl004",
+                "options": {
+                  "column": "ID",
+                  "pattern": "^REQ-",
+                  "files": "foo.md"
+                }
+              },
+              {
+                "rule": "tbl005",
+                "options": {
+                  "when": { "column": "Stability", "equals": "stable" },
+                  "then": { "column": "Rationale", "notEmpty": true },
+                  "files": "foo.md"
+                }
+              },
+              {
+                "rule": "tbl006",
+                "options": {
+                  "files": "foo.md",
+                  "column": "ID",
+                  "idPattern": "^REQ-"
+                }
+              },
+              {
+                "rule": "str001",
+                "options": {
+                  "files": [
+                    "foo.md"
+                  ]
+                }
+              },
+              {
+                "rule": "ref001"
+              },
+              {
+                "rule": "ref005"
+              }
+            ]
+          }
+          """
+      }
+    }
+    // Adapted from: https://github.com/nozomi-koborinai/contextlint/blob/v0.7.0/tests/e2e/fixtures/todo-app/docs/zones/auth/requirements.md
+    local const prefix =
+      """
+      # Auth - Business Value and Requirements
+
+      ## Business Value (Why)
+
+      Allow users to log in securely and manage only their own tasks.
+
+      ## Requirements (What)
+
+      | ID | Requirement | Stability | Rationale |
+      |----|-------------|-----------|-----------|
+      | REQ-AUTH-01 | Users can log in with an email address | stable | Core feature |
+      | REQ-AUTH-02 | Passwords are stored as hashes | stable | Security requirement |
+
+      """
+    ["check bad file"] =
+      testMaker.checkFail(
+        prefix + "| AUTH-03 | Users can log out | INVALID VALUE | Core feature |",
+        1,
+      )
+    ["check good file"] =
+      testMaker.checkPass(prefix + "| REQ-AUTH-03 | Users can log out | stable | Core feature |")
+  }
+}
