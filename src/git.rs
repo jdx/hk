@@ -61,7 +61,7 @@ where
     Ok(git_cmd(args).read()?)
 }
 
-fn git_read_raw<I, S>(args: I) -> Result<String>
+fn git_read_bytes<I, S>(args: I) -> Result<Vec<u8>>
 where
     I: IntoIterator<Item = S>,
     S: Into<OsString>,
@@ -69,7 +69,16 @@ where
     // Don't use git_cmd here because it adds stderr handlers which breaks stdout capture
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
     let output = xx::process::cmd("git", args).stdout_capture().run()?;
-    String::from_utf8(output.stdout).map_err(|err| eyre!("git output is not valid UTF-8: {err}"))
+    Ok(output.stdout)
+}
+
+fn git_read_raw<I, S>(args: I) -> Result<String>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let bytes = git_read_bytes(args)?;
+    String::from_utf8(bytes).map_err(|err| eyre!("git output is not valid UTF-8: {err}"))
 }
 
 pub struct Git {
@@ -961,14 +970,21 @@ impl Git {
                             "manual-unstash: restoring untracked file from stash^3 path={}",
                             display_path(&path)
                         );
-                        if let Ok(contents) = git_read_raw([
+                        if let Ok(contents) = git_read_bytes([
                             "cat-file",
                             "-p",
                             &format!("{}^3:{}", &stash_ref, path_str),
-                        ]) && let Err(err) = xx::file::write(&path, &contents)
-                        {
+                        ]) {
+                            if let Err(err) = xx::file::write(&path, &contents) {
+                                warn!(
+                                    "failed to write untracked file {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                        } else {
                             warn!(
-                                "failed to write untracked file {}: {err:?}",
+                                "failed to read untracked file {} from stash",
                                 display_path(&path)
                             );
                             restoration_failed = true;
@@ -977,11 +993,33 @@ impl Git {
                         continue;
                     }
 
-                    let work_size: Option<usize> =
-                        git_cmd(["cat-file", "-s", &format!("{}:{}", &stash_ref, path_str)])
-                            .read()
-                            .ok()
-                            .and_then(|s| s.trim().parse::<usize>().ok());
+                    // Detect binary files: try reading the worktree blob as UTF-8.
+                    // If it fails, restore using raw bytes and skip text merging entirely.
+                    let work_bytes =
+                        git_read_bytes(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
+                            .ok();
+                    let is_binary = work_bytes
+                        .as_ref()
+                        .is_some_and(|b| std::str::from_utf8(b).is_err());
+
+                    if is_binary {
+                        debug!(
+                            "manual-unstash: binary file detected; restoring worktree snapshot directly path={}",
+                            display_path(&path),
+                        );
+                        // SAFETY: is_binary is only true when work_bytes is Some (via is_some_and)
+                        let bytes = work_bytes.unwrap();
+                        if let Err(err) = xx::file::write(&path, &bytes) {
+                            warn!(
+                                "failed to write binary worktree snapshot for {}: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
+                        }
+                        continue;
+                    }
+
+                    let work_size: Option<usize> = work_bytes.as_ref().map(|b| b.len());
                     let has_fixer = fixer_map.contains_key(&path);
                     if work_size.unwrap_or(0) >= LARGE_STASH_FILE_BYTES && !has_fixer {
                         debug!(
@@ -989,13 +1027,17 @@ impl Git {
                             display_path(&path),
                             work_size.unwrap_or(0)
                         );
-                        if let Ok(contents) =
-                            git_cmd(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
-                                .read()
-                            && let Err(err) = xx::file::write(&path, &contents)
-                        {
+                        if let Some(bytes) = &work_bytes {
+                            if let Err(err) = xx::file::write(&path, bytes) {
+                                warn!(
+                                    "failed to write large worktree snapshot for {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                        } else {
                             warn!(
-                                "failed to write large worktree snapshot for {}: {err:?}",
+                                "failed to read large worktree snapshot for {}",
                                 display_path(&path)
                             );
                             restoration_failed = true;
@@ -1005,16 +1047,14 @@ impl Git {
                     }
                     // Worktree content and Base (HEAD at stash time) from stash
                     // Prefer saved worktree snapshot captured before stashing; fallback to stash blob
+                    // Prefer saved worktree snapshot; fall back to already-fetched work_bytes
+                    // (which we know is valid UTF-8 since is_binary was false).
                     let work_pre = if let Some(map) = &self.saved_worktree {
                         map.get(&path).cloned()
                     } else {
                         None
                     }
-                    .or_else(|| {
-                        // Use `git cat-file -p` to preserve exact blob bytes, including EOF newline state
-                        git_read_raw(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
-                            .ok()
-                    });
+                    .or_else(|| work_bytes.and_then(|b| String::from_utf8(b).ok()));
                     // Parent ^1 of the stash commit points to the HEAD commit at stash time
                     let base_pre =
                         git_read_raw(["cat-file", "-p", &format!("{}^1:{}", &stash_ref, path_str)])
