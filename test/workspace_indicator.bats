@@ -57,3 +57,46 @@ EOF
   refute_output --partial "files=a/main.go main.go"
   refute_output --partial "files=b/main.go main.go"
 }
+
+@test "workspace_indicator respects batch=true" {
+  # Create two workspaces with enough files to trigger batching (HK_JOBS=2)
+  rm -rf a b go.mod main.go hk.pkl
+  mkdir -p ws1 ws2
+  touch ws1/package.json ws2/package.json
+  for i in 1 2 3 4; do
+    echo "f$i" > ws1/f$i.js
+    echo "f$i" > ws2/f$i.js
+  done
+
+  cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["eslint"] {
+        glob = "**/*.js"
+        workspace_indicator = "package.json"
+        batch = true
+        check = "echo \"ws={{workspace}}; files={{files}}\""
+      }
+    }
+  }
+}
+EOF
+
+  git add .
+
+  run hk check --all -v
+  assert_success
+
+  # With batch=true and HK_JOBS=2, each workspace's 4 files should be split
+  # into 2 batched jobs (2 files each) rather than 1 job with all 4 files.
+  # Count how many times the check command ran — should be more than 2
+  # (which would be 1 job per workspace without batching).
+  job_count=$(echo "$output" | grep -c 'echo "ws=')
+  [ "$job_count" -gt 2 ]
+
+  # Files from different workspaces should never be mixed in the same job
+  refute_output --partial "ws1/f1.js ws2/"
+  refute_output --partial "ws2/f1.js ws1/"
+}
