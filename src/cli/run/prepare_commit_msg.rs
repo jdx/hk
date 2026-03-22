@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::Result;
-use crate::hook_options::HookOptions;
 use crate::git_util;
+use crate::hook_options::HookOptions;
 
 #[derive(clap::Args)]
 #[clap(visible_alias = "pcm")]
