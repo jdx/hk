@@ -93,16 +93,21 @@ fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
     Ok(false)
 }
 
-/// Generate a unified diff showing trailing whitespace removal
-/// Returns None if no changes needed
-fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
-    let original = fs::read_to_string(path)?;
-    let fixed: String = original
+/// Strip trailing whitespace from each line in the content
+fn strip_trailing_whitespace(original: &str) -> String {
+    original
         .split_inclusive('\n')
         .map(|line| line.trim_end())
         .collect::<Vec<_>>()
         .join("\n")
-        + if original.ends_with('\n') { "\n" } else { "" };
+        + if original.ends_with('\n') { "\n" } else { "" }
+}
+
+/// Generate a unified diff showing trailing whitespace removal
+/// Returns None if no changes needed
+fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
+    let original = fs::read_to_string(path)?;
+    let fixed = strip_trailing_whitespace(&original);
 
     if original == fixed {
         return Ok(None);
@@ -122,12 +127,7 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
 /// Fix trailing whitespace in a file, returns true if file was modified
 fn fix_trailing_whitespace(path: &PathBuf) -> Result<bool> {
     let original = fs::read_to_string(path)?;
-    let fixed: String = original
-        .split_inclusive('\n')
-        .map(|line| line.trim_end())
-        .collect::<Vec<_>>()
-        .join("\n")
-        + if original.ends_with('\n') { "\n" } else { "" };
+    let fixed = strip_trailing_whitespace(&original);
 
     if original == fixed {
         return Ok(false);
@@ -140,6 +140,7 @@ fn fix_trailing_whitespace(path: &PathBuf) -> Result<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use tempfile::NamedTempFile;
 
     #[test]
