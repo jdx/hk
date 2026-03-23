@@ -19,7 +19,7 @@ Higher layers override lower. For hooks and steps, layers are **additive** — h
 
 ## `hk.pkl`
 
-hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.org/) from Apple.
+hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.org/) from Apple. By default, hk uses the pkl CLI to evaluate configuration. Set `HK_PKL_BACKEND=pklr` to use the built-in evaluator instead (no pkl CLI required).
 
 ### Config File Paths
 

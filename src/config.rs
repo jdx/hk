@@ -31,7 +31,13 @@ impl Config {
                 let raw = xx::file::read_to_string(path)?;
                 serde_json::from_str(&raw)?
             }
-            "pkl" => run_pkl(&["eval"], path)?,
+            "pkl" => {
+                if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+                    run_pklr(path)?
+                } else {
+                    run_pkl(&["eval"], path)?
+                }
+            }
             _ => {
                 bail!("Unsupported file extension: {}", ext);
             }
@@ -43,6 +49,11 @@ impl Config {
     /// Analyze pkl imports to get all transitive dependencies.
     /// Returns a set of local file paths that the config depends on.
     fn analyze_imports(path: &Path) -> Result<IndexSet<PathBuf>> {
+        if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+            return pklr::analyze_imports(path)
+                .map(|v| v.into_iter().collect())
+                .map_err(|e| eyre::eyre!("{e}"));
+        }
         let imports: PklImports =
             run_pkl(&["analyze", "imports"], path).wrap_err("failed to analyze pkl")?;
 
@@ -349,6 +360,19 @@ fn get_http_proxy() -> Option<String> {
         .or_else(|_| std::env::var("HTTPS_PROXY"))
         .ok()
         .filter(|s| !s.is_empty())
+}
+
+fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    let rt = tokio::runtime::Handle::try_current();
+    let json = match rt {
+        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(pklr::eval_to_json(path))),
+        Err(_) => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(pklr::eval_to_json(path))
+        }
+    }
+    .map_err(|e| eyre::eyre!("{e}"))?;
+    serde_json::from_value(json).wrap_err("failed to deserialize pklr output")
 }
 
 /// Get the no_proxy list from environment variables.

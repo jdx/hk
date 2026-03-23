@@ -102,6 +102,9 @@ pub static HK_PKL_HTTP_REWRITE: LazyLock<Option<String>> =
 pub static HK_PKL_CA_CERTIFICATES: LazyLock<Option<PathBuf>> =
     LazyLock::new(|| var_path("HK_PKL_CA_CERTIFICATES"));
 
+/// Set to "pklr" to use the built-in pklr evaluator instead of the pkl CLI.
+pub static HK_PKL_BACKEND: LazyLock<Option<String>> = LazyLock::new(|| var("HK_PKL_BACKEND").ok());
+
 /// System's ARG_MAX value, memoized for performance
 pub static ARG_MAX: LazyLock<usize> = LazyLock::new(|| {
     #[cfg(unix)]
