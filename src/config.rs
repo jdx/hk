@@ -383,11 +383,13 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
 fn build_pklr_http_client() -> Result<pklr::reqwest::Client> {
     let mut builder = pklr::reqwest::Client::builder();
     if let Some(proxy_url) = get_http_proxy()
-        && proxy_url.starts_with("http://") && !proxy_url.contains('@') {
-            let proxy = pklr::reqwest::Proxy::all(&proxy_url)
-                .map_err(|e| eyre::eyre!("invalid proxy URL: {e}"))?;
-            builder = builder.proxy(proxy);
-        }
+        && proxy_url.starts_with("http://")
+        && !proxy_url.contains('@')
+    {
+        let proxy = pklr::reqwest::Proxy::all(&proxy_url)
+            .map_err(|e| eyre::eyre!("invalid proxy URL: {e}"))?;
+        builder = builder.proxy(proxy);
+    }
     if let Some(ca_path) = env::HK_PKL_CA_CERTIFICATES.as_ref() {
         let cert_pem = std::fs::read(ca_path)
             .map_err(|e| eyre::eyre!("failed to read CA certificate {}: {e}", ca_path.display()))?;
