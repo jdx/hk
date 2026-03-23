@@ -1,0 +1,55 @@
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: black
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format --quiet --force-exclude
+        language: system
+        types: [python]
+      - id: ruff-check
+        name: ruff-check
+        entry: ruff check --force-exclude --fix
+        language: system
+        types: [python]
+      - id: prettier
+        name: prettier
+        entry: prettier --write
+        language: system
+        types: [file]
+        files: \.(js|ts|css|md)$
+      - id: eslint
+        name: eslint
+        entry: eslint --fix
+        language: system
+        types: [file]
+        files: \.(js|ts)$
+      - id: jq
+        name: jq
+        entry: bash -c 'for f in "$@"; do tmp=$(mktemp); jq . "$f" > "$tmp" && mv "$tmp" "$f"; done' _
+        language: system
+        types: [json]
+      - id: yq
+        name: yq
+        entry: bash -c 'for f in "$@"; do tmp=$(mktemp); yq eval "." "$f" > "$tmp" && mv "$tmp" "$f"; done' _
+        language: system
+        types: [yaml]
+      - id: shfmt
+        name: shfmt
+        entry: shfmt -w
+        language: system
+        types: [shell]
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        entry: bash -c 'sed -i "s/[[:space:]]*$//" "$@"' _
+        language: system
+        types: [file]
+      - id: newlines
+        name: newlines
+        entry: bash -c 'for f in "$@"; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && echo >> "$f"; done; true' _
+        language: system
+        types: [file]

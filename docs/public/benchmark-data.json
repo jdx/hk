@@ -1,0 +1,65 @@
+{
+  "generated": "2026-03-23T16:07:52.967013+00:00",
+  "total_files": 6158,
+  "staged_files": 50,
+  "scenarios": {
+    "all_files": {
+      "hk": {
+        "mean": 3.1454,
+        "stddev": 0.7496,
+        "min": 1.8092,
+        "max": 3.5752
+      },
+      "lefthook": {
+        "mean": 20.8323,
+        "stddev": 0.0677,
+        "min": 20.7398,
+        "max": 20.9186
+      },
+      "pre-commit": {
+        "mean": 10.5966,
+        "stddev": 0.0244,
+        "min": 10.5692,
+        "max": 10.6326
+      },
+      "prek": {
+        "mean": 10.5161,
+        "stddev": 0.0953,
+        "min": 10.4028,
+        "max": 10.6168
+      },
+      "lefthook_vs_hk": 6.62,
+      "pre-commit_vs_hk": 3.37,
+      "prek_vs_hk": 3.34
+    },
+    "staged_changes": {
+      "hk": {
+        "mean": 0.4158,
+        "stddev": 0.1781,
+        "min": 0.2523,
+        "max": 0.6405
+      },
+      "lefthook": {
+        "mean": 0.7165,
+        "stddev": 0.0105,
+        "min": 0.7033,
+        "max": 0.7302
+      },
+      "pre-commit": {
+        "mean": 0.8067,
+        "stddev": 0.0058,
+        "min": 0.8001,
+        "max": 0.8152
+      },
+      "prek": {
+        "mean": 0.74,
+        "stddev": 0.005,
+        "min": 0.7358,
+        "max": 0.7486
+      },
+      "lefthook_vs_hk": 1.72,
+      "pre-commit_vs_hk": 1.94,
+      "prek_vs_hk": 1.78
+    }
+  }
+}
