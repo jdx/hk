@@ -365,9 +365,7 @@ fn get_http_proxy() -> Option<String> {
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
     let rt = tokio::runtime::Handle::try_current();
     let json = match rt {
-        Ok(handle) => tokio::task::block_in_place(|| {
-            handle.block_on(pklr::eval_to_json(path))
-        }),
+        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(pklr::eval_to_json(path))),
         Err(_) => {
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(pklr::eval_to_json(path))
