@@ -4,12 +4,16 @@ A tool for running hooks on files in a git repository.
 
 ## Installation
 
-Use [mise-en-place](https://github.com/jdx/mise) to install hk (you'll also need the `pkl` cli):
+Use [mise-en-place](https://github.com/jdx/mise) to install hk:
 
 ```sh
-mise use hk pkl
+mise use hk
 hk --version
 ```
+
+:::tip
+By default hk uses the pkl CLI to evaluate configuration. Set `HK_PKL_BACKEND=pklr` to use the built-in Rust evaluator instead, which removes the pkl CLI dependency entirely. This is experimental — see [pkl introduction](/pkl_introduction) for details.
+:::
 
 :::tip
 mise-en-place integrates well with hk. Features common in similar git-hook managers like dependency management, task dependencies, and env vars can be provided by mise.

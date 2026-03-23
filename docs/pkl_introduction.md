@@ -5,9 +5,11 @@ it and work with it for hk configuration.
 
 ## Dependencies
 
-You'll need the pkl cli to use hk. This is because the rust library currently shells out to the pkl cli to parse the configuration. I'm sure someday we'll have a native pkl parser in rust (maybe you could write it?) but for now, you'll need pkl.
+hk has a built-in pkl evaluator ([pklr](https://github.com/jdx/pklr)) that can be used instead of the pkl CLI. Set `HK_PKL_BACKEND=pklr` to enable it. This removes the need to install the pkl CLI entirely.
 
-These are easily installed with mise though:
+pklr is experimental and may not support every pkl feature yet. It will eventually become the default backend and the pkl CLI requirement will go away. If you run into issues with pklr, you can always switch back by unsetting the env var.
+
+To use the pkl CLI backend (the current default), install pkl with mise:
 
 ```sh
 mise use -g pkl
