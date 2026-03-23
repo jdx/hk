@@ -39,13 +39,40 @@ prettier = new Config.Step {
       "**/*.vue",
     )
   batch = true
-  check = "prettier --check {{ files }}"
+  check_diff =
+    """
+      failed=0
+      for f in {{ files }}; do
+        prettier "$f" | diff -u "$f" - || failed=1
+      done
+      exit $failed
+    """
   check_list_files = "prettier --list-different {{ files }}"
   fix = "prettier --write {{ files }}"
   tests {
-    ["formats json"] {
+    ["check bad file"] {
+      run = "check"
+      write { ["{{tmp}}/a.json"] = #"{"b":1}"# }
+      files = List("{{tmp}}/a.json")
+      expect { code = 1 }
+    }
+    ["check good file"] {
+      run = "check"
+      write { ["{{tmp}}/a.json"] = #"{ "b": 1 }\#n"# }
+      files = List("{{tmp}}/a.json")
+      expect { code = 0 }
+    }
+    ["fix bad file"] {
       run = "fix"
       write { ["{{tmp}}/a.json"] = #"{"b":1}"# }
+      files = List("{{tmp}}/a.json")
+      expect {
+        files { ["{{tmp}}/a.json"] = #"{ "b": 1 }\#n"# }
+      }
+    }
+    ["fix good file"] {
+      run = "fix"
+      write { ["{{tmp}}/a.json"] = #"{ "b": 1 }\#n"# }
       files = List("{{tmp}}/a.json")
       expect {
         files { ["{{tmp}}/a.json"] = #"{ "b": 1 }\#n"# }
