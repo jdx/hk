@@ -1,0 +1,33 @@
+# lefthook with parallel: false. This is SAFE (no race conditions) but
+# runs every hook sequentially, same as pre-commit.
+pre-commit:
+  parallel: false
+  jobs:
+    - name: black
+      run: black {staged_files}
+      glob: "*.py"
+    - name: ruff-format
+      run: ruff format --quiet --force-exclude {staged_files}
+      glob: "*.{py,pyi}"
+    - name: ruff-check
+      run: ruff check --force-exclude --fix {staged_files}
+      glob: "*.py"
+    - name: prettier
+      run: prettier --write {staged_files}
+      glob: "*.{js,ts,css,md}"
+    - name: eslint
+      run: eslint --fix {staged_files}
+      glob: "*.{js,ts}"
+    - name: jq
+      run: bash -c 'for f in "$@"; do tmp=$(mktemp); jq . "$f" > "$tmp" && mv "$tmp" "$f"; done' _ {staged_files}
+      glob: "*.json"
+    - name: yq
+      run: bash -c 'for f in "$@"; do tmp=$(mktemp); yq eval "." "$f" > "$tmp" && mv "$tmp" "$f"; done' _ {staged_files}
+      glob: "*.{yml,yaml}"
+    - name: shfmt
+      run: shfmt -w {staged_files}
+      glob: "*.{sh,bash}"
+    - name: trailing-whitespace
+      run: sed -i 's/[[:space:]]*$//' {staged_files}
+    - name: newlines
+      run: bash -c 'for f in "$@"; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && echo >> "$f"; done; true' _ {staged_files}

@@ -39,6 +39,8 @@ export default defineConfig({
     ],
     sidebar: [
       { text: 'About', link: '/about' },
+      { text: 'Benchmarks', link: '/benchmarks' },
+      { text: 'Why hk?', link: '/why-hk' },
       { text: 'Sea Shanty', link: '/shanty' },
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },

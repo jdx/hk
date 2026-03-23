@@ -1,0 +1,47 @@
+amends "../../pkl/Config.pkl"
+import "../../pkl/Builtins.pkl"
+
+local linters = new Mapping<String, Step> {
+  // Python: black and ruff_format both have check_diff and touch **/*.py
+  // ruff check is read-only so it can run concurrently with both
+  ["black"] = Builtins.black
+  ["ruff-format"] = Builtins.ruff_format
+  ["ruff-check"] = Builtins.ruff
+
+  // JS/TS: prettier uses check_list_files to narrow down files
+  // eslint has no diff mode so it needs a write lock
+  // Both touch the same **/*.js **/*.ts files — hk coordinates with locks
+  ["prettier"] = (Builtins.prettier) {
+    glob = List("**/*.js", "**/*.ts", "**/*.css", "**/*.md")
+  }
+  ["eslint"] = (Builtins.eslint) {
+    glob = List("**/*.js", "**/*.ts")
+  }
+
+  // Dedicated formatters for data files (faster than prettier, have check_diff)
+  ["jq"] = Builtins.jq
+  ["yq"] = Builtins.yq
+
+  // Shell formatting via shfmt (check_diff)
+  ["shfmt"] = Builtins.shfmt
+
+  // These glob **/* so they overlap with ALL of the above.
+  // With check_diff, hk only acquires read locks during check then
+  // write-locks only the specific files that need changes.
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+}
+
+hooks = new {
+  // Used for "all files" benchmark — fix mode with stashing
+  ["pre-commit"] {
+    fix = true
+    stash = "patch-file"
+    steps = linters
+  }
+  // Used for "staged changes" benchmark — check only, no stashing
+  ["check"] {
+    fix = false
+    steps = linters
+  }
+}
