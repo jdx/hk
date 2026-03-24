@@ -469,21 +469,23 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
 
     // Check for common Pkl errors and provide helpful messages
     if stderr.contains("Cannot find type `Hook`") || stderr.contains("Cannot find type `Step`") {
+        let version = env!("CARGO_PKG_VERSION");
         bail!(
             "Missing 'amends' declaration in {}. \n\n\
             Your hk.pkl file should start with one of:\n\
             • amends \"pkl/Config.pkl\" (if vendored)\n\
-            • amends \"package://github.com/jdx/hk/releases/download/vX.Y.Z/hk@X.Y.Z#/Config.pkl\" (for released versions)\n\n\
+            • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\" (for released versions)\n\n\
             See https://github.com/jdx/hk for more information.",
             path.display()
         );
     } else if stderr.contains("Module URI") && stderr.contains("has invalid syntax") {
+        let version = env!("CARGO_PKG_VERSION");
         bail!(
             "Invalid module URI in {}. \n\n\
             Make sure your 'amends' declaration uses a valid path or package URL.\n\
             Examples:\n\
             • amends \"pkl/Config.pkl\" (if vendored)\n\
-            • amends \"package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.pkl\"",
+            • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\"",
             path.display()
         );
     }

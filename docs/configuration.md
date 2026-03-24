@@ -242,7 +242,7 @@ Add steps to your hkrc. hk merges them into every project's hooks — steps with
 
 ```pkl
 // ~/.config/hk/config.pkl
-amends "package://github.com/jdx/hk/releases/latest/hk#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.pkl"
 
 hooks {
     ["pre-commit"] {
@@ -335,7 +335,7 @@ Git config supports both multivar entries (multiple values with the same key) an
 User-specific defaults can be set in `~/.config/hk/config.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/latest/hk#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.pkl"
 
 jobs = 4
 fail_fast = false
