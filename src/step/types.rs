@@ -322,7 +322,6 @@ mod tests {
 
     #[test]
     fn test_script_empty_windows_command() {
-        // Test that an empty windows command results in an empty string on Windows
         let script = Script {
             linux: Some("linux_cmd".to_string()),
             macos: Some("macos_cmd".to_string()),
@@ -338,14 +337,12 @@ mod tests {
 
         #[cfg(not(target_os = "windows"))]
         {
-            // On non-Windows, should use platform-specific command
             assert!(!script.to_string().is_empty());
         }
     }
 
     #[test]
     fn test_script_none_windows_command_with_other() {
-        // Test that None windows with Some other falls back to other
         let script = Script {
             linux: None,
             macos: None,
@@ -353,13 +350,11 @@ mod tests {
             other: Some("fallback_cmd".to_string()),
         };
 
-        // On all platforms, should use the fallback
         assert_eq!(script.to_string(), "fallback_cmd");
     }
 
     #[test]
     fn test_script_all_none_produces_empty() {
-        // Test that all None produces empty string
         let script = Script {
             linux: None,
             macos: None,

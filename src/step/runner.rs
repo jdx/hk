@@ -721,9 +721,6 @@ mod tests {
 
     #[test]
     fn test_has_command_for_empty_command() {
-        // Mirror the nix_fmt.pkl pattern: windows is empty, other has the real command.
-        // On Windows the empty string should make has_command_for return false;
-        // on every other platform the `other` fallback provides a valid command.
         let step = Step {
             name: "test_step".to_string(),
             check: Some(Script {
@@ -749,7 +746,6 @@ mod tests {
 
     #[test]
     fn test_has_command_for_valid_command() {
-        // Test that has_command_for returns true when command is valid
         let step = Step {
             name: "test_step".to_string(),
             check: Some(Script {
@@ -762,13 +758,11 @@ mod tests {
             ..Default::default()
         };
 
-        // Should have a command on all platforms
         assert!(step.has_command_for(RunType::Check));
     }
 
     #[test]
     fn test_has_command_for_no_command() {
-        // Test that has_command_for returns false when no command is defined
         let step = Step {
             name: "test_step".to_string(),
             check: None,
