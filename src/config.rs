@@ -405,9 +405,11 @@ fn build_pklr_http_client() -> Result<pklr::reqwest::Client> {
     if let Some(ca_path) = env::HK_PKL_CA_CERTIFICATES.as_ref() {
         let cert_pem = std::fs::read(ca_path)
             .map_err(|e| eyre::eyre!("failed to read CA certificate {}: {e}", ca_path.display()))?;
-        let cert = pklr::reqwest::Certificate::from_pem(&cert_pem)
+        let certs = pklr::reqwest::Certificate::from_pem_bundle(&cert_pem)
             .map_err(|e| eyre::eyre!("invalid CA certificate: {e}"))?;
-        builder = builder.add_root_certificate(cert);
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
     }
     builder
         .build()
