@@ -139,7 +139,6 @@ pub struct Step {
     pub stdin: Option<String>,
 
     /// Steps that must complete before this one runs
-    #[serde(default)]
     pub depends: Vec<String>,
 
     /// Custom shell to use (default: `sh -o errexit -c`)
@@ -191,7 +190,6 @@ pub struct Step {
     pub stomp: bool,
 
     /// Environment variables to set
-    #[serde(default)]
     pub env: IndexMap<String, String>,
 
     /// Glob patterns for files to stage after fixing
