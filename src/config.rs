@@ -294,7 +294,11 @@ impl Config {
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
-            let json_value: serde_json::Value = run_pkl(&["eval"], &path)?;
+            let json_value: serde_json::Value = if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+                run_pklr(&path)?
+            } else {
+                run_pkl(&["eval"], &path)?
+            };
 
             // Backward compat: legacy hkrc files amend UserConfig.pkl (has "environment" key),
             // new-style hkrc files amend Config.pkl (has "env" key).
@@ -363,6 +367,9 @@ fn get_http_proxy() -> Option<String> {
 }
 
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    if env::HK_PKL_HTTP_REWRITE.is_some() {
+        warn!("HK_PKL_HTTP_REWRITE is set but is not supported by the pklr backend; ignoring");
+    }
     let client = build_pklr_http_client()?;
     let rt = tokio::runtime::Handle::try_current();
     let json = match rt {
@@ -379,15 +386,15 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
 }
 
 /// Build a reqwest::Client with proxy and CA certificate settings
-/// matching HK_PKL_* environment variables.
+/// matching proxy and HK_PKL_* environment variables.
 fn build_pklr_http_client() -> Result<pklr::reqwest::Client> {
     let mut builder = pklr::reqwest::Client::builder();
-    if let Some(proxy_url) = get_http_proxy()
-        && proxy_url.starts_with("http://")
-        && !proxy_url.contains('@')
-    {
-        let proxy = pklr::reqwest::Proxy::all(&proxy_url)
+    if let Some(proxy_url) = get_http_proxy() {
+        let mut proxy = pklr::reqwest::Proxy::all(&proxy_url)
             .map_err(|e| eyre::eyre!("invalid proxy URL: {e}"))?;
+        if let Some(no_proxy) = get_no_proxy() {
+            proxy = proxy.no_proxy(pklr::reqwest::NoProxy::from_string(&no_proxy));
+        }
         builder = builder.proxy(proxy);
     }
     if let Some(ca_path) = env::HK_PKL_CA_CERTIFICATES.as_ref() {
