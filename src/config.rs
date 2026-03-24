@@ -387,7 +387,57 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
         }
     }
     .map_err(|e| eyre::eyre!("{e}"))?;
+    let json = pklr_inject_type_tags(json);
     serde_json::from_value(json).wrap_err("failed to deserialize pklr output")
+}
+
+/// pklr does not yet implement pkl's `output.renderer.converters`, so the
+/// `_type` tags that hk's Config.pkl adds to Step/Group/Regex objects are
+/// missing. Inject them based on object shape until pklr gains converter
+/// support.
+fn pklr_inject_type_tags(mut value: serde_json::Value) -> serde_json::Value {
+    if let Some(hooks) = value
+        .as_object_mut()
+        .and_then(|o| o.get_mut("hooks"))
+        .and_then(|h| h.as_object_mut())
+    {
+        for hook in hooks.values_mut() {
+            if let Some(steps) = hook
+                .as_object_mut()
+                .and_then(|h| h.get_mut("steps"))
+                .and_then(|s| s.as_object_mut())
+            {
+                for step in steps.values_mut() {
+                    pklr_tag_step_or_group(step);
+                }
+            }
+        }
+    }
+    value
+}
+
+fn pklr_tag_step_or_group(value: &mut serde_json::Value) {
+    if let Some(obj) = value.as_object_mut() {
+        if obj.contains_key("_type") {
+            return;
+        }
+        if obj.contains_key("steps") {
+            obj.insert(
+                "_type".to_string(),
+                serde_json::Value::String("group".to_string()),
+            );
+            if let Some(steps) = obj.get_mut("steps").and_then(|s| s.as_object_mut()) {
+                for step in steps.values_mut() {
+                    pklr_tag_step_or_group(step);
+                }
+            }
+        } else {
+            obj.insert(
+                "_type".to_string(),
+                serde_json::Value::String("step".to_string()),
+            );
+        }
+    }
 }
 
 /// Build a reqwest::Client with proxy and CA certificate settings
