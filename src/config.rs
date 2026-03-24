@@ -367,18 +367,23 @@ fn get_http_proxy() -> Option<String> {
 }
 
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    if env::HK_PKL_HTTP_REWRITE.is_some() {
-        warn!("HK_PKL_HTTP_REWRITE is set but is not supported by the pklr backend; ignoring");
-    }
     let client = build_pklr_http_client()?;
+    let http_rewrites = env::HK_PKL_HTTP_REWRITE
+        .as_deref()
+        .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let options = pklr::EvalOptions {
+        client: Some(client),
+        http_rewrites,
+    };
     let rt = tokio::runtime::Handle::try_current();
     let json = match rt {
         Ok(handle) => tokio::task::block_in_place(|| {
-            handle.block_on(pklr::eval_to_json_with_client(path, Some(client)))
+            handle.block_on(pklr::eval_to_json_with_options(path, options))
         }),
         Err(_) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(pklr::eval_to_json_with_client(path, Some(client)))
+            rt.block_on(pklr::eval_to_json_with_options(path, options))
         }
     }
     .map_err(|e| eyre::eyre!("{e}"))?;
