@@ -46,7 +46,7 @@ mod types;
 
 // Re-export public API
 pub use expr_env::EXPR_CTX;
-pub(crate) use runner::default_shell_cmd;
+pub(crate) use runner::{apply_command_envs, configured_shell_cmd, default_shell_cmd};
 pub use shell::ShellType;
 pub use types::{OutputSummary, Pattern, RunType, Script, Step};
 

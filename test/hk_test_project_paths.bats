@@ -36,3 +36,31 @@ PKL
     assert_success
     assert_output --partial "ok - demo :: uses project file"
 }
+
+@test "hk absolute binary path resolves builtin hk util subcommands" {
+    local abs_hk
+    if [ -n "$CARGO_TARGET_DIR" ]; then
+        abs_hk="$CARGO_TARGET_DIR/debug/hk"
+    else
+        abs_hk="$PROJECT_ROOT/target/debug/hk"
+    fi
+    [ -x "$abs_hk" ]
+
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["mixed-endings"] = Builtins.mixed_line_ending
+    }
+  }
+}
+PKL
+
+    printf "line1\r\nline2\n" > test.txt
+
+    run env PATH="/usr/bin:/bin" "$abs_hk" check
+    assert_failure
+    assert_output --partial "test.txt"
+}

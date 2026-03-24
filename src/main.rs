@@ -3,7 +3,7 @@ extern crate log;
 #[macro_use]
 mod output;
 
-use std::{panic, time::Duration};
+use std::{panic, path::Path, time::Duration};
 
 pub use eyre::Result;
 
@@ -70,24 +70,43 @@ fn friendly_error(e: eyre::Report) -> Result<()> {
 
 fn handle_script_failed(bin: &str, args: &[String], output: &str, result: &ensembler::CmdResult) {
     clx::progress::flush();
-    // Strip default shell prefix for cleaner error messages.
-    // On Unix the default shell produces: bin="sh", args=["-o", "errexit", "-c", "<cmd>"]
-    // On Windows, ensembler wraps with cmd.exe /c internally, so bin is the command itself.
-    let cmd = if bin == "sh"
-        && args.len() >= 4
-        && args[0] == "-o"
-        && args[1] == "errexit"
-        && args[2] == "-c"
-    {
-        args[3..].join(" ")
-    } else {
-        format!("{} {}", bin, args.join(" "))
-    };
+    let cmd = display_script_command(bin, args);
     eprintln!("{}\n{output}", style::ered(format!("Error running {cmd}")));
     if let Err(e) = write_output_file(result) {
         eprintln!("Error writing output file: {e:?}");
     }
     std::process::exit(result.status.code().unwrap_or(1));
+}
+
+fn display_script_command(bin: &str, args: &[String]) -> String {
+    if is_sh_wrapper(bin, args) || is_cmd_wrapper(bin, args) {
+        return args[3..].join(" ");
+    }
+    if args.is_empty() {
+        return bin.to_string();
+    }
+    format!("{bin} {}", args.join(" "))
+}
+
+fn is_sh_wrapper(bin: &str, args: &[String]) -> bool {
+    shell_basename(bin).is_some_and(|name| name == "sh")
+        && args.len() >= 4
+        && args[0] == "-o"
+        && args[1] == "errexit"
+        && args[2] == "-c"
+}
+
+fn is_cmd_wrapper(bin: &str, args: &[String]) -> bool {
+    shell_basename(bin).is_some_and(|name| {
+        name.eq_ignore_ascii_case("cmd.exe") || name.eq_ignore_ascii_case("cmd")
+    }) && args.len() >= 4
+        && args[0].eq_ignore_ascii_case("/d")
+        && args[1].eq_ignore_ascii_case("/s")
+        && args[2].eq_ignore_ascii_case("/c")
+}
+
+fn shell_basename(bin: &str) -> Option<&str> {
+    Path::new(bin).file_name().and_then(|name| name.to_str())
 }
 
 fn write_output_file(result: &ensembler::CmdResult) -> Result<()> {

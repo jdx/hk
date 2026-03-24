@@ -18,17 +18,22 @@ use crate::{Result, tera};
 use clx::progress::ProgressStatus;
 use ensembler::CmdLineRunner;
 use eyre::WrapErr;
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 
 /// Returns a [`CmdLineRunner`] configured with the platform default shell.
 ///
-/// - **Windows**: passes `run` directly to [`CmdLineRunner::new`] because ensembler
-///   already wraps every invocation with `cmd.exe /c`. Adding an explicit
-///   `cmd.exe /c` here would double-wrap and break when `%PATH%` does not
-///   include the system directory.
+/// - **Windows**: execute `cmd.exe /d /s /c <run>` directly so hk adds only a
+///   single wrapper.
 /// - **Unix**: `sh -o errexit -c <run>`
 pub(crate) fn default_shell_cmd(run: &str) -> CmdLineRunner {
     if cfg!(windows) {
-        CmdLineRunner::new(run)
+        CmdLineRunner::direct("cmd.exe")
+            .arg("/d")
+            .arg("/s")
+            .arg("/c")
+            .raw_arg(run)
     } else {
         CmdLineRunner::new("sh")
             .arg("-o")
@@ -38,9 +43,323 @@ pub(crate) fn default_shell_cmd(run: &str) -> CmdLineRunner {
     }
 }
 
-use itertools::Itertools;
-use std::path::PathBuf;
-use std::process::Stdio;
+#[cfg(not(windows))]
+fn parse_shell(shell: &str) -> Result<Vec<String>> {
+    shell_words::split(shell).wrap_err("failed to parse shell command")
+}
+
+#[cfg(windows)]
+fn parse_shell(shell: &str) -> Result<Vec<String>> {
+    split_windows_command_line(shell).wrap_err("failed to parse shell command")
+}
+
+#[cfg(windows)]
+fn split_windows_command_line(input: &str) -> Result<Vec<String>> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut chars = input.chars().peekable();
+    let mut in_quotes = false;
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => {
+                in_quotes = !in_quotes;
+            }
+            ' ' | '\t' if !in_quotes => {
+                if !current.is_empty() {
+                    args.push(std::mem::take(&mut current));
+                }
+                while matches!(chars.peek(), Some(' ' | '\t')) {
+                    chars.next();
+                }
+            }
+            '\\' => {
+                let mut slash_count = 1;
+                while matches!(chars.peek(), Some('\\')) {
+                    chars.next();
+                    slash_count += 1;
+                }
+                if matches!(chars.peek(), Some('"')) {
+                    current.extend(std::iter::repeat_n('\\', slash_count / 2));
+                    if slash_count % 2 == 0 {
+                        chars.next();
+                        in_quotes = !in_quotes;
+                    } else {
+                        chars.next();
+                        current.push('"');
+                    }
+                } else {
+                    current.extend(std::iter::repeat_n('\\', slash_count));
+                }
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if in_quotes {
+        eyre::bail!("unterminated quote in shell command");
+    }
+    if !current.is_empty() {
+        args.push(current);
+    }
+    Ok(args)
+}
+
+fn shell_program(shell: &str) -> Option<String> {
+    parse_shell(shell)
+        .ok()
+        .and_then(|parts| parts.into_iter().next())
+}
+
+pub(crate) fn configured_shell_cmd(
+    shell: &str,
+    shell_type: ShellType,
+    run: &str,
+) -> Result<CmdLineRunner> {
+    let shell = parse_shell(shell)?;
+    if cfg!(windows) && matches!(shell_type, ShellType::Cmd) {
+        let mut cmd = CmdLineRunner::direct(shell.first().map(|s| s.as_str()).unwrap_or("cmd.exe"));
+        for arg in shell.iter().skip(1) {
+            cmd = cmd.arg(arg);
+        }
+        if !shell
+            .iter()
+            .skip(1)
+            .any(|arg| arg.eq_ignore_ascii_case("/c") || arg.eq_ignore_ascii_case("/k"))
+        {
+            cmd = cmd.arg("/d").arg("/s").arg("/c");
+        }
+        return Ok(cmd.raw_arg(run));
+    }
+    let mut cmd = CmdLineRunner::new(shell.first().map(|s| s.as_str()).unwrap_or("sh"));
+    for arg in shell.iter().skip(1) {
+        cmd = cmd.arg(arg);
+    }
+    Ok(cmd.arg(run))
+}
+
+fn is_path_var(key: &str) -> bool {
+    if cfg!(windows) {
+        key.eq_ignore_ascii_case("PATH")
+    } else {
+        key == "PATH"
+    }
+}
+
+fn invokes_hk(run: &str) -> bool {
+    let tokens = tokenize_command_line(run);
+    for segment in tokens.split(|token| is_control_operator(token)) {
+        if segment_invokes_hk(segment) {
+            return true;
+        }
+    }
+    false
+}
+
+fn segment_invokes_hk(segment: &[String]) -> bool {
+    let mut i = 0;
+    while i < segment.len() {
+        let token = &segment[i];
+        if is_shell_assignment(token) {
+            i += 1;
+            continue;
+        }
+        if is_env_program(token) {
+            i += 1;
+            while i < segment.len() {
+                let token = &segment[i];
+                if token == "--" {
+                    i += 1;
+                    break;
+                }
+                if token.contains('=') {
+                    i += 1;
+                    continue;
+                }
+                if token.starts_with('-') {
+                    let takes_value = env_option_takes_value(token);
+                    i += 1;
+                    if takes_value && !token.contains('=') && i < segment.len() {
+                        i += 1;
+                    }
+                    continue;
+                }
+                break;
+            }
+            continue;
+        }
+        if is_wrapper_program(token) {
+            i += 1;
+            while i < segment.len() && segment[i].starts_with('-') {
+                i += 1;
+            }
+            continue;
+        }
+        if is_xargs_program(token) {
+            i += 1;
+            while i < segment.len() {
+                let token = &segment[i];
+                if token == "--" {
+                    i += 1;
+                    break;
+                }
+                if !token.starts_with('-') {
+                    break;
+                }
+                let takes_value = matches!(
+                    token.as_str(),
+                    "-E" | "-I" | "-L" | "-P" | "-d" | "-n" | "-s" | "--eof" | "--replace"
+                );
+                i += 1;
+                if takes_value && !token.contains('=') && i < segment.len() {
+                    i += 1;
+                }
+            }
+            return i < segment.len() && is_hk_program(&segment[i]);
+        }
+        return is_hk_program(token);
+    }
+    false
+}
+
+fn is_control_operator(token: &str) -> bool {
+    matches!(token, "|" | "||" | "&" | "&&" | ";")
+}
+
+fn tokenize_command_line(input: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut chars = input.chars().peekable();
+    let mut quote = None;
+
+    while let Some(ch) = chars.next() {
+        match quote {
+            Some(q) if ch == q => quote = None,
+            Some(_) => current.push(ch),
+            None if ch == '"' || ch == '\'' => quote = Some(ch),
+            None if ch == '\n' || ch == '\r' || ch == ';' => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+                tokens.push(";".to_string());
+            }
+            None if ch.is_whitespace() => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            None if ch == '|' || ch == '&' => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+                if matches!(chars.peek(), Some(next) if *next == ch) {
+                    chars.next();
+                    tokens.push(format!("{ch}{ch}"));
+                } else {
+                    tokens.push(ch.to_string());
+                }
+            }
+            None => current.push(ch),
+        }
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+    tokens
+}
+
+fn is_hk_program(token: &str) -> bool {
+    Path::new(token)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.eq_ignore_ascii_case("hk") || name.eq_ignore_ascii_case("hk.exe"))
+        .unwrap_or(false)
+}
+
+fn is_env_program(token: &str) -> bool {
+    Path::new(token)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.eq_ignore_ascii_case("env"))
+        .unwrap_or(false)
+}
+
+fn is_wrapper_program(token: &str) -> bool {
+    matches!(token, "command" | "builtin" | "exec" | "nohup")
+}
+
+fn is_xargs_program(token: &str) -> bool {
+    Path::new(token)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.eq_ignore_ascii_case("xargs"))
+        .unwrap_or(false)
+}
+
+fn env_option_takes_value(token: &str) -> bool {
+    matches!(
+        token,
+        "-S" | "--split-string" | "-u" | "--unset" | "-C" | "--chdir" | "-a" | "--argv0"
+    )
+}
+
+fn is_shell_assignment(token: &str) -> bool {
+    let Some((name, _)) = token.split_once('=') else {
+        return false;
+    };
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
+        && !name.chars().next().is_some_and(|ch| ch.is_ascii_digit())
+}
+
+fn prepend_current_exe_dir_to_path(path: Option<&str>) -> Option<OsString> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let mut paths = vec![exe_dir];
+    if let Some(path) = path
+        .map(OsString::from)
+        .or_else(|| std::env::var_os("PATH"))
+    {
+        paths.extend(std::env::split_paths(&path));
+    }
+    std::env::join_paths(paths).ok()
+}
+
+pub(crate) fn hk_path_env_for_command(
+    run: &str,
+    envs: &[(String, String)],
+) -> Option<(String, OsString)> {
+    if !invokes_hk(run) {
+        return None;
+    }
+    let key = envs
+        .iter()
+        .rev()
+        .find(|(key, _)| is_path_var(key))
+        .map(|(key, _)| key.clone())
+        .unwrap_or_else(|| "PATH".to_string());
+    let path = envs
+        .iter()
+        .rev()
+        .find(|(key, _)| is_path_var(key))
+        .map(|(_, value)| value.as_str());
+    prepend_current_exe_dir_to_path(path).map(|value| (key, value))
+}
+
+pub(crate) fn apply_command_envs(
+    mut cmd: CmdLineRunner,
+    run: &str,
+    envs: &[(String, String)],
+) -> CmdLineRunner {
+    for (key, value) in envs {
+        cmd = cmd.env(key, value);
+    }
+    if let Some((key, path)) = hk_path_env_for_command(run, envs) {
+        cmd = cmd.env(key, path);
+    }
+    cmd
+}
 
 use super::expr_env::EXPR_ENV;
 use super::shell::ShellType;
@@ -166,13 +485,7 @@ impl Step {
             }
         }
         let mut cmd = if let Some(shell) = &self.shell {
-            let shell = shell.to_string();
-            let shell = shell.split_whitespace().collect_vec();
-            let mut cmd = CmdLineRunner::new(shell[0]);
-            for arg in shell[1..].iter() {
-                cmd = cmd.arg(arg);
-            }
-            cmd.arg(&run)
+            configured_shell_cmd(&shell.to_string(), self.shell_type(), &run)?
         } else {
             default_shell_cmd(&run)
         };
@@ -196,10 +509,12 @@ impl Step {
         if let Some(dir) = &self.dir {
             cmd = cmd.current_dir(dir);
         }
-        for (key, value) in &self.env {
-            let value = tera::render(value, &tctx)?;
-            cmd = cmd.env(key, value);
-        }
+        let rendered_env = self
+            .env
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), tera::render(value, &tctx)?)))
+            .collect::<Result<Vec<_>>>()?;
+        cmd = apply_command_envs(cmd, &run, &rendered_env);
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
         let exec_result = cmd.execute().await;
         timing_guard.finish();
@@ -357,8 +672,11 @@ impl Step {
             .as_ref()
             .map(|s| s.to_string())
             .unwrap_or_default();
-        let shell = shell.split_whitespace().next().unwrap_or_default();
-        let shell = shell.split(['/', '\\']).next_back().unwrap_or_default();
+        let shell = shell_program(&shell).unwrap_or(shell);
+        let shell = Path::new(&shell)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
         // Use case-insensitive matching for shell names
         // Include .exe variants for Windows environments (Git Bash, MSYS2, Cygwin)
         let shell_lower = shell.to_lowercase();
@@ -465,5 +783,92 @@ mod tests {
     #[test]
     fn test_default_shell_cmd_constructs_without_panic() {
         let _runner = default_shell_cmd("echo hello");
+    }
+
+    #[test]
+    fn test_prepend_current_exe_dir_to_path_prepends_current_binary() {
+        let path = prepend_current_exe_dir_to_path(Some("/tmp")).unwrap();
+        let mut parts = std::env::split_paths(&path);
+        assert_eq!(
+            parts.next().unwrap(),
+            std::env::current_exe().unwrap().parent().unwrap()
+        );
+    }
+
+    #[test]
+    fn test_invokes_hk_detects_nested_hk_calls() {
+        assert!(invokes_hk("hk util trailing-whitespace file.txt"));
+        assert!(invokes_hk("env FOO=1 hk util trailing-whitespace file.txt"));
+        assert!(invokes_hk(
+            "/usr/bin/env hk util trailing-whitespace file.txt"
+        ));
+        assert!(invokes_hk("command hk util trailing-whitespace file.txt"));
+        assert!(invokes_hk("FOO=1 hk util trailing-whitespace file.txt"));
+        assert!(invokes_hk("xargs hk util trailing-whitespace --fix"));
+        assert!(invokes_hk("C:/tools/hk.exe util trailing-whitespace --fix"));
+        assert!(invokes_hk("echo ok & hk util trailing-whitespace file.txt"));
+        assert!(invokes_hk("echo ok;hk util trailing-whitespace file.txt"));
+        assert!(!invokes_hk("typos --diff file.txt"));
+        assert!(!invokes_hk("echo hk util trailing-whitespace"));
+    }
+
+    #[test]
+    fn test_tokenize_command_line_splits_control_operators() {
+        assert_eq!(
+            tokenize_command_line("echo ok;hk util trailing-whitespace"),
+            vec!["echo", "ok", ";", "hk", "util", "trailing-whitespace"]
+        );
+        assert_eq!(
+            tokenize_command_line("echo ok & hk util trailing-whitespace"),
+            vec!["echo", "ok", "&", "hk", "util", "trailing-whitespace"]
+        );
+        assert_eq!(
+            tokenize_command_line("echo ok\nhk util trailing-whitespace"),
+            vec!["echo", "ok", ";", "hk", "util", "trailing-whitespace"]
+        );
+    }
+
+    #[test]
+    fn test_shell_type_parses_quoted_shell_paths() {
+        let step = Step {
+            shell: Some(
+                r#""C:/Program Files/PowerShell/7/pwsh.exe" -NoLogo -Command"#
+                    .parse()
+                    .unwrap(),
+            ),
+            ..Default::default()
+        };
+
+        assert!(matches!(step.shell_type(), ShellType::PowerShell));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_parse_shell_preserves_windows_backslashes() {
+        let parsed = parse_shell(r#"C:\Windows\System32\cmd.exe /d /s /c"#).unwrap();
+        assert_eq!(parsed[0], r#"C:\Windows\System32\cmd.exe"#);
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_default_shell_cmd_handles_quoted_windows_path() {
+        use std::fs;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("quoted path.txt");
+        fs::write(&path, "hello from windows\n").unwrap();
+
+        let run = format!(r#"type "{}""#, path.display());
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let result = runtime.block_on(default_shell_cmd(&run).execute()).unwrap();
+
+        assert!(result.stdout.contains("hello from windows"));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_configured_cmd_shell_keeps_single_wrap() {
+        let runner = configured_shell_cmd("cmd.exe", ShellType::Cmd, "echo hello").unwrap();
+        assert_eq!(format!("{runner}"), "cmd.exe /d /s /c echo hello");
     }
 }
