@@ -455,10 +455,11 @@ fn pklr_normalize_step_or_group(value: &mut serde_json::Value) {
 /// If a value looks like a pkl Regex object (has "pattern" but no "_type"),
 /// inject `_type: "regex"`.
 fn pklr_tag_regex(value: &mut serde_json::Value) {
-    if let Some(obj) = value.as_object_mut() {
-        if obj.contains_key("pattern") && !obj.contains_key("_type") {
-            obj.insert("_type".into(), "regex".into());
-        }
+    if let Some(obj) = value.as_object_mut()
+        && obj.contains_key("pattern")
+        && !obj.contains_key("_type")
+    {
+        obj.insert("_type".into(), "regex".into());
     }
 }
 
