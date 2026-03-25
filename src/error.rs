@@ -8,5 +8,6 @@ pub enum Error {
         source: eyre::Error,
         stdout: String,
         stderr: String,
+        combined: String,
     },
 }
