@@ -423,6 +423,9 @@ cmd util subcommand_required=#true help="Utility commands for file operations" {
         flag "-f --fix" help="Fix trailing whitespace by removing it"
         arg <FILES>… help="Files to check/fix" var=#true
     }
+    cmd typos-diff help="Print typos diff and exit non-zero when changes are needed" {
+        arg <FILES>… help="Files to check" var=#true
+    }
 }
 cmd validate help="Validate the config file"
 cmd version help="Print the version of hk"

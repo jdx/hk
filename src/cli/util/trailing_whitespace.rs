@@ -273,7 +273,6 @@ mod tests {
         assert!(fix_trailing_whitespace(&path).unwrap());
         assert!(!has_trailing_whitespace(&path).unwrap());
 
-
         let content = fs::read_to_string(&path).unwrap();
         assert_eq!(content, "hello\nworld\n");
     }

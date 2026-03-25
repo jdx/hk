@@ -86,5 +86,6 @@ Output in JSON format
 - [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)
 - [`hk util python-debug-statements <FILES>…`](/cli/util/python-debug-statements.md)
 - [`hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`](/cli/util/trailing-whitespace.md)
+- [`hk util typos-diff <FILES>…`](/cli/util/typos-diff.md)
 - [`hk validate`](/cli/validate.md)
 - [`hk version`](/cli/version.md)
