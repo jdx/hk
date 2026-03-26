@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "8.5.1"
+tool = "buildifier"
