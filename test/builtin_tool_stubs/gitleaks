@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "8.30.1"
+tool = "aqua:gitleaks/gitleaks"
