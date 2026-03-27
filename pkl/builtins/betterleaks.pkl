@@ -1,0 +1,23 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Secrets"
+  description = "A Better Secrets Scanner built for configurability and speed"
+  project_indicators {
+    new { file = ".gitleaks.toml" }
+    new { file = ".betterleaks.toml" }
+  }
+}
+betterleaks = new Config.Step {
+  types = List("text")
+  // Source: https://github.com/betterleaks/betterleaks/blob/v1.1.1/.pre-commit-hooks.yaml#L4
+  check = "betterleaks git --pre-commit --redact --staged --verbose --no-banner"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+    // Source: https://github.com/betterleaks/betterleaks/blob/v1.1.1/testdata/repos/nogit/api.go#L20
+    ["check file with AWS key"] = testMaker.checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
+    ["check clean file"] = testMaker.checkPass("message = foobar")
+  }
+}
