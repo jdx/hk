@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.12.6"
+tool = "aqua:jackchuka/mdschema"

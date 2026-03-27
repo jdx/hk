@@ -1,0 +1,114 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Markdown"
+  description = "Schema-based Markdown documentation validator"
+  project_indicators {
+    new { file = ".mdschema.yml" }
+  }
+}
+mdschema = new Config.Step {
+  workspace_indicator = ".mdschema.yml"
+  types = List("markdown")
+  check = "mdschema check {{ files }}"
+  tests {
+    local const requiredText = "install"
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.md"
+      extra_files = new Mapping<String, String> {
+        [".mdschema.yml"] =
+        // Adapted from: https://github.com/jackchuka/mdschema/blob/v0.12.6/examples/tutorial.mdschema.yml
+          """
+          structure:
+            - heading:
+                pattern: "# .*"
+              children:
+                - heading: "## Prerequisites"
+                  required_text:
+                    - "\(requiredText)"
+
+                - heading: "## Steps"
+                  children:
+                    - heading:
+                        pattern: "### Step [0-9]+: .*"
+                      count:
+                        min: 1
+                        max: 0  # unlimited
+                      code_blocks:
+                        - { min: 1 }
+
+                - heading: "## Troubleshooting"
+                  optional: true
+
+                - heading: "## Next Steps"
+                  optional: true
+          """
+      }
+    }
+    // Adapted from: https://github.com/jackchuka/mdschema/blob/v0.12.6/examples/tutorial.md
+    local const prefix =
+      """
+      # Getting Started with mdschema
+
+      ## Prerequisites
+
+
+      """
+    local const suffix =
+      """
+
+      ## Steps
+
+      ### Step 1: Install mdschema
+
+      Install mdschema using Go:
+
+      ```bash
+      go install github.com/jackchuka/mdschema/cmd/mdschema@latest
+      ```
+
+      ### Step 2: Create a Schema
+
+      Create a `.mdschema.yml` file:
+
+      ```yaml
+      structure:
+        - heading: "# My Project"
+          children:
+            - heading: "## Features"
+            - heading: "## Installation"
+      ```
+
+      ### Step 3: Validate a Markdown File
+
+      Run mdschema to validate your Markdown file:
+
+      ```bash
+      mdschema validate path/to/yourfile.md --schema path/to/.mdschema.yml
+      ```
+
+      ## Troubleshooting
+
+      If you encounter issues, check that Go is in your PATH.
+
+      ## Next Steps
+
+      Explore more advanced schema features in the documentation.
+      """
+    ["check bad file"] =
+      testMaker.checkFail(
+        prefix
+          + "Before you begin, you need to update Go 1.21 or later."
+          + suffix,
+        1,
+      )
+    ["check good file"] =
+      testMaker.checkPass(
+        prefix
+          + "Before you begin, you need to \(requiredText) Go 1.21 or later."
+          + suffix,
+      )
+  }
+}
