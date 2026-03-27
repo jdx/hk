@@ -2824,6 +2824,31 @@
             "aliases": [],
             "hidden_aliases": [],
             "examples": []
+          },
+          "typos-diff": {
+            "full_cmd": ["util", "typos-diff"],
+            "usage": "util typos-diff <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [],
+            "mounts": [],
+            "hide": false,
+            "help": "Print typos diff and exit non-zero when changes are needed",
+            "name": "typos-diff",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
           }
         },
         "args": [],

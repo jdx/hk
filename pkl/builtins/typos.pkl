@@ -8,13 +8,7 @@ import "./test/helpers.pkl"
 }
 typos = new Config.Step {
   glob = "**/*"
-  check_diff =
-    """
-    output=$(typos --force-exclude --diff {{files}})
-    [ -z "$output" ] && exit 0
-    printf "%s" "$output"
-    exit 1
-    """
+  check_diff = "hk util typos-diff {{ files }}"
   fix = "typos --force-exclude --write-changes {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {

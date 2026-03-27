@@ -94,13 +94,7 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
 
     let original = fs::read_to_string(path)?;
     let fixed = normalize_ending(&original);
-    let path_str = path.display().to_string();
-    let diff = crate::diff::render_unified_diff(
-        &original,
-        &fixed,
-        &format!("a/{}", path_str),
-        &format!("b/{}", path_str),
-    );
+    let diff = crate::diff::render_file_unified_diff(&original, &fixed, path);
 
     Ok(Some(diff))
 }

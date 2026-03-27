@@ -13,6 +13,7 @@ mod no_commit_to_branch;
 mod python_check_ast;
 mod python_debug_statements;
 mod trailing_whitespace;
+mod typos_diff;
 
 pub use byte_order_marker::{CheckByteOrderMarker, FixByteOrderMarker};
 pub use check_added_large_files::CheckAddedLargeFiles;
@@ -29,6 +30,7 @@ pub use no_commit_to_branch::NoCommitToBranch;
 pub use python_check_ast::PythonCheckAst;
 pub use python_debug_statements::PythonDebugStatements;
 pub use trailing_whitespace::TrailingWhitespace;
+pub use typos_diff::TyposDiff;
 
 use crate::Result;
 
@@ -73,6 +75,8 @@ enum UtilCommands {
     PythonDebugStatements(PythonDebugStatements),
     /// Check for and optionally fix trailing whitespace
     TrailingWhitespace(TrailingWhitespace),
+    /// Print typos diff and exit non-zero when changes are needed
+    TyposDiff(TyposDiff),
 }
 
 impl Util {
@@ -94,6 +98,7 @@ impl Util {
             UtilCommands::PythonCheckAst(cmd) => cmd.run().await,
             UtilCommands::PythonDebugStatements(cmd) => cmd.run().await,
             UtilCommands::TrailingWhitespace(cmd) => cmd.run().await,
+            UtilCommands::TyposDiff(cmd) => cmd.run().await,
         }
     }
 }

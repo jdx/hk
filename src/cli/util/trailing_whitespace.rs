@@ -84,7 +84,6 @@ fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
     let content = fs::read_to_string(path)?;
 
     for line in content.split('\n') {
-        // Check for whitespace (including \r) before the newline
         if line != line.trim_end() {
             return Ok(true);
         }
@@ -93,7 +92,6 @@ fn has_trailing_whitespace(path: &PathBuf) -> Result<bool> {
     Ok(false)
 }
 
-/// Strip trailing whitespace from each line in the content
 fn strip_trailing_whitespace(original: &str) -> String {
     original
         .split_inclusive('\n')
@@ -113,13 +111,7 @@ fn generate_diff(path: &PathBuf) -> Result<Option<String>> {
         return Ok(None);
     }
 
-    let path_str = path.display().to_string();
-    let diff = crate::diff::render_unified_diff(
-        &original,
-        &fixed,
-        &format!("a/{}", path_str),
-        &format!("b/{}", path_str),
-    );
+    let diff = crate::diff::render_file_unified_diff(&original, &fixed, path);
 
     Ok(Some(diff))
 }
@@ -278,14 +270,9 @@ mod tests {
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();
-
-        // Should detect and fix
         assert!(fix_trailing_whitespace(&path).unwrap());
-
-        // Should be clean now
         assert!(!has_trailing_whitespace(&path).unwrap());
 
-        // Verify \r is stripped
         let content = fs::read_to_string(&path).unwrap();
         assert_eq!(content, "hello\nworld\n");
     }

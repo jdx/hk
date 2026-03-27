@@ -4,12 +4,11 @@ use std::time::Instant;
 
 use crate::{
     Result,
-    step::RunType,
     step::Step,
+    step::{RunType, apply_command_envs, configured_shell_cmd},
     step_test::{RunKind, StepTest},
     tera,
 };
-use ensembler::CmdLineRunner;
 
 #[allow(unused)]
 pub struct TestResult {
@@ -32,25 +31,26 @@ async fn execute_cmd(
     stdin: &Option<String>,
 ) -> Result<(String, String, i32)> {
     let mut runner = if let Some(shell) = &step.shell {
-        let shell = shell.to_string();
-        let mut parts = shell.split_whitespace();
-        let bin = parts.next().unwrap_or("sh");
-        CmdLineRunner::new(bin).args(parts)
+        configured_shell_cmd(&shell.to_string(), step.shell_type(), cmd_str)?
     } else {
-        CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+        crate::step::default_shell_cmd(cmd_str)
     };
     if let Some(stdin) = stdin {
         let rendered_stdin = tera::render(stdin, tctx)?;
         runner = runner.stdin_string(rendered_stdin);
     }
-    runner = runner.arg(cmd_str).current_dir(base_dir);
-    for (k, v) in &step.env {
-        let v = tera::render(v, tctx)?;
-        runner = runner.env(k, v);
-    }
-    for (k, v) in &test.env {
-        runner = runner.env(k, v);
-    }
+    runner = runner.current_dir(base_dir);
+    let mut rendered_env = step
+        .env
+        .iter()
+        .map(|(key, value)| Ok((key.clone(), tera::render(value, tctx)?)))
+        .collect::<Result<Vec<_>>>()?;
+    rendered_env.extend(
+        test.env
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone())),
+    );
+    runner = apply_command_envs(runner, cmd_str, &rendered_env);
     let result = runner.execute().await;
     let (stdout, stderr, code) = match result {
         Ok(r) => (r.stdout, r.stderr, r.status.code().unwrap_or(0)),
