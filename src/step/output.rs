@@ -46,20 +46,29 @@ impl Step {
             return;
         }
 
-        match self.output_summary {
-            OutputSummary::Stderr => {
-                ctx.hook_ctx
-                    .append_step_output(&self.name, OutputSummary::Stderr, stderr)
+        // On failure, always show combined output so diagnostic messages are
+        // never lost regardless of which stream the tool writes to.
+        // The output_summary setting only filters output for successful runs
+        // (e.g., to surface deprecation warnings on stderr).
+        if is_failure {
+            ctx.hook_ctx
+                .append_step_output(&self.name, OutputSummary::Combined, combined)
+        } else {
+            match self.output_summary {
+                OutputSummary::Stderr => {
+                    ctx.hook_ctx
+                        .append_step_output(&self.name, OutputSummary::Stderr, stderr)
+                }
+                OutputSummary::Stdout => {
+                    ctx.hook_ctx
+                        .append_step_output(&self.name, OutputSummary::Stdout, stdout)
+                }
+                OutputSummary::Combined => {
+                    ctx.hook_ctx
+                        .append_step_output(&self.name, OutputSummary::Combined, combined)
+                }
+                OutputSummary::Hide => {}
             }
-            OutputSummary::Stdout => {
-                ctx.hook_ctx
-                    .append_step_output(&self.name, OutputSummary::Stdout, stdout)
-            }
-            OutputSummary::Combined => {
-                ctx.hook_ctx
-                    .append_step_output(&self.name, OutputSummary::Combined, combined)
-            }
-            OutputSummary::Hide => {}
         }
     }
 
