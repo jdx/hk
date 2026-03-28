@@ -46,6 +46,8 @@ pub enum SkipReason {
     NoCommandForRunType(RunType),
     NoFilesToProcess,
     ConditionFalse,
+    #[strum(serialize = "missing-required-env")]
+    MissingRequiredEnv(Vec<String>),
 }
 
 impl SkipReason {
@@ -55,6 +57,12 @@ impl SkipReason {
                 format!("skipped: disabled via {src}")
             }
             SkipReason::DisabledByConfig => "skipped: disabled via skip configuration".to_string(),
+            SkipReason::MissingRequiredEnv(envs) => {
+                format!(
+                    "skipped: missing required environment variable(s): {}",
+                    envs.join(", ")
+                )
+            }
             SkipReason::ProfileNotEnabled(profiles) => {
                 if profiles.is_empty() {
                     "skipped: disabled by profile".to_string()
