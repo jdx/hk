@@ -11,15 +11,22 @@ import "./test/helpers.pkl"
 }
 google_java_format = new Config.Step {
   glob = "**/*.java"
-  types = List("java")
   check = "google-java-format --dry-run --set-exit-if-changed {{ files }}"
+  check_list_files = "google-java-format --dry-run {{ files }}"
   fix = "google-java-format --replace {{ files }}"
   tests {
-    local const testMaker = new helpers.TestMaker { filename = "Test.java" }
-    local const before =
-      "public class Test {  public static void main(String[] args) {System.out.println(\"Hello\");} }"
-    local const after =
-      "public class Test {\n  public static void main(String[] args) {\n    System.out.println(\"Hello\");\n  }\n}\n"
+    local const testMaker = new helpers.TestMaker {
+      filename = "Test.java"
+    }
+    local const before = "public class Test {  public static void main(String[] args) {System.out.println(\"Hello\");} }"
+    local const after = """
+      public class Test {
+        public static void main(String[] args) {
+          System.out.println("Hello");
+        }
+      }
+      
+      """
     ["check bad file"] = testMaker.checkFail(before, 1)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
