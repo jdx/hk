@@ -186,13 +186,12 @@ impl Step {
                     job.check_first = false;
                     // If the hook was cancelled (fail_fast) before the second run,
                     // save the check output so diagnostics aren't lost.
-                    if ctx.hook_ctx.failed.is_cancelled() {
-                        if let Some((stdout, stderr, combined)) = &check_first_output {
+                    if ctx.hook_ctx.failed.is_cancelled()
+                        && let Some((stdout, stderr, combined)) = &check_first_output {
                             step.save_output_summary(
                                 &ctx, &job, stdout, stderr, combined, true,
                             );
                         }
-                    }
                 }
                 let result = step.run(&ctx, &mut job).await;
                 if let Err(err) = &result {
