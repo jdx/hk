@@ -34,6 +34,15 @@ pub enum Pattern {
     Globs(Vec<String>),
 }
 
+impl Pattern {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Pattern::Regex { .. } => false,
+            Pattern::Globs(globs) => globs.is_empty(),
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
