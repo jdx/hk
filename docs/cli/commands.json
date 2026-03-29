@@ -354,7 +354,7 @@
                     "choices": ["json", "toml"]
                   }
                 },
-                "default": "json"
+                "default": ["json"]
               }
             ],
             "mounts": [],
@@ -794,7 +794,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
-                "default": ".pre-commit-config.yaml"
+                "default": [".pre-commit-config.yaml"]
               },
               {
                 "name": "force",
@@ -822,7 +822,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
-                "default": "hk.pkl"
+                "default": ["hk.pkl"]
               },
               {
                 "name": "hk-pkl-root",
@@ -2308,7 +2308,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
-                "default": "500"
+                "default": ["500"]
               }
             ],
             "mounts": [],
@@ -2411,7 +2411,9 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
-                "default": "build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test"
+                "default": [
+                  "build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test"
+                ]
               }
             ],
             "mounts": [],
@@ -2955,8 +2957,8 @@
       {
         "name": "quiet",
         "usage": "-q --quiet",
-        "help": "Suppresses output",
-        "help_first_line": "Suppresses output",
+        "help": "Suppresses non-essential output (info messages, progress indicators)",
+        "help_first_line": "Suppresses non-essential output (info messages, progress indicators)",
         "short": ["q"],
         "long": ["quiet"],
         "hide": false,
@@ -2965,8 +2967,8 @@
       {
         "name": "silent",
         "usage": "--silent",
-        "help": "Suppresses all output",
-        "help_first_line": "Suppresses all output",
+        "help": "Suppresses all output including warnings. Only errors are shown",
+        "help_first_line": "Suppresses all output including warnings. Only errors are shown",
         "short": [],
         "long": ["silent"],
         "hide": false,
