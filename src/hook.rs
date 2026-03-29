@@ -436,6 +436,9 @@ impl Hook {
             m
         };
 
+        if settings.quiet || settings.silent {
+            return Ok(());
+        }
         println!(
             "{}",
             style::nbold(&format!("Statistics for hook: {}", hook_name))
@@ -765,7 +768,10 @@ impl Hook {
         clx::progress::stop();
 
         // Display aggregated output from steps, once per step
-        if clx::progress::output() != ProgressOutput::Text || *env::HK_SUMMARY_TEXT {
+        if !settings.quiet
+            && !settings.silent
+            && (clx::progress::output() != ProgressOutput::Text || *env::HK_SUMMARY_TEXT)
+        {
             let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
             for (step_name, (mode, output)) in outputs.into_iter() {
                 let trimmed = output.trim_end();

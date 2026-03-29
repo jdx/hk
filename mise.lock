@@ -416,44 +416,52 @@ url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-windows-x
 url = "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-windows-x86_64.zip"
 
 [[tools.usage]]
-version = "2.8.0"
+version = "3.2.0"
 backend = "aqua:jdx/usage"
 
 [tools.usage."platforms.linux-arm64"]
-checksum = "sha256:f4ae83e2c706def9281caeb766f03d03ade245be4b512d442d2212034a6b4a11"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-aarch64-unknown-linux-musl.tar.gz"
+checksum = "sha256:9cc22814763948582a31b054e6aa3adfc7a820a3cafb82b317dd4a8931277c0f"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-aarch64-unknown-linux-musl.tar.gz"
 
 [tools.usage."platforms.linux-arm64-musl"]
-checksum = "sha256:f4ae83e2c706def9281caeb766f03d03ade245be4b512d442d2212034a6b4a11"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-aarch64-unknown-linux-musl.tar.gz"
+checksum = "sha256:9cc22814763948582a31b054e6aa3adfc7a820a3cafb82b317dd4a8931277c0f"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-aarch64-unknown-linux-musl.tar.gz"
 
 [tools.usage."platforms.linux-x64"]
-checksum = "sha256:45b1c2942324650969b4d16c83a62d2018aa48fa0274365fb10bd3aed5f0589e"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:7f48ee228ae95b07c193ec61def326575682b37032473c5af4b3b93a114aec81"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-x86_64-unknown-linux-musl.tar.gz"
 
 [tools.usage."platforms.linux-x64-baseline"]
-checksum = "sha256:45b1c2942324650969b4d16c83a62d2018aa48fa0274365fb10bd3aed5f0589e"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:7f48ee228ae95b07c193ec61def326575682b37032473c5af4b3b93a114aec81"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-x86_64-unknown-linux-musl.tar.gz"
 
 [tools.usage."platforms.linux-x64-musl"]
-checksum = "sha256:45b1c2942324650969b4d16c83a62d2018aa48fa0274365fb10bd3aed5f0589e"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:7f48ee228ae95b07c193ec61def326575682b37032473c5af4b3b93a114aec81"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-x86_64-unknown-linux-musl.tar.gz"
 
 [tools.usage."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:45b1c2942324650969b4d16c83a62d2018aa48fa0274365fb10bd3aed5f0589e"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-x86_64-unknown-linux-musl.tar.gz"
+checksum = "sha256:7f48ee228ae95b07c193ec61def326575682b37032473c5af4b3b93a114aec81"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-x86_64-unknown-linux-musl.tar.gz"
 
 [tools.usage."platforms.macos-arm64"]
-checksum = "sha256:97808ad486dd983cee20033d8157f7d15867b8613bfa1b7e9fbacfba8aa936d2"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-universal-apple-darwin.tar.gz"
+checksum = "sha256:f0a566bc05fc485b23a339abddbaef04225e7730574dbb603fdc021e084d26f9"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-universal-apple-darwin.tar.gz"
 
 [tools.usage."platforms.macos-x64"]
-checksum = "sha256:97808ad486dd983cee20033d8157f7d15867b8613bfa1b7e9fbacfba8aa936d2"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-universal-apple-darwin.tar.gz"
+checksum = "sha256:f0a566bc05fc485b23a339abddbaef04225e7730574dbb603fdc021e084d26f9"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-universal-apple-darwin.tar.gz"
 
 [tools.usage."platforms.macos-x64-baseline"]
-checksum = "sha256:97808ad486dd983cee20033d8157f7d15867b8613bfa1b7e9fbacfba8aa936d2"
-url = "https://github.com/jdx/usage/releases/download/v2.8.0/usage-universal-apple-darwin.tar.gz"
+checksum = "sha256:f0a566bc05fc485b23a339abddbaef04225e7730574dbb603fdc021e084d26f9"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-universal-apple-darwin.tar.gz"
+
+[tools.usage."platforms.windows-x64"]
+checksum = "sha256:9aba23a5d549695cfb5f034849e143205ccf972e5b5d42c24acd32e084d7a165"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-x86_64-pc-windows-msvc.zip"
+
+[tools.usage."platforms.windows-x64-baseline"]
+checksum = "sha256:9aba23a5d549695cfb5f034849e143205ccf972e5b5d42c24acd32e084d7a165"
+url = "https://github.com/jdx/usage/releases/download/v3.2.0/usage-x86_64-pc-windows-msvc.zip"
 
 [[tools.uv]]
 version = "0.8.23"

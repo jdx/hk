@@ -345,10 +345,14 @@ type = "bool"
 default = false
 sources.cli = ["--quiet", "-q"]
 docs = """
-Suppresses non-essential output.
+Suppresses non-essential output (info messages, progress indicators).
 
-When enabled, only errors and critical information will be displayed.
-Useful for scripting or when you only care about the exit code.
+When enabled, only warnings and errors will be displayed. Progress spinners
+and status lines are hidden. Informational messages from commands like
+`install`, `init`, and `migrate` are suppressed.
+
+Commands whose primary purpose is output (e.g., `version`, `builtins`,
+`config dump`) are not affected.
 """
 
 [silent]
@@ -356,10 +360,13 @@ type = "bool"
 default = false
 sources.cli = ["--silent"]
 docs = """
-Completely suppresses all output, including errors.
+Suppresses all output including warnings. Only errors are shown.
 
-More extreme than `quiet` - absolutely no output will be displayed.
-Useful when only the exit code matters.
+More extreme than `quiet` - progress indicators, info messages, and warnings
+are all hidden. Like `quiet`, commands whose primary purpose is output
+(e.g., `version`, `builtins`, `config dump`) are not affected.
+
+Useful for scripting when only the exit code matters.
 """
 
 [skip_hooks]

@@ -1,5 +1,5 @@
 use crate::{Result, config::Config, env, git_util};
-use log::warn;
+use log::{info, warn};
 use std::process::Command;
 
 /// Sets up git hooks to run hk
@@ -33,7 +33,7 @@ impl Install {
             };
             xx::file::write(&hook_file, git_hook_content(&command, hook))?;
             xx::file::make_executable(&hook_file)?;
-            println!("Installed hk hook: {}", hook_file.display());
+            info!("Installed hk hook: {}", hook_file.display());
             Result::<(), eyre::Report>::Ok(())
         };
         for hook in config.hooks.keys() {
