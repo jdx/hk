@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "3.1.0"
+tool = "npm:dclint"
