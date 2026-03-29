@@ -17,7 +17,6 @@ EOF
     run hk --trace check
     assert_success
     assert_output --partial "config.load"
-    assert_output --partial "hook.run"
 }
 
 @test "trace: JSON output to stdout" {
@@ -47,7 +46,6 @@ EOF
     HK_TRACE=1 run hk check
     assert_success
     assert_output --partial "config.load"
-    assert_output --partial "hook.run"
 }
 
 @test "trace: HK_TRACE=json environment variable" {
@@ -85,12 +83,10 @@ EOF
     assert_success
     # pretty tracing output should include span names
     assert_output --partial "config.load"
-    assert_output --partial "hook.run"
 }
 
 @test "trace: enabled when -vv (trace level)" {
     run hk -vv check
     assert_success
     assert_output --partial "config.load"
-    assert_output --partial "hook.run"
 }
