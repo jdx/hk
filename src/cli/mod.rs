@@ -47,10 +47,10 @@ struct Cli {
     /// Disables progress output
     #[clap(short, long, global = true)]
     no_progress: bool,
-    /// Suppresses output
+    /// Suppresses non-essential output (info messages, progress indicators)
     #[clap(short, long, global = true, overrides_with_all = ["verbose", "silent"])]
     quiet: bool,
-    /// Suppresses all output
+    /// Suppresses all output including warnings. Only errors are shown
     #[clap(long, global = true, overrides_with_all = ["quiet", "verbose"])]
     silent: bool,
     /// Enable tracing spans and performance diagnostics
@@ -110,11 +110,11 @@ pub async fn run() -> Result<()> {
         level = Some(log::LevelFilter::Debug);
     }
     if args.quiet {
-        clx::progress::set_output(ProgressOutput::Text);
+        clx::progress::set_output(ProgressOutput::Quiet);
         level = Some(log::LevelFilter::Warn);
     }
     if args.silent {
-        clx::progress::set_output(ProgressOutput::Text);
+        clx::progress::set_output(ProgressOutput::Quiet);
         level = Some(log::LevelFilter::Error);
     }
 

@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::Result;
 use eyre::bail;
 use indexmap::IndexMap;
+use log::info;
 use serde::Deserialize;
 use shell_quote::Quote;
 
@@ -152,13 +153,12 @@ impl PreCommit {
             self.config.display(),
             self.output.display()
         );
-        println!("Successfully migrated to hk.pkl!");
-
-        println!("\nNext steps:");
-        println!("1. Review the generated hk.pkl file");
-        println!("2. Complete any TODO items (local/unknown hooks, vendored repos)");
-        println!("3. Run 'hk install' to install git hooks");
-        println!("4. Run 'hk check --all' to test your configuration");
+        info!("Successfully migrated to hk.pkl!");
+        info!("Next steps:");
+        info!("1. Review the generated hk.pkl file");
+        info!("2. Complete any TODO items (local/unknown hooks, vendored repos)");
+        info!("3. Run 'hk install' to install git hooks");
+        info!("4. Run 'hk check --all' to test your configuration");
 
         Ok(())
     }
@@ -217,7 +217,7 @@ impl PreCommit {
 
             // Warn user about language versions
             warn!("Detected default_language_version in pre-commit config");
-            println!("\nLanguage versions detected in .pre-commit-config.yaml:");
+            info!("Language versions detected in .pre-commit-config.yaml:");
 
             for (lang, version) in &config.default_language_version {
                 hk_config
@@ -227,7 +227,7 @@ impl PreCommit {
                 let normalized_version = Self::normalize_language_version(version);
 
                 // Print warning with mise use command
-                println!(
+                info!(
                     "  {}: {} -> Run: mise use {}@{}",
                     lang, version, lang, normalized_version
                 );
