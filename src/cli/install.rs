@@ -3,6 +3,10 @@ use log::warn;
 use std::process::Command;
 
 /// Sets up git hooks to run hk
+///
+/// In a git worktree with a per-worktree core.hooksPath configured,
+/// hooks are installed to that worktree-local directory. Otherwise
+/// hooks go to the shared hooks directory.
 #[derive(Debug, clap::Args)]
 #[clap(visible_alias = "i")]
 pub struct Install {
@@ -20,27 +24,30 @@ impl Install {
         let config = Config::get()?;
         let git_path = git_util::find_git_path()?;
 
-        // Check for core.hooksPath in git config
-        check_hooks_path_config()?;
+        let hooks = match git_util::worktree_hooks_path() {
+            Some(path) => {
+                xx::file::mkdirp(&path)?;
+                path
+            }
+            None => {
+                check_hooks_path_config()?;
+                git_util::resolve_git_hooks_dir(&git_path)?
+            }
+        };
 
-        let hooks = git_util::resolve_git_hooks_dir(&git_path)?;
-        let add_hook = |hook: &str| {
-            let hook_file = hooks.join(hook);
-            let command = if *env::HK_MISE || self.mise {
-                "mise x -- hk".to_string()
-            } else {
-                "hk".to_string()
-            };
-            xx::file::write(&hook_file, git_hook_content(&command, hook))?;
-            xx::file::make_executable(&hook_file)?;
-            println!("Installed hk hook: {}", hook_file.display());
-            Result::<(), eyre::Report>::Ok(())
+        let command = if *env::HK_MISE || self.mise {
+            "mise x -- hk".to_string()
+        } else {
+            "hk".to_string()
         };
         for hook in config.hooks.keys() {
             if hook == "check" || hook == "fix" {
                 continue;
             }
-            add_hook(hook)?;
+            let hook_file = hooks.join(hook);
+            xx::file::write(&hook_file, git_hook_content(&command, hook))?;
+            xx::file::make_executable(&hook_file)?;
+            println!("Installed hk hook: {}", hook_file.display());
         }
         Ok(())
     }
@@ -55,7 +62,6 @@ test "${{HK:-1}}" = "0" || exec {hk} run {hook} "$@"
 }
 
 fn check_hooks_path_config() -> Result<()> {
-    // Check both global and local git config for core.hooksPath
     let check_config = |scope: &str| -> Result<Option<String>> {
         let output = Command::new("git")
             .args(["config", scope, "--get", "core.hooksPath"])
@@ -90,10 +96,8 @@ fn check_hooks_path_config() -> Result<()> {
             .push("Run 'git config --local --unset-all core.hooksPath' to remove it.".to_string());
     }
 
-    if !warnings.is_empty() {
-        for warning in warnings {
-            warn!("{}", warning);
-        }
+    for warning in &warnings {
+        warn!("{}", warning);
     }
 
     Ok(())
