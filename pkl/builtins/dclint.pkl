@@ -1,0 +1,41 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Docker Compose linter"
+  project_indicators {
+    new { file = "compose.yml" }
+    new { file = "compose.yaml" }
+    new { file = "docker-compose.yml" }
+    new { file = "docker-compose.yaml" }
+  }
+}
+dclint = new Config.Step {
+  glob =
+    List(
+      "**/compose*.yml",
+      "**/compose*.yaml",
+      "**/docker-compose*.yml",
+      "**/docker-compose*.yaml",
+    )
+  batch = true
+  check = "dclint {{files}}"
+  fix = "dclint --fix {{files}}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "docker-compose.yml"
+    }
+    local const before = "version: '3'\nservices:\n  web:\n    image: nginx\n"
+    local const after = "name: test-app\nservices:\n  web:\n    image: nginx:1.27\n"
+    local const before_fix =
+      "version: '3'\nname: test-app\nservices:\n  web:\n    image: nginx:1.27\n"
+    local const after_fix = "name: test-app\nservices:\n  web:\n    image: nginx:1.27\n"
+
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before_fix, after_fix)
+    ["fix good file"] = testMaker.fixPass(after_fix, after_fix)
+  }
+}
