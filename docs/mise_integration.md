@@ -3,7 +3,11 @@
 Most git-hook managers provide features that hk's sister project, [mise-en-place](https://github.com/jdx/mise), already provides. For this reason, you will want to use mise and hk together if you'd like
 to use any of the features described below.
 
-To default hk to enable these mise features, set [`HK_MISE=1`](/configuration#hk-mise).
+To default hk to enable these mise features, set [`HK_MISE=1`](/environment_variables#hk-mise).
+
+:::info
+Setting `HK_MISE=1` will wrap your Git hooks with `mise x`. This ensures that mise automatically sets up the correct environment and tool versions before running hk, even if other developers haven't activated mise in their shell.
+:::
 
 ## `hk init --mise`
 
@@ -60,3 +64,23 @@ PRETTIER_CONFIG = ".prettierrc.json"
 ```
 
 mise has much more functionality around environment variables, so see the [mise docs](https://mise.jdx.dev/environments/) for more information.
+
+## Recommended Setup
+
+The recommended approach is to use `mise.toml` as the source of truth for your tools and environment, while using `hk` specifically for managing the Git lifecycle.
+
+By setting `HK_MISE=1` and using a `postinstall` hook, you can automate hook installation for your entire team:
+
+```toml
+[tools]
+hk = "latest"
+pkl = "latest"
+# ... other tools like prettier, actionlint, etc.
+
+[env]
+HK_MISE = 1
+
+[hooks]
+# Automatically install/update hooks when tools are installed
+postinstall = "hk install --mise"
+```

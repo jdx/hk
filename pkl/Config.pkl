@@ -100,6 +100,7 @@ fail_fast: Boolean?
 /// - "condition-false"
 /// - "disabled-by-env"
 /// - "disabled-by-cli"
+/// - "missing-required-env"
 display_skip_reasons: List<String> = List("profile-not-enabled")
 
 /// Which warning categories to show. Empty by default (no warnings shown).
@@ -261,6 +262,12 @@ class Hook {
 }
 
 class Step {
+  /// List of environment variables that must be set for this step to run.
+  /// A variable is considered satisfied if it is present in the process environment,
+  /// the global `env` block in hk.pkl, or the step's own `env` block.
+  /// If any are missing, the step will be skipped with a clear message.
+  required: List<String> = List()
+
   /// Files the step should run on. By default this will only run this step if
   /// at least 1 staged file matches the glob or regex patterns.
   /// If no patterns are provided, the step will always run.

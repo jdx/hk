@@ -1,0 +1,37 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Java"
+  description = "Google Java Format"
+  project_indicators {
+    new { glob = "**/*.java" }
+  }
+}
+google_java_format = new Config.Step {
+  glob = "**/*.java"
+  check = "google-java-format --dry-run --set-exit-if-changed {{ files }}"
+  check_list_files = "google-java-format --dry-run {{ files }}"
+  fix = "google-java-format --replace {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "Test.java"
+    }
+    local const before =
+      "public class Test {  public static void main(String[] args) {System.out.println(\"Hello\");} }"
+    local const after =
+      """
+      public class Test {
+        public static void main(String[] args) {
+          System.out.println("Hello");
+        }
+      }
+
+      """
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}
