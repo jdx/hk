@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.40.0](https://github.com/jdx/hk/compare/v1.39.0..v1.40.0) - 2026-04-01
+
+### 🚀 Features
+
+- **(betterleaks)** add betterleaks config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#750](https://github.com/jdx/hk/pull/750)
+- **(builtins)** add google-java-format to builtins by [@timothysparg](https://github.com/timothysparg) in [#777](https://github.com/jdx/hk/pull/777)
+- **(builtins)** add dclint to builtins by [@timothysparg](https://github.com/timothysparg) in [#779](https://github.com/jdx/hk/pull/779)
+- **(config)** set default value for exclude to List() by [@timothysparg](https://github.com/timothysparg) in [#781](https://github.com/jdx/hk/pull/781)
+- **(core)** add required field to prevent unconfigured steps from running by [@timothysparg](https://github.com/timothysparg) in [#785](https://github.com/jdx/hk/pull/785)
+- **(gitleaks)** add gitleaks config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#749](https://github.com/jdx/hk/pull/749)
+- **(mdschema)** add mdschema config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#748](https://github.com/jdx/hk/pull/748)
+- **(pkl)** add pklr as opt-in pkl backend by [@jdx](https://github.com/jdx) in [#769](https://github.com/jdx/hk/pull/769)
+- add pklr as opt-in pkl backend by [@jdx](https://github.com/jdx) in [#768](https://github.com/jdx/hk/pull/768)
+
+### 🐛 Bug Fixes
+
+- **(docs)** replace invalid /latest/ pkl package URIs with versioned format by [@jdx](https://github.com/jdx) in [#770](https://github.com/jdx/hk/pull/770)
+- **(stage)** do not stage pre-existing untracked files by [@jdx](https://github.com/jdx) in [#788](https://github.com/jdx/hk/pull/788)
+
+### 📚 Documentation
+
+- add benchmarks page and reproducible benchmark suite by [@jdx](https://github.com/jdx) in [#766](https://github.com/jdx/hk/pull/766)
+- add recommended setup section to mise integration by [@timothysparg](https://github.com/timothysparg) in [#780](https://github.com/jdx/hk/pull/780)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#762](https://github.com/jdx/hk/pull/762)
+- update rust crate pklr to 0.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#776](https://github.com/jdx/hk/pull/776)
+- update apple-actions/import-codesign-certs digest to fe74d46 by [@renovate[bot]](https://github.com/renovate[bot]) in [#774](https://github.com/jdx/hk/pull/774)
+- update anthropics/claude-code-action digest to 094bd24 by [@renovate[bot]](https://github.com/renovate[bot]) in [#773](https://github.com/jdx/hk/pull/773)
+- update taiki-e/upload-rust-binary-action digest to 0e34102 by [@renovate[bot]](https://github.com/renovate[bot]) in [#775](https://github.com/jdx/hk/pull/775)
+- bump usage to 3.2.0 and pkl to 0.31.1, add windows platforms by [@jdx](https://github.com/jdx) in [#787](https://github.com/jdx/hk/pull/787)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#786](https://github.com/jdx/hk/pull/786)
+
+### New Contributors
+
+- @timothysparg made their first contribution in [#781](https://github.com/jdx/hk/pull/781)
+
 ## [1.39.0](https://github.com/jdx/hk/compare/v1.38.0..v1.39.0) - 2026-03-22
 
 ### 🚀 Features
