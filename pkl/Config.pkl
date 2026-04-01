@@ -654,7 +654,7 @@ class Step {
   /// - Regex patterns use Rust regex syntax
   /// - The `(?x)` flag enables verbose mode for multi-line patterns with comments
   /// - Use raw strings (`#"..."#` or `#"""..."""#`) to avoid escaping backslashes
-  exclude: (String | List<String> | Regex)?
+  exclude: (String | List<String> | Regex) = List()
 
   /// Default: `false`
   ///
