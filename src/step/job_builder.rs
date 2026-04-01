@@ -65,6 +65,19 @@ impl Step {
             j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
             return Ok(vec![j]);
         }
+        if !self.required.is_empty() {
+            let missing: Vec<String> = self
+                .required
+                .iter()
+                .filter(|e| std::env::var(e).is_err() && !self.env.contains_key(*e))
+                .cloned()
+                .collect();
+            if !missing.is_empty() {
+                let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+                j.skip_reason = Some(SkipReason::MissingRequiredEnv(missing));
+                return Ok(vec![j]);
+            }
+        }
         let files = self.filter_files(files)?;
         // Skip if no files and step has file filters
         // This means the step was explicitly looking for specific files and found none

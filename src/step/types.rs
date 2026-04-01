@@ -138,6 +138,10 @@ pub struct Step {
     /// Content to pipe to the command's stdin
     pub stdin: Option<String>,
 
+    /// Environment variables that must be set for this step to run
+    #[serde(default)]
+    pub required: Vec<String>,
+
     /// Steps that must complete before this one runs
     pub depends: Vec<String>,
 
