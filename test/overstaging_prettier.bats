@@ -41,7 +41,7 @@ PKL
   run hk fix -v
   assert_success
 
-  # Both files match **/*.ts so both should be staged
+  # Both files match **/*.ts so both should be staged (explicit stage glob opts into staging untracked)
   run git status --porcelain
   assert_success
   assert_line --regexp '^[MA]  src/changed\.ts$'

@@ -1,0 +1,22 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Secrets"
+  description = "Secret scanner for Git repositories"
+  project_indicators {
+    new { file = ".gitleaks.toml" }
+  }
+}
+gitleaks = new Config.Step {
+  types = List("text")
+  // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/.pre-commit-hooks.yaml#L4
+  check = "gitleaks dir --redact --verbose --no-banner {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+    // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/testdata/repos/nogit/api.go#L20
+    ["check bad file"] = testMaker.checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
+    ["check good file"] = testMaker.checkPass("message = foobar")
+  }
+}

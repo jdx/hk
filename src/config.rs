@@ -294,7 +294,11 @@ impl Config {
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
-            let json_value: serde_json::Value = run_pkl(&["eval"], &path)?;
+            let json_value: serde_json::Value = if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+                run_pklr(&path)?
+            } else {
+                run_pkl(&["eval"], &path)?
+            };
 
             // Backward compat: legacy hkrc files amend UserConfig.pkl (has "environment" key),
             // new-style hkrc files amend Config.pkl (has "env" key).
@@ -363,16 +367,53 @@ fn get_http_proxy() -> Option<String> {
 }
 
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    let client = build_pklr_http_client()?;
+    let http_rewrites = env::HK_PKL_HTTP_REWRITE
+        .as_deref()
+        .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let options = pklr::EvalOptions {
+        client: Some(client),
+        http_rewrites,
+    };
     let rt = tokio::runtime::Handle::try_current();
     let json = match rt {
-        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(pklr::eval_to_json(path))),
+        Ok(handle) => tokio::task::block_in_place(|| {
+            handle.block_on(pklr::eval_to_json_with_options(path, options))
+        }),
         Err(_) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(pklr::eval_to_json(path))
+            rt.block_on(pklr::eval_to_json_with_options(path, options))
         }
     }
     .map_err(|e| eyre::eyre!("{e}"))?;
     serde_json::from_value(json).wrap_err("failed to deserialize pklr output")
+}
+
+/// Build a reqwest::Client with proxy and CA certificate settings
+/// matching proxy and HK_PKL_* environment variables.
+fn build_pklr_http_client() -> Result<pklr::reqwest::Client> {
+    let mut builder = pklr::reqwest::Client::builder();
+    if let Some(proxy_url) = get_http_proxy() {
+        let mut proxy = pklr::reqwest::Proxy::all(&proxy_url)
+            .map_err(|e| eyre::eyre!("invalid proxy URL: {e}"))?;
+        if let Some(no_proxy) = get_no_proxy() {
+            proxy = proxy.no_proxy(pklr::reqwest::NoProxy::from_string(&no_proxy));
+        }
+        builder = builder.proxy(proxy);
+    }
+    if let Some(ca_path) = env::HK_PKL_CA_CERTIFICATES.as_ref() {
+        let cert_pem = std::fs::read(ca_path)
+            .map_err(|e| eyre::eyre!("failed to read CA certificate {}: {e}", ca_path.display()))?;
+        let certs = pklr::reqwest::Certificate::from_pem_bundle(&cert_pem)
+            .map_err(|e| eyre::eyre!("invalid CA certificate: {e}"))?;
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
+    }
+    builder
+        .build()
+        .map_err(|e| eyre::eyre!("failed to build HTTP client: {e}"))
 }
 
 /// Get the no_proxy list from environment variables.
