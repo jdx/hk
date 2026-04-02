@@ -111,6 +111,8 @@ impl Step {
                 if job.check_first {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check;
+                    // Stash check output in case the second run is cancelled by fail_fast
+                    let mut check_first_output: Option<(String, String, String)> = None;
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
@@ -118,7 +120,7 @@ impl Step {
                             return Ok(vec![]);
                         }
                         Err(e) => {
-                            if let Some(Error::CheckListFailed { source: _, stdout, stderr }) =
+                            if let Some(Error::CheckListFailed { source: _, stdout, stderr, combined }) =
                                 e.downcast_ref::<Error>()
                             {
                                 debug!("{step}: failed check step first: check list or diff failed");
@@ -126,6 +128,7 @@ impl Step {
                                 if !stderr.trim().is_empty() {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
+                                check_first_output = Some((stdout.clone(), stderr.clone(), combined.clone()));
                                 // Use check_diff parser if check_diff is defined, otherwise check_list_files
                                 let is_check_diff = step.check_diff.is_some();
                                 let (files, extras) = if is_check_diff {
@@ -181,6 +184,14 @@ impl Step {
                     }
                     job.run_type = prev_run_type;
                     job.check_first = false;
+                    // If the hook was cancelled (fail_fast) before the second run,
+                    // save the check output so diagnostics aren't lost.
+                    if ctx.hook_ctx.failed.is_cancelled()
+                        && let Some((stdout, stderr, combined)) = &check_first_output {
+                            step.save_output_summary(
+                                &ctx, &job, stdout, stderr, combined, true,
+                            );
+                        }
                 }
                 let result = step.run(&ctx, &mut job).await;
                 if let Err(err) = &result {
