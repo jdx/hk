@@ -27,7 +27,7 @@ mod version;
 #[derive(clap::Parser)]
 #[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
-    /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
+    /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl (Linux) or ~/Library/Application Support/hk/config.pkl (macOS), or ./hk.local.pkl)
     #[clap(long, global = true, value_name = "PATH", hide = true)]
     hkrc: Option<PathBuf>,
     /// Number of jobs to run in parallel

@@ -20,7 +20,7 @@ macro_rules! deprecated {
 /// # Example
 /// ```ignore
 /// deprecated_at!("1.37.0", "2.0.0", "hkrc-home",
-///     "~/.hkrc.pkl is deprecated. Use ~/.config/hk/config.pkl instead.");
+///     "~/.hkrc.pkl is deprecated. Use ~/.config/hk/config.pkl (Linux) or ~/Library/Application Support/hk/config.pkl (macOS) instead.");
 /// ```
 macro_rules! deprecated_at {
     ($warn_at:tt, $remove_at:tt, $id:tt, $($arg:tt)*) => {{

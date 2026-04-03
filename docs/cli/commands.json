@@ -2873,8 +2873,8 @@
       {
         "name": "hkrc",
         "usage": "--hkrc <PATH>",
-        "help": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
-        "help_first_line": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
+        "help": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl (Linux) or ~/Library/Application Support/hk/config.pkl (macOS), or ./hk.local.pkl)",
+        "help_first_line": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl (Linux) or ~/Library/Application Support/hk/config.pkl (macOS), or ./hk.local.pkl)",
         "short": [],
         "long": ["hkrc"],
         "hide": true,

@@ -3,7 +3,7 @@ bin hk
 version "1.40.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
-flag --hkrc help="Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)" hide=#true global=#true {
+flag --hkrc help="Path to user configuration file (deprecated: use ~/.config/hk/config.pkl (Linux) or ~/Library/Application Support/hk/config.pkl (macOS), or ./hk.local.pkl)" hide=#true global=#true {
     arg <PATH>
 }
 flag "-j --jobs" help="Number of jobs to run in parallel" global=#true {

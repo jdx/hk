@@ -173,7 +173,7 @@ type = "path"
 default = ".hkrc.pkl"
 sources.cli = ["--hkrc"]
 docs = """
-**Deprecated:** Use `~/.config/hk/config.pkl` for global config or `hk.local.pkl` for per-project overrides.
+**Deprecated:** Use `~/.config/hk/config.pkl` (Linux) or `~/Library/Application Support/hk/config.pkl` (macOS) for global config, or `hk.local.pkl` for per-project overrides.
 
 Path to the user configuration file.
 
@@ -378,7 +378,7 @@ Unlike `skip_steps` which skips individual steps, this skips the entire hook and
 
 This setting can also be configured via:
 - Git config: `git config hk.skipHook "pre-commit"`
-- User config (`~/.config/hk/config.pkl`): `skip_hooks = List("pre-commit")`
+- User config (`~/.config/hk/config.pkl` (Linux) or `~/Library/Application Support/hk/config.pkl` (macOS)): `skip_hooks = List("pre-commit")`
 
 **All skip configurations from different sources are unioned together.**
 """
@@ -397,7 +397,7 @@ For example: `HK_SKIP_STEPS=lint,test` would skip any steps named "lint" or "tes
 
 This setting can also be configured via:
 - Git config: `git config hk.skipSteps "step1,step2"`
-- User config (`~/.config/hk/config.pkl`): `skip_steps = List("step1", "step2")`
+- User config (`~/.config/hk/config.pkl` (Linux) or `~/Library/Application Support/hk/config.pkl` (macOS)): `skip_steps = List("step1", "step2")`
 
 **All skip configurations from different sources are unioned together.**
 """
