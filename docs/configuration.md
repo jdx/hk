@@ -9,7 +9,7 @@ hk builds its effective configuration by layering sources from lowest to highest
 | Precedence | Source | Scope |
 |---|---|---|
 | 1 (lowest) | Built-in defaults | All projects |
-| 2 | [hkrc](#hkrc) (`~/.config/hk/config.pkl` (Linux) / `~/Library/Application Support/hk/config.pkl` (macOS)) | All projects (user-level) |
+| 2 | [hkrc](#hkrc) (see [hkrc](#hkrc) for path) | All projects (user-level) |
 | 3 | [Project config](#hk-pkl) (`hk.pkl` or `hk.local.pkl`) | Single project |
 | 4 | [Git config](#git-configuration) (global, then local) | Per-repo |
 | 5 | [Environment variables](#settings-reference) (`HK_*`) | Per-invocation |
@@ -191,7 +191,7 @@ These lists contain repository-relative paths for files currently in each state.
 > `.hkrc.pkl` and `--hkrc` are deprecated and will be removed in hk v2.
 >
 > - **Per-project overrides:** use `hk.local.pkl` in the project root (see [`hk.local.pkl`](#hk-local-pkl))
-> - **Global user config:** use `~/.config/hk/config.pkl` (Linux) / `~/Library/Application Support/hk/config.pkl` (macOS)
+> - **Global user config:** use [User Configuration (config.pkl)](#user-configuration-config-pkl)
 
 The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. hk discovers it in this order (first match wins):
 
@@ -199,7 +199,7 @@ The `hkrc` is a global configuration file that allows you to customize hk's beha
 |---|---|---|
 | 1 | `.hkrc.pkl` (CWD) | Per-directory override **(deprecated)** |
 | 2 | `~/.hkrc.pkl` | Home directory **(deprecated)** |
-| 3 | `~/.config/hk/config.pkl` (Linux) / `~/Library/Application Support/hk/config.pkl` (macOS) | [`dirs::config_dir()`](https://docs.rs/dirs/latest/dirs/fn.config_dir.html) **(recommended)** |
+| 3 | [`dirs::config_dir()`](https://docs.rs/dirs/latest/dirs/fn.config_dir.html)`/hk/config.pkl` | [User Configuration](#user-configuration-config-pkl) **(recommended)** |
 
 ~~Use the `--hkrc` flag to override discovery and use a specific path.~~ The `--hkrc` flag is deprecated.
 
@@ -241,7 +241,7 @@ The hkrc is merged with the project configuration using "project wins" semantics
 Add steps to your hkrc. hk merges them into every project's hooks — steps with names the project doesn't define always run:
 
 ```pkl
-// ~/.config/hk/config.pkl (Linux) or ~/Library/Application Support/hk/config.pkl (macOS)
+// [dirs::config_dir()]/hk/config.pkl
 amends "package://github.com/jdx/hk/releases/download/v1.40.0/hk@1.40.0#/Config.pkl"
 
 hooks {
