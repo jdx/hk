@@ -63,7 +63,7 @@ shell-quote        = "0.7"
 shell-words        = "1"
 similar            = "2"
 siphasher          = "1"
-strum              = { version = "0.27", features = ["derive"] }
+strum              = { version = "0.28", features = ["derive"] }
 tempfile           = "3"
 tera               = "1"
 thiserror          = "2"
