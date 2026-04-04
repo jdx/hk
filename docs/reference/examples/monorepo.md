@@ -7,8 +7,8 @@
 /// * Infrastructure: Terraform
 /// * Uses groups to organize steps by component
 
-amends "package://github.com/jdx/hk/releases/download/v1.40.0/hk@1.40.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.40.0/hk@1.40.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.41.0/hk@1.41.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.41.0/hk@1.41.0#/Builtins.pkl"
 
 // Frontend linters (JavaScript/TypeScript)
 local frontend = new Group {

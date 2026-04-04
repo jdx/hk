@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.41.0](https://github.com/jdx/hk/compare/v1.40.0..v1.41.0) - 2026-04-04
+
+### 🚀 Features
+
+- **(hook)** support per-worktree hooks via extensions.worktreeConfig by [@nkakouros](https://github.com/nkakouros) in [#789](https://github.com/jdx/hk/pull/789)
+
+### 🐛 Bug Fixes
+
+- **(config)** use XDG_CONFIG_HOME for config path instead of dirs::config_dir() by [@fukuchancat](https://github.com/fukuchancat) in [#801](https://github.com/jdx/hk/pull/801)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 0432df8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#791](https://github.com/jdx/hk/pull/791)
+- update rust crate indexmap to v2.13.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#792](https://github.com/jdx/hk/pull/792)
+- update actions/configure-pages action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#795](https://github.com/jdx/hk/pull/795)
+- update rust crate strum to 0.28 by [@renovate[bot]](https://github.com/renovate[bot]) in [#794](https://github.com/jdx/hk/pull/794)
+- update actions/deploy-pages action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#796](https://github.com/jdx/hk/pull/796)
+- update dependency globals to v17 by [@renovate[bot]](https://github.com/renovate[bot]) in [#797](https://github.com/jdx/hk/pull/797)
+- update github artifact actions (major) by [@renovate[bot]](https://github.com/renovate[bot]) in [#798](https://github.com/jdx/hk/pull/798)
+- update jdx/mise-action action to v4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#799](https://github.com/jdx/hk/pull/799)
+
+### New Contributors
+
+- @fukuchancat made their first contribution in [#801](https://github.com/jdx/hk/pull/801)
+
 ## [1.40.0](https://github.com/jdx/hk/compare/v1.39.0..v1.40.0) - 2026-04-01
 
 ### 🚀 Features
