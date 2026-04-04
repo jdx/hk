@@ -763,6 +763,7 @@
         "mounts": [],
         "hide": false,
         "help": "Sets up git hooks to run hk",
+        "help_long": "Sets up git hooks to run hk\n\nIn a git worktree with a per-worktree core.hooksPath configured, hooks are installed to that worktree-local directory. Otherwise hooks go to the shared hooks directory.",
         "name": "install",
         "aliases": ["i"],
         "hidden_aliases": [],
