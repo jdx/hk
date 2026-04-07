@@ -64,7 +64,7 @@ jobs:
           codesign_prefix: dev.jdx.
           dry-run: true # Always dry-run to just build without uploading
       - name: Upload binary artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: binary-${{ matrix.target }}
           path: |
@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - name: Package Pkl
         run: |
           if [[ -n "${{ inputs.version }}" ]]; then
@@ -93,7 +93,7 @@ jobs:
 
           echo "Contents of docs/public/pkl:"
           ls -la docs/public/pkl || true
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: pkl-packages
           path: docs/public/pkl/*
@@ -107,7 +107,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - name: Extract release notes from CHANGELOG.md
         run: |
           awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
@@ -115,7 +115,7 @@ jobs:
             echo "No release notes available" > release-notes.md
           fi
       - name: Download all artifacts
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: artifacts
       - name: Prepare release assets
@@ -145,7 +145,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - name: Enhance release notes with communique
         run: |
           if [[ -n "${{ inputs.version }}" ]]; then

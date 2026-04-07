@@ -28,6 +28,6 @@
     "typescript": "^5.8.2"
   },
   "devDependencies": {
-    "globals": "^16.0.0"
+    "globals": "^17.0.0"
   }
 }

@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "2025"
+tool = "aqua:dominikh/go-tools/staticcheck"

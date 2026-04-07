@@ -7,5 +7,6 @@ import "../Config.pkl"
 }
 staticcheck = new Config.Step {
   glob = "**/*.go"
-  check = "staticcheck {{ files }}"
+  workspace_indicator = "go.mod"
+  check = "cd {{workspace}} && staticcheck ./..."
 }

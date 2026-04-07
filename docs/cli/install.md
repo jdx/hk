@@ -7,6 +7,8 @@
 
 Sets up git hooks to run hk
 
+In a git worktree with a per-worktree core.hooksPath configured, hooks are installed to that worktree-local directory. Otherwise hooks go to the shared hooks directory.
+
 ## Flags
 
 ### `--mise`

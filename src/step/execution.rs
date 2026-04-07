@@ -382,12 +382,27 @@ impl Step {
                 glob::get_matches(&stage_globs, &candidate_vec)?
             };
 
-            // Now keep only those that are actually unstaged or untracked
+            // Now keep only those that are actually unstaged or untracked.
+            // When using the default stage=<JOB_FILES>, exclude files that were already
+            // untracked before the hook started — only stage untracked files that were
+            // newly created by a fixer. Explicit stage globs opt into staging all
+            // matching untracked files.
             let unstaged_set: IndexSet<PathBuf> = status.unstaged_files.iter().cloned().collect();
             let untracked_set: IndexSet<PathBuf> = status.untracked_files.iter().cloned().collect();
             let filtered = matched_candidates
                 .into_iter()
-                .filter(|p| unstaged_set.contains(p) || untracked_set.contains(p))
+                .filter(|p| {
+                    if untracked_set.contains(p) {
+                        if stage_only_job_files {
+                            // Only stage untracked files that are newly created (not pre-existing)
+                            !ctx.hook_ctx.initial_untracked.contains(p)
+                        } else {
+                            true
+                        }
+                    } else {
+                        unstaged_set.contains(p)
+                    }
+                })
                 .collect_vec();
 
             trace!(
