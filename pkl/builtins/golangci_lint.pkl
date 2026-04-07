@@ -10,6 +10,7 @@ import "../Config.pkl"
 }
 golangci_lint = new Config.Step {
   glob = "**/*.go"
-  check = "golangci-lint run --fix=false {{ files }}"
-  fix = "golangci-lint run --fix {{ files }}"
+  workspace_indicator = "go.mod"
+  check = "cd {{workspace}} && golangci-lint run --fix=false ./..."
+  fix = "cd {{workspace}} && golangci-lint run --fix ./..."
 }

@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "1.25.2"
+tool = "github:google/google-java-format"

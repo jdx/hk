@@ -34,6 +34,15 @@ pub enum Pattern {
     Globs(Vec<String>),
 }
 
+impl Pattern {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Pattern::Regex { .. } => false,
+            Pattern::Globs(globs) => globs.is_empty(),
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -137,6 +146,10 @@ pub struct Step {
 
     /// Content to pipe to the command's stdin
     pub stdin: Option<String>,
+
+    /// Environment variables that must be set for this step to run
+    #[serde(default)]
+    pub required: Vec<String>,
 
     /// Steps that must complete before this one runs
     pub depends: Vec<String>,

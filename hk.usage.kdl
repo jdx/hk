@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.39.0"
+version "1.41.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)" hide=#true global=#true {
@@ -133,6 +133,7 @@ cmd init help="Generates a new hk.pkl file for a project" {
 }
 cmd install help="Sets up git hooks to run hk" {
     alias i
+    long_help "Sets up git hooks to run hk\n\nIn a git worktree with a per-worktree core.hooksPath configured, hooks are installed to that worktree-local directory. Otherwise hooks go to the shared hooks directory."
     flag --mise help="Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools." {
         long_help "Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools.\n\nSet HK_MISE=1 to make this default behavior."
     }

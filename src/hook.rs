@@ -46,6 +46,8 @@ pub enum SkipReason {
     NoCommandForRunType(RunType),
     NoFilesToProcess,
     ConditionFalse,
+    #[strum(serialize = "missing-required-env")]
+    MissingRequiredEnv(Vec<String>),
 }
 
 impl SkipReason {
@@ -55,6 +57,12 @@ impl SkipReason {
                 format!("skipped: disabled via {src}")
             }
             SkipReason::DisabledByConfig => "skipped: disabled via skip configuration".to_string(),
+            SkipReason::MissingRequiredEnv(envs) => {
+                format!(
+                    "skipped: missing required environment variable(s): {}",
+                    envs.join(", ")
+                )
+            }
             SkipReason::ProfileNotEnabled(profiles) => {
                 if profiles.is_empty() {
                     "skipped: disabled by profile".to_string()
@@ -147,6 +155,9 @@ pub struct HookContext {
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
     pub should_stage: bool,
+    /// Untracked files at the start of the hook run, used to avoid staging
+    /// pre-existing untracked files that were not created by a fixer.
+    pub initial_untracked: BTreeSet<PathBuf>,
 }
 
 impl HookContext {
@@ -161,6 +172,7 @@ impl HookContext {
         hk_progress: Option<Arc<ProgressJob>>,
         skip_steps: IndexMap<String, SkipReason>,
         should_stage: bool,
+        initial_untracked: BTreeSet<PathBuf>,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = expr_ctx;
@@ -192,6 +204,7 @@ impl HookContext {
             output_by_step: StdMutex::new(IndexMap::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
             should_stage,
+            initial_untracked,
         }
     }
 
@@ -630,6 +643,7 @@ impl Hook {
             hk_progress,
             skip_steps,
             should_stage,
+            git_status.untracked_files.clone(),
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
