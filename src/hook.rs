@@ -882,7 +882,7 @@ impl Hook {
             }
         }
         if let Err(err) = &result {
-            // ScriptFailed is handled by main.rs handle_script_failed(), skip logging here
+            // ScriptFailed errors are displayed via output_by_step above, skip logging here
             // Other errors are unexpected, show full trace for debugging
             let is_script_failed = err.chain().any(|e| {
                 matches!(

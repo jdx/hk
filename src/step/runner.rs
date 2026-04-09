@@ -236,6 +236,7 @@ impl Step {
                             source: eyre::eyre!("{}", err),
                             stdout: e.3.stdout.clone(),
                             stderr: e.3.stderr.clone(),
+                            combined: e.3.combined_output.clone(),
                         })?;
                     }
                     // Save output from a failed command as well
