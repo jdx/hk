@@ -65,6 +65,7 @@ Output in JSON format
 - [`hk run [FLAGS] [FILES]… <SUBCOMMAND>`](/cli/run.md)
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
 - [`hk run post-checkout [FLAGS] <ARGS>…`](/cli/run/post-checkout.md)
+- [`hk run post-merge [FLAGS] <IS_SQUASH> [FILES]…`](/cli/run/post-merge.md)
 - [`hk run pre-commit [FLAGS] [FILES]…`](/cli/run/pre-commit.md)
 - [`hk run pre-push [FLAGS] [ARGS]…`](/cli/run/pre-push.md)
 - [`hk run prepare-commit-msg [FLAGS] <ARGS>…`](/cli/run/prepare-commit-msg.md)
