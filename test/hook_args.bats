@@ -206,6 +206,24 @@ EOF
     assert_success
 }
 
+@test "commit-msg hook_args contains commit message file path" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["commit-msg"] {
+        steps {
+            ["capture"] { check = "echo {{ hook_args }} > hook_args.txt" }
+        }
+    }
+}
+EOF
+    hk install
+    echo "a" > a.txt && git add a.txt
+    git commit -m "init"
+    run cat hook_args.txt
+    assert_output --partial "COMMIT_EDITMSG"
+}
+
 @test "pre-commit hook_args is empty" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
