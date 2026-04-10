@@ -205,3 +205,24 @@ EOF
     run git push origin main
     assert_success
 }
+
+@test "pre-commit hook_args is empty" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["capture"] {
+                glob = "**/*"
+                check = "echo '{{ hook_args }}' > hook_args.txt"
+            }
+        }
+    }
+}
+EOF
+    hk install
+    echo "a" > a.txt && git add a.txt
+    git commit -m "init"
+    run cat hook_args.txt
+    assert_output ""
+}
