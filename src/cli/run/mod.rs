@@ -2,6 +2,7 @@ use crate::Result;
 use crate::hook_options::HookOptions;
 
 mod commit_msg;
+mod post_checkout;
 mod pre_commit;
 mod pre_push;
 mod prepare_commit_msg;
@@ -25,6 +26,7 @@ pub struct Run {
 #[derive(clap::Subcommand)]
 enum Commands {
     CommitMsg(commit_msg::CommitMsg),
+    PostCheckout(post_checkout::PostCheckout),
     PreCommit(pre_commit::PreCommit),
     PrePush(pre_push::PrePush),
     PrepareCommitMsg(prepare_commit_msg::PrepareCommitMsg),
@@ -41,6 +43,7 @@ impl Run {
         if let Some(cmd) = self.command {
             return match cmd {
                 Commands::CommitMsg(cmd) => cmd.run().await,
+                Commands::PostCheckout(cmd) => cmd.run().await,
                 Commands::PreCommit(cmd) => cmd.run().await,
                 Commands::PrePush(cmd) => cmd.run().await,
                 Commands::PrepareCommitMsg(cmd) => cmd.run().await,

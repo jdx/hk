@@ -25,3 +25,41 @@ EOF
     run cat hook_args.txt
     assert_output ""
 }
+
+@test "post-checkout hook_args contains refs and branch flag" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["post-checkout"] {
+        steps {
+            ["capture"] { check = "echo {{ hook_args }} > hook_args.txt" }
+        }
+    }
+}
+EOF
+    hk install
+    echo "test" > test.txt && git add test.txt && git commit -m "init"
+    git checkout -b feature
+    run cat hook_args.txt
+    assert_output --regexp "^[a-f0-9]+ [a-f0-9]+ 1$"
+}
+
+@test "post-checkout hook_args works with git-lfs" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["post-checkout"] {
+        steps {
+            ["git-lfs"] { check = "git lfs post-checkout {{ hook_args }}" }
+        }
+    }
+}
+EOF
+    echo "*.bin filter=lfs diff=lfs merge=lfs -text" > .gitattributes
+    git lfs install --local
+    hk install
+    dd if=/dev/urandom bs=1024 count=1 of=test.bin 2>/dev/null
+    git add .gitattributes test.bin && git commit -m "init with lfs"
+    run git checkout -b feature
+    assert_success
+}
