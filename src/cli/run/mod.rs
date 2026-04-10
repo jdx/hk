@@ -4,6 +4,7 @@ use crate::hook_options::HookOptions;
 mod commit_msg;
 mod post_checkout;
 mod post_merge;
+mod post_rewrite;
 mod pre_commit;
 mod pre_push;
 mod prepare_commit_msg;
@@ -29,6 +30,7 @@ enum Commands {
     CommitMsg(commit_msg::CommitMsg),
     PostCheckout(post_checkout::PostCheckout),
     PostMerge(post_merge::PostMerge),
+    PostRewrite(post_rewrite::PostRewrite),
     PreCommit(pre_commit::PreCommit),
     PrePush(pre_push::PrePush),
     PrepareCommitMsg(prepare_commit_msg::PrepareCommitMsg),
@@ -47,6 +49,7 @@ impl Run {
                 Commands::CommitMsg(cmd) => cmd.run().await,
                 Commands::PostCheckout(cmd) => cmd.run().await,
                 Commands::PostMerge(cmd) => cmd.run().await,
+                Commands::PostRewrite(cmd) => cmd.run().await,
                 Commands::PreCommit(cmd) => cmd.run().await,
                 Commands::PrePush(cmd) => cmd.run().await,
                 Commands::PrepareCommitMsg(cmd) => cmd.run().await,

@@ -111,3 +111,44 @@ EOF
     run git merge main
     assert_success
 }
+
+@test "post-rewrite hook_args contains amend" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["post-rewrite"] {
+        steps {
+            ["capture"] { check = "echo {{ hook_args }} > hook_args.txt" }
+        }
+    }
+}
+EOF
+    hk install
+    echo "a" > a.txt && git add a.txt && git commit -m "init"
+    git commit --amend -m "amended"
+    run cat hook_args.txt
+    assert_output "amend"
+}
+
+@test "post-rewrite hook_args contains rebase" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["post-rewrite"] {
+        steps {
+            ["capture"] { check = "echo {{ hook_args }} > hook_args.txt" }
+        }
+    }
+}
+EOF
+    hk install
+    echo "a" > a.txt && git add a.txt && git commit -m "init"
+    git checkout -b feature
+    echo "b" > b.txt && git add b.txt && git commit -m "feature"
+    git checkout main
+    echo "c" > c.txt && git add c.txt && git commit -m "main"
+    git checkout feature
+    git rebase main
+    run cat hook_args.txt
+    assert_output "rebase"
+}
