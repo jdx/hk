@@ -46,12 +46,14 @@ impl Step {
             return;
         }
 
-        // On failure, show combined output so diagnostic messages are never
-        // lost regardless of which stream the tool writes to — unless the
-        // step explicitly opted out with `output_summary = "hide"`.
+        // On failure, use combined output so diagnostic messages are never
+        // lost regardless of which stream the tool writes to — but keep
+        // the configured label so tests/users see the expected header.
+        // If the step explicitly opted out with `output_summary = "hide"`,
+        // respect that even on failure.
         if is_failure && self.output_summary != OutputSummary::Hide {
             ctx.hook_ctx
-                .append_step_output(&self.name, OutputSummary::Combined, combined)
+                .append_step_output(&self.name, self.output_summary.clone(), combined)
         } else {
             match self.output_summary {
                 OutputSummary::Stderr => {
