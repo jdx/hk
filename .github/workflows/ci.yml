@@ -83,7 +83,7 @@ jobs:
       - run: chmod +x target/debug/hk
       - run: mise x -- bun i
       - name: mise run test:bats:libgit2
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -119,7 +119,7 @@ jobs:
       - run: chmod +x target/debug/hk
       - run: mise x -- bun i
       - name: mise run test:bats:nolibgit2
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -155,7 +155,7 @@ jobs:
       - run: chmod +x target/debug/hk
       - run: mise x -- bun i
       - name: mise run test:bats:nogit
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
