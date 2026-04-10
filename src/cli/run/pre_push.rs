@@ -33,6 +33,14 @@ impl From<&str> for PrePushRefs {
 
 impl PrePush {
     pub async fn run(mut self) -> Result<()> {
+        self.hook.tctx.insert(
+            "hook_args",
+            &format!(
+                "{} {}",
+                self.remote.as_deref().unwrap_or(""),
+                self.url.as_deref().unwrap_or("")
+            ),
+        );
         let to_be_updated_refs = if std::io::stdin().is_terminal() {
             vec![]
         } else {

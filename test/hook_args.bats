@@ -152,3 +152,56 @@ EOF
     run cat hook_args.txt
     assert_output "rebase"
 }
+
+@test "pre-push hook_args contains remote and url" {
+    if [ "$HK_LIBGIT2" = "0" ]; then
+        skip "libgit2 is not installed"
+    fi
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["capture"] { check = "echo {{ hook_args }} > hook_args.txt" }
+        }
+    }
+}
+EOF
+    echo "a" > a.txt && git add a.txt && git commit -m "init"
+    git init --bare ../remote.git
+    git remote add origin ../remote.git
+    git push -u origin main
+    hk install
+    echo "b" > b.txt && git add b.txt && git commit -m "second"
+    git push origin main
+    run cat hook_args.txt
+    assert_output --partial "origin"
+}
+
+@test "pre-push hook_args works with git-lfs" {
+    if [ "$HK_LIBGIT2" = "0" ]; then
+        skip "libgit2 is not installed"
+    fi
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["git-lfs"] { check = "git lfs pre-push {{ hook_args }}" }
+        }
+    }
+}
+EOF
+    echo "*.bin filter=lfs diff=lfs merge=lfs -text" > .gitattributes
+    git lfs install --local
+    dd if=/dev/urandom bs=1024 count=1 of=test.bin 2>/dev/null
+    git add .gitattributes test.bin && git commit -m "init with lfs"
+    git init --bare ../lfs-remote.git
+    git remote add origin ../lfs-remote.git
+    git push -u origin main
+    hk install
+    dd if=/dev/urandom bs=1024 count=1 of=test2.bin 2>/dev/null
+    git add test2.bin && git commit -m "second lfs file"
+    run git push origin main
+    assert_success
+}
