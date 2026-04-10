@@ -61,7 +61,7 @@ serde_with         = "3"
 serde_yaml         = "0.9"
 shell-quote        = "0.7"
 shell-words        = "1"
-similar            = "2"
+similar            = "3"
 siphasher          = "1"
 strum              = { version = "0.28", features = ["derive"] }
 tempfile           = "3"
