@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.41.1](https://github.com/jdx/hk/compare/v1.41.0..v1.41.1) - 2026-04-10
+
+### 🐛 Bug Fixes
+
+- **(hook)** remove dup output and preserve check_first diagnostics by [@nkakouros](https://github.com/nkakouros) in [#784](https://github.com/jdx/hk/pull/784)
+- **(hook)** show combined output for failed steps by [@nkakouros](https://github.com/nkakouros) in [#772](https://github.com/jdx/hk/pull/772)
+- **(hook)** preserve configured output_summary label on failure by [@jdx](https://github.com/jdx) in [#808](https://github.com/jdx/hk/pull/808)
+
+### 📦️ Dependency Updates
+
+- update rust crate pklr to 0.4.1 by [@jhult](https://github.com/jhult) in [#805](https://github.com/jdx/hk/pull/805)
+
+### New Contributors
+
+- @jhult made their first contribution in [#805](https://github.com/jdx/hk/pull/805)
+
 ## [1.41.0](https://github.com/jdx/hk/compare/v1.40.0..v1.41.0) - 2026-04-05
 
 ### 🚀 Features

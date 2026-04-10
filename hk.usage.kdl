@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.41.0"
+version "1.41.1"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)" hide=#true global=#true {
