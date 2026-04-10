@@ -31,8 +31,11 @@ enum Commands {
 }
 
 impl Run {
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         if let Some(hook) = &self.other {
+            // Hooks without a dedicated handler get an empty hook_args;
+            // dedicated handlers insert the actual args via clap-parsed fields
+            self.hook.tctx.insert("hook_args", "");
             return self.hook.run(hook).await;
         }
         if let Some(cmd) = self.command {
