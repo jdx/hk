@@ -25,6 +25,14 @@ impl PrepareCommitMsg {
             .insert("commit_msg_file", &resolved.to_string_lossy());
         self.hook.tctx.insert("source", &self.source);
         self.hook.tctx.insert("sha", &self.sha.as_ref());
+        let hook_args = match (&self.source, &self.sha) {
+            (Some(source), Some(sha)) => {
+                format!("{} {} {}", resolved.to_string_lossy(), source, sha)
+            }
+            (Some(source), None) => format!("{} {}", resolved.to_string_lossy(), source),
+            _ => resolved.to_string_lossy().to_string(),
+        };
+        self.hook.tctx.insert("hook_args", &hook_args);
         self.hook.run("prepare-commit-msg").await
     }
 }
