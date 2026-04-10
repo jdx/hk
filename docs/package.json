@@ -7,7 +7,7 @@
     "eslint": "eslint"
   },
   "dependencies": {
-    "eslint": "^9.21.0",
+    "eslint": "^10.0.0",
     "vitepress": "^1.6.3"
   },
   "devDependencies": {
