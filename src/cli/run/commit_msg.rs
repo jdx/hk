@@ -19,6 +19,9 @@ impl CommitMsg {
         self.hook
             .tctx
             .insert("commit_msg_file", &resolved.to_string_lossy());
+        self.hook
+            .tctx
+            .insert("hook_args", &resolved.to_string_lossy());
         self.hook.run("commit-msg").await
     }
 }
