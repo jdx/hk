@@ -77,10 +77,14 @@ if missing:
 print('OK', sys.argv[1:])
 sys.exit(0)
 "@
-            $checker | Out-File -FilePath "check_args.py" -Encoding utf8
+            # Use Set-Content (no BOM) so python parses the script cleanly.
+            Set-Content -Path "check_args.py" -Value $checker -Encoding ascii
 
+            # pkl amends URIs use forward slashes; normalize the Windows path
+            # from $env:PKL_PATH so pkl can resolve Config.pkl.
+            $pklPath = $env:PKL_PATH -replace '\\', '/'
             $config = @"
-amends "$env:PKL_PATH/Config.pkl"
+amends "$pklPath/Config.pkl"
 
 hooks {
     ["check"] {
@@ -93,16 +97,25 @@ hooks {
     }
 }
 "@
-            $config | Out-File -FilePath "hk.pkl" -Encoding utf8
+            Set-Content -Path "hk.pkl" -Value $config -Encoding ascii
 
-            "simple" | Out-File -FilePath "simple.txt" -Encoding utf8
-            "spaced" | Out-File -FilePath "hello world.txt" -Encoding utf8
+            Set-Content -Path "simple.txt" -Value "simple" -Encoding ascii
+            Set-Content -Path "hello world.txt" -Value "spaced" -Encoding ascii
 
             git add -A
             git commit -m "initial" | Out-Null
 
             $output = hk check --all 2>&1 | Out-String
-            $LASTEXITCODE | Should -Be 0
+            $exit = $LASTEXITCODE
+            if ($exit -ne 0 -or $output -notmatch 'OK ') {
+                Write-Host "=== hk check --all exit: $exit ==="
+                Write-Host $output
+                Write-Host "=== hk.pkl ==="
+                Write-Host (Get-Content hk.pkl -Raw)
+                Write-Host "=== files ==="
+                Get-ChildItem | ForEach-Object { Write-Host $_.Name }
+            }
+            $exit | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
             $output | Should -Not -Match 'LITERAL QUOTES IN ARGS'
             $output | Should -Not -Match 'MISSING FILES'
             # Positive assertion: if `{{files}}` silently expanded to nothing,
