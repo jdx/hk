@@ -152,14 +152,21 @@ impl Step {
             for arg in shell[1..].iter() {
                 cmd = cmd.arg(arg);
             }
-            cmd
+            cmd.arg(&run)
         } else if cfg!(windows) {
-            CmdLineRunner::new("cmd.exe").arg("/c")
+            // Use `raw_arg` so cmd-appropriate quoting produced by
+            // `ShellType::Cmd::quote` (e.g. rendered `{{files}}` paths) is
+            // passed through verbatim, bypassing Rust's MSVCRT-style
+            // re-escaping which cmd.exe does not understand.
+            CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(&run)
         } else {
-            CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+            CmdLineRunner::new("sh")
+                .arg("-o")
+                .arg("errexit")
+                .arg("-c")
+                .arg(&run)
         };
         cmd = cmd
-            .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
