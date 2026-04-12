@@ -80,11 +80,13 @@ sys.exit(0)
             # Use Set-Content (no BOM) so python parses the script cleanly.
             Set-Content -Path "check_args.py" -Value $checker -Encoding ascii
 
-            # pkl amends URIs use forward slashes; normalize the Windows path
-            # from $env:PKL_PATH so pkl can resolve Config.pkl.
-            $pklPath = $env:PKL_PATH -replace '\\', '/'
+            # pkl's default `--allowed-modules` allowlist accepts `file:` URIs
+            # but rejects bare Windows absolute paths like `D:/a/hk/...`, so
+            # build an explicit `file:///` URI from `$env:PKL_PATH`.
+            $pklPath = (Resolve-Path $env:PKL_PATH).Path -replace '\\', '/'
+            $pklUri = "file:///$pklPath/Config.pkl"
             $config = @"
-amends "$pklPath/Config.pkl"
+amends "$pklUri"
 
 hooks {
     ["check"] {
