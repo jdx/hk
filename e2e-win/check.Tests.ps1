@@ -105,6 +105,11 @@ hooks {
             $LASTEXITCODE | Should -Be 0
             $output | Should -Not -Match 'LITERAL QUOTES IN ARGS'
             $output | Should -Not -Match 'MISSING FILES'
+            # Positive assertion: if `{{files}}` silently expanded to nothing,
+            # check_args.py would print `OK []` and the negative matches above
+            # would still pass. Require both files to show up in the OK line.
+            $output | Should -Match 'OK .*simple\.txt'
+            $output | Should -Match 'OK .*hello world\.txt'
         } finally {
             Set-Location $script:originalPath
             Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue

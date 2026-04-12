@@ -145,19 +145,30 @@ impl Step {
                 trace!("{self}: {}", file.display());
             }
         }
+        // On Windows, `cmd.exe` has its own quoting rules that collide with
+        // Rust's MSVCRT-style argv escaping. `ShellType::Cmd::quote` produces
+        // cmd-appropriate quoting for rendered `{{files}}` / `{{workspace_files}}`
+        // strings, so we must append the final command line verbatim via
+        // `raw_arg` — otherwise Rust re-escapes the already-quoted payload and
+        // cmd.exe delivers tools arguments with literal `"` characters embedded.
+        let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
         let mut cmd = if let Some(shell) = &self.shell {
             let shell = shell.to_string();
             let shell = shell.split_whitespace().collect_vec();
-            let mut cmd = CmdLineRunner::new(shell[0]);
+            let mut cmd = if use_raw_cmd {
+                CmdLineRunner::new_direct(shell[0])
+            } else {
+                CmdLineRunner::new(shell[0])
+            };
             for arg in shell[1..].iter() {
                 cmd = cmd.arg(arg);
             }
-            cmd.arg(&run)
-        } else if cfg!(windows) {
-            // Use `raw_arg` so cmd-appropriate quoting produced by
-            // `ShellType::Cmd::quote` (e.g. rendered `{{files}}` paths) is
-            // passed through verbatim, bypassing Rust's MSVCRT-style
-            // re-escaping which cmd.exe does not understand.
+            if use_raw_cmd {
+                cmd.raw_arg(&run)
+            } else {
+                cmd.arg(&run)
+            }
+        } else if use_raw_cmd {
             CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(&run)
         } else {
             CmdLineRunner::new("sh")
