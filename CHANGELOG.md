@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.42.0](https://github.com/jdx/hk/compare/v1.41.1..v1.42.0) - 2026-04-12
+
+### 🚀 Features
+
+- add {{ hook_args }} template to pass to downstream commands by [@JohanLorenzo](https://github.com/JohanLorenzo) in [#807](https://github.com/jdx/hk/pull/807)
+
+### 🐛 Bug Fixes
+
+- **(step)** preserve cmd.exe quoting for {{files}} on Windows by [@jdx](https://github.com/jdx) in [#824](https://github.com/jdx/hk/pull/824)
+
+### 🛡️ Security
+
+- **(deps)** update dependency eslint to v10 by [@renovate[bot]](https://github.com/renovate[bot]) in [#813](https://github.com/jdx/hk/pull/813)
+
+### 📦️ Dependency Updates
+
+- update taiki-e/upload-rust-binary-action digest to 10c1cf6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#810](https://github.com/jdx/hk/pull/810)
+- update nick-fields/retry action to v4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#812](https://github.com/jdx/hk/pull/812)
+- update anthropics/claude-code-action digest to 657fb7c by [@renovate[bot]](https://github.com/renovate[bot]) in [#809](https://github.com/jdx/hk/pull/809)
+- update dependency typescript to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#814](https://github.com/jdx/hk/pull/814)
+- update rust crate demand to v2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#815](https://github.com/jdx/hk/pull/815)
+- update rust crate expr-lang to v1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#816](https://github.com/jdx/hk/pull/816)
+- update rust crate similar to v3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#817](https://github.com/jdx/hk/pull/817)
+- update rust crate toml to v1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#820](https://github.com/jdx/hk/pull/820)
+- update actions/upload-artifact digest to 043fb46 by [@renovate[bot]](https://github.com/renovate[bot]) in [#821](https://github.com/jdx/hk/pull/821)
+- update anthropics/claude-code-action digest to b47fd72 by [@renovate[bot]](https://github.com/renovate[bot]) in [#822](https://github.com/jdx/hk/pull/822)
+
+### New Contributors
+
+- @JohanLorenzo made their first contribution in [#807](https://github.com/jdx/hk/pull/807)
+
 ## [1.41.1](https://github.com/jdx/hk/compare/v1.41.0..v1.41.1) - 2026-04-10
 
 ### 🐛 Bug Fixes
