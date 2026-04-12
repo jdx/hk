@@ -42,10 +42,12 @@ impl PrePush {
             ),
         );
         let to_be_updated_refs = if std::io::stdin().is_terminal() {
+            self.hook.tctx.insert("hook_stdin", "");
             vec![]
         } else {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input)?;
+            self.hook.tctx.insert("hook_stdin", &input);
             input
                 .lines()
                 .filter(|line| !line.is_empty())
