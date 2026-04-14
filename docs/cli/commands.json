@@ -3756,8 +3756,8 @@
       {
         "name": "quiet",
         "usage": "-q --quiet",
-        "help": "Suppresses output",
-        "help_first_line": "Suppresses output",
+        "help": "Suppresses non-essential output (info messages, progress indicators)",
+        "help_first_line": "Suppresses non-essential output (info messages, progress indicators)",
         "short": ["q"],
         "long": ["quiet"],
         "hide": false,
@@ -3766,8 +3766,8 @@
       {
         "name": "silent",
         "usage": "--silent",
-        "help": "Suppresses all output",
-        "help_first_line": "Suppresses all output",
+        "help": "Suppresses all output including warnings. Only errors are shown",
+        "help_first_line": "Suppresses all output including warnings. Only errors are shown",
         "short": [],
         "long": ["silent"],
         "hide": false,
