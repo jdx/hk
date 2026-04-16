@@ -218,6 +218,8 @@ jobs:
           # Run only basic tests that don't require pkl to avoid hangs
           ./e2e-win/run.ps1 -TestName "*version*"
           ./e2e-win/run.ps1 -TestName "*help*"
+          # Regression test for discussion #823 (cmd.exe {{files}} quoting)
+          ./e2e-win/run.ps1 -TestName "*{{files}} template*"
   final:
     needs:
       - build
