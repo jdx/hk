@@ -543,6 +543,7 @@ impl Hook {
 
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
+        tracing::info!("running hook");
         let settings = Settings::get();
         let fail_fast = if opts.fail_fast {
             true
