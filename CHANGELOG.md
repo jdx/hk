@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.43.0](https://github.com/jdx/hk/compare/v1.42.0..v1.43.0) - 2026-04-16
+
+### 🚀 Features
+
+- **(harper)** add harper-cli config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#714](https://github.com/jdx/hk/pull/714)
+- add {{ hook_stdin }} for pre-push stdin forwarding by [@JohanLorenzo](https://github.com/JohanLorenzo) in [#825](https://github.com/jdx/hk/pull/825)
+
+### 🐛 Bug Fixes
+
+- **(release)** add linux musl targets by [@jdx](https://github.com/jdx) in [#829](https://github.com/jdx/hk/pull/829)
+
+### 🔍 Other Changes
+
+- drop sub-crate submodules and publish hk to crates.io by [@jdx](https://github.com/jdx) in [#830](https://github.com/jdx/hk/pull/830)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#826](https://github.com/jdx/hk/pull/826)
+
 ## [1.42.0](https://github.com/jdx/hk/compare/v1.41.1..v1.42.0) - 2026-04-12
 
 ### 🚀 Features
