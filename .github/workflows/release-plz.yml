@@ -35,4 +35,3 @@ jobs:
       - run: mise run release-plz
         env:
           GITHUB_TOKEN: ${{ secrets.HK_GH_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
