@@ -71,7 +71,7 @@ jobs:
         with:
           submodules: recursive
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
           override: false
@@ -107,7 +107,7 @@ jobs:
         with:
           submodules: recursive
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
           override: false
@@ -143,7 +143,7 @@ jobs:
         with:
           submodules: recursive
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
           override: false
