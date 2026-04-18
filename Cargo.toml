@@ -44,6 +44,7 @@ globset            = "0.4"
 ignore             = "0.4"
 indexmap           = { version = "2", features = ["serde"] }
 infer              = "0.19"
+is_ci              = "1"
 itertools          = "0.14"
 libc               = "0.2"
 log                = "0.4"

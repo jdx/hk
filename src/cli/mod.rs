@@ -98,7 +98,7 @@ pub async fn run() -> Result<()> {
         silent: args.silent,
     });
 
-    if !console::user_attended_stderr() || args.no_progress {
+    if is_ci::cached() || !console::user_attended_stderr() || args.no_progress {
         clx::progress::set_output(ProgressOutput::Text);
     }
     if args.verbose > 1 {
