@@ -29,5 +29,21 @@
   },
   "devDependencies": {
     "globals": "^17.0.0"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64"
+      ],
+      "libc": [
+        "current",
+        "glibc"
+      ]
+    }
   }
 }

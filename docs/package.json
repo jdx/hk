@@ -13,5 +13,21 @@
   "devDependencies": {
     "globals": "^17.0.0",
     "typescript-eslint": "^8.24.1"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64"
+      ],
+      "libc": [
+        "current",
+        "glibc"
+      ]
+    }
   }
 }
