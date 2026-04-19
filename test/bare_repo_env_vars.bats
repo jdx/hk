@@ -85,3 +85,25 @@ EOF
     assert_success
     assert_file_not_exists "$BARE_DIR/hooks/pre-commit"
 }
+
+@test "hk check picks up modified files when run from a subdirectory" {
+    # Regression for the reviewer-flagged bug: when GIT_DIR/GIT_WORK_TREE is
+    # set and cwd is a subdirectory of the work tree, Git::new() must cd to
+    # the work-tree root so path.exists() checks in status() resolve against
+    # the right directory. Without this, modified files silently disappear
+    # from the file list.
+    _write_hk_config
+    mkdir -p sub
+    echo "original" > top.txt
+    git add hk.pkl top.txt
+    git commit -m "add tracked file"
+
+    # Modify the file at the work tree root, then run hk check from a subdir.
+    echo "modified" > top.txt
+
+    cd sub
+    run hk check
+    assert_success
+    assert_output --partial "checked"
+    assert_output --partial "top.txt"
+}

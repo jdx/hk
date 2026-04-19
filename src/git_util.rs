@@ -28,7 +28,7 @@ pub fn find_git_path() -> Result<PathBuf> {
 /// (for bare-repo setups like YADM). Falls back to walking up for `.git`, and
 /// finally to `cwd` if no repository is found.
 pub fn find_work_tree_root() -> PathBuf {
-    let cwd = std::env::current_dir().unwrap_or_default();
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     if let Some(wt) = std::env::var_os("GIT_WORK_TREE") {
         let p = PathBuf::from(&wt);
         return if p.is_absolute() { p } else { cwd.join(p) };

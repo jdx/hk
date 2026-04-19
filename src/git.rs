@@ -111,13 +111,32 @@ impl Git {
         let has_git_env =
             std::env::var_os("GIT_DIR").is_some() || std::env::var_os("GIT_WORK_TREE").is_some();
 
-        if !has_git_env {
+        let root = if has_git_env {
+            // Absolutize relative GIT_DIR / GIT_WORK_TREE before we change
+            // directory, otherwise libgit2 and downstream git commands will
+            // resolve them against the new cwd and look in the wrong place.
             let cwd = std::env::current_dir()?;
-            let root = xx::file::find_up(&cwd, &[".git"])
+            for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"] {
+                if let Some(val) = std::env::var_os(var) {
+                    let p = std::path::Path::new(&val);
+                    if p.is_relative() {
+                        // SAFETY: set_var is only unsafe because other threads
+                        // may read the environment concurrently; we run this
+                        // before any worker threads are spawned.
+                        unsafe { std::env::set_var(var, cwd.join(p)) };
+                    }
+                }
+            }
+            crate::git_util::find_work_tree_root()
+        } else {
+            let cwd = std::env::current_dir()?;
+            xx::file::find_up(&cwd, &[".git"])
                 .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-                .ok_or(eyre!("failed to find git repository"))?;
-            std::env::set_current_dir(&root)?;
-        }
+                .ok_or(eyre!("failed to find git repository"))?
+        };
+        // Always cd into the work tree root so libgit2 and shell-git return
+        // relative paths that resolve against the correct directory.
+        std::env::set_current_dir(&root)?;
         let repo = if *env::HK_LIBGIT2 {
             debug!("libgit2: true");
             let repo = if has_git_env {
