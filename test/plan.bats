@@ -410,6 +410,30 @@ EOF
     echo "$output" | jq -e '.hook == "check"' >/dev/null
 }
 
+# Regression: profile-skipped step should still report matched file count.
+@test "hk --plan profile-skipped step reports matched fileCount" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["gated"] {
+                glob = List("*.js")
+                check = "echo gated"
+                profiles = List("slow")
+            }
+        }
+    }
+}
+EOF
+    touch a.js b.js c.js
+    git add .
+    run bash -c "hk check --plan --json 2>/dev/null"
+    assert_success
+    echo "$output" | jq -e '.steps[] | select(.name == "gated") | .status == "skipped"' >/dev/null
+    echo "$output" | jq -e '.steps[] | select(.name == "gated") | .fileCount == 3' >/dev/null
+}
+
 # --json without --plan or --why should error.
 @test "hk --json without --plan errors" {
     cat <<EOF > hk.pkl

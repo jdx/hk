@@ -500,6 +500,10 @@ impl Hook {
         };
 
         let all_skipped = !jobs.is_empty() && jobs.iter().all(|j| j.skip_reason.is_some());
+        // build_step_jobs populates job.files before applying skip_reason
+        // (e.g. for profile-skipped jobs), so the file count is meaningful
+        // even when the step is skipped.
+        let file_count: usize = jobs.iter().map(|j| j.files.len()).sum();
 
         if all_skipped {
             if let Some(reason) = jobs.iter().find_map(|j| j.skip_reason.as_ref()) {
@@ -511,10 +515,8 @@ impl Hook {
                     data: HashMap::new(),
                 });
             }
-            return (StepStatus::Skipped, reasons, Some(0));
+            return (StepStatus::Skipped, reasons, Some(file_count));
         }
-
-        let file_count: usize = jobs.iter().map(|j| j.files.len()).sum();
 
         // Mirror runner.rs: job_condition is evaluated at run-time, and only a
         // literal Bool(false) skips the step. Truthy values (including strings)
