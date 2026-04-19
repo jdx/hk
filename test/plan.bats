@@ -462,6 +462,46 @@ EOF
 
 # Regression: verbose --why on a skipped step whose headline is picked from a
 # non-zero index must not duplicate the headline or drop the first reason.
+# --json alone (without --plan/--why/--trace) should error rather than
+# silently running the hook with no JSON output.
+@test "hk check --json without --plan or --why errors" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["a"] { glob = List("*.js"); check = "echo a" }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run hk check --json
+    assert_failure
+    assert_output --partial "--json requires --plan or --why"
+}
+
+# The global --trace --json combination must still work (json controls
+# tracing output format in that mode).
+@test "hk --trace --json still emits JSON trace output" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["a"] { glob = List("*.js"); check = "echo a" }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run bash -c "hk --trace --json check 2>/dev/null"
+    assert_success
+    assert_output --partial '"type":"meta"'
+}
+
 # Regression: --why <step> --json should filter JSON output to the focused
 # step, mirroring the text renderer.
 @test "hk --why <step> --json filters JSON to focused step" {

@@ -1,4 +1,4 @@
-use crate::{Result, config::Config, git::Git, tera::Context};
+use crate::{Result, config::Config, git::Git, settings::Settings, tera::Context};
 
 #[derive(clap::Args)]
 pub(crate) struct HookOptions {
@@ -91,6 +91,18 @@ impl HookOptions {
                 .unwrap_or_else(|| repo.default_branch().unwrap_or_else(|_| "main".to_string()));
             self.from_ref = Some(default_branch);
             self.to_ref = Some("HEAD".to_string());
+        }
+        // Validate --json. Skip when the user passed --trace (or has
+        // HK_TRACE/HK_JSON set) — in that case the global --json flag
+        // controls trace output and legitimately populates this field too.
+        if self.json
+            && !self.plan
+            && self.why.is_none()
+            && !Settings::cli_trace()
+            && !*crate::env::HK_JSON
+            && !matches!(*crate::env::HK_TRACE, crate::env::TraceMode::Json)
+        {
+            return Err(eyre::eyre!("--json requires --plan or --why"));
         }
         match config.hooks.get(name) {
             Some(hook) => {

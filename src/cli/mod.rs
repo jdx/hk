@@ -96,6 +96,7 @@ pub async fn run() -> Result<()> {
         slow: args.slow,
         quiet: args.quiet,
         silent: args.silent,
+        trace: args.trace,
     });
 
     if is_ci::cached() || !console::user_attended_stderr() || args.no_progress {
