@@ -434,6 +434,32 @@ EOF
     echo "$output" | jq -e '.steps[] | select(.name == "gated") | .fileCount == 3' >/dev/null
 }
 
+# Regression: a skipped step with a truthy condition should be headlined by
+# the decisive skip reason, not "condition evaluated to true".
+@test "hk --plan skipped step headline shows decisive skip reason, not truthy condition" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["ghost"] {
+                glob = List("*.xyz")
+                check = "echo ghost"
+                condition = "true"
+            }
+        }
+    }
+}
+EOF
+    touch file.txt
+    git add .
+    run hk check --plan
+    assert_success
+    # The headline (parenthesized on the step line) must be the skip reason.
+    assert_output --partial "○ ghost  (no files matched filters)"
+    refute_output --partial "○ ghost  (condition evaluated to true"
+}
+
 # --json without --plan or --why should error.
 @test "hk --json without --plan errors" {
     cat <<EOF > hk.pkl

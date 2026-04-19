@@ -69,6 +69,27 @@ pub enum ReasonKind {
 }
 
 impl ReasonKind {
+    /// Returns true for reasons that explain why a step will NOT run.
+    ///
+    /// Used by the text renderer to pick a headline that actually matches the
+    /// step's status — a Skipped step shouldn't show "condition evaluated to
+    /// true" as its headline just because the truthy-condition reason was
+    /// pushed first.
+    pub fn is_skip(&self) -> bool {
+        matches!(
+            self,
+            ReasonKind::FilterNoMatch
+                | ReasonKind::ProfileExclude
+                | ReasonKind::ConditionFalse
+                | ReasonKind::CliExclude
+                | ReasonKind::EnvExclude
+                | ReasonKind::ConfigExclude
+                | ReasonKind::NoCommand
+                | ReasonKind::MissingRequiredEnv
+                | ReasonKind::Disabled
+        )
+    }
+
     pub fn short_description(&self) -> &str {
         match self {
             ReasonKind::FilterMatch => "files matched filters",
