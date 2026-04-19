@@ -257,6 +257,21 @@ pub enum RunType {
     Fix,
 }
 
+impl RunType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RunType::Check => "check",
+            RunType::Fix => "fix",
+        }
+    }
+}
+
+impl fmt::Display for RunType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// How command output should be captured for the end-of-run summary.
 ///
 /// This controls what output is shown to the user after all steps complete.

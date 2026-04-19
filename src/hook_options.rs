@@ -21,8 +21,8 @@ pub(crate) struct HookOptions {
     /// Run on files that match these glob patterns
     #[clap(short, long, value_hint = clap::ValueHint::FilePath)]
     pub glob: Option<Vec<String>>,
-    /// Output the plan as JSON (requires --plan)
-    #[clap(short = 'J', long, requires = "plan")]
+    /// Output the plan as JSON (requires --plan or --why)
+    #[clap(short = 'J', long)]
     pub json: bool,
     /// Print the plan instead of running the hook
     #[clap(short = 'P', long)]
@@ -91,6 +91,9 @@ impl HookOptions {
                 .unwrap_or_else(|| repo.default_branch().unwrap_or_else(|_| "main".to_string()));
             self.from_ref = Some(default_branch);
             self.to_ref = Some("HEAD".to_string());
+        }
+        if self.json && !self.plan && self.why.is_none() {
+            return Err(eyre::eyre!("--json requires --plan or --why"));
         }
         match config.hooks.get(name) {
             Some(hook) => {

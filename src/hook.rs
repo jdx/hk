@@ -393,41 +393,12 @@ impl Hook {
             .into_iter()
             .collect();
 
-        let skip_steps = {
-            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-            for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
-            }
-            for s in settings.skip_steps.iter() {
-                if !m.contains_key::<str>(s) {
-                    m.insert(s.clone(), SkipReason::DisabledByConfig);
-                }
-            }
-            for s in opts.skip_step.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
-                );
-            }
-            m
-        };
+        let skip_steps = build_skip_steps(&settings, &opts);
 
         let groups = self.get_step_groups(&opts);
+        let expr_ctx = build_expr_ctx(&git_status);
 
-        // Build expression context (same way as run())
-        let mut expr_ctx = EXPR_CTX.clone();
-        if let Ok(val) = expr::to_value(&git_status) {
-            expr_ctx.insert("git", val);
-        }
-
-        let run_type_str = match run_type {
-            RunType::Check => "check",
-            RunType::Fix => "fix",
-        };
-        let mut plan = Plan::new(self.name.clone(), run_type_str.to_string())
+        let mut plan = Plan::new(self.name.clone(), run_type.as_str().to_string())
             .with_profiles(settings.enabled_profiles().iter().cloned().collect());
 
         let mut order_index: usize = 0;
@@ -484,6 +455,37 @@ impl Hook {
     ) -> (StepStatus, Vec<Reason>, Option<usize>) {
         let mut reasons: Vec<Reason> = Vec::new();
 
+        // Mirror the runtime: step_condition is evaluated in execution.rs before
+        // build_step_jobs and can skip the step entirely. Only a literal
+        // Bool(false) causes a skip — any other value (including non-bool
+        // results from exec()) is truthy.
+        if let Some(condition) = &step.step_condition {
+            match EXPR_ENV.eval(condition, expr_ctx) {
+                Ok(val) if val == expr::Value::Bool(false) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionFalse,
+                        detail: Some(format!("step_condition evaluated to false: {}", condition)),
+                        data: HashMap::new(),
+                    });
+                    return (StepStatus::Skipped, reasons, None);
+                }
+                Ok(_) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionTrue,
+                        detail: Some(format!("step_condition evaluated to true: {}", condition)),
+                        data: HashMap::new(),
+                    });
+                }
+                Err(err) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionUnknown,
+                        detail: Some(format!("step_condition could not be evaluated: {err}")),
+                        data: HashMap::new(),
+                    });
+                }
+            }
+        }
+
         // Let build_step_jobs do the heavy lifting for skip detection.
         let jobs = match step.build_step_jobs(files, run_type, &Default::default(), skip_steps) {
             Ok(j) => j,
@@ -512,29 +514,27 @@ impl Hook {
             return (StepStatus::Skipped, reasons, Some(0));
         }
 
-        // Step will run. Figure out the positive signals.
         let file_count: usize = jobs.iter().map(|j| j.files.len()).sum();
 
-        // Condition check (may cause skip even if build_step_jobs was happy — runner.rs evaluates condition at run-time)
+        // Mirror runner.rs: job_condition is evaluated at run-time, and only a
+        // literal Bool(false) skips the step. Truthy values (including strings)
+        // pass through.
         if let Some(condition) = &step.job_condition {
             match EXPR_ENV.eval(condition, expr_ctx) {
-                Ok(val) => {
-                    let truthy = val.as_bool().unwrap_or(false);
-                    if truthy {
-                        reasons.push(Reason {
-                            kind: ReasonKind::ConditionTrue,
-                            detail: Some(format!("condition evaluated to true: {}", condition)),
-                            data: HashMap::new(),
-                        });
-                    } else {
-                        reasons.push(Reason {
-                            kind: ReasonKind::ConditionFalse,
-                            detail: Some(format!("condition evaluated to false: {}", condition)),
-                            data: HashMap::new(),
-                        });
-                        // Condition-false at runtime would skip the step.
-                        return (StepStatus::Skipped, reasons, Some(file_count));
-                    }
+                Ok(val) if val == expr::Value::Bool(false) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionFalse,
+                        detail: Some(format!("condition evaluated to false: {}", condition)),
+                        data: HashMap::new(),
+                    });
+                    return (StepStatus::Skipped, reasons, Some(file_count));
+                }
+                Ok(_) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionTrue,
+                        detail: Some(format!("condition evaluated to true: {}", condition)),
+                        data: HashMap::new(),
+                    });
                 }
                 Err(err) => {
                     reasons.push(Reason {
@@ -544,6 +544,17 @@ impl Hook {
                     });
                 }
             }
+        }
+
+        // build_step_jobs defers profile checks when job_condition is set
+        // (see job_builder.rs) — the runtime evaluates them after the condition
+        // in runner.rs. Mirror that here so a profile-skipped step isn't
+        // reported as Included.
+        if step.job_condition.is_some()
+            && let Some(reason) = step.profile_skip_reason()
+        {
+            reasons.push(skip_reason_to_reason(&reason));
+            return (StepStatus::Skipped, reasons, Some(file_count));
         }
 
         // Files matched
@@ -679,33 +690,7 @@ impl Hook {
         let all_files = files.iter().cloned().collect::<Vec<_>>();
         let total_files = all_files.len();
 
-        // Build skip_steps map (same logic as run method)
-        let skip_steps = {
-            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-
-            // First, check environment variable skips directly
-            for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
-            }
-
-            // Then add any additional skips from config/git that aren't from env
-            for s in settings.skip_steps.iter() {
-                // Only add if not already marked as env skip
-                if !m.contains_key::<str>(s) {
-                    m.insert(s.clone(), SkipReason::DisabledByConfig);
-                }
-            }
-            for s in opts.skip_step.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
-                );
-            }
-            m
-        };
+        let skip_steps = build_skip_steps(&settings, &opts);
 
         println!(
             "{}",
@@ -713,14 +698,7 @@ impl Hook {
         );
         println!();
         println!("Total files: {}", style::ncyan(total_files));
-        println!(
-            "Run type: {}",
-            style::nblue(if run_type == RunType::Fix {
-                "fix"
-            } else {
-                "check"
-            })
-        );
+        println!("Run type: {}", style::nblue(run_type.as_str()));
         println!();
 
         // Collect stats for each step
@@ -848,32 +826,7 @@ impl Hook {
             )
             .await?;
 
-        let skip_steps = {
-            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-
-            // First, check environment variable skips directly
-            for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
-            }
-
-            // Then add any additional skips from config/git that aren't from env
-            for s in settings.skip_steps.iter() {
-                // Only add if not already marked as env skip
-                if !m.contains_key::<str>(s) {
-                    m.insert(s.clone(), SkipReason::DisabledByConfig);
-                }
-            }
-            for s in opts.skip_step.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
-                );
-            }
-            m
-        };
+        let skip_steps = build_skip_steps(&settings, &opts);
         if files.is_empty() && can_exit_early(&groups, &files, run_type, &skip_steps) {
             info!("no files to run");
             if let Some(hk_progress) = &hk_progress {
@@ -887,11 +840,7 @@ impl Hook {
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
         tctx.insert("hook", &self.name);
-        // Build expression context with the same data under "git"
-        let mut expr_ctx = EXPR_CTX.clone();
-        if let Ok(val) = expr::to_value(&git_status_for_ctx) {
-            expr_ctx.insert("git", val);
-        }
+        let expr_ctx = build_expr_ctx(&git_status_for_ctx);
         let hook_ctx = Arc::new(HookContext::new(
             files,
             repo.clone(),
@@ -1392,6 +1341,36 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(files)
+}
+
+fn build_skip_steps(settings: &Settings, opts: &HookOptions) -> IndexMap<String, SkipReason> {
+    let mut m: IndexMap<String, SkipReason> = IndexMap::new();
+    for s in env::HK_SKIP_STEPS.iter() {
+        m.insert(
+            s.clone(),
+            SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+        );
+    }
+    for s in settings.skip_steps.iter() {
+        if !m.contains_key::<str>(s) {
+            m.insert(s.clone(), SkipReason::DisabledByConfig);
+        }
+    }
+    for s in opts.skip_step.iter() {
+        m.insert(
+            s.clone(),
+            SkipReason::DisabledByCli(format!("--skip-step {}", s)),
+        );
+    }
+    m
+}
+
+fn build_expr_ctx(git_status: &GitStatus) -> expr::Context {
+    let mut expr_ctx = EXPR_CTX.clone();
+    if let Ok(val) = expr::to_value(git_status) {
+        expr_ctx.insert("git", val);
+    }
+    expr_ctx
 }
 
 fn can_exit_early(

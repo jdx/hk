@@ -315,3 +315,116 @@ EOF
     assert_output --partial "a"
     assert_output --partial "condition evaluated to true"
 }
+
+# Regression: when both job_condition and profiles are set, build_step_jobs
+# defers profile checks to runtime. The plan must still report profile-skip.
+@test "hk --plan profile-skipped step with condition is reported skipped" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["gated"] {
+                glob = List("*.js")
+                check = "echo gated"
+                condition = "true"
+                profiles = List("slow")
+            }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run bash -c "hk check --plan --json 2>/dev/null"
+    assert_success
+    echo "$output" | jq -e '.steps[] | select(.name == "gated") | .status == "skipped"' >/dev/null
+    echo "$output" | jq -e '.steps[] | select(.name == "gated") | .reasons[] | select(.kind == "profile_exclude")' >/dev/null
+}
+
+# Regression: runtime treats non-bool expression results (e.g. strings from
+# exec()) as truthy. The plan must match that behavior.
+@test "hk --plan treats non-bool condition result as truthy" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["stringy"] {
+                glob = List("*.js")
+                check = "echo ok"
+                condition = "'yes'"
+            }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run bash -c "hk check --plan --json 2>/dev/null"
+    assert_success
+    echo "$output" | jq -e '.steps[] | select(.name == "stringy") | .status == "included"' >/dev/null
+}
+
+# Regression: step_condition is evaluated in execution.rs before build_step_jobs
+# and can skip the step entirely.
+@test "hk --plan evaluates step_condition" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["gated"] {
+                glob = List("*.js")
+                check = "echo gated"
+                step_condition = "false"
+            }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run bash -c "hk check --plan --json 2>/dev/null"
+    assert_success
+    echo "$output" | jq -e '.steps[] | select(.name == "gated") | .status == "skipped"' >/dev/null
+    echo "$output" | jq -e '.steps[] | select(.name == "gated") | .reasons[] | select(.kind == "condition_false")' >/dev/null
+}
+
+# --why --json should not raise a clap error about --plan being required.
+@test "hk --why --json works without explicit --plan" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["a"] { glob = List("*.js"); check = "echo a" }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run bash -c "hk check --why --json 2>/dev/null"
+    assert_success
+    echo "$output" | jq -e '.hook == "check"' >/dev/null
+}
+
+# --json without --plan or --why should error.
+@test "hk --json without --plan errors" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["a"] { glob = List("*.js"); check = "echo a" }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run hk check --json
+    assert_failure
+    assert_output --partial "--json requires --plan or --why"
+}
