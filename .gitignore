@@ -1,5 +1,6 @@
 /target
 /tmp
+.aube/
 node_modules
 .aider*
 .pkl-lsp

@@ -4,4 +4,4 @@
 
 set -eu
 
-bun i && bun run docs:build
+aube install && aube run docs:build

@@ -36,6 +36,7 @@ export default defineConfig({
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },
       { text: 'CLI Reference', link: '/cli/' },
+      { text: 'Releases', link: 'https://github.com/jdx/hk/releases' },
     ],
     sidebar: [
       { text: 'About', link: '/about' },

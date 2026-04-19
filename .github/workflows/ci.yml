@@ -81,7 +81,7 @@ jobs:
           name: hk-${{ matrix.os }}
           path: target/debug
       - run: chmod +x target/debug/hk
-      - run: mise x -- bun i
+      - run: mise x -- aube install
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -117,7 +117,7 @@ jobs:
           name: hk-${{ matrix.os }}
           path: target/debug
       - run: chmod +x target/debug/hk
-      - run: mise x -- bun i
+      - run: mise x -- aube install
       - name: mise run test:bats:nolibgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -153,7 +153,7 @@ jobs:
           name: hk-${{ matrix.os }}
           path: target/debug
       - run: chmod +x target/debug/hk
-      - run: mise x -- bun i
+      - run: mise x -- aube install
       - name: mise run test:bats:nogit
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -179,7 +179,7 @@ jobs:
           submodules: recursive
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-      - run: mise x -- bun i
+      - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
       - name: mise run lint

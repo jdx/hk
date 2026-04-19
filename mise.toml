@@ -3,7 +3,7 @@ _.path = ["test/bats/bin", "{{ env.CARGO_TARGET_DIR | default(value='target') }}
 
 [tools]
 actionlint            = "latest"
-bun                   = "latest"
+aube                  = "latest"
 cargo-binstall        = "latest"
 "cargo:cargo-edit"    = "latest"
 "cargo:cargo-msrv"    = "latest"
