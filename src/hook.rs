@@ -635,15 +635,17 @@ impl Hook {
             // Pick the reason that actually matches the step's status so the
             // headline never contradicts the icon (e.g. a Skipped step
             // shouldn't be headlined by "condition evaluated to true").
-            let headline_reason = if step.status == StepStatus::Skipped {
+            let headline_idx = if step.status == StepStatus::Skipped {
                 step.reasons
                     .iter()
-                    .find(|r| r.kind.is_skip())
-                    .or_else(|| step.reasons.first())
+                    .position(|r| r.kind.is_skip())
+                    .unwrap_or(0)
             } else {
-                step.reasons.first()
+                0
             };
-            let headline = headline_reason
+            let headline = step
+                .reasons
+                .get(headline_idx)
                 .map(|r| {
                     r.detail
                         .clone()
@@ -662,7 +664,10 @@ impl Hook {
             );
 
             if verbose {
-                for reason in step.reasons.iter().skip(1) {
+                for (i, reason) in step.reasons.iter().enumerate() {
+                    if i == headline_idx {
+                        continue;
+                    }
                     let detail = reason
                         .detail
                         .clone()

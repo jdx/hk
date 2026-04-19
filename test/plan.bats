@@ -460,6 +460,35 @@ EOF
     refute_output --partial "○ ghost  (condition evaluated to true"
 }
 
+# Regression: verbose --why on a skipped step whose headline is picked from a
+# non-zero index must not duplicate the headline or drop the first reason.
+@test "hk --why skipped step shows each reason exactly once" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["ghost"] {
+                glob = List("*.xyz")
+                check = "echo ghost"
+                step_condition = "true"
+            }
+        }
+    }
+}
+EOF
+    touch file.txt
+    git add .
+    run hk check --why ghost
+    assert_success
+    # Headline line with the decisive skip reason appears exactly once.
+    matched=$(echo "$output" | grep -c "no files matched filters" || true)
+    [ "$matched" = "1" ]
+    # And the truthy-condition reason (pushed first in the reasons vec) is
+    # still surfaced in the verbose detail list.
+    assert_output --partial "step_condition evaluated to true"
+}
+
 # --json without --plan or --why should error.
 @test "hk --json without --plan errors" {
     cat <<EOF > hk.pkl
