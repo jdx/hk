@@ -5,10 +5,37 @@ use eyre::eyre;
 use crate::Result;
 
 /// Find the `.git` path from the current working directory by searching upward.
+///
+/// Honors `GIT_DIR` if set (used by bare-repo dotfile managers like YADM), in
+/// which case the returned path may be a bare repository directory rather than
+/// a `.git` file/dir.
 pub fn find_git_path() -> Result<PathBuf> {
+    if let Some(git_dir) = std::env::var_os("GIT_DIR") {
+        let p = PathBuf::from(&git_dir);
+        let p = if p.is_absolute() {
+            p
+        } else {
+            std::env::current_dir()?.join(p)
+        };
+        return Ok(p);
+    }
     let cwd = std::env::current_dir()?;
     xx::file::find_up(&cwd, &[".git"])
         .ok_or_else(|| eyre!("No .git found in this or any parent directory"))
+}
+
+/// Return the effective working-tree root, honoring `GIT_WORK_TREE` when set
+/// (for bare-repo setups like YADM). Falls back to walking up for `.git`, and
+/// finally to `cwd` if no repository is found.
+pub fn find_work_tree_root() -> PathBuf {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    if let Some(wt) = std::env::var_os("GIT_WORK_TREE") {
+        let p = PathBuf::from(&wt);
+        return if p.is_absolute() { p } else { cwd.join(p) };
+    }
+    xx::file::find_up(&cwd, &[".git"])
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or(cwd)
 }
 
 /// Given a `.git` path (found by find_up), resolve the actual git directory.

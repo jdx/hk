@@ -1,6 +1,6 @@
 use std::{path::Path, sync::LazyLock};
 
-use crate::{Result, step::ShellType};
+use crate::{Result, git_util, step::ShellType};
 use itertools::Itertools;
 use serde::Serialize;
 use tera::Tera;
@@ -13,10 +13,7 @@ pub fn render(input: &str, ctx: &Context) -> Result<String> {
 
 static BASE_CONTEXT: LazyLock<tera::Context> = LazyLock::new(|| {
     let mut ctx = tera::Context::new();
-    let cwd = std::env::current_dir().expect("failed to get current directory");
-    let root = xx::file::find_up(&cwd, &[".git"])
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or(cwd);
+    let root = git_util::find_work_tree_root();
     ctx.insert("color", &console::colors_enabled_stderr());
     ctx.insert("root", &root.display().to_string());
     ctx

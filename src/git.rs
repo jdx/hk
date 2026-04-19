@@ -106,20 +106,60 @@ pub enum StashMethod {
 
 impl Git {
     pub fn new() -> Result<Self> {
-        let cwd = std::env::current_dir()?;
-        let root = xx::file::find_up(&cwd, &[".git"])
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .ok_or(eyre!("failed to find git repository"))?;
+        // Respect GIT_DIR / GIT_WORK_TREE so hk works with bare-repo dotfile
+        // managers like YADM where there is no `.git` in the work tree.
+        let has_git_env =
+            std::env::var_os("GIT_DIR").is_some() || std::env::var_os("GIT_WORK_TREE").is_some();
+
+        let root = if has_git_env {
+            // Absolutize relative GIT_DIR / GIT_WORK_TREE before we change
+            // directory, otherwise libgit2 and downstream git commands will
+            // resolve them against the new cwd and look in the wrong place.
+            let cwd = std::env::current_dir()?;
+            for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"] {
+                if let Some(val) = std::env::var_os(var) {
+                    let p = std::path::Path::new(&val);
+                    if p.is_relative() {
+                        // SAFETY: set_var is only unsafe because other threads
+                        // may read the environment concurrently; we run this
+                        // before any worker threads are spawned.
+                        unsafe { std::env::set_var(var, cwd.join(p)) };
+                    }
+                }
+            }
+            crate::git_util::find_work_tree_root()
+        } else {
+            let cwd = std::env::current_dir()?;
+            xx::file::find_up(&cwd, &[".git"])
+                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                .ok_or(eyre!("failed to find git repository"))?
+        };
+        // Always cd into the work tree root so libgit2 and shell-git return
+        // relative paths that resolve against the correct directory.
         std::env::set_current_dir(&root)?;
         let repo = if *env::HK_LIBGIT2 {
             debug!("libgit2: true");
-            let repo = Repository::open(".").wrap_err("failed to open repository")?;
-            if let Some(index_file) = &*env::GIT_INDEX_FILE {
-                // sets index to .git/index.lock which is used in the case of `git commit -a`
-                let mut index = git2::Index::open(index_file).wrap_err("failed to get index")?;
-                repo.set_index(&mut index)?;
+            let repo = if has_git_env {
+                Repository::open_from_env().wrap_err("failed to open repository")?
+            } else {
+                Repository::open(".").wrap_err("failed to open repository")?
+            };
+            // libgit2 status/diff APIs refuse to operate on a bare repository.
+            // For bare-repo dotfile managers (YADM, etc.) the work tree is
+            // provided via GIT_WORK_TREE but libgit2 still flags the repo as
+            // bare — fall back to the shell-git path so those operations work.
+            if repo.is_bare() {
+                debug!("libgit2: bare repo detected, falling back to shell git");
+                None
+            } else {
+                if let Some(index_file) = &*env::GIT_INDEX_FILE {
+                    // sets index to .git/index.lock which is used in the case of `git commit -a`
+                    let mut index =
+                        git2::Index::open(index_file).wrap_err("failed to get index")?;
+                    repo.set_index(&mut index)?;
+                }
+                Some(repo)
             }
-            Some(repo)
         } else {
             debug!("libgit2: false");
             None
