@@ -39,7 +39,7 @@ Run on files that match these glob patterns
 
 ### `-J --json`
 
-Output the plan as JSON (requires --plan or --why)
+Output the plan as JSON when combined with --plan or --why
 
 ### `-P --plan`
 

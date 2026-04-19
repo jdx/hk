@@ -488,22 +488,3 @@ EOF
     # still surfaced in the verbose detail list.
     assert_output --partial "step_condition evaluated to true"
 }
-
-# --json without --plan or --why should error.
-@test "hk --json without --plan errors" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["a"] { glob = List("*.js"); check = "echo a" }
-        }
-    }
-}
-EOF
-    touch file.js
-    git add .
-    run hk check --json
-    assert_failure
-    assert_output --partial "--json requires --plan or --why"
-}
