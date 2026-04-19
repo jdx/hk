@@ -35,6 +35,10 @@ Run fix command instead of check command (this is the default behavior unless HK
 
 Run on files that match these glob patterns
 
+### `-J --json`
+
+Output the plan as JSON (requires --plan)
+
 ### `-P --plan`
 
 Print the plan instead of running the hook
@@ -42,6 +46,10 @@ Print the plan instead of running the hook
 ### `-S --step… <STEP>`
 
 Run only specific step(s)
+
+### `-W --why <STEP>`
+
+Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan
 
 ### `--fail-fast`
 
