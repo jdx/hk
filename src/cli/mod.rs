@@ -147,9 +147,11 @@ pub async fn run() -> Result<()> {
     // - Migrate: avoid errors during migration with potentially invalid configs
     // - Completion/Usage: shell completion generation shouldn't require valid config
     // - Version: just prints version info
+    // - Builtins: just lists compiled-in builtin names, no project config needed
     let settings = if matches!(
         args.command,
-        Commands::Init(_)
+        Commands::Builtins(_)
+            | Commands::Init(_)
             | Commands::Migrate(_)
             | Commands::Completion(_)
             | Commands::Usage(_)
