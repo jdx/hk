@@ -461,7 +461,7 @@ impl Hook {
         // results from exec()) is truthy.
         if let Some(condition) = &step.step_condition {
             match EXPR_ENV.eval(condition, expr_ctx) {
-                Ok(val) if val == expr::Value::Bool(false) => {
+                Ok(expr::Value::Bool(false)) => {
                     reasons.push(Reason {
                         kind: ReasonKind::ConditionFalse,
                         detail: Some(format!("step_condition evaluated to false: {}", condition)),
@@ -523,7 +523,7 @@ impl Hook {
         // pass through.
         if let Some(condition) = &step.job_condition {
             match EXPR_ENV.eval(condition, expr_ctx) {
-                Ok(val) if val == expr::Value::Bool(false) => {
+                Ok(expr::Value::Bool(false)) => {
                     reasons.push(Reason {
                         kind: ReasonKind::ConditionFalse,
                         detail: Some(format!("condition evaluated to false: {}", condition)),
