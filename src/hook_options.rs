@@ -1,4 +1,4 @@
-use crate::{Result, config::Config, git::Git, tera::Context};
+use crate::{Result, config::Config, git::Git, settings::Settings, tera::Context};
 
 #[derive(clap::Args)]
 pub(crate) struct HookOptions {
@@ -21,12 +21,18 @@ pub(crate) struct HookOptions {
     /// Run on files that match these glob patterns
     #[clap(short, long, value_hint = clap::ValueHint::FilePath)]
     pub glob: Option<Vec<String>>,
+    /// Output the plan as JSON when combined with --plan or --why
+    #[clap(short = 'J', long)]
+    pub json: bool,
     /// Print the plan instead of running the hook
     #[clap(short = 'P', long)]
     pub plan: bool,
     /// Run only specific step(s)
     #[clap(short = 'S', long)]
     pub step: Vec<String>,
+    /// Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.
+    #[clap(short = 'W', long, value_name = "STEP", num_args = 0..=1, default_missing_value = "")]
+    pub why: Option<String>,
     /// Abort on first failure
     #[clap(long, overrides_with = "no_fail_fast")]
     pub fail_fast: bool,
@@ -86,11 +92,23 @@ impl HookOptions {
             self.from_ref = Some(default_branch);
             self.to_ref = Some("HEAD".to_string());
         }
+        // Validate --json. Skip when the user passed --trace (or has
+        // HK_TRACE/HK_JSON set) — in that case the global --json flag
+        // controls trace output and legitimately populates this field too.
+        if self.json
+            && !self.plan
+            && self.why.is_none()
+            && !Settings::cli_trace()
+            && !*crate::env::HK_JSON
+            && !matches!(*crate::env::HK_TRACE, crate::env::TraceMode::Json)
+        {
+            return Err(eyre::eyre!("--json requires --plan or --why"));
+        }
         match config.hooks.get(name) {
             Some(hook) => {
                 if self.stats {
                     hook.stats(self, name).await?;
-                } else if self.plan {
+                } else if self.plan || self.why.is_some() {
                     hook.plan(self).await?;
                 } else {
                     hook.run(self).await?;

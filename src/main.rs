@@ -24,6 +24,7 @@ mod hook;
 mod hook_options;
 mod logger;
 mod merge;
+mod plan;
 mod settings;
 mod step;
 mod step_context;

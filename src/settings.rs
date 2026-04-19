@@ -39,6 +39,7 @@ pub struct CliSnapshot {
     pub slow: bool,
     pub quiet: bool,
     pub silent: bool,
+    pub trace: bool,
 }
 
 static CLI_SNAPSHOT: Lazy<Mutex<Option<CliSnapshot>>> = Lazy::new(|| Mutex::new(None));
@@ -83,6 +84,16 @@ impl Settings {
             .unwrap()
             .as_ref()
             .and_then(|s| s.hkrc.clone())
+    }
+
+    /// Returns true if the user passed --trace at the top level.
+    pub fn cli_trace() -> bool {
+        CLI_SNAPSHOT
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|s| s.trace)
+            .unwrap_or(false)
     }
 
     pub fn get() -> Arc<Settings> {

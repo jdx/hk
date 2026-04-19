@@ -34,8 +34,12 @@ cmd check help="Checks code" {
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
+    flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
     flag "-P --plan" help="Print the plan instead of running the hook"
     flag "-S --step" help="Run only specific step(s)" var=#true {
+        arg <STEP>
+    }
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
@@ -97,8 +101,12 @@ cmd fix help="Fixes code" {
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
+    flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
     flag "-P --plan" help="Print the plan instead of running the hook"
     flag "-S --step" help="Run only specific step(s)" var=#true {
+        arg <STEP>
+    }
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
@@ -163,8 +171,12 @@ cmd run help="Run a hook" {
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
+    flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
     flag "-P --plan" help="Print the plan instead of running the hook"
     flag "-S --step" help="Run only specific step(s)" var=#true {
+        arg <STEP>
+    }
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
@@ -200,8 +212,12 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
@@ -237,8 +253,12 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
@@ -276,8 +296,12 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
@@ -313,8 +337,12 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
@@ -351,8 +379,12 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
@@ -388,8 +420,12 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
@@ -427,8 +463,12 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"

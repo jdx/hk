@@ -133,6 +133,16 @@
             }
           },
           {
+            "name": "json",
+            "usage": "-J --json",
+            "help": "Output the plan as JSON when combined with --plan or --why",
+            "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+            "short": ["J"],
+            "long": ["json"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "plan",
             "usage": "-P --plan",
             "help": "Print the plan instead of running the hook",
@@ -150,6 +160,23 @@
             "short": ["S"],
             "long": ["step"],
             "var": true,
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "STEP",
+              "usage": "<STEP>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "why",
+            "usage": "-W --why <STEP>",
+            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "short": ["W"],
+            "long": ["why"],
             "hide": false,
             "global": false,
             "arg": {
@@ -528,6 +555,16 @@
             }
           },
           {
+            "name": "json",
+            "usage": "-J --json",
+            "help": "Output the plan as JSON when combined with --plan or --why",
+            "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+            "short": ["J"],
+            "long": ["json"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "plan",
             "usage": "-P --plan",
             "help": "Print the plan instead of running the hook",
@@ -545,6 +582,23 @@
             "short": ["S"],
             "long": ["step"],
             "var": true,
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "STEP",
+              "usage": "<STEP>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "why",
+            "usage": "-W --why <STEP>",
+            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "short": ["W"],
+            "long": ["why"],
             "hide": false,
             "global": false,
             "arg": {
@@ -960,6 +1014,16 @@
                 }
               },
               {
+                "name": "json",
+                "usage": "-J --json",
+                "help": "Output the plan as JSON when combined with --plan or --why",
+                "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+                "short": ["J"],
+                "long": ["json"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "plan",
                 "usage": "-P --plan",
                 "help": "Print the plan instead of running the hook",
@@ -977,6 +1041,23 @@
                 "short": ["S"],
                 "long": ["step"],
                 "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STEP",
+                  "usage": "<STEP>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "why",
+                "usage": "-W --why <STEP>",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "short": ["W"],
+                "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
@@ -1238,6 +1319,16 @@
                 }
               },
               {
+                "name": "json",
+                "usage": "-J --json",
+                "help": "Output the plan as JSON when combined with --plan or --why",
+                "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+                "short": ["J"],
+                "long": ["json"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "plan",
                 "usage": "-P --plan",
                 "help": "Print the plan instead of running the hook",
@@ -1255,6 +1346,23 @@
                 "short": ["S"],
                 "long": ["step"],
                 "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STEP",
+                  "usage": "<STEP>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "why",
+                "usage": "-W --why <STEP>",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "short": ["W"],
+                "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
@@ -1498,6 +1606,16 @@
                 }
               },
               {
+                "name": "json",
+                "usage": "-J --json",
+                "help": "Output the plan as JSON when combined with --plan or --why",
+                "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+                "short": ["J"],
+                "long": ["json"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "plan",
                 "usage": "-P --plan",
                 "help": "Print the plan instead of running the hook",
@@ -1515,6 +1633,23 @@
                 "short": ["S"],
                 "long": ["step"],
                 "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STEP",
+                  "usage": "<STEP>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "why",
+                "usage": "-W --why <STEP>",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "short": ["W"],
+                "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
@@ -1758,6 +1893,16 @@
                 }
               },
               {
+                "name": "json",
+                "usage": "-J --json",
+                "help": "Output the plan as JSON when combined with --plan or --why",
+                "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+                "short": ["J"],
+                "long": ["json"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "plan",
                 "usage": "-P --plan",
                 "help": "Print the plan instead of running the hook",
@@ -1775,6 +1920,23 @@
                 "short": ["S"],
                 "long": ["step"],
                 "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STEP",
+                  "usage": "<STEP>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "why",
+                "usage": "-W --why <STEP>",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "short": ["W"],
+                "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
@@ -2009,6 +2171,16 @@
                 }
               },
               {
+                "name": "json",
+                "usage": "-J --json",
+                "help": "Output the plan as JSON when combined with --plan or --why",
+                "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+                "short": ["J"],
+                "long": ["json"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "plan",
                 "usage": "-P --plan",
                 "help": "Print the plan instead of running the hook",
@@ -2026,6 +2198,23 @@
                 "short": ["S"],
                 "long": ["step"],
                 "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STEP",
+                  "usage": "<STEP>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "why",
+                "usage": "-W --why <STEP>",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "short": ["W"],
+                "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
@@ -2279,6 +2468,16 @@
                 }
               },
               {
+                "name": "json",
+                "usage": "-J --json",
+                "help": "Output the plan as JSON when combined with --plan or --why",
+                "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+                "short": ["J"],
+                "long": ["json"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "plan",
                 "usage": "-P --plan",
                 "help": "Print the plan instead of running the hook",
@@ -2296,6 +2495,23 @@
                 "short": ["S"],
                 "long": ["step"],
                 "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STEP",
+                  "usage": "<STEP>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "why",
+                "usage": "-W --why <STEP>",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "short": ["W"],
+                "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
@@ -2557,6 +2773,16 @@
                 }
               },
               {
+                "name": "json",
+                "usage": "-J --json",
+                "help": "Output the plan as JSON when combined with --plan or --why",
+                "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+                "short": ["J"],
+                "long": ["json"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "plan",
                 "usage": "-P --plan",
                 "help": "Print the plan instead of running the hook",
@@ -2574,6 +2800,23 @@
                 "short": ["S"],
                 "long": ["step"],
                 "var": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "STEP",
+                  "usage": "<STEP>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "why",
+                "usage": "-W --why <STEP>",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "short": ["W"],
+                "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
@@ -2812,6 +3055,16 @@
             }
           },
           {
+            "name": "json",
+            "usage": "-J --json",
+            "help": "Output the plan as JSON when combined with --plan or --why",
+            "help_first_line": "Output the plan as JSON when combined with --plan or --why",
+            "short": ["J"],
+            "long": ["json"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "plan",
             "usage": "-P --plan",
             "help": "Print the plan instead of running the hook",
@@ -2829,6 +3082,23 @@
             "short": ["S"],
             "long": ["step"],
             "var": true,
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "STEP",
+              "usage": "<STEP>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "why",
+            "usage": "-W --why <STEP>",
+            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "short": ["W"],
+            "long": ["why"],
             "hide": false,
             "global": false,
             "arg": {
