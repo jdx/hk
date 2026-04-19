@@ -437,11 +437,15 @@ impl Hook {
 
         if opts.json {
             // Mirror the text renderer's --why <step> focus filter so JSON
-            // output for the same command stays consistent.
+            // output for the same command stays consistent. Also prune group
+            // step_ids so they never reference steps that were filtered out.
             if let Some(focus) = opts.why.as_deref().filter(|s| !s.is_empty()) {
                 plan.steps.retain(|s| s.name == focus);
-                plan.groups
-                    .retain(|g| g.step_ids.iter().any(|id| id == focus));
+                let kept: HashSet<&str> = plan.steps.iter().map(|s| s.name.as_str()).collect();
+                plan.groups.retain_mut(|g| {
+                    g.step_ids.retain(|id| kept.contains(id.as_str()));
+                    !g.step_ids.is_empty()
+                });
             }
             let json = serde_json::to_string_pretty(&plan)?;
             println!("{}", json);

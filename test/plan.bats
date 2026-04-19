@@ -503,7 +503,8 @@ EOF
 }
 
 # Regression: --why <step> --json should filter JSON output to the focused
-# step, mirroring the text renderer.
+# step, mirroring the text renderer. Parallel-group stepIds must also be
+# pruned so they never reference steps that have been filtered out.
 @test "hk --why <step> --json filters JSON to focused step" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -512,6 +513,7 @@ hooks {
         steps {
             ["a"] { glob = List("*.js"); check = "echo a" }
             ["b"] { glob = List("*.js"); check = "echo b" }
+            ["c"] { glob = List("*.js"); check = "echo c" }
         }
     }
 }
@@ -521,6 +523,12 @@ EOF
     run bash -c "hk check --why a --json 2>/dev/null"
     assert_success
     echo "$output" | jq -e '[.steps[].name] == ["a"]' >/dev/null
+    # When the group survives (it contains the focused step), its stepIds
+    # must only reference steps present in the filtered steps array.
+    echo "$output" | jq -e '
+        .groups == [] or
+        (.groups | all(.stepIds | all(. == "a")))
+    ' >/dev/null
 }
 
 @test "hk --why skipped step shows each reason exactly once" {
