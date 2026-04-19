@@ -64,7 +64,6 @@ pub enum ReasonKind {
     ConfigExclude,
     NoCommand,
     MissingRequiredEnv,
-    Always,
     Disabled,
 }
 
@@ -105,7 +104,6 @@ impl ReasonKind {
             ReasonKind::ConfigExclude => "excluded via config",
             ReasonKind::NoCommand => "no command for run type",
             ReasonKind::MissingRequiredEnv => "required environment variable not set",
-            ReasonKind::Always => "always runs",
             ReasonKind::Disabled => "disabled",
         }
     }

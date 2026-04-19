@@ -462,6 +462,27 @@ EOF
 
 # Regression: verbose --why on a skipped step whose headline is picked from a
 # non-zero index must not duplicate the headline or drop the first reason.
+# Regression: --why <step> --json should filter JSON output to the focused
+# step, mirroring the text renderer.
+@test "hk --why <step> --json filters JSON to focused step" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["a"] { glob = List("*.js"); check = "echo a" }
+            ["b"] { glob = List("*.js"); check = "echo b" }
+        }
+    }
+}
+EOF
+    touch file.js
+    git add .
+    run bash -c "hk check --why a --json 2>/dev/null"
+    assert_success
+    echo "$output" | jq -e '[.steps[].name] == ["a"]' >/dev/null
+}
+
 @test "hk --why skipped step shows each reason exactly once" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
