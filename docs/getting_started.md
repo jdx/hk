@@ -101,6 +101,46 @@ hk install
 
 This will install the hooks for the repository like `pre-commit` and `pre-push` if they are defined in `hk.pkl`. Running `git commit` would now run the linters defined above in our example through the pre-commit hook.
 
+On **Git 2.54 or newer**, `hk install` writes [config-based hooks](https://github.blog/open-source/git/highlights-from-git-2-54/) (`git config hook.hk-<event>.command`) instead of script files in `.git/hooks/`. This keeps the hooks directory untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims — no configuration needed, hk detects the installed git version automatically. Pass `--legacy` to force the shim mode.
+
+## Install Hooks Globally (Git 2.54+)
+
+With Git 2.54+, you can install hk hooks once in your **user-wide** `~/.gitconfig` and they apply to every repository on your machine:
+
+```sh
+hk install --global
+```
+
+This writes `hook.hk-<event>.command` entries to your global git config for the common client-side hooks (`pre-commit`, `pre-push`, `commit-msg`, `prepare-commit-msg`, `post-checkout`, `post-merge`, `post-rewrite`, `pre-rebase`, `post-commit`). Each invocation is a **silent no-op in repos that don't have an `hk.pkl`**, so you can safely enable it everywhere without breaking unrelated projects.
+
+To remove the global install:
+
+```sh
+hk uninstall --global
+```
+
+Per-repository `hk install` still works alongside `--global` — the local entries simply replace the global defaults for that repo.
+
+### Configuring manually in `~/.gitconfig`
+
+If you'd rather set this up by hand, add a block like the following to your `~/.gitconfig`:
+
+```ini
+[hook "hk-pre-commit"]
+    command = hk run pre-commit --from-hook "$@"
+    event = pre-commit
+[hook "hk-pre-push"]
+    command = hk run pre-push --from-hook "$@"
+    event = pre-push
+[hook "hk-commit-msg"]
+    command = hk run commit-msg --from-hook "$@"
+    event = commit-msg
+```
+
+The `--from-hook` flag tells hk to exit silently when the project has no `hk.pkl` or doesn't define that event. Use `mise x -- hk` instead of `hk` in the `command` if you manage hk via mise and don't auto-activate it.
+
+To disable hk for a single repo without uninstalling globally, set `hook.hk-<event>.enabled = false` in that repo's `.git/config`.
+
 ## Checking and Fixing Code
 
 You can check or fix code with [`hk check`](/cli/check) or [`hk fix`](/cli/fix)—by convention, "check" means files should not be modified and "fix"

@@ -1,8 +1,47 @@
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use eyre::eyre;
 
 use crate::Result;
+
+/// Semantic version of the `git` binary on PATH: `(major, minor, patch)`.
+///
+/// Returns `None` if `git --version` cannot be executed or parsed. Cached for
+/// the lifetime of the process — git is not going to upgrade itself out from
+/// under us.
+pub fn git_version() -> Option<(u32, u32, u32)> {
+    static CACHED: OnceLock<Option<(u32, u32, u32)>> = OnceLock::new();
+    *CACHED.get_or_init(|| {
+        let output = std::process::Command::new("git")
+            .arg("--version")
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let s = String::from_utf8_lossy(&output.stdout);
+        // "git version 2.54.0" (possibly with trailing .windows.N or similar)
+        let ver = s.split_whitespace().nth(2)?;
+        let mut parts = ver.split('.').filter_map(|p| {
+            let digits: String = p.chars().take_while(|c| c.is_ascii_digit()).collect();
+            digits.parse::<u32>().ok()
+        });
+        Some((
+            parts.next()?,
+            parts.next().unwrap_or(0),
+            parts.next().unwrap_or(0),
+        ))
+    })
+}
+
+/// Whether the installed `git` is at least `major.minor`.
+pub fn git_at_least(major: u32, minor: u32) -> bool {
+    match git_version() {
+        Some((maj, min, _)) => (maj, min) >= (major, minor),
+        None => false,
+    }
+}
 
 /// Find the `.git` path from the current working directory by searching upward.
 ///

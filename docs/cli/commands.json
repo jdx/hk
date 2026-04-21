@@ -171,6 +171,16 @@
             "global": false
           },
           {
+            "name": "from-hook",
+            "usage": "--from-hook",
+            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "short": [],
+            "long": ["from-hook"],
+            "hide": true,
+            "global": false
+          },
+          {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
             "help": "Start reference for checking files (requires --to-ref)",
@@ -566,6 +576,16 @@
             "global": false
           },
           {
+            "name": "from-hook",
+            "usage": "--from-hook",
+            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "short": [],
+            "long": ["from-hook"],
+            "hide": true,
+            "global": false
+          },
+          {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
             "help": "Start reference for checking files (requires --to-ref)",
@@ -744,10 +764,30 @@
       },
       "install": {
         "full_cmd": ["install"],
-        "usage": "install [--mise]",
+        "usage": "install [FLAGS]",
         "subcommands": {},
         "args": [],
         "flags": [
+          {
+            "name": "global",
+            "usage": "--global",
+            "help": "Install at user level (~/.gitconfig) so every repo on this machine\ngets hk hooks. Requires Git 2.54 or newer. In repos without an\n`hk.pkl`, the installed hook is a silent no-op.",
+            "help_first_line": "Install at user level (~/.gitconfig) so every repo on this machine",
+            "short": [],
+            "long": ["global"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "legacy",
+            "usage": "--legacy",
+            "help": "Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Not compatible with `--global`.",
+            "help_first_line": "Force using the legacy `.git/hooks/` script shims instead of Git",
+            "short": [],
+            "long": ["legacy"],
+            "hide": false,
+            "global": false
+          },
           {
             "name": "mise",
             "usage": "--mise",
@@ -763,7 +803,7 @@
         "mounts": [],
         "hide": false,
         "help": "Sets up git hooks to run hk",
-        "help_long": "Sets up git hooks to run hk\n\nIn a git worktree with a per-worktree core.hooksPath configured, hooks are installed to that worktree-local directory. Otherwise hooks go to the shared hooks directory.",
+        "help_long": "Sets up git hooks to run hk.\n\nOn Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.\n\nWith `--global`, hooks are installed into the user's `~/.gitconfig` so every repository picks them up without a per-repo install. In a project without an `hk.pkl`, the installed hook exits silently — no-op.",
         "name": "install",
         "aliases": ["i"],
         "hidden_aliases": [],
@@ -995,6 +1035,16 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-hook",
+                "usage": "--from-hook",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "short": [],
+                "long": ["from-hook"],
+                "hide": true,
                 "global": false
               },
               {
@@ -1276,6 +1326,16 @@
                 "global": false
               },
               {
+                "name": "from-hook",
+                "usage": "--from-hook",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "short": [],
+                "long": ["from-hook"],
+                "hide": true,
+                "global": false
+              },
+              {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
                 "help": "Start reference for checking files (requires --to-ref)",
@@ -1533,6 +1593,16 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-hook",
+                "usage": "--from-hook",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "short": [],
+                "long": ["from-hook"],
+                "hide": true,
                 "global": false
               },
               {
@@ -1796,6 +1866,16 @@
                 "global": false
               },
               {
+                "name": "from-hook",
+                "usage": "--from-hook",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "short": [],
+                "long": ["from-hook"],
+                "hide": true,
+                "global": false
+              },
+              {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
                 "help": "Start reference for checking files (requires --to-ref)",
@@ -2044,6 +2124,16 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-hook",
+                "usage": "--from-hook",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "short": [],
+                "long": ["from-hook"],
+                "hide": true,
                 "global": false
               },
               {
@@ -2314,6 +2404,16 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
+                "global": false
+              },
+              {
+                "name": "from-hook",
+                "usage": "--from-hook",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "short": [],
+                "long": ["from-hook"],
+                "hide": true,
                 "global": false
               },
               {
@@ -2595,6 +2695,16 @@
                 "global": false
               },
               {
+                "name": "from-hook",
+                "usage": "--from-hook",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "short": [],
+                "long": ["from-hook"],
+                "hide": true,
+                "global": false
+              },
+              {
                 "name": "from-ref",
                 "usage": "--from-ref <FROM_REF>",
                 "help": "Start reference for checking files (requires --to-ref)",
@@ -2850,6 +2960,16 @@
             "global": false
           },
           {
+            "name": "from-hook",
+            "usage": "--from-hook",
+            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "short": [],
+            "long": ["from-hook"],
+            "hide": true,
+            "global": false
+          },
+          {
             "name": "from-ref",
             "usage": "--from-ref <FROM_REF>",
             "help": "Start reference for checking files (requires --to-ref)",
@@ -3043,10 +3163,21 @@
       },
       "uninstall": {
         "full_cmd": ["uninstall"],
-        "usage": "uninstall",
+        "usage": "uninstall [--global]",
         "subcommands": {},
         "args": [],
-        "flags": [],
+        "flags": [
+          {
+            "name": "global",
+            "usage": "--global",
+            "help": "Remove hk hooks from the user's global git config (`~/.gitconfig`).",
+            "help_first_line": "Remove hk hooks from the user's global git config (`~/.gitconfig`).",
+            "short": [],
+            "long": ["global"],
+            "hide": false,
+            "global": false
+          }
+        ],
         "mounts": [],
         "hide": false,
         "help": "Removes hk hooks from the current git repository",

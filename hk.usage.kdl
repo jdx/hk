@@ -39,6 +39,7 @@ cmd check help="Checks code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
+    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -102,6 +103,7 @@ cmd fix help="Fixes code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
+    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -133,7 +135,9 @@ cmd init help="Generates a new hk.pkl file for a project" {
 }
 cmd install help="Sets up git hooks to run hk" {
     alias i
-    long_help "Sets up git hooks to run hk\n\nIn a git worktree with a per-worktree core.hooksPath configured, hooks are installed to that worktree-local directory. Otherwise hooks go to the shared hooks directory."
+    long_help "Sets up git hooks to run hk.\n\nOn Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.\n\nWith `--global`, hooks are installed into the user's `~/.gitconfig` so every repository picks them up without a per-repo install. In a project without an `hk.pkl`, the installed hook exits silently — no-op."
+    flag --global help="Install at user level (~/.gitconfig) so every repo on this machine\ngets hk hooks. Requires Git 2.54 or newer. In repos without an\n`hk.pkl`, the installed hook is a silent no-op."
+    flag --legacy help="Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Not compatible with `--global`."
     flag --mise help="Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools." {
         long_help "Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools.\n\nSet HK_MISE=1 to make this default behavior."
     }
@@ -168,6 +172,7 @@ cmd run help="Run a hook" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
+    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -205,6 +210,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -242,6 +248,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -281,6 +288,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -318,6 +326,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -356,6 +365,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -393,6 +403,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -432,6 +443,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -466,7 +478,9 @@ cmd test help="Run step-defined tests" {
         arg <STEP>
     }
 }
-cmd uninstall help="Removes hk hooks from the current git repository"
+cmd uninstall help="Removes hk hooks from the current git repository" {
+    flag --global help="Remove hk hooks from the user's global git config (`~/.gitconfig`)."
+}
 cmd usage hide=#true help="Generates a usage spec for the CLI" {
     long_help "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev"
 }
