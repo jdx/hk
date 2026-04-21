@@ -82,6 +82,11 @@ impl Install {
         remove_local_shims()?;
         remove_local_config_entries()?;
 
+        if events.is_empty() {
+            warn!("no hooks configured in hk.pkl — nothing to install");
+            return Ok(());
+        }
+
         if use_config_hooks {
             install_local_config(&events, command)
         } else {
@@ -106,10 +111,6 @@ fn install_global(command: &str) -> Result<()> {
 }
 
 fn install_local_config(events: &[String], command: &str) -> Result<()> {
-    if events.is_empty() {
-        warn!("no hooks configured in hk.pkl — nothing to install");
-        return Ok(());
-    }
     for event in events {
         write_config_hook("--local", command, event)?;
         println!("Installed hk hook via git config: hook.hk-{event}.command");
