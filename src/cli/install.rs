@@ -57,27 +57,19 @@ impl Install {
             "hk"
         };
 
-        let use_config_hooks = if self.legacy {
-            false
-        } else if self.global {
+        if self.global {
             if !git_util::git_at_least(2, 54) {
                 bail!(
                     "`hk install --global` requires Git 2.54+ (config-based hooks). Detected git version does not support this. Upgrade git, or install per-repo with `hk install`."
                 );
             }
-            true
-        } else {
-            git_util::git_at_least(2, 54)
-        };
-
-        if self.global {
             return install_global(command);
         }
 
-        // Clean up any prior installation so modes don't accumulate.
-        remove_local_shims()?;
-        remove_local_config_entries()?;
+        let use_config_hooks = !self.legacy && git_util::git_at_least(2, 54);
 
+        // Load and validate the project config before touching anything, so a
+        // broken `hk.pkl` doesn't leave the repo with its prior hooks removed.
         let config = Config::get()?;
         let events: Vec<String> = config
             .hooks
@@ -85,6 +77,10 @@ impl Install {
             .filter(|h| h.as_str() != "check" && h.as_str() != "fix")
             .cloned()
             .collect();
+
+        // Clean up any prior installation so modes don't accumulate.
+        remove_local_shims()?;
+        remove_local_config_entries()?;
 
         if use_config_hooks {
             install_local_config(&events, command)
@@ -148,7 +144,9 @@ fn write_config_hook(scope: &str, command: &str, event: &str) -> Result<()> {
     let name = format!("hk-{event}");
     let cmd_key = format!("hook.{name}.command");
     let event_key = format!("hook.{name}.event");
-    let cmd_value = format!(r#"{command} run {event} --from-hook "$@""#);
+    // Mirror the shim's HK=0 escape hatch so users can still disable hooks
+    // with `HK=0 git commit` under config-based hooks.
+    let cmd_value = format!(r#"test "${{HK:-1}}" = "0" || {command} run {event} --from-hook "$@""#);
 
     run_git(&["config", scope, cmd_key.as_str(), cmd_value.as_str()])?;
     // .event is multi-valued; replace-all keeps re-install idempotent.
@@ -206,8 +204,12 @@ pub(crate) fn remove_local_shims() -> Result<()> {
             Ok(content) => content,
             Err(_) => continue,
         };
-        if content.contains("hk run") {
+        // Match the HK=0 guard that every hk-written shim has. This is more
+        // specific than `hk run` alone, which could appear in an unrelated
+        // user-written hook.
+        if content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run") {
             xx::file::remove_file(&p)?;
+            info!("removed hook: {}", xx::file::display_path(&p));
         }
     }
     Ok(())

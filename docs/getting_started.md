@@ -127,17 +127,17 @@ If you'd rather set this up by hand, add a block like the following to your `~/.
 
 ```ini
 [hook "hk-pre-commit"]
-    command = hk run pre-commit --from-hook "$@"
+    command = test "${HK:-1}" = "0" || hk run pre-commit --from-hook "$@"
     event = pre-commit
 [hook "hk-pre-push"]
-    command = hk run pre-push --from-hook "$@"
+    command = test "${HK:-1}" = "0" || hk run pre-push --from-hook "$@"
     event = pre-push
 [hook "hk-commit-msg"]
-    command = hk run commit-msg --from-hook "$@"
+    command = test "${HK:-1}" = "0" || hk run commit-msg --from-hook "$@"
     event = commit-msg
 ```
 
-The `--from-hook` flag tells hk to exit silently when the project has no `hk.pkl` or doesn't define that event. Use `mise x -- hk` instead of `hk` in the `command` if you manage hk via mise and don't auto-activate it.
+The `--from-hook` flag tells hk to exit silently when the project has no `hk.pkl` or doesn't define that event. The `test "${HK:-1}" = "0" ||` prefix is an escape hatch: run `HK=0 git commit` to bypass hooks for a single command. Use `mise x -- hk` instead of `hk` in the `command` if you manage hk via mise and don't auto-activate it.
 
 To disable hk for a single repo without uninstalling globally, set `hook.hk-<event>.enabled = false` in that repo's `.git/config`.
 
