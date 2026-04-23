@@ -3,6 +3,7 @@ import type { Theme } from 'vitepress'
 import DefaultTheme from 'vitepress/theme-without-fonts'
 import Layout from './Layout.vue'
 import HomePage from './HomePage.vue'
+import { initBanner } from './banner'
 import './style.css'
 
 export default {
@@ -10,5 +11,6 @@ export default {
   Layout,
   enhanceApp({ app, router, siteData }) {
     app.component('HomePage', HomePage)
+    initBanner()
   },
 } satisfies Theme
