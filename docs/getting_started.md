@@ -119,7 +119,7 @@ To remove the global install:
 hk uninstall --global
 ```
 
-Per-repository `hk install` still works alongside `--global` — the local entries simply replace the global defaults for that repo.
+Per-repository `hk install` works alongside `--global`, but note that **Git aggregates `hook.<name>.command` entries across every scope and runs them all** — so a local install on top of a global one will fire hk twice per event. To run only the local install in a repo that also has the global install active, disable the global entries in that repo with `hook.hk-<event>.enabled = false` (see the note at the end of this section).
 
 ### Configuring manually in `~/.gitconfig`
 
