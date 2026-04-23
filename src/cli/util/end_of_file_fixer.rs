@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_has_proper_ending_single_newline_file() {
         let mut file = NamedTempFile::new().unwrap();
-        write!(file, "\n").unwrap();
+        writeln!(file).unwrap();
         file.flush().unwrap();
 
         let path = file.path().to_path_buf();

@@ -34,7 +34,7 @@ EOF
 @test "hk install writes hooks to per-worktree hooksPath" {
     _write_hk_config
 
-    run hk install
+    run hk install --legacy
     assert_success
     assert_file_exists "$WORKTREE_HOOKS/pre-commit"
 
@@ -49,7 +49,7 @@ EOF
 @test "hk uninstall removes hooks from per-worktree hooksPath" {
     _write_hk_config
 
-    hk install
+    hk install --legacy
     assert_file_exists "$WORKTREE_HOOKS/pre-commit"
 
     run hk uninstall
@@ -85,7 +85,7 @@ EOF
     git config --worktree --unset core.hooksPath
     _write_hk_config
 
-    run hk install
+    run hk install --legacy
     assert_success
 
     # Hooks should be in the shared dir, not the worktree-local dir
@@ -96,7 +96,7 @@ EOF
 
 @test "different worktrees get independent hooks" {
     _write_hk_config
-    hk install
+    hk install --legacy
 
     # Create and configure a second worktree
     WORKTREE_DIR2="$TEST_TEMP_DIR/worktree2"
@@ -107,7 +107,7 @@ EOF
     cd "$WORKTREE_DIR2"
     git config --worktree core.hooksPath "$WORKTREE2_HOOKS"
     _write_hk_config
-    hk install
+    hk install --legacy
 
     assert_file_exists "$WORKTREE_HOOKS/pre-commit"
     assert_file_exists "$WORKTREE2_HOOKS/pre-commit"

@@ -36,6 +36,10 @@ pub(crate) struct HookOptions {
     /// Abort on first failure
     #[clap(long, overrides_with = "no_fail_fast")]
     pub fail_fast: bool,
+    /// Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is
+    /// present or the event isn't defined. Set automatically by `hk install`.
+    #[clap(long, hide = true)]
+    pub from_hook: bool,
     /// Start reference for checking files (requires --to-ref)
     #[clap(long)]
     pub from_ref: Option<String>,
@@ -80,6 +84,14 @@ impl HookOptions {
     }
 
     pub(crate) async fn run(mut self, name: &str) -> Result<()> {
+        // Under `--from-hook`, short-circuit *before* loading the config. A
+        // broken user-global hkrc (or missing `pkl`) shouldn't fail every
+        // `git commit` in a repo that doesn't even use hk — which is the
+        // main risk under `hk install --global`.
+        if self.from_hook && !Config::project_config_exists() {
+            log::debug!("no hk config found for {name}, skipping (--from-hook)");
+            return Ok(());
+        }
         let config = Config::get()?;
         if self.pr {
             let repo = Git::new()?;
@@ -116,6 +128,13 @@ impl HookOptions {
                 Ok(())
             }
             None => {
+                if self.from_hook {
+                    log::debug!(
+                        "hook '{name}' not defined in {}, skipping (--from-hook)",
+                        config.path.display()
+                    );
+                    return Ok(());
+                }
                 let hook_names: Vec<&str> = config.hooks.keys().map(|s| s.as_str()).collect();
                 let msg = if let Some(suggestion) = xx::suggest::did_you_mean(name, &hook_names) {
                     format!("Hook '{}' not found. {}", name, suggestion)

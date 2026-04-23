@@ -2,14 +2,27 @@
 
 # `hk install`
 
-- **Usage**: `hk install [--mise]`
+- **Usage**: `hk install [FLAGS]`
 - **Aliases**: `i`
 
-Sets up git hooks to run hk
+Sets up git hooks to run hk.
 
-In a git worktree with a per-worktree core.hooksPath configured, hooks are installed to that worktree-local directory. Otherwise hooks go to the shared hooks directory.
+On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.
+
+With `--global`, hooks are installed into the user's `~/.gitconfig` so every repository picks them up without a per-repo install. In a project without an `hk.pkl`, the installed hook exits silently — no-op.
 
 ## Flags
+
+### `--global`
+
+Install at user level (~/.gitconfig) so every repo on this machine
+gets hk hooks. Requires Git 2.54 or newer. In repos without an
+`hk.pkl`, the installed hook is a silent no-op.
+
+### `--legacy`
+
+Force using the legacy `.git/hooks/` script shims instead of Git
+2.54+ config-based hooks. Not compatible with `--global`.
 
 ### `--mise`
 

@@ -148,7 +148,7 @@ mod tests {
 ’RIGHT SINGLE QUOTATION MARK’
 ‛SINGLE HIGH-REVERSED-9 QUOTATION MARK‛
 "#;
-        fs::write(file.path(), &content).unwrap();
+        fs::write(file.path(), content).unwrap();
 
         replace_smart_quotes(&file.path().to_path_buf()).unwrap();
 
