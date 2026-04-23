@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.44.0](https://github.com/jdx/hk/compare/v1.43.0..v1.44.0) - 2026-04-23
+
+### 🚀 Features
+
+- **(check)** implement --plan, --why, and --json by [@jdx](https://github.com/jdx) in [#848](https://github.com/jdx/hk/pull/848)
+- **(cocogitto)** add cocogitto conventional commits config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#838](https://github.com/jdx/hk/pull/838)
+- **(git)** support GIT_DIR/GIT_WORK_TREE for bare-repo dotfile managers by [@jdx](https://github.com/jdx) in [#847](https://github.com/jdx/hk/pull/847)
+- **(install)** use Git 2.54 config-based hooks with --global support by [@jdx](https://github.com/jdx) in [#853](https://github.com/jdx/hk/pull/853)
+
+### 🐛 Bug Fixes
+
+- use text progress in CI by [@jdx](https://github.com/jdx) in [#845](https://github.com/jdx/hk/pull/845)
+
+### 📚 Documentation
+
+- generalize agent guidelines by [@jdx](https://github.com/jdx) in [#846](https://github.com/jdx/hk/pull/846)
+- add releases nav and aube lock by [@jdx](https://github.com/jdx) in [#849](https://github.com/jdx/hk/pull/849)
+
+### 🔍 Other Changes
+
+- **(release)** append en.dev sponsor blurb to release notes by [@jdx](https://github.com/jdx) in [#854](https://github.com/jdx/hk/pull/854)
+- bump communique to 1.0.1 by [@jdx](https://github.com/jdx) in [#850](https://github.com/jdx/hk/pull/850)
+
+### 📦️ Dependency Updates
+
+- update actions-rust-lang/setup-rust-toolchain digest to 2b1f5e9 by [@renovate[bot]](https://github.com/renovate[bot]) in [#832](https://github.com/jdx/hk/pull/832)
+- update anthropics/claude-code-action digest to c3d45e8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#833](https://github.com/jdx/hk/pull/833)
+- update rust crate tokio to v1.52.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#834](https://github.com/jdx/hk/pull/834)
+- update actions/upload-pages-artifact action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#835](https://github.com/jdx/hk/pull/835)
+- update taiki-e/upload-rust-binary-action digest to f0d45ae by [@renovate[bot]](https://github.com/renovate[bot]) in [#839](https://github.com/jdx/hk/pull/839)
+- update rust crate clx to v2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#836](https://github.com/jdx/hk/pull/836)
+- update anthropics/claude-code-action digest to 0d2971c by [@renovate[bot]](https://github.com/renovate[bot]) in [#841](https://github.com/jdx/hk/pull/841)
+- update anthropics/claude-code-action digest to 38ec876 by [@renovate[bot]](https://github.com/renovate[bot]) in [#842](https://github.com/jdx/hk/pull/842)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#851](https://github.com/jdx/hk/pull/851)
+
 ## [1.43.0](https://github.com/jdx/hk/compare/v1.42.0..v1.43.0) - 2026-04-16
 
 ### 🚀 Features
