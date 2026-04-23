@@ -1,0 +1,3 @@
+.vagrant
+# vagrant virtualbox image creates this log file. so, better to ignore
+*-cloudimg-console.log
