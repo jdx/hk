@@ -3,10 +3,12 @@ use crate::hook_options::HookOptions;
 
 mod commit_msg;
 mod post_checkout;
+mod post_commit;
 mod post_merge;
 mod post_rewrite;
 mod pre_commit;
 mod pre_push;
+mod pre_rebase;
 mod prepare_commit_msg;
 
 /// Run a hook
@@ -29,10 +31,12 @@ pub struct Run {
 enum Commands {
     CommitMsg(commit_msg::CommitMsg),
     PostCheckout(post_checkout::PostCheckout),
+    PostCommit(post_commit::PostCommit),
     PostMerge(post_merge::PostMerge),
     PostRewrite(post_rewrite::PostRewrite),
     PreCommit(pre_commit::PreCommit),
     PrePush(pre_push::PrePush),
+    PreRebase(pre_rebase::PreRebase),
     PrepareCommitMsg(prepare_commit_msg::PrepareCommitMsg),
 }
 
@@ -48,10 +52,12 @@ impl Run {
             return match cmd {
                 Commands::CommitMsg(cmd) => cmd.run().await,
                 Commands::PostCheckout(cmd) => cmd.run().await,
+                Commands::PostCommit(cmd) => cmd.run().await,
                 Commands::PostMerge(cmd) => cmd.run().await,
                 Commands::PostRewrite(cmd) => cmd.run().await,
                 Commands::PreCommit(cmd) => cmd.run().await,
                 Commands::PrePush(cmd) => cmd.run().await,
+                Commands::PreRebase(cmd) => cmd.run().await,
                 Commands::PrepareCommitMsg(cmd) => cmd.run().await,
             };
         }
