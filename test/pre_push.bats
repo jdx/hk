@@ -28,7 +28,9 @@ EOF
     git add hk.pkl
     git commit -m "install hk"
     git push origin main
-    hk install
+    # Use legacy shim mode: config-based pre-push hooks have different env/cwd
+    # semantics that would need separate test coverage.
+    hk install --legacy
     echo 'console.log("test")' > test.js
     git add test.js
     git commit -m "test"

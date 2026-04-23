@@ -70,7 +70,7 @@ EOF
 @test "hk install writes hooks to the bare-repo hooks dir" {
     _write_hk_config
 
-    run hk install
+    run hk install --legacy
     assert_success
     assert_file_exists "$BARE_DIR/hooks/pre-commit"
 }
@@ -78,7 +78,7 @@ EOF
 @test "hk uninstall removes hooks from the bare-repo hooks dir" {
     _write_hk_config
 
-    hk install
+    hk install --legacy
     assert_file_exists "$BARE_DIR/hooks/pre-commit"
 
     run hk uninstall
