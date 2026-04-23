@@ -143,8 +143,8 @@ cmd init help="Generates a new hk.pkl file for a project" {
 }
 cmd install help="Sets up git hooks to run hk" {
     alias i
-    long_help "Sets up git hooks to run hk.\n\nOn Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.\n\nWith `--global`, hooks are installed into the user's `~/.gitconfig` so every repository picks them up without a per-repo install. In a project without an `hk.pkl`, the installed hook exits silently — no-op."
-    flag --global help="Install at user level (~/.gitconfig) so every repo on this machine\ngets hk hooks. Requires Git 2.54 or newer. In repos without an\n`hk.pkl`, the installed hook is a silent no-op."
+    long_help "Sets up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims."
+    flag --global help="Recommended. Install at user level (~/.gitconfig) so every repo\non this machine gets hk hooks. Requires Git 2.54 or newer. In\nrepos without an `hk.pkl`, the installed hook is a silent no-op."
     flag --legacy help="Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Not compatible with `--global`."
     flag --mise help="Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools." {
         long_help "Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools.\n\nSet HK_MISE=1 to make this default behavior."
