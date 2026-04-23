@@ -79,11 +79,16 @@ impl Install {
             .collect();
 
         // Clean up any prior installation so modes don't accumulate.
-        remove_local_shims()?;
-        remove_local_config_entries()?;
+        let removed = remove_local_shims()? + remove_local_config_entries()?;
 
         if events.is_empty() {
-            warn!("no hooks configured in hk.pkl — nothing to install");
+            if removed > 0 {
+                warn!(
+                    "no hooks configured in hk.pkl — removed {removed} previously-installed hk hook(s) and did not install any new ones"
+                );
+            } else {
+                warn!("no hooks configured in hk.pkl — nothing to install");
+            }
             return Ok(());
         }
 
@@ -155,11 +160,11 @@ fn write_config_hook(scope: &str, command: &str, event: &str) -> Result<()> {
     Ok(())
 }
 
-fn remove_local_config_entries() -> Result<()> {
+fn remove_local_config_entries() -> Result<usize> {
     remove_config_entries("--local")
 }
 
-pub(crate) fn remove_config_entries(scope: &str) -> Result<()> {
+pub(crate) fn remove_config_entries(scope: &str) -> Result<usize> {
     let output = Command::new("git")
         .args([
             "config",
@@ -169,9 +174,19 @@ pub(crate) fn remove_config_entries(scope: &str) -> Result<()> {
             "^hook\\.hk-",
         ])
         .output()?;
+    // git config --get-regexp: 0 = matches, 1 = no matches, ≥2 = real error
+    // (e.g. unreadable config). Don't conflate "nothing to remove" with a
+    // failed uninstall.
+    let code = output.status.code().unwrap_or(1);
+    if code == 1 {
+        return Ok(0);
+    }
     if !output.status.success() {
-        // No matches → git exits non-zero; that's fine.
-        return Ok(());
+        bail!(
+            "git config --get-regexp failed (exit {}): {}",
+            code,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
     }
     let keys: Vec<String> = String::from_utf8_lossy(&output.stdout)
         .lines()
@@ -180,26 +195,32 @@ pub(crate) fn remove_config_entries(scope: &str) -> Result<()> {
         .collect();
     // Dedupe since multi-valued keys appear once per value.
     let mut seen = std::collections::BTreeSet::new();
+    let mut removed = 0;
     for key in keys {
         if seen.insert(key.clone()) {
             run_git(&["config", scope, "--unset-all", key.as_str()])?;
+            // Count one per hook event, not one per key (command + event).
+            if key.ends_with(".command") {
+                removed += 1;
+            }
         }
     }
-    Ok(())
+    Ok(removed)
 }
 
-pub(crate) fn remove_local_shims() -> Result<()> {
+pub(crate) fn remove_local_shims() -> Result<usize> {
     let git_path = match git_util::find_git_path() {
         Ok(p) => p,
-        Err(_) => return Ok(()),
+        Err(_) => return Ok(0),
     };
     let hooks = match git_util::worktree_hooks_path() {
         Some(path) => path,
         None => git_util::resolve_git_hooks_dir(&git_path)?,
     };
     if !hooks.is_dir() {
-        return Ok(());
+        return Ok(0);
     }
+    let mut removed = 0;
     for p in xx::file::ls(&hooks)? {
         let content = match xx::file::read_to_string(&p) {
             Ok(content) => content,
@@ -211,9 +232,10 @@ pub(crate) fn remove_local_shims() -> Result<()> {
         if content.contains(r#"test "${HK:-1}" = "0""#) && content.contains("hk run") {
             xx::file::remove_file(&p)?;
             info!("removed hook: {}", xx::file::display_path(&p));
+            removed += 1;
         }
     }
-    Ok(())
+    Ok(removed)
 }
 
 fn run_git(args: &[&str]) -> Result<()> {
