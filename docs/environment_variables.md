@@ -145,6 +145,8 @@ Default: `true`
 
 If set to `true`, hk will stash untracked files when stashing before running hooks.
 
+When set to `false`, hk also skips the untracked-file scan entirely (`git status --untracked-files=no`). This is the recommended setting when `GIT_WORK_TREE` points at a very large directory such as `$HOME` (e.g. a YADM dotfiles repo), where scanning for untracked files can take tens of seconds. Untracked files will not appear in reports or `hk check --all` results in this mode.
+
 ## `HK_FAIL_FAST`
 
 Type: `bool`

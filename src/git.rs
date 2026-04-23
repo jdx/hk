@@ -410,10 +410,14 @@ impl Git {
     pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         // Refresh index stat information to avoid stale mtime/size causing mis-detection
         let _ = git_run(["update-index", "-q", "--refresh"]);
+        // When stashing untracked files is disabled, skip the untracked-file scan.
+        // This avoids catastrophic scans when GIT_WORK_TREE points at a large tree
+        // (e.g. YADM dotfile repos where the worktree is $HOME). See #860.
+        let include_untracked = *env::HK_STASH_UNTRACKED;
         if let Some(repo) = &self.repo {
             let mut status_options = StatusOptions::new();
-            status_options.include_untracked(true);
-            status_options.recurse_untracked_dirs(true);
+            status_options.include_untracked(include_untracked);
+            status_options.recurse_untracked_dirs(include_untracked);
             status_options.renames_head_to_index(true);
 
             if let Some(pathspec) = pathspec {
@@ -508,7 +512,12 @@ impl Git {
                 unstaged_renamed_files,
             })
         } else {
-            let mut args = vec!["status", "--porcelain", "--untracked-files=all", "-z"]
+            let untracked_arg = if include_untracked {
+                "--untracked-files=all"
+            } else {
+                "--untracked-files=no"
+            };
+            let mut args = vec!["status", "--porcelain", untracked_arg, "-z"]
                 .into_iter()
                 .filter(|&arg| !arg.is_empty())
                 .map(OsString::from)
@@ -666,13 +675,21 @@ impl Git {
                 }
             }
         }
-        // 3) Parse porcelain to catch nuanced mixed states
+        // 3) Parse porcelain to catch nuanced mixed states.
+        // We only look at worktree-side markers (M/T/R), so untracked entries
+        // are irrelevant here. Skip the untracked scan entirely when
+        // HK_STASH_UNTRACKED=false to avoid scanning a huge worktree (see #860).
         {
+            let untracked_arg = if *env::HK_STASH_UNTRACKED {
+                "--untracked-files=all"
+            } else {
+                "--untracked-files=no"
+            };
             let args: Vec<OsString> = vec![
                 "status".into(),
                 "--porcelain".into(),
                 "--no-renames".into(),
-                "--untracked-files=all".into(),
+                untracked_arg.into(),
                 "-z".into(),
             ];
             let out = git_read(args).unwrap_or_default();

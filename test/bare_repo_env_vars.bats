@@ -86,6 +86,28 @@ EOF
     assert_file_not_exists "$BARE_DIR/hooks/pre-commit"
 }
 
+@test "HK_STASH_UNTRACKED=false skips untracked scan in large worktree (#860)" {
+    # Regression for #860: when GIT_WORK_TREE points at $HOME (e.g. YADM), the
+    # unconditional `git status --untracked-files=all` scans the entire home
+    # dir. Setting HK_STASH_UNTRACKED=false must skip the untracked scan.
+    _write_hk_config
+    git add hk.pkl
+    git commit -m "add hk config"
+
+    # Seed a deep tree of untracked junk. If the scan runs, this inflates the
+    # status output; if it's skipped, these files never appear.
+    mkdir -p junk/a/b/c
+    for i in 1 2 3 4 5; do
+        echo "noise" > "junk/a/b/c/untracked_$i.txt"
+    done
+
+    HK_STASH_UNTRACKED=false HK_LOG=trace run hk check --all
+    assert_success
+    # The fix should pass --untracked-files=no (libgit2 path also skips untracked).
+    # None of the seeded junk files should reach the file list.
+    refute_output --partial "junk/a/b/c/untracked_1.txt"
+}
+
 @test "hk check picks up modified files when run from a subdirectory" {
     # Regression for the reviewer-flagged bug: when GIT_DIR/GIT_WORK_TREE is
     # set and cwd is a subdirectory of the work tree, Git::new() must cd to
