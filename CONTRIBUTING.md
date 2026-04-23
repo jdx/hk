@@ -12,7 +12,7 @@ Thank you for your interest in contributing to hk! This guide will help you get 
 1. Clone the repository:
 
 ```sh
-git clone --recurse-submodules https://github.com/jdx/hk.git
+git clone https://github.com/jdx/hk.git
 cd hk
 ```
 
