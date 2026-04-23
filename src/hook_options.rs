@@ -78,11 +78,15 @@ impl HookOptions {
     }
 
     pub(crate) async fn run(mut self, name: &str) -> Result<()> {
-        let config = Config::get()?;
-        if self.from_hook && !config.path.exists() {
+        // Under `--from-hook`, short-circuit *before* loading the config. A
+        // broken user-global hkrc (or missing `pkl`) shouldn't fail every
+        // `git commit` in a repo that doesn't even use hk — which is the
+        // main risk under `hk install --global`.
+        if self.from_hook && !Config::project_config_exists() {
             log::debug!("no hk config found for {name}, skipping (--from-hook)");
             return Ok(());
         }
+        let config = Config::get()?;
         if self.pr {
             let repo = Git::new()?;
             let default_branch = config

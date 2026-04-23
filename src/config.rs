@@ -85,12 +85,22 @@ impl Config {
 
     #[tracing::instrument(level = "info", name = "config.load_project")]
     fn load_project_config() -> Result<Self> {
-        let paths: Vec<&str> = if let Some(hk_file) = env::HK_FILE.as_ref() {
+        let paths = Self::project_config_search_paths();
+        if let Some(path) = Self::find_project_config(&paths) {
+            return Self::load_config_cached(path);
+        }
+        debug!("No config file found, using default");
+        let mut config = Config::default();
+        config.init(Path::new(&paths[0]))?;
+        Ok(config)
+    }
+
+    fn project_config_search_paths() -> Vec<String> {
+        if let Some(hk_file) = env::HK_FILE.as_ref() {
             // If HK_FILE is explicitly set, only use that path (no fallbacks)
-            vec![hk_file.as_str()]
+            vec![hk_file.clone()]
         } else {
-            // Default search order when HK_FILE is not set
-            vec![
+            [
                 // User-local config
                 "hk.local.pkl",
                 ".config/hk.local.pkl",
@@ -103,21 +113,31 @@ impl Config {
                 "hk.yml",
                 "hk.json",
             ]
-        };
-        let mut cwd = std::env::current_dir()?;
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        }
+    }
+
+    fn find_project_config(paths: &[String]) -> Option<PathBuf> {
+        let mut cwd = std::env::current_dir().ok()?;
         while cwd != Path::new("/") {
-            for path in &paths {
-                let path = cwd.join(path);
-                if path.exists() {
-                    return Self::load_config_cached(path);
+            for name in paths {
+                let p = cwd.join(name);
+                if p.exists() {
+                    return Some(p);
                 }
             }
             cwd = cwd.parent().map(PathBuf::from).unwrap_or_default();
         }
-        debug!("No config file found, using default");
-        let mut config = Config::default();
-        config.init(Path::new(paths[0]))?;
-        Ok(config)
+        None
+    }
+
+    /// Returns true when a project-level hk config file exists without
+    /// loading or parsing it. Used by `--from-hook` so a broken user-global
+    /// hkrc doesn't blow up `git commit` in repos that have no hk.pkl.
+    pub fn project_config_exists() -> bool {
+        Self::find_project_config(&Self::project_config_search_paths()).is_some()
     }
 
     fn load_config_cached(path: PathBuf) -> Result<Config> {
