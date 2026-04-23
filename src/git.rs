@@ -213,7 +213,7 @@ impl Git {
         }
 
         // Sort by modification time, newest first
-        patch_files.sort_by(|a, b| b.1.cmp(&a.1));
+        patch_files.sort_by_key(|f| std::cmp::Reverse(f.1));
 
         // Remove old patches beyond keep_count
         for (path, _) in patch_files.iter().skip(keep_count) {

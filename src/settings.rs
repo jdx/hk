@@ -417,7 +417,7 @@ impl Settings {
                             && !list.is_empty()
                         {
                             if let Some(acc) = &mut merged {
-                                acc.extend(list.into_iter());
+                                acc.extend(list);
                             } else {
                                 merged = Some(list);
                             }

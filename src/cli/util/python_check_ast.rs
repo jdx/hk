@@ -77,10 +77,8 @@ def hello():
         .unwrap();
 
         // This test will pass if Python is available
-        let result = is_valid_python_syntax(&file.path().to_path_buf());
-        if result.is_ok() {
-            // Only assert if we successfully ran python
-            assert!(result.unwrap());
+        if let Ok(valid) = is_valid_python_syntax(&file.path().to_path_buf()) {
+            assert!(valid);
         }
     }
 
@@ -97,10 +95,8 @@ def hello(:
         .unwrap();
 
         // This test will pass if Python is available
-        let result = is_valid_python_syntax(&file.path().to_path_buf());
-        if result.is_ok() {
-            // Only assert if we successfully ran python
-            assert!(!result.unwrap());
+        if let Ok(valid) = is_valid_python_syntax(&file.path().to_path_buf()) {
+            assert!(!valid);
         }
     }
 
@@ -109,10 +105,9 @@ def hello(:
         let file = NamedTempFile::new().unwrap();
         fs::write(file.path(), "").unwrap();
 
-        let result = is_valid_python_syntax(&file.path().to_path_buf());
-        if result.is_ok() {
+        if let Ok(valid) = is_valid_python_syntax(&file.path().to_path_buf()) {
             // Empty file is valid Python
-            assert!(result.unwrap());
+            assert!(valid);
         }
     }
 }
