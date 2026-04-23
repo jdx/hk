@@ -1,16 +1,15 @@
 <template>
   <Layout>
-    <!-- Custom header banner removed - using HomePage component instead -->
-
-    <!-- Removed nav-bar-title-after to avoid duplicate "hk" -->
-
-    <!-- Removed footer decoration to prevent visual issues -->
+    <template #layout-bottom>
+      <EndevFooter />
+    </template>
   </Layout>
 </template>
 
 <script setup lang="ts">
 import DefaultTheme from 'vitepress/theme'
 import { useData } from 'vitepress'
+import EndevFooter from './EndevFooter.vue'
 
 const { Layout } = DefaultTheme
 const { page } = useData()
