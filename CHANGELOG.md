@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.44.1](https://github.com/jdx/hk/compare/v1.44.0..v1.44.1) - 2026-04-24
+
+### 🐛 Bug Fixes
+
+- **(git)** skip untracked scan when HK_STASH_UNTRACKED=false by [@jdx](https://github.com/jdx) in [#861](https://github.com/jdx/hk/pull/861)
+- **(run)** add post-commit and pre-rebase subcommands by [@jdx](https://github.com/jdx) in [#858](https://github.com/jdx/hk/pull/858)
+
+### 📚 Documentation
+
+- **(install)** recommend global hooks as primary setup path by [@jdx](https://github.com/jdx) in [#855](https://github.com/jdx/hk/pull/855)
+- add cross-site announcement banner by [@jdx](https://github.com/jdx) in [#857](https://github.com/jdx/hk/pull/857)
+- respect banner expires field by [@jdx](https://github.com/jdx) in [#862](https://github.com/jdx/hk/pull/862)
+
+### 🔍 Other Changes
+
+- vendor bats test helpers instead of git submodules by [@jdx](https://github.com/jdx) in [#859](https://github.com/jdx/hk/pull/859)
+
+### 📦️ Dependency Updates
+
+- bump communique to 1.0.3 by [@jdx](https://github.com/jdx) in [#863](https://github.com/jdx/hk/pull/863)
+- update anthropics/claude-code-action digest to e58dfa5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#864](https://github.com/jdx/hk/pull/864)
+
 ## [1.44.0](https://github.com/jdx/hk/compare/v1.43.0..v1.44.0) - 2026-04-23
 
 ### 🚀 Features
