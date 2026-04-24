@@ -70,6 +70,7 @@ url_api = "https://api.github.com/repos/endevco/aube/releases/assets/399980524"
 checksum = "sha256:70606c2d09d06538eb07de888bf7db5727e80de3c2e8997e08d8ac4bd06fa5ea"
 url = "https://github.com/endevco/aube/releases/download/v1.0.0-beta.5/aube-v1.0.0-beta.5-x86_64-unknown-linux-gnu.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/399980361"
+provenance = "github-attestations"
 
 [tools.aube."platforms.linux-x64-baseline"]
 checksum = "sha256:70606c2d09d06538eb07de888bf7db5727e80de3c2e8997e08d8ac4bd06fa5ea"
@@ -161,9 +162,53 @@ url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-windows-
 version = "1.14.4"
 backend = "aqua:cargo-bins/cargo-binstall"
 
+[tools.cargo-binstall."platforms.linux-arm64"]
+checksum = "sha256:bfef88c7602b53ceb8af75779d5ecada8a93bf122cf7f8d3a05a42244d41f20e"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-aarch64-unknown-linux-musl.tgz"
+
+[tools.cargo-binstall."platforms.linux-arm64-musl"]
+checksum = "sha256:bfef88c7602b53ceb8af75779d5ecada8a93bf122cf7f8d3a05a42244d41f20e"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-aarch64-unknown-linux-musl.tgz"
+
 [tools.cargo-binstall."platforms.linux-x64"]
 checksum = "sha256:de513d8487ce7edf8365603eee04ff79cec1a6d3c3c8058fccb94e6b38bb3e4f"
 url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-unknown-linux-musl.tgz"
+
+[tools.cargo-binstall."platforms.linux-x64-baseline"]
+checksum = "sha256:de513d8487ce7edf8365603eee04ff79cec1a6d3c3c8058fccb94e6b38bb3e4f"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-unknown-linux-musl.tgz"
+
+[tools.cargo-binstall."platforms.linux-x64-musl"]
+checksum = "sha256:de513d8487ce7edf8365603eee04ff79cec1a6d3c3c8058fccb94e6b38bb3e4f"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-unknown-linux-musl.tgz"
+
+[tools.cargo-binstall."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:de513d8487ce7edf8365603eee04ff79cec1a6d3c3c8058fccb94e6b38bb3e4f"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-unknown-linux-musl.tgz"
+
+[tools.cargo-binstall."platforms.macos-arm64"]
+checksum = "sha256:7d9b3f57dafbc847d9de690773f467ff976edc0afb5bfca037a0762e8030152d"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-aarch64-apple-darwin.zip"
+
+[tools.cargo-binstall."platforms.macos-x64"]
+checksum = "sha256:398c9ef78dffdb0179dbb15ad8c1ed40f351854430c439006c09e07e6a6f181b"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-apple-darwin.zip"
+
+[tools.cargo-binstall."platforms.macos-x64-baseline"]
+checksum = "sha256:398c9ef78dffdb0179dbb15ad8c1ed40f351854430c439006c09e07e6a6f181b"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-apple-darwin.zip"
+
+[tools.cargo-binstall."platforms.windows-arm64"]
+checksum = "sha256:da7ad61840bfde2fc694f09c31c1836e6ea6b34f83e4366e01d972bad9a29fa1"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-aarch64-pc-windows-msvc.zip"
+
+[tools.cargo-binstall."platforms.windows-x64"]
+checksum = "sha256:941b86a3bb0ff113d318d1515e00972b2faf669ba6bfabd67d18356ec1c3ca5d"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-pc-windows-msvc.zip"
+
+[tools.cargo-binstall."platforms.windows-x64-baseline"]
+checksum = "sha256:941b86a3bb0ff113d318d1515e00972b2faf669ba6bfabd67d18356ec1c3ca5d"
+url = "https://github.com/cargo-bins/cargo-binstall/releases/download/v1.14.4/cargo-binstall-x86_64-pc-windows-msvc.zip"
 
 [[tools."cargo:cargo-edit"]]
 version = "0.13.7"
@@ -178,58 +223,59 @@ version = "0.25.18"
 backend = "cargo:cargo-release"
 
 [[tools.communique]]
-version = "1.0.3"
+version = "1.0.4"
 backend = "github:jdx/communique"
 
 [tools.communique."platforms.linux-arm64"]
-checksum = "sha256:b8425a0193c0c14f45c7d2454bc3d7ce6203930765f912fe75fff83a8eb04c14"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403764139"
+checksum = "sha256:3c3b8bc3ea4f887c3db1d3a9af9875864ecdb4f053c7ad7e05d55b51769359b5"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781311"
 
 [tools.communique."platforms.linux-arm64-musl"]
-checksum = "sha256:b8425a0193c0c14f45c7d2454bc3d7ce6203930765f912fe75fff83a8eb04c14"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403764139"
+checksum = "sha256:3c3b8bc3ea4f887c3db1d3a9af9875864ecdb4f053c7ad7e05d55b51769359b5"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781311"
 
 [tools.communique."platforms.linux-x64"]
-checksum = "sha256:ec51b288886506409b6526044fe9bbcea7b07d2088729ae70f9ffcbeabf82871"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403764051"
+checksum = "sha256:4ea1bc9e59fee38bee3b6e2d377eeb80f1c4c85787db0aed53c70e0b70857897"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781142"
+provenance = "github-attestations"
 
 [tools.communique."platforms.linux-x64-baseline"]
-checksum = "sha256:ec51b288886506409b6526044fe9bbcea7b07d2088729ae70f9ffcbeabf82871"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403764051"
+checksum = "sha256:4ea1bc9e59fee38bee3b6e2d377eeb80f1c4c85787db0aed53c70e0b70857897"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781142"
 
 [tools.communique."platforms.linux-x64-musl"]
-checksum = "sha256:ec51b288886506409b6526044fe9bbcea7b07d2088729ae70f9ffcbeabf82871"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403764051"
+checksum = "sha256:4ea1bc9e59fee38bee3b6e2d377eeb80f1c4c85787db0aed53c70e0b70857897"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781142"
 
 [tools.communique."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:ec51b288886506409b6526044fe9bbcea7b07d2088729ae70f9ffcbeabf82871"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403764051"
+checksum = "sha256:4ea1bc9e59fee38bee3b6e2d377eeb80f1c4c85787db0aed53c70e0b70857897"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781142"
 
 [tools.communique."platforms.macos-arm64"]
-checksum = "sha256:4efa78274b808b90b6bd2a40d3454c761f331211a891c3afce1815da19853d9f"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403764017"
+checksum = "sha256:27eed5b2ebd1492f3a0fcfb5e2799148c7e6d8fdbdadfe3f70e3b721d04c2ca7"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404782180"
 
 [tools.communique."platforms.windows-arm64"]
-checksum = "sha256:c225491ec86a402363b36eb58a814eab03f4d46c5108df0dd81ff02aeb0f29a7"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-aarch64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403769756"
+checksum = "sha256:396ee1f8463d762f009743e8c400fa1a5befe19d3738541d89a425946abf2503"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-aarch64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781785"
 
 [tools.communique."platforms.windows-x64"]
-checksum = "sha256:7747987ad9f5b212198699422dfb65da955ed21f125a4626c2f90d4d045abf67"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403765157"
+checksum = "sha256:f2efaa4c0b7369b0040127b21e5c00f27ca2c4f2493e9bb534707e67586109d8"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781972"
 
 [tools.communique."platforms.windows-x64-baseline"]
-checksum = "sha256:7747987ad9f5b212198699422dfb65da955ed21f125a4626c2f90d4d045abf67"
-url = "https://github.com/jdx/communique/releases/download/v1.0.3/communique-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/jdx/communique/releases/assets/403765157"
+checksum = "sha256:f2efaa4c0b7369b0040127b21e5c00f27ca2c4f2493e9bb534707e67586109d8"
+url = "https://github.com/jdx/communique/releases/download/v1.0.4/communique-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/jdx/communique/releases/assets/404781972"
 
 [[tools.git-cliff]]
 version = "2.10.0"
