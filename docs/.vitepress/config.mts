@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 
 import spec from "../cli/commands.json";
@@ -18,6 +21,10 @@ function getCommands(cmd: Command): string[][] {
 }
 
 const commands = getCommands(spec.cmd);
+const configDir = dirname(fileURLToPath(import.meta.url));
+const cargoToml = readFileSync(resolve(configDir, '../../Cargo.toml'), 'utf8');
+const versionMatch = cargoToml.match(/\[package\][\s\S]*?\nversion\s*=\s*"([^"]+)"/);
+const latestVersion = versionMatch?.[1] ?? '0.0.0';
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -36,7 +43,7 @@ export default defineConfig({
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },
       { text: 'CLI Reference', link: '/cli/' },
-      { text: 'Releases', link: 'https://github.com/jdx/hk/releases' },
+      { text: `v${latestVersion}`, link: 'https://github.com/jdx/hk/releases' },
     ],
     sidebar: [
       { text: 'About', link: '/about' },
