@@ -276,6 +276,7 @@ url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964430
 checksum = "sha256:3cc0e880ac2168aed3163223627bbd1eee62e07a9901cb85cb507c6c8927bc93"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964430"
+
 [[tools.git-cliff]]
 version = "2.10.0"
 backend = "aqua:orhun/git-cliff"
