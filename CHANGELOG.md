@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.44.2](https://github.com/jdx/hk/compare/v1.44.1..v1.44.2) - 2026-04-26
+
+### 🐛 Bug Fixes
+
+- **(builtins)** silence pklr deprecation warnings on Builtins.pkl load by [@jdx](https://github.com/jdx) in [#880](https://github.com/jdx/hk/pull/880)
+- **(ci)** serialize docs lint step by [@jdx](https://github.com/jdx) in [#874](https://github.com/jdx/hk/pull/874)
+- **(config)** include main pkl path in cache fresh files by [@jdx](https://github.com/jdx) in [#879](https://github.com/jdx/hk/pull/879)
+- **(docs)** stack banner message and link on mobile by [@jdx](https://github.com/jdx) in [#865](https://github.com/jdx/hk/pull/865)
+- **(docs)** pin banner close button to top-right corner on mobile by [@jdx](https://github.com/jdx) in [#867](https://github.com/jdx/hk/pull/867)
+
+### 📚 Documentation
+
+- **(site)** show release version and github stars by [@jdx](https://github.com/jdx) in [#872](https://github.com/jdx/hk/pull/872)
+
+### 🔍 Other Changes
+
+- add pr-closer workflow by [@jdx](https://github.com/jdx) in [#876](https://github.com/jdx/hk/pull/876)
+
+### 📦️ Dependency Updates
+
+- bump communique 1.0.3 → 1.0.4 by [@jdx](https://github.com/jdx) in [#868](https://github.com/jdx/hk/pull/868)
+- update anthropics/claude-code-action digest to 2da6cfa by [@renovate[bot]](https://github.com/renovate[bot]) in [#869](https://github.com/jdx/hk/pull/869)
+- update anthropics/claude-code-action digest to 567fe95 by [@renovate[bot]](https://github.com/renovate[bot]) in [#870](https://github.com/jdx/hk/pull/870)
+- bump communique to 1.1.2 by [@jdx](https://github.com/jdx) in [#875](https://github.com/jdx/hk/pull/875)
+
 ## [1.44.1](https://github.com/jdx/hk/compare/v1.44.0..v1.44.1) - 2026-04-24
 
 ### 🐛 Bug Fixes
