@@ -1165,13 +1165,13 @@ impl PreCommit {
             "check_executables_have_shebangs",
         );
         map.insert("check-symlinks", "check_symlinks");
-        map.insert("check-byte-order-marker", "check_byte_order_marker");
+        map.insert("check-byte-order-marker", "byte_order_marker");
         map.insert("check-added-large-files", "check_added_large_files");
         map.insert("check-ast", "python_check_ast");
         map.insert("debug-statements", "python_debug_statements");
         map.insert("detect-private-key", "detect_private_key");
         map.insert("no-commit-to-branch", "no_commit_to_branch");
-        map.insert("fix-byte-order-marker", "fix_byte_order_marker");
+        map.insert("fix-byte-order-marker", "byte_order_marker");
 
         map
     }

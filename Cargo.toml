@@ -49,7 +49,7 @@ itertools          = "0.14"
 libc               = "0.2"
 log                = "0.4"
 once_cell          = "1"
-pklr               = "0.4.1"
+pklr               = "0.4.2"
 regex              = "1"
 semver             = "1"
 serde              = { version = "1", features = ["derive"] }
