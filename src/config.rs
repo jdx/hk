@@ -159,7 +159,13 @@ impl Config {
                 .get_or_try_init(|| Self::analyze_imports(&path))?
                 .clone();
 
-            imports.into_iter().collect()
+            // Always include the main config file. The pklr backend's
+            // analyze_imports does not include the source file in its
+            // output, so without this edits to hk.pkl wouldn't invalidate
+            // the cache when HK_PKL_BACKEND=pklr.
+            let mut files: Vec<PathBuf> = imports.into_iter().collect();
+            files.push(path.clone());
+            files
         } else {
             vec![path.clone()]
         };
