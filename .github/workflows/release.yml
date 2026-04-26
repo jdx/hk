@@ -181,15 +181,16 @@ jobs:
           else
             TAG_NAME="${{ github.ref_name }}"
           fi
-          {
-            gh release view "$TAG_NAME" --json body --jq .body
-            cat <<'EOF'
-
+          gh release view "$TAG_NAME" --json body --jq .body \
+            | perl -0pe 's/\n*^##[^\n]*Sponsor hk\b.*\z//ms' \
+            > /tmp/release-notes.md
+          printf '\n\n' >> /tmp/release-notes.md
+          cat <<'EOF' >> /tmp/release-notes.md
           ## 💚 Sponsor hk
 
           hk is developed by [@jdx](https://github.com/jdx) at [**en.dev**](https://en.dev) — a small independent studio behind developer tools like [mise](https://mise.jdx.dev/), [aube](https://aube.en.dev/), hk, and more. Work on hk is funded by sponsorships.
 
           If hk has sped up your pre-commit loop or made linting feel less painful, please consider [sponsoring at en.dev](https://en.dev). Sponsorships are what keep hk moving and the project independent.
           EOF
-          } > /tmp/release-notes.md
+
           gh release edit "$TAG_NAME" --notes-file /tmp/release-notes.md
