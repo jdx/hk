@@ -399,6 +399,12 @@ h1, .vp-doc h1 {
   line-height: 1;
 }
 
+.VPSocialLinks .star-count .star-glyph {
+  font-family: -apple-system, "Segoe UI Symbol", sans-serif;
+  line-height: 1;
+  margin-right: 0.2em;
+}
+
 .VPSocialLinks a[href*="github.com/jdx/hk"]:hover .star-count {
   color: var(--vp-c-brand-1);
 }
