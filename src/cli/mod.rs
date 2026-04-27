@@ -100,7 +100,7 @@ pub async fn run() -> Result<()> {
     });
 
     if is_ci::cached() || !console::user_attended_stderr() || args.no_progress {
-        clx::progress::set_output(ProgressOutput::Text);
+        clx::progress::set_output(ProgressOutput::Quiet);
     }
     if args.verbose > 1 {
         clx::progress::set_output(ProgressOutput::Text);
