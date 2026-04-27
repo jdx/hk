@@ -107,24 +107,10 @@ export default defineConfig({
     [
       "script",
       {
-        async: "",
-        src: "https://www.googletagmanager.com/gtag/js?id=G-M7TEP8PKSE",
-      },
-    ],
-    [
-      "script",
-      {},
-      `window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-M7TEP8PKSE');`,
-    ],
-    [
-      "script",
-      {
-        "data-goatcounter": "https://jdx-hk.goatcounter.com/count",
-        async: "",
-        src: "//gc.zgo.at/count.js",
+        defer: "",
+        "data-domain": "pa-9rbZ17iM0rSRarywoulSW",
+        "data-api": "https://shrill.en.dev/f5f1/event",
+        src: "https://shrill.en.dev/shrill/script.js",
       },
     ],
     // OpenGraph
