@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.44.3](https://github.com/jdx/hk/compare/v1.44.2..v1.44.3) - 2026-04-30
+
+### 🐛 Bug Fixes
+
+- **(hook)** do not stage fixes when fail_on_fix=true by [@jdx](https://github.com/jdx) in [#892](https://github.com/jdx/hk/pull/892)
+- use site domain for plausible data-domain by [@jdx](https://github.com/jdx) in [#886](https://github.com/jdx/hk/pull/886)
+- make text-mode progress output usable in CI by [@jdx](https://github.com/jdx) in [#890](https://github.com/jdx/hk/pull/890)
+
+### 📚 Documentation
+
+- prefix GitHub star count with ★ glyph by [@jdx](https://github.com/jdx) in [#883](https://github.com/jdx/hk/pull/883)
+
+### 🔍 Other Changes
+
+- **(release)** dedupe sponsor section in release notes by [@jdx](https://github.com/jdx) in [#881](https://github.com/jdx/hk/pull/881)
+- switch analytics from gtm/goatcounter to plausible by [@jdx](https://github.com/jdx) in [#885](https://github.com/jdx/hk/pull/885)
+- migrate to namespace.so runners by [@jdx](https://github.com/jdx) in [#891](https://github.com/jdx/hk/pull/891)
+
 ## [1.44.2](https://github.com/jdx/hk/compare/v1.44.1..v1.44.2) - 2026-04-26
 
 ### 🐛 Bug Fixes
