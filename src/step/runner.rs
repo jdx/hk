@@ -128,6 +128,12 @@ impl Step {
         if let Some(prefix) = &self.prefix {
             run = format!("{prefix} {run}");
         }
+        // Display message uses the un-rendered template — expanding `{{files}}`
+        // here would dump every matched path into the progress message, which
+        // in text mode (CI logs, piped stderr) is unbounded line-noise for
+        // steps that match hundreds of files. The pattern and file count
+        // shown next to it already tell the reader what's being processed.
+        let run_for_display = run.clone();
         let run = tera::render(&run, &tctx)
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
         let pattern_display = match &self.glob {
@@ -137,7 +143,12 @@ impl Step {
         };
         job.progress.as_ref().unwrap().prop(
             "message",
-            &format!("{} – {} – {}", file_msg(&job.files), pattern_display, run),
+            &format!(
+                "{} – {} – {}",
+                file_msg(&job.files),
+                pattern_display,
+                run_for_display
+            ),
         );
         job.progress.as_ref().unwrap().update();
         if log::log_enabled!(log::Level::Trace) {
