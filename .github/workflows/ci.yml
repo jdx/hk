@@ -36,9 +36,7 @@ jobs:
           cache: rust
       - if: ${{ github.event.pull_request.head.repo.fork }}
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          cache_key_prefix: mise-v1-${{ runner.environment }}
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -72,9 +70,7 @@ jobs:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          cache_key_prefix: mise-v1-${{ runner.environment }}
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
@@ -108,9 +104,7 @@ jobs:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          cache_key_prefix: mise-v1-${{ runner.environment }}
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
@@ -144,9 +138,7 @@ jobs:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          cache_key_prefix: mise-v1-${{ runner.environment }}
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
@@ -185,9 +177,7 @@ jobs:
           cache: rust
       - if: ${{ github.event.pull_request.head.repo.fork }}
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          cache_key_prefix: mise-v1-${{ runner.environment }}
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
@@ -204,9 +194,7 @@ jobs:
           cache: rust
       - if: ${{ github.event.pull_request.head.repo.fork }}
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          cache_key_prefix: mise-v1-${{ runner.environment }}
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run msrv
   ci-windows:
     needs: build-windows
@@ -215,9 +203,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
-        with:
-          cache_key_prefix: mise-v1-${{ runner.environment }}
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-windows-latest
