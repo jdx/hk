@@ -46,6 +46,10 @@ impl Step {
             return;
         }
 
+        if is_failure {
+            ctx.hook_ctx.mark_step_failed(&self.name);
+        }
+
         // On failure, use combined output so diagnostic messages are never
         // lost regardless of which stream the tool writes to — but keep
         // the configured label so tests/users see the expected header.

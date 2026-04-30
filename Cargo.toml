@@ -88,6 +88,10 @@ clap-sort = "1"
 inherits = "release"
 lto      = true
 
+# TODO: drop once clx 2.x ships with the text-mode rendering fix.
+[patch.crates-io]
+clx = { git = "https://github.com/jdx/clx.git", branch = "fix-text-mode-rendering" }
+
 [package.metadata.release]
 pre-release-hook = ["mise", "run", "pre-release", "--version", "{{version}}"]
 pre-release-replacements = [

@@ -239,7 +239,7 @@ Example output shape:
 Type: `bool`
 Default: `false`
 
-Controls whether per-step output summaries are printed in plain text mode. By default, summaries are only shown when hk is rendering progress bars (non-text mode). Set this to `true` to force summaries to appear in text mode.
+Controls whether per-step output summaries are printed in plain text mode. In text mode, hk only emits summaries for **failed** steps by default (so CI logs always include the full diagnostic for a failure). Successful steps stream their output during execution, so a trailing summary would just duplicate it. Set this to `true` to force summaries to appear for every step in text mode.
 
 Example:
 
