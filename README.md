@@ -9,3 +9,7 @@ See docs: https://hk.jdx.dev/
 ## Demo
 
 ![hk demo](docs/public/hk-demo.gif)
+
+## CI
+
+Thanks to [Namespace](https://namespace.so) for providing GitHub Actions runners and caching for hk.
