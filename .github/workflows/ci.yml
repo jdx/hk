@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14
+            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
           - os: ubuntu-latest
             runner: namespace-profile-endev
     runs-on: ${{ matrix.runner }}
@@ -40,7 +40,7 @@ jobs:
           name: hk-${{ matrix.os }}
           path: target/debug/hk
   build-windows:
-    runs-on: nscloud-windows-2022-amd64-8x16
+    runs-on: nscloud-windows-2022-amd64-8x16-with-cache
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -60,7 +60,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14
+            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
           - os: ubuntu-latest
             runner: namespace-profile-endev
     runs-on: ${{ matrix.runner }}
@@ -94,7 +94,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14
+            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
           - os: ubuntu-latest
             runner: namespace-profile-endev
     runs-on: ${{ matrix.runner }}
@@ -128,7 +128,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14
+            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
           - os: ubuntu-latest
             runner: namespace-profile-endev
     runs-on: ${{ matrix.runner }}
@@ -161,7 +161,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14
+            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
           - os: ubuntu-latest
             runner: namespace-profile-endev
     runs-on: ${{ matrix.runner }}
@@ -191,7 +191,7 @@ jobs:
       - run: mise run msrv
   ci-windows:
     needs: build-windows
-    runs-on: nscloud-windows-2022-amd64-8x16
+    runs-on: nscloud-windows-2022-amd64-8x16-with-cache
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6

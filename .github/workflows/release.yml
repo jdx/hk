@@ -27,7 +27,7 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14
+            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
             build-tool: cargo
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
@@ -47,11 +47,11 @@ jobs:
             build-tool: cross
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            runner: nscloud-windows-2022-amd64-8x16
+            runner: nscloud-windows-2022-amd64-8x16-with-cache
             build-tool: cargo
           - target: aarch64-pc-windows-msvc
             os: windows-latest
-            runner: nscloud-windows-2022-amd64-8x16
+            runner: nscloud-windows-2022-amd64-8x16-with-cache
             build-tool: cargo
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
