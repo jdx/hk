@@ -18,4 +18,4 @@ See docs: https://hk.jdx.dev/
   </a>
 </p>
 
-Thanks to [Namespace](https://namespace.so) for providing GitHub Actions runners and caching for hk.
+Thanks to [Namespace](https://namespace.so) for providing CI for hk.
