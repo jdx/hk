@@ -4,19 +4,13 @@ set -euxo pipefail
 
 DRY_RUN="${DRY_RUN:-0}"
 
-# Ensure submodules are present for workspace resolution
-git submodule update --init --recursive
-
 released_versions="$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$')"
 cur_version="$(cargo pkgid hk | cut -d# -f2 | cut -d@ -f2)"
 if ! echo "$released_versions" | grep -q "^v$cur_version$"; then
   echo "Releasing $cur_version"
   if [ "${DRY_RUN:-}" == 0 ]; then
-    # Update submodules to latest commits on their default branches
-    git submodule update --init --recursive
-    git submodule foreach --recursive 'git fetch --tags --all || true'
-
-    # Only create and push the tag - let the release workflow handle creating the release
+    # Only create and push the tag - release workflow handles the GitHub release
+    # and crates.io publishing.
     git tag "v$cur_version"
     git push --tags
   fi
@@ -50,11 +44,6 @@ cargo set-version --package hk "${version#v}"
 git config user.name mise-en-dev
 git config user.email 123107610+mise-en-dev@users.noreply.github.com
 cargo update
-
-# Ensure submodules are initialized before creating the release PR
-git submodule update --init --recursive
-
-# Do not touch sub-crate versions/changelogs in this repository
 
 # Regenerate rendered artifacts (CLI docs, usage, etc.) for the release
 # This must run BEFORE update-version since update-version needs the generated docs

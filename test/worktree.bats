@@ -28,7 +28,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
 
-    run hk install
+    run hk install --legacy
     assert_success
     assert_output --partial "Installed hk hook: "
     assert_output --partial "pre-commit"
@@ -43,7 +43,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
 
-    hk install
+    hk install --legacy
     run hk uninstall
     assert_success
     assert_output --partial "removed hook: "

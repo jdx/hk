@@ -18,7 +18,7 @@ hooks {
 }
 EOF
     rm -f .git/hooks/*
-    hk install
+    hk install --legacy
     assert_file_exists .git/hooks/pre-commit
     assert_file_exists .git/hooks/pre-push
     assert_file_not_exists .git/hooks/fix

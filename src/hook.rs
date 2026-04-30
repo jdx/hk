@@ -4,7 +4,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     ffi::OsString,
     fmt,
     path::{Path, PathBuf},
@@ -22,8 +22,9 @@ use crate::{
     git::{Git, GitStatus, StashMethod},
     glob,
     hook_options::HookOptions,
+    plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
-    step::{EXPR_CTX, OutputSummary, RunType, Script, Step},
+    step::{EXPR_CTX, EXPR_ENV, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -46,6 +47,8 @@ pub enum SkipReason {
     NoCommandForRunType(RunType),
     NoFilesToProcess,
     ConditionFalse,
+    #[strum(serialize = "missing-required-env")]
+    MissingRequiredEnv(Vec<String>),
 }
 
 impl SkipReason {
@@ -55,6 +58,12 @@ impl SkipReason {
                 format!("skipped: disabled via {src}")
             }
             SkipReason::DisabledByConfig => "skipped: disabled via skip configuration".to_string(),
+            SkipReason::MissingRequiredEnv(envs) => {
+                format!(
+                    "skipped: missing required environment variable(s): {}",
+                    envs.join(", ")
+                )
+            }
             SkipReason::ProfileNotEnabled(profiles) => {
                 if profiles.is_empty() {
                     "skipped: disabled by profile".to_string()
@@ -144,9 +153,16 @@ pub struct HookContext {
     skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
     /// Aggregated output per step name (in insertion order)
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
+    /// Names of steps that failed during this run. Tracked here because
+    /// `step_contexts` are shift_remove'd as soon as each step finishes, so
+    /// status info is not available to the end-of-run summary.
+    pub failed_steps: std::sync::Mutex<HashSet<String>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
     pub should_stage: bool,
+    /// Untracked files at the start of the hook run, used to avoid staging
+    /// pre-existing untracked files that were not created by a fixer.
+    pub initial_untracked: BTreeSet<PathBuf>,
 }
 
 impl HookContext {
@@ -161,6 +177,7 @@ impl HookContext {
         hk_progress: Option<Arc<ProgressJob>>,
         skip_steps: IndexMap<String, SkipReason>,
         should_stage: bool,
+        initial_untracked: BTreeSet<PathBuf>,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = expr_ctx;
@@ -190,8 +207,10 @@ impl HookContext {
             skip_steps,
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
+            failed_steps: StdMutex::new(HashSet::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
             should_stage,
+            initial_untracked,
         }
     }
 
@@ -278,6 +297,13 @@ impl HookContext {
             .or_insert_with(|| (mode, text.to_string()));
     }
 
+    pub fn mark_step_failed(&self, step_name: &str) {
+        self.failed_steps
+            .lock()
+            .unwrap()
+            .insert(step_name.to_string());
+    }
+
     pub fn add_fix_suggestion(&self, suggestion: String) {
         self.fix_suggestions.lock().unwrap().push(suggestion);
     }
@@ -357,8 +383,10 @@ impl Hook {
     }
 
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
+        // Suppress progress output so plan output (especially JSON) is clean.
+        clx::progress::set_output(ProgressOutput::Text);
+        let settings = Settings::get();
         let run_type = self.run_type(&opts);
-        let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
         let stash_method = if let Some(stash_str) = &opts.stash {
@@ -371,20 +399,313 @@ impl Hook {
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
-        let files = self
+        let files: Vec<PathBuf> = self
             .file_list(&opts, repo.clone(), &git_status, stash_method, &progress)
-            .await?;
-        if files.is_empty() && can_exit_early(&groups, &files, run_type, &IndexMap::new()) {
-            info!("no files to run");
-            return Ok(());
+            .await?
+            .into_iter()
+            .collect();
+
+        let skip_steps = build_skip_steps(&settings, &opts);
+
+        let groups = self.get_step_groups(&opts);
+        let expr_ctx = build_expr_ctx(&git_status);
+
+        let mut plan = Plan::new(self.name.clone(), run_type.as_str().to_string())
+            .with_profiles(settings.enabled_profiles().iter().cloned().collect());
+
+        let mut order_index: usize = 0;
+        for (group_idx, group) in groups.iter().enumerate() {
+            let group_id = format!("group_{}", group_idx);
+            let multi = group.steps.len() > 1;
+            let mut group_step_ids: Vec<String> = Vec::new();
+
+            for (step_name, step) in &group.steps {
+                let (status, reasons, file_count) =
+                    self.analyze_step(step, &files, run_type, &skip_steps, &expr_ctx, &opts);
+
+                let planned = PlannedStep {
+                    name: step_name.clone(),
+                    status,
+                    order_index,
+                    parallel_group_id: if multi { Some(group_id.clone()) } else { None },
+                    depends_on: step.depends.clone(),
+                    reasons,
+                    file_count,
+                    metadata: HashMap::new(),
+                };
+
+                plan.add_step(planned);
+                group_step_ids.push(step_name.clone());
+                order_index += 1;
+            }
+
+            if multi {
+                plan.add_group(ParallelGroup {
+                    id: group_id,
+                    step_ids: group_step_ids,
+                });
+            }
         }
-        if stash_method != StashMethod::None {
-            info!("stashing unstaged changes");
-        }
-        for group in groups {
-            group.plan().await?;
+
+        if opts.json {
+            // Mirror the text renderer's --why <step> focus filter so JSON
+            // output for the same command stays consistent. Also prune group
+            // step_ids so they never reference steps that were filtered out.
+            if let Some(focus) = opts.why.as_deref().filter(|s| !s.is_empty()) {
+                plan.steps.retain(|s| s.name == focus);
+                let kept: HashSet<&str> = plan.steps.iter().map(|s| s.name.as_str()).collect();
+                plan.groups.retain_mut(|g| {
+                    g.step_ids.retain(|id| kept.contains(id.as_str()));
+                    !g.step_ids.is_empty()
+                });
+            }
+            let json = serde_json::to_string_pretty(&plan)?;
+            println!("{}", json);
+        } else {
+            self.print_plan(&plan, &opts);
         }
         Ok(())
+    }
+
+    fn analyze_step(
+        &self,
+        step: &Step,
+        files: &[PathBuf],
+        run_type: RunType,
+        skip_steps: &IndexMap<String, SkipReason>,
+        expr_ctx: &expr::Context,
+        opts: &HookOptions,
+    ) -> (StepStatus, Vec<Reason>, Option<usize>) {
+        let mut reasons: Vec<Reason> = Vec::new();
+
+        // Mirror the runtime: step_condition is evaluated in execution.rs before
+        // build_step_jobs and can skip the step entirely. Only a literal
+        // Bool(false) causes a skip — any other value (including non-bool
+        // results from exec()) is truthy.
+        if let Some(condition) = &step.step_condition {
+            match EXPR_ENV.eval(condition, expr_ctx) {
+                Ok(expr::Value::Bool(false)) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionFalse,
+                        detail: Some(format!("step_condition evaluated to false: {}", condition)),
+                        data: HashMap::new(),
+                    });
+                    return (StepStatus::Skipped, reasons, None);
+                }
+                Ok(_) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionTrue,
+                        detail: Some(format!("step_condition evaluated to true: {}", condition)),
+                        data: HashMap::new(),
+                    });
+                }
+                Err(err) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionUnknown,
+                        detail: Some(format!("step_condition could not be evaluated: {err}")),
+                        data: HashMap::new(),
+                    });
+                }
+            }
+        }
+
+        // Let build_step_jobs do the heavy lifting for skip detection.
+        let jobs = match step.build_step_jobs(files, run_type, &Default::default(), skip_steps) {
+            Ok(j) => j,
+            Err(err) => {
+                reasons.push(Reason {
+                    kind: ReasonKind::Disabled,
+                    detail: Some(format!("failed to plan step: {err}")),
+                    data: HashMap::new(),
+                });
+                return (StepStatus::Skipped, reasons, None);
+            }
+        };
+
+        let all_skipped = !jobs.is_empty() && jobs.iter().all(|j| j.skip_reason.is_some());
+        // build_step_jobs populates job.files before applying skip_reason
+        // (e.g. for profile-skipped jobs), so the file count is meaningful
+        // even when the step is skipped.
+        let file_count: usize = jobs.iter().map(|j| j.files.len()).sum();
+
+        if all_skipped {
+            if let Some(reason) = jobs.iter().find_map(|j| j.skip_reason.as_ref()) {
+                reasons.push(skip_reason_to_reason(reason));
+            } else {
+                reasons.push(Reason {
+                    kind: ReasonKind::Disabled,
+                    detail: None,
+                    data: HashMap::new(),
+                });
+            }
+            return (StepStatus::Skipped, reasons, Some(file_count));
+        }
+
+        // Mirror runner.rs: job_condition is evaluated at run-time, and only a
+        // literal Bool(false) skips the step. Truthy values (including strings)
+        // pass through.
+        if let Some(condition) = &step.job_condition {
+            match EXPR_ENV.eval(condition, expr_ctx) {
+                Ok(expr::Value::Bool(false)) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionFalse,
+                        detail: Some(format!("condition evaluated to false: {}", condition)),
+                        data: HashMap::new(),
+                    });
+                    return (StepStatus::Skipped, reasons, Some(file_count));
+                }
+                Ok(_) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionTrue,
+                        detail: Some(format!("condition evaluated to true: {}", condition)),
+                        data: HashMap::new(),
+                    });
+                }
+                Err(err) => {
+                    reasons.push(Reason {
+                        kind: ReasonKind::ConditionUnknown,
+                        detail: Some(format!("condition could not be evaluated: {err}")),
+                        data: HashMap::new(),
+                    });
+                }
+            }
+        }
+
+        // build_step_jobs defers profile checks when job_condition is set
+        // (see job_builder.rs) — the runtime evaluates them after the condition
+        // in runner.rs. Mirror that here so a profile-skipped step isn't
+        // reported as Included.
+        if step.job_condition.is_some()
+            && let Some(reason) = step.profile_skip_reason()
+        {
+            reasons.push(skip_reason_to_reason(&reason));
+            return (StepStatus::Skipped, reasons, Some(file_count));
+        }
+
+        // Files matched
+        reasons.push(Reason {
+            kind: ReasonKind::FilterMatch,
+            detail: Some(format!(
+                "{} file{} matched",
+                file_count,
+                if file_count == 1 { "" } else { "s" }
+            )),
+            data: HashMap::new(),
+        });
+
+        // Profile include (only meaningful when profiles are configured)
+        if step.profiles.is_some() && step.profile_skip_reason().is_none() {
+            reasons.push(Reason {
+                kind: ReasonKind::ProfileInclude,
+                detail: Some("required profile(s) enabled".to_string()),
+                data: HashMap::new(),
+            });
+        }
+
+        // CLI --step inclusion
+        if !opts.step.is_empty() && opts.step.contains(&step.name) {
+            reasons.push(Reason {
+                kind: ReasonKind::CliInclude,
+                detail: Some(format!("explicitly included via --step {}", step.name)),
+                data: HashMap::new(),
+            });
+        }
+
+        (StepStatus::Included, reasons, Some(file_count))
+    }
+
+    fn print_plan(&self, plan: &Plan, opts: &HookOptions) {
+        println!("{} {}", style::nbold("Plan:"), style::ncyan(&plan.hook));
+        println!("{} {}", style::ndim("Run type:"), plan.run_type);
+        if !plan.profiles.is_empty() {
+            println!("{} {}", style::ndim("Profiles:"), plan.profiles.join(", "));
+        }
+        println!();
+
+        // --why <step> focuses output on one step; --why alone shows all reasons for all steps.
+        let (focus_step, verbose) = match opts.why.as_deref() {
+            None => (None, false),
+            Some("") => (None, true),
+            Some(s) => (Some(s.to_string()), true),
+        };
+
+        let mut last_group: Option<String> = None;
+        for step in &plan.steps {
+            if let Some(focus) = &focus_step
+                && focus != &step.name
+            {
+                continue;
+            }
+            if step.parallel_group_id != last_group
+                && let Some(gid) = &step.parallel_group_id
+            {
+                println!("  {} {}", style::ndim("[parallel group]"), style::ndim(gid));
+            }
+            last_group = step.parallel_group_id.clone();
+
+            let (icon, name_style) = if step.status == StepStatus::Included {
+                (
+                    style::ncyan("✓").to_string(),
+                    style::ncyan(&step.name).to_string(),
+                )
+            } else {
+                (
+                    style::ndim("○").to_string(),
+                    style::ndim(&step.name).to_string(),
+                )
+            };
+
+            // Pick the reason that actually matches the step's status so the
+            // headline never contradicts the icon (e.g. a Skipped step
+            // shouldn't be headlined by "condition evaluated to true").
+            let headline_idx = if step.status == StepStatus::Skipped {
+                step.reasons
+                    .iter()
+                    .position(|r| r.kind.is_skip())
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+            let headline = step
+                .reasons
+                .get(headline_idx)
+                .map(|r| {
+                    r.detail
+                        .clone()
+                        .unwrap_or_else(|| r.kind.short_description().to_string())
+                })
+                .unwrap_or_default();
+
+            let indent = if step.parallel_group_id.is_some() {
+                "    "
+            } else {
+                "  "
+            };
+            println!(
+                "{indent}{icon} {name_style}  {}",
+                style::ndim(format!("({headline})"))
+            );
+
+            if verbose {
+                for (i, reason) in step.reasons.iter().enumerate() {
+                    if i == headline_idx {
+                        continue;
+                    }
+                    let detail = reason
+                        .detail
+                        .clone()
+                        .unwrap_or_else(|| reason.kind.short_description().to_string());
+                    println!("{indent}    - {detail}");
+                }
+                if !step.depends_on.is_empty() {
+                    println!(
+                        "{indent}    - {} {}",
+                        style::ndim("depends on:"),
+                        step.depends_on.join(", ")
+                    );
+                }
+            }
+        }
     }
 
     pub async fn stats(&self, opts: HookOptions, hook_name: &str) -> Result<()> {
@@ -408,33 +729,7 @@ impl Hook {
         let all_files = files.iter().cloned().collect::<Vec<_>>();
         let total_files = all_files.len();
 
-        // Build skip_steps map (same logic as run method)
-        let skip_steps = {
-            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-
-            // First, check environment variable skips directly
-            for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
-            }
-
-            // Then add any additional skips from config/git that aren't from env
-            for s in settings.skip_steps.iter() {
-                // Only add if not already marked as env skip
-                if !m.contains_key::<str>(s) {
-                    m.insert(s.clone(), SkipReason::DisabledByConfig);
-                }
-            }
-            for s in opts.skip_step.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
-                );
-            }
-            m
-        };
+        let skip_steps = build_skip_steps(&settings, &opts);
 
         println!(
             "{}",
@@ -442,14 +737,7 @@ impl Hook {
         );
         println!();
         println!("Total files: {}", style::ncyan(total_files));
-        println!(
-            "Run type: {}",
-            style::nblue(if run_type == RunType::Fix {
-                "fix"
-            } else {
-                "check"
-            })
-        );
+        println!("Run type: {}", style::nblue(run_type.as_str()));
         println!();
 
         // Collect stats for each step
@@ -530,6 +818,7 @@ impl Hook {
 
     #[tracing::instrument(level = "info", name = "hook.run", skip(self, opts), fields(hook = %self.name))]
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
+        tracing::info!("running hook");
         let settings = Settings::get();
         let fail_fast = if opts.fail_fast {
             true
@@ -549,6 +838,8 @@ impl Hook {
             return Ok(());
         }
         let run_type = self.run_type(&opts);
+        // fail_on_fix exists to surface fixes for review; staging would defeat that.
+        let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
         let repo = Arc::new(Mutex::new(Git::new()?));
         let groups = self.get_step_groups(&opts);
         let stash_method = if let Some(stash_str) = &opts.stash {
@@ -576,32 +867,7 @@ impl Hook {
             )
             .await?;
 
-        let skip_steps = {
-            let mut m: IndexMap<String, SkipReason> = IndexMap::new();
-
-            // First, check environment variable skips directly
-            for s in env::HK_SKIP_STEPS.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
-                );
-            }
-
-            // Then add any additional skips from config/git that aren't from env
-            for s in settings.skip_steps.iter() {
-                // Only add if not already marked as env skip
-                if !m.contains_key::<str>(s) {
-                    m.insert(s.clone(), SkipReason::DisabledByConfig);
-                }
-            }
-            for s in opts.skip_step.iter() {
-                m.insert(
-                    s.clone(),
-                    SkipReason::DisabledByCli(format!("--skip-step {}", s)),
-                );
-            }
-            m
-        };
+        let skip_steps = build_skip_steps(&settings, &opts);
         if files.is_empty() && can_exit_early(&groups, &files, run_type, &skip_steps) {
             info!("no files to run");
             if let Some(hk_progress) = &hk_progress {
@@ -615,11 +881,7 @@ impl Hook {
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
         tctx.insert("hook", &self.name);
-        // Build expression context with the same data under "git"
-        let mut expr_ctx = EXPR_CTX.clone();
-        if let Ok(val) = expr::to_value(&git_status_for_ctx) {
-            expr_ctx.insert("git", val);
-        }
+        let expr_ctx = build_expr_ctx(&git_status_for_ctx);
         let hook_ctx = Arc::new(HookContext::new(
             files,
             repo.clone(),
@@ -630,6 +892,7 @@ impl Hook {
             hk_progress,
             skip_steps,
             should_stage,
+            git_status.untracked_files.clone(),
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
@@ -764,10 +1027,24 @@ impl Hook {
         // Clear progress bars before displaying summary
         clx::progress::stop();
 
-        // Display aggregated output from steps, once per step
-        if clx::progress::output() != ProgressOutput::Text || *env::HK_SUMMARY_TEXT {
+        // Display aggregated output from steps, once per step.
+        //
+        // In UI mode we always emit summaries because the progress display
+        // hides streamed output behind the spinner. In Text mode, successful
+        // steps already streamed their full output, so we suppress those
+        // summaries by default — but failed steps still get a summary so the
+        // user can see the diagnostic in full (text-mode streaming truncates
+        // each line via the `message` prop). `HK_SUMMARY_TEXT=1` forces all
+        // summaries to print in text mode.
+        let in_text_mode = clx::progress::output() == ProgressOutput::Text;
+        let force_summary = *env::HK_SUMMARY_TEXT;
+        let failed_steps = hook_ctx.failed_steps.lock().unwrap().clone();
+        if !in_text_mode || force_summary || !failed_steps.is_empty() {
             let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
             for (step_name, (mode, output)) in outputs.into_iter() {
+                if in_text_mode && !force_summary && !failed_steps.contains(&step_name) {
+                    continue;
+                }
                 let trimmed = output.trim_end();
                 if trimmed.is_empty() {
                     continue;
@@ -868,7 +1145,7 @@ impl Hook {
             }
         }
         if let Err(err) = &result {
-            // ScriptFailed is handled by main.rs handle_script_failed(), skip logging here
+            // ScriptFailed errors are displayed via output_by_step above, skip logging here
             // Other errors are unexpected, show full trace for debugging
             let is_script_failed = err.chain().any(|e| {
                 matches!(
@@ -1121,6 +1398,36 @@ fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+fn build_skip_steps(settings: &Settings, opts: &HookOptions) -> IndexMap<String, SkipReason> {
+    let mut m: IndexMap<String, SkipReason> = IndexMap::new();
+    for s in env::HK_SKIP_STEPS.iter() {
+        m.insert(
+            s.clone(),
+            SkipReason::DisabledByEnv("HK_SKIP_STEPS".to_string()),
+        );
+    }
+    for s in settings.skip_steps.iter() {
+        if !m.contains_key::<str>(s) {
+            m.insert(s.clone(), SkipReason::DisabledByConfig);
+        }
+    }
+    for s in opts.skip_step.iter() {
+        m.insert(
+            s.clone(),
+            SkipReason::DisabledByCli(format!("--skip-step {}", s)),
+        );
+    }
+    m
+}
+
+fn build_expr_ctx(git_status: &GitStatus) -> expr::Context {
+    let mut expr_ctx = EXPR_CTX.clone();
+    if let Ok(val) = expr::to_value(git_status) {
+        expr_ctx.insert("git", val);
+    }
+    expr_ctx
+}
+
 fn can_exit_early(
     groups: &[StepGroup],
     files: &BTreeSet<PathBuf>,
@@ -1135,4 +1442,58 @@ fn can_exit_early(
                 .is_ok_and(|jobs| jobs.iter().all(|j| j.skip_reason.is_some()))
         })
     })
+}
+
+fn skip_reason_to_reason(reason: &SkipReason) -> Reason {
+    let (kind, detail) = match reason {
+        SkipReason::DisabledByEnv(src) => {
+            (ReasonKind::EnvExclude, Some(format!("disabled via {src}")))
+        }
+        SkipReason::DisabledByCli(src) => {
+            (ReasonKind::CliExclude, Some(format!("disabled via {src}")))
+        }
+        SkipReason::DisabledByConfig => (
+            ReasonKind::ConfigExclude,
+            Some("disabled via skip configuration".to_string()),
+        ),
+        SkipReason::MissingRequiredEnv(envs) => (
+            ReasonKind::MissingRequiredEnv,
+            Some(format!("missing: {}", envs.join(", "))),
+        ),
+        SkipReason::ProfileNotEnabled(profiles) => {
+            let detail = if profiles.is_empty() {
+                "required profile not enabled".to_string()
+            } else {
+                format!("required profile(s) not enabled: {}", profiles.join(", "))
+            };
+            (ReasonKind::ProfileExclude, Some(detail))
+        }
+        SkipReason::ProfileExplicitlyDisabled => (
+            ReasonKind::ProfileExclude,
+            Some("disabled by active profile".to_string()),
+        ),
+        SkipReason::NoCommandForRunType(rt) => {
+            let rt_str = match rt {
+                RunType::Check => "check",
+                RunType::Fix => "fix",
+            };
+            (
+                ReasonKind::NoCommand,
+                Some(format!("no command defined for run type: {rt_str}")),
+            )
+        }
+        SkipReason::NoFilesToProcess => (
+            ReasonKind::FilterNoMatch,
+            Some("no files matched filters".to_string()),
+        ),
+        SkipReason::ConditionFalse => (
+            ReasonKind::ConditionFalse,
+            Some("condition evaluated to false".to_string()),
+        ),
+    };
+    Reason {
+        kind,
+        detail,
+        data: HashMap::new(),
+    }
 }

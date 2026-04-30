@@ -94,8 +94,13 @@ impl StepJob {
             .body(
                 "{{spinner()}} {% if ensembler_cmd %}{{ensembler_cmd | flex}}{% if ensembler_stdout %}\n{{ensembler_stdout | flex}}{% endif %}{% else %}{{message | flex}}{% endif %}"
             )
+            // Text mode (CI / piped stderr) keeps the full message — the
+            // log viewer handles wrapping, and a 60-char truncate just hides
+            // the diagnostic detail callers actually need to debug a
+            // failure. The UI-mode `body` above still uses `flex` because
+            // the in-place renderer needs bounded line widths.
             .body_text(Some(
-                "{% if ensembler_stdout %}  {{name}} – {{ensembler_stdout | truncate_text}}{% elif message %}{{spinner()}} {{name}} – {{message | truncate_text}}{% endif %}".to_string(),
+                "{% if ensembler_stdout %}  {{name}} – {{ensembler_stdout}}{% elif message %}{{spinner()}} {{name}} – {{message}}{% endif %}".to_string(),
             ))
             .status(ProgressStatus::Hide)
             .on_done(ProgressJobDoneBehavior::Hide)

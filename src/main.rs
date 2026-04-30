@@ -24,6 +24,7 @@ mod hook;
 mod hook_options;
 mod logger;
 mod merge;
+mod plan;
 mod settings;
 mod step;
 mod step_context;
@@ -43,7 +44,6 @@ mod version;
 use tokio::signal;
 #[cfg(unix)]
 use tokio::signal::unix::SignalKind;
-use ui::style;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -59,35 +59,32 @@ async fn main() -> Result<()> {
     }
 }
 
+/// Suppress the eyre backtrace for ScriptFailed errors.
+/// The output_by_step summary in hook.rs already displayed per-step output,
+/// so we just need a clean exit without the full error chain.
 fn friendly_error(e: eyre::Report) -> Result<()> {
     if let Some(ensembler::Error::ScriptFailed(err)) =
         e.chain().find_map(|e| e.downcast_ref::<ensembler::Error>())
     {
-        handle_script_failed(&err.0, &err.1, &err.2, &err.3);
+        write_output_file(&err.3);
+        std::process::exit(err.3.status.code().unwrap_or(1));
     }
     Err(e)
 }
 
-fn handle_script_failed(bin: &str, args: &[String], output: &str, result: &ensembler::CmdResult) {
-    clx::progress::flush();
-    let mut cmd = format!("{} {}", bin, args.join(" "));
-    if cmd.starts_with("sh -o errexit -c ") {
-        cmd = cmd[17..].to_string();
-    }
-    eprintln!("{}\n{output}", style::ered(format!("Error running {cmd}")));
-    if let Err(e) = write_output_file(result) {
-        eprintln!("Error writing output file: {e:?}");
-    }
-    std::process::exit(result.status.code().unwrap_or(1));
-}
-
-fn write_output_file(result: &ensembler::CmdResult) -> Result<()> {
+fn write_output_file(result: &ensembler::CmdResult) {
     let path = env::HK_STATE_DIR.join("output.log");
-    std::fs::create_dir_all(path.parent().unwrap())?;
-    let output = console::strip_ansi_codes(&result.combined_output);
-    std::fs::write(&path, output.to_string())?;
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    if let Err(e) = std::fs::create_dir_all(parent).and_then(|_| {
+        let output = console::strip_ansi_codes(&result.combined_output);
+        std::fs::write(&path, output.as_ref())
+    }) {
+        warn!("Error writing output file: {e:?}");
+        return;
+    }
     eprintln!("\nSee {} for full command output", path.display());
-    Ok(())
 }
 
 #[cfg(unix)]

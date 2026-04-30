@@ -90,14 +90,6 @@ impl StepGroup {
             .start()
     }
 
-    pub async fn plan(self) -> Result<()> {
-        for step_name in self.steps.keys() {
-            info!("step: {step_name} –");
-            todo!("list files and run types like check-first");
-        }
-        Ok(())
-    }
-
     pub async fn run(&self, ctx: StepGroupContext) -> Result<()> {
         // timing metadata already pre-populated in HookContext::new
         let depends = Arc::new(StepDepends::new(

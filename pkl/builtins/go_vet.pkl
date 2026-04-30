@@ -7,5 +7,73 @@ import "../Config.pkl"
 }
 go_vet = new Config.Step {
   glob = "**/*.go"
-  check = "go vet {{ files }}"
+  workspace_indicator = "go.mod"
+  check = "cd {{workspace}} && go vet ./..."
+  tests {
+    ["check good file"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["go.mod"] =
+          """
+            module example.com/test
+
+            go 1.21
+          """
+        ["main.go"] =
+          """
+            package main
+
+            func main() {}
+          """
+      }
+      expect { code = 0 }
+    }
+    ["check bad file"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["go.mod"] =
+          """
+            module example.com/test
+
+            go 1.21
+          """
+        ["main.go"] =
+          """
+            package main
+
+            import "fmt"
+
+            func main() {}
+          """
+      }
+      expect { code = 1 }
+    }
+    ["check multi-package"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["go.mod"] =
+          """
+            module example.com/test
+
+            go 1.21
+          """
+        ["main.go"] =
+          """
+            package main
+
+            func main() {}
+          """
+        ["pkg/a/a.go"] =
+          """
+            package a
+
+            func Hello() string { return "hello" }
+          """
+      }
+      expect { code = 0 }
+    }
+  }
 }

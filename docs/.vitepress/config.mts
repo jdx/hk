@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitepress'
 
 import spec from "../cli/commands.json";
@@ -18,6 +21,13 @@ function getCommands(cmd: Command): string[][] {
 }
 
 const commands = getCommands(spec.cmd);
+const configDir = dirname(fileURLToPath(import.meta.url));
+const cargoToml = readFileSync(resolve(configDir, '../../Cargo.toml'), 'utf8');
+const versionMatch = cargoToml.match(/^\[package\][\s\S]*?^\s*version\s*=\s*"([^"]+)"/m);
+if (!versionMatch) {
+  console.warn('Unable to find package version in Cargo.toml');
+}
+const latestVersion = versionMatch?.[1] ?? '0.0.0';
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
@@ -36,6 +46,7 @@ export default defineConfig({
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Configuration', link: '/configuration' },
       { text: 'CLI Reference', link: '/cli/' },
+      { text: `v${latestVersion}`, link: 'https://github.com/jdx/hk/releases' },
     ],
     sidebar: [
       { text: 'About', link: '/about' },
@@ -96,24 +107,10 @@ export default defineConfig({
     [
       "script",
       {
-        async: "",
-        src: "https://www.googletagmanager.com/gtag/js?id=G-M7TEP8PKSE",
-      },
-    ],
-    [
-      "script",
-      {},
-      `window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-M7TEP8PKSE');`,
-    ],
-    [
-      "script",
-      {
-        "data-goatcounter": "https://jdx-hk.goatcounter.com/count",
-        async: "",
-        src: "//gc.zgo.at/count.js",
+        defer: "",
+        "data-domain": "hk.jdx.dev",
+        "data-api": "https://shrill.en.dev/f5f1/event",
+        src: "https://shrill.en.dev/shrill/script.js",
       },
     ],
     // OpenGraph

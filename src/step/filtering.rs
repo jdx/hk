@@ -184,7 +184,7 @@ impl Step {
             // Use get_pattern_matches consistently for both globs and regex
             files = glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?;
         }
-        if let Some(pattern) = &self.exclude {
+        if let Some(pattern) = self.exclude.as_ref().filter(|pattern| !pattern.is_empty()) {
             // Use get_pattern_matches consistently for excludes too
             let excluded: HashSet<_> =
                 glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?

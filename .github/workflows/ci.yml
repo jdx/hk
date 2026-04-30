@@ -21,20 +21,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
-          submodules: recursive
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+          cache: rust
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run build
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hk-${{ matrix.os }}
           path: target/debug/hk
@@ -43,12 +44,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          submodules: recursive
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Build
         run: cargo build --features git2/vendored-libgit2,git2/vendored-openssl
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hk-windows-latest
           path: target/debug/hk.exe
@@ -57,33 +56,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          submodules: recursive
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
-      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
           override: false
           cache: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-${{ matrix.os }}
           path: target/debug
       - run: chmod +x target/debug/hk
-      - run: mise x -- bun i
+      - run: mise x -- aube install
       - name: mise run test:bats:libgit2
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -93,33 +90,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          submodules: recursive
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
-      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
           override: false
           cache: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-${{ matrix.os }}
           path: target/debug
       - run: chmod +x target/debug/hk
-      - run: mise x -- bun i
+      - run: mise x -- aube install
       - name: mise run test:bats:nolibgit2
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -129,33 +124,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
+        os: [macos-latest, ubuntu-latest]
+    # Pinned to github-hosted runners: builtins_tests.bats installs ~50
+    # tools via mise under 16-way parallelism, which surfaces a
+    # mise + namespace-runner incompatibility (many backends report
+    # "does not have an executable named X" on fresh installs, and
+    # asdf:swiftlint binaries SIGILL on namespace's linux image).
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          submodules: recursive
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
-      - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
+      - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
           override: false
           cache: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-${{ matrix.os }}
           path: target/debug
       - run: chmod +x target/debug/hk
-      - run: mise x -- bun i
+      - run: mise x -- aube install
       - name: mise run test:bats:nogit
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
@@ -164,35 +158,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
-          submodules: recursive
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
-      - run: mise x -- bun i
+          cache: rust
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
+      - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
       - name: mise run lint
         run: mise run lint
   msrv:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev-linux-amd64
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
-          submodules: recursive
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+          cache: rust
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run msrv
   ci-windows:
     needs: build-windows
@@ -200,11 +194,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          submodules: recursive
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-windows-latest
           path: target/debug
@@ -218,6 +210,8 @@ jobs:
           # Run only basic tests that don't require pkl to avoid hangs
           ./e2e-win/run.ps1 -TestName "*version*"
           ./e2e-win/run.ps1 -TestName "*help*"
+          # Regression test for discussion #823 (cmd.exe {{files}} quoting)
+          ./e2e-win/run.ps1 -TestName "*{{files}} template*"
   final:
     needs:
       - build
@@ -228,7 +222,7 @@ jobs:
       - ci-other
       - ci-windows
       - msrv
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev-linux-amd64
     timeout-minutes: 1
     if: always()
     steps:

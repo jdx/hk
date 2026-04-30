@@ -35,6 +35,10 @@ Run fix command instead of check command (this is the default behavior unless HK
 
 Run on files that match these glob patterns
 
+### `-J --json`
+
+Output the plan as JSON when combined with --plan or --why
+
 ### `-P --plan`
 
 Print the plan instead of running the hook
@@ -42,6 +46,10 @@ Print the plan instead of running the hook
 ### `-S --step… <STEP>`
 
 Run only specific step(s)
+
+### `-W --why <STEP>`
+
+Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan
 
 ### `--fail-fast`
 
@@ -92,6 +100,11 @@ End reference for checking files (requires --from-ref)
 ## Subcommands
 
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
+- [`hk run post-checkout [FLAGS] <ARGS>…`](/cli/run/post-checkout.md)
+- [`hk run post-commit [FLAGS] [FILES]…`](/cli/run/post-commit.md)
+- [`hk run post-merge [FLAGS] <IS_SQUASH> [FILES]…`](/cli/run/post-merge.md)
+- [`hk run post-rewrite [FLAGS] <COMMAND> [FILES]…`](/cli/run/post-rewrite.md)
 - [`hk run pre-commit [FLAGS] [FILES]…`](/cli/run/pre-commit.md)
 - [`hk run pre-push [FLAGS] [ARGS]…`](/cli/run/pre-push.md)
+- [`hk run pre-rebase [FLAGS] <ARGS>…`](/cli/run/pre-rebase.md)
 - [`hk run prepare-commit-msg [FLAGS] <ARGS>…`](/cli/run/prepare-commit-msg.md)

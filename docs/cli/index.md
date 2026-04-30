@@ -4,7 +4,7 @@
 
 **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
-**Version**: 1.39.0
+**Version**: 1.44.3
 
 - **Usage**: `hk [FLAGS] <SUBCOMMAND>`
 
@@ -59,16 +59,21 @@ Output in JSON format
 - [`hk config sources`](/cli/config/sources.md)
 - [`hk fix [FLAGS] [FILES]…`](/cli/fix.md)
 - [`hk init [FLAGS]`](/cli/init.md)
-- [`hk install [--mise]`](/cli/install.md)
+- [`hk install [FLAGS]`](/cli/install.md)
 - [`hk migrate <SUBCOMMAND>`](/cli/migrate.md)
 - [`hk migrate pre-commit [FLAGS]`](/cli/migrate/pre-commit.md)
 - [`hk run [FLAGS] [FILES]… <SUBCOMMAND>`](/cli/run.md)
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
+- [`hk run post-checkout [FLAGS] <ARGS>…`](/cli/run/post-checkout.md)
+- [`hk run post-commit [FLAGS] [FILES]…`](/cli/run/post-commit.md)
+- [`hk run post-merge [FLAGS] <IS_SQUASH> [FILES]…`](/cli/run/post-merge.md)
+- [`hk run post-rewrite [FLAGS] <COMMAND> [FILES]…`](/cli/run/post-rewrite.md)
 - [`hk run pre-commit [FLAGS] [FILES]…`](/cli/run/pre-commit.md)
 - [`hk run pre-push [FLAGS] [ARGS]…`](/cli/run/pre-push.md)
+- [`hk run pre-rebase [FLAGS] <ARGS>…`](/cli/run/pre-rebase.md)
 - [`hk run prepare-commit-msg [FLAGS] <ARGS>…`](/cli/run/prepare-commit-msg.md)
 - [`hk test [FLAGS]`](/cli/test.md)
-- [`hk uninstall`](/cli/uninstall.md)
+- [`hk uninstall [--global]`](/cli/uninstall.md)
 - [`hk util <SUBCOMMAND>`](/cli/util.md)
 - [`hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`](/cli/util/check-added-large-files.md)
 - [`hk util check-byte-order-marker [-d --diff] <FILES>…`](/cli/util/check-byte-order-marker.md)

@@ -1,6 +1,6 @@
 name hk
 bin hk
-version "1.39.0"
+version "1.44.3"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --hkrc help="Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)" hide=#true global=#true {
@@ -34,11 +34,16 @@ cmd check help="Checks code" {
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
+    flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
     flag "-P --plan" help="Print the plan instead of running the hook"
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+        arg <STEP>
+    }
     flag --fail-fast help="Abort on first failure"
+    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -97,11 +102,16 @@ cmd fix help="Fixes code" {
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
+    flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
     flag "-P --plan" help="Print the plan instead of running the hook"
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+        arg <STEP>
+    }
     flag --fail-fast help="Abort on first failure"
+    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -133,6 +143,9 @@ cmd init help="Generates a new hk.pkl file for a project" {
 }
 cmd install help="Sets up git hooks to run hk" {
     alias i
+    long_help "Sets up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims."
+    flag --global help="Recommended. Install at user level (~/.gitconfig) so every repo\non this machine gets hk hooks. Requires Git 2.54 or newer. In\nrepos without an `hk.pkl`, the installed hook is a silent no-op."
+    flag --legacy help="Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Not compatible with `--global`."
     flag --mise help="Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools." {
         long_help "Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools.\n\nSet HK_MISE=1 to make this default behavior."
     }
@@ -162,11 +175,16 @@ cmd run help="Run a hook" {
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
+    flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
     flag "-P --plan" help="Print the plan instead of running the hook"
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+        arg <STEP>
+    }
     flag --fail-fast help="Abort on first failure"
+    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -199,11 +217,16 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -226,6 +249,175 @@ cmd run help="Run a hook" {
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
+    cmd post-checkout {
+        flag "-a --all" help="Run on all files instead of just staged files"
+        flag "-c --check" help="Run check command instead of fix command"
+        flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
+            arg <EXCLUDE>
+        }
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
+        flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
+            arg <GLOB>
+        }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
+        flag "-P --plan" help="Print the plan instead of running the hook"
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
+        flag --skip-step help="Skip specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --stage help="Enable auto-staging of fixed files"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
+        }
+        flag --stats help="Display statistics about files matching each step"
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
+        }
+        arg <PREV_HEAD> help="SHA of the HEAD before the checkout"
+        arg <NEW_HEAD> help="SHA of the new HEAD"
+        arg <IS_BRANCH_CHECKOUT> help="Flag indicating whether the checkout was a branch checkout (1) or file checkout (0)"
+        arg "[FILES]…" help="Run on specific files" required=#false var=#true
+    }
+    cmd post-commit {
+        flag "-a --all" help="Run on all files instead of just staged files"
+        flag "-c --check" help="Run check command instead of fix command"
+        flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
+            arg <EXCLUDE>
+        }
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
+        flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
+            arg <GLOB>
+        }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
+        flag "-P --plan" help="Print the plan instead of running the hook"
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
+        flag --skip-step help="Skip specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --stage help="Enable auto-staging of fixed files"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
+        }
+        flag --stats help="Display statistics about files matching each step"
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
+        }
+        arg "[FILES]…" help="Run on specific files" required=#false var=#true
+    }
+    cmd post-merge {
+        flag "-a --all" help="Run on all files instead of just staged files"
+        flag "-c --check" help="Run check command instead of fix command"
+        flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
+            arg <EXCLUDE>
+        }
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
+        flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
+            arg <GLOB>
+        }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
+        flag "-P --plan" help="Print the plan instead of running the hook"
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
+        flag --skip-step help="Skip specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --stage help="Enable auto-staging of fixed files"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
+        }
+        flag --stats help="Display statistics about files matching each step"
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
+        }
+        arg <IS_SQUASH> help="Flag indicating whether the merge was a squash merge (1) or not (0)"
+        arg "[FILES]…" help="Run on specific files" required=#false var=#true
+    }
+    cmd post-rewrite {
+        flag "-a --all" help="Run on all files instead of just staged files"
+        flag "-c --check" help="Run check command instead of fix command"
+        flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
+            arg <EXCLUDE>
+        }
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
+        flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
+            arg <GLOB>
+        }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
+        flag "-P --plan" help="Print the plan instead of running the hook"
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
+        flag --skip-step help="Skip specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --stage help="Enable auto-staging of fixed files"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
+        }
+        flag --stats help="Display statistics about files matching each step"
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
+        }
+        arg <COMMAND> help="The command that triggered the rewrite (\"amend\" or \"rebase\")"
+        arg "[FILES]…" help="Run on specific files" required=#false var=#true
+    }
     cmd pre-commit help="Sets up git hooks to run hk" {
         alias pc
         flag "-a --all" help="Run on all files instead of just staged files"
@@ -237,11 +429,16 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -274,11 +471,16 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -302,6 +504,49 @@ cmd run help="Run a hook" {
         arg "[URL]" help="Remote URL" required=#false
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
+    cmd pre-rebase {
+        flag "-a --all" help="Run on all files instead of just staged files"
+        flag "-c --check" help="Run check command instead of fix command"
+        flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
+            arg <EXCLUDE>
+        }
+        flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)"
+        flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
+            arg <GLOB>
+        }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
+        flag "-P --plan" help="Print the plan instead of running the hook"
+        flag "-S --step" help="Run only specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
+        flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
+        flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+            arg <FROM_REF>
+        }
+        flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)"
+        flag --no-stage help="Disable auto-staging of fixed files"
+        flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
+        flag --skip-step help="Skip specific step(s)" var=#true {
+            arg <STEP>
+        }
+        flag --stage help="Enable auto-staging of fixed files"
+        flag --stash help="Stash method to use for git hooks" {
+            arg <STASH> {
+                choices git patch-file none
+            }
+        }
+        flag --stats help="Display statistics about files matching each step"
+        flag --to-ref help="End reference for checking files (requires --from-ref)" {
+            arg <TO_REF>
+        }
+        arg <UPSTREAM> help="The upstream from which the series was forked"
+        arg "[BRANCH]" help="The branch being rebased (unset when rebasing the current branch)" required=#false
+        arg "[FILES]…" help="Run on specific files" required=#false var=#true
+    }
     cmd prepare-commit-msg {
         alias pcm
         flag "-a --all" help="Run on all files instead of just staged files"
@@ -313,11 +558,16 @@ cmd run help="Run a hook" {
         flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
             arg <GLOB>
         }
+        flag "-J --json" help="Output the plan as JSON when combined with --plan or --why"
         flag "-P --plan" help="Print the plan instead of running the hook"
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan" {
+            arg <STEP>
+        }
         flag --fail-fast help="Abort on first failure"
+        flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
         }
@@ -352,7 +602,9 @@ cmd test help="Run step-defined tests" {
         arg <STEP>
     }
 }
-cmd uninstall help="Removes hk hooks from the current git repository"
+cmd uninstall help="Removes hk hooks from the current git repository" {
+    flag --global help="Remove hk hooks from the user's global git config (`~/.gitconfig`)."
+}
 cmd usage hide=#true help="Generates a usage spec for the CLI" {
     long_help "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev"
 }

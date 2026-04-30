@@ -85,12 +85,22 @@ impl Config {
 
     #[tracing::instrument(level = "info", name = "config.load_project")]
     fn load_project_config() -> Result<Self> {
-        let paths: Vec<&str> = if let Some(hk_file) = env::HK_FILE.as_ref() {
+        let paths = Self::project_config_search_paths();
+        if let Some(path) = Self::find_project_config(&paths) {
+            return Self::load_config_cached(path);
+        }
+        debug!("No config file found, using default");
+        let mut config = Config::default();
+        config.init(Path::new(&paths[0]))?;
+        Ok(config)
+    }
+
+    fn project_config_search_paths() -> Vec<String> {
+        if let Some(hk_file) = env::HK_FILE.as_ref() {
             // If HK_FILE is explicitly set, only use that path (no fallbacks)
-            vec![hk_file.as_str()]
+            vec![hk_file.clone()]
         } else {
-            // Default search order when HK_FILE is not set
-            vec![
+            [
                 // User-local config
                 "hk.local.pkl",
                 ".config/hk.local.pkl",
@@ -103,21 +113,31 @@ impl Config {
                 "hk.yml",
                 "hk.json",
             ]
-        };
-        let mut cwd = std::env::current_dir()?;
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
+        }
+    }
+
+    fn find_project_config(paths: &[String]) -> Option<PathBuf> {
+        let mut cwd = std::env::current_dir().ok()?;
         while cwd != Path::new("/") {
-            for path in &paths {
-                let path = cwd.join(path);
-                if path.exists() {
-                    return Self::load_config_cached(path);
+            for name in paths {
+                let p = cwd.join(name);
+                if p.exists() {
+                    return Some(p);
                 }
             }
             cwd = cwd.parent().map(PathBuf::from).unwrap_or_default();
         }
-        debug!("No config file found, using default");
-        let mut config = Config::default();
-        config.init(Path::new(paths[0]))?;
-        Ok(config)
+        None
+    }
+
+    /// Returns true when a project-level hk config file exists without
+    /// loading or parsing it. Used by `--from-hook` so a broken user-global
+    /// hkrc doesn't blow up `git commit` in repos that have no hk.pkl.
+    pub fn project_config_exists() -> bool {
+        Self::find_project_config(&Self::project_config_search_paths()).is_some()
     }
 
     fn load_config_cached(path: PathBuf) -> Result<Config> {
@@ -139,7 +159,15 @@ impl Config {
                 .get_or_try_init(|| Self::analyze_imports(&path))?
                 .clone();
 
-            imports.into_iter().collect()
+            // Always include the main config file. The pklr backend's
+            // analyze_imports does not include the source file in its
+            // output, so without this edits to hk.pkl wouldn't invalidate
+            // the cache when HK_PKL_BACKEND=pklr. Using IndexSet avoids
+            // double-listing the path on the pkl CLI backend, whose
+            // resolvedImports already contains it.
+            let mut files: IndexSet<PathBuf> = imports;
+            files.insert(path.clone());
+            files.into_iter().collect()
         } else {
             vec![path.clone()]
         };
@@ -294,7 +322,11 @@ impl Config {
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
-            let json_value: serde_json::Value = run_pkl(&["eval"], &path)?;
+            let json_value: serde_json::Value = if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+                run_pklr(&path)?
+            } else {
+                run_pkl(&["eval"], &path)?
+            };
 
             // Backward compat: legacy hkrc files amend UserConfig.pkl (has "environment" key),
             // new-style hkrc files amend Config.pkl (has "env" key).
@@ -363,16 +395,53 @@ fn get_http_proxy() -> Option<String> {
 }
 
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    let client = build_pklr_http_client()?;
+    let http_rewrites = env::HK_PKL_HTTP_REWRITE
+        .as_deref()
+        .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
+        .unwrap_or_default();
+    let options = pklr::EvalOptions {
+        client: Some(client),
+        http_rewrites,
+    };
     let rt = tokio::runtime::Handle::try_current();
     let json = match rt {
-        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(pklr::eval_to_json(path))),
+        Ok(handle) => tokio::task::block_in_place(|| {
+            handle.block_on(pklr::eval_to_json_with_options(path, options))
+        }),
         Err(_) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(pklr::eval_to_json(path))
+            rt.block_on(pklr::eval_to_json_with_options(path, options))
         }
     }
     .map_err(|e| eyre::eyre!("{e}"))?;
     serde_json::from_value(json).wrap_err("failed to deserialize pklr output")
+}
+
+/// Build a reqwest::Client with proxy and CA certificate settings
+/// matching proxy and HK_PKL_* environment variables.
+fn build_pklr_http_client() -> Result<pklr::reqwest::Client> {
+    let mut builder = pklr::reqwest::Client::builder();
+    if let Some(proxy_url) = get_http_proxy() {
+        let mut proxy = pklr::reqwest::Proxy::all(&proxy_url)
+            .map_err(|e| eyre::eyre!("invalid proxy URL: {e}"))?;
+        if let Some(no_proxy) = get_no_proxy() {
+            proxy = proxy.no_proxy(pklr::reqwest::NoProxy::from_string(&no_proxy));
+        }
+        builder = builder.proxy(proxy);
+    }
+    if let Some(ca_path) = env::HK_PKL_CA_CERTIFICATES.as_ref() {
+        let cert_pem = std::fs::read(ca_path)
+            .map_err(|e| eyre::eyre!("failed to read CA certificate {}: {e}", ca_path.display()))?;
+        let certs = pklr::reqwest::Certificate::from_pem_bundle(&cert_pem)
+            .map_err(|e| eyre::eyre!("invalid CA certificate: {e}"))?;
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
+    }
+    builder
+        .build()
+        .map_err(|e| eyre::eyre!("failed to build HTTP client: {e}"))
 }
 
 /// Get the no_proxy list from environment variables.

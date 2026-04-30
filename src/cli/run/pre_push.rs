@@ -33,11 +33,21 @@ impl From<&str> for PrePushRefs {
 
 impl PrePush {
     pub async fn run(mut self) -> Result<()> {
+        self.hook.tctx.insert(
+            "hook_args",
+            &format!(
+                "{} {}",
+                self.remote.as_deref().unwrap_or(""),
+                self.url.as_deref().unwrap_or("")
+            ),
+        );
         let to_be_updated_refs = if std::io::stdin().is_terminal() {
+            self.hook.tctx.insert("hook_stdin", "");
             vec![]
         } else {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input)?;
+            self.hook.tctx.insert("hook_stdin", &input);
             input
                 .lines()
                 .filter(|line| !line.is_empty())

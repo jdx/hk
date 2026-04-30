@@ -7,5 +7,6 @@ import "../Config.pkl"
 }
 revive = new Config.Step {
   glob = "**/*.go"
-  check = "revive {{ files }}"
+  workspace_indicator = "go.mod"
+  check = "cd {{workspace}} && revive ./..."
 }

@@ -1,5 +1,235 @@
 # Changelog
 
+## [1.44.3](https://github.com/jdx/hk/compare/v1.44.2..v1.44.3) - 2026-04-30
+
+### 🐛 Bug Fixes
+
+- **(hook)** do not stage fixes when fail_on_fix=true by [@jdx](https://github.com/jdx) in [#892](https://github.com/jdx/hk/pull/892)
+- use site domain for plausible data-domain by [@jdx](https://github.com/jdx) in [#886](https://github.com/jdx/hk/pull/886)
+- make text-mode progress output usable in CI by [@jdx](https://github.com/jdx) in [#890](https://github.com/jdx/hk/pull/890)
+
+### 📚 Documentation
+
+- prefix GitHub star count with ★ glyph by [@jdx](https://github.com/jdx) in [#883](https://github.com/jdx/hk/pull/883)
+
+### 🔍 Other Changes
+
+- **(release)** dedupe sponsor section in release notes by [@jdx](https://github.com/jdx) in [#881](https://github.com/jdx/hk/pull/881)
+- switch analytics from gtm/goatcounter to plausible by [@jdx](https://github.com/jdx) in [#885](https://github.com/jdx/hk/pull/885)
+- migrate to namespace.so runners by [@jdx](https://github.com/jdx) in [#891](https://github.com/jdx/hk/pull/891)
+
+## [1.44.2](https://github.com/jdx/hk/compare/v1.44.1..v1.44.2) - 2026-04-26
+
+### 🐛 Bug Fixes
+
+- **(builtins)** silence pklr deprecation warnings on Builtins.pkl load by [@jdx](https://github.com/jdx) in [#880](https://github.com/jdx/hk/pull/880)
+- **(ci)** serialize docs lint step by [@jdx](https://github.com/jdx) in [#874](https://github.com/jdx/hk/pull/874)
+- **(config)** include main pkl path in cache fresh files by [@jdx](https://github.com/jdx) in [#879](https://github.com/jdx/hk/pull/879)
+- **(docs)** stack banner message and link on mobile by [@jdx](https://github.com/jdx) in [#865](https://github.com/jdx/hk/pull/865)
+- **(docs)** pin banner close button to top-right corner on mobile by [@jdx](https://github.com/jdx) in [#867](https://github.com/jdx/hk/pull/867)
+
+### 📚 Documentation
+
+- **(site)** show release version and github stars by [@jdx](https://github.com/jdx) in [#872](https://github.com/jdx/hk/pull/872)
+
+### 🔍 Other Changes
+
+- add pr-closer workflow by [@jdx](https://github.com/jdx) in [#876](https://github.com/jdx/hk/pull/876)
+
+### 📦️ Dependency Updates
+
+- bump communique 1.0.3 → 1.0.4 by [@jdx](https://github.com/jdx) in [#868](https://github.com/jdx/hk/pull/868)
+- update anthropics/claude-code-action digest to 2da6cfa by [@renovate[bot]](https://github.com/renovate[bot]) in [#869](https://github.com/jdx/hk/pull/869)
+- update anthropics/claude-code-action digest to 567fe95 by [@renovate[bot]](https://github.com/renovate[bot]) in [#870](https://github.com/jdx/hk/pull/870)
+- bump communique to 1.1.2 by [@jdx](https://github.com/jdx) in [#875](https://github.com/jdx/hk/pull/875)
+
+## [1.44.1](https://github.com/jdx/hk/compare/v1.44.0..v1.44.1) - 2026-04-24
+
+### 🐛 Bug Fixes
+
+- **(git)** skip untracked scan when HK_STASH_UNTRACKED=false by [@jdx](https://github.com/jdx) in [#861](https://github.com/jdx/hk/pull/861)
+- **(run)** add post-commit and pre-rebase subcommands by [@jdx](https://github.com/jdx) in [#858](https://github.com/jdx/hk/pull/858)
+
+### 📚 Documentation
+
+- **(install)** recommend global hooks as primary setup path by [@jdx](https://github.com/jdx) in [#855](https://github.com/jdx/hk/pull/855)
+- add cross-site announcement banner by [@jdx](https://github.com/jdx) in [#857](https://github.com/jdx/hk/pull/857)
+- respect banner expires field by [@jdx](https://github.com/jdx) in [#862](https://github.com/jdx/hk/pull/862)
+
+### 🔍 Other Changes
+
+- vendor bats test helpers instead of git submodules by [@jdx](https://github.com/jdx) in [#859](https://github.com/jdx/hk/pull/859)
+
+### 📦️ Dependency Updates
+
+- bump communique to 1.0.3 by [@jdx](https://github.com/jdx) in [#863](https://github.com/jdx/hk/pull/863)
+- update anthropics/claude-code-action digest to e58dfa5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#864](https://github.com/jdx/hk/pull/864)
+
+## [1.44.0](https://github.com/jdx/hk/compare/v1.43.0..v1.44.0) - 2026-04-23
+
+### 🚀 Features
+
+- **(check)** implement --plan, --why, and --json by [@jdx](https://github.com/jdx) in [#848](https://github.com/jdx/hk/pull/848)
+- **(cocogitto)** add cocogitto conventional commits config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#838](https://github.com/jdx/hk/pull/838)
+- **(git)** support GIT_DIR/GIT_WORK_TREE for bare-repo dotfile managers by [@jdx](https://github.com/jdx) in [#847](https://github.com/jdx/hk/pull/847)
+- **(install)** use Git 2.54 config-based hooks with --global support by [@jdx](https://github.com/jdx) in [#853](https://github.com/jdx/hk/pull/853)
+
+### 🐛 Bug Fixes
+
+- use text progress in CI by [@jdx](https://github.com/jdx) in [#845](https://github.com/jdx/hk/pull/845)
+
+### 📚 Documentation
+
+- generalize agent guidelines by [@jdx](https://github.com/jdx) in [#846](https://github.com/jdx/hk/pull/846)
+- add releases nav and aube lock by [@jdx](https://github.com/jdx) in [#849](https://github.com/jdx/hk/pull/849)
+
+### 🔍 Other Changes
+
+- **(release)** append en.dev sponsor blurb to release notes by [@jdx](https://github.com/jdx) in [#854](https://github.com/jdx/hk/pull/854)
+- bump communique to 1.0.1 by [@jdx](https://github.com/jdx) in [#850](https://github.com/jdx/hk/pull/850)
+
+### 📦️ Dependency Updates
+
+- update actions-rust-lang/setup-rust-toolchain digest to 2b1f5e9 by [@renovate[bot]](https://github.com/renovate[bot]) in [#832](https://github.com/jdx/hk/pull/832)
+- update anthropics/claude-code-action digest to c3d45e8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#833](https://github.com/jdx/hk/pull/833)
+- update rust crate tokio to v1.52.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#834](https://github.com/jdx/hk/pull/834)
+- update actions/upload-pages-artifact action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#835](https://github.com/jdx/hk/pull/835)
+- update taiki-e/upload-rust-binary-action digest to f0d45ae by [@renovate[bot]](https://github.com/renovate[bot]) in [#839](https://github.com/jdx/hk/pull/839)
+- update rust crate clx to v2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#836](https://github.com/jdx/hk/pull/836)
+- update anthropics/claude-code-action digest to 0d2971c by [@renovate[bot]](https://github.com/renovate[bot]) in [#841](https://github.com/jdx/hk/pull/841)
+- update anthropics/claude-code-action digest to 38ec876 by [@renovate[bot]](https://github.com/renovate[bot]) in [#842](https://github.com/jdx/hk/pull/842)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#851](https://github.com/jdx/hk/pull/851)
+
+## [1.43.0](https://github.com/jdx/hk/compare/v1.42.0..v1.43.0) - 2026-04-16
+
+### 🚀 Features
+
+- **(harper)** add harper-cli config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#714](https://github.com/jdx/hk/pull/714)
+- add {{ hook_stdin }} for pre-push stdin forwarding by [@JohanLorenzo](https://github.com/JohanLorenzo) in [#825](https://github.com/jdx/hk/pull/825)
+
+### 🐛 Bug Fixes
+
+- **(release)** add linux musl targets by [@jdx](https://github.com/jdx) in [#829](https://github.com/jdx/hk/pull/829)
+
+### 🔍 Other Changes
+
+- drop sub-crate submodules and publish hk to crates.io by [@jdx](https://github.com/jdx) in [#830](https://github.com/jdx/hk/pull/830)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#826](https://github.com/jdx/hk/pull/826)
+
+## [1.42.0](https://github.com/jdx/hk/compare/v1.41.1..v1.42.0) - 2026-04-12
+
+### 🚀 Features
+
+- add {{ hook_args }} template to pass to downstream commands by [@JohanLorenzo](https://github.com/JohanLorenzo) in [#807](https://github.com/jdx/hk/pull/807)
+
+### 🐛 Bug Fixes
+
+- **(step)** preserve cmd.exe quoting for {{files}} on Windows by [@jdx](https://github.com/jdx) in [#824](https://github.com/jdx/hk/pull/824)
+
+### 🛡️ Security
+
+- **(deps)** update dependency eslint to v10 by [@renovate[bot]](https://github.com/renovate[bot]) in [#813](https://github.com/jdx/hk/pull/813)
+
+### 📦️ Dependency Updates
+
+- update taiki-e/upload-rust-binary-action digest to 10c1cf6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#810](https://github.com/jdx/hk/pull/810)
+- update nick-fields/retry action to v4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#812](https://github.com/jdx/hk/pull/812)
+- update anthropics/claude-code-action digest to 657fb7c by [@renovate[bot]](https://github.com/renovate[bot]) in [#809](https://github.com/jdx/hk/pull/809)
+- update dependency typescript to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#814](https://github.com/jdx/hk/pull/814)
+- update rust crate demand to v2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#815](https://github.com/jdx/hk/pull/815)
+- update rust crate expr-lang to v1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#816](https://github.com/jdx/hk/pull/816)
+- update rust crate similar to v3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#817](https://github.com/jdx/hk/pull/817)
+- update rust crate toml to v1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#820](https://github.com/jdx/hk/pull/820)
+- update actions/upload-artifact digest to 043fb46 by [@renovate[bot]](https://github.com/renovate[bot]) in [#821](https://github.com/jdx/hk/pull/821)
+- update anthropics/claude-code-action digest to b47fd72 by [@renovate[bot]](https://github.com/renovate[bot]) in [#822](https://github.com/jdx/hk/pull/822)
+
+### New Contributors
+
+- @JohanLorenzo made their first contribution in [#807](https://github.com/jdx/hk/pull/807)
+
+## [1.41.1](https://github.com/jdx/hk/compare/v1.41.0..v1.41.1) - 2026-04-10
+
+### 🐛 Bug Fixes
+
+- **(hook)** remove dup output and preserve check_first diagnostics by [@nkakouros](https://github.com/nkakouros) in [#784](https://github.com/jdx/hk/pull/784)
+- **(hook)** show combined output for failed steps by [@nkakouros](https://github.com/nkakouros) in [#772](https://github.com/jdx/hk/pull/772)
+- **(hook)** preserve configured output_summary label on failure by [@jdx](https://github.com/jdx) in [#808](https://github.com/jdx/hk/pull/808)
+
+### 📦️ Dependency Updates
+
+- update rust crate pklr to 0.4.1 by [@jhult](https://github.com/jhult) in [#805](https://github.com/jdx/hk/pull/805)
+
+### New Contributors
+
+- @jhult made their first contribution in [#805](https://github.com/jdx/hk/pull/805)
+
+## [1.41.0](https://github.com/jdx/hk/compare/v1.40.0..v1.41.0) - 2026-04-05
+
+### 🚀 Features
+
+- **(hook)** support per-worktree hooks via extensions.worktreeConfig by [@nkakouros](https://github.com/nkakouros) in [#789](https://github.com/jdx/hk/pull/789)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** use workspace_indicator for Go package-level analysis tools by [@jdx](https://github.com/jdx) in [#803](https://github.com/jdx/hk/pull/803)
+- **(config)** use XDG_CONFIG_HOME for config path instead of dirs::config_dir() by [@fukuchancat](https://github.com/fukuchancat) in [#801](https://github.com/jdx/hk/pull/801)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 0432df8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#791](https://github.com/jdx/hk/pull/791)
+- update rust crate indexmap to v2.13.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#792](https://github.com/jdx/hk/pull/792)
+- update actions/configure-pages action to v6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#795](https://github.com/jdx/hk/pull/795)
+- update rust crate strum to 0.28 by [@renovate[bot]](https://github.com/renovate[bot]) in [#794](https://github.com/jdx/hk/pull/794)
+- update actions/deploy-pages action to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#796](https://github.com/jdx/hk/pull/796)
+- update dependency globals to v17 by [@renovate[bot]](https://github.com/renovate[bot]) in [#797](https://github.com/jdx/hk/pull/797)
+- update github artifact actions (major) by [@renovate[bot]](https://github.com/renovate[bot]) in [#798](https://github.com/jdx/hk/pull/798)
+- update jdx/mise-action action to v4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#799](https://github.com/jdx/hk/pull/799)
+
+### New Contributors
+
+- @fukuchancat made their first contribution in [#801](https://github.com/jdx/hk/pull/801)
+
+## [1.40.0](https://github.com/jdx/hk/compare/v1.39.0..v1.40.0) - 2026-04-01
+
+### 🚀 Features
+
+- **(betterleaks)** add betterleaks config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#750](https://github.com/jdx/hk/pull/750)
+- **(builtins)** add google-java-format to builtins by [@timothysparg](https://github.com/timothysparg) in [#777](https://github.com/jdx/hk/pull/777)
+- **(builtins)** add dclint to builtins by [@timothysparg](https://github.com/timothysparg) in [#779](https://github.com/jdx/hk/pull/779)
+- **(config)** set default value for exclude to List() by [@timothysparg](https://github.com/timothysparg) in [#781](https://github.com/jdx/hk/pull/781)
+- **(core)** add required field to prevent unconfigured steps from running by [@timothysparg](https://github.com/timothysparg) in [#785](https://github.com/jdx/hk/pull/785)
+- **(gitleaks)** add gitleaks config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#749](https://github.com/jdx/hk/pull/749)
+- **(mdschema)** add mdschema config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#748](https://github.com/jdx/hk/pull/748)
+- **(pkl)** add pklr as opt-in pkl backend by [@jdx](https://github.com/jdx) in [#769](https://github.com/jdx/hk/pull/769)
+- add pklr as opt-in pkl backend by [@jdx](https://github.com/jdx) in [#768](https://github.com/jdx/hk/pull/768)
+
+### 🐛 Bug Fixes
+
+- **(docs)** replace invalid /latest/ pkl package URIs with versioned format by [@jdx](https://github.com/jdx) in [#770](https://github.com/jdx/hk/pull/770)
+- **(stage)** do not stage pre-existing untracked files by [@jdx](https://github.com/jdx) in [#788](https://github.com/jdx/hk/pull/788)
+
+### 📚 Documentation
+
+- add benchmarks page and reproducible benchmark suite by [@jdx](https://github.com/jdx) in [#766](https://github.com/jdx/hk/pull/766)
+- add recommended setup section to mise integration by [@timothysparg](https://github.com/timothysparg) in [#780](https://github.com/jdx/hk/pull/780)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#762](https://github.com/jdx/hk/pull/762)
+- update rust crate pklr to 0.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#776](https://github.com/jdx/hk/pull/776)
+- update apple-actions/import-codesign-certs digest to fe74d46 by [@renovate[bot]](https://github.com/renovate[bot]) in [#774](https://github.com/jdx/hk/pull/774)
+- update anthropics/claude-code-action digest to 094bd24 by [@renovate[bot]](https://github.com/renovate[bot]) in [#773](https://github.com/jdx/hk/pull/773)
+- update taiki-e/upload-rust-binary-action digest to 0e34102 by [@renovate[bot]](https://github.com/renovate[bot]) in [#775](https://github.com/jdx/hk/pull/775)
+- bump usage to 3.2.0 and pkl to 0.31.1, add windows platforms by [@jdx](https://github.com/jdx) in [#787](https://github.com/jdx/hk/pull/787)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#786](https://github.com/jdx/hk/pull/786)
+
+### New Contributors
+
+- @timothysparg made their first contribution in [#781](https://github.com/jdx/hk/pull/781)
+
 ## [1.39.0](https://github.com/jdx/hk/compare/v1.38.0..v1.39.0) - 2026-03-22
 
 ### 🚀 Features

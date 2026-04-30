@@ -106,20 +106,60 @@ pub enum StashMethod {
 
 impl Git {
     pub fn new() -> Result<Self> {
-        let cwd = std::env::current_dir()?;
-        let root = xx::file::find_up(&cwd, &[".git"])
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .ok_or(eyre!("failed to find git repository"))?;
+        // Respect GIT_DIR / GIT_WORK_TREE so hk works with bare-repo dotfile
+        // managers like YADM where there is no `.git` in the work tree.
+        let has_git_env =
+            std::env::var_os("GIT_DIR").is_some() || std::env::var_os("GIT_WORK_TREE").is_some();
+
+        let root = if has_git_env {
+            // Absolutize relative GIT_DIR / GIT_WORK_TREE before we change
+            // directory, otherwise libgit2 and downstream git commands will
+            // resolve them against the new cwd and look in the wrong place.
+            let cwd = std::env::current_dir()?;
+            for var in ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"] {
+                if let Some(val) = std::env::var_os(var) {
+                    let p = std::path::Path::new(&val);
+                    if p.is_relative() {
+                        // SAFETY: set_var is only unsafe because other threads
+                        // may read the environment concurrently; we run this
+                        // before any worker threads are spawned.
+                        unsafe { std::env::set_var(var, cwd.join(p)) };
+                    }
+                }
+            }
+            crate::git_util::find_work_tree_root()
+        } else {
+            let cwd = std::env::current_dir()?;
+            xx::file::find_up(&cwd, &[".git"])
+                .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                .ok_or(eyre!("failed to find git repository"))?
+        };
+        // Always cd into the work tree root so libgit2 and shell-git return
+        // relative paths that resolve against the correct directory.
         std::env::set_current_dir(&root)?;
         let repo = if *env::HK_LIBGIT2 {
             debug!("libgit2: true");
-            let repo = Repository::open(".").wrap_err("failed to open repository")?;
-            if let Some(index_file) = &*env::GIT_INDEX_FILE {
-                // sets index to .git/index.lock which is used in the case of `git commit -a`
-                let mut index = git2::Index::open(index_file).wrap_err("failed to get index")?;
-                repo.set_index(&mut index)?;
+            let repo = if has_git_env {
+                Repository::open_from_env().wrap_err("failed to open repository")?
+            } else {
+                Repository::open(".").wrap_err("failed to open repository")?
+            };
+            // libgit2 status/diff APIs refuse to operate on a bare repository.
+            // For bare-repo dotfile managers (YADM, etc.) the work tree is
+            // provided via GIT_WORK_TREE but libgit2 still flags the repo as
+            // bare — fall back to the shell-git path so those operations work.
+            if repo.is_bare() {
+                debug!("libgit2: bare repo detected, falling back to shell git");
+                None
+            } else {
+                if let Some(index_file) = &*env::GIT_INDEX_FILE {
+                    // sets index to .git/index.lock which is used in the case of `git commit -a`
+                    let mut index =
+                        git2::Index::open(index_file).wrap_err("failed to get index")?;
+                    repo.set_index(&mut index)?;
+                }
+                Some(repo)
             }
-            Some(repo)
         } else {
             debug!("libgit2: false");
             None
@@ -173,7 +213,7 @@ impl Git {
         }
 
         // Sort by modification time, newest first
-        patch_files.sort_by(|a, b| b.1.cmp(&a.1));
+        patch_files.sort_by_key(|f| std::cmp::Reverse(f.1));
 
         // Remove old patches beyond keep_count
         for (path, _) in patch_files.iter().skip(keep_count) {
@@ -370,10 +410,14 @@ impl Git {
     pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         // Refresh index stat information to avoid stale mtime/size causing mis-detection
         let _ = git_run(["update-index", "-q", "--refresh"]);
+        // When stashing untracked files is disabled, skip the untracked-file scan.
+        // This avoids catastrophic scans when GIT_WORK_TREE points at a large tree
+        // (e.g. YADM dotfile repos where the worktree is $HOME). See #860.
+        let include_untracked = *env::HK_STASH_UNTRACKED;
         if let Some(repo) = &self.repo {
             let mut status_options = StatusOptions::new();
-            status_options.include_untracked(true);
-            status_options.recurse_untracked_dirs(true);
+            status_options.include_untracked(include_untracked);
+            status_options.recurse_untracked_dirs(include_untracked);
             status_options.renames_head_to_index(true);
 
             if let Some(pathspec) = pathspec {
@@ -468,7 +512,12 @@ impl Git {
                 unstaged_renamed_files,
             })
         } else {
-            let mut args = vec!["status", "--porcelain", "--untracked-files=all", "-z"]
+            let untracked_arg = if include_untracked {
+                "--untracked-files=all"
+            } else {
+                "--untracked-files=no"
+            };
+            let mut args = vec!["status", "--porcelain", untracked_arg, "-z"]
                 .into_iter()
                 .filter(|&arg| !arg.is_empty())
                 .map(OsString::from)
@@ -626,13 +675,21 @@ impl Git {
                 }
             }
         }
-        // 3) Parse porcelain to catch nuanced mixed states
+        // 3) Parse porcelain to catch nuanced mixed states.
+        // We only look at worktree-side markers (M/T/R), so untracked entries
+        // are irrelevant here. Skip the untracked scan entirely when
+        // HK_STASH_UNTRACKED=false to avoid scanning a huge worktree (see #860).
         {
+            let untracked_arg = if *env::HK_STASH_UNTRACKED {
+                "--untracked-files=all"
+            } else {
+                "--untracked-files=no"
+            };
             let args: Vec<OsString> = vec![
                 "status".into(),
                 "--porcelain".into(),
                 "--no-renames".into(),
-                "--untracked-files=all".into(),
+                untracked_arg.into(),
                 "-z".into(),
             ];
             let out = git_read(args).unwrap_or_default();

@@ -24,10 +24,26 @@
   },
   "homepage": "https://github.com/jdx/hk#readme",
   "dependencies": {
-    "eslint": "^9.21.0",
-    "typescript": "^5.8.2"
+    "eslint": "^10.0.0",
+    "typescript": "^6.0.0"
   },
   "devDependencies": {
-    "globals": "^16.0.0"
+    "globals": "^17.0.0"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64"
+      ],
+      "libc": [
+        "current",
+        "glibc"
+      ]
+    }
   }
 }

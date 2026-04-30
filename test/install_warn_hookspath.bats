@@ -19,8 +19,9 @@ EOF
     # Set global core.hooksPath
     git config --global core.hooksPath "/some/global/hooks/path"
 
-    # Run hk install and capture stderr
-    run hk install
+    # Run hk install and capture stderr. core.hooksPath only matters in legacy
+    # shim mode — under Git 2.54+ config-based hooks this warning is moot.
+    run hk install --legacy
 
     # Should succeed
     assert_success
@@ -43,8 +44,9 @@ EOF
     # Set local core.hooksPath
     git config --local core.hooksPath "/some/local/hooks/path"
 
-    # Run hk install and capture stderr
-    run hk install
+    # Run hk install and capture stderr. core.hooksPath only matters in legacy
+    # shim mode — under Git 2.54+ config-based hooks this warning is moot.
+    run hk install --legacy
 
     # Should succeed
     assert_success
@@ -68,8 +70,9 @@ EOF
     git config --global core.hooksPath "/some/global/hooks/path"
     git config --local core.hooksPath "/some/local/hooks/path"
 
-    # Run hk install and capture stderr
-    run hk install
+    # Run hk install and capture stderr. core.hooksPath only matters in legacy
+    # shim mode — under Git 2.54+ config-based hooks this warning is moot.
+    run hk install --legacy
 
     # Should succeed
     assert_success
@@ -97,7 +100,7 @@ EOF
     git config --local --unset core.hooksPath 2>/dev/null || true
 
     # Run hk install
-    run hk install
+    run hk install --legacy
 
     # Should succeed
     assert_success

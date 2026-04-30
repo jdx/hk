@@ -1,5 +1,7 @@
 {
   "name": "docs",
+  "version": "0.0.0",
+  "private": true,
   "scripts": {
     "docs:dev": "vitepress dev",
     "docs:build": "vitepress build",
@@ -7,11 +9,27 @@
     "eslint": "eslint"
   },
   "dependencies": {
-    "eslint": "^9.21.0",
+    "eslint": "^10.0.0",
     "vitepress": "^1.6.3"
   },
   "devDependencies": {
-    "globals": "^16.0.0",
+    "globals": "^17.0.0",
     "typescript-eslint": "^8.24.1"
+  },
+  "pnpm": {
+    "supportedArchitectures": {
+      "os": [
+        "current",
+        "linux"
+      ],
+      "cpu": [
+        "current",
+        "x64"
+      ],
+      "libc": [
+        "current",
+        "glibc"
+      ]
+    }
   }
 }

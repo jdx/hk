@@ -117,3 +117,53 @@ EOF
 
     hk run fix
 }
+
+@test "fail_on_fix=true preserves staged changes and surfaces fix as unstaged (#888)" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        fail_on_fix = true
+        steps {
+            ["normalize"] {
+                glob = "*.json"
+                fix = #"for f in {{ files }}; do tr -d ' ' < "\$f" > "\$f.tmp" && mv "\$f.tmp" "\$f"; done"#
+            }
+        }
+    }
+}
+EOF
+    # Initial committed state has spaces that the fixer will strip.
+    echo '{"a": 1}' > a.json
+    echo "original" > b.md
+    git add hk.pkl a.json b.md
+    git commit -m "initial commit"
+    hk install
+
+    # User makes intentional changes to both files, but only stages a.json.
+    echo '{"a": 2}' > a.json
+    echo "modified" > b.md
+    git add a.json
+
+    # Pre-commit must fail with fail_on_fix.
+    run git commit -m "update"
+    assert_failure
+
+    # The user's staged change to a.json must survive: index still differs from HEAD
+    # in the test value, NOT in the formatting (which is the fixer's contribution).
+    run git diff --cached --name-only
+    assert_output "a.json"
+    run git diff --cached a.json
+    assert_output --partial '"a": 2'
+    refute_output --partial '{"a":2}'
+
+    # The fix should now be visible as an unstaged change on a.json (whitespace removed).
+    run git diff --name-only
+    assert_line "a.json"
+    assert_line "b.md"
+
+    # b.md unstaged change must be preserved.
+    run cat b.md
+    assert_output "modified"
+}

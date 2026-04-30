@@ -70,14 +70,16 @@ EOF
   run hk fix -v
   assert_success
 
-  # src/script.sh AND src/untracked.sh should be staged (both are shell scripts processed by check_list_files)
+  # src/script.sh should be staged (tracked modified file processed by check_list_files)
+  # src/untracked.sh should NOT be staged (pre-existing untracked files are never staged)
   # src/unrelated.txt should NOT be staged (not a shell script, filtered out by check_list_files)
   run git status --porcelain
   assert_success
   assert_line --regexp '^M  src/script\.sh$'
-  assert_line --regexp '^A  src/untracked\.sh$'
+  refute_line --regexp '^A  src/untracked\.sh$'
   refute_line --regexp '^A  src/unrelated\.txt$'
-  # unrelated.txt should remain untracked (was filtered out)
+  # untracked files should remain untracked
+  assert_line --regexp '^\?\? src/untracked\.sh$'
   assert_line --regexp '^\?\? src/unrelated\.txt$'
 }
 

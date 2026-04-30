@@ -45,7 +45,7 @@ mod shell;
 mod types;
 
 // Re-export public API
-pub use expr_env::EXPR_CTX;
+pub use expr_env::{EXPR_CTX, EXPR_ENV};
 pub use shell::ShellType;
 pub use types::{OutputSummary, Pattern, RunType, Script, Step};
 

@@ -1,0 +1,14 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Conventional commits linter"
+  project_indicators {
+    new { file = "cog.toml" }
+  }
+}
+cocogitto_commit_msg = new Config.Step {
+  // Reference: https://github.com/cocogitto/cocogitto/blob/7.0.0/cog.toml#L62-L63
+  check = "cog --quiet verify --file {{commit_msg_file}}"
+}

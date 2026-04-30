@@ -2,6 +2,12 @@
 
 # `hk uninstall`
 
-- **Usage**: `hk uninstall`
+- **Usage**: `hk uninstall [--global]`
 
 Removes hk hooks from the current git repository
+
+## Flags
+
+### `--global`
+
+Remove hk hooks from the user's global git config (`~/.gitconfig`).

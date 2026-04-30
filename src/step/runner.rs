@@ -27,6 +27,24 @@ use super::shell::ShellType;
 use super::types::{Pattern, RunType, Script, Step};
 use crate::error::Error;
 
+/// Cap on the per-job progress message in printable characters. The
+/// rendered run command can be a multi-line shell script or contain
+/// inline-generated args; text mode prints every prop update verbatim,
+/// so an unbounded message floods CI logs. 2048 is generous for any
+/// realistic diagnostic and bounds the pathological case.
+const MAX_PROGRESS_MESSAGE_CHARS: usize = 2048;
+
+/// Truncate a progress message to `max_chars` printable characters with
+/// a trailing `…`. ANSI-aware via `console::truncate_str` so escape
+/// sequences don't get split mid-cluster or counted toward the budget.
+/// Returns the input unchanged if it fits.
+fn truncate_progress_message(s: &str, max_chars: usize) -> String {
+    if console::measure_text_width(s) <= max_chars {
+        return s.to_string();
+    }
+    console::truncate_str(s, max_chars, "…").into_owned()
+}
+
 impl Step {
     /// Execute a single job.
     ///
@@ -128,6 +146,14 @@ impl Step {
         if let Some(prefix) = &self.prefix {
             run = format!("{prefix} {run}");
         }
+        // Render twice: once with the full file list for execution, and
+        // once with the display context — which truncates `files` /
+        // `workspace_files` to `first_file …` when there are multiple
+        // files. A 98-file step would otherwise emit ~4KB of paths in the
+        // progress message; this keeps the command shape and one
+        // concrete example path visible without unbounded expansion.
+        let run_for_display =
+            tera::render(&run, &tctx.for_display()).unwrap_or_else(|_| run.clone());
         let run = tera::render(&run, &tctx)
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
         let pattern_display = match &self.glob {
@@ -135,31 +161,58 @@ impl Step {
             Some(Pattern::Regex { pattern, .. }) => format!("regex: {}", pattern),
             None => String::new(),
         };
-        job.progress.as_ref().unwrap().prop(
-            "message",
-            &format!("{} – {} – {}", file_msg(&job.files), pattern_display, run),
+        // Cap the full progress message: a `check =` value can be a
+        // multi-line shell script or an inline-generated command, and
+        // text mode prints every render verbatim. 2KB is generous for
+        // any realistic diagnostic and bounds the pathological case
+        // (e.g. a 200-line embedded script dumped on every prop update).
+        let raw_message = format!(
+            "{} – {} – {}",
+            file_msg(&job.files),
+            pattern_display,
+            run_for_display
         );
+        let message = truncate_progress_message(&raw_message, MAX_PROGRESS_MESSAGE_CHARS);
+        job.progress.as_ref().unwrap().prop("message", &message);
         job.progress.as_ref().unwrap().update();
         if log::log_enabled!(log::Level::Trace) {
             for file in &job.files {
                 trace!("{self}: {}", file.display());
             }
         }
+        // On Windows, `cmd.exe` has its own quoting rules that collide with
+        // Rust's MSVCRT-style argv escaping. `ShellType::Cmd::quote` produces
+        // cmd-appropriate quoting for rendered `{{files}}` / `{{workspace_files}}`
+        // strings, so we must append the final command line verbatim via
+        // `raw_arg` — otherwise Rust re-escapes the already-quoted payload and
+        // cmd.exe delivers tools arguments with literal `"` characters embedded.
+        let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
         let mut cmd = if let Some(shell) = &self.shell {
             let shell = shell.to_string();
             let shell = shell.split_whitespace().collect_vec();
-            let mut cmd = CmdLineRunner::new(shell[0]);
+            let mut cmd = if use_raw_cmd {
+                CmdLineRunner::new_direct(shell[0])
+            } else {
+                CmdLineRunner::new(shell[0])
+            };
             for arg in shell[1..].iter() {
                 cmd = cmd.arg(arg);
             }
-            cmd
-        } else if cfg!(windows) {
-            CmdLineRunner::new("cmd.exe").arg("/c")
+            if use_raw_cmd {
+                cmd.raw_arg(&run)
+            } else {
+                cmd.arg(&run)
+            }
+        } else if use_raw_cmd {
+            CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(&run)
         } else {
-            CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+            CmdLineRunner::new("sh")
+                .arg("-o")
+                .arg("errexit")
+                .arg("-c")
+                .arg(&run)
         };
         cmd = cmd
-            .arg(&run)
             .with_pr(job.progress.as_ref().unwrap().clone())
             .with_cancel_token(ctx.hook_ctx.failed.clone())
             .show_stderr_on_error(false)
@@ -236,6 +289,7 @@ impl Step {
                             source: eyre::eyre!("{}", err),
                             stdout: e.3.stdout.clone(),
                             stderr: e.3.stderr.clone(),
+                            combined: e.3.combined_output.clone(),
                         })?;
                     }
                     // Save output from a failed command as well
@@ -383,6 +437,34 @@ impl Step {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn truncate_progress_message_passes_short_input() {
+        assert_eq!(truncate_progress_message("hello", 100), "hello");
+    }
+
+    #[test]
+    fn truncate_progress_message_caps_long_input() {
+        let s = "a".repeat(5000);
+        let out = truncate_progress_message(&s, 2048);
+        assert_eq!(console::measure_text_width(&out), 2048);
+        assert!(out.ends_with('…'));
+    }
+
+    #[test]
+    fn truncate_progress_message_preserves_ansi_escapes() {
+        // Color escape + long plain run; truncation must be width-aware
+        // so the ANSI bytes don't count toward the budget.
+        let s = format!("\x1b[31m{}\x1b[0m", "a".repeat(100));
+        let out = truncate_progress_message(&s, 50);
+        assert_eq!(console::measure_text_width(&out), 50);
+    }
+
+    #[test]
+    fn truncate_progress_message_at_exact_length_unchanged() {
+        let s = "x".repeat(2048);
+        assert_eq!(truncate_progress_message(&s, 2048), s);
+    }
 
     #[test]
     fn test_has_command_for_empty_command() {

@@ -96,9 +96,10 @@ pub async fn run() -> Result<()> {
         slow: args.slow,
         quiet: args.quiet,
         silent: args.silent,
+        trace: args.trace,
     });
 
-    if !console::user_attended_stderr() || args.no_progress {
+    if is_ci::cached() || !console::user_attended_stderr() || args.no_progress {
         clx::progress::set_output(ProgressOutput::Text);
     }
     if args.verbose > 1 {
@@ -147,9 +148,11 @@ pub async fn run() -> Result<()> {
     // - Migrate: avoid errors during migration with potentially invalid configs
     // - Completion/Usage: shell completion generation shouldn't require valid config
     // - Version: just prints version info
+    // - Builtins: just lists compiled-in builtin names, no project config needed
     let settings = if matches!(
         args.command,
-        Commands::Init(_)
+        Commands::Builtins(_)
+            | Commands::Init(_)
             | Commands::Migrate(_)
             | Commands::Completion(_)
             | Commands::Usage(_)

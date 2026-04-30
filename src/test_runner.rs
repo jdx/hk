@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::{
-    Result,
+    Result, git_util,
     step::RunType,
     step::Step,
     step_test::{RunKind, StepTest},
@@ -169,14 +169,10 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         files = step.filter_files(&files)?;
     }
 
-    let cwd = std::env::current_dir().unwrap_or_default();
-    let root = xx::file::find_up(&cwd, &[".git"])
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or(cwd);
     let base_dir = if uses_sandbox {
         sandbox.to_path_buf()
     } else {
-        root
+        git_util::find_work_tree_root()
     };
     if let Some(fixture) = &test.fixture {
         let src = PathBuf::from(fixture);

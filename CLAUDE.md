@@ -1,6 +1,6 @@
-# CLAUDE.md
+# Agent Guidelines
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents when working with code in this repository.
 
 ## Conventional Commits
 
@@ -142,6 +142,23 @@ setup() {
 }
 ```
 Tests run in isolated temp directories with a clean git repo. The `$PKL_PATH` variable points to the pkl config directory for amending `Config.pkl`.
+
+#### Testing Builtins
+
+Builtins should have pkl-level tests defined via the `tests` field on the Step (see `pkl/Config.pkl` `StepTest`). These tests are run by `hk test` and exercised in CI via `test/builtins_tests.bats`, which loads all builtins and runs their tests.
+
+**Tool stubs** in `test/builtin_tool_stubs/` use `mise tool-stub` to auto-install the correct tool version on demand. Each stub is a small script:
+```bash
+#!/usr/bin/env -S mise tool-stub
+version = "2"
+tool = "aqua:golangci/golangci-lint"
+```
+
+To add a new builtin with tests:
+1. Define the builtin in `pkl/builtins/<name>.pkl` with a `tests` block
+2. Add a tool stub in `test/builtin_tool_stubs/<tool-name>` if the tool isn't already available
+3. Use the `TestMaker` helper from `pkl/builtins/test/helpers.pkl` for standard check/fix test patterns
+4. Run `hk test --step <step_name>` to verify, or `mise run test:bats test/builtins_tests.bats` to run all builtin tests
 
 ## GitHub Interactions
 

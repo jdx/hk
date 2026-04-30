@@ -1,14 +1,80 @@
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use eyre::eyre;
 
 use crate::Result;
 
+/// Semantic version of the `git` binary on PATH: `(major, minor, patch)`.
+///
+/// Returns `None` if `git --version` cannot be executed or parsed. Cached for
+/// the lifetime of the process — git is not going to upgrade itself out from
+/// under us.
+pub fn git_version() -> Option<(u32, u32, u32)> {
+    static CACHED: OnceLock<Option<(u32, u32, u32)>> = OnceLock::new();
+    *CACHED.get_or_init(|| {
+        let output = std::process::Command::new("git")
+            .arg("--version")
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let s = String::from_utf8_lossy(&output.stdout);
+        // "git version 2.54.0" (possibly with trailing .windows.N or similar)
+        let ver = s.split_whitespace().nth(2)?;
+        let mut parts = ver.split('.').filter_map(|p| {
+            let digits: String = p.chars().take_while(|c| c.is_ascii_digit()).collect();
+            digits.parse::<u32>().ok()
+        });
+        Some((
+            parts.next()?,
+            parts.next().unwrap_or(0),
+            parts.next().unwrap_or(0),
+        ))
+    })
+}
+
+/// Whether the installed `git` is at least `major.minor`.
+pub fn git_at_least(major: u32, minor: u32) -> bool {
+    match git_version() {
+        Some((maj, min, _)) => (maj, min) >= (major, minor),
+        None => false,
+    }
+}
+
 /// Find the `.git` path from the current working directory by searching upward.
+///
+/// Honors `GIT_DIR` if set (used by bare-repo dotfile managers like YADM), in
+/// which case the returned path may be a bare repository directory rather than
+/// a `.git` file/dir.
 pub fn find_git_path() -> Result<PathBuf> {
+    if let Some(git_dir) = std::env::var_os("GIT_DIR") {
+        let p = PathBuf::from(&git_dir);
+        let p = if p.is_absolute() {
+            p
+        } else {
+            std::env::current_dir()?.join(p)
+        };
+        return Ok(p);
+    }
     let cwd = std::env::current_dir()?;
     xx::file::find_up(&cwd, &[".git"])
         .ok_or_else(|| eyre!("No .git found in this or any parent directory"))
+}
+
+/// Return the effective working-tree root, honoring `GIT_WORK_TREE` when set
+/// (for bare-repo setups like YADM). Falls back to walking up for `.git`, and
+/// finally to `cwd` if no repository is found.
+pub fn find_work_tree_root() -> PathBuf {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    if let Some(wt) = std::env::var_os("GIT_WORK_TREE") {
+        let p = PathBuf::from(&wt);
+        return if p.is_absolute() { p } else { cwd.join(p) };
+    }
+    xx::file::find_up(&cwd, &[".git"])
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or(cwd)
 }
 
 /// Given a `.git` path (found by find_up), resolve the actual git directory.
@@ -26,7 +92,6 @@ pub fn resolve_git_dir(git_path: &Path) -> Result<PathBuf> {
         .map(|s| s.trim())
         .ok_or_else(|| eyre!("unexpected .git file format in {}", git_path.display()))?;
     let gitdir_path = PathBuf::from(gitdir);
-    // Resolve relative paths against the parent of the .git file
     let resolved = if gitdir_path.is_absolute() {
         gitdir_path
     } else {
@@ -53,7 +118,6 @@ fn resolve_common_git_dir(git_dir: &Path) -> Result<PathBuf> {
             .map_err(|e| eyre!("failed to read {}: {e}", commondir_file.display()))?;
         let rel = content.trim();
         let resolved = git_dir.join(rel);
-        // Canonicalize to clean up ../.. paths
         Ok(std::fs::canonicalize(&resolved).unwrap_or(resolved))
     } else {
         Ok(git_dir.to_path_buf())
@@ -68,7 +132,6 @@ pub fn resolve_git_relative_path(path: &Path) -> Result<PathBuf> {
     if path.exists() {
         return Ok(path.to_path_buf());
     }
-    // Check if path starts with .git/ and resolve through actual git dir
     if let Ok(rest) = path.strip_prefix(".git") {
         let git_path = find_git_path()?;
         let git_dir = resolve_git_dir(&git_path)?;
@@ -81,12 +144,46 @@ pub fn resolve_git_relative_path(path: &Path) -> Result<PathBuf> {
 }
 
 /// Given a `.git` path (found by find_up), resolve the hooks directory.
-/// Git always looks for hooks in the **common** git directory, not the
-/// worktree-specific one. So for worktrees we follow the `commondir` pointer.
-/// - If `.git` is a directory (regular repo) → return `.git/hooks`
-/// - If `.git` is a file (worktree) → resolve gitdir → resolve commondir → return `<common>/hooks`
+/// Resolves to the common (shared) hooks dir, following the `commondir`
+/// pointer for worktrees.
 pub fn resolve_git_hooks_dir(git_path: &Path) -> Result<PathBuf> {
     let git_dir = resolve_git_dir(git_path)?;
     let common_dir = resolve_common_git_dir(&git_dir)?;
     Ok(common_dir.join("hooks"))
+}
+
+/// Returns the per-worktree hooks path if one is configured via
+/// `git config --worktree core.hooksPath`. Returns None if not in a
+/// worktree or if no per-worktree hooksPath is set.
+///
+/// Requires `extensions.worktreeConfig` to be enabled — without it,
+/// `--worktree` falls back to `--local` which is not worktree-specific.
+pub fn worktree_hooks_path() -> Option<PathBuf> {
+    // --type=bool normalizes true/yes/on/1 to "true"
+    let wt_config = std::process::Command::new("git")
+        .args([
+            "config",
+            "--type=bool",
+            "--get",
+            "extensions.worktreeConfig",
+        ])
+        .output()
+        .ok()?;
+    if !wt_config.status.success() || String::from_utf8_lossy(&wt_config.stdout).trim() != "true" {
+        return None;
+    }
+
+    let output = std::process::Command::new("git")
+        .args(["config", "--worktree", "--get", "core.hooksPath"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if path.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(path))
+    }
 }

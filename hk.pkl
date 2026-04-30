@@ -1,4 +1,4 @@
-// amends "package://github.com/jdx/hk/releases/download/v1.39.0/hk@1.39.0#/Config.pkl"
+// amends "package://github.com/jdx/hk/releases/download/v1.44.3/hk@1.44.3#/Config.pkl"
 amends "pkl/Config.pkl"
 import "pkl/Builtins.pkl"
 
@@ -26,7 +26,7 @@ local linters = new Mapping<String, Step | Group> {
   }
   ["eslint"] = (Builtins.eslint) {
     dir = "docs"
-    prefix = "bun run"
+    prefix = "aube run"
   }
   ["newlines"] = Builtins.newlines
   ["trailing-whitespace"] = Builtins.trailing_whitespace
@@ -41,6 +41,7 @@ local linters = new Mapping<String, Step | Group> {
   ["docs"] = new Step {
     glob = "docs/**"
     check = "mise run docs:build"
+    exclusive = true
     output_summary = "hide"
   }
 }

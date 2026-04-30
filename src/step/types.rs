@@ -34,6 +34,15 @@ pub enum Pattern {
     Globs(Vec<String>),
 }
 
+impl Pattern {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Pattern::Regex { .. } => false,
+            Pattern::Globs(globs) => globs.is_empty(),
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for Pattern {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -137,6 +146,10 @@ pub struct Step {
 
     /// Content to pipe to the command's stdin
     pub stdin: Option<String>,
+
+    /// Environment variables that must be set for this step to run
+    #[serde(default)]
+    pub required: Vec<String>,
 
     /// Steps that must complete before this one runs
     pub depends: Vec<String>,
@@ -242,6 +255,21 @@ pub enum RunType {
     Check,
     /// Fix mode - automatically correct issues
     Fix,
+}
+
+impl RunType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            RunType::Check => "check",
+            RunType::Fix => "fix",
+        }
+    }
+}
+
+impl fmt::Display for RunType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
 }
 
 /// How command output should be captured for the end-of-run summary.
