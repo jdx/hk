@@ -94,6 +94,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache_key_prefix: mise-v1-${{ runner.environment }}
       - name: Package Pkl
         run: |
           if [[ -n "${{ inputs.version }}" ]]; then
@@ -124,6 +126,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache_key_prefix: mise-v1-${{ runner.environment }}
       - name: Extract release notes from CHANGELOG.md
         run: |
           awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
@@ -164,6 +168,8 @@ jobs:
         with:
           cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache_key_prefix: mise-v1-${{ runner.environment }}
       - run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -176,6 +182,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache_key_prefix: mise-v1-${{ runner.environment }}
       - name: Enhance release notes with communique
         run: |
           if [[ -n "${{ inputs.version }}" ]]; then

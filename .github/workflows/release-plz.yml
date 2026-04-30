@@ -31,6 +31,7 @@ jobs:
           cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
         with:
+          cache_key_prefix: mise-v1-${{ runner.environment }}
           experimental: true
       - run: mise trust --all
       - run: mise run release-plz
