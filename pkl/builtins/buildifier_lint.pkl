@@ -13,16 +13,17 @@ import "./test/helpers.pkl"
   }
 }
 buildifier_lint = new Config.Step {
-  glob = List(
-    "**/BUILD",
-    "**/BUILD.bazel",
-    "WORKSPACE",
-    "WORKSPACE.bazel",
-    "MODULE.bazel",
-    "**/*.bzl",
-    "**/*.star",
-    "**/*.sky"
-  )
+  glob =
+    List(
+      "**/BUILD",
+      "**/BUILD.bazel",
+      "WORKSPACE",
+      "WORKSPACE.bazel",
+      "MODULE.bazel",
+      "**/*.bzl",
+      "**/*.star",
+      "**/*.sky",
+    )
   check = "buildifier -mode=check -lint=warn {{ files }}"
   fix = "buildifier -lint=fix {{ files }}"
   tests {
