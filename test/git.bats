@@ -104,27 +104,27 @@ hooks {
 }
 EOF
 
-    # The progress message keeps the un-rendered command template so steps
-    # matching hundreds of files don't blow up CI log lines (the file count
-    # next to it tells you how many were matched). The actual file list
-    # surfaces via the streamed `echo` stdout, which we assert separately.
+    # The progress message renders the command with `files` truncated to
+    # "first_file …" when there's more than one file — keeps CI log lines
+    # bounded for steps matching hundreds of files while still showing one
+    # concrete example. The full list still surfaces via streamed stdout.
 
     # Test files between base and feature
     run hk fix -v --from-ref=$BASE_COMMIT --to-ref=$FEATURE_COMMIT
     assert_success
-    assert_output --partial "print-files – 1 file –  – echo '{{files}}'"
+    assert_output --partial "print-files – 1 file –  – echo 'feature.txt'"
     assert_output --partial "print-files – feature.txt"
 
     # Test files between base and merge commit
     run hk fix --from-ref=$BASE_COMMIT --to-ref=$MERGE_COMMIT
     assert_success
-    assert_output --partial "print-files – 2 files –  – echo '{{files}}'"
+    assert_output --partial "print-files – 2 files –  – echo 'feature.txt …'"
     assert_output --partial "print-files – feature.txt main.txt"
 
     # Test files between feature and merge commit
     run hk fix --from-ref=$FEATURE_COMMIT --to-ref=$MERGE_COMMIT
     assert_success
-    assert_output --partial "print-files – 1 file –  – echo '{{files}}'"
+    assert_output --partial "print-files – 1 file –  – echo 'main.txt'"
     assert_output --partial "print-files – main.txt"
 }
 

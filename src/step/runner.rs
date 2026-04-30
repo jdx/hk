@@ -128,12 +128,14 @@ impl Step {
         if let Some(prefix) = &self.prefix {
             run = format!("{prefix} {run}");
         }
-        // Display message uses the un-rendered template — expanding `{{files}}`
-        // here would dump every matched path into the progress message, which
-        // in text mode (CI logs, piped stderr) is unbounded line-noise for
-        // steps that match hundreds of files. The pattern and file count
-        // shown next to it already tell the reader what's being processed.
-        let run_for_display = run.clone();
+        // Render twice: once with the full file list for execution, and
+        // once with the display context — which truncates `files` /
+        // `workspace_files` to `first_file …` when there are multiple
+        // files. A 98-file step would otherwise emit ~4KB of paths in the
+        // progress message; this keeps the command shape and one
+        // concrete example path visible without unbounded expansion.
+        let run_for_display =
+            tera::render(&run, &tctx.for_display()).unwrap_or_else(|_| run.clone());
         let run = tera::render(&run, &tctx)
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
         let pattern_display = match &self.glob {
