@@ -826,6 +826,8 @@ impl Hook {
             return Ok(());
         }
         let run_type = self.run_type(&opts);
+        // fail_on_fix exists to surface fixes for review; staging would defeat that.
+        let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
         let repo = Arc::new(Mutex::new(Git::new()?));
         let groups = self.get_step_groups(&opts);
         let stash_method = if let Some(stash_str) = &opts.stash {
