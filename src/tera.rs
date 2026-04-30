@@ -91,4 +91,138 @@ impl Context {
         self.insert("workspace_files", &files);
         self
     }
+
+    /// Returns a clone of this context where `files` and `workspace_files`
+    /// are truncated to "first_file …" when there is more than one file.
+    /// Used to render the human-readable progress message — keeps the
+    /// rendered command compact for steps matching hundreds of files
+    /// while still showing one concrete path.
+    pub fn for_display(&self) -> Self {
+        let mut ctx = self.clone();
+        if let Some(truncated) = truncate_quoted_list(self.ctx.get("files")) {
+            ctx.insert("files", &truncated);
+        }
+        if let Some(truncated) = truncate_quoted_list(self.ctx.get("workspace_files")) {
+            ctx.insert("workspace_files", &truncated);
+        }
+        ctx
+    }
+}
+
+/// Truncate a space-separated quoted-token list to "first …" when it
+/// contains more than one token. Returns `None` if the value is missing,
+/// not a string, or has 0–1 tokens (no truncation needed).
+fn truncate_quoted_list(value: Option<&tera::Value>) -> Option<String> {
+    let s = value.and_then(|v| v.as_str())?;
+    let mut tokens = split_quoted_tokens(s);
+    let first = tokens.next()?;
+    tokens.next()?;
+    Some(format!("{first} …"))
+}
+
+/// Split a `with_files`-style joined string back into its quoted tokens.
+/// Tokens are space-separated; quoted tokens preserve embedded spaces.
+/// Honors `\\` escapes inside quoted runs because that's what `ShellType::quote`
+/// emits on Unix shells.
+fn split_quoted_tokens(s: &str) -> impl Iterator<Item = &str> {
+    let bytes = s.as_bytes();
+    let mut start = 0usize;
+    std::iter::from_fn(move || {
+        while start < bytes.len() && bytes[start] == b' ' {
+            start += 1;
+        }
+        if start >= bytes.len() {
+            return None;
+        }
+        let token_start = start;
+        let mut quote: Option<u8> = None;
+        let mut i = start;
+        while i < bytes.len() {
+            let b = bytes[i];
+            match quote {
+                Some(q) => {
+                    if b == b'\\' && i + 1 < bytes.len() {
+                        i += 2;
+                        continue;
+                    }
+                    if b == q {
+                        quote = None;
+                    }
+                }
+                None => {
+                    if b == b' ' {
+                        break;
+                    }
+                    if b == b'\'' || b == b'"' {
+                        quote = Some(b);
+                    }
+                }
+            }
+            i += 1;
+        }
+        let token = &s[token_start..i];
+        start = i;
+        Some(token)
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn split(s: &str) -> Vec<&str> {
+        split_quoted_tokens(s).collect()
+    }
+
+    #[test]
+    fn split_quoted_tokens_handles_unquoted() {
+        assert_eq!(split("a b c"), vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn split_quoted_tokens_preserves_single_quoted_spaces() {
+        assert_eq!(
+            split("'has space.txt' other.txt"),
+            vec!["'has space.txt'", "other.txt"]
+        );
+    }
+
+    #[test]
+    fn split_quoted_tokens_handles_escaped_quote_in_double() {
+        assert_eq!(split(r#""a\"b" c"#), vec![r#""a\"b""#, "c"]);
+    }
+
+    #[test]
+    fn truncate_quoted_list_returns_none_for_single_token() {
+        let v = json!("only.txt");
+        assert_eq!(truncate_quoted_list(Some(&v)), None);
+    }
+
+    #[test]
+    fn truncate_quoted_list_truncates_multiple_tokens() {
+        let v = json!("first.txt second.txt third.txt");
+        assert_eq!(
+            truncate_quoted_list(Some(&v)),
+            Some("first.txt …".to_string())
+        );
+    }
+
+    #[test]
+    fn truncate_quoted_list_preserves_quoted_first_token() {
+        let v = json!("'a b.txt' other.txt");
+        assert_eq!(
+            truncate_quoted_list(Some(&v)),
+            Some("'a b.txt' …".to_string())
+        );
+    }
+
+    #[test]
+    fn truncate_quoted_list_returns_none_for_empty_or_missing() {
+        assert_eq!(truncate_quoted_list(None), None);
+        let v = json!("");
+        assert_eq!(truncate_quoted_list(Some(&v)), None);
+        let v = json!("   ");
+        assert_eq!(truncate_quoted_list(Some(&v)), None);
+    }
 }

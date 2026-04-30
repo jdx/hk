@@ -153,6 +153,10 @@ pub struct HookContext {
     skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
     /// Aggregated output per step name (in insertion order)
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
+    /// Names of steps that failed during this run. Tracked here because
+    /// `step_contexts` are shift_remove'd as soon as each step finishes, so
+    /// status info is not available to the end-of-run summary.
+    pub failed_steps: std::sync::Mutex<HashSet<String>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
     pub should_stage: bool,
@@ -203,6 +207,7 @@ impl HookContext {
             skip_steps,
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
+            failed_steps: StdMutex::new(HashSet::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
             should_stage,
             initial_untracked,
@@ -290,6 +295,13 @@ impl HookContext {
         map.entry(step_name.to_string())
             .and_modify(|(_, s)| s.push_str(text))
             .or_insert_with(|| (mode, text.to_string()));
+    }
+
+    pub fn mark_step_failed(&self, step_name: &str) {
+        self.failed_steps
+            .lock()
+            .unwrap()
+            .insert(step_name.to_string());
     }
 
     pub fn add_fix_suggestion(&self, suggestion: String) {
@@ -1015,10 +1027,24 @@ impl Hook {
         // Clear progress bars before displaying summary
         clx::progress::stop();
 
-        // Display aggregated output from steps, once per step
-        if clx::progress::output() != ProgressOutput::Text || *env::HK_SUMMARY_TEXT {
+        // Display aggregated output from steps, once per step.
+        //
+        // In UI mode we always emit summaries because the progress display
+        // hides streamed output behind the spinner. In Text mode, successful
+        // steps already streamed their full output, so we suppress those
+        // summaries by default — but failed steps still get a summary so the
+        // user can see the diagnostic in full (text-mode streaming truncates
+        // each line via the `message` prop). `HK_SUMMARY_TEXT=1` forces all
+        // summaries to print in text mode.
+        let in_text_mode = clx::progress::output() == ProgressOutput::Text;
+        let force_summary = *env::HK_SUMMARY_TEXT;
+        let failed_steps = hook_ctx.failed_steps.lock().unwrap().clone();
+        if !in_text_mode || force_summary || !failed_steps.is_empty() {
             let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
             for (step_name, (mode, output)) in outputs.into_iter() {
+                if in_text_mode && !force_summary && !failed_steps.contains(&step_name) {
+                    continue;
+                }
                 let trimmed = output.trim_end();
                 if trimmed.is_empty() {
                     continue;
