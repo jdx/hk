@@ -9,3 +9,13 @@ See docs: https://hk.jdx.dev/
 ## Demo
 
 ![hk demo](docs/public/hk-demo.gif)
+
+## CI
+
+<p>
+  <a href="https://namespace.so">
+    <img src="docs/public/namespace-logo.svg" alt="Namespace" width="64">
+  </a>
+</p>
+
+Thanks to [Namespace](https://namespace.so) for providing CI for hk.
