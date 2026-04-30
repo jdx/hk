@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
       - name: Build
@@ -170,7 +170,7 @@ jobs:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
@@ -184,7 +184,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
@@ -195,7 +195,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
