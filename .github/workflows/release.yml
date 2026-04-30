@@ -20,37 +20,44 @@ env:
 
 jobs:
   build-binaries:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: aarch64-apple-darwin
             os: macos-latest
+            runner: nscloud-macos-sequoia-arm64-6x14
             build-tool: cargo
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
+            runner: namespace-profile-endev
             build-tool: cross
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
+            runner: namespace-profile-endev
             build-tool: cross
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+            runner: namespace-profile-endev
             build-tool: cross
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
+            runner: namespace-profile-endev
             build-tool: cross
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            runner: nscloud-windows-2022-amd64-8x16
             build-tool: cargo
           - target: aarch64-pc-windows-msvc
             os: windows-latest
+            runner: nscloud-windows-2022-amd64-8x16
             build-tool: cargo
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: namespacelabs/nscloud-cache-action@v1
         with:
-          shared-key: rust-${{ matrix.target }}
+          cache: rust
       - if: matrix.os == 'macos-latest'
         uses: apple-actions/import-codesign-certs@fe74d46e82474f87e1ba79832ad28a4013d0e33a # v6
         with:
@@ -78,7 +85,7 @@ jobs:
           retention-days: 1
 
   build-pkl:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
@@ -106,7 +113,7 @@ jobs:
 
   create-release:
     needs: [build-binaries, build-pkl]
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -145,10 +152,12 @@ jobs:
   publish-crate:
     needs: [create-release]
     if: github.repository == 'jdx/hk'
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - run: cargo publish
         env:
@@ -156,7 +165,7 @@ jobs:
 
   enhance-release:
     needs: [create-release]
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:

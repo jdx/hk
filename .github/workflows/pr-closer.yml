@@ -7,7 +7,7 @@ on:
 
 jobs:
   close-stale-prs:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     permissions:
       pull-requests: write
     steps:

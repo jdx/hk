@@ -10,7 +10,7 @@ on:
 jobs:
   main:
     name: Validate PR title
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     permissions:
       pull-requests: read
     steps:

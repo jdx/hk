@@ -21,15 +21,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: nscloud-macos-sequoia-arm64-6x14
+          - os: ubuntu-latest
+            runner: namespace-profile-endev
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -37,11 +40,13 @@ jobs:
           name: hk-${{ matrix.os }}
           path: target/debug/hk
   build-windows:
-    runs-on: windows-latest
+    runs-on: nscloud-windows-2022-amd64-8x16
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
       - name: Build
         run: cargo build --features git2/vendored-libgit2,git2/vendored-openssl
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -53,12 +58,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: nscloud-macos-sequoia-arm64-6x14
+          - os: ubuntu-latest
+            runner: namespace-profile-endev
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -87,12 +92,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: nscloud-macos-sequoia-arm64-6x14
+          - os: ubuntu-latest
+            runner: namespace-profile-endev
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -121,12 +126,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: nscloud-macos-sequoia-arm64-6x14
+          - os: ubuntu-latest
+            runner: namespace-profile-endev
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -154,18 +159,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: nscloud-macos-sequoia-arm64-6x14
+          - os: ubuntu-latest
+            runner: namespace-profile-endev
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - run: mise x -- aube install
       - name: mise run test:cargo
@@ -173,20 +180,24 @@ jobs:
       - name: mise run lint
         run: mise run lint
   msrv:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - run: mise run msrv
   ci-windows:
     needs: build-windows
-    runs-on: windows-latest
+    runs-on: nscloud-windows-2022-amd64-8x16
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -214,7 +225,7 @@ jobs:
       - ci-other
       - ci-windows
       - msrv
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev
     timeout-minutes: 1
     if: always()
     steps:
