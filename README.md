@@ -12,4 +12,10 @@ See docs: https://hk.jdx.dev/
 
 ## CI
 
+<p>
+  <a href="https://namespace.so">
+    <img src="docs/public/namespace-logo.svg" alt="Namespace" width="64">
+  </a>
+</p>
+
 Thanks to [Namespace](https://namespace.so) for providing GitHub Actions runners and caching for hk.
