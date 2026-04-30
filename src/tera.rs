@@ -116,9 +116,7 @@ fn truncate_quoted_list(value: Option<&tera::Value>) -> Option<String> {
     let s = value.and_then(|v| v.as_str())?;
     let mut tokens = split_quoted_tokens(s);
     let first = tokens.next()?;
-    if tokens.next().is_none() {
-        return None;
-    }
+    tokens.next()?;
     Some(format!("{first} …"))
 }
 
