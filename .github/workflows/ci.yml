@@ -21,16 +21,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+        with:
+          cache: rust
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -53,18 +56,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
@@ -87,18 +90,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
@@ -121,18 +124,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
+        os: [macos-latest, ubuntu-latest]
+    # Pinned to github-hosted runners: builtins_tests.bats installs ~50
+    # tools via mise under 16-way parallelism, which surfaces a
+    # mise + namespace-runner incompatibility (many backends report
+    # "does not have an executable named X" on fresh installs, and
+    # asdf:swiftlint binaries SIGILL on namespace's linux image).
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1
         with:
           toolchain: nightly
@@ -154,31 +158,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - macos-latest
-          - ubuntu-latest
-          #- ubuntu-24.04-arm
-          #- windows-latest
-    runs-on: ${{ matrix.os }}
+        include:
+          - os: macos-latest
+            runner: namespace-profile-endev-macos-arm64
+          - os: ubuntu-latest
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+        with:
+          cache: rust
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
       - name: mise run lint
         run: mise run lint
   msrv:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev-linux-amd64
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+        with:
+          cache: rust
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run msrv
   ci-windows:
     needs: build-windows
@@ -187,7 +195,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-windows-latest
@@ -214,7 +222,7 @@ jobs:
       - ci-other
       - ci-windows
       - msrv
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-endev-linux-amd64
     timeout-minutes: 1
     if: always()
     steps:
