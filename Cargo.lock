@@ -389,8 +389,9 @@ dependencies = [
 
 [[package]]
 name = "clx"
-version = "2.0.0"
-source = "git+https://github.com/jdx/clx.git?branch=fix-text-mode-rendering#cb04fcd82776597ab1956a0225db2e1705cc2dd2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "feaec225d4c0d5a2a738686605f0e6e8ccceb6691f80c567f22849636983ca8d"
 dependencies = [
  "console",
  "nix 0.31.2",

@@ -24,18 +24,6 @@ local linters = new Mapping<String, Step | Group> {
     glob = "**/*.rs"
     check = "! rg -e 'dbg!' {{files}}"
   }
-  // TEMP: deliberately failing step to capture the ugly clx failure output in CI.
-  // Remove once we've fixed the formatting in a follow-up.
-  ["demo-fail"] = new Step {
-    glob = "**/*.rs"
-    check =
-      #"""
-      echo "this step is intentionally failing so we can see what the output looks like"
-      echo "line two of stderr" 1>&2
-      echo "line three of stdout"
-      exit 1
-      """#
-  }
   ["eslint"] = (Builtins.eslint) {
     dir = "docs"
     prefix = "aube run"
