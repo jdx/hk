@@ -23,16 +23,19 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev
-    runs-on: ${{ matrix.runner }}
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+      - if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
+      - if: ${{ github.event.pull_request.head.repo.fork }}
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -40,13 +43,11 @@ jobs:
           name: hk-${{ matrix.os }}
           path: target/debug/hk
   build-windows:
-    runs-on: nscloud-windows-2022-amd64-8x16-with-cache
+    runs-on: windows-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
-        with:
-          cache: rust
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: Build
         run: cargo build --features git2/vendored-libgit2,git2/vendored-openssl
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -60,10 +61,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev
-    runs-on: ${{ matrix.runner }}
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -94,10 +95,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev
-    runs-on: ${{ matrix.runner }}
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -128,10 +129,10 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev
-    runs-on: ${{ matrix.runner }}
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -161,18 +162,21 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: nscloud-macos-sequoia-arm64-6x14-with-cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev
-    runs-on: ${{ matrix.runner }}
+            runner: namespace-profile-endev-linux-amd64
+    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+      - if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
+      - if: ${{ github.event.pull_request.head.repo.fork }}
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - run: mise x -- aube install
       - name: mise run test:cargo
@@ -180,24 +184,25 @@ jobs:
       - name: mise run lint
         run: mise run lint
   msrv:
-    runs-on: namespace-profile-endev
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+      - if: ${{ !github.event.pull_request.head.repo.fork }}
+        uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
+      - if: ${{ github.event.pull_request.head.repo.fork }}
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - run: mise run msrv
   ci-windows:
     needs: build-windows
-    runs-on: nscloud-windows-2022-amd64-8x16-with-cache
+    runs-on: windows-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
-        with:
-          cache: rust
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -225,7 +230,7 @@ jobs:
       - ci-other
       - ci-windows
       - msrv
-    runs-on: namespace-profile-endev
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
     timeout-minutes: 1
     if: always()
     steps:

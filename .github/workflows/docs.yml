@@ -32,7 +32,7 @@ jobs:
   # Build job
   build:
     if: github.repository == 'jdx/hk'
-    runs-on: namespace-profile-endev
+    runs-on: namespace-profile-endev-linux-amd64
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -63,7 +63,7 @@ jobs:
       pages: write # to deploy to Pages
       id-token: write # to verify the deployment originates from an appropriate source
     needs: build
-    runs-on: namespace-profile-endev
+    runs-on: namespace-profile-endev-linux-amd64
     name: Deploy
     steps:
       - name: Deploy to GitHub Pages
