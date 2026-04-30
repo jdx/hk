@@ -127,12 +127,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
-          - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
+        os: [macos-latest, ubuntu-latest]
+    # Pinned to github-hosted runners: builtins_tests.bats installs ~50
+    # tools via mise under 16-way parallelism, which surfaces a
+    # mise + namespace-runner incompatibility (many backends report
+    # "does not have an executable named X" on fresh installs, and
+    # asdf:swiftlint binaries SIGILL on namespace's linux image).
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
