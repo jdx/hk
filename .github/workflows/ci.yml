@@ -26,16 +26,13 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
-      - if: ${{ github.event.pull_request.head.repo.fork }}
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -64,7 +61,7 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -98,7 +95,7 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -166,18 +163,15 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event.pull_request.head.repo.fork && matrix.os || matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
-      - if: ${{ github.event.pull_request.head.repo.fork }}
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise x -- aube install
       - name: mise run test:cargo
@@ -185,16 +179,13 @@ jobs:
       - name: mise run lint
         run: mise run lint
   msrv:
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
+    runs-on: namespace-profile-endev-linux-amd64
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-      - if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
+      - uses: namespacelabs/nscloud-cache-action@15799a6b54e5765f85b2aac25b3f0df43ed571c0 # v1
         with:
           cache: rust
-      - if: ${{ github.event.pull_request.head.repo.fork }}
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - uses: jdx/mise-action@b287efda3dc5f4f3c328507653b6617da783ff84 # v4
       - run: mise run msrv
   ci-windows:
@@ -231,7 +222,7 @@ jobs:
       - ci-other
       - ci-windows
       - msrv
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
+    runs-on: namespace-profile-endev-linux-amd64
     timeout-minutes: 1
     if: always()
     steps:
