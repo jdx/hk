@@ -1,0 +1,54 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Build Systems"
+  description = "Formatter for Bazel BUILD, WORKSPACE, and Starlark files"
+  project_indicators {
+    new { file = "WORKSPACE" }
+    new { file = "WORKSPACE.bazel" }
+    new { file = "MODULE.bazel" }
+    new { glob = "**/BUILD.bazel" }
+  }
+}
+buildifier_format = new Config.Step {
+  glob =
+    List(
+      "**/BUILD",
+      "**/BUILD.bazel",
+      "WORKSPACE",
+      "WORKSPACE.bazel",
+      "MODULE.bazel",
+      "**/*.bzl",
+      "**/*.star",
+      "**/*.sky",
+    )
+  check = "buildifier -mode=check {{ files }}"
+  fix = "buildifier {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "BUILD.bazel" }
+    local const before =
+      """
+      load("@rules_cc//cc:cc_library.bzl",   "cc_library")
+
+      cc_library(    name="foo",
+        srcs=["Foo.cc"],)
+
+      """
+    local const after =
+      """
+      load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+      cc_library(
+          name = "foo",
+          srcs = ["Foo.cc"],
+      )
+
+      """
+    ["check bad file"] = testMaker.checkFail(before, 4)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}
