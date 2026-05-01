@@ -60,6 +60,10 @@ impl StepJob {
         self
     }
 
+    pub fn workspace_indicator(&self) -> Option<&PathBuf> {
+        self.workspace_indicator.as_ref()
+    }
+
     pub fn tctx(&self, base: &tera::Context) -> tera::Context {
         let mut tctx = base.clone();
 

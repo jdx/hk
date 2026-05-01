@@ -33,8 +33,11 @@ impl Step {
     /// 2. Check if step has a command for the run type
     /// 3. Filter files based on step configuration
     /// 4. Split into workspace jobs (if workspace_indicator set) or batch jobs
-    /// 5. Apply auto-batching for ARG_MAX safety
-    /// 6. Configure check_first based on file contention
+    /// 5. Configure check_first based on file contention
+    ///
+    /// Auto-batching for ARG_MAX safety is applied later by [`Step::auto_batch_jobs`]
+    /// (called from execution time) so the full tera context is available to render
+    /// the actual command.
     ///
     /// # Arguments
     ///
@@ -143,10 +146,10 @@ impl Step {
             )]
         };
 
-        if self.stdin.is_none() {
-            // Auto-batch any jobs where the file list would exceed safe limits
-            jobs = self.auto_batch_jobs_if_needed(jobs);
-        }
+        // Note: auto-batching for ARG_MAX safety happens at execution time
+        // (see `Step::auto_batch_jobs`) where the full tera context is available
+        // to render the actual run command — so steps whose commands don't
+        // reference `{{files}}` are not split into many jobs unnecessarily.
 
         // Apply profile skip only after determining files/no-files, so NoFilesToProcess wins
         // Also, if a condition is present, defer profile checks to run() so ConditionFalse wins
