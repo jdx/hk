@@ -3,114 +3,148 @@
 //! When passing large file lists to shell commands, the total argument length can exceed
 //! the operating system's `ARG_MAX` limit, causing "Argument list too long" errors.
 //!
-//! This module provides automatic batching that:
-//! 1. Estimates the shell-quoted size of file lists
-//! 2. Uses binary search to find optimal batch sizes
-//! 3. Splits jobs to stay within safe limits
+//! This module renders the actual run command for each job and only splits jobs whose
+//! rendered command exceeds the safe limit. Steps whose commands don't reference
+//! `{{files}}` (or render to a small string for any other reason) are left as a
+//! single job, even when the underlying file list is large.
 
 use crate::env;
 use crate::step_job::StepJob;
+use crate::tera;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use super::types::Step;
 
 impl Step {
     /// Estimates the size of the `{{files}}` template variable expansion.
     ///
-    /// This includes shell quoting overhead and spaces between files.
-    /// Uses a conservative estimate (2x + 2 for quotes, +1 for space) to ensure
-    /// we don't underestimate.
-    ///
-    /// # Arguments
-    ///
-    /// * `files` - The list of files to estimate
-    ///
-    /// # Returns
-    ///
-    /// Estimated byte size of the quoted file list string
+    /// Used as a fallback when rendering the run command fails (e.g. the
+    /// template references a variable not yet present in the context).
     pub(crate) fn estimate_files_string_size(&self, files: &[PathBuf]) -> usize {
         files
             .iter()
             .map(|f| {
                 let path_str = f.to_str().unwrap_or("");
-                // Estimate quoted size: conservative estimate assuming worst-case quoting
-                // For shell quoting, worst case is roughly 2x + 2 (quotes)
-                path_str.len() * 2 + 2 + 1 // +1 for space separator
+                // Worst-case quoted size: 2x + 2 (quotes), +1 for space separator
+                path_str.len() * 2 + 2 + 1
             })
             .sum()
     }
 
-    /// Automatically batch jobs if the file list would exceed safe ARG_MAX limits.
-    ///
-    /// This prevents "Argument list too long" errors when passing large file lists
-    /// to commands. Uses binary search to find the largest batch size that fits
-    /// within a safe limit (50% of ARG_MAX to account for environment variables
-    /// and the command itself).
-    ///
-    /// # Arguments
-    ///
-    /// * `jobs` - The jobs to potentially batch
-    ///
-    /// # Returns
-    ///
-    /// A new list of jobs, potentially with large jobs split into multiple smaller ones
-    pub(crate) fn auto_batch_jobs_if_needed(&self, jobs: Vec<StepJob>) -> Vec<StepJob> {
-        // Use 50% of ARG_MAX as a safety margin, accounting for environment variables
-        // and the command itself
-        let safe_limit = *env::ARG_MAX / 2;
+    /// Render the run command for a hypothetical job containing `files` and return
+    /// its byte length. Returns `None` if rendering fails (e.g. the template
+    /// references a variable not in the context).
+    fn render_run_command_size(
+        &self,
+        original_job: &StepJob,
+        files: &[PathBuf],
+        base_tctx: &tera::Context,
+    ) -> Option<usize> {
+        let run_cmd = if original_job.check_first {
+            self.check_first_cmd()
+        } else {
+            self.run_cmd(original_job.run_type)
+        }?;
+        let run = run_cmd.to_string();
+        if run.trim().is_empty() {
+            return None;
+        }
+        let run = if let Some(prefix) = &self.prefix {
+            format!("{prefix} {run}")
+        } else {
+            run
+        };
 
-        let mut batched_jobs = Vec::new();
+        let mut temp = StepJob::new(
+            Arc::clone(&original_job.step),
+            files.to_vec(),
+            original_job.run_type,
+        );
+        temp.check_first = original_job.check_first;
+        if let Some(wi) = original_job.workspace_indicator() {
+            temp = temp.with_workspace_indicator(wi.clone());
+        }
+        let tctx = temp.tctx(base_tctx);
+        tera::render(&run, &tctx).ok().map(|s| s.len())
+    }
+
+    /// Automatically batch jobs whose rendered run command would exceed the safe ARG_MAX limit.
+    ///
+    /// Uses 50% of `ARG_MAX` as the safety margin (accounts for env vars and the command itself).
+    /// Renders the actual run command with each candidate file subset; if the rendered command
+    /// fits, no batching is performed. Otherwise binary-searches the largest batch size whose
+    /// rendered command still fits.
+    ///
+    /// If rendering fails for any reason, falls back to estimating the size of the quoted
+    /// file-list expansion — preserves the previous (purely size-based) behavior as a safety net.
+    pub(crate) fn auto_batch_jobs(
+        &self,
+        jobs: Vec<StepJob>,
+        base_tctx: &tera::Context,
+    ) -> Vec<StepJob> {
+        if self.stdin.is_some() {
+            // stdin path doesn't pass files via argv; never auto-batch
+            return jobs;
+        }
+
+        let safe_limit = *env::ARG_MAX / 2;
+        let mut batched_jobs = Vec::with_capacity(jobs.len());
 
         for job in jobs {
-            let estimated_size = self.estimate_files_string_size(&job.files);
-
-            if estimated_size > safe_limit && job.files.len() > 1 {
-                // Need to batch this job
-                debug!(
-                    "{}: auto-batching {} files (estimated size: {} bytes, limit: {} bytes)",
-                    self.name,
-                    job.files.len(),
-                    estimated_size,
-                    safe_limit
-                );
-
-                // Binary search to find the largest batch_size where files fit within safe_limit
-                let mut low = 1;
-                let mut high = job.files.len();
-
-                while low < high {
-                    let mid = (low + high).div_ceil(2);
-                    let test_size = self.estimate_files_string_size(&job.files[..mid]);
-
-                    if test_size <= safe_limit {
-                        // mid files fit, try larger
-                        low = mid;
-                    } else {
-                        // mid files don't fit, try smaller
-                        high = mid - 1;
-                    }
-                }
-
-                // After binary search, low contains the largest batch size that fits
-                let batch_size = low.max(1); // Ensure at least 1 file per batch
-
-                debug!(
-                    "{}: using batch size of {} files per batch",
-                    self.name, batch_size
-                );
-
-                // Create batched jobs - use the StepJob constructor to properly handle private fields
-                for chunk in job.files.chunks(batch_size) {
-                    let new_job = StepJob::new(job.step.clone(), chunk.to_vec(), job.run_type);
-                    // Note: we can't preserve workspace_indicator or other private fields
-                    // without adding public methods to StepJob. For now, batching will
-                    // break workspace_indicator jobs, but that's acceptable since those
-                    // are typically small workspaces.
-                    batched_jobs.push(new_job);
-                }
-            } else {
-                // No batching needed
+            if job.skip_reason.is_some() || job.files.len() <= 1 {
                 batched_jobs.push(job);
+                continue;
+            }
+
+            // Try render-based sizing first; fall back to byte estimation on render failure.
+            let full_size = self
+                .render_run_command_size(&job, &job.files, base_tctx)
+                .unwrap_or_else(|| self.estimate_files_string_size(&job.files));
+
+            if full_size <= safe_limit {
+                batched_jobs.push(job);
+                continue;
+            }
+
+            debug!(
+                "{}: auto-batching {} files (rendered size: {} bytes, limit: {} bytes)",
+                self.name,
+                job.files.len(),
+                full_size,
+                safe_limit
+            );
+
+            // Binary search the largest batch size whose rendered command fits.
+            let mut low = 1;
+            let mut high = job.files.len();
+            while low < high {
+                let mid = (low + high).div_ceil(2);
+                let test_size = self
+                    .render_run_command_size(&job, &job.files[..mid], base_tctx)
+                    .unwrap_or_else(|| self.estimate_files_string_size(&job.files[..mid]));
+                if test_size <= safe_limit {
+                    low = mid;
+                } else {
+                    high = mid - 1;
+                }
+            }
+            let batch_size = low.max(1);
+
+            debug!(
+                "{}: using batch size of {} files per batch",
+                self.name, batch_size
+            );
+
+            for chunk in job.files.chunks(batch_size) {
+                let mut new_job = StepJob::new(Arc::clone(&job.step), chunk.to_vec(), job.run_type);
+                // Preserve job-level state that isn't reconstructed by StepJob::new.
+                new_job.check_first = job.check_first;
+                new_job.skip_reason = job.skip_reason.clone();
+                if let Some(wi) = job.workspace_indicator() {
+                    new_job = new_job.with_workspace_indicator(wi.clone());
+                }
+                batched_jobs.push(new_job);
             }
         }
 

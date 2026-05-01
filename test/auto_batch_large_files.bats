@@ -66,6 +66,40 @@ EOF
     assert_output --partial "file10.txt"
 }
 
+@test "auto-batch does not split steps that don't reference {{files}}" {
+    # Regression test: previously hk would auto-batch any step on a large file
+    # list based on the *file list* size, even if the run command never
+    # interpolated `{{files}}`. With render-based sizing, a static command
+    # should run as a single job regardless of how many files match.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["static-message"] {
+                check = "echo hello world"
+            }
+        }
+    }
+}
+EOF
+
+    # Create enough files (with long paths) that the *file-list* expansion
+    # would blow past ARG_MAX/2 and force batching under the old logic.
+    for i in {1..1000}; do
+        dir="very/long/directory/path/number/$i/with/many/levels/to/increase/path/length"
+        mkdir -p "$dir"
+        echo "test" > "$dir/file_with_very_long_name_to_increase_arg_size_$i.txt"
+    done
+
+    run hk check --all
+    assert_success
+    # Each batch produces its own "N files – ... – <command>" progress line;
+    # one such line means the step ran as a single job.
+    run bash -c "hk check --all 2>&1 | grep -Ec 'files –.*– echo hello world' || true"
+    assert_output "1"
+}
+
 @test "auto-batch with fix command" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

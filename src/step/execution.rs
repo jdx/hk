@@ -66,12 +66,16 @@ impl Step {
         }
 
         let files = ctx.hook_ctx.files();
-        let mut jobs = self.build_step_jobs(
+        let jobs = self.build_step_jobs(
             &files,
             ctx.hook_ctx.run_type,
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
             &ctx.hook_ctx.skip_steps,
         )?;
+        // Apply ARG_MAX-safe auto-batching now that the full tera context is
+        // available — only split jobs whose rendered run command would actually
+        // exceed the limit.
+        let mut jobs = self.auto_batch_jobs(jobs, &ctx.hook_ctx.tctx);
         if let Some(job) = jobs.first_mut() {
             job.semaphore = Some(semaphore);
         }
