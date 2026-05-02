@@ -104,15 +104,6 @@ export default defineConfig({
     }]
   },
   head: [
-    [
-      "script",
-      {
-        defer: "",
-        "data-domain": "hk.jdx.dev",
-        "data-api": "https://shrill.en.dev/f5f1/event",
-        src: "https://shrill.en.dev/shrill/script.js",
-      },
-    ],
     // OpenGraph
     ["meta", { property: "og:site_name", content: "hk" }],
     ["meta", { property: "og:type", content: "website" }],
