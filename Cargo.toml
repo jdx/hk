@@ -93,3 +93,6 @@ pre-release-hook = ["mise", "run", "pre-release", "--version", "{{version}}"]
 pre-release-replacements = [
   { file = "pkl/Config.pkl", search = 'min_hk_version = ".*"', replace = 'min_hk_version = "{{version | truncate(length=1)}}.0.0"' },
 ]
+
+[profile.dev]
+debug = 1
