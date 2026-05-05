@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.45.0](https://github.com/jdx/hk/compare/v1.44.3..v1.45.0) - 2026-05-04
+
+### 🚀 Features
+
+- **(builtins)** add `buildifier` format and lint built-ins by [@plx](https://github.com/plx) in [#896](https://github.com/jdx/hk/pull/896)
+
+### 🐛 Bug Fixes
+
+- **(step)** only auto-batch when rendered command exceeds ARG_MAX by [@jdx](https://github.com/jdx) in [#901](https://github.com/jdx/hk/pull/901)
+
+### 📚 Documentation
+
+- thank Namespace for GitHub Actions runner support by [@jdx](https://github.com/jdx) in [#895](https://github.com/jdx/hk/pull/895)
+
+### 🔍 Other Changes
+
+- **(ci)** use !cancelled() instead of always() for final job by [@jdx](https://github.com/jdx) in [#906](https://github.com/jdx/hk/pull/906)
+- **(docs)** remove shrill.en.dev analytics script by [@jdx](https://github.com/jdx) in [#903](https://github.com/jdx/hk/pull/903)
+- remove rust-cache from release jobs by [@jdx](https://github.com/jdx) in [#893](https://github.com/jdx/hk/pull/893)
+- invert CLAUDE.md/AGENTS.md so AGENTS.md is canonical by [@jdx](https://github.com/jdx) in [#905](https://github.com/jdx/hk/pull/905)
+- set dev profile debug to 1 by [@jdx](https://github.com/jdx) in [#907](https://github.com/jdx/hk/pull/907)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to fefa07e by [@renovate[bot]](https://github.com/renovate[bot]) in [#897](https://github.com/jdx/hk/pull/897)
+- update jdx/mise-action digest to 1648a78 by [@renovate[bot]](https://github.com/renovate[bot]) in [#898](https://github.com/jdx/hk/pull/898)
+- update apple-actions/import-codesign-certs action to v7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#900](https://github.com/jdx/hk/pull/900)
+- update autofix-ci/action action to v1.3.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#899](https://github.com/jdx/hk/pull/899)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#908](https://github.com/jdx/hk/pull/908)
+
+### New Contributors
+
+- @plx made their first contribution in [#896](https://github.com/jdx/hk/pull/896)
+
 ## [1.44.3](https://github.com/jdx/hk/compare/v1.44.2..v1.44.3) - 2026-04-30
 
 ### 🐛 Bug Fixes
