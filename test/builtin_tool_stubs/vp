@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.1.20"
+tool = "npm:vite-plus"

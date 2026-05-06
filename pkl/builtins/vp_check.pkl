@@ -1,0 +1,84 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Format, lint, and type checks together"
+  project_indicators {
+    new { file = "package.json"; contains = "\"vite-plus\"" }
+    // https://viteplus.dev/guide/commit-hooks
+    new { file = "vite.config.ts" }
+  }
+}
+vp_check = new Config.Step {
+  // Supported file types:
+  //   https://oxc.rs/compatibility.html
+  //   https://github.com/oxc-project/oxc/blob/apps_v1.63.0/apps/oxfmt/src/core/support.rs#L484
+  glob =
+    List(
+      // JS/TS
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.mts",
+      "**/*.cts",
+      // React
+      "**/*.jsx",
+      "**/*.tsx",
+      "**/*.mdx",
+      // Frontend Frameworks
+      "**/*.vue",
+      "**/*.svelte",
+      "**/*.astro",
+      // JSON
+      "**/*.json",
+      "**/*.jsonc",
+      "**/*.json5",
+      // YAML
+      "**/*.yaml",
+      "**/*.yml",
+      // Markdown
+      "**/*.md",
+      // HTML
+      "**/*.html",
+      "**/*.htm",
+      "**/*.vue",
+      // CSS
+      "**/*.css",
+      "**/*.scss",
+      "**/*.less",
+      // GraphQL
+      "**/*.graphql",
+      "**/*.gql",
+      // Handlebars
+      "**/*.handlebars",
+      "**/*.hbs",
+      // TOML
+      "**/*.toml",
+    )
+  check = "vp check {{ files }}"
+  fix = "vp check --fix {{ files }}"
+  workspace_indicator = "package.json"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.ts"
+      extra_files = new Mapping {
+        // `vp check` searches parent dirs for `package.json` to locate the workspace root;
+        // without it, the command fails with: "error: Package not found in workspace"
+        ["package.json"] = "{}\n"
+      }
+    }
+    // Source: https://github.com/oxc-project/oxc/blob/apps_v1.63.0/apps/oxfmt/test/api/basic.test.ts
+    local const bad = "return (x === y || x < y);"
+    local const good = "return x <= y;\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+    // `vp check` always exits 0, even when warnings are found.
+    // Unlike `vp lint`, there is no flag to make it exit non-zero on warnings.
+    ["fix bad file with remaining warning"] = testMaker.fixPass("return (foo?.bar!)", "return foo?.bar!;\n")
+  }
+}

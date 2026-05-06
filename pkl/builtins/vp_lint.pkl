@@ -1,0 +1,57 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Lints codes with OxLint"
+  project_indicators {
+    new { file = "package.json"; contains = "\"vite-plus\"" }
+    // https://viteplus.dev/guide/commit-hooks
+    new { file = "vite.config.ts" }
+  }
+}
+vp_lint = new Config.Step {
+  // Supported file types:
+  //   - https://oxc.rs/docs/guide/usage/linter.html#what-oxlint-supports
+  //   - https://oxc.rs/compatibility.html
+  glob =
+    List(
+      // JS/TS
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.mts",
+      "**/*.cts",
+      // React
+      "**/*.jsx",
+      "**/*.tsx",
+      // Frontend Frameworks
+      "**/*.vue",
+      "**/*.svelte",
+      "**/*.astro",
+    )
+  // Without `--deny-warnings`,
+  // the exit code will be 0 even if there is code that violates the rules.
+  check = "vp lint --deny-warnings {{ files }}"
+  fix = "vp lint --deny-warnings --fix {{ files }}"
+  workspace_indicator = "package.json"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.ts"
+      extra_files = new Mapping {
+        // `vp lint` searches parent dirs for `package.json` to locate the workspace root;
+        // without it, the command fails with: "error: Package not found in workspace"
+        ["package.json"] = "{}\n"
+      }
+    }
+    // Refernece: https://oxc.rs/docs/guide/usage/linter/rules/oxc/double-comparisons.html
+    local const bad = "return (x === y || x < y);"
+    local const good = "return (x <= y);"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}

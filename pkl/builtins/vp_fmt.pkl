@@ -1,0 +1,79 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Formats code with Oxfmt"
+  project_indicators {
+    new { file = "package.json"; contains = "\"vite-plus\"" }
+    // https://viteplus.dev/guide/commit-hooks
+    new { file = "vite.config.ts" }
+  }
+}
+vp_fmt = new Config.Step {
+  // Supported file types:
+  //   https://oxc.rs/compatibility.html
+  //   https://github.com/oxc-project/oxc/blob/apps_v1.63.0/apps/oxfmt/src/core/support.rs#L484
+  glob =
+    List(
+      // JS/TS
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.mts",
+      "**/*.cts",
+      // React
+      "**/*.jsx",
+      "**/*.tsx",
+      "**/*.mdx",
+      // Frontend Frameworks
+      "**/*.vue",
+      // JSON
+      "**/*.json",
+      "**/*.jsonc",
+      "**/*.json5",
+      // YAML
+      "**/*.yaml",
+      "**/*.yml",
+      // TOML
+      "**/*.toml",
+      // Markdown
+      "**/*.md",
+      // HTML
+      "**/*.html",
+      "**/*.htm",
+      // CSS
+      "**/*.css",
+      "**/*.scss",
+      "**/*.less",
+      // GraphQL
+      "**/*.graphql",
+      "**/*.gql",
+      // Handlebars
+      "**/*.handlebars",
+      "**/*.hbs",
+    )
+  check = "vp fmt --check {{ files }}"
+  check_list_files = "vp fmt --list-different {{ files }}"
+  fix = "vp fmt {{ files }}"
+  workspace_indicator = "package.json"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.ts"
+      extra_files = new Mapping {
+        // `vp fmt` searches parent dirs for `package.json` to locate the workspace root;
+        // without it, the command fails with: "error: Package not found in workspace"
+        ["package.json"] = "{}\n"
+      }
+    }
+    // Source: https://github.com/oxc-project/oxc/blob/apps_v1.63.0/apps/oxfmt/test/api/basic.test.ts
+    local const bad = "const x:number=42"
+    local const good = "const x: number = 42;\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
