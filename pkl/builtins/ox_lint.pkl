@@ -5,6 +5,13 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Oxidation compiler linter"
+  project_indicators {
+    new { file = "package.json"; contains = "\"oxlint\"" }
+    // https://oxc.rs/docs/guide/usage/linter/config.html#create-a-config-file
+    new { file = ".oxlintrc.json" }
+    new { file = ".oxlintrc.jsonc" }
+    new { file = "oxlint.config.ts" }
+  }
 }
 ox_lint = new Config.Step {
   // Supported file types:
