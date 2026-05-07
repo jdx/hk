@@ -15,13 +15,30 @@ import "./test/helpers.pkl"
 }
 ox_lint = new Config.Step {
   // Supported file types:
-  //   https://oxc.rs/compatibility.html
-  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.vue", "**/*.svelte", "**/*.astro")
+  //   - https://oxc.rs/docs/guide/usage/linter.html#what-oxlint-supports
+  //   - https://oxc.rs/compatibility.html
+  glob =
+    List(
+      // JS/TS
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.mts",
+      "**/*.cts",
+      // React
+      "**/*.jsx",
+      "**/*.tsx",
+      // Frontend Frameworks
+      "**/*.vue",
+      "**/*.svelte",
+      "**/*.astro",
+    )
   check = "oxlint {{ files }}"
   fix = "oxlint --fix {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "foo.ts" }
-    // Refernece: https://oxc.rs/docs/guide/usage/linter/rules/oxc/double-comparisons.html
+    // Reference: https://oxc.rs/docs/guide/usage/linter/rules/oxc/double-comparisons.html
     local const bad = "return (x === y || x < y);"
     local const good = "return (x <= y);"
     ["check bad file"] = testMaker.checkFail(bad, 1)
