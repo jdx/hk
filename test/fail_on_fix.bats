@@ -124,6 +124,7 @@ amends "$PKL_PATH/Config.pkl"
 hooks {
     ["pre-commit"] {
         fix = true
+        stash = "git"
         fail_on_fix = true
         steps {
             ["normalize"] {
