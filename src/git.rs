@@ -86,6 +86,7 @@ pub struct Git {
     stash: Option<StashType>,
     // Commit id of the stash entry we created (top-of-stack at creation time)
     stash_commit: Option<String>,
+    stashed_paths: Option<BTreeSet<PathBuf>>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
     saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
 }
@@ -168,6 +169,7 @@ impl Git {
             repo,
             stash: None,
             stash_commit: None,
+            stashed_paths: None,
             saved_index: None,
             saved_worktree: None,
         })
@@ -741,8 +743,10 @@ impl Git {
         } else {
             Some(&subset_vec[..])
         };
+        self.stashed_paths = Some(files_to_stash);
         self.stash = self.push_stash(subset_opt, status)?;
         if self.stash.is_none() {
+            self.stashed_paths = None;
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
@@ -948,6 +952,11 @@ impl Git {
                     .split('\0')
                     .filter(|s| !s.is_empty())
                     .map(PathBuf::from)
+                    .filter(|p| {
+                        self.stashed_paths
+                            .as_ref()
+                            .is_none_or(|stashed_paths| stashed_paths.contains(p))
+                    })
                     .collect();
 
                 // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs.
@@ -1350,6 +1359,7 @@ impl Git {
         // Clear saved snapshots now that we've restored
         self.saved_worktree = None;
         self.stash_commit = None;
+        self.stashed_paths = None;
         Ok(())
     }
 
