@@ -7,7 +7,9 @@ import "./test/helpers.pkl"
   description = "Oxidation compiler linter"
 }
 ox_lint = new Config.Step {
-  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
+  // Supported file types:
+  //   https://oxc.rs/compatibility.html
+  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.vue", "**/*.svelte", "**/*.astro")
   check = "oxlint {{ files }}"
   fix = "oxlint --fix {{ files }}"
   tests {
