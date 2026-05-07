@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "JavaScript/TypeScript"
@@ -9,4 +10,14 @@ ox_lint = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
   check = "oxlint {{ files }}"
   fix = "oxlint --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "foo.ts" }
+    // Refernece: https://oxc.rs/docs/guide/usage/linter/rules/oxc/double-comparisons.html
+    local const bad = "return (x === y || x < y);"
+    local const good = "return (x <= y);"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
 }
