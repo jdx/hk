@@ -34,8 +34,10 @@ ox_lint = new Config.Step {
       "**/*.svelte",
       "**/*.astro",
     )
-  check = "oxlint {{ files }}"
-  fix = "oxlint --fix {{ files }}"
+  // Without `--deny-warnings`,
+  // the exit code will be 0 even if there is code that violates the rules.
+  check = "oxlint --deny-warnings {{ files }}"
+  fix = "oxlint --deny-warnings --fix {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "foo.ts" }
     // Reference: https://oxc.rs/docs/guide/usage/linter/rules/oxc/double-comparisons.html
