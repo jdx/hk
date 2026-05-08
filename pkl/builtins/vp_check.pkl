@@ -4,7 +4,7 @@ import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "JavaScript/TypeScript"
-  description = "Format, lint, and type checks together"
+  description = "Formats, lints, and type checks code together"
   project_indicators {
     new { file = "package.json"; contains = "\"vite-plus\"" }
     // https://viteplus.dev/guide/commit-hooks
@@ -44,7 +44,6 @@ vp_check = new Config.Step {
       // HTML
       "**/*.html",
       "**/*.htm",
-      "**/*.vue",
       // CSS
       "**/*.css",
       "**/*.scss",
