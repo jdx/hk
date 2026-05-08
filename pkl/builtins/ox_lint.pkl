@@ -1,12 +1,51 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Oxidation compiler linter"
+  project_indicators {
+    new { file = "package.json"; contains = "\"oxlint\"" }
+    // https://oxc.rs/docs/guide/usage/linter/config.html#create-a-config-file
+    new { file = ".oxlintrc.json" }
+    new { file = ".oxlintrc.jsonc" }
+    new { file = "oxlint.config.ts" }
+  }
 }
 ox_lint = new Config.Step {
-  glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
-  check = "oxlint {{ files }}"
-  fix = "oxlint --fix {{ files }}"
+  // Supported file types:
+  //   - https://oxc.rs/docs/guide/usage/linter.html#what-oxlint-supports
+  //   - https://oxc.rs/compatibility.html
+  glob =
+    List(
+      // JS/TS
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.ts",
+      "**/*.mts",
+      "**/*.cts",
+      // React
+      "**/*.jsx",
+      "**/*.tsx",
+      // Frontend Frameworks
+      "**/*.vue",
+      "**/*.svelte",
+      "**/*.astro",
+    )
+  // Without `--deny-warnings`,
+  // the exit code will be 0 even if there is code that violates the rules.
+  check = "oxlint --deny-warnings {{ files }}"
+  fix = "oxlint --deny-warnings --fix {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "foo.ts" }
+    // Reference: https://oxc.rs/docs/guide/usage/linter/rules/oxc/double-comparisons.html
+    local const bad = "return (x === y || x < y);"
+    local const good = "return (x <= y);"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
 }
