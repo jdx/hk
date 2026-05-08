@@ -41,6 +41,7 @@ vp_fmt = new Config.Step {
       "**/*.toml",
       // Markdown
       "**/*.md",
+      "**/*.markdown",
       // HTML
       "**/*.html",
       "**/*.htm",

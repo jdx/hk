@@ -41,6 +41,7 @@ vp_check = new Config.Step {
       "**/*.yml",
       // Markdown
       "**/*.md",
+      "**/*.markdown",
       // HTML
       "**/*.html",
       "**/*.htm",
