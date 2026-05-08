@@ -79,6 +79,7 @@ vp_check = new Config.Step {
     ["fix good file"] = testMaker.fixPass(good, good)
     // `vp check` always exits 0, even when warnings are found.
     // Unlike `vp lint`, there is no flag to make it exit non-zero on warnings.
-    ["fix bad file with remaining warning"] = testMaker.fixPass("return (foo?.bar!)", "return foo?.bar!;\n")
+    ["fix bad file with remaining warning"] =
+      testMaker.fixPass("return (foo?.bar!)", "return foo?.bar!;\n")
   }
 }
