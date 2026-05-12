@@ -83,7 +83,7 @@ def main():
             f.write(f'{alias} = Builtins["builtins/{canonical}.pkl"].{canonical}\n')
 
     # pkl format (exits 11 after formatting, ignore that)
-    subprocess.run(["mise", "x", "--", "pkl", "format", "--write", "pkl/Builtins.pkl"])
+    subprocess.run(["pkl", "format", "--write", "pkl/Builtins.pkl"])
 
     # Generate builtins metadata JSON for build script
     reflect_script = os.path.join(os.getcwd(), "scripts", "reflect.pkl")
@@ -99,7 +99,7 @@ def main():
         # Use pkl reflection to extract metadata
         try:
             result = subprocess.run(
-                ["mise", "x", "--", "pkl", "eval", filepath, "--format", "json", "-x",
+                ["pkl", "eval", filepath, "--format", "json", "-x",
                  f'import("{reflect_uri}").render(module)'],
                 capture_output=True, text=True, timeout=30,
             )
