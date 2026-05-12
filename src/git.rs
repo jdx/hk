@@ -170,7 +170,10 @@ impl Git {
                 // relativeworktrees". Fall back to shell git for these — the
                 // rest of this module already supports a `None` repo. Remove
                 // this branch once vendored libgit2 ships native support.
-                Err(e) if e.message().contains("unsupported extension") => {
+                Err(e)
+                    if e.message().contains("unsupported extension")
+                        && e.message().contains("relativeworktrees") =>
+                {
                     warn!(
                         "libgit2 cannot open this repository ({}); falling back to shell git",
                         e.message()
