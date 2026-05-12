@@ -969,15 +969,14 @@ impl Git {
                             .is_none_or(|stashed_paths| stashed_paths.contains(p))
                     })
                     .filter(|p| {
-                        if staged_deleted_set.contains(p) {
+                        let skip = staged_deleted_set.contains(p);
+                        if skip {
                             debug!(
                                 "manual-unstash: skipping staged-deleted path={}",
                                 display_path(p)
                             );
-                            false
-                        } else {
-                            true
                         }
+                        !skip
                     })
                     .collect();
 
