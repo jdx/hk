@@ -948,6 +948,17 @@ impl Git {
                 }
                 cmd = cmd.arg(&stash_ref);
                 let show = cmd.read().unwrap_or_default();
+                // Paths that are staged as deletions in the current index must NOT be
+                // restored to the worktree by the unstash loop — the user intentionally
+                // deleted them and the commit should preserve that deletion.
+                let staged_deleted_set: std::collections::HashSet<PathBuf> =
+                    git_cmd(["diff", "--cached", "--name-only", "--diff-filter=D", "-z"])
+                        .read()
+                        .unwrap_or_default()
+                        .split('\0')
+                        .filter(|s| !s.is_empty())
+                        .map(PathBuf::from)
+                        .collect();
                 let stash_paths: Vec<PathBuf> = show
                     .split('\0')
                     .filter(|s| !s.is_empty())
@@ -956,6 +967,17 @@ impl Git {
                         self.stashed_paths
                             .as_ref()
                             .is_none_or(|stashed_paths| stashed_paths.contains(p))
+                    })
+                    .filter(|p| {
+                        if staged_deleted_set.contains(p) {
+                            debug!(
+                                "manual-unstash: skipping staged-deleted path={}",
+                                display_path(p)
+                            );
+                            false
+                        } else {
+                            true
+                        }
                     })
                     .collect();
 
