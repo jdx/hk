@@ -1,7 +1,6 @@
 name: release
 
-permissions:
-  contents: write
+permissions: {}
 
 on:
   push:
@@ -21,6 +20,8 @@ env:
 jobs:
   build-binaries:
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +56,8 @@ jobs:
             build-tool: cargo
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - if: matrix.os == 'macos-latest'
         uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7
         with:
@@ -83,15 +86,24 @@ jobs:
 
   build-pkl:
     runs-on: namespace-profile-endev-linux-amd64
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache: false
       - name: Package Pkl
+        env:
+          INPUTS_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            TAG_NAME="v${{ inputs.version }}"
+          if [[ -n "${INPUTS_VERSION}" ]]; then
+            TAG_NAME="v${INPUTS_VERSION}"
           else
-            TAG_NAME="${{ github.ref_name }}"
+            TAG_NAME="${GITHUB_REF_NAME}"
           fi
           VERSION="${TAG_NAME#v}"
           echo "Building pkl package for version: $VERSION"
@@ -111,11 +123,16 @@ jobs:
   create-release:
     needs: [build-binaries, build-pkl]
     runs-on: namespace-profile-endev-linux-amd64
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache: false
       - name: Extract release notes from CHANGELOG.md
         run: |
           awk '/^## \[/{if(found) exit; found=1} found{print}' CHANGELOG.md > release-notes.md
@@ -135,11 +152,14 @@ jobs:
           fi
           ls -la release-assets/
       - name: Create release with all assets
+        env:
+          INPUTS_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            TAG_NAME="v${{ inputs.version }}"
+          if [[ -n "${INPUTS_VERSION}" ]]; then
+            TAG_NAME="v${INPUTS_VERSION}"
           else
-            TAG_NAME="${{ github.ref_name }}"
+            TAG_NAME="${GITHUB_REF_NAME}"
           fi
           gh release create "$TAG_NAME" \
             --title "$TAG_NAME" \
@@ -150,9 +170,15 @@ jobs:
     needs: [create-release]
     if: github.repository == 'jdx/hk'
     runs-on: namespace-profile-endev-linux-amd64
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache: false
       - run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
@@ -160,29 +186,38 @@ jobs:
   enhance-release:
     needs: [create-release]
     runs-on: namespace-profile-endev-linux-amd64
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+        with:
+          cache: false
       - name: Enhance release notes with communique
-        run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            TAG_NAME="v${{ inputs.version }}"
-          else
-            TAG_NAME="${{ github.ref_name }}"
-          fi
-          communique generate "$TAG_NAME" --github-release
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          INPUTS_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ -n "${INPUTS_VERSION}" ]]; then
+            TAG_NAME="v${INPUTS_VERSION}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+          communique generate "$TAG_NAME" --github-release
       - name: Append en.dev sponsor blurb
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUTS_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            TAG_NAME="v${{ inputs.version }}"
+          if [[ -n "${INPUTS_VERSION}" ]]; then
+            TAG_NAME="v${INPUTS_VERSION}"
           else
-            TAG_NAME="${{ github.ref_name }}"
+            TAG_NAME="${GITHUB_REF_NAME}"
           fi
           gh release view "$TAG_NAME" --json body --jq .body \
             | perl -0pe 's/\n*^##[^\n]*Sponsor hk\b.*\z//ms' \
