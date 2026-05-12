@@ -31,6 +31,8 @@ jobs:
     runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: read
+      # actions/configure-pages needs pages permission to enable Pages on the repo.
+      pages: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6

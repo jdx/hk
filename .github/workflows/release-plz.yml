@@ -1,8 +1,6 @@
 name: release-plz
 
-permissions:
-  pull-requests: write
-  contents: write
+permissions: {}
 
 on:
   workflow_dispatch: {}
@@ -21,12 +19,17 @@ jobs:
   release-plz:
     if: github.repository == 'jdx/hk'
     runs-on: namespace-profile-endev-linux-amd64
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      # release-plz needs persisted credentials so the mise-tasks/release-plz
+      # script's `git push --tags` / `git push origin release --force` can
+      # authenticate.
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # zizmor: ignore[artipacked] v6
         with:
           fetch-depth: 0
           token: ${{ secrets.HK_GH_TOKEN }}
-          persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
         with:
           experimental: true
