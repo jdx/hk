@@ -41,10 +41,18 @@ impl FileRwLocks {
         }
     }
 
+    fn ordered_files(files: &[PathBuf]) -> Vec<PathBuf> {
+        let mut files = files.to_vec();
+        files.sort();
+        files.dedup();
+        files
+    }
+
     fn try_read_locks(&self, files: &[PathBuf]) -> Result<Flocks> {
+        let files = Self::ordered_files(files);
         let mut locks = self.locks.lock().unwrap();
         let mut read_locks = Vec::new();
-        for file in files {
+        for file in &files {
             let lock = self.get_or_create_lock(&mut locks, file);
             let lock = lock
                 .try_read_owned()
@@ -64,8 +72,9 @@ impl FileRwLocks {
                 debug!("failed to get read locks: {e:?}");
             }
         }
+        let files = Self::ordered_files(files);
         let mut read_locks = Vec::new();
-        for file in files {
+        for file in &files {
             let lock = self.get_or_create_lock(&mut self.locks.lock().unwrap(), file);
             read_locks.push(lock.read_owned().await);
         }
@@ -76,9 +85,10 @@ impl FileRwLocks {
     }
 
     fn try_write_locks(&self, files: &[PathBuf]) -> Result<Flocks> {
+        let files = Self::ordered_files(files);
         let mut locks = self.locks.lock().unwrap();
         let mut write_locks = Vec::new();
-        for file in files {
+        for file in &files {
             let lock = self.get_or_create_lock(&mut locks, file);
             let lock = lock
                 .try_write_owned()
@@ -98,8 +108,9 @@ impl FileRwLocks {
                 debug!("failed to get write locks: {e:?}");
             }
         }
+        let files = Self::ordered_files(files);
         let mut write_locks = Vec::new();
-        for file in files {
+        for file in &files {
             let lock = self.get_or_create_lock(&mut self.locks.lock().unwrap(), file);
             write_locks.push(lock.write_owned().await);
         }
@@ -122,5 +133,21 @@ impl FileRwLocks {
                 .or_insert_with(|| Arc::new(RwLock::new(())))
         }
         .clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FileRwLocks;
+    use std::path::PathBuf;
+
+    #[test]
+    fn lock_order_is_sorted_and_deduplicated() {
+        let files = vec![PathBuf::from("b"), PathBuf::from("a"), PathBuf::from("b")];
+
+        assert_eq!(
+            FileRwLocks::ordered_files(&files),
+            vec![PathBuf::from("a"), PathBuf::from("b")]
+        );
     }
 }

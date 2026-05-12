@@ -141,6 +141,7 @@ impl StepGroup {
                     let result = step.run_all_jobs(step_ctx.clone(), semaphore).await;
                     if let Err(err) = &result {
                         step_ctx.status_errored(&err.to_string());
+                        let _ = step_ctx.depends.mark_failed(&step.name);
                     }
                     hook_ctx
                         .step_contexts

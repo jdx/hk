@@ -1,7 +1,8 @@
 use std::{
     collections::BTreeSet,
     ffi::{CString, OsString},
-    path::PathBuf,
+    io::ErrorKind,
+    path::{Path, PathBuf},
 };
 
 use crate::Result;
@@ -14,7 +15,10 @@ use git2::{Repository, StatusOptions, StatusShow};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 #[cfg(unix)]
-use std::os::unix::ffi::OsStringExt;
+use std::os::unix::{
+    ffi::{OsStrExt, OsStringExt},
+    fs::PermissionsExt,
+};
 use xx::file::display_path;
 
 use crate::env;
@@ -79,6 +83,149 @@ where
 {
     let bytes = git_read_bytes(args)?;
     String::from_utf8(bytes).map_err(|err| eyre!("git output is not valid UTF-8: {err}"))
+}
+
+#[derive(Debug)]
+struct PorcelainStatusEntry {
+    index_status: char,
+    workdir_status: char,
+    path: PathBuf,
+    #[allow(dead_code)]
+    original_path: Option<PathBuf>,
+}
+
+fn parse_porcelain_v1_z(output: &str) -> Vec<PorcelainStatusEntry> {
+    let mut entries = Vec::new();
+    let mut fields = output.split('\0').filter(|field| !field.is_empty());
+    while let Some(field) = fields.next() {
+        let bytes = field.as_bytes();
+        let index_status = bytes.first().copied().unwrap_or(b' ') as char;
+        let workdir_status = bytes.get(1).copied().unwrap_or(b' ') as char;
+        let path = field.get(3..).unwrap_or_default();
+        if path.is_empty() {
+            continue;
+        }
+        let original_path =
+            if matches!(index_status, 'R' | 'C') || matches!(workdir_status, 'R' | 'C') {
+                fields.next().map(PathBuf::from)
+            } else {
+                None
+            };
+        entries.push(PorcelainStatusEntry {
+            index_status,
+            workdir_status,
+            path: PathBuf::from(path),
+            original_path,
+        });
+    }
+    entries
+}
+
+fn worktree_path_exists(path: &Path) -> bool {
+    path.exists() || std::fs::symlink_metadata(path).is_ok()
+}
+
+fn ensure_parent_dir(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+    Ok(())
+}
+
+fn remove_worktree_path(path: &Path) -> Result<()> {
+    match std::fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.is_dir() && !metadata.file_type().is_symlink() {
+                std::fs::remove_dir_all(path)?;
+            } else {
+                std::fs::remove_file(path)?;
+            }
+        }
+        Err(err) if err.kind() == ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
+    }
+    Ok(())
+}
+
+fn git_tree_entry_mode(treeish: &str, path: &Path) -> Option<u32> {
+    let mut cmd = git_cmd_silent(["ls-tree", "-z", treeish, "--"]);
+    cmd = cmd.arg(path.as_os_str());
+    let out = cmd.read().ok()?;
+    let entry = out.split('\0').find(|entry| !entry.is_empty())?;
+    let mode = entry.split_whitespace().next()?;
+    u32::from_str_radix(mode, 8).ok()
+}
+
+fn restore_worktree_snapshot(path: &Path, mode: u32, contents: &[u8]) -> Result<()> {
+    if mode == 0o120000 {
+        return restore_worktree_symlink(path, contents);
+    }
+
+    ensure_parent_dir(path)?;
+    if worktree_path_exists(path) {
+        remove_worktree_path(path)?;
+    }
+    std::fs::write(path, contents)?;
+    set_worktree_file_mode(path, mode)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn restore_worktree_symlink(path: &Path, contents: &[u8]) -> Result<()> {
+    ensure_parent_dir(path)?;
+    if worktree_path_exists(path) {
+        remove_worktree_path(path)?;
+    }
+    let target = std::ffi::OsStr::from_bytes(contents);
+    std::os::unix::fs::symlink(target, path)?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn restore_worktree_symlink(path: &Path, contents: &[u8]) -> Result<()> {
+    ensure_parent_dir(path)?;
+    if worktree_path_exists(path) {
+        remove_worktree_path(path)?;
+    }
+    std::fs::write(path, contents)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_worktree_file_mode(path: &Path, mode: u32) -> Result<()> {
+    if mode & 0o170000 == 0o100000 {
+        let mode = if mode & 0o111 != 0 { 0o755 } else { 0o644 };
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))?;
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_worktree_file_mode(_path: &Path, _mode: u32) -> Result<()> {
+    Ok(())
+}
+
+fn restore_fixer_index(
+    path: &Path,
+    fixer_map: &std::collections::HashMap<PathBuf, (u32, String)>,
+) -> Result<bool> {
+    let Some((mode, oid)) = fixer_map.get(path) else {
+        return Ok(false);
+    };
+    let mode_str = format!("{:o}", *mode);
+    git_cmd(["update-index", "--cacheinfo"])
+        .arg(mode_str)
+        .arg(oid)
+        .arg(path.as_os_str())
+        .run()?;
+    debug!(
+        "manual-unstash: set index cacheinfo path={} mode={:o} oid={oid}",
+        display_path(path),
+        *mode,
+    );
+    Ok(true)
 }
 
 pub struct Git {
@@ -320,7 +467,7 @@ impl Git {
         // Fallbacks: main, master
         for cand in ["main", "master"] {
             let branch = cand.split('/').next_back().unwrap();
-            let out = xx::process::sh(&format!("git ls-remote --heads origin {}", branch))?;
+            let out = git_read(["ls-remote", "--heads", "origin", branch])?;
             if out
                 .lines()
                 .any(|l| l.ends_with(&format!("refs/heads/{}", branch)))
@@ -353,9 +500,9 @@ impl Git {
                     return Ok(_ref.name().map(|s| s.to_string()));
                 }
             } else {
-                let output = xx::process::sh(&format!("git ls-remote --heads {remote} {branch}"))?;
+                let output = git_read(["ls-remote", "--heads", remote, branch.as_str()])?;
                 for line in output.lines() {
-                    if line.contains(&format!("refs/remotes/{remote}/{branch}")) {
+                    if line.ends_with(&format!("refs/heads/{branch}")) {
                         return Ok(Some(branch.to_string()));
                     }
                 }
@@ -370,7 +517,7 @@ impl Git {
             let branch_name = head.shorthand().map(|s| s.to_string());
             Ok(branch_name)
         } else {
-            let output = xx::process::sh("git branch --show-current")?;
+            let output = git_read(["branch", "--show-current"])?;
             Ok(output.lines().next().map(|s| s.to_string()))
         }
     }
@@ -541,17 +688,13 @@ impl Git {
             let mut unstaged_modified_files = BTreeSet::new();
             let mut unstaged_deleted_files = BTreeSet::new();
             let mut unstaged_renamed_files = BTreeSet::new();
-            for file in output.split('\0') {
-                if file.is_empty() {
-                    continue;
-                }
-                let mut chars = file.chars();
-                let index_status = chars.next().unwrap_or_default();
-                let workdir_status = chars.next().unwrap_or_default();
-                let path = PathBuf::from(chars.skip(1).collect::<String>());
+            for entry in parse_porcelain_v1_z(&output) {
+                let index_status = entry.index_status;
+                let workdir_status = entry.workdir_status;
+                let path = entry.path;
                 // Check if path exists (including broken symlinks)
                 // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
-                let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
+                let exists = worktree_path_exists(&path);
                 let is_modified =
                     |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
 
@@ -658,9 +801,7 @@ impl Git {
                     continue;
                 }
                 let p = PathBuf::from(name);
-                if p.exists() {
-                    files_to_stash.insert(p);
-                }
+                files_to_stash.insert(p);
             }
         }
         // 2) git ls-files -m (modified in worktree)
@@ -672,9 +813,7 @@ impl Git {
                     continue;
                 }
                 let p = PathBuf::from(name);
-                if p.exists() {
-                    files_to_stash.insert(p);
-                }
+                files_to_stash.insert(p);
             }
         }
         // 3) Parse porcelain to catch nuanced mixed states.
@@ -695,22 +834,18 @@ impl Git {
                 "-z".into(),
             ];
             let out = git_read(args).unwrap_or_default();
-            for entry in out.split('\0').filter(|s| !s.is_empty()) {
-                let mut chars = entry.chars();
-                let _x = chars.next().unwrap_or_default();
-                let y = chars.next().unwrap_or_default();
-                let path = chars.skip(1).collect::<String>();
-                if y == 'M' || y == 'T' || y == 'R' {
-                    // worktree side has changes
-                    let p = PathBuf::from(&path);
-                    if p.exists() {
-                        files_to_stash.insert(p);
-                    }
+            for entry in parse_porcelain_v1_z(&out) {
+                if matches!(entry.workdir_status, 'M' | 'T' | 'R' | 'D') {
+                    // worktree side has changes, including deletions and broken symlinks
+                    files_to_stash.insert(entry.path);
                 }
             }
         }
         // 4) Union with computed status for safety
         for p in status.unstaged_files.iter() {
+            files_to_stash.insert(p.clone());
+        }
+        for p in status.unstaged_deleted_files.iter() {
             files_to_stash.insert(p.clone());
         }
         // 5) When HK_STASH_UNTRACKED=true, also include untracked files
@@ -1036,12 +1171,14 @@ impl Git {
                             "manual-unstash: restoring untracked file from stash^3 path={}",
                             display_path(&path)
                         );
+                        let untracked_tree = format!("{stash_ref}^3");
+                        let mode = git_tree_entry_mode(&untracked_tree, &path).unwrap_or(0o100644);
                         if let Ok(contents) = git_read_bytes([
                             "cat-file",
                             "-p",
                             &format!("{}^3:{}", &stash_ref, path_str),
                         ]) {
-                            if let Err(err) = xx::file::write(&path, &contents) {
+                            if let Err(err) = restore_worktree_snapshot(&path, mode, &contents) {
                                 warn!(
                                     "failed to write untracked file {}: {err:?}",
                                     display_path(&path)
@@ -1059,11 +1196,62 @@ impl Git {
                         continue;
                     }
 
+                    let work_mode = git_tree_entry_mode(&stash_ref, &path);
+                    let work_bytes = work_mode.and_then(|_| {
+                        git_read_bytes(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
+                            .ok()
+                    });
+                    let has_fixer = fixer_map.contains_key(&path);
+
+                    if work_mode.is_none() {
+                        debug!(
+                            "manual-unstash: restoring unstaged deletion path={}",
+                            display_path(&path),
+                        );
+                        if let Err(err) = remove_worktree_path(&path) {
+                            warn!(
+                                "failed to restore unstaged deletion for {}: {err:?}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
+                        }
+                        if let Err(err) = restore_fixer_index(&path, &fixer_map) {
+                            warn!("failed to set index for {}: {err:?}", display_path(&path));
+                            restoration_failed = true;
+                        }
+                        continue;
+                    }
+
+                    let work_mode = work_mode.unwrap_or(0o100644);
+                    if work_mode == 0o120000 {
+                        debug!(
+                            "manual-unstash: symlink detected; restoring worktree snapshot directly path={}",
+                            display_path(&path),
+                        );
+                        if let Some(bytes) = &work_bytes {
+                            if let Err(err) = restore_worktree_snapshot(&path, work_mode, bytes) {
+                                warn!(
+                                    "failed to restore symlink worktree snapshot for {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                        } else {
+                            warn!(
+                                "failed to read symlink worktree snapshot for {}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
+                        }
+                        if let Err(err) = restore_fixer_index(&path, &fixer_map) {
+                            warn!("failed to set index for {}: {err:?}", display_path(&path));
+                            restoration_failed = true;
+                        }
+                        continue;
+                    }
+
                     // Detect binary files: try reading the worktree blob as UTF-8.
                     // If it fails, restore using raw bytes and skip text merging entirely.
-                    let work_bytes =
-                        git_read_bytes(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
-                            .ok();
                     let is_binary = work_bytes
                         .as_ref()
                         .is_some_and(|b| std::str::from_utf8(b).is_err());
@@ -1075,18 +1263,21 @@ impl Git {
                         );
                         // SAFETY: is_binary is only true when work_bytes is Some (via is_some_and)
                         let bytes = work_bytes.unwrap();
-                        if let Err(err) = xx::file::write(&path, &bytes) {
+                        if let Err(err) = restore_worktree_snapshot(&path, work_mode, &bytes) {
                             warn!(
                                 "failed to write binary worktree snapshot for {}: {err:?}",
                                 display_path(&path)
                             );
                             restoration_failed = true;
                         }
+                        if let Err(err) = restore_fixer_index(&path, &fixer_map) {
+                            warn!("failed to set index for {}: {err:?}", display_path(&path));
+                            restoration_failed = true;
+                        }
                         continue;
                     }
 
                     let work_size: Option<usize> = work_bytes.as_ref().map(|b| b.len());
-                    let has_fixer = fixer_map.contains_key(&path);
                     if work_size.unwrap_or(0) >= LARGE_STASH_FILE_BYTES && !has_fixer {
                         debug!(
                             "manual-unstash: large file without fixer; restoring worktree snapshot directly path={} size={}",
@@ -1094,7 +1285,7 @@ impl Git {
                             work_size.unwrap_or(0)
                         );
                         if let Some(bytes) = &work_bytes {
-                            if let Err(err) = xx::file::write(&path, bytes) {
+                            if let Err(err) = restore_worktree_snapshot(&path, work_mode, bytes) {
                                 warn!(
                                     "failed to write large worktree snapshot for {}: {err:?}",
                                     display_path(&path)
@@ -1312,23 +1503,10 @@ impl Git {
                             "manual-unstash: newline-only change; leaving index untouched path={}",
                             display_path(&path)
                         );
-                    } else if let Some((mode, oid)) = fixer_map.get(&path) {
-                        let mode_str = format!("{:o}", mode);
-                        if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob
-                            .arg(mode_str)
-                            .arg(oid)
-                            .arg(&path)
-                            .run()
-                        {
-                            warn!("failed to set index for {}: {err:?}", display_path(&path));
-                            restoration_failed = true;
-                        } else {
-                            debug!(
-                                "manual-unstash: set index cacheinfo path={} mode={mode:o} oid={oid}",
-                                display_path(&path),
-                            );
-                        }
-                    } else {
+                    } else if let Err(err) = restore_fixer_index(&path, &fixer_map) {
+                        warn!("failed to set index for {}: {err:?}", display_path(&path));
+                        restoration_failed = true;
+                    } else if !fixer_map.contains_key(&path) {
                         debug!(
                             "manual-unstash: no fixer entry in saved index; leaving index as-is path={}",
                             display_path(&path)
@@ -1428,7 +1606,7 @@ impl Git {
             Ok(files.into_iter().collect())
         } else {
             // Use git merge-base to find the common ancestor
-            let merge_base = xx::process::sh(&format!("git merge-base {from_ref} {to_ref}"))?;
+            let merge_base = git_read(["merge-base", from_ref, to_ref])?;
             let merge_base = merge_base.trim();
 
             let output = git_read([
@@ -1463,4 +1641,22 @@ pub(crate) struct GitStatus {
     pub unstaged_modified_files: BTreeSet<PathBuf>,
     pub unstaged_deleted_files: BTreeSet<PathBuf>,
     pub unstaged_renamed_files: BTreeSet<PathBuf>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_porcelain_v1_z;
+    use std::path::PathBuf;
+
+    #[test]
+    fn porcelain_parser_consumes_rename_source_paths() {
+        let entries = parse_porcelain_v1_z("R  new-name\0old-name\0 M modified\0");
+
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].index_status, 'R');
+        assert_eq!(entries[0].path, PathBuf::from("new-name"));
+        assert_eq!(entries[0].original_path, Some(PathBuf::from("old-name")));
+        assert_eq!(entries[1].workdir_status, 'M');
+        assert_eq!(entries[1].path, PathBuf::from("modified"));
+    }
 }

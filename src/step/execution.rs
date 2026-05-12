@@ -14,6 +14,7 @@ use crate::hook::SkipReason;
 use crate::step_context::StepContext;
 use crate::step_job::StepJobStatus;
 use crate::{Result, glob, tera};
+use eyre::eyre;
 use indexmap::IndexSet;
 use itertools::Itertools;
 use std::collections::BTreeSet;
@@ -245,8 +246,8 @@ impl Step {
         }
         if non_skip_jobs > 0 {
             ctx.status_finished();
-            ctx.depends.mark_done(&self.name)?;
         }
+        ctx.depends.mark_done(&self.name)?;
         Ok(())
     }
 
@@ -263,7 +264,10 @@ impl Step {
                 debug!("{self}: waiting for {dep}");
                 semaphore.take(); // release semaphore for another step
             }
-            ctx.depends.wait_for(dep).await?;
+            let status = ctx.depends.wait_for(dep).await?;
+            if status.is_failed() {
+                return Err(eyre!("{self}: dependency {dep} failed"));
+            }
         }
         match semaphore {
             Some(semaphore) => Ok(semaphore),
