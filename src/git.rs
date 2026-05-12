@@ -140,26 +140,46 @@ impl Git {
         std::env::set_current_dir(&root)?;
         let repo = if *env::HK_LIBGIT2 {
             debug!("libgit2: true");
-            let repo = if has_git_env {
-                Repository::open_from_env().wrap_err("failed to open repository")?
+            let opened = if has_git_env {
+                Repository::open_from_env()
             } else {
-                Repository::open(".").wrap_err("failed to open repository")?
+                Repository::open(".")
             };
-            // libgit2 status/diff APIs refuse to operate on a bare repository.
-            // For bare-repo dotfile managers (YADM, etc.) the work tree is
-            // provided via GIT_WORK_TREE but libgit2 still flags the repo as
-            // bare — fall back to the shell-git path so those operations work.
-            if repo.is_bare() {
-                debug!("libgit2: bare repo detected, falling back to shell git");
-                None
-            } else {
-                if let Some(index_file) = &*env::GIT_INDEX_FILE {
-                    // sets index to .git/index.lock which is used in the case of `git commit -a`
-                    let mut index =
-                        git2::Index::open(index_file).wrap_err("failed to get index")?;
-                    repo.set_index(&mut index)?;
+            match opened {
+                // libgit2 status/diff APIs refuse to operate on a bare repository.
+                // For bare-repo dotfile managers (YADM, etc.) the work tree is
+                // provided via GIT_WORK_TREE but libgit2 still flags the repo as
+                // bare — fall back to the shell-git path so those operations work.
+                Ok(repo) if repo.is_bare() => {
+                    debug!("libgit2: bare repo detected, falling back to shell git");
+                    None
                 }
-                Some(repo)
+                Ok(repo) => {
+                    if let Some(index_file) = &*env::GIT_INDEX_FILE {
+                        // sets index to .git/index.lock which is used in the case of `git commit -a`
+                        let mut index =
+                            git2::Index::open(index_file).wrap_err("failed to get index")?;
+                        repo.set_index(&mut index)?;
+                    }
+                    Some(repo)
+                }
+                // The bundled libgit2 doesn't recognize the `relativeworktrees`
+                // extension (set when a worktree is created with
+                // `git worktree add --relative-paths`, Git ≥ 2.48), so it refuses
+                // to open such repos with "unsupported extension
+                // relativeworktrees". Fall back to shell git for these — the
+                // rest of this module already supports a `None` repo. Remove
+                // this branch once vendored libgit2 ships native support.
+                Err(e) if e.message().contains("unsupported extension") => {
+                    warn!(
+                        "libgit2 cannot open this repository ({}); falling back to shell git",
+                        e.message()
+                    );
+                    None
+                }
+                Err(e) => {
+                    return Err(eyre::Report::new(e).wrap_err("failed to open repository"));
+                }
             }
         } else {
             debug!("libgit2: false");
