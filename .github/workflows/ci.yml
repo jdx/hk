@@ -176,6 +176,16 @@ jobs:
       - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
+      - name: mise run render
+        run: mise run render
+      - name: assert render produces no diff
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::'mise run render' produced changes. Run it locally and commit."
+            git status
+            git diff
+            exit 1
+          fi
       - name: mise run lint
         run: mise run lint
   msrv:
