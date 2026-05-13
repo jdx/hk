@@ -4,6 +4,8 @@ use std::io::Read;
 use crate::hook_options::HookOptions;
 use crate::{Result, git::Git};
 
+const ZERO_SHA: &str = "0000000000000000000000000000000000000000";
+
 #[derive(clap::Args)]
 #[clap(visible_alias = "pp")]
 pub struct PrePush {
@@ -53,9 +55,10 @@ impl PrePush {
                 .filter(|line| !line.is_empty())
                 .map(PrePushRefs::from)
                 .filter(|refs| {
-                    // git uses this if the remote ref does not exist, we can just ignore it in that case and default to origin/HEAD
-                    refs.to.1 == "0000000000000000000000000000000000000000"
-                        && refs.from.1 != "0000000000000000000000000000000000000000"
+                    // Skip branch deletions: a local sha of all-zeros means
+                    // we're deleting the remote branch — there are no files
+                    // to lint for a deletion.
+                    refs.to.1 != ZERO_SHA
                 })
                 .collect::<Vec<_>>()
         };
@@ -63,12 +66,23 @@ impl PrePush {
 
         self.hook.from_ref = Some(match &self.hook.from_ref {
             Some(to_ref) => to_ref.clone(),
-            None if !to_be_updated_refs.is_empty() => to_be_updated_refs[0].from.1.clone(),
+            None if !to_be_updated_refs.is_empty()
+                && to_be_updated_refs[0].from.1 != ZERO_SHA =>
+            {
+                to_be_updated_refs[0].from.1.clone()
+            }
             None => {
+                // Either no refs were provided on stdin, or the first ref is
+                // a new-branch push (remote sha is all-zeros). Fall back to
+                // the remote-tracking branch if it exists, then to the
+                // repository's default branch.
                 let remote = self.remote.as_deref().unwrap_or("origin");
                 let repo = Git::new()?; // TODO: remove this extra repo creation
-                repo.matching_remote_branch(remote)?
-                    .unwrap_or(format!("refs/remotes/{remote}/HEAD"))
+                if let Some(rb) = repo.matching_remote_branch(remote)? {
+                    rb
+                } else {
+                    repo.resolve_default_branch()
+                }
             }
         });
         self.hook.to_ref = Some(
