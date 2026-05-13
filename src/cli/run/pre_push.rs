@@ -85,12 +85,14 @@ impl PrePush {
                     repo.resolve_default_branch()
                 } else {
                     // resolve_default_branch is internally hardcoded to
-                    // origin, so for a non-origin remote derive the bare
-                    // branch name and rebind it onto the actual remote.
+                    // origin, so for a non-origin remote strip the known
+                    // origin prefix and rebind onto the actual remote.
+                    // Use strip_prefix (not rsplit) so multi-segment branch
+                    // names like "release/v1" are preserved intact.
                     let default = repo.resolve_default_branch();
                     let bare = default
-                        .rsplit_once('/')
-                        .map(|(_, name)| name)
+                        .strip_prefix("refs/remotes/origin/")
+                        .or_else(|| default.strip_prefix("origin/"))
                         .unwrap_or(&default);
                     format!("refs/remotes/{remote}/{bare}")
                 }
