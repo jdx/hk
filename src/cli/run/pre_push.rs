@@ -80,13 +80,23 @@ impl PrePush {
                 // Either no refs were provided on stdin, or the first ref is
                 // a new-branch push (remote sha is all-zeros). Fall back to
                 // the remote-tracking branch if it exists, then to the
-                // repository's default branch.
+                // repository's default branch on the target remote.
                 let remote = self.remote.as_deref().unwrap_or("origin");
                 let repo = Git::new()?; // TODO: remove this extra repo creation
                 if let Some(rb) = repo.matching_remote_branch(remote)? {
                     rb
-                } else {
+                } else if remote == "origin" {
                     repo.resolve_default_branch()
+                } else {
+                    // resolve_default_branch is internally hardcoded to
+                    // origin, so for a non-origin remote derive the bare
+                    // branch name and rebind it onto the actual remote.
+                    let default = repo.resolve_default_branch();
+                    let bare = default
+                        .rsplit_once('/')
+                        .map(|(_, name)| name)
+                        .unwrap_or(&default);
+                    format!("refs/remotes/{remote}/{bare}")
                 }
             }
         });
