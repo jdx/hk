@@ -66,9 +66,7 @@ impl PrePush {
 
         self.hook.from_ref = Some(match &self.hook.from_ref {
             Some(to_ref) => to_ref.clone(),
-            None if !to_be_updated_refs.is_empty()
-                && to_be_updated_refs[0].from.1 != ZERO_SHA =>
-            {
+            None if !to_be_updated_refs.is_empty() && to_be_updated_refs[0].from.1 != ZERO_SHA => {
                 to_be_updated_refs[0].from.1.clone()
             }
             None => {
