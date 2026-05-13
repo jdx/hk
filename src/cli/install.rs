@@ -29,9 +29,22 @@ const DEFAULT_GLOBAL_EVENTS: &[&str] = &[
 /// On Git 2.54+ this uses config-based hooks (`hook.<name>.command`),
 /// which keeps `.git/hooks/` untouched and composes cleanly with other
 /// hook managers. On older Git it falls back to writing script shims.
+///
+/// If hk is already configured globally (any `hook.hk-*` entry in
+/// `~/.gitconfig`), the per-repo install is skipped — and any stale
+/// local hooks are cleaned up — so the global install remains the
+/// single source of truth and hk doesn't fire twice per event. Pass
+/// `--force-local` to install local hooks anyway.
 #[derive(Debug, clap::Args)]
 #[clap(visible_alias = "i")]
 pub struct Install {
+    /// Install local hooks even when hk is already configured globally
+    /// (any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
+    /// install is skipped in that case to avoid hk firing twice per
+    /// event. Not compatible with `--global`.
+    #[clap(long, verbatim_doc_comment, conflicts_with = "global")]
+    force_local: bool,
+
     /// Recommended. Install at user level (~/.gitconfig) so every repo
     /// on this machine gets hk hooks. Requires Git 2.54 or newer. In
     /// repos without an `hk.pkl`, the installed hook is a silent no-op.
@@ -69,6 +82,22 @@ impl Install {
             return install_global(command);
         }
 
+        if !self.force_local && has_global_hk_hooks()? {
+            // The global install is the single source of truth; clean up any
+            // stale local install so it doesn't double-fire alongside global.
+            let removed = remove_local_shims()? + remove_local_config_entries()?;
+            if removed > 0 {
+                println!(
+                    "hk hooks already configured globally (~/.gitconfig); removed {removed} stale local hook(s) and did not install new ones. Pass `--force-local` to install per-repo hooks anyway."
+                );
+            } else {
+                println!(
+                    "hk hooks already configured globally (~/.gitconfig); skipping local install. Pass `--force-local` to install per-repo hooks anyway."
+                );
+            }
+            return Ok(());
+        }
+
         let use_config_hooks = !self.legacy && git_util::git_at_least(2, 54);
 
         // Load and validate the project config before touching anything, so a
@@ -102,6 +131,31 @@ impl Install {
         } else {
             install_local_shims(&events, command)
         }
+    }
+}
+
+/// Returns true if any `hook.hk-*.command` entry is set in `~/.gitconfig`.
+/// Used to short-circuit the per-repo install when a global one is already
+/// in place (overridable with `--force-local`).
+fn has_global_hk_hooks() -> Result<bool> {
+    let output = Command::new("git")
+        .args([
+            "config",
+            "--global",
+            "--name-only",
+            "--get-regexp",
+            "^hook\\.hk-.*\\.command$",
+        ])
+        .output()?;
+    // git config --get-regexp: 0 = matches, 1 = no matches, ≥2 = real error.
+    match output.status.code().unwrap_or(1) {
+        0 => Ok(!output.stdout.is_empty()),
+        1 => Ok(false),
+        code => bail!(
+            "git config --get-regexp failed (exit {}): {}",
+            code,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
     }
 }
 
