@@ -948,6 +948,20 @@ impl Git {
                 }
                 cmd = cmd.arg(&stash_ref);
                 let show = cmd.read().unwrap_or_default();
+                // Paths that are staged as deletions in the current index. These must NOT be
+                // restored to the worktree by the unstash loop for tracked files — the user
+                // intentionally deleted them and the commit should preserve that deletion.
+                // Note: a path can be staged-deleted AND still present on disk as an untracked
+                // file (e.g., `git rm --cached`); the loop below preserves untracked restoration
+                // by applying this skip only AFTER the is_untracked branch.
+                let staged_deleted_set: std::collections::HashSet<PathBuf> =
+                    git_cmd(["diff", "--cached", "--name-only", "--diff-filter=D", "-z"])
+                        .read()
+                        .unwrap_or_default()
+                        .split('\0')
+                        .filter(|s| !s.is_empty())
+                        .map(PathBuf::from)
+                        .collect();
                 let stash_paths: Vec<PathBuf> = show
                     .split('\0')
                     .filter(|s| !s.is_empty())
@@ -1056,6 +1070,17 @@ impl Git {
                             restoration_failed = true;
                         }
                         // Skip normal merge path for untracked files
+                        continue;
+                    }
+
+                    // If this path is staged as a deletion in the current index, the user
+                    // intentionally removed it — do not restore the tracked worktree blob.
+                    // (Untracked variants — `git rm --cached` — are handled above.)
+                    if staged_deleted_set.contains(&path) {
+                        debug!(
+                            "manual-unstash: skipping staged-deleted path={}",
+                            display_path(&path)
+                        );
                         continue;
                     }
 
