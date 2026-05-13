@@ -92,8 +92,17 @@ EOF
 
     hk install --legacy
 
-    # Deleting a remote branch should not try to lint anything — the
-    # pre-push filter must drop deletions (local sha is all-zeros).
+    # Add a file on main that WOULD fail linting if linted. This guards
+    # against a regression where deletions slip past the EMPTY_REF guard
+    # and end up running files_between_refs(default_branch, HEAD) — that
+    # diff would include this file and trigger a lint failure.
+    echo 'console.log("unformatted")' > unrelated.js
+    git add unrelated.js
+    git -c core.hooksPath=/dev/null commit -m "unrelated change on main"
+
+    # Deleting a remote branch should not lint anything — the EMPTY_REF
+    # guard in hook.rs short-circuits when to_ref is the all-zeros sha.
     run git push origin --delete feature/to-delete
     assert_success
+    refute_output --partial "[warn] unrelated.js"
 }

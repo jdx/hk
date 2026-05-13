@@ -55,16 +55,16 @@ impl PrePush {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input)?;
             self.hook.tctx.insert("hook_stdin", &input);
+            // Note: we deliberately keep deletions (local sha all-zeros) in
+            // the list. The downstream EMPTY_REF guard in hook.rs detects
+            // `to_ref` of all-zeros and short-circuits to an empty file set
+            // — dropping deletions here would route them through
+            // `files_between_refs(default_branch, "HEAD")` and lint
+            // unrelated files.
             input
                 .lines()
                 .filter(|line| !line.is_empty())
                 .map(PrePushRefs::from)
-                .filter(|refs| {
-                    // Skip branch deletions: a local sha of all-zeros means
-                    // we're deleting the remote branch — there are no files
-                    // to lint for a deletion.
-                    !is_zero_sha(&refs.to.1)
-                })
                 .collect::<Vec<_>>()
         };
         trace!("to_be_updated_refs: {to_be_updated_refs:?}");
