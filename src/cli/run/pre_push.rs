@@ -4,7 +4,12 @@ use std::io::Read;
 use crate::hook_options::HookOptions;
 use crate::{Result, git::Git};
 
-const ZERO_SHA: &str = "0000000000000000000000000000000000000000";
+// Git represents a missing ref as an all-zeros SHA. The length depends on the
+// repository's hash algorithm (40 chars for SHA-1, 64 for SHA-256), so check
+// the contents rather than comparing against a fixed-width constant.
+fn is_zero_sha(sha: &str) -> bool {
+    !sha.is_empty() && sha.bytes().all(|b| b == b'0')
+}
 
 #[derive(clap::Args)]
 #[clap(visible_alias = "pp")]
@@ -58,7 +63,7 @@ impl PrePush {
                     // Skip branch deletions: a local sha of all-zeros means
                     // we're deleting the remote branch — there are no files
                     // to lint for a deletion.
-                    refs.to.1 != ZERO_SHA
+                    !is_zero_sha(&refs.to.1)
                 })
                 .collect::<Vec<_>>()
         };
@@ -66,7 +71,9 @@ impl PrePush {
 
         self.hook.from_ref = Some(match &self.hook.from_ref {
             Some(to_ref) => to_ref.clone(),
-            None if !to_be_updated_refs.is_empty() && to_be_updated_refs[0].from.1 != ZERO_SHA => {
+            None if !to_be_updated_refs.is_empty()
+                && !is_zero_sha(&to_be_updated_refs[0].from.1) =>
+            {
                 to_be_updated_refs[0].from.1.clone()
             }
             None => {
