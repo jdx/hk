@@ -19,6 +19,16 @@ use xx::file::display_path;
 
 use crate::env;
 
+/// Returns true if the given string is git's all-zeros sha sentinel.
+///
+/// Git uses this to denote a missing ref (e.g., a deletion or a new branch
+/// in pre-push stdin). The length depends on the repository's hash algorithm
+/// — 40 chars for SHA-1, 64 for SHA-256 — so check the contents rather than
+/// comparing against a fixed-width constant.
+pub fn is_zero_sha(sha: &str) -> bool {
+    !sha.is_empty() && sha.bytes().all(|b| b == b'0')
+}
+
 fn git_cmd<I, S>(args: I) -> xx::process::XXExpression
 where
     I: IntoIterator<Item = S>,

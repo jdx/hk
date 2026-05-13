@@ -2,14 +2,10 @@ use std::io::IsTerminal;
 use std::io::Read;
 
 use crate::hook_options::HookOptions;
-use crate::{Result, git::Git};
-
-// Git represents a missing ref as an all-zeros SHA. The length depends on the
-// repository's hash algorithm (40 chars for SHA-1, 64 for SHA-256), so check
-// the contents rather than comparing against a fixed-width constant.
-fn is_zero_sha(sha: &str) -> bool {
-    !sha.is_empty() && sha.bytes().all(|b| b == b'0')
-}
+use crate::{
+    Result,
+    git::{Git, is_zero_sha},
+};
 
 #[derive(clap::Args)]
 #[clap(visible_alias = "pp")]

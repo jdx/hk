@@ -1170,7 +1170,6 @@ impl Hook {
         stash_method: StashMethod,
         file_progress: &ProgressJob,
     ) -> Result<BTreeSet<PathBuf>> {
-        const EMPTY_REF: &str = "0000000000000000000000000000000000000000";
         let stash = stash_method != StashMethod::None;
         let mut files = if let Some(files) = &opts.files {
             files
@@ -1195,7 +1194,7 @@ impl Hook {
             let all_files = all_files.into_iter().collect_vec();
             glob::get_matches(glob, &all_files)?.into_iter().collect()
         } else if let Some(from) = &opts.from_ref {
-            if opts.to_ref.as_deref() == Some(EMPTY_REF) {
+            if opts.to_ref.as_deref().map(crate::git::is_zero_sha) == Some(true) {
                 file_progress.prop("message", "No files to compare for remote branch deletion");
                 BTreeSet::new()
             } else {
