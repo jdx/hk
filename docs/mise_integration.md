@@ -85,11 +85,7 @@ HK_MISE = 1
 postinstall = "hk install --mise"
 ```
 
-If you (or your team) already run `hk install --global` from a dotfiles
-setup, add `--prefer-global` so the project-level `postinstall` skips
-itself when global hooks are already configured:
-
-```toml
-[hooks]
-postinstall = "hk install --mise --prefer-global"
-```
+If hk is already configured globally (e.g. `hk install --global` from a
+dotfiles setup), `hk install` automatically skips the per-repo install
+and cleans up any stale local hooks, so it's safe to leave the
+`postinstall` line in place across machines with mixed setups.

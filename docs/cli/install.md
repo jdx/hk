@@ -11,7 +11,16 @@ The recommended setup is `hk install --global`, which installs hooks once into t
 
 Without `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.
 
+If hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.
+
 ## Flags
+
+### `--force-local`
+
+Install local hooks even when hk is already configured globally
+(any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
+install is skipped in that case to avoid hk firing twice per
+event. Not compatible with `--global`.
 
 ### `--global`
 
@@ -31,11 +40,3 @@ be necessary to activate mise in order to run hooks
 with mise tools.
 
 Set HK_MISE=1 to make this default behavior.
-
-### `--prefer-global`
-
-Skip the local install when hk is already configured globally
-(any `hook.hk-*` entry in `~/.gitconfig`). Useful in automation
-like `mise.toml` `postinstall`, where you want hooks to install
-per-repo only when a global install hasn't already covered them.
-Not compatible with `--global`.

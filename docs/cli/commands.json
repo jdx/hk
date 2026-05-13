@@ -823,6 +823,16 @@
         "args": [],
         "flags": [
           {
+            "name": "force-local",
+            "usage": "--force-local",
+            "help": "Install local hooks even when hk is already configured globally\n(any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo\ninstall is skipped in that case to avoid hk firing twice per\nevent. Not compatible with `--global`.",
+            "help_first_line": "Install local hooks even when hk is already configured globally",
+            "short": [],
+            "long": ["force-local"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "global",
             "usage": "--global",
             "help": "Recommended. Install at user level (~/.gitconfig) so every repo\non this machine gets hk hooks. Requires Git 2.54 or newer. In\nrepos without an `hk.pkl`, the installed hook is a silent no-op.",
@@ -852,22 +862,12 @@
             "long": ["mise"],
             "hide": false,
             "global": false
-          },
-          {
-            "name": "prefer-global",
-            "usage": "--prefer-global",
-            "help": "Skip the local install when hk is already configured globally\n(any `hook.hk-*` entry in `~/.gitconfig`). Useful in automation\nlike `mise.toml` `postinstall`, where you want hooks to install\nper-repo only when a global install hasn't already covered them.\nNot compatible with `--global`.",
-            "help_first_line": "Skip the local install when hk is already configured globally",
-            "short": [],
-            "long": ["prefer-global"],
-            "hide": false,
-            "global": false
           }
         ],
         "mounts": [],
         "hide": false,
         "help": "Sets up git hooks to run hk",
-        "help_long": "Sets up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.",
+        "help_long": "Sets up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.\n\nIf hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.",
         "name": "install",
         "aliases": ["i"],
         "hidden_aliases": [],
