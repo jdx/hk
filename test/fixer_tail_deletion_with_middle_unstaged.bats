@@ -77,14 +77,14 @@ EOF
     assert_success
 
     # After the commit: fixer's tail deletion is preserved on disk and the
-    # worktree retains the version=2.0 unstaged change.
+    # worktree retains the version=2.0 unstaged change. Compare with `diff`
+    # (not bash command substitution, which strips trailing newlines and would
+    # silently accept the very tail-blank-lines regression this test guards).
     expected=$'name: my-app\nversion: 2.0\ndeps:\n  flask: 2.0\n  redis: 4.0\n'
-    actual="$(cat config.yml)"$'\n'
-    [ "$actual" = "$expected" ]
+    printf '%s' "$expected" | diff - config.yml
 
     # The committed (HEAD) content is the fixer's output: redis added, no
     # trailing blank lines.
     expected_head=$'name: my-app\nversion: 1.0\ndeps:\n  flask: 2.0\n  redis: 4.0\n'
-    actual_head="$(git show HEAD:config.yml)"$'\n'
-    [ "$actual_head" = "$expected_head" ]
+    git show HEAD:config.yml | diff - <(printf '%s' "$expected_head")
 }

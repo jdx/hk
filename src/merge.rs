@@ -216,6 +216,22 @@ mod tests {
     }
 
     #[test]
+    fn diff_handles_tail_deletion_following_mismatch() {
+        // Regression guard for issue #929: when the only non-LCS region is a
+        // mismatch-then-tail-deletion, the existing `cur_start == Some` branch
+        // already captures the deletion because the loop exits with `i == n`.
+        // (`j` can only reach `m` via match, which resets cur_start to None;
+        // inserts cannot advance `j` from `m-1` to `m`.)
+        let base = "a\nb\nc\nd\n";
+        let other = "a\nX\n";
+        let hunks = diff_hunks(base, other, HunkSource::Fixer);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].start, 1);
+        assert_eq!(hunks[0].end, 4);
+        assert_eq!(hunks[0].lines, vec!["X\n".to_string()]);
+    }
+
+    #[test]
     fn merge_preserves_fixer_tail_deletion_with_middle_worktree_change() {
         // Regression test for issue #929: fixer removes trailing blank lines while
         // the worktree has an unrelated change in the middle. The fixer's tail
