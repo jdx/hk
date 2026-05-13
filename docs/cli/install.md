@@ -31,3 +31,11 @@ be necessary to activate mise in order to run hooks
 with mise tools.
 
 Set HK_MISE=1 to make this default behavior.
+
+### `--prefer-global`
+
+Skip the local install when hk is already configured globally
+(any `hook.hk-*` entry in `~/.gitconfig`). Useful in automation
+like `mise.toml` `postinstall`, where you want hooks to install
+per-repo only when a global install hasn't already covered them.
+Not compatible with `--global`.

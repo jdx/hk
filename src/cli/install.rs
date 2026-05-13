@@ -50,6 +50,14 @@ pub struct Install {
     /// Set HK_MISE=1 to make this default behavior.
     #[clap(long, verbatim_doc_comment)]
     mise: bool,
+
+    /// Skip the local install when hk is already configured globally
+    /// (any `hook.hk-*` entry in `~/.gitconfig`). Useful in automation
+    /// like `mise.toml` `postinstall`, where you want hooks to install
+    /// per-repo only when a global install hasn't already covered them.
+    /// Not compatible with `--global`.
+    #[clap(long, verbatim_doc_comment, conflicts_with = "global")]
+    prefer_global: bool,
 }
 
 impl Install {
@@ -67,6 +75,13 @@ impl Install {
                 );
             }
             return install_global(command);
+        }
+
+        if self.prefer_global && has_global_hk_hooks()? {
+            println!(
+                "hk hooks already configured globally (~/.gitconfig); skipping local install. Re-run without `--prefer-global` to install per-repo hooks anyway."
+            );
+            return Ok(());
         }
 
         let use_config_hooks = !self.legacy && git_util::git_at_least(2, 54);
@@ -102,6 +117,31 @@ impl Install {
         } else {
             install_local_shims(&events, command)
         }
+    }
+}
+
+/// Returns true if any `hook.hk-*.command` entry is set in `~/.gitconfig`.
+/// Used by `--prefer-global` to short-circuit the per-repo install when a
+/// global one is already in place.
+fn has_global_hk_hooks() -> Result<bool> {
+    let output = Command::new("git")
+        .args([
+            "config",
+            "--global",
+            "--name-only",
+            "--get-regexp",
+            "^hook\\.hk-.*\\.command$",
+        ])
+        .output()?;
+    // git config --get-regexp: 0 = matches, 1 = no matches, ≥2 = real error.
+    match output.status.code().unwrap_or(1) {
+        0 => Ok(!output.stdout.is_empty()),
+        1 => Ok(false),
+        code => bail!(
+            "git config --get-regexp failed (exit {}): {}",
+            code,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
     }
 }
 

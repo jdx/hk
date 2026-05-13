@@ -852,6 +852,16 @@
             "long": ["mise"],
             "hide": false,
             "global": false
+          },
+          {
+            "name": "prefer-global",
+            "usage": "--prefer-global",
+            "help": "Skip the local install when hk is already configured globally\n(any `hook.hk-*` entry in `~/.gitconfig`). Useful in automation\nlike `mise.toml` `postinstall`, where you want hooks to install\nper-repo only when a global install hasn't already covered them.\nNot compatible with `--global`.",
+            "help_first_line": "Skip the local install when hk is already configured globally",
+            "short": [],
+            "long": ["prefer-global"],
+            "hide": false,
+            "global": false
           }
         ],
         "mounts": [],

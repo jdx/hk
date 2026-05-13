@@ -84,3 +84,12 @@ HK_MISE = 1
 # Automatically install/update hooks when tools are installed
 postinstall = "hk install --mise"
 ```
+
+If you (or your team) already run `hk install --global` from a dotfiles
+setup, add `--prefer-global` so the project-level `postinstall` skips
+itself when global hooks are already configured:
+
+```toml
+[hooks]
+postinstall = "hk install --mise --prefer-global"
+```
