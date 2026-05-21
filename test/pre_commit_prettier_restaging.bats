@@ -71,7 +71,7 @@ TS
     # Run hook explicitly to allow us to inspect and avoid reentrancy issues
     run bash -c 'set -x; HK_LOG=debug HK_SUMMARY_TEXT=1 hk run pre-commit || true'
     echo "$output"
-    run bash -c '[ -f "$HK_STATE_DIR/output.log" ] && { echo "==== HK output.log ===="; cat "$HK_STATE_DIR/output.log"; } || true'
+    run bash -c '[ -f "$HK_LOG_FILE" ] && { echo "==== HK output.log ===="; cat "$HK_LOG_FILE"; } || true'
     # Verify INDEX has PRETTIER-FIXED variant (multiline with semicolon), not the misformatted one
     run bash -c "git show :file.ts"
     assert_line --partial 'export function f() {'
@@ -95,7 +95,7 @@ TS
 
     run bash -c 'set -x; HK_LOG=debug HK_SUMMARY_TEXT=1 hk run pre-commit || true'
     echo "$output"
-    run bash -c '[ -f "$HK_STATE_DIR/output.log" ] && { echo "==== HK output.log ===="; cat "$HK_STATE_DIR/output.log"; } || true'
+    run bash -c '[ -f "$HK_LOG_FILE" ] && { echo "==== HK output.log ===="; cat "$HK_LOG_FILE"; } || true'
 
     run bash -c "git show :file.ts"
     assert_line --partial 'export function f() {'

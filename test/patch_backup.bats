@@ -6,6 +6,7 @@ setup() {
 
     # Set up a custom HK_STATE_DIR for isolated testing
     export HK_STATE_DIR="$BATS_TEST_TMPDIR/hk_state"
+    export HK_LOG_FILE="$HK_STATE_DIR/output.log"
     mkdir -p "$HK_STATE_DIR/patches"
 }
 
