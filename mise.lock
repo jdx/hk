@@ -91,6 +91,7 @@ url_api = "https://api.github.com/repos/endevco/aube/releases/assets/399980361"
 checksum = "sha256:dedacf0c40a208ef8a4a76967208e5e33de18873781cbe1c793b1d7058ea7451"
 url = "https://github.com/endevco/aube/releases/download/v1.0.0-beta.5/aube-v1.0.0-beta.5-aarch64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/endevco/aube/releases/assets/399980603"
+provenance = "github-attestations"
 
 [tools.aube."platforms.windows-arm64"]
 checksum = "sha256:feab770c233c412969f66803040d886b100d63edd54a706afd0274ec00d36d83"
@@ -261,6 +262,7 @@ url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964691
 checksum = "sha256:459993e31a6c4ccbd09882f5679a2bc1ea5d9068701ecefc411a00fb69ce82e6"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-aarch64-apple-darwin.tar.gz"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964098"
+provenance = "github-attestations"
 
 [tools.communique."platforms.windows-arm64"]
 checksum = "sha256:ad7e174b0da7c1ed4b1ba852ac24152c4ea20f2ac357e87223192834b0502298"
@@ -510,6 +512,7 @@ url = "https://github.com/tamasfe/taplo/releases/download/0.9.3/taplo-linux-x86_
 url = "https://github.com/tamasfe/taplo/releases/download/0.9.3/taplo-linux-x86_64.gz"
 
 [tools.taplo."platforms.macos-arm64"]
+checksum = "blake3:36d2541f27082280c42167bdb6ea0bc16af3e008e92c3b9b0ab1959945897487"
 url = "https://github.com/tamasfe/taplo/releases/download/0.9.3/taplo-darwin-aarch64.gz"
 
 [tools.taplo."platforms.macos-x64"]
@@ -608,6 +611,7 @@ url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-unknow
 [tools.uv."platforms.macos-arm64"]
 checksum = "sha256:4beaa9550f93ef7f0fc02f7c28c9c48cd61fe30db00f5ac8947e0a425c3fb282"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-aarch64-apple-darwin.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.macos-x64"]
 checksum = "sha256:a9c3653245031304c50dd60ac0301bf6c112e12c38c32302a71d4fa6a63ba2cb"

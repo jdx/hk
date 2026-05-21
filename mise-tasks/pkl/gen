@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
 #MISE description="Generate pkl/Builtins.pkl from all builtins/*.pkl files"
 set -euo pipefail
+# Windows is handled by the parallel pkl:gen.ps1 task; Python's subprocess
+# can't resolve mise/pkl when invoked from Git Bash on Windows.
+case "${OS:-}${OSTYPE:-}" in
+  *indows*|msys*|cygwin*) exit 0 ;;
+esac
 python3 scripts/gen_builtins.py

@@ -86,6 +86,15 @@ pub fn diff_hunks(base: &str, other: &str, source: HunkSource) -> Vec<Hunk> {
             lines: b[j..].iter().map(|s| (*s).to_string()).collect(),
             source,
         });
+    } else if i < n {
+        // pure tail deletion: other is shorter than base, loop exited with j == m
+        // after a matching line reset cur_start to None
+        hunks.push(Hunk {
+            start: i,
+            end: n,
+            lines: vec![],
+            source,
+        });
     }
     hunks
 }
@@ -191,5 +200,46 @@ mod tests {
         assert_eq!(hunks.len(), 2);
         assert_eq!(hunks[0].start, 1);
         assert!(hunks[0].lines.join("").contains("B"));
+    }
+
+    #[test]
+    fn diff_emits_pure_tail_deletion_hunk() {
+        // Regression test for issue #929: trailing-line removals were lost when the
+        // LCS walk consumed `other` entirely and exited with cur_start == None.
+        let base = "a\nb\nc\nd\n";
+        let other = "a\nb\n";
+        let hunks = diff_hunks(base, other, HunkSource::Fixer);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].start, 2);
+        assert_eq!(hunks[0].end, 4);
+        assert!(hunks[0].lines.is_empty());
+    }
+
+    #[test]
+    fn diff_handles_tail_deletion_following_mismatch() {
+        // Regression guard for issue #929: when the only non-LCS region is a
+        // mismatch-then-tail-deletion, the existing `cur_start == Some` branch
+        // already captures the deletion because the loop exits with `i == n`.
+        // (`j` can only reach `m` via match, which resets cur_start to None;
+        // inserts cannot advance `j` from `m-1` to `m`.)
+        let base = "a\nb\nc\nd\n";
+        let other = "a\nX\n";
+        let hunks = diff_hunks(base, other, HunkSource::Fixer);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].start, 1);
+        assert_eq!(hunks[0].end, 4);
+        assert_eq!(hunks[0].lines, vec!["X\n".to_string()]);
+    }
+
+    #[test]
+    fn merge_preserves_fixer_tail_deletion_with_middle_worktree_change() {
+        // Regression test for issue #929: fixer removes trailing blank lines while
+        // the worktree has an unrelated change in the middle. The fixer's tail
+        // deletion must survive the three-way merge.
+        let base = "name: my-app\nversion: 1.0\ndeps:\n  flask\n\n\n";
+        let fixer = Some("name: my-app\nversion: 1.0\ndeps:\n  flask\n");
+        let work = Some("name: my-app\nversion: 2.0\ndeps:\n  flask\n\n\n");
+        let merged = three_way_merge_hunks(base, fixer, work);
+        assert_eq!(merged, "name: my-app\nversion: 2.0\ndeps:\n  flask\n");
     }
 }

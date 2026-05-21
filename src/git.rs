@@ -19,6 +19,16 @@ use xx::file::display_path;
 
 use crate::env;
 
+/// Returns true if the given string is git's all-zeros sha sentinel.
+///
+/// Git uses this to denote a missing ref (e.g., a deletion or a new branch
+/// in pre-push stdin). The length depends on the repository's hash algorithm
+/// — 40 chars for SHA-1, 64 for SHA-256 — so check the contents rather than
+/// comparing against a fixed-width constant.
+pub fn is_zero_sha(sha: &str) -> bool {
+    !sha.is_empty() && sha.bytes().all(|b| b == b'0')
+}
+
 fn git_cmd<I, S>(args: I) -> xx::process::XXExpression
 where
     I: IntoIterator<Item = S>,
@@ -86,6 +96,7 @@ pub struct Git {
     stash: Option<StashType>,
     // Commit id of the stash entry we created (top-of-stack at creation time)
     stash_commit: Option<String>,
+    stashed_paths: Option<BTreeSet<PathBuf>>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
     saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
 }
@@ -168,6 +179,7 @@ impl Git {
             repo,
             stash: None,
             stash_commit: None,
+            stashed_paths: None,
             saved_index: None,
             saved_worktree: None,
         })
@@ -741,8 +753,10 @@ impl Git {
         } else {
             Some(&subset_vec[..])
         };
+        self.stashed_paths = Some(files_to_stash);
         self.stash = self.push_stash(subset_opt, status)?;
         if self.stash.is_none() {
+            self.stashed_paths = None;
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
@@ -944,10 +958,29 @@ impl Git {
                 }
                 cmd = cmd.arg(&stash_ref);
                 let show = cmd.read().unwrap_or_default();
+                // Paths that are staged as deletions in the current index. These must NOT be
+                // restored to the worktree by the unstash loop for tracked files — the user
+                // intentionally deleted them and the commit should preserve that deletion.
+                // Note: a path can be staged-deleted AND still present on disk as an untracked
+                // file (e.g., `git rm --cached`); the loop below preserves untracked restoration
+                // by applying this skip only AFTER the is_untracked branch.
+                let staged_deleted_set: std::collections::HashSet<PathBuf> =
+                    git_cmd(["diff", "--cached", "--name-only", "--diff-filter=D", "-z"])
+                        .read()
+                        .unwrap_or_default()
+                        .split('\0')
+                        .filter(|s| !s.is_empty())
+                        .map(PathBuf::from)
+                        .collect();
                 let stash_paths: Vec<PathBuf> = show
                     .split('\0')
                     .filter(|s| !s.is_empty())
                     .map(PathBuf::from)
+                    .filter(|p| {
+                        self.stashed_paths
+                            .as_ref()
+                            .is_none_or(|stashed_paths| stashed_paths.contains(p))
+                    })
                     .collect();
 
                 // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs.
@@ -1047,6 +1080,17 @@ impl Git {
                             restoration_failed = true;
                         }
                         // Skip normal merge path for untracked files
+                        continue;
+                    }
+
+                    // If this path is staged as a deletion in the current index, the user
+                    // intentionally removed it — do not restore the tracked worktree blob.
+                    // (Untracked variants — `git rm --cached` — are handled above.)
+                    if staged_deleted_set.contains(&path) {
+                        debug!(
+                            "manual-unstash: skipping staged-deleted path={}",
+                            display_path(&path)
+                        );
                         continue;
                     }
 
@@ -1350,6 +1394,7 @@ impl Git {
         // Clear saved snapshots now that we've restored
         self.saved_worktree = None;
         self.stash_commit = None;
+        self.stashed_paths = None;
         Ok(())
     }
 

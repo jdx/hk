@@ -2,7 +2,10 @@ use std::io::IsTerminal;
 use std::io::Read;
 
 use crate::hook_options::HookOptions;
-use crate::{Result, git::Git};
+use crate::{
+    Result,
+    git::{Git, is_zero_sha},
+};
 
 #[derive(clap::Args)]
 #[clap(visible_alias = "pp")]
@@ -48,27 +51,51 @@ impl PrePush {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input)?;
             self.hook.tctx.insert("hook_stdin", &input);
+            // Note: we deliberately keep deletions (local sha all-zeros) in
+            // the list. The downstream EMPTY_REF guard in hook.rs detects
+            // `to_ref` of all-zeros and short-circuits to an empty file set
+            // — dropping deletions here would route them through
+            // `files_between_refs(default_branch, "HEAD")` and lint
+            // unrelated files.
             input
                 .lines()
                 .filter(|line| !line.is_empty())
                 .map(PrePushRefs::from)
-                .filter(|refs| {
-                    // git uses this if the remote ref does not exist, we can just ignore it in that case and default to origin/HEAD
-                    refs.to.1 == "0000000000000000000000000000000000000000"
-                        && refs.from.1 != "0000000000000000000000000000000000000000"
-                })
                 .collect::<Vec<_>>()
         };
         trace!("to_be_updated_refs: {to_be_updated_refs:?}");
 
         self.hook.from_ref = Some(match &self.hook.from_ref {
             Some(to_ref) => to_ref.clone(),
-            None if !to_be_updated_refs.is_empty() => to_be_updated_refs[0].from.1.clone(),
+            None if !to_be_updated_refs.is_empty()
+                && !is_zero_sha(&to_be_updated_refs[0].from.1) =>
+            {
+                to_be_updated_refs[0].from.1.clone()
+            }
             None => {
+                // Either no refs were provided on stdin, or the first ref is
+                // a new-branch push (remote sha is all-zeros). Fall back to
+                // the remote-tracking branch if it exists, then to the
+                // repository's default branch on the target remote.
                 let remote = self.remote.as_deref().unwrap_or("origin");
                 let repo = Git::new()?; // TODO: remove this extra repo creation
-                repo.matching_remote_branch(remote)?
-                    .unwrap_or(format!("refs/remotes/{remote}/HEAD"))
+                if let Some(rb) = repo.matching_remote_branch(remote)? {
+                    rb
+                } else if remote == "origin" {
+                    repo.resolve_default_branch()
+                } else {
+                    // resolve_default_branch is internally hardcoded to
+                    // origin, so for a non-origin remote strip the known
+                    // origin prefix and rebind onto the actual remote.
+                    // Use strip_prefix (not rsplit) so multi-segment branch
+                    // names like "release/v1" are preserved intact.
+                    let default = repo.resolve_default_branch();
+                    let bare = default
+                        .strip_prefix("refs/remotes/origin/")
+                        .or_else(|| default.strip_prefix("origin/"))
+                        .unwrap_or(&default);
+                    format!("refs/remotes/{remote}/{bare}")
+                }
             }
         });
         self.hook.to_ref = Some(

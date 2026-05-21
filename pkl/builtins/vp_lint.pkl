@@ -4,16 +4,14 @@ import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "JavaScript/TypeScript"
-  description = "Oxidation compiler linter"
+  description = "Lints code with OxLint"
   project_indicators {
-    new { file = "package.json"; contains = "\"oxlint\"" }
-    // https://oxc.rs/docs/guide/usage/linter/config.html#create-a-config-file
-    new { file = ".oxlintrc.json" }
-    new { file = ".oxlintrc.jsonc" }
-    new { file = "oxlint.config.ts" }
+    new { file = "package.json"; contains = "\"vite-plus\"" }
+    // https://viteplus.dev/guide/commit-hooks
+    new { file = "vite.config.ts" }
   }
 }
-ox_lint = new Config.Step {
+vp_lint = new Config.Step {
   // Supported file types:
   //   - https://oxc.rs/docs/guide/usage/linter.html#what-oxlint-supports
   //   - https://oxc.rs/compatibility.html
@@ -29,6 +27,7 @@ ox_lint = new Config.Step {
       // React
       "**/*.jsx",
       "**/*.tsx",
+      "**/*.mdx",
       // Frontend Frameworks
       "**/*.vue",
       "**/*.svelte",
@@ -36,10 +35,18 @@ ox_lint = new Config.Step {
     )
   // Without `--deny-warnings`,
   // the exit code will be 0 even if there is code that violates the rules.
-  check = "oxlint --deny-warnings {{ files }}"
-  fix = "oxlint --deny-warnings --fix {{ files }}"
+  check = "vp lint --deny-warnings {{ files }}"
+  fix = "vp lint --deny-warnings --fix {{ files }}"
+  workspace_indicator = "package.json"
   tests {
-    local const testMaker = new helpers.TestMaker { filename = "foo.ts" }
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.ts"
+      extra_files = new Mapping {
+        // `vp lint` searches parent dirs for `package.json` to locate the workspace root;
+        // without it, the command fails with: "error: Package not found in workspace"
+        ["package.json"] = "{}\n"
+      }
+    }
     // Reference: https://oxc.rs/docs/guide/usage/linter/rules/oxc/double-comparisons.html
     local const bad = "return (x === y || x < y);"
     local const good = "return (x <= y);"

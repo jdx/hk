@@ -84,3 +84,8 @@ HK_MISE = 1
 # Automatically install/update hooks when tools are installed
 postinstall = "hk install --mise"
 ```
+
+If hk is already configured globally (e.g. `hk install --global` from a
+dotfiles setup), `hk install` automatically skips the per-repo install
+and cleans up any stale local hooks, so it's safe to leave the
+`postinstall` line in place across machines with mixed setups.
