@@ -73,7 +73,6 @@ fn friendly_error(e: eyre::Report) -> Result<()> {
 }
 
 fn write_output_file(result: &ensembler::CmdResult) {
-    //let path = env::HK_STATE_DIR.join("output.log");
     let path = &*env::HK_LOG_FILE;
     
     let Some(parent) = path.parent() else {
