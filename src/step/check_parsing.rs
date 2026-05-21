@@ -8,7 +8,7 @@
 
 use indexmap::IndexSet;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use xx::file::display_path;
 
 use super::strip_orig_suffix;
@@ -50,10 +50,12 @@ impl Step {
         &self,
         original_files: &[PathBuf],
         stdout: &str,
+        output_dir: Option<&Path>,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
         let listed: HashSet<PathBuf> = stdout
             .lines()
-            .map(|p| try_canonicalize(&PathBuf::from(p)))
+            .flat_map(|p| output_paths(p, output_dir))
+            .map(|p| try_canonicalize(&p))
             .collect();
         let files: IndexSet<PathBuf> = original_files
             .iter()
@@ -89,6 +91,7 @@ impl Step {
         &self,
         original_files: &[PathBuf],
         stdout: &str,
+        output_dir: Option<&Path>,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
         let stdout = strip_orig_suffix(stdout);
 
@@ -120,6 +123,9 @@ impl Step {
                     } else {
                         path_str.trim()
                     };
+                    if path == "/dev/null" {
+                        continue;
+                    }
                     // Strip standard diff path prefixes (a/ or b/) if detected
                     let path = if should_strip_prefixes {
                         path.strip_prefix("a/")
@@ -128,7 +134,11 @@ impl Step {
                     } else {
                         path
                     };
-                    listed.insert(try_canonicalize(&PathBuf::from(path)));
+                    listed.extend(
+                        output_paths(path, output_dir)
+                            .into_iter()
+                            .map(|p| try_canonicalize(&p)),
+                    );
                 }
             } else if line.starts_with("+++ ")
                 && let Some(path_str) = line.strip_prefix("+++ ")
@@ -138,6 +148,9 @@ impl Step {
                 } else {
                     path_str.trim()
                 };
+                if path == "/dev/null" {
+                    continue;
+                }
                 // Strip standard diff path prefixes (a/ or b/) if detected
                 let path = if should_strip_prefixes {
                     path.strip_prefix("a/")
@@ -146,7 +159,11 @@ impl Step {
                 } else {
                     path
                 };
-                listed.insert(try_canonicalize(&PathBuf::from(path)));
+                listed.extend(
+                    output_paths(path, output_dir)
+                        .into_iter()
+                        .map(|p| try_canonicalize(&p)),
+                );
             }
         }
         let files: IndexSet<PathBuf> = original_files
@@ -160,5 +177,21 @@ impl Step {
             .filter(|f| !canonicalized_files.contains(f))
             .collect();
         (files.into_iter().collect(), extras)
+    }
+}
+
+fn output_paths(path: &str, output_dir: Option<&Path>) -> Vec<PathBuf> {
+    let path = PathBuf::from(path);
+    if path.is_absolute() {
+        vec![path]
+    } else if let Some(output_dir) = output_dir {
+        let workspace_path = output_dir.join(&path);
+        if workspace_path.exists() {
+            vec![workspace_path]
+        } else {
+            vec![path]
+        }
+    } else {
+        vec![path]
     }
 }

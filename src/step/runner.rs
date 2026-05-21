@@ -137,24 +137,23 @@ impl Step {
         } else {
             self.run_cmd(job.run_type)
         };
-        let Some(mut run) = run_cmd
+        let Some(run) = run_cmd
             .map(|s| s.to_string())
             .filter(|s| !s.trim().is_empty())
         else {
             eyre::bail!("{self}: no run command");
         };
-        if let Some(prefix) = &self.prefix {
-            run = format!("{prefix} {run}");
-        }
         // Render twice: once with the full file list for execution, and
         // once with the display context — which truncates `files` /
         // `workspace_files` to `first_file …` when there are multiple
         // files. A 98-file step would otherwise emit ~4KB of paths in the
         // progress message; this keeps the command shape and one
         // concrete example path visible without unbounded expansion.
-        let run_for_display =
-            tera::render(&run, &tctx.for_display()).unwrap_or_else(|_| run.clone());
+        let run_for_display = tera::render(&run, &tctx.for_display())
+            .map(|run| self.apply_prefix(&run))
+            .unwrap_or_else(|_| self.apply_prefix(&run));
         let run = tera::render(&run, &tctx)
+            .map(|run| self.apply_prefix(&run))
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
         let pattern_display = match &self.glob {
             Some(Pattern::Globs(g)) => g.join(" "),
@@ -229,7 +228,7 @@ impl Step {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit());
         }
-        if let Some(dir) = &self.dir {
+        if let Some(dir) = job.effective_dir() {
             cmd = cmd.current_dir(dir);
         }
         for (key, value) in &self.env {
@@ -410,6 +409,45 @@ impl Step {
             "" if cfg!(windows) => ShellType::Cmd,
             "" => ShellType::Sh,
             _ => ShellType::Other(shell.to_string()),
+        }
+    }
+
+    pub(crate) fn apply_prefix(&self, run: &str) -> String {
+        match &self.prefix {
+            Some(prefix) if prefix == super::MISE_PREFIX => self.mise_wrapped_command(run),
+            Some(prefix) => format!("{prefix} {run}"),
+            None => run.to_string(),
+        }
+    }
+
+    /// Returns true if the command needs a shell wrapper (contains metacharacters).
+    fn needs_shell_wrap(cmd: &str) -> bool {
+        cmd.contains('|')
+            || cmd.contains(';')
+            || cmd.contains('&')
+            || cmd.contains('$')
+            || cmd.contains('`')
+            || cmd.contains('(')
+            || cmd.contains(')')
+            || cmd.contains('\n')
+    }
+
+    fn mise_wrapped_command(&self, run: &str) -> String {
+        if !Self::needs_shell_wrap(run) {
+            // Simple command: prepend mise x -- directly without shell layer
+            return format!("{} {run}", super::MISE_PREFIX);
+        }
+        if let Some(shell) = &self.shell {
+            let shell = shell.to_string();
+            format!("{} {shell} {}", super::MISE_PREFIX, self.shell_type().quote(run))
+        } else if cfg!(windows) {
+            format!("{} cmd.exe /c {}", super::MISE_PREFIX, self.shell_type().quote(run))
+        } else {
+            format!(
+                "{} sh -o errexit -c {}",
+                super::MISE_PREFIX,
+                self.shell_type().quote(run)
+            )
         }
     }
 

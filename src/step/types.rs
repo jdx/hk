@@ -7,6 +7,7 @@
 //! - [`RunType`] - Whether to run in check or fix mode
 //! - [`OutputSummary`] - How to capture and display command output
 
+use crate::config::StringOrList;
 use crate::step_test::StepTest;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
@@ -174,8 +175,8 @@ pub struct Step {
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub fix: Option<Script>,
 
-    /// File that indicates workspace roots (e.g., `Cargo.toml` for Rust)
-    pub workspace_indicator: Option<String>,
+    /// Files that indicate workspace roots (e.g., `Cargo.toml` for Rust)
+    pub workspace_indicator: Option<StringOrList>,
 
     /// Prefix to prepend to all commands
     pub prefix: Option<String>,

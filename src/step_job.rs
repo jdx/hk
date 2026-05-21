@@ -70,7 +70,8 @@ impl StepJob {
         tctx.insert("step", &self.step.name);
 
         // Handle directory stripping for command execution context
-        let command_files = if let Some(dir) = &self.step.dir {
+        let effective_dir = self.effective_dir();
+        let command_files = if let Some(dir) = &effective_dir {
             self.files
                 .iter()
                 .map(|f| f.strip_prefix(dir).unwrap_or(f).to_path_buf())
@@ -89,6 +90,23 @@ impl StepJob {
             tctx.with_workspace_files(self.step.shell_type(), workspace_dir, &self.files);
         }
         tctx
+    }
+
+    pub fn effective_dir(&self) -> Option<PathBuf> {
+        match self.step.dir.as_deref() {
+            Some("{{workspace}}") => self
+                .workspace_indicator
+                .as_ref()
+                .map(|workspace_indicator| {
+                    workspace_indicator
+                        .parent()
+                        .filter(|p| !p.as_os_str().is_empty())
+                        .unwrap_or(std::path::Path::new("."))
+                        .to_path_buf()
+                }),
+            Some(dir) => Some(PathBuf::from(dir)),
+            None => None,
+        }
     }
 
     pub fn build_progress(&self, ctx: &StepContext) -> Arc<ProgressJob> {

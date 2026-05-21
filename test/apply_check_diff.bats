@@ -121,6 +121,77 @@ EOF
 FIXED"
 }
 
+@test "check_diff without fixer fails when apply fails" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+echo "this is not a valid diff format"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "hello" > test.txt
+
+    run hk fix test.txt
+    assert_failure
+    assert_output --partial "check_diff could not be applied directly and no fix command is configured"
+}
+
+@test "check_diff ignores dev null headers when applying deletes" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+if [ -f "$file" ]; then
+    echo "--- $file"
+    echo "+++ /dev/null"
+    echo "@@ -1 +0,0 @@"
+    echo "-$(cat "$file")"
+fi
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "echo fallback"
+            }
+        }
+    }
+}
+EOF
+
+    echo "hello" > test.txt
+    git add test.txt
+    git commit -m "add test"
+
+    run hk fix test.txt
+    assert_success
+    refute_output --partial "file in check output not found"
+    run test -e test.txt
+    assert_failure
+}
+
 @test "check_diff applies diff when command exits nonzero with valid diff" {
     # Some tools like ruff, black, shfmt exit nonzero when files need changes
     # but still output a valid diff that can be applied

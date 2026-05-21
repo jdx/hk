@@ -99,6 +99,15 @@ If set to `true`:
 - When installing hooks with `hk install`, hk will use `mise x` to execute hooks which won't require activating mise to use mise tools
 - When generating files with `hk init`, hk will create a `mise.toml` file with hk configured
 
+## `HK_MISE_PER_STEP`
+
+Type: `bool`
+Default: `false`
+
+If set to `true`, steps without an explicit `workspace_indicator` are grouped by the nearest `mise.toml` or `.mise.toml`. hk also fills in missing mise-related step settings: for those implicitly grouped steps, if `dir` is unset, hk behaves as if `dir = "{{workspace}}"`; for any step, if `prefix` is unset, hk wraps step commands with `mise x --`. Explicit `workspace_indicator`, `dir`, and `prefix` settings are preserved. Nested mise tool versions are available when the step runs from that workspace, either through implicit grouping or an explicit `dir`. Steps that only run `hk util ...` commands are left unchanged.
+
+This is separate from `HK_MISE`: `HK_MISE` controls hook installation/init behavior, while `HK_MISE_PER_STEP` controls step command execution.
+
 ## `HK_SKIP_STEPS`
 
 Type: `string[]` (comma-separated list)

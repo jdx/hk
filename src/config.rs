@@ -11,6 +11,7 @@ impl Config {
     pub fn get() -> Result<Self> {
         let mut config = Self::load_project_config()?;
         config.apply_hkrc()?;
+        config.apply_mise_per_step_defaults();
         config.validate()?;
         Ok(config)
     }
@@ -638,6 +639,63 @@ impl Config {
         }
         Ok(())
     }
+
+    fn apply_mise_per_step_defaults(&mut self) {
+        if !*env::HK_MISE_PER_STEP {
+            return;
+        }
+        for hook in self.hooks.values_mut() {
+            for step_or_group in hook.steps.values_mut() {
+                match step_or_group {
+                    crate::hook::StepOrGroup::Step(step) => {
+                        apply_mise_per_step_defaults_to_step(step);
+                    }
+                    crate::hook::StepOrGroup::Group(group) => {
+                        for step in group.steps.values_mut() {
+                            apply_mise_per_step_defaults_to_step(step);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn apply_mise_per_step_defaults_to_step(step: &mut crate::step::Step) {
+    if step_uses_only_hk_util(step) {
+        return;
+    }
+    let has_explicit_workspace_indicator = step.workspace_indicator.is_some();
+    if !has_explicit_workspace_indicator {
+        step.workspace_indicator = Some(StringOrList::List(vec![
+            "mise.toml".to_string(),
+            ".mise.toml".to_string(),
+        ]));
+    }
+    if !has_explicit_workspace_indicator && step.dir.is_none() {
+        step.dir = Some("{{workspace}}".to_string());
+    }
+    if step.prefix.is_none() {
+        step.prefix = Some(crate::step::MISE_PREFIX.to_string());
+    }
+}
+
+fn step_uses_only_hk_util(step: &crate::step::Step) -> bool {
+    let commands = [
+        step.check.as_ref(),
+        step.check_list_files.as_ref(),
+        step.check_diff.as_ref(),
+        step.fix.as_ref(),
+    ];
+    let commands = commands
+        .into_iter()
+        .flatten()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    !commands.is_empty()
+        && commands
+            .iter()
+            .all(|cmd| cmd.trim_start().starts_with("hk util "))
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -701,7 +759,7 @@ pub struct UserStepConfig {
     pub exclude: Option<crate::step::Pattern>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum StringOrList {
     String(String),
@@ -716,6 +774,15 @@ impl IntoIterator for StringOrList {
         match self {
             StringOrList::String(s) => vec![s].into_iter(),
             StringOrList::List(list) => list.into_iter(),
+        }
+    }
+}
+
+impl StringOrList {
+    pub fn as_slice(&self) -> Vec<&str> {
+        match self {
+            StringOrList::String(s) => vec![s.as_str()],
+            StringOrList::List(list) => list.iter().map(String::as_str).collect(),
         }
     }
 }

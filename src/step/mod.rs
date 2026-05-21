@@ -46,6 +46,9 @@ mod types;
 
 // Re-export public API
 pub use expr_env::{EXPR_CTX, EXPR_ENV};
+
+/// The prefix string that triggers mise workspace wrapping for step commands.
+pub const MISE_PREFIX: &str = "mise x --";
 pub use shell::ShellType;
 pub use types::{OutputSummary, Pattern, RunType, Script, Step};
 

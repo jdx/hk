@@ -6,6 +6,7 @@
 
 use crate::Result;
 use std::io::Write;
+use std::path::Path;
 
 use super::strip_orig_suffix;
 use super::types::Step;
@@ -32,7 +33,11 @@ impl Step {
     /// * `Ok(true)` - Diff was applied successfully
     /// * `Ok(false)` - Diff application failed (caller should fall back to fixer)
     /// * `Err(_)` - Unexpected error
-    pub(crate) fn apply_diff_output(&self, stdout: &str) -> Result<bool> {
+    pub(crate) fn apply_diff_output(
+        &self,
+        stdout: &str,
+        output_dir: Option<&Path>,
+    ) -> Result<bool> {
         if stdout.trim().is_empty() {
             debug!("{}: no diff content to apply", self.name);
             return Ok(false);
@@ -59,15 +64,31 @@ impl Step {
             "-p0"
         };
 
-        // Use --whitespace=nowarn to avoid warnings about whitespace
-        // Run in the step's directory if configured (same as check_diff command)
+        if self.try_apply_diff(&diff_content, strip_level, output_dir)? {
+            debug!("{}: successfully applied diff", self.name);
+            Ok(true)
+        } else if output_dir.is_some() && self.try_apply_diff(&diff_content, strip_level, None)? {
+            debug!("{}: successfully applied diff from repo root", self.name);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn try_apply_diff(
+        &self,
+        diff_content: &str,
+        strip_level: &str,
+        output_dir: Option<&Path>,
+    ) -> Result<bool> {
+        // Use --whitespace=nowarn to avoid warnings about whitespace.
         let mut cmd = std::process::Command::new("git");
         cmd.args(["apply", strip_level, "--whitespace=nowarn", "-"])
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
-        if let Some(dir) = &self.dir {
+        if let Some(dir) = output_dir {
             cmd.current_dir(dir);
         }
 
@@ -81,7 +102,6 @@ impl Step {
             }
         };
 
-        // Write diff to stdin
         if let Some(stdin) = child.stdin.as_mut()
             && let Err(e) = stdin.write_all(diff_content.as_bytes())
         {
@@ -98,7 +118,6 @@ impl Step {
         };
 
         if output.status.success() {
-            debug!("{}: successfully applied diff", self.name);
             Ok(true)
         } else {
             let stderr_output = String::from_utf8_lossy(&output.stderr);

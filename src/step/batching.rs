@@ -50,12 +50,6 @@ impl Step {
         if run.trim().is_empty() {
             return None;
         }
-        let run = if let Some(prefix) = &self.prefix {
-            format!("{prefix} {run}")
-        } else {
-            run
-        };
-
         let mut temp = StepJob::new(
             Arc::clone(&original_job.step),
             files.to_vec(),
@@ -66,7 +60,9 @@ impl Step {
             temp = temp.with_workspace_indicator(wi.clone());
         }
         let tctx = temp.tctx(base_tctx);
-        tera::render(&run, &tctx).ok().map(|s| s.len())
+        tera::render(&run, &tctx)
+            .ok()
+            .map(|s| self.apply_prefix(&s).len())
     }
 
     /// Automatically batch jobs whose rendered run command would exceed the safe ARG_MAX limit.

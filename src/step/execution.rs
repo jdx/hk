@@ -135,10 +135,19 @@ impl Step {
                                 check_first_output = Some((stdout.clone(), stderr.clone(), combined.clone()));
                                 // Use check_diff parser if check_diff is defined, otherwise check_list_files
                                 let is_check_diff = step.check_diff.is_some();
+                                let output_dir = job.effective_dir();
                                 let (files, extras) = if is_check_diff {
-                                    step.filter_files_from_check_diff(&job.files, stdout)
+                                    step.filter_files_from_check_diff(
+                                        &job.files,
+                                        stdout,
+                                        output_dir.as_deref(),
+                                    )
                                 } else {
-                                    step.filter_files_from_check_list(&job.files, stdout)
+                                    step.filter_files_from_check_list(
+                                        &job.files,
+                                        stdout,
+                                        output_dir.as_deref(),
+                                    )
                                 };
                                 for f in extras {
                                     warn!(
@@ -163,7 +172,7 @@ impl Step {
                                 // Try to apply diff directly when check_diff is defined and we're in Fix mode
                                 // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
                                 if is_check_diff && prev_run_type == RunType::Fix {
-                                    match step.apply_diff_output(stdout) {
+                                    match step.apply_diff_output(stdout, output_dir.as_deref()) {
                                         Ok(true) => {
                                             // Diff applied successfully - no need to run fixer
                                             debug!("{step}: diff applied successfully, skipping fixer");
@@ -172,8 +181,14 @@ impl Step {
                                             return Ok(job.files.clone());
                                         }
                                         Ok(false) => {
-                                            // Diff application failed - fall through to run fixer
-                                            debug!("{step}: diff application failed, falling back to fixer");
+                                            if step.fix.is_none() {
+                                                eyre::bail!(
+                                                    "{step}: check_diff could not be applied directly and no fix command is configured"
+                                                );
+                                            }
+                                            debug!(
+                                                "{step}: diff application failed, falling back to fixer"
+                                            );
                                         }
                                         Err(err) => {
                                             // Unexpected error - fall through to run fixer

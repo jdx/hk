@@ -172,7 +172,11 @@ impl Step {
     /// The filtered list of files that match all criteria
     pub fn filter_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
         let mut files = files.to_vec();
-        if let Some(dir) = &self.dir {
+        let dir = self
+            .dir
+            .as_ref()
+            .filter(|dir| dir.as_str() != "{{workspace}}");
+        if let Some(dir) = dir {
             files.retain(|f| f.starts_with(dir));
             if files.is_empty() {
                 debug!("{self}: no files in {dir}");
@@ -182,12 +186,12 @@ impl Step {
         }
         if let Some(pattern) = &self.glob {
             // Use get_pattern_matches consistently for both globs and regex
-            files = glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?;
+            files = glob::get_pattern_matches(pattern, &files, dir.map(String::as_str))?;
         }
         if let Some(pattern) = self.exclude.as_ref().filter(|pattern| !pattern.is_empty()) {
             // Use get_pattern_matches consistently for excludes too
             let excluded: HashSet<_> =
-                glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?
+                glob::get_pattern_matches(pattern, &files, dir.map(String::as_str))?
                     .into_iter()
                     .collect();
             files.retain(|f| !excluded.contains(f));
@@ -245,13 +249,14 @@ impl Step {
     /// - `src/crate-1/Cargo.toml`
     /// - `src/crate-2/Cargo.toml`
     pub fn workspaces_for_files(&self, files: &[PathBuf]) -> Result<Option<IndexSet<PathBuf>>> {
-        let Some(workspace_indicator) = &self.workspace_indicator else {
+        let Some(workspace_indicators) = &self.workspace_indicator else {
             return Ok(None);
         };
+        let workspace_indicators = workspace_indicators.as_slice();
         let mut dirs = files.iter().filter_map(|f| f.parent()).collect_vec();
         let mut workspaces: IndexSet<PathBuf> = Default::default();
         while let Some(dir) = dirs.pop() {
-            if let Some(workspace) = xx::file::find_up(dir, &[workspace_indicator]) {
+            if let Some(workspace) = xx::file::find_up(dir, &workspace_indicators) {
                 workspaces.insert(workspace);
             }
         }

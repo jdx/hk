@@ -57,6 +57,7 @@ pub static HK_STASH: LazyLock<Option<StashMethod>> = LazyLock::new(|| {
 pub static HK_STASH_UNTRACKED: LazyLock<bool> = LazyLock::new(|| !var_false("HK_STASH_UNTRACKED"));
 pub static HK_FIX: LazyLock<bool> = LazyLock::new(|| !var_false("HK_FIX"));
 pub static HK_MISE: LazyLock<bool> = LazyLock::new(|| var_true("HK_MISE"));
+pub static HK_MISE_PER_STEP: LazyLock<bool> = LazyLock::new(|| var_true("HK_MISE_PER_STEP"));
 pub static HK_SKIP_STEPS: LazyLock<IndexSet<String>> = LazyLock::new(|| {
     var_csv("HK_SKIP_STEPS")
         .or(var_csv("HK_SKIP_STEP"))

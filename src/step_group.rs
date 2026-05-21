@@ -198,10 +198,14 @@ impl StepGroup {
             .steps
             .values()
             .map(|step| {
+                let dir = step
+                    .dir
+                    .as_ref()
+                    .filter(|dir| dir.as_str() != "{{workspace}}");
                 let step_files = if let Some(pattern) = &step.glob {
                     // Use get_pattern_matches which handles dir filtering internally
-                    glob::get_pattern_matches(pattern, &files, step.dir.as_deref())?
-                } else if let Some(dir) = &step.dir {
+                    glob::get_pattern_matches(pattern, &files, dir.map(String::as_str))?
+                } else if let Some(dir) = dir {
                     // If dir is set without glob, filter files to that directory
                     files
                         .iter()

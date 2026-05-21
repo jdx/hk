@@ -106,23 +106,28 @@ impl Step {
         if let Some(result) = cmd_result
             && self.check_list_files.is_some()
         {
-            let (files, _extras) = self.filter_files_from_check_list(&job.files, &result.stdout);
+            let (files, _extras) = self.filter_files_from_check_list(
+                &job.files,
+                &result.stdout,
+                job.effective_dir().as_deref(),
+            );
             if !files.is_empty() {
                 suggest_files = files;
             }
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace
-        let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
+        let mut temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
+        if let Some(workspace_indicator) = job.workspace_indicator() {
+            temp_job = temp_job.with_workspace_indicator(workspace_indicator.clone());
+        }
         let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
-        if let Some(mut fix_cmd) = self
+        if let Some(fix_cmd) = self
             .run_cmd(RunType::Fix)
             .map(|s| s.to_string())
             .filter(|s| !s.trim().is_empty())
         {
-            if let Some(prefix) = &self.prefix {
-                fix_cmd = format!("{prefix} {fix_cmd}");
-            }
             if let Ok(rendered) = tera::render(&fix_cmd, &suggest_ctx) {
+                let rendered = self.apply_prefix(&rendered);
                 let is_multi_line = rendered.contains('\n');
                 if is_multi_line {
                     // Too long to inline; suggest hk fix with step filter

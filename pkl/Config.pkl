@@ -507,7 +507,7 @@ class Step {
   ///   }
   /// }
   /// ```
-  workspace_indicator: String?
+  workspace_indicator: (String | List<String>)?
 
   /// If set, run the linter scripts with this prefix, e.g.: "mise exec --" or "npm run".
   ///

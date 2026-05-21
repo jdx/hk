@@ -65,6 +65,19 @@ PRETTIER_CONFIG = ".prettierrc.json"
 
 mise has much more functionality around environment variables, so see the [mise docs](https://mise.jdx.dev/environments/) for more information.
 
+## Monorepos
+
+Set `HK_MISE_PER_STEP=1` when hk should resolve tools from nested mise configs. For steps without an explicit `workspace_indicator`, hk treats `mise.toml` and `.mise.toml` as workspace indicators.
+
+hk also fills in missing mise-related step settings: for implicitly grouped steps, if `dir` is unset, hk runs the step from the matched workspace; for any step, if `prefix` is unset, hk wraps commands with `mise x --`. Explicit `workspace_indicator`, `dir`, and `prefix` settings are preserved. Nested mise tool versions are available when the step runs from that workspace, either through implicit grouping or an explicit `dir`. Built-in `hk util ...` steps are not changed because they do not need mise-managed tools.
+
+```toml
+[env]
+HK_MISE_PER_STEP = 1
+```
+
+This is intentionally separate from `HK_MISE=1`. `HK_MISE=1` makes installed Git hooks launch hk through mise from the repository root; `HK_MISE_PER_STEP=1` makes individual step commands re-enter mise from their own working directories.
+
 ## Recommended Setup
 
 The recommended approach is to use `mise.toml` as the source of truth for your tools and environment, while using `hk` specifically for managing the Git lifecycle.
