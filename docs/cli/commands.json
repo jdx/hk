@@ -4929,7 +4929,7 @@
   "config": {
     "props": {}
   },
-  "version": "1.45.0",
+  "version": "1.46.0",
   "usage": "Usage: hk [OPTIONS] <COMMAND>",
   "complete": {},
   "about": "A tool for managing git hooks"

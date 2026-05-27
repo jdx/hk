@@ -1,6 +1,50 @@
 # Changelog
 
-## [1.45.0](https://github.com/jdx/hk/compare/v1.44.3..v1.45.0) - 2026-05-04
+## [1.46.0](https://github.com/jdx/hk/compare/v1.45.0..v1.46.0) - 2026-05-27
+
+### 🚀 Features
+
+- **(builtins)** add oxfmt config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#914](https://github.com/jdx/hk/pull/914)
+- **(builtins)** add vite-plus builtin configs to hk by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#913](https://github.com/jdx/hk/pull/913)
+- **(install)** skip local install when hk is configured globally by [@jdx](https://github.com/jdx) in [#934](https://github.com/jdx/hk/pull/934)
+- **(run)** add staged-only hook scope by [@jdx](https://github.com/jdx) in [#950](https://github.com/jdx/hk/pull/950)
+- update oxlint hook by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#911](https://github.com/jdx/hk/pull/911)
+
+### 🐛 Bug Fixes
+
+- **(check)** parse check_diff output for fix suggestions by [@jdx](https://github.com/jdx) in [#949](https://github.com/jdx/hk/pull/949)
+- **(install)** use absolute commands for global hooks by [@jdx](https://github.com/jdx) in [#939](https://github.com/jdx/hk/pull/939)
+- **(pre-push)** correct inverted ref filter and handle new-branch pushes by [@jdx](https://github.com/jdx) in [#932](https://github.com/jdx/hk/pull/932)
+- **(run)** expose post-checkout hook variables by [@jdx](https://github.com/jdx) in [#951](https://github.com/jdx/hk/pull/951)
+- **(stash)** preserve fail_on_fix output with git stash by [@jdx](https://github.com/jdx) in [#909](https://github.com/jdx/hk/pull/909)
+- **(stash)** preserve staged deletions across pop_stash by [@jdx](https://github.com/jdx) in [#927](https://github.com/jdx/hk/pull/927)
+- **(stash)** preserve fixer tail-line deletions in three-way merge by [@jdx](https://github.com/jdx) in [#931](https://github.com/jdx/hk/pull/931)
+
+### 🛡️ Security
+
+- **(ci)** add zizmor workflow for github actions security analysis by [@jdx](https://github.com/jdx) in [#925](https://github.com/jdx/hk/pull/925)
+
+### 🔍 Other Changes
+
+- **(ci)** remove autofix.ci workflow by [@jdx](https://github.com/jdx) in [#923](https://github.com/jdx/hk/pull/923)
+- **(ci)** assert mise run render produces no diff by [@jdx](https://github.com/jdx) in [#924](https://github.com/jdx/hk/pull/924)
+- **(ci)** close failing or conflicted PRs sooner by [@jdx](https://github.com/jdx) in [#936](https://github.com/jdx/hk/pull/936)
+- remove pull_request_target workflow by [@jdx](https://github.com/jdx) in [#921](https://github.com/jdx/hk/pull/921)
+- remove caching from publishing workflows by [@jdx](https://github.com/jdx) in [#922](https://github.com/jdx/hk/pull/922)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action digest to 939ae9c by [@renovate[bot]](https://github.com/renovate[bot]) in [#912](https://github.com/jdx/hk/pull/912)
+- update anthropics/claude-code-action digest to 034cbdb by [@renovate[bot]](https://github.com/renovate[bot]) in [#916](https://github.com/jdx/hk/pull/916)
+- update actions-rust-lang/setup-rust-toolchain digest to 46268bd by [@renovate[bot]](https://github.com/renovate[bot]) in [#915](https://github.com/jdx/hk/pull/915)
+- update anthropics/claude-code-action digest to ad67978 by [@renovate[bot]](https://github.com/renovate[bot]) in [#917](https://github.com/jdx/hk/pull/917)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#918](https://github.com/jdx/hk/pull/918)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#938](https://github.com/jdx/hk/pull/938)
+- update anthropics/claude-code-action action to v1.0.123 by [@renovate[bot]](https://github.com/renovate[bot]) in [#945](https://github.com/jdx/hk/pull/945)
+- update zizmorcore/zizmor-action action to v0.5.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#946](https://github.com/jdx/hk/pull/946)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#947](https://github.com/jdx/hk/pull/947)
+
+## [1.45.0](https://github.com/jdx/hk/compare/v1.44.3..v1.45.0) - 2026-05-05
 
 ### 🚀 Features
 
