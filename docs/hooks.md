@@ -52,6 +52,7 @@ hooks {
 ## `prepare-commit-msg`
 
 Runs when `git commit` is run before the commit message is created. Useful for rendering a default commit message template.
+The `commit_msg_file`, `source`, and `sha` template variables are available in this hook. The raw git hook arguments are also available as `hook_args`.
 
 ```pkl
 hooks {
@@ -69,6 +70,7 @@ hooks {
 ## `commit-msg`
 
 Runs when `git commit` is run after the commit message is created. Useful for validating the commit message.
+The `commit_msg_file` template variable is available in this hook. The raw git hook arguments are also available as `hook_args`.
 
 ```pkl
 hooks {
@@ -82,6 +84,23 @@ hooks {
 }
 ```
 
+## `post-checkout`
+
+Runs after `git checkout` updates the worktree. The `prev_head`, `new_head`, and `is_branch_checkout` template variables are available in this hook. `is_branch_checkout` is a boolean value. The raw git hook arguments are also available as `hook_args`.
+
+```pkl
+hooks {
+    ["post-checkout"] {
+        steps {
+            ["restore-lfs"] {
+                check = "git lfs post-checkout {{ hook_args }}"
+            }
+        }
+    }
+}
+```
+
 ## Other Hooks
 
 Other git hooks are also supported. See <https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks>.
+The raw arguments for hooks with dedicated handlers are available as `hook_args`; hooks without dedicated handlers get an empty `hook_args`.
