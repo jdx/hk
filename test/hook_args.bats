@@ -44,6 +44,24 @@ EOF
     assert_output --regexp "^[a-f0-9]+ [a-f0-9]+ 1$"
 }
 
+@test "post-checkout exposes named hook arguments" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["post-checkout"] {
+        steps {
+            ["capture"] { check = "echo {{ prev_head }} {{ new_head }} {{ is_branch_checkout }} > hook_args.txt" }
+        }
+    }
+}
+EOF
+    hk install
+    echo "test" > test.txt && git add test.txt && git commit -m "init"
+    git checkout -b feature
+    run cat hook_args.txt
+    assert_output --regexp "^[a-f0-9]+ [a-f0-9]+ true$"
+}
+
 @test "post-checkout hook_args works with git-lfs" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
