@@ -54,6 +54,7 @@ cmd check help="Checks code" {
         arg <STEP>
     }
     flag --stage help="Enable auto-staging of fixed files"
+    flag --staged help="Run on staged files only without stashing unstaged changes"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
@@ -122,6 +123,7 @@ cmd fix help="Fixes code" {
         arg <STEP>
     }
     flag --stage help="Enable auto-staging of fixed files"
+    flag --staged help="Run on staged files only without stashing unstaged changes"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
@@ -196,6 +198,7 @@ cmd run help="Run a hook" {
         arg <STEP>
     }
     flag --stage help="Enable auto-staging of fixed files"
+    flag --staged help="Run on staged files only without stashing unstaged changes"
     flag --stash help="Stash method to use for git hooks" {
         arg <STASH> {
             choices git patch-file none
@@ -238,6 +241,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -280,6 +284,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -324,6 +329,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -365,6 +371,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -407,6 +414,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -450,6 +458,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -492,6 +501,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -535,6 +545,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none
@@ -579,6 +590,7 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --stage help="Enable auto-staging of fixed files"
+        flag --staged help="Run on staged files only without stashing unstaged changes"
         flag --stash help="Stash method to use for git hooks" {
             arg <STASH> {
                 choices git patch-file none

@@ -6,7 +6,7 @@ pub(crate) struct HookOptions {
     #[clap(conflicts_with_all = &["all", "fix", "check"], value_hint = clap::ValueHint::FilePath)]
     pub files: Option<Vec<String>>,
     /// Run on all files instead of just staged files
-    #[clap(short, long)]
+    #[clap(short, long, conflicts_with = "staged")]
     pub all: bool,
     /// Run check command instead of fix command
     #[clap(short, long, overrides_with = "fix")]
@@ -58,6 +58,12 @@ pub(crate) struct HookOptions {
     /// Enable auto-staging of fixed files
     #[clap(long, overrides_with = "no_stage")]
     pub stage: bool,
+    /// Run on staged files only without stashing unstaged changes
+    #[clap(
+        long,
+        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "stash", "to_ref"]
+    )]
+    pub staged: bool,
     /// Stash method to use for git hooks
     #[clap(long, value_parser = ["git", "patch-file", "none"])]
     pub stash: Option<String>,
@@ -73,6 +79,15 @@ pub(crate) struct HookOptions {
 }
 
 impl HookOptions {
+    fn validate(&self) -> Result<()> {
+        if self.staged && self.stash.is_some() {
+            return Err(eyre::eyre!(
+                "argument '--staged' cannot be used with '--stash <STASH>'"
+            ));
+        }
+        Ok(())
+    }
+
     pub fn should_stage(&self) -> Option<bool> {
         if self.stage {
             Some(true)
@@ -84,6 +99,7 @@ impl HookOptions {
     }
 
     pub(crate) async fn run(mut self, name: &str) -> Result<()> {
+        self.validate()?;
         // Under `--from-hook`, short-circuit *before* loading the config. A
         // broken user-global hkrc (or missing `pkl`) shouldn't fail every
         // `git commit` in a repo that doesn't even use hk — which is the

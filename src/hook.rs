@@ -382,6 +382,18 @@ impl Hook {
         }
     }
 
+    fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> StashMethod {
+        if opts.staged {
+            StashMethod::None
+        } else if let Some(stash_str) = &opts.stash {
+            stash_str
+                .parse::<StashMethod>()
+                .unwrap_or(StashMethod::None)
+        } else {
+            self.resolve_stash_method(*env::HK_STASH)
+        }
+    }
+
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
         // Suppress progress output so plan output (especially JSON) is clean.
         clx::progress::set_output(ProgressOutput::Text);
@@ -389,13 +401,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
-        let stash_method = if let Some(stash_str) = &opts.stash {
-            stash_str
-                .parse::<StashMethod>()
-                .unwrap_or(StashMethod::None)
-        } else {
-            self.resolve_stash_method(*env::HK_STASH)
-        };
+        let stash_method = self.resolve_stash_method_for_opts(&opts);
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -713,13 +719,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
-        let stash_method = if let Some(stash_str) = &opts.stash {
-            stash_str
-                .parse::<StashMethod>()
-                .unwrap_or(StashMethod::None)
-        } else {
-            self.resolve_stash_method(*env::HK_STASH)
-        };
+        let stash_method = self.resolve_stash_method_for_opts(&opts);
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
             .build();
@@ -842,13 +842,7 @@ impl Hook {
         let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
         let repo = Arc::new(Mutex::new(Git::new()?));
         let groups = self.get_step_groups(&opts);
-        let stash_method = if let Some(stash_str) = &opts.stash {
-            stash_str
-                .parse::<StashMethod>()
-                .unwrap_or(StashMethod::None)
-        } else {
-            self.resolve_stash_method(*env::HK_STASH)
-        };
+        let stash_method = self.resolve_stash_method_for_opts(&opts);
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         let hk_progress = self.start_hk_progress(run_type, total_steps);
         let file_progress = ProgressJobBuilder::new().body(
@@ -1219,7 +1213,7 @@ impl Hook {
                 all_files.extend(git_status.untracked_files.iter().cloned());
             }
             all_files
-        } else if stash {
+        } else if opts.staged || stash {
             file_progress.prop("message", "Fetching staged files");
             git_status.staged_files.iter().cloned().collect()
         } else {
