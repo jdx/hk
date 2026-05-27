@@ -84,6 +84,10 @@ Skip specific step(s)
 
 Enable auto-staging of fixed files
 
+### `--staged`
+
+Run on staged files only without stashing unstaged changes
+
 ### `--stash <STASH>`
 
 Stash method to use for git hooks

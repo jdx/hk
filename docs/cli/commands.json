@@ -283,6 +283,16 @@
             "global": false
           },
           {
+            "name": "staged",
+            "usage": "--staged",
+            "help": "Run on staged files only without stashing unstaged changes",
+            "help_first_line": "Run on staged files only without stashing unstaged changes",
+            "short": [],
+            "long": ["staged"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "stash",
             "usage": "--stash <STASH>",
             "help": "Stash method to use for git hooks",
@@ -711,6 +721,16 @@
             "help_first_line": "Enable auto-staging of fixed files",
             "short": [],
             "long": ["stage"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "staged",
+            "usage": "--staged",
+            "help": "Run on staged files only without stashing unstaged changes",
+            "help_first_line": "Run on staged files only without stashing unstaged changes",
+            "short": [],
+            "long": ["staged"],
             "hide": false,
             "global": false
           },
@@ -1214,6 +1234,16 @@
                 "global": false
               },
               {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "stash",
                 "usage": "--stash <STASH>",
                 "help": "Stash method to use for git hooks",
@@ -1529,6 +1559,16 @@
                 "global": false
               },
               {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "stash",
                 "usage": "--stash <STASH>",
                 "help": "Stash method to use for git hooks",
@@ -1813,6 +1853,16 @@
                 "help_first_line": "Enable auto-staging of fixed files",
                 "short": [],
                 "long": ["stage"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
                 "hide": false,
                 "global": false
               },
@@ -2114,6 +2164,16 @@
                 "global": false
               },
               {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "stash",
                 "usage": "--stash <STASH>",
                 "help": "Stash method to use for git hooks",
@@ -2411,6 +2471,16 @@
                 "global": false
               },
               {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "stash",
                 "usage": "--stash <STASH>",
                 "help": "Stash method to use for git hooks",
@@ -2695,6 +2765,16 @@
                 "help_first_line": "Enable auto-staging of fixed files",
                 "short": [],
                 "long": ["stage"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
                 "hide": false,
                 "global": false
               },
@@ -3006,6 +3086,16 @@
                 "global": false
               },
               {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "stash",
                 "usage": "--stash <STASH>",
                 "help": "Stash method to use for git hooks",
@@ -3308,6 +3398,16 @@
                 "help_first_line": "Enable auto-staging of fixed files",
                 "short": [],
                 "long": ["stage"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
                 "hide": false,
                 "global": false
               },
@@ -3627,6 +3727,16 @@
                 "global": false
               },
               {
+                "name": "staged",
+                "usage": "--staged",
+                "help": "Run on staged files only without stashing unstaged changes",
+                "help_first_line": "Run on staged files only without stashing unstaged changes",
+                "short": [],
+                "long": ["staged"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "stash",
                 "usage": "--stash <STASH>",
                 "help": "Stash method to use for git hooks",
@@ -3915,6 +4025,16 @@
             "help_first_line": "Enable auto-staging of fixed files",
             "short": [],
             "long": ["stage"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "staged",
+            "usage": "--staged",
+            "help": "Run on staged files only without stashing unstaged changes",
+            "help_first_line": "Run on staged files only without stashing unstaged changes",
+            "short": [],
+            "long": ["staged"],
             "hide": false,
             "global": false
           },
