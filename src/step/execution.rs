@@ -115,6 +115,7 @@ impl Step {
                 if job.check_first {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check;
+                    let check_first_cmd = step.check_first_cmd().cloned();
                     // Stash check output in case the second run is cancelled by fail_fast
                     let mut check_first_output: Option<(String, String, String)> = None;
                     match step.run(&ctx, &mut job).await {
@@ -133,12 +134,22 @@ impl Step {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
                                 check_first_output = Some((stdout.clone(), stderr.clone(), combined.clone()));
-                                // Use check_diff parser if check_diff is defined, otherwise check_list_files
-                                let is_check_diff = step.check_diff.is_some();
-                                let (files, extras) = if is_check_diff {
+                                // Parse according to the check-first command that actually ran.
+                                // Platform-specific Script values can be empty, in which case
+                                // check_first_cmd falls back to the next available command.
+                                let ran_check_diff = check_first_cmd
+                                    .as_ref()
+                                    .is_some_and(|cmd| step.check_diff.as_ref() == Some(cmd));
+                                let ran_check_list_files =
+                                    check_first_cmd.as_ref().is_some_and(|cmd| {
+                                        step.check_list_files.as_ref() == Some(cmd)
+                                    });
+                                let (files, extras) = if ran_check_diff {
                                     step.filter_files_from_check_diff(&job.files, stdout)
-                                } else {
+                                } else if ran_check_list_files {
                                     step.filter_files_from_check_list(&job.files, stdout)
+                                } else {
+                                    (job.files.clone(), Vec::new())
                                 };
                                 for f in extras {
                                     warn!(
@@ -148,10 +159,10 @@ impl Step {
                                 }
 
                                 // For check_diff: if no parseable files, keep all original files
-                                if files.is_empty() && is_check_diff {
+                                if files.is_empty() && ran_check_diff {
                                     debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
                                     // Keep all original files for check_diff when diff parsing fails
-                                } else if files.is_empty() {
+                                } else if files.is_empty() && ran_check_list_files {
                                     // For check_list_files: non-zero exit with no files is an error
                                     // (Tool failed, not "files need fixing")
                                     error!("{step}: check_list_files failed with no files in output");
@@ -162,7 +173,7 @@ impl Step {
 
                                 // Try to apply diff directly when check_diff is defined and we're in Fix mode
                                 // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
-                                if is_check_diff && prev_run_type == RunType::Fix {
+                                if ran_check_diff && prev_run_type == RunType::Fix {
                                     match step.apply_diff_output(stdout) {
                                         Ok(true) => {
                                             // Diff applied successfully - no need to run fixer

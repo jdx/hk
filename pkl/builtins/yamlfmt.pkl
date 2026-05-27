@@ -8,7 +8,20 @@ import "./test/helpers.pkl"
 }
 yamlfmt = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
-  check_diff = "yamlfmt -lint {{ files }}"
+  check = "yamlfmt -lint {{ files }}"
+  check_list_files = new Config.Script {
+    windows = ""
+    other =
+      """
+      output=$(yamlfmt -lint -quiet {{ files }})
+      code=$?
+      if [ $code -eq 0 ]; then
+        exit 0
+      fi
+      printf "%s\n" "$output" | sed '1,/^$/d'
+      exit $code
+      """
+  }
   fix = "yamlfmt {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {
