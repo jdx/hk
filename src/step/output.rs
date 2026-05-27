@@ -89,11 +89,13 @@ impl Step {
     ///
     /// * `ctx` - The step context
     /// * `job` - The current job
-    /// * `cmd_result` - Optional command result (for filtering files from check_list_files output)
+    /// * `run_cmd` - Optional command that produced cmd_result
+    /// * `cmd_result` - Optional command result (for filtering files from check output)
     pub(crate) fn collect_fix_suggestion(
         &self,
         ctx: &StepContext,
         job: &StepJob,
+        run_cmd: Option<&super::types::Script>,
         cmd_result: Option<&ensembler::CmdResult>,
     ) {
         // Only suggest fixes when the entire hook run is in check mode,
@@ -101,14 +103,27 @@ impl Step {
         if !matches!(ctx.hook_ctx.run_type, RunType::Check) || self.fix.is_none() {
             return;
         }
-        // Prefer filtering files if check_list_files output is available
+        // Prefer filtering files when the failed check command can identify
+        // the files needing fixes.
         let mut suggest_files = job.files.clone();
-        if let Some(result) = cmd_result
-            && self.check_list_files.is_some()
-        {
-            let (files, _extras) = self.filter_files_from_check_list(&job.files, &result.stdout);
+        if let (Some(run_cmd), Some(result)) = (run_cmd, cmd_result) {
+            let (files, parser) = if Some(run_cmd) == self.check_diff.as_ref() {
+                let (files, _extras) =
+                    self.filter_files_from_check_diff(&job.files, &result.stdout);
+                (files, Some("check_diff"))
+            } else if Some(run_cmd) == self.check_list_files.as_ref() {
+                let (files, _extras) =
+                    self.filter_files_from_check_list(&job.files, &result.stdout);
+                (files, Some("check_list_files"))
+            } else {
+                (vec![], None)
+            };
             if !files.is_empty() {
                 suggest_files = files;
+            } else if let Some(parser) = parser {
+                debug!(
+                    "{self}: {parser} output did not match any job files; suggesting all job files"
+                );
             }
         }
         // Build a minimal context based on the suggested files, honoring dir/workspace

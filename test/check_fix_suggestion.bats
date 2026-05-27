@@ -61,6 +61,31 @@ EOF
     refute_output --partial "b.js"
 }
 
+@test "check failure with check_diff filters files in suggestion when list-files also exists" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fmt"] {
+        check_diff = "sh -c 'printf \"%s\n\" \"--- a.js\" \"+++ a.js\" \"@@ -1 +1 @@\" \"-bad\" \"+good\"; exit 1'"
+        check_list_files = "sh -c 'echo b.js; exit 1'"
+        fix = "echo fix {{files}}"
+      }
+    }
+  }
+}
+EOF
+
+    echo "bad" > a.js
+    echo "good" > b.js
+
+    run hk check a.js b.js
+    assert_failure
+    assert_output --partial "To fix, run: echo fix a.js"
+    refute_output --partial "To fix, run: echo fix a.js b.js"
+}
+
 @test "check failure with multi-line fix suggests hk fix command" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
