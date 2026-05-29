@@ -360,7 +360,7 @@ impl Git {
         if let Some(branch) = self.current_branch()? {
             if let Some(repo) = &self.repo {
                 if let Ok(_ref) = repo.find_reference(&format!("refs/remotes/{remote}/{branch}")) {
-                    return Ok(_ref.name().map(|s| s.to_string()));
+                    return Ok(_ref.name().ok().map(|s| s.to_string()));
                 }
             } else {
                 let output = xx::process::sh(&format!("git ls-remote --heads {remote} {branch}"))?;
@@ -377,7 +377,7 @@ impl Git {
     pub fn current_branch(&self) -> Result<Option<String>> {
         if let Some(repo) = &self.repo {
             let head = repo.head().wrap_err("failed to get head")?;
-            let branch_name = head.shorthand().map(|s| s.to_string());
+            let branch_name = head.shorthand().ok().map(|s| s.to_string());
             Ok(branch_name)
         } else {
             let output = xx::process::sh("git branch --show-current")?;
@@ -449,7 +449,7 @@ impl Git {
             let mut staged_renamed_files = BTreeSet::new();
             let staged_copied_files = BTreeSet::new();
             for s in staged_statuses.iter() {
-                if let Some(path) = s.path().map(PathBuf::from) {
+                if let Ok(path) = s.path().map(PathBuf::from) {
                     // Check if path exists (including broken symlinks)
                     // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
                     let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
@@ -485,7 +485,7 @@ impl Git {
             let mut unstaged_deleted_files = BTreeSet::new();
             let mut unstaged_renamed_files = BTreeSet::new();
             for s in unstaged_statuses.iter() {
-                if let Some(path) = s.path().map(PathBuf::from) {
+                if let Ok(path) = s.path().map(PathBuf::from) {
                     // Check if path exists (including broken symlinks)
                     // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
                     let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
