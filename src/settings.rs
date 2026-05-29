@@ -50,7 +50,7 @@ fn read_git_string_list(config: &git2::Config, key: &str) -> Result<IndexSet<Str
     match config.multivar(key, None) {
         Ok(mut entries) => {
             while let Some(entry) = entries.next() {
-                if let Some(value) = entry?.value() {
+                if let Ok(value) = entry?.value() {
                     for item in value.split(',').map(|s| s.trim()) {
                         if !item.is_empty() {
                             result.insert(item.to_string());
