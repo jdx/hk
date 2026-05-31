@@ -68,6 +68,7 @@ export default defineConfig({
       { text: 'Logging and Debugging', link: '/logging' },
       { text: 'Introduction to pkl', link: '/pkl_introduction' },
       { text: 'mise-en-place Integration', link: '/mise_integration' },
+      { text: 'Sponsors', link: '/sponsors' },
       { text: 'CLI Reference', link: '/cli', items: commands.map(cmd => ({ text: cmd.join(' '), link: `/cli/${cmd.join('/')}` })) },
     ],
     socialLinks: [
