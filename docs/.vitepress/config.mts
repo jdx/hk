@@ -81,11 +81,7 @@ export default defineConfig({
     search: {
       provider: 'local',
     },
-    footer: {
-      message:
-        'Licensed under the MIT License. Maintained by <a href="https://github.com/jdx">@jdx</a> and <a href="https://github.com/jdx/hk/graphs/contributors">friends</a>.',
-      copyright: `Copyright © ${new Date().getFullYear()} <a href="https://github.com/jdx">@jdx</a>`,
-    },
+    footer: false,
   },
   markdown: {
     // https://github.com/vuejs/vitepress/discussions/3724
