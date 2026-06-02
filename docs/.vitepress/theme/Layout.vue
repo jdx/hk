@@ -1,6 +1,7 @@
 <template>
   <Layout>
     <template #layout-bottom>
+      <EndevSponsors />
       <EndevFooter />
     </template>
   </Layout>
@@ -10,6 +11,7 @@
 import DefaultTheme from 'vitepress/theme'
 import { useData } from 'vitepress'
 import EndevFooter from './EndevFooter.vue'
+import EndevSponsors from './EndevSponsors.vue'
 
 const { Layout } = DefaultTheme
 const { page } = useData()
