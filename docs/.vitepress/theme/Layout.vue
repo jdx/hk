@@ -1,15 +1,10 @@
 <template>
-  <Layout>
-    <template #layout-bottom>
-      <EndevFooter />
-    </template>
-  </Layout>
+  <Layout />
 </template>
 
 <script setup lang="ts">
 import DefaultTheme from 'vitepress/theme'
 import { useData } from 'vitepress'
-import EndevFooter from './EndevFooter.vue'
 
 const { Layout } = DefaultTheme
 const { page } = useData()
