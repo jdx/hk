@@ -606,6 +606,7 @@ cmd run help="Run a hook" {
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
 }
+cmd sponsors help="Show the companies sponsoring hk and the en.dev project family"
 cmd test help="Run step-defined tests" {
     flag --list help="List tests without running"
     flag --name help="Filter by test name (repeatable)" var=#true {
