@@ -1,0 +1,144 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Markdown"
+  description = "Lint YAML embedded in Markdown (front matter + fenced yaml blocks) with ryl"
+}
+ryl_markdown = new Config.Step {
+  types = List("markdown")
+  check = "ryl --markdown {{ files }}"
+  check_list_files = "ryl --list-files --markdown {{ files }}"
+  fix = "ryl --fix --markdown {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.md"
+      extra_files = new Mapping<String, String> {
+        // Default configuration
+        // https://ryl-docs.pages.dev/config-presets/
+        [".ryl.toml"] =
+          """
+          [files]
+          yaml = [
+              "*.yaml",
+              "*.yml",
+              ".yamllint",
+          ]
+
+          [rules]
+          anchors = "enable"
+          braces = "enable"
+          brackets = "enable"
+          colons = "enable"
+          commas = "enable"
+          document-end = "disable"
+          empty-lines = "enable"
+          empty-values = "disable"
+          float-values = "disable"
+          hyphens = "enable"
+          indentation = "enable"
+          key-duplicates = "enable"
+          key-ordering = "disable"
+          line-length = "enable"
+          new-line-at-end-of-file = "enable"
+          new-lines = "enable"
+          octal-values = "disable"
+          quoted-strings = "disable"
+          trailing-spaces = "enable"
+
+          [rules.comments]
+          level = "warning"
+
+          [rules.comments-indentation]
+          level = "warning"
+
+          [rules.document-start]
+          level = "warning"
+
+          [rules.truthy]
+          level = "warning"
+          """
+      }
+    }
+    local const bad =
+      // Referneces
+      // https://ryl-docs.pages.dev/markdown/#example
+      """
+      ---
+      tags:
+        - hk
+        - ryl
+      ---
+
+      # Lint YAML embedded in Markdown with ryl
+
+      ```yaml
+      foo: { bar: 0 }
+      ```
+
+      """
+    local const good =
+      """
+      ---
+      tags:
+        - hk
+        - ryl
+      ---
+
+      # Lint YAML embedded in Markdown with ryl
+
+      ```yaml
+      foo: {bar: 0}
+      ```
+
+      """
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file violations remain"] =
+    // ryl's indentation rule does not support automatic fixing
+    // https://ryl-docs.pages.dev/rules/indentation/#automatic-fixing
+      testMaker.fixFail(
+        """
+        ---
+        title: ryl markdown test
+
+
+
+
+
+        tags:
+        - hk
+        - ryl
+        ---
+
+        # Lint YAML embedded in Markdown with ryl
+
+        ```yaml
+        foo: {bar: 0}
+        ```
+
+        """,
+        """
+        ---
+        title: ryl markdown test
+
+
+        tags:
+        - hk
+        - ryl
+        ---
+
+        # Lint YAML embedded in Markdown with ryl
+
+        ```yaml
+        foo: {bar: 0}
+        ```
+
+        """,
+        1,
+      )
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
