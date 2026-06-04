@@ -72,6 +72,7 @@ Output in JSON format
 - [`hk run pre-push [FLAGS] [ARGS]…`](/cli/run/pre-push.md)
 - [`hk run pre-rebase [FLAGS] <ARGS>…`](/cli/run/pre-rebase.md)
 - [`hk run prepare-commit-msg [FLAGS] <ARGS>…`](/cli/run/prepare-commit-msg.md)
+- [`hk sponsors`](/cli/sponsors.md)
 - [`hk test [FLAGS]`](/cli/test.md)
 - [`hk uninstall [--global]`](/cli/uninstall.md)
 - [`hk util <SUBCOMMAND>`](/cli/util.md)

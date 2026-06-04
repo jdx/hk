@@ -6,6 +6,10 @@ file locks in order to maximize concurrency while also preventing race condition
 
 See docs: https://hk.jdx.dev/
 
+## Sponsors
+
+hk is sponsored by [37signals](https://37signals.com).
+
 ## Demo
 
 ![hk demo](docs/public/hk-demo.gif)

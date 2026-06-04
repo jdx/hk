@@ -17,6 +17,7 @@ mod init;
 mod install;
 mod migrate;
 mod run;
+mod sponsors;
 mod test;
 mod uninstall;
 mod usage;
@@ -75,6 +76,7 @@ enum Commands {
     Install(Box<install::Install>),
     Migrate(Box<migrate::Migrate>),
     Run(Box<run::Run>),
+    Sponsors(Box<sponsors::Sponsors>),
     Test(Box<test::Test>),
     Uninstall(Box<uninstall::Uninstall>),
     Usage(Box<usage::Usage>),
@@ -155,6 +157,7 @@ pub async fn run() -> Result<()> {
             | Commands::Init(_)
             | Commands::Migrate(_)
             | Commands::Completion(_)
+            | Commands::Sponsors(_)
             | Commands::Usage(_)
             | Commands::Version(_)
     ) {
@@ -178,6 +181,7 @@ pub async fn run() -> Result<()> {
         Commands::Install(cmd) => cmd.run().await,
         Commands::Migrate(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,
+        Commands::Sponsors(cmd) => cmd.run().await,
         Commands::Uninstall(cmd) => cmd.run().await,
         Commands::Usage(cmd) => cmd.run().await,
         Commands::Util(cmd) => cmd.run().await,
