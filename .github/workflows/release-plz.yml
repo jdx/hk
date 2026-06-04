@@ -30,7 +30,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.HK_GH_TOKEN }}
-      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
         with:
           experimental: true
           cache: false
