@@ -275,13 +275,18 @@ impl Git {
         cmd = cmd.arg(stash_ref);
 
         // Read patch content from git
-        let patch_content = match cmd.read() {
+        let mut patch_content = match cmd.read() {
             Ok(content) => content,
             Err(e) => {
                 warn!("Failed to generate stash patch: {}", e);
                 return;
             }
         };
+        // read() strips the trailing newline, but git apply rejects a patch
+        // without one as corrupt, so restore it
+        if !patch_content.is_empty() && !patch_content.ends_with('\n') {
+            patch_content.push('\n');
+        }
 
         // Write patch file
         if let Err(e) = std::fs::write(&patch_path, patch_content) {
@@ -1219,9 +1224,16 @@ impl Git {
                     {
                         // Try strict prefix first
                         let mut tail_opt = w.strip_prefix(i);
-                        // If that fails, allow a single trailing newline discrepancy
+                        // If that fails, allow a single trailing newline discrepancy, but only
+                        // when the worktree is exactly the index minus its trailing newline.
+                        // A non-empty remainder here means the LAST LINE was edited (e.g.
+                        // i="…l3\n", w="…l3 edited\n"), which is not a pure tail insertion;
+                        // treating it as one would split the edit onto a new line. Leave those
+                        // to the regular three-way merge instead.
                         if tail_opt.is_none() && i.ends_with('\n') {
-                            tail_opt = w.strip_prefix(&i[..i.len().saturating_sub(1)]);
+                            tail_opt = w
+                                .strip_prefix(&i[..i.len().saturating_sub(1)])
+                                .filter(|tail| tail.is_empty());
                         }
                         if let Some(tail) = tail_opt {
                             // If w == i (no tail), tail is empty; otherwise append tail to fixer
