@@ -10,7 +10,66 @@ import "./test/helpers.pkl"
   }
 }
 rubocop = new Config.Step {
-  types = List("ruby")
+  // RuboCop's default configuration
+  // https://github.com/rubocop/rubocop/blob/v1.87.0/config/default.yml#L9-L55
+  glob =
+    List(
+      "**/*.rb",
+      "**/*.arb",
+      "**/*.axlsx",
+      "**/*.builder",
+      "**/*.gemfile",
+      "**/*.gemspec",
+      "**/*.jb",
+      "**/*.jbuilder",
+      "**/*.mspec",
+      "**/*.opal",
+      "**/*.pluginspec",
+      "**/*.podspec",
+      "**/*.rabl",
+      "**/*.rake",
+      "**/*.rbw",
+      "**/*.ru",
+      "**/*.ruby",
+      "**/*.schema",
+      "**/*.spec",
+      "**/*.thor",
+      "**/.irbrc",
+      "**/.pryrc",
+      "**/.simplecov",
+      "**/buildfile",
+      "**/Appraisals",
+      "**/Berksfile",
+      "**/Brewfile",
+      "**/Buildfile",
+      "**/Capfile",
+      "**/Dangerfile",
+      "**/Deliverfile",
+      "**/Fastfile",
+      "**/*Fastfile",
+      "**/Gemfile",
+      "**/Guardfile",
+      "**/Jarfile",
+      "**/Mavenfile",
+      "**/Podfile",
+      "**/Puppetfile",
+      "**/Rakefile",
+      "**/rakefile",
+      "**/Schemafile",
+      "**/Snapfile",
+      "**/Steepfile",
+      "**/Thorfile",
+      "**/Vagrantfile",
+    )
+  // RuboCop's default configuration
+  // https://github.com/rubocop/rubocop/blob/v1.87.0/config/default.yml#L56-L60
+  exclude =
+    List(
+      "node_modules/**/*",
+      "tmp/**/*",
+      "vendor/**/*",
+      ".git/**/*",
+    )
   // `--force-exclusion`: Any files excluded by `Exclude` in RuboCop configuration files will be excluded, even if given explicitly as arguments.
   check = "rubocop --force-exclusion {{ files }}"
   check_list_files = "rubocop --force-exclusion --list-target-files {{ files }}"
