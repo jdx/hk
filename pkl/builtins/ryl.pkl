@@ -4,21 +4,76 @@ import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "YAML"
-  description = "YAML linter"
+  description = "Re-implementation of yamllint in Rust"
 }
 ryl = new Config.Step {
   types = List("yaml")
   check = "ryl {{ files }}"
+  check_list_files = "ryl --list-files {{ files }}"
+  fix = "ryl --fix {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.yaml"
       extra_files = new Mapping<String, String> {
-        // ryl reads `.yamllint.yaml` as a configuration file.
-        // https://github.com/owenlamont/ryl/tree/v0.3.1#configuration
-        [".yamllint.yaml"] = "extends: default\n"
+        // Default configuration
+        // https://ryl-docs.pages.dev/config-presets/
+        [".ryl.toml"] =
+          """
+          [files]
+          yaml = [
+              "*.yaml",
+              "*.yml",
+              ".yamllint",
+          ]
+
+          [rules]
+          anchors = "enable"
+          braces = "enable"
+          brackets = "enable"
+          colons = "enable"
+          commas = "enable"
+          document-end = "disable"
+          empty-lines = "enable"
+          empty-values = "disable"
+          float-values = "disable"
+          hyphens = "enable"
+          indentation = "enable"
+          key-duplicates = "enable"
+          key-ordering = "disable"
+          line-length = "enable"
+          new-line-at-end-of-file = "enable"
+          new-lines = "enable"
+          octal-values = "disable"
+          quoted-strings = "disable"
+          trailing-spaces = "enable"
+
+          [rules.comments]
+          level = "warning"
+
+          [rules.comments-indentation]
+          level = "warning"
+
+          [rules.document-start]
+          level = "warning"
+
+          [rules.truthy]
+          level = "warning"
+          """
       }
     }
-    ["check bad file"] = testMaker.checkFail("x: 1\nx: 2\n", 1)
-    ["check good file"] = testMaker.checkPass("x: 1\n")
+    local const bad = "---\nfoo: { bar: 0 }\n"
+    local const good = "---\nfoo: {bar: 0}\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file violations remain"] =
+    // ryl's indentation rule does not support automatic fixing
+    // https://ryl-docs.pages.dev/rules/indentation/#automatic-fixing
+      testMaker.fixFail(
+        "foo:\n- bar\n",
+        "---\nfoo:\n- bar\n",
+        1,
+      )
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
   }
 }
