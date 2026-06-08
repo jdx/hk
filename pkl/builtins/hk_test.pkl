@@ -1,0 +1,14 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Run step-defined hk's tests"
+}
+hk_test = new Config.Step {
+  // See: src/config.rs `project_config_search_paths()`
+  glob = List("hk.pkl", ".config/hk.pkl")
+  check = "hk test --quiet"
+  // No tests here. They would duplicate the existing `hk test` tests.
+  // See: test/hk_test_*.bats
+}
