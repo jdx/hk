@@ -2,6 +2,7 @@ use std::{
     collections::BTreeSet,
     ffi::{CString, OsString},
     path::PathBuf,
+    process::Command,
 };
 
 use crate::Result;
@@ -10,7 +11,7 @@ use crate::settings::Settings;
 use crate::ui::style;
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressStatus};
 use eyre::{WrapErr, eyre};
-use git2::{Repository, StatusOptions, StatusShow};
+use git2::{Diff, ErrorCode, Repository, StatusOptions, StatusShow};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 #[cfg(unix)]
@@ -1436,54 +1437,62 @@ impl Git {
                 .revparse_single(to_ref)
                 .wrap_err(format!("Failed to parse reference: {to_ref}"))?;
 
-            // Find the merge base between the two references
-            let merge_base = repo
-                .merge_base(from_obj.id(), to_obj.id())
-                .wrap_err("Failed to find merge base")?;
-            let merge_base_obj = repo
-                .find_object(merge_base, None)
-                .wrap_err("Failed to find merge base object")?;
-            let merge_base_tree = merge_base_obj
-                .peel_to_tree()
-                .wrap_err("Failed to get tree for merge base")?;
-
             let to_tree = to_obj
                 .peel_to_tree()
                 .wrap_err(format!("Failed to get tree for reference: {to_ref}"))?;
 
-            let diff = repo
-                .diff_tree_to_tree(Some(&merge_base_tree), Some(&to_tree), None)
-                .wrap_err("Failed to get diff between references")?;
-
-            let mut files = BTreeSet::new();
-            diff.foreach(
-                &mut |_, _| true,
-                None,
-                None,
-                Some(&mut |diff_delta, _, _| {
-                    if let Some(path) = diff_delta.new_file().path() {
-                        let path_buf = PathBuf::from(path);
-                        if path_buf.exists() {
-                            files.insert(path_buf);
-                        }
+            // Prefer merge-base semantics (`from...to`). In shallow clones the
+            // merge base can be missing, so fall back to a direct `from..to`
+            // diff instead of failing the whole run.
+            let diff = match repo.merge_base(from_obj.id(), to_obj.id()) {
+                Ok(merge_base) => {
+                    let merge_base_obj = repo
+                        .find_object(merge_base, None)
+                        .wrap_err("Failed to find merge base object")?;
+                    let merge_base_tree = merge_base_obj
+                        .peel_to_tree()
+                        .wrap_err("Failed to get tree for merge base")?;
+                    repo.diff_tree_to_tree(Some(&merge_base_tree), Some(&to_tree), None)
+                        .wrap_err("Failed to get diff between references")?
+                }
+                Err(err) if err.code() == ErrorCode::NotFound => {
+                    if let Some(merge_base) = git_merge_base(from_ref, to_ref)? {
+                        let merge_base_obj = repo
+                            .find_object(
+                                git2::Oid::from_str(merge_base.trim())
+                                    .wrap_err("Failed to parse git merge-base output")?,
+                                None,
+                            )
+                            .wrap_err("Failed to find merge base object")?;
+                        let merge_base_tree = merge_base_obj
+                            .peel_to_tree()
+                            .wrap_err("Failed to get tree for merge base")?;
+                        repo.diff_tree_to_tree(Some(&merge_base_tree), Some(&to_tree), None)
+                            .wrap_err("Failed to get diff between references")?
+                    } else {
+                        let from_tree = from_obj
+                            .peel_to_tree()
+                            .wrap_err(format!("Failed to get tree for reference: {from_ref}"))?;
+                        repo.diff_tree_to_tree(Some(&from_tree), Some(&to_tree), None)
+                            .wrap_err("Failed to get fallback diff between references")?
                     }
-                    true
-                }),
-            )
-            .wrap_err("Failed to process diff")?;
+                }
+                Err(err) => return Err(err).wrap_err("Failed to find merge base"),
+            };
 
-            Ok(files.into_iter().collect())
+            collect_existing_paths_from_diff(diff)
         } else {
-            // Use git merge-base to find the common ancestor
-            let merge_base = xx::process::sh(&format!("git merge-base {from_ref} {to_ref}"))?;
-            let merge_base = merge_base.trim();
+            let range = match git_merge_base(from_ref, to_ref)? {
+                Some(merge_base) => format!("{}..{}", merge_base.trim(), to_ref),
+                None => format!("{from_ref}..{to_ref}"),
+            };
 
             let output = git_read([
                 "diff",
                 "-z",
                 "--name-only",
                 "--diff-filter=ACMRTUXB",
-                format!("{merge_base}..{to_ref}").as_str(),
+                range.as_str(),
             ])?;
             Ok(output
                 .split('\0')
@@ -1491,6 +1500,45 @@ impl Git {
                 .map(PathBuf::from)
                 .collect())
         }
+    }
+}
+
+fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
+    let mut files = BTreeSet::new();
+    diff.foreach(
+        &mut |diff_delta, _| {
+            if let Some(path) = diff_delta.new_file().path() {
+                let path_buf = PathBuf::from(path);
+                if path_buf.exists() {
+                    files.insert(path_buf);
+                }
+            }
+            true
+        },
+        None,
+        None,
+        None,
+    )
+    .wrap_err("Failed to process diff")?;
+
+    Ok(files.into_iter().collect())
+}
+
+fn git_merge_base(from_ref: &str, to_ref: &str) -> Result<Option<String>> {
+    let output = Command::new("git")
+        .args(["merge-base", from_ref, to_ref])
+        .output()
+        .wrap_err("Failed to run git merge-base")?;
+
+    match output.status.code() {
+        Some(0) => String::from_utf8(output.stdout)
+            .map(Some)
+            .map_err(|err| eyre!("git merge-base output is not valid UTF-8: {err}")),
+        Some(1) => Ok(None),
+        _ => Err(eyre!(
+            "Failed to find merge base: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )),
     }
 }
 
