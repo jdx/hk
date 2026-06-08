@@ -1479,10 +1479,7 @@ impl Git {
 fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
     let mut files = BTreeSet::new();
     diff.foreach(
-        &mut |_, _| true,
-        None,
-        None,
-        Some(&mut |diff_delta, _, _| {
+        &mut |diff_delta, _| {
             if let Some(path) = diff_delta.new_file().path() {
                 let path_buf = PathBuf::from(path);
                 if path_buf.exists() {
@@ -1490,7 +1487,10 @@ fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
                 }
             }
             true
-        }),
+        },
+        None,
+        None,
+        None,
     )
     .wrap_err("Failed to process diff")?;
 

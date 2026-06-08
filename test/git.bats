@@ -158,6 +158,7 @@ EOF
     HK_LIBGIT2=1 run hk check --from-ref=$UNRELATED_COMMIT --to-ref=$MAIN_COMMIT
     assert_success
     assert_output --partial "print-files – main.txt"
+    refute_output --partial "unrelated.txt"
 }
 
 @test "files_between_refs falls back to two-dot diff without merge base using shell git" {
@@ -190,6 +191,7 @@ EOF
     HK_LIBGIT2=0 run hk check --from-ref=$UNRELATED_COMMIT --to-ref=$MAIN_COMMIT
     assert_success
     assert_output --partial "print-files – main.txt"
+    refute_output --partial "unrelated.txt"
 }
 
 @test "files staged for deletion are not included with --all" {
