@@ -32,7 +32,7 @@ impl Config {
                 serde_json::from_str(&raw)?
             }
             "pkl" => {
-                if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+                if env::use_pklr_backend() {
                     run_pklr(path)?
                 } else {
                     run_pkl(&["eval"], path)?
@@ -49,7 +49,7 @@ impl Config {
     /// Analyze pkl imports to get all transitive dependencies.
     /// Returns a set of local file paths that the config depends on.
     fn analyze_imports(path: &Path) -> Result<IndexSet<PathBuf>> {
-        if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+        if env::use_pklr_backend() {
             return pklr::analyze_imports(path)
                 .map(|v| v.into_iter().collect())
                 .map_err(|e| eyre::eyre!("{e}"));
@@ -162,7 +162,7 @@ impl Config {
             // Always include the main config file. The pklr backend's
             // analyze_imports does not include the source file in its
             // output, so without this edits to hk.pkl wouldn't invalidate
-            // the cache when HK_PKL_BACKEND=pklr. Using IndexSet avoids
+            // the cache when using pklr. Using IndexSet avoids
             // double-listing the path on the pkl CLI backend, whose
             // resolvedImports already contains it.
             let mut files: IndexSet<PathBuf> = imports;
@@ -322,7 +322,7 @@ impl Config {
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
-            let json_value: serde_json::Value = if env::HK_PKL_BACKEND.as_deref() == Some("pklr") {
+            let json_value: serde_json::Value = if env::use_pklr_backend() {
                 run_pklr(&path)?
             } else {
                 run_pkl(&["eval"], &path)?

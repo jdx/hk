@@ -12,7 +12,7 @@ hk --version
 ```
 
 :::tip
-By default hk uses the pkl CLI to evaluate configuration. Set `HK_PKL_BACKEND=pklr` to use the built-in Rust evaluator instead, which removes the pkl CLI dependency entirely. This is experimental — see [pkl introduction](/pkl_introduction) for details.
+By default hk uses the built-in pklr evaluator for configuration, so the pkl CLI is not required. Set `HK_PKL_BACKEND=pkl` to use the pkl CLI instead. See [pkl introduction](/pkl_introduction) for details.
 :::
 
 :::tip

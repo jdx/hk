@@ -5,11 +5,11 @@ it and work with it for hk configuration.
 
 ## Dependencies
 
-hk has a built-in pkl evaluator ([pklr](https://github.com/jdx/pklr)) that can be used instead of the pkl CLI. Set `HK_PKL_BACKEND=pklr` to enable it. This removes the need to install the pkl CLI entirely.
+hk uses a built-in pkl evaluator ([pklr](https://github.com/jdx/pklr)) by default. This removes the need to install the pkl CLI entirely.
 
-pklr is experimental and may not support every pkl feature yet. It will eventually become the default backend and the pkl CLI requirement will go away. If you run into issues with pklr, you can always switch back by unsetting the env var.
+pklr may not support every pkl feature yet. If you run into issues with pklr, you can switch back to the pkl CLI with `HK_PKL_BACKEND=pkl`.
 
-To use the pkl CLI backend (the current default), install pkl with mise:
+To use the pkl CLI backend, install pkl with mise:
 
 ```sh
 mise use -g pkl

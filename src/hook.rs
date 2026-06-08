@@ -1,7 +1,7 @@
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressOutput, ProgressStatus};
 use indexmap::IndexMap;
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error, ser};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
@@ -117,11 +117,75 @@ pub enum StashSetting {
     Bool(bool),
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
-#[serde(tag = "_type", rename_all = "snake_case")]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum StepOrGroup {
     Step(Box<Step>),
     Group(Box<StepGroup>),
+}
+
+impl Serialize for StepOrGroup {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let (ty, inner) = match self {
+            StepOrGroup::Step(step) => (
+                "step",
+                serde_json::to_value(step).map_err(ser::Error::custom)?,
+            ),
+            StepOrGroup::Group(group) => (
+                "group",
+                serde_json::to_value(group).map_err(ser::Error::custom)?,
+            ),
+        };
+        let mut value = inner;
+        match &mut value {
+            serde_json::Value::Object(obj) => {
+                obj.insert(
+                    "_type".to_string(),
+                    serde_json::Value::String(ty.to_string()),
+                );
+                value.serialize(serializer)
+            }
+            _ => Err(ser::Error::custom(
+                "step or group must serialize to an object",
+            )),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for StepOrGroup {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let object = value.as_object();
+        let has_steps = object.is_some_and(|obj| obj.contains_key("steps"));
+        let is_group = match object.and_then(|obj| obj.get("_type")) {
+            Some(serde_json::Value::String(ty)) if ty == "group" => true,
+            // The current pklr release can tag union-mapping groups as steps.
+            // Preserve that compatibility while still rejecting unknown tags.
+            Some(serde_json::Value::String(ty)) if ty == "step" => has_steps,
+            Some(serde_json::Value::String(other)) => {
+                return Err(D::Error::custom(format!(
+                    "unknown step or group _type {other:?}"
+                )));
+            }
+            Some(_) => return Err(D::Error::custom("step or group _type must be a string")),
+            None => has_steps,
+        };
+
+        if is_group {
+            serde_json::from_value(value)
+                .map(|group| StepOrGroup::Group(Box::new(group)))
+                .map_err(D::Error::custom)
+        } else {
+            serde_json::from_value(value)
+                .map(|step| StepOrGroup::Step(Box::new(step)))
+                .map_err(D::Error::custom)
+        }
+    }
 }
 
 impl StepOrGroup {
@@ -131,6 +195,89 @@ impl StepOrGroup {
             StepOrGroup::Group(group) => group.init(name)?,
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn step_or_group_serializes_flat_step_for_cache_round_trip() {
+        let original: StepOrGroup =
+            serde_json::from_value(json!({"_type": "step", "check": "echo ok"})).unwrap();
+
+        let serialized = serde_json::to_value(&original).unwrap();
+
+        assert_eq!(serialized["_type"], "step");
+        assert_eq!(serialized["check"]["other"], "echo ok");
+
+        let round_trip: StepOrGroup = serde_json::from_value(serialized).unwrap();
+        let StepOrGroup::Step(step) = round_trip else {
+            panic!("expected step");
+        };
+        assert!(step.check.is_some());
+    }
+
+    #[test]
+    fn step_or_group_serializes_flat_group_for_cache_round_trip() {
+        let original: StepOrGroup = serde_json::from_value(json!({
+            "_type": "group",
+            "steps": {
+                "echo": {
+                    "check": "echo ok"
+                }
+            }
+        }))
+        .unwrap();
+
+        let serialized = serde_json::to_value(&original).unwrap();
+
+        assert_eq!(serialized["_type"], "group");
+        assert_eq!(serialized["steps"]["echo"]["check"]["other"], "echo ok");
+
+        let round_trip: StepOrGroup = serde_json::from_value(serialized).unwrap();
+        let StepOrGroup::Group(group) = round_trip else {
+            panic!("expected group");
+        };
+        assert!(group.steps.contains_key("echo"));
+    }
+
+    #[test]
+    fn step_or_group_rejects_unknown_type_even_with_steps() {
+        let err = serde_json::from_value::<StepOrGroup>(json!({
+            "_type": "grup",
+            "steps": {}
+        }))
+        .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("unknown step or group _type \"grup\"")
+        );
+    }
+
+    #[test]
+    fn step_or_group_rejects_non_string_type_even_with_steps() {
+        let err = serde_json::from_value::<StepOrGroup>(json!({
+            "_type": true,
+            "steps": {}
+        }))
+        .unwrap_err();
+
+        assert!(err.to_string().contains("_type must be a string"));
+    }
+
+    #[test]
+    fn step_or_group_treats_step_tag_with_steps_as_group() {
+        let value = serde_json::from_value::<StepOrGroup>(json!({
+            "_type": "step",
+            "steps": {}
+        }))
+        .unwrap();
+
+        assert!(matches!(value, StepOrGroup::Group(_)));
     }
 }
 
