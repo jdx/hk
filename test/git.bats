@@ -128,6 +128,70 @@ EOF
     assert_output --partial "print-files – main.txt"
 }
 
+@test "files_between_refs falls back to two-dot diff without merge base using libgit2" {
+    echo "main content" > main.txt
+    git add main.txt
+    git commit -m "main commit"
+    MAIN_COMMIT=$(git rev-parse HEAD)
+
+    git checkout --orphan unrelated
+    git rm -rf .
+    echo "unrelated content" > unrelated.txt
+    git add unrelated.txt
+    git commit -m "unrelated commit"
+    UNRELATED_COMMIT=$(git rev-parse HEAD)
+    git checkout main
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["print-files"] {
+                check = "echo '{{files}}'"
+            }
+        }
+    }
+}
+EOF
+
+    HK_LIBGIT2=1 run hk check --from-ref=$UNRELATED_COMMIT --to-ref=$MAIN_COMMIT
+    assert_success
+    assert_output --partial "print-files – main.txt"
+}
+
+@test "files_between_refs falls back to two-dot diff without merge base using shell git" {
+    echo "main content" > main.txt
+    git add main.txt
+    git commit -m "main commit"
+    MAIN_COMMIT=$(git rev-parse HEAD)
+
+    git checkout --orphan unrelated
+    git rm -rf .
+    echo "unrelated content" > unrelated.txt
+    git add unrelated.txt
+    git commit -m "unrelated commit"
+    UNRELATED_COMMIT=$(git rev-parse HEAD)
+    git checkout main
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["print-files"] {
+                check = "echo '{{files}}'"
+            }
+        }
+    }
+}
+EOF
+
+    HK_LIBGIT2=0 run hk check --from-ref=$UNRELATED_COMMIT --to-ref=$MAIN_COMMIT
+    assert_success
+    assert_output --partial "print-files – main.txt"
+}
+
 @test "files staged for deletion are not included with --all" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
