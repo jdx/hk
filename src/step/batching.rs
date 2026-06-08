@@ -14,9 +14,19 @@ use crate::tera;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::types::Step;
+use super::{ShellType, types::Step};
+
+const CMD_COMMAND_LINE_LIMIT: usize = 8191;
+const CMD_COMMAND_LINE_SAFE_LIMIT: usize = CMD_COMMAND_LINE_LIMIT / 2;
 
 impl Step {
+    fn auto_batch_safe_limit(&self) -> usize {
+        match self.shell_type() {
+            ShellType::Cmd => CMD_COMMAND_LINE_SAFE_LIMIT,
+            _ => *env::ARG_MAX / 2,
+        }
+    }
+
     /// Estimates the size of the `{{files}}` template variable expansion.
     ///
     /// Used as a fallback when rendering the run command fails (e.g. the
@@ -71,7 +81,8 @@ impl Step {
 
     /// Automatically batch jobs whose rendered run command would exceed the safe ARG_MAX limit.
     ///
-    /// Uses 50% of `ARG_MAX` as the safety margin (accounts for env vars and the command itself).
+    /// Uses 50% of the effective command-line limit as the safety margin
+    /// (accounts for env vars, shell wrappers, and the command itself).
     /// Renders the actual run command with each candidate file subset; if the rendered command
     /// fits, no batching is performed. Otherwise binary-searches the largest batch size whose
     /// rendered command still fits.
@@ -88,7 +99,7 @@ impl Step {
             return jobs;
         }
 
-        let safe_limit = *env::ARG_MAX / 2;
+        let safe_limit = self.auto_batch_safe_limit();
         let mut batched_jobs = Vec::with_capacity(jobs.len());
 
         for job in jobs {
@@ -149,6 +160,55 @@ impl Step {
         }
 
         batched_jobs
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::step::RunType;
+    use crate::step_job::StepJob;
+
+    #[test]
+    fn cmd_shell_uses_cmd_command_line_limit() {
+        let step = Step {
+            shell: Some("cmd.exe".parse().unwrap()),
+            ..Default::default()
+        };
+
+        assert_eq!(step.auto_batch_safe_limit(), CMD_COMMAND_LINE_SAFE_LIMIT);
+    }
+
+    #[test]
+    fn non_cmd_shell_uses_arg_max_limit() {
+        let step = Step {
+            shell: Some("sh".parse().unwrap()),
+            ..Default::default()
+        };
+
+        assert_eq!(step.auto_batch_safe_limit(), *env::ARG_MAX / 2);
+    }
+
+    #[test]
+    fn cmd_shell_auto_batches_below_unix_arg_max() {
+        let step = Step {
+            name: "test".to_string(),
+            shell: Some("cmd.exe".parse().unwrap()),
+            check: Some("echo {{files}}".parse().unwrap()),
+            ..Default::default()
+        };
+        let files = (0..400)
+            .map(|i| {
+                PathBuf::from(format!(
+                    "directory/with/a/long/path/file_with_a_long_name_{i}.txt"
+                ))
+            })
+            .collect();
+        let job = StepJob::new(Arc::new(step.clone()), files, RunType::Check);
+
+        let jobs = step.auto_batch_jobs(vec![job], &tera::Context::default());
+
+        assert!(jobs.len() > 1);
     }
 }
 
