@@ -1444,11 +1444,26 @@ impl Git {
                         .wrap_err("Failed to get diff between references")?
                 }
                 Err(err) if err.code() == ErrorCode::NotFound => {
-                    let from_tree = from_obj
-                        .peel_to_tree()
-                        .wrap_err(format!("Failed to get tree for reference: {from_ref}"))?;
-                    repo.diff_tree_to_tree(Some(&from_tree), Some(&to_tree), None)
-                        .wrap_err("Failed to get fallback diff between references")?
+                    if let Some(merge_base) = git_merge_base(from_ref, to_ref)? {
+                        let merge_base_obj = repo
+                            .find_object(
+                                git2::Oid::from_str(merge_base.trim())
+                                    .wrap_err("Failed to parse git merge-base output")?,
+                                None,
+                            )
+                            .wrap_err("Failed to find merge base object")?;
+                        let merge_base_tree = merge_base_obj
+                            .peel_to_tree()
+                            .wrap_err("Failed to get tree for merge base")?;
+                        repo.diff_tree_to_tree(Some(&merge_base_tree), Some(&to_tree), None)
+                            .wrap_err("Failed to get diff between references")?
+                    } else {
+                        let from_tree = from_obj
+                            .peel_to_tree()
+                            .wrap_err(format!("Failed to get tree for reference: {from_ref}"))?;
+                        repo.diff_tree_to_tree(Some(&from_tree), Some(&to_tree), None)
+                            .wrap_err("Failed to get fallback diff between references")?
+                    }
                 }
                 Err(err) => return Err(err).wrap_err("Failed to find merge base"),
             };
