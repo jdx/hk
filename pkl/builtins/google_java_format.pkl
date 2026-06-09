@@ -27,7 +27,6 @@ google_java_format = new Config.Step {
           System.out.println("Hello");
         }
       }
-
       """
     ["check bad file"] = testMaker.checkFail(before, 1)
     ["check good file"] = testMaker.checkPass(after)

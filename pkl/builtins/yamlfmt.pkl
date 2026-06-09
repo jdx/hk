@@ -18,7 +18,6 @@ yamlfmt = new Config.Step {
           """
           formatter:
             type: basic
-
           """
       }
     }

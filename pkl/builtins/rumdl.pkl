@@ -28,16 +28,7 @@ rumdl = new Config.Step {
         """,
         1,
       )
-    ["check good file"] =
-      testMaker.checkPass(
-        """
-        # Hello
-
-        - indent 1
-          - indent 2
-
-        """,
-      )
+    ["check good file"] = testMaker.checkPass("# Hello\n\n- indent 1\n  - indent 2\n")
     ["fix bad file violations remain"] =
       testMaker.fixFail(
         """
@@ -54,37 +45,13 @@ rumdl = new Config.Step {
       )
     ["fix bad file all violations are fixed"] =
       testMaker.fixPass(
-        """
-        # Hello
-
-        - indent 1
-                   - indent 2
-
-        """,
-        """
-        # Hello
-
-        - indent 1
-          - indent 2
-
-        """,
+        "# Hello\n\n- indent 1\n           - indent 2\n",
+        "# Hello\n\n- indent 1\n  - indent 2\n",
       )
     ["fix good file"] =
       testMaker.fixPass(
-        """
-        # Hello
-
-        - indent 1
-          - indent 2
-
-        """,
-        """
-        # Hello
-
-        - indent 1
-          - indent 2
-
-        """,
+        "# Hello\n\n- indent 1\n  - indent 2\n",
+        "# Hello\n\n- indent 1\n  - indent 2\n",
       )
   }
 }

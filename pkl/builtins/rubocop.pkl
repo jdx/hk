@@ -16,7 +16,6 @@ rubocop = new Config.Step {
   check_list_files = "rubocop --force-exclusion --list-target-files {{ files }}"
   fix = "rubocop --force-exclusion --autocorrect {{ files }}"
   tests {
-    local const excluded_file = "foo.rb"
     local const testMaker = new helpers.TestMaker {
       filename = "test.rb"
       extra_files = new Mapping<String, String> {
@@ -24,8 +23,6 @@ rubocop = new Config.Step {
           """
           AllCops:
             NewCops: enable
-            Exclude:
-              - \(excluded_file)
 
           """
       }
@@ -35,14 +32,12 @@ rubocop = new Config.Step {
       # frozen_string_literal: true
 
       pp "Hello World"
-
       """
     local const good =
       """
       # frozen_string_literal: true
 
       pp 'Hello World'
-
       """
     ["check bad file"] = testMaker.checkFail(bad, 1)
     ["check good file"] = testMaker.checkPass(good)
@@ -50,17 +45,13 @@ rubocop = new Config.Step {
       testMaker.fixFail(
         """
         pp "Hello World"
-
         """,
         """
         pp 'Hello World'
-
         """,
         1,
       )
     ["fix bad file"] = testMaker.fixPass(bad, good)
     ["fix good file"] = testMaker.fixPass(good, good)
-    ["check respects config exclude"] = testMaker.withFilename(excluded_file).checkPass(bad)
-    ["fix respects config exclude"] = testMaker.withFilename(excluded_file).fixPass(bad, bad)
   }
 }

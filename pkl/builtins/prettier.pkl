@@ -48,7 +48,7 @@ prettier = new Config.Step {
       write { ["{{tmp}}/a.json"] = #"{"b":1}"# }
       files = List("{{tmp}}/a.json")
       expect {
-        files { ["{{tmp}}/a.json"] = #"{ "b": 1 }\#n"# }
+        files { ["{{tmp}}/a.json"] = "{ \"b\": 1 }\n" }
       }
     }
   }

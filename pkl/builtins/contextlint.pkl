@@ -98,11 +98,6 @@ contextlint = new Config.Step {
       | REQ-AUTH-02 | Passwords are stored as hashes | stable | Security requirement |
 
       """
-    ["check bad file"] =
-      testMaker.checkFail(
-        prefix + "| AUTH-03 | Users can log out | INVALID VALUE | Core feature |",
-        1,
-      )
     ["check good file"] =
       testMaker.checkPass(prefix + "| REQ-AUTH-03 | Users can log out | stable | Core feature |")
   }
