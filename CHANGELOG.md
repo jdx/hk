@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.47.0](https://github.com/jdx/hk/compare/v1.46.0..v1.47.0) - 2026-06-09
+
+### 🚀 Features
+
+- **(builtins)** update ryl config with fix and check_list_files support by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#967](https://github.com/jdx/hk/pull/967)
+- **(builtins)** add ryl markdown config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#968](https://github.com/jdx/hk/pull/968)
+- **(builtins)** add hk test config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#973](https://github.com/jdx/hk/pull/973)
+- **(pkl)** default to pklr backend by [@jdx](https://github.com/jdx) in [#976](https://github.com/jdx/hk/pull/976)
+- add sponsors command by [@jdx](https://github.com/jdx) in [#961](https://github.com/jdx/hk/pull/961)
+
+### 🐛 Bug Fixes
+
+- **(check)** fall back when merge base is missing by [@jdx](https://github.com/jdx) in [#975](https://github.com/jdx/hk/pull/975)
+- **(sponsors)** remove singular sponsor link by [@jdx](https://github.com/jdx) in [#962](https://github.com/jdx/hk/pull/962)
+- **(stash)** don't split last-line edits of partially-staged files on restore by [@ad1269](https://github.com/ad1269) in [#966](https://github.com/jdx/hk/pull/966)
+- **(step)** account for cmd command-line limit by [@jdx](https://github.com/jdx) in [#974](https://github.com/jdx/hk/pull/974)
+
+### 📚 Documentation
+
+- add sponsor footer by [@jdx](https://github.com/jdx) in [#960](https://github.com/jdx/hk/pull/960)
+
+### 🔍 Other Changes
+
+- **(ci)** fix zizmor version comments by [@jdx](https://github.com/jdx) in [#964](https://github.com/jdx/hk/pull/964)
+- **(ci)** use pr-closer action by [@jdx](https://github.com/jdx) in [#963](https://github.com/jdx/hk/pull/963)
+
+### 📦️ Dependency Updates
+
+- update zizmorcore/zizmor-action action to v0.5.6 by [@renovate[bot]](https://github.com/renovate[bot]) in [#955](https://github.com/jdx/hk/pull/955)
+- update anthropics/claude-code-action action to v1.0.131 by [@renovate[bot]](https://github.com/renovate[bot]) in [#954](https://github.com/jdx/hk/pull/954)
+- update rust crate git2 to 0.21 by [@renovate[bot]](https://github.com/renovate[bot]) in [#956](https://github.com/jdx/hk/pull/956)
+- update anthropics/claude-code-action action to v1.0.132 by [@renovate[bot]](https://github.com/renovate[bot]) in [#958](https://github.com/jdx/hk/pull/958)
+
+### New Contributors
+
+- @ad1269 made their first contribution in [#966](https://github.com/jdx/hk/pull/966)
+
 ## [1.46.0](https://github.com/jdx/hk/compare/v1.45.0..v1.46.0) - 2026-05-27
 
 ### 🚀 Features
