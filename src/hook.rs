@@ -164,7 +164,7 @@ impl<'de> Deserialize<'de> for StepOrGroup {
         let has_steps = object.is_some_and(|obj| obj.contains_key("steps"));
         let is_group = match object.and_then(|obj| obj.get("_type")) {
             Some(serde_json::Value::String(ty)) if ty == "group" => true,
-            Some(serde_json::Value::String(ty)) if ty == "step" => false,
+            Some(serde_json::Value::String(ty)) if ty == "step" => has_steps,
             Some(serde_json::Value::String(other)) => {
                 return Err(D::Error::custom(format!(
                     "unknown step or group _type {other:?}"
@@ -275,6 +275,24 @@ mod tests {
         .unwrap();
 
         assert!(matches!(value, StepOrGroup::Group(_)));
+    }
+
+    #[test]
+    fn step_or_group_treats_step_tag_with_steps_as_group() {
+        let value = serde_json::from_value::<StepOrGroup>(json!({
+            "_type": "step",
+            "steps": {
+                "echo": {
+                    "check": "echo ok"
+                }
+            }
+        }))
+        .unwrap();
+
+        let StepOrGroup::Group(group) = value else {
+            panic!("expected group");
+        };
+        assert!(group.steps.contains_key("echo"));
     }
 }
 
