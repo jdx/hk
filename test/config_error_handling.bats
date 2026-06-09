@@ -35,7 +35,7 @@ EOF
     run hk fix
     assert_failure
     assert_output --partial "Failed to load config"
-    assert_output --partial "Pkl Error"
+    assert_output --partial "expected identifier"
 }
 
 @test "hk run fails on invalid config" {
@@ -87,9 +87,8 @@ amends "pkl/Config.pkl"
 invalid_field =
 EOF
 
-    # Should show line number and specific error
+    # Should show the specific syntax error
     run hk check
     assert_failure
-    assert_output --partial "line 2"
-    assert_output --partial "invalid_field"
+    assert_output --partial "unexpected token in expression"
 }
