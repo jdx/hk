@@ -164,9 +164,7 @@ impl<'de> Deserialize<'de> for StepOrGroup {
         let has_steps = object.is_some_and(|obj| obj.contains_key("steps"));
         let is_group = match object.and_then(|obj| obj.get("_type")) {
             Some(serde_json::Value::String(ty)) if ty == "group" => true,
-            // The current pklr release can tag union-mapping groups as steps.
-            // Preserve that compatibility while still rejecting unknown tags.
-            Some(serde_json::Value::String(ty)) if ty == "step" => has_steps,
+            Some(serde_json::Value::String(ty)) if ty == "step" => false,
             Some(serde_json::Value::String(other)) => {
                 return Err(D::Error::custom(format!(
                     "unknown step or group _type {other:?}"
@@ -270,9 +268,8 @@ mod tests {
     }
 
     #[test]
-    fn step_or_group_treats_step_tag_with_steps_as_group() {
+    fn step_or_group_infers_untagged_object_with_steps_as_group() {
         let value = serde_json::from_value::<StepOrGroup>(json!({
-            "_type": "step",
             "steps": {}
         }))
         .unwrap();
