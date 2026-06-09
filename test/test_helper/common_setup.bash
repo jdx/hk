@@ -18,6 +18,8 @@ _common_setup() {
     export GIT_CONFIG_NOSYSTEM=1
     export HK_JOBS=2
     export MISE_INSTALLS_DIR="${MISE_INSTALLS_DIR:-$HOME/.local/share/mise/installs}"
+    export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$MISE_INSTALLS_DIR/.cache}"
+    export XDG_DATA_HOME="${XDG_DATA_HOME:-$MISE_INSTALLS_DIR/.local/share}"
     export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
     export HOME="$TEST_TEMP_DIR"
 

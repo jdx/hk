@@ -99,8 +99,24 @@ pub static HK_PKL_HTTP_REWRITE: LazyLock<Option<String>> =
 pub static HK_PKL_CA_CERTIFICATES: LazyLock<Option<PathBuf>> =
     LazyLock::new(|| var_path("HK_PKL_CA_CERTIFICATES"));
 
-/// Set to "pklr" to use the built-in pklr evaluator instead of the pkl CLI.
-pub static HK_PKL_BACKEND: LazyLock<Option<String>> = LazyLock::new(|| var("HK_PKL_BACKEND").ok());
+/// Set to "pkl" to use the pkl CLI instead of the built-in pklr evaluator.
+pub static HK_PKL_BACKEND: LazyLock<String> =
+    LazyLock::new(|| var("HK_PKL_BACKEND").unwrap_or_else(|_| "pklr".to_string()));
+
+static USE_PKL_R_BACKEND: LazyLock<bool> = LazyLock::new(|| match HK_PKL_BACKEND.as_str() {
+    "pkl" => false,
+    "pklr" => true,
+    other => {
+        warn!(
+            "unrecognized HK_PKL_BACKEND value {other:?}; expected \"pkl\" or \"pklr\", defaulting to pklr"
+        );
+        true
+    }
+});
+
+pub fn use_pklr_backend() -> bool {
+    *USE_PKL_R_BACKEND
+}
 
 /// System's ARG_MAX value, memoized for performance
 pub static ARG_MAX: LazyLock<usize> = LazyLock::new(|| {

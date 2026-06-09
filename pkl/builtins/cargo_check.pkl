@@ -38,7 +38,7 @@ cargo_check = new Config.Step {
 
         pub fn main() {}
       """
-    local const after = "  \n\n  pub fn main() {}"
+    local const after = "\npub fn main() {}\n"
     ["check bad file"] = testMaker.checkFail(before, 101)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)

@@ -40,7 +40,7 @@ biome = new Config.Step {
               "indentWidth": 2
             }
           }
-          """ + "\n"
+          """
       }
     }
     ["check ignored bad file"] = ignoredTestMaker.checkPass(before)

@@ -34,7 +34,6 @@ buildifier_lint = new Config.Step {
           name = "foo",
           srcs = ["Foo.cc"],
       )
-
       """
     local const after =
       """
@@ -44,7 +43,6 @@ buildifier_lint = new Config.Step {
           name = "foo",
           srcs = ["Foo.cc"],
       )
-
       """
     ["check bad file"] = testMaker.checkFail(before, 4)
     ["check good file"] = testMaker.checkPass(after)

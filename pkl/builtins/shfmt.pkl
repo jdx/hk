@@ -35,7 +35,6 @@ shfmt = new Config.Step {
       foo() {
       	(($bar))
       }
-
       """
     ["check bad file"] = testMaker.checkFail(before, 1)
     ["check good file"] = testMaker.checkPass(after)

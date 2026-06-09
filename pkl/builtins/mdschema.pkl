@@ -14,7 +14,6 @@ mdschema = new Config.Step {
   types = List("markdown")
   check = "mdschema check {{ files }}"
   tests {
-    local const requiredText = "install"
     local const testMaker = new helpers.TestMaker {
       filename = "foo.md"
       extra_files = new Mapping<String, String> {
@@ -27,7 +26,7 @@ mdschema = new Config.Step {
               children:
                 - heading: "## Prerequisites"
                   required_text:
-                    - "\(requiredText)"
+                    - install
 
                 - heading: "## Steps"
                   children:
@@ -107,7 +106,7 @@ mdschema = new Config.Step {
     ["check good file"] =
       testMaker.checkPass(
         prefix
-          + "Before you begin, you need to \(requiredText) Go 1.21 or later."
+          + "Before you begin, you need to install Go 1.21 or later."
           + suffix,
       )
   }

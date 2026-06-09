@@ -3,21 +3,20 @@
 setup() {
     load 'test_helper/common_setup'
     _common_setup
-    export HK_PKL_BACKEND=pklr
 }
 
 teardown() {
     _common_teardown
 }
 
-@test "pklr backend can evaluate a basic config" {
+@test "default pklr backend can evaluate a basic config" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
         steps {
             ["echo"] {
-                check = "echo ok"
+                check = "echo ok > ran.txt"
             }
         }
     }
@@ -26,6 +25,7 @@ EOF
 
     run hk check --all
     assert_success
+    assert_file_exists ran.txt
 }
 
 @test "pklr backend validates config" {
@@ -42,4 +42,66 @@ EOF
 
     run hk validate
     assert_success
+}
+
+@test "default pklr backend can evaluate a group" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["group"] = new Group {
+                steps {
+                    ["echo"] {
+                        check = "echo ok > group-ran.txt"
+                    }
+                }
+            }
+        }
+    }
+}
+EOF
+
+    run hk check --all
+    assert_success
+    assert_file_exists group-ran.txt
+}
+
+@test "pkl CLI backend can still be selected" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["echo"] {
+                check = "echo ok > ran.txt"
+            }
+        }
+    }
+}
+EOF
+
+    run env HK_PKL_BACKEND=pkl hk check --all
+    assert_success
+    assert_file_exists ran.txt
+}
+
+@test "unknown pkl backend warns and uses pklr" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["echo"] {
+                check = "echo ok > ran.txt"
+            }
+        }
+    }
+}
+EOF
+
+    run env HK_PKL_BACKEND=pkrl hk check --all
+    assert_success
+    assert_output --partial 'unrecognized HK_PKL_BACKEND value "pkrl"'
+    assert_file_exists ran.txt
 }

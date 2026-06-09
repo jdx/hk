@@ -26,7 +26,6 @@ knip_strict = new Config.Step {
           "zod": "^3.22.0"
         }
       }
-
       """
     local const good =
       """
@@ -35,7 +34,6 @@ knip_strict = new Config.Step {
           "zod": "^3.22.0"
         }
       }
-
       """
     local const testMaker = new helpers.TestMaker {
       filename = "package.json"

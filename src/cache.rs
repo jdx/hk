@@ -1,5 +1,4 @@
 use once_cell::sync::OnceCell;
-use std::cmp::min;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -58,10 +57,16 @@ impl CacheManagerBuilder {
         hash_to_str(&self.cache_keys).chars().take(5).collect()
     }
 
-    pub fn build<T>(self) -> CacheManager<T>
+    pub fn build<T>(mut self) -> CacheManager<T>
     where
         T: Serialize + DeserializeOwned,
     {
+        self.cache_keys.extend(
+            self.fresh_files
+                .iter()
+                .unique()
+                .map(|path| fresh_file_cache_key(path)),
+        );
         let key = self.cache_key();
         let (base, ext) = split_file_name(&self.cache_file_path);
         let mut cache_file_path = self.cache_file_path;
@@ -69,7 +74,6 @@ impl CacheManagerBuilder {
         CacheManager {
             cache_file_path,
             cache: Box::new(OnceCell::new()),
-            fresh_files: self.fresh_files,
             fresh_duration: self.fresh_duration,
         }
     }
@@ -93,7 +97,6 @@ where
 {
     cache_file_path: PathBuf,
     fresh_duration: Option<Duration>,
-    fresh_files: Vec<PathBuf>,
     cache: Box<OnceCell<T>>,
 }
 
@@ -162,32 +165,21 @@ where
         if !self.cache_file_path.exists() {
             return false;
         }
-        if let Some(fresh_duration) = self.freshest_duration()
-            && let Ok(metadata) = self.cache_file_path.metadata()
-            && let Ok(modified) = metadata.modified()
+        if let Some(fresh_duration) = self.fresh_duration
+            && let Ok(cache_modified) = self.cache_file_path.metadata().and_then(|m| m.modified())
+            && cache_modified.elapsed().unwrap_or_default() >= fresh_duration
         {
-            return modified.elapsed().unwrap_or_default() < fresh_duration;
+            return false;
         }
         true
     }
-
-    fn freshest_duration(&self) -> Option<Duration> {
-        let mut freshest = self.fresh_duration;
-        for path in self.fresh_files.iter().unique() {
-            let duration = modified_duration(path).unwrap_or_default();
-            freshest = Some(match freshest {
-                None => duration,
-                Some(freshest) => min(freshest, duration),
-            })
-        }
-        freshest
-    }
 }
 
-fn modified_duration(path: &Path) -> Option<Duration> {
-    let metadata = path.metadata().ok()?;
-    let modified = metadata.modified().ok()?;
-    Some(modified.elapsed().unwrap_or_default())
+fn fresh_file_cache_key(path: &Path) -> String {
+    match std::fs::read(path) {
+        Ok(contents) => format!("{}:{}", path.display(), hash_to_str(&contents)),
+        Err(_) => format!("{}:<missing>", path.display()),
+    }
 }
 
 #[cfg(test)]

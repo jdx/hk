@@ -42,7 +42,6 @@ buf_format = new Config.Step {
       package test.v1;
 
       import "google/protobuf/timestamp.proto";
-
       """
     ["check bad file"] = testMaker.checkFail(before, 100)
     ["check good file"] = testMaker.checkPass(after)

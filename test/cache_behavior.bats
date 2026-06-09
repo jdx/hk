@@ -46,21 +46,31 @@ EOF
     run hk validate
     assert_failure  # Should fail - no pkl file found
 
-    # Restore the file with original content but broken
-    echo "BROKEN SYNTAX" > hk.pkl
+    # Restore the original file content with the original mtime.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["step1"] { shell = "echo step1" }
+        }
+    }
+}
+EOF
 
     # Set mtime back to original (cache thinks file unchanged)
     touch -t $(date -r "$orig_mtime" "+%Y%m%d%H%M.%S" 2>/dev/null || date -d "@$orig_mtime" "+%Y%m%d%H%M.%S") hk.pkl 2>/dev/null || true
 
-    # Should succeed using cache (ignoring broken file content)
+    # Should succeed using cache when content is unchanged.
     run hk validate -vv
     assert_success
     assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.hit"
 
-    # Now update mtime to current time
-    touch hk.pkl
+    # Content changes should invalidate the cache even if mtime is spoofed.
+    echo "BROKEN SYNTAX" > hk.pkl
+    touch -t $(date -r "$orig_mtime" "+%Y%m%d%H%M.%S" 2>/dev/null || date -d "@$orig_mtime" "+%Y%m%d%H%M.%S") hk.pkl 2>/dev/null || true
 
-    # Should fail now - cache invalidated, reads broken file
+    # Should fail now - cache invalidated by content, reads broken file
     run hk validate
     assert_failure
     assert_output --partial "Failed to load configuration"

@@ -20,6 +20,7 @@ pub struct StepGroup {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub _type: Option<String>,
     pub name: Option<String>,
+    #[serde(default)]
     pub steps: IndexMap<String, Step>,
 }
 
