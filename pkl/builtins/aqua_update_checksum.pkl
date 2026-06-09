@@ -1,0 +1,62 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Package"
+  description = "create or update aqua checksums"
+  project_indicators {
+    new { file = "aqua-checksums.json" }
+    new { file = "aqua/aqua-checksums.json" }
+    new { file = ".aqua/aqua-checksums.json" }
+  }
+}
+const aqua_update_checksum = new Config.Step {
+  glob =
+    List(
+      "{aqua,.aqua}.{yml,yaml}",
+      "{aqua,.aqua}/**/*.{yml,yaml}",
+      "aqua-checksums.json",
+      "{aqua,.aqua}/aqua-checksums.json",
+    )
+  fix = "aqua update-checksum --prune"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "aqua-checksums.json"
+      extra_files = new Mapping<String, String> {
+        // Don't use `aqua init`
+        // it doesn't pin the aqua-registry version, making tests unreliable.
+        ["aqua.yaml"] =
+          """
+          ---
+          # yaml-language-server: $schema=https://raw.githubusercontent.com/aquaproj/aqua/main/json-schema/aqua-yaml.json
+          # aqua - Declarative CLI Version Manager
+          # https://aquaproj.github.io/
+          # checksum:
+          #   enabled: true
+          #   require_checksum: true
+          #   supported_envs:
+          #   - all
+          registries:
+          - type: standard
+            ref: v4.523.0  # renovate: depName=aquaproj/aqua-registry
+          packages:
+          """
+      }
+    }
+    local const good =
+      """
+      {
+        "checksums": [
+          {
+            "id": "registries/github_content/github.com/aquaproj/aqua-registry/v4.523.0/registry.yaml",
+            "checksum": "14BFA633212CF508D45DE47AD17CF666E009BCA351787E28F41D63FFD5B99D8B",
+            "algorithm": "sha256"
+          }
+        ]
+      }
+      """
+    ["fix bad file"] = testMaker.fixPass("{}", good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
