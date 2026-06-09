@@ -414,8 +414,8 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
             rt.block_on(pklr::eval_to_json_with_options(path, options))
         }
     }
-    .map_err(|e| eyre::eyre!("{e}"))?;
-    serde_json::from_value(json).wrap_err("failed to deserialize pklr output")
+    .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
+    serde_json::from_value(json).map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))
 }
 
 /// Build a reqwest::Client with proxy and CA certificate settings
@@ -538,25 +538,9 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
 
     // Check for common Pkl errors and provide helpful messages
     if stderr.contains("Cannot find type `Hook`") || stderr.contains("Cannot find type `Step`") {
-        let version = env!("CARGO_PKG_VERSION");
-        bail!(
-            "Missing 'amends' declaration in {}. \n\n\
-            Your hk.pkl file should start with one of:\n\
-            • amends \"pkl/Config.pkl\" (if vendored)\n\
-            • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\" (for released versions)\n\n\
-            See https://github.com/jdx/hk for more information.",
-            path.display()
-        );
+        return Err(missing_amends_error(path));
     } else if stderr.contains("Module URI") && stderr.contains("has invalid syntax") {
-        let version = env!("CARGO_PKG_VERSION");
-        bail!(
-            "Invalid module URI in {}. \n\n\
-            Make sure your 'amends' declaration uses a valid path or package URL.\n\
-            Examples:\n\
-            • amends \"pkl/Config.pkl\" (if vendored)\n\
-            • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\"",
-            path.display()
-        );
+        return Err(invalid_module_uri_error(path));
     }
 
     // Return the full error if it's not a known pattern
@@ -570,6 +554,69 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
         code,
         stderr
     );
+}
+
+fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
+    if error.contains("unsupported package URI")
+        || (error.contains("Module URI") && error.contains("has invalid syntax"))
+    {
+        return invalid_module_uri_error(path);
+    }
+    failed_pkl_config_error(path, None, error)
+}
+
+fn handle_pklr_deserialize_error(error: &str, path: &Path) -> eyre::Report {
+    if !pkl_file_has_amends(path) && error.contains("unknown field") {
+        return missing_amends_error(path);
+    }
+    eyre::eyre!("failed to deserialize pklr output\n\nCaused by:\n    {error}")
+}
+
+fn pkl_file_has_amends(path: &Path) -> bool {
+    xx::file::read_to_string(path).ok().is_some_and(|raw| {
+        raw.lines()
+            .any(|line| line.trim_start().starts_with("amends "))
+    })
+}
+
+fn missing_amends_error(path: &Path) -> eyre::Report {
+    let version = env!("CARGO_PKG_VERSION");
+    eyre::eyre!(
+        "Missing 'amends' declaration in {}. \n\n\
+        Your hk.pkl file should start with one of:\n\
+        • amends \"pkl/Config.pkl\" (if vendored)\n\
+        • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\" (for released versions)\n\n\
+        See https://github.com/jdx/hk for more information.",
+        path.display()
+    )
+}
+
+fn invalid_module_uri_error(path: &Path) -> eyre::Report {
+    let version = env!("CARGO_PKG_VERSION");
+    eyre::eyre!(
+        "Invalid module URI in {}. \n\n\
+        Make sure your 'amends' declaration uses a valid path or package URL.\n\
+        Examples:\n\
+        • amends \"pkl/Config.pkl\" (if vendored)\n\
+        • amends \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl\"",
+        path.display()
+    )
+}
+
+fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyre::Report {
+    match code {
+        Some(code) => eyre::eyre!(
+            "Failed to evaluate Pkl config at {}\n\nExit code: {}\n\nError output:\n{}",
+            path.display(),
+            code,
+            stderr
+        ),
+        None => eyre::eyre!(
+            "Failed to evaluate Pkl config at {}\n\nError output:\n{}",
+            path.display(),
+            stderr
+        ),
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
