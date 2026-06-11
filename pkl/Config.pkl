@@ -896,6 +896,39 @@ class StepTestExpect {
 }
 
 class Group {
+  /// Working directory inherited by child steps that do not set `dir`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  dir: String?
+
+  /// Command prefix inherited by child steps that do not set `prefix`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  prefix: String?
+
+  /// Workspace indicator inherited by child steps that do not set `workspace_indicator`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  workspace_indicator: String?
+
+  /// Shell inherited by child steps that do not set `shell`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  shell: (String | Script)?
+
+  /// Staging globs inherited by child steps that do not set `stage`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  /// Group and step values are never merged.
+  stage: (String | List<String>)?
+
+  /// Exclude patterns inherited by child steps that do not set `exclude`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  /// Group and step values are never merged.
+  exclude: (String | List<String> | Regex)?
+
+  /// Child steps in this group.
   steps: Mapping<String, Step> = new Mapping<String, Step> {}
 }
 
@@ -908,7 +941,14 @@ output {
       }
       [Group] = (g) -> new Dynamic {
         _type = "group"
-        ...g.toDynamic()
+        ...g
+          .toMap()
+          .mapValues((k, v) ->
+            if (k == "stage" && v is String)
+              List(v)
+            else
+              v
+          )
       }
       [Step] = (s) -> new Dynamic {
         _type = "step"

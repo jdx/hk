@@ -151,6 +151,37 @@ hooks {
 }
 ```
 
+Groups may define a small set of step settings that child steps inherit when they do not define their own value:
+
+| Group option | Inherited step option | Type |
+| --- | --- | --- |
+| `dir` | `dir` | `String?` |
+| `prefix` | `prefix` | `String?` |
+| `workspace_indicator` | `workspace_indicator` | `String?` |
+| `shell` | `shell` | `(String \| Script)?` |
+| `stage` | `stage` | `(String \| List<String>)?` |
+| `exclude` | `exclude` | `(String \| List<String> \| Regex)?` |
+
+Inheritance uses simple override semantics. If a child step defines the field, the child value is used. Otherwise, the group value is copied to the step. Values are not merged.
+
+```pkl
+local frontend = new Group {
+    dir = "packages/frontend"
+    prefix = "mise x --"
+    steps {
+        ["prettier"] = (Builtins.prettier) {
+            batch = true
+        }
+        ["eslint"] = (Builtins.eslint) {
+            dir = "different/path"
+            batch = true
+        }
+    }
+}
+```
+
+In this example, `prettier` inherits `dir = "packages/frontend"` and `prefix = "mise x --"`. `eslint` keeps its explicit `dir = "different/path"` and still inherits `prefix = "mise x --"`.
+
 ## Git status in conditions and templates
 
 hk provides the current git status to both condition expressions and Tera templates via a `git` object. This lets you avoid shelling out in conditions (e.g., `exec('git …')`).
