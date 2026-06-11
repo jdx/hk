@@ -153,12 +153,14 @@ hooks {
 
 Groups may define a small set of step settings that child steps inherit when they do not define their own value:
 
-- `dir`
-- `prefix`
-- `workspace_indicator`
-- `shell`
-- `stage`
-- `exclude`
+| Group option | Inherited step option | Type |
+| --- | --- | --- |
+| `dir` | `dir` | `String?` |
+| `prefix` | `prefix` | `String?` |
+| `workspace_indicator` | `workspace_indicator` | `String?` |
+| `shell` | `shell` | `(String \| Script)?` |
+| `stage` | `stage` | `(String \| List<String>)?` |
+| `exclude` | `exclude` | `(String \| List<String> \| Regex)?` |
 
 Inheritance uses simple override semantics. If a child step defines the field, the child value is used. Otherwise, the group value is copied to the step. Values are not merged.
 

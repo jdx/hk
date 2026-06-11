@@ -382,7 +382,7 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Process Steps
-    md.push_str("## `hooks.<HOOK>.steps.<STEP|GROUP>`\n\n");
+    md.push_str("## `hooks.<HOOK>.steps.<STEP>`\n\n");
     let properties = config_json["classes"]["Step"]["properties"]
         .as_object()
         .expect("Expected Step class in Config.pkl");
@@ -392,6 +392,22 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
         }
         md.push_str(&format_property_doc(
             &format!("<STEP>.{}", key),
+            value,
+            "###",
+        ));
+    }
+
+    // Process Groups
+    md.push_str("## `hooks.<HOOK>.steps.<GROUP>`\n\n");
+    let properties = config_json["classes"]["Group"]["properties"]
+        .as_object()
+        .expect("Expected Group class in Config.pkl");
+    for (key, value) in properties {
+        if key == "_type" {
+            continue;
+        }
+        md.push_str(&format_property_doc(
+            &format!("<GROUP>.{}", key),
             value,
             "###",
         ));

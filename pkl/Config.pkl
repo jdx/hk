@@ -896,24 +896,39 @@ class StepTestExpect {
 }
 
 class Group {
-  /// Optional working directory inherited by child steps that do not set `dir`.
+  /// Working directory inherited by child steps that do not set `dir`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
   dir: String?
 
-  /// Optional command prefix inherited by child steps that do not set `prefix`.
+  /// Command prefix inherited by child steps that do not set `prefix`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
   prefix: String?
 
-  /// Optional workspace indicator inherited by child steps that do not set `workspace_indicator`.
+  /// Workspace indicator inherited by child steps that do not set `workspace_indicator`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
   workspace_indicator: String?
 
-  /// Optional shell inherited by child steps that do not set `shell`.
+  /// Shell inherited by child steps that do not set `shell`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
   shell: (String | Script)?
 
-  /// Optional staging globs inherited by child steps that do not set `stage`.
+  /// Staging globs inherited by child steps that do not set `stage`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  /// Group and step values are never merged.
   stage: (String | List<String>)?
 
-  /// Optional exclude patterns inherited by child steps that do not set `exclude`.
+  /// Exclude patterns inherited by child steps that do not set `exclude`.
+  ///
+  /// This is copied to each child step as a default; child step values override it completely.
+  /// Group and step values are never merged.
   exclude: (String | List<String> | Regex)?
 
+  /// Child steps in this group.
   steps: Mapping<String, Step> = new Mapping<String, Step> {}
 }
 
