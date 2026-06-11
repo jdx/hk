@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.48.0](https://github.com/jdx/hk/compare/v1.47.0..v1.48.0) - 2026-06-11
+
+### 🚀 Features
+
+- **(builtins)** add aqua update-checksum config to hk builtin config by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#977](https://github.com/jdx/hk/pull/977)
+- **(builtins)** use `check_diff` for ryl and ryl_markdown builtins by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#978](https://github.com/jdx/hk/pull/978)
+- **(config)** inherit step settings from groups by [@RobertDeRose](https://github.com/RobertDeRose) in [#982](https://github.com/jdx/hk/pull/982)
+- update RuboCop builtin file filter by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#969](https://github.com/jdx/hk/pull/969)
+
+### 🐛 Bug Fixes
+
+- **(pkl)** bump pklr to 1.0.6 by [@jdx](https://github.com/jdx) in [#983](https://github.com/jdx/hk/pull/983)
+
+### New Contributors
+
+- @RobertDeRose made their first contribution in [#982](https://github.com/jdx/hk/pull/982)
+
 ## [1.47.0](https://github.com/jdx/hk/compare/v1.46.0..v1.47.0) - 2026-06-09
 
 ### 🚀 Features
