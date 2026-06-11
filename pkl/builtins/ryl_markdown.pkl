@@ -5,10 +5,17 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Markdown"
   description = "Lint YAML embedded in Markdown (front matter + fenced yaml blocks) with ryl"
+  project_indicators {
+    new { file = "ryl.toml" }
+    new { file = ".ryl.toml" }
+    new { file = ".yamllint" }
+    new { file = ".yamllint.yml" }
+    new { file = ".yamllint.yaml" }
+  }
 }
 ryl_markdown = new Config.Step {
   types = List("markdown")
-  check = "ryl --markdown {{ files }}"
+  check_diff = "ryl --diff --markdown {{ files }}"
   check_list_files = "ryl --list-files --markdown {{ files }}"
   fix = "ryl --fix --markdown {{ files }}"
   tests {
