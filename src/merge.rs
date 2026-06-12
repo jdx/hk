@@ -115,10 +115,27 @@ pub fn three_way_merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&
             let mut idx = 0usize;
             let mut fi = 0usize;
             let mut wi = 0usize;
-            let fixer_hunks = diff_hunks(base, f, HunkSource::Fixer);
+            let mut fixer_hunks = diff_hunks(base, f, HunkSource::Fixer);
             let work_hunks = diff_hunks(base, w, HunkSource::Worktree);
 
             while fi < fixer_hunks.len() || wi < work_hunks.len() {
+                while fi < fixer_hunks.len() && fixer_hunks[fi].start < idx {
+                    // A worktree hunk may consume only the front of a fixer
+                    // deletion. Keep the unconsumed tail deletion instead of
+                    // dropping the whole hunk.
+                    if fixer_hunks[fi].lines.is_empty() && fixer_hunks[fi].end > idx {
+                        fixer_hunks[fi].start = idx;
+                        break;
+                    }
+                    fi += 1;
+                }
+                while wi < work_hunks.len() && work_hunks[wi].start < idx {
+                    wi += 1;
+                }
+                if fi >= fixer_hunks.len() && wi >= work_hunks.len() {
+                    break;
+                }
+
                 let fh = fixer_hunks.get(fi);
                 let wh = work_hunks.get(wi);
 
@@ -152,13 +169,6 @@ pub fn three_way_merge_hunks(base: &str, fixer: Option<&str>, worktree: Option<&
                     wi += 1;
                 } else {
                     fi += 1;
-                }
-                // Skip any hunks that begin before the current position to avoid partial re-application
-                while fi < fixer_hunks.len() && fixer_hunks[fi].start < idx {
-                    fi += 1;
-                }
-                while wi < work_hunks.len() && work_hunks[wi].start < idx {
-                    wi += 1;
                 }
             }
             // Tail unchanged
@@ -241,5 +251,17 @@ mod tests {
         let work = Some("name: my-app\nversion: 2.0\ndeps:\n  flask\n\n\n");
         let merged = three_way_merge_hunks(base, fixer, work);
         assert_eq!(merged, "name: my-app\nversion: 2.0\ndeps:\n  flask\n");
+    }
+
+    #[test]
+    fn merge_preserves_fixer_tail_deletion_when_worktree_overlaps_start() {
+        // Regression test for discussion #988: the worktree edit overlaps the
+        // start of a fixer tail deletion, but the rest of the deletion still
+        // needs to be applied.
+        let base = "l1 STAGED\nl2\nl3\nl4\nl5\n";
+        let fixer = Some("l1 STAGED\nl2\n");
+        let work = Some("l1 STAGED\nl2\nl3 UNSTAGED\nl4\nl5\n");
+        let merged = three_way_merge_hunks(base, fixer, work);
+        assert_eq!(merged, "l1 STAGED\nl2\nl3 UNSTAGED\n");
     }
 }
