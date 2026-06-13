@@ -44,6 +44,7 @@ export default defineConfig({
     logo: '/logo-small.png',
     nav: [
       { text: 'Getting Started', link: '/getting_started' },
+      { text: 'Contributing', link: '/contributing' },
       { text: 'Configuration', link: '/configuration' },
       { text: 'CLI Reference', link: '/cli/' },
       { text: `v${latestVersion}`, link: 'https://github.com/jdx/hk/releases' },
