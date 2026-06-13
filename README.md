@@ -10,6 +10,8 @@ See docs: https://hk.jdx.dev/
 
 hk is sponsored by [37signals](https://37signals.com).
 
+[View all sponsors](https://en.dev/sponsors.html).
+
 ## Demo
 
 ![hk demo](docs/public/hk-demo.gif)
