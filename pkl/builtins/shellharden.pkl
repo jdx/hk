@@ -1,0 +1,32 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Shell"
+  description = "The corrective bash syntax highlighter"
+  project_indicators {
+    new { glob = "*.sh" }
+    new { glob = "*.bash" }
+  }
+}
+shellharden = new Config.Step {
+  types = List("bash", "sh")
+  batch = true
+  // `check_diff` cannot be added.
+  // `shellharden {{ files }}` shows a diff but exits with code 0 even when changes are suggested
+  check = "shellharden --check {{ files }}"
+  fix = "shellharden --replace {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.sh"
+    }
+    local const bad = "$(echo 'hello')"
+    local const good = #""$(echo 'hello')""#
+    // `shellharden --check` exits with code 2 if changes are suggested
+    ["check bad file"] = testMaker.checkFail(bad, 2)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
