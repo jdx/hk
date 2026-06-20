@@ -73,6 +73,7 @@ jobs:
           profile: serious
           codesign: "Developer ID Application: Jeffrey Dickey (4993Y37DX6)"
           codesign_prefix: dev.jdx.
+          codesign-options: runtime
           dry-run: true # Always dry-run to just build without uploading
       - name: Upload binary artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
