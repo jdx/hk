@@ -23,6 +23,11 @@ _common_setup() {
     export RUSTUP_HOME="${RUSTUP_HOME:-$HOME/.rustup}"
     export HOME="$TEST_TEMP_DIR"
 
+    # Install tool user configs into the temp HOME so tools behave correctly in tests.
+    export XDG_CONFIG_HOME="$HOME/.config"
+    mkdir -p "$XDG_CONFIG_HOME"
+    cp -r "$PROJECT_ROOT/test/test_helper/xdg_config/." "$XDG_CONFIG_HOME/"
+
     git config --global init.defaultBranch main
 
     # Only set user config if not already set (to avoid overriding existing config)
