@@ -116,57 +116,6 @@ url = "https://github.com/jdx/aube/releases/download/v1.18.2/aube-v1.18.2-x86_64
 url_api = "https://api.github.com/repos/jdx/aube/releases/assets/442313811"
 provenance = "github-attestations"
 
-[[tools.bun]]
-version = "1.2.20"
-backend = "core:bun"
-
-[tools.bun."platforms.linux-arm64"]
-checksum = "sha256:98d2e0b2c09421569172b4d46b6f81378c2dbdd77480ebb27f3989dd4e72e18b"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-linux-aarch64.zip"
-
-[tools.bun."platforms.linux-arm64-musl"]
-checksum = "sha256:f0e9f74ee6cf04febd379eac5d55448cb243cf31acc5bddf6b2ec443ccea667c"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-linux-aarch64-musl.zip"
-
-[tools.bun."platforms.linux-x64"]
-checksum = "sha256:4e9edc4cba0c7c1623a288be01e53bbde11a4d073f2cf339cab026627858b548"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-linux-x64.zip"
-
-[tools.bun."platforms.linux-x64-baseline"]
-checksum = "sha256:b3e5fac252490d98bd7cd4f209c60608d373576d7e1970661b9d5027833b22ec"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-linux-x64-baseline.zip"
-
-[tools.bun."platforms.linux-x64-musl"]
-checksum = "sha256:09326b572708b549c6cf0706734100f13a7189fe1efd8db59a2b5615d84eb4e9"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-linux-x64-musl.zip"
-
-[tools.bun."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:44b31365a87c114e268f825b2c59478d04fd1559dea5fb4d5cd5ea3aa431b6a8"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-linux-x64-musl-baseline.zip"
-
-[tools.bun."platforms.macos-arm64"]
-checksum = "sha256:404f5a6dd1f604b40eb3b156d4197bb8d398bb26e0ae4c8ac8e7aa490f7e235f"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-darwin-aarch64.zip"
-
-[tools.bun."platforms.macos-x64"]
-checksum = "sha256:e1cc2f4b8e4d4172dde107982db42a22f8c5c8d8bb26078c23285704a4b72cd6"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-darwin-x64.zip"
-
-[tools.bun."platforms.macos-x64-baseline"]
-checksum = "sha256:962d597801e42e3c62fbf6f63bff1e76aa1a471a5896ebd8319782f10ce08961"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-darwin-x64-baseline.zip"
-
-[tools.bun."platforms.windows-arm64"]
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-windows-aarch64.zip"
-
-[tools.bun."platforms.windows-x64"]
-checksum = "sha256:2fb89f7a0593f43e8bc8c40f5ab887488916c4ce45e75b7dc5fc098d84a8d56c"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-windows-x64.zip"
-
-[tools.bun."platforms.windows-x64-baseline"]
-checksum = "sha256:be344d075ba25bd3c7f20cc1bec76585b1a852ba10f6721e87f6e9cc27239fd3"
-url = "https://github.com/oven-sh/bun/releases/download/bun-v1.2.20/bun-windows-x64-baseline.zip"
-
 [[tools.cargo-binstall]]
 version = "1.14.4"
 backend = "aqua:cargo-bins/cargo-binstall"
@@ -239,11 +188,13 @@ backend = "github:jdx/communique"
 checksum = "sha256:7bb0843207fc3d7b5df2a5c0198bb10539cf13a6b247b4adfbf6b302a68f03de"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-aarch64-unknown-linux-gnu.tar.gz"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964161"
+provenance = "github-attestations"
 
 [tools.communique."platforms.linux-arm64-musl"]
 checksum = "sha256:b663407be77a370c209df40307b82e436f56a6bc23d4e423510d62ac6e1fedf4"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-aarch64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964743"
+provenance = "github-attestations"
 
 [tools.communique."platforms.linux-x64"]
 checksum = "sha256:5e74ead7037f42940c7dba4f6aa4ed968920cbb55a047aa0d291b0c675c65676"
@@ -255,16 +206,19 @@ provenance = "github-attestations"
 checksum = "sha256:5e74ead7037f42940c7dba4f6aa4ed968920cbb55a047aa0d291b0c675c65676"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-x86_64-unknown-linux-gnu.tar.gz"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405963914"
+provenance = "github-attestations"
 
 [tools.communique."platforms.linux-x64-musl"]
 checksum = "sha256:01a6a8b49e635a5a209fdaf6c7b2e976374debc2db1c846c033f567fdba0d86c"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-x86_64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964691"
+provenance = "github-attestations"
 
 [tools.communique."platforms.linux-x64-musl-baseline"]
 checksum = "sha256:01a6a8b49e635a5a209fdaf6c7b2e976374debc2db1c846c033f567fdba0d86c"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-x86_64-unknown-linux-musl.tar.gz"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964691"
+provenance = "github-attestations"
 
 [tools.communique."platforms.macos-arm64"]
 checksum = "sha256:459993e31a6c4ccbd09882f5679a2bc1ea5d9068701ecefc411a00fb69ce82e6"
@@ -276,16 +230,19 @@ provenance = "github-attestations"
 checksum = "sha256:ad7e174b0da7c1ed4b1ba852ac24152c4ea20f2ac357e87223192834b0502298"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-aarch64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964520"
+provenance = "github-attestations"
 
 [tools.communique."platforms.windows-x64"]
 checksum = "sha256:3cc0e880ac2168aed3163223627bbd1eee62e07a9901cb85cb507c6c8927bc93"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964430"
+provenance = "github-attestations"
 
 [tools.communique."platforms.windows-x64-baseline"]
 checksum = "sha256:3cc0e880ac2168aed3163223627bbd1eee62e07a9901cb85cb507c6c8927bc93"
 url = "https://github.com/jdx/communique/releases/download/v1.1.2/communique-x86_64-pc-windows-msvc.zip"
 url_api = "https://api.github.com/repos/jdx/communique/releases/assets/405964430"
+provenance = "github-attestations"
 
 [[tools.git-cliff]]
 version = "2.10.0"
@@ -348,8 +305,7 @@ checksum = "sha256:8956e11dbef5b197d62eb8b5b97a131eb42fbb25347fe0cdc9b62a1c1aa36
 url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-linux-arm64.tar.gz"
 
 [tools.node."platforms.linux-arm64-musl"]
-checksum = "sha256:8956e11dbef5b197d62eb8b5b97a131eb42fbb25347fe0cdc9b62a1c1aa36df5"
-url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-linux-arm64.tar.gz"
+url = "https://unofficial-builds.nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-arm64-musl.tar.gz"
 
 [tools.node."platforms.linux-x64"]
 checksum = "sha256:352ddbc48b586c11f018ec9b886225117909ea93e05b4a04a6db32f3e63d0281"
@@ -360,12 +316,12 @@ checksum = "sha256:352ddbc48b586c11f018ec9b886225117909ea93e05b4a04a6db32f3e63d0
 url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-linux-x64.tar.gz"
 
 [tools.node."platforms.linux-x64-musl"]
-checksum = "sha256:352ddbc48b586c11f018ec9b886225117909ea93e05b4a04a6db32f3e63d0281"
-url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-linux-x64.tar.gz"
+checksum = "sha256:ea4b8200144432af2f00e781199880cc9ac496698c3f1a186303cf5601a1f453"
+url = "https://unofficial-builds.nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-x64-musl.tar.gz"
 
 [tools.node."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:352ddbc48b586c11f018ec9b886225117909ea93e05b4a04a6db32f3e63d0281"
-url = "https://nodejs.org/dist/v24.6.0/node-v24.6.0-linux-x64.tar.gz"
+checksum = "sha256:ea4b8200144432af2f00e781199880cc9ac496698c3f1a186303cf5601a1f453"
+url = "https://unofficial-builds.nodejs.org/download/release/v24.6.0/node-v24.6.0-linux-x64-musl.tar.gz"
 
 [tools.node."platforms.macos-arm64"]
 checksum = "sha256:768f14952403e3025fed8e2887500dfa63eeb55628a9b203e4b8ebb0fb09c7eb"
@@ -594,10 +550,12 @@ backend = "aqua:astral-sh/uv"
 [tools.uv."platforms.linux-arm64"]
 checksum = "sha256:275d91dd1f1955136591e7ec5e1fa21e84d0d37ead7da7c35c3683df748d9855"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-aarch64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.linux-arm64-musl"]
 checksum = "sha256:275d91dd1f1955136591e7ec5e1fa21e84d0d37ead7da7c35c3683df748d9855"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-aarch64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.linux-x64"]
 checksum = "sha256:4700d9fc75734247587deb3e25dd2c6c24f4ac69e8fe91d6acad4a6013115c06"
@@ -607,14 +565,17 @@ provenance = "github-attestations"
 [tools.uv."platforms.linux-x64-baseline"]
 checksum = "sha256:4700d9fc75734247587deb3e25dd2c6c24f4ac69e8fe91d6acad4a6013115c06"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.linux-x64-musl"]
 checksum = "sha256:4700d9fc75734247587deb3e25dd2c6c24f4ac69e8fe91d6acad4a6013115c06"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.linux-x64-musl-baseline"]
 checksum = "sha256:4700d9fc75734247587deb3e25dd2c6c24f4ac69e8fe91d6acad4a6013115c06"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.macos-arm64"]
 checksum = "sha256:4beaa9550f93ef7f0fc02f7c28c9c48cd61fe30db00f5ac8947e0a425c3fb282"
@@ -624,22 +585,27 @@ provenance = "github-attestations"
 [tools.uv."platforms.macos-x64"]
 checksum = "sha256:a9c3653245031304c50dd60ac0301bf6c112e12c38c32302a71d4fa6a63ba2cb"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-apple-darwin.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.macos-x64-baseline"]
 checksum = "sha256:a9c3653245031304c50dd60ac0301bf6c112e12c38c32302a71d4fa6a63ba2cb"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-apple-darwin.tar.gz"
+provenance = "github-attestations"
 
 [tools.uv."platforms.windows-arm64"]
 checksum = "sha256:171b7ccda1bbd562da6babeffcf533a1c6cc7862cf998da826e1db534fc43e48"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-pc-windows-msvc.zip"
+provenance = "github-attestations"
 
 [tools.uv."platforms.windows-x64"]
 checksum = "sha256:171b7ccda1bbd562da6babeffcf533a1c6cc7862cf998da826e1db534fc43e48"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-pc-windows-msvc.zip"
+provenance = "github-attestations"
 
 [tools.uv."platforms.windows-x64-baseline"]
 checksum = "sha256:171b7ccda1bbd562da6babeffcf533a1c6cc7862cf998da826e1db534fc43e48"
 url = "https://github.com/astral-sh/uv/releases/download/0.11.2/uv-x86_64-pc-windows-msvc.zip"
+provenance = "github-attestations"
 
 [[tools.vhs]]
 version = "0.10.0"
