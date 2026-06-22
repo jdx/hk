@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Replace smart quotes with regular quotes"
 }
 fix_smart_quotes = new Config.Step {
-  glob = "**/*"
+  types = List("text")
   check_diff = "hk util fix-smart-quotes --diff {{files}}"
   fix = "hk util fix-smart-quotes {{files}}"
   tests {

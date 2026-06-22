@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Detect accidentally committed private keys"
 }
 detect_private_key = new Config.Step {
-  glob = "**/*"
+  types = List("text")
   check = "hk util detect-private-key {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker {}

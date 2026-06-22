@@ -6,7 +6,7 @@ import "../Config.pkl"
   description = "Pluggable code formatter"
 }
 dprint = new Config.Step {
-  glob = "**/*"
+  types = List("text")
   check = "dprint check --allow-no-files {{ files }}"
   check_list_files = "dprint check --allow-no-files --list-different {{ files }}"
   fix = "dprint fmt --allow-no-files {{ files }}"
