@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Source code spell checker"
 }
 typos = new Config.Step {
-  glob = "**/*"
+  types = List("text")
   check_diff =
     """
     output=$(typos --force-exclude --diff {{files}})

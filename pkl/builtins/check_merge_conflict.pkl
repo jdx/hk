@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Detect merge conflict markers"
 }
 check_merge_conflict = new Config.Step {
-  glob = "**/*"
+  types = List("text")
   check = "hk util check-merge-conflict --assume-in-merge {{files}}"
   tests {
     local const testMaker = new helpers.TestMaker {}

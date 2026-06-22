@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Detect and remove trailing whitespace"
 }
 trailing_whitespace = new Config.Step {
-  glob = "**/*"
+  types = List("text")
   check_diff = "hk util trailing-whitespace --diff {{files}}"
   fix = "hk util trailing-whitespace --fix {{files}}"
   tests {
