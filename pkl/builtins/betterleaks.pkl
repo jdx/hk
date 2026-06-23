@@ -12,12 +12,14 @@ import "./test/helpers.pkl"
 }
 betterleaks = new Config.Step {
   types = List("text")
-  // Reference: https://github.com/betterleaks/betterleaks/blob/v1.1.1/.pre-commit-hooks.yaml#L4
+  // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
   check = "betterleaks dir --redact --verbose --no-banner {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
-    // Reference: https://github.com/betterleaks/betterleaks/blob/v1.1.1/testdata/repos/nogit/api.go#L20
-    ["check bad file"] = testMaker.checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
+    // aws-access-token alone is not reported since betterleaks 1.2.0 (composite rule); use github-pat instead.
+    // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/cmd/generate/config/rules/github.go
+    ["check bad file"] =
+      testMaker.checkFail("token = \"ghp_qOomCIZBWchHR4v5FPp9UiQRS9CyigrCkXXuIJQPfe63f12a\"", 1)
     ["check good file"] = testMaker.checkPass("message = foobar")
   }
 }
