@@ -9,9 +9,9 @@ import "./test/helpers.pkl"
 const pinact = new Config.Step {
   glob = List(".github/workflows/*", "*/action.*")
   types = List("yaml")
-  // `verify` flag to verify pairs of commit CHA and version are correct
-  check_diff = "pinact run --verify --check {{ files }}"
-  fix = "pinact run --verify {{ files }}"
+  // pinact ≥ 4.0: --verify-comment verifies SHA/version comment pairs; --check is -fix=false
+  check_diff = "pinact run --verify-comment --check {{ files }}"
+  fix = "pinact run --verify-comment {{ files }}"
   tests {
     local const bad =
       """

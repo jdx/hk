@@ -8,8 +8,8 @@ import "../Config.pkl"
 const pinact_update = new Config.Step {
   glob = List(".github/workflows/*", "*/action.*")
   types = List("yaml")
-  // `verify` flag to verify pairs of commit CHA and version are correct
-  check_diff = "pinact run --update --verify --check {{ files }}"
-  fix = "pinact run --update --verify {{ files }}"
+  // pinact ≥ 4.0: --verify-comment verifies SHA/version comment pairs; --check is -fix=false
+  check_diff = "pinact run --update --verify-comment --check {{ files }}"
+  fix = "pinact run --update --verify-comment {{ files }}"
   // Tests removed: they check against live GitHub Action versions, making them flaky
 }
