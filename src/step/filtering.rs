@@ -14,7 +14,7 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use super::types::Step;
@@ -171,6 +171,21 @@ impl Step {
     ///
     /// The filtered list of files that match all criteria
     pub fn filter_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
+        self.filter_files_with_base(files, None)
+    }
+
+    /// Filter files while resolving relative paths against `base_dir` for
+    /// filesystem-backed checks such as type, binary, and symlink detection.
+    pub fn filter_files_with_base(
+        &self,
+        files: &[PathBuf],
+        base_dir: Option<&Path>,
+    ) -> Result<Vec<PathBuf>> {
+        let resolve_path = |file: &PathBuf| match base_dir {
+            Some(base_dir) if !file.is_absolute() => base_dir.join(file),
+            _ => file.clone(),
+        };
+
         let mut files = files.to_vec();
         if let Some(dir) = &self.dir {
             files.retain(|f| f.starts_with(dir));
@@ -196,18 +211,20 @@ impl Step {
         // Filter out binary files unless allow_binary is true
         if !self.allow_binary {
             files.retain(|f| {
+                let path = resolve_path(f);
                 // Keep file if we can't determine if it's binary (might be deleted/renamed)
                 // or if it's definitely not binary
-                is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
+                is_binary_file(&path).map(|is_bin| !is_bin).unwrap_or(true)
             });
         }
 
         // Filter out symbolic links unless allow_symlinks is true
         if !self.allow_symlinks {
             files.retain(|f| {
+                let path = resolve_path(f);
                 // Keep file if we can't determine if it's a symlink (might be deleted/renamed)
                 // or if it's definitely not a symlink
-                is_symlink_file(f)
+                is_symlink_file(&path)
                     .map(|is_symlink| !is_symlink)
                     .unwrap_or(true)
             });
@@ -215,7 +232,7 @@ impl Step {
 
         // Filter by file types if specified
         if let Some(types) = &self.types {
-            files.retain(|f| crate::file_type::matches_types(f, types));
+            files.retain(|f| crate::file_type::matches_types(&resolve_path(f), types));
         }
 
         Ok(files)
