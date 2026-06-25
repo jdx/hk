@@ -1,0 +1,16 @@
+import "../Builtins.pkl"
+import "./rubocop.pkl"
+
+@Builtins.meta {
+  category = "Ruby"
+  description = "Ruby style guide (using RuboCop's --server mode)"
+  project_indicators {
+    new { file = "Gemfile" }
+  }
+}
+rubocop_server = (rubocop.rubocop) {
+  // `--server`: Use a long-lived RuboCop server process to speed up repeated invocations.
+  check = "rubocop --server --force-exclusion {{ files }}"
+  check_list_files = "rubocop --server --force-exclusion --list-target-files {{ files }}"
+  fix = "rubocop --server --force-exclusion --autocorrect {{ files }}"
+}
