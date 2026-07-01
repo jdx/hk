@@ -165,10 +165,6 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .tmpdir
         .unwrap_or_else(|| files.iter().any(|p| p.starts_with(&sandbox)));
 
-    if test.files.is_none() {
-        files = step.filter_files(&files)?;
-    }
-
     let base_dir = if uses_sandbox {
         sandbox.to_path_buf()
     } else {
@@ -187,6 +183,10 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             }
         };
         xx::file::write(&path, contents)?;
+    }
+
+    if test.files.is_none() {
+        files = step.filter_files_with_base(&files, Some(&base_dir))?;
     }
 
     tctx.with_files(step.shell_type(), &files);
