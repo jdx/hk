@@ -1,0 +1,44 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "df56f4cfedbc",
+  "session_id": "019f1f9d-3f06-7550-bd6f-5592a5313d51",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-01T21:40:12.196625Z",
+  "branch": "codex/fix-zizmor-nscloud-comments",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/docs.yml"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.5",
+  "turn_id": "9c79dd1c9abf",
+  "token_usage": {
+    "input_tokens": 139305,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 605696,
+    "output_tokens": 6930,
+    "api_call_count": 12
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-01T21:40:12.187847Z",
+    "agent_lines": 4,
+    "agent_removed": 4,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 4,
+    "total_lines_changed": 8,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}

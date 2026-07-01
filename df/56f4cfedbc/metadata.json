@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "df56f4cfedbc",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-zizmor-nscloud-comments",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".github/workflows/ci.yml",
+    ".github/workflows/docs.yml"
+  ],
+  "sessions": [
+    {
+      "metadata": "/df/56f4cfedbc/0/metadata.json",
+      "transcript": "/df/56f4cfedbc/0/full.jsonl",
+      "content_hash": "/df/56f4cfedbc/0/content_hash.txt",
+      "prompt": "/df/56f4cfedbc/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 139305,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 605696,
+    "output_tokens": 6930,
+    "api_call_count": 12
+  }
+}
