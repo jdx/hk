@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.49.0](https://github.com/jdx/hk/compare/v1.48.0..v1.49.0) - 2026-07-01
+
+### 🚀 Features
+
+- **(builtins)** use `types = List("text")` instead of `glob = "**/*"` for  text-only hooks by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#997](https://github.com/jdx/hk/pull/997)
+- **(builtins)** add rubocop_server linter with --server mode by [@andyw8](https://github.com/andyw8) in [#995](https://github.com/jdx/hk/pull/995)
+- **(builtins)** add .config/ and pyproject.toml project indicators for ryl by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#998](https://github.com/jdx/hk/pull/998)
+- **(builtins)** add shellharden linter by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#996](https://github.com/jdx/hk/pull/996)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** update betterleaks tests for aws composite rule by [@risu729](https://github.com/risu729) in [#1006](https://github.com/jdx/hk/pull/1006)
+- **(stash)** preserve tail deletion after overlapping worktree hunk by [@jdx](https://github.com/jdx) in [#990](https://github.com/jdx/hk/pull/990)
+
+### 📚 Documentation
+
+- link to all sponsors by [@jdx](https://github.com/jdx) in [#991](https://github.com/jdx/hk/pull/991)
+- clarify contribution fit by [@jdx](https://github.com/jdx) in [#992](https://github.com/jdx/hk/pull/992)
+
+### 🧪 Testing
+
+- **(setup)** fix ci-nogit failures from mise and aube upstream changes by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#1002](https://github.com/jdx/hk/pull/1002)
+
+### 🛡️ Security
+
+- **(deps)** update actions/checkout action to v6.0.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#984](https://github.com/jdx/hk/pull/984)
+
+### 🔍 Other Changes
+
+- **(ci)** bump pr-closer action by [@jdx](https://github.com/jdx) in [#989](https://github.com/jdx/hk/pull/989)
+- **(ci)** use shared coderabbit config by [@jdx](https://github.com/jdx) in [#993](https://github.com/jdx/hk/pull/993)
+- **(ci)** fix nscloud cache action version comments by [@jdx](https://github.com/jdx) in [#1019](https://github.com/jdx/hk/pull/1019)
+- Enable Entire for Codex by [@jdx](https://github.com/jdx) in [#1010](https://github.com/jdx/hk/pull/1010)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action action to v4.1.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#987](https://github.com/jdx/hk/pull/987)
+- update anthropics/claude-code-action action to v1.0.137 by [@renovate[bot]](https://github.com/renovate[bot]) in [#986](https://github.com/jdx/hk/pull/986)
+- update anthropics/claude-code-action action to v1.0.146 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1000](https://github.com/jdx/hk/pull/1000)
+- lock file maintenance lockfile maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#994](https://github.com/jdx/hk/pull/994)
+- update anthropics/claude-code-action action to v1.0.152 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1012](https://github.com/jdx/hk/pull/1012)
+- update actions-rust-lang/setup-rust-toolchain digest to 166cdcf by [@renovate[bot]](https://github.com/renovate[bot]) in [#1011](https://github.com/jdx/hk/pull/1011)
+- update rust crate itertools to 0.15 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1014](https://github.com/jdx/hk/pull/1014)
+- update jdx/mise-action action to v4.2.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1013](https://github.com/jdx/hk/pull/1013)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1016](https://github.com/jdx/hk/pull/1016)
+- update actions/checkout action to v7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1015](https://github.com/jdx/hk/pull/1015)
+- exempt pklr from release age by [@jdx](https://github.com/jdx) in [#1017](https://github.com/jdx/hk/pull/1017)
+- bump pklr to 1.1.1 by [@jdx](https://github.com/jdx) in [#1018](https://github.com/jdx/hk/pull/1018)
+
+### New Contributors
+
+- @risu729 made their first contribution in [#1006](https://github.com/jdx/hk/pull/1006)
+- @andyw8 made their first contribution in [#995](https://github.com/jdx/hk/pull/995)
+
 ## [1.48.0](https://github.com/jdx/hk/compare/v1.47.0..v1.48.0) - 2026-06-11
 
 ### 🚀 Features
