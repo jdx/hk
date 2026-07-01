@@ -5,12 +5,16 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "YAML"
   description = "Re-implementation of yamllint in Rust"
+  // https://ryl-docs.pages.dev/getting-started/quickstart/#configure-for-your-project
   project_indicators {
     new { file = "ryl.toml" }
     new { file = ".ryl.toml" }
+    new { file = ".config/ryl.toml" }
+    new { file = ".config/.ryl.toml" }
     new { file = ".yamllint" }
     new { file = ".yamllint.yml" }
     new { file = ".yamllint.yaml" }
+    new { file = "pyproject.toml"; contains = "[tool.ryl]" }
   }
 }
 ryl = new Config.Step {
