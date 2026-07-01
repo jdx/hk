@@ -1,4 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>jdx/renovate-config"]
+  "extends": ["local>jdx/renovate-config"],
+  "packageRules": [
+    {
+      "description": "Disable minimum release age checks for pklr updates",
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["pklr"],
+      "minimumReleaseAge": null
+    }
+  ]
 }
