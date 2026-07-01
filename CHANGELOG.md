@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.49.1](https://github.com/jdx/hk/compare/v1.49.0..v1.49.1) - 2026-07-01
+
+### 🔍 Other Changes
+
+- stop running cargo update in release task by [@jdx](https://github.com/jdx) in [#1020](https://github.com/jdx/hk/pull/1020)
+
 ## [1.49.0](https://github.com/jdx/hk/compare/v1.48.0..v1.49.0) - 2026-07-01
 
 ### 🚀 Features

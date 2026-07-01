@@ -105,8 +105,8 @@ Separately from global *hooks*, you can also create a global *config* file that 
 This will generate a `hk.pkl` file in the root of the repository, here's an example `hk.pkl` with eslint and prettier linters:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.49.1/hk@1.49.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.49.1/hk@1.49.1#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // linters can be manually defined
