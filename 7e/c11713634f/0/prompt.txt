@@ -1,0 +1,13 @@
+why did this fail [https://github.com/jdx/hk/actions/runs/28550342861/job/84646249337](https://github.com/jdx/hk/actions/runs/28550342861/job/84646249337)
+
+---
+
+does release-plz bump crates?
+
+---
+
+so is the issue that we bumped pklr in release-plz?
+
+---
+
+ok i don't want `cargo update`, remove that from release-plz in a new pr, we want renovate to be bumping cargo.lock
