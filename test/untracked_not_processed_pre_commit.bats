@@ -50,3 +50,38 @@ PKL
     refute_output --partial "2 files"
     refute_output --partial "untracked.txt"
 }
+
+@test "pre-commit without stash only passes staged files to steps" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = false
+    steps = new Mapping<String, Step> {
+      ["capture"] {
+        glob = "**/*.java"
+        check = "printf '%s\n' {{files}} > seen.txt"
+      }
+    }
+  }
+}
+PKL
+    git add hk.pkl
+    git commit -m 'init'
+
+    echo 'class Dirty {}' > dirty.java
+    git add dirty.java
+    git commit -m 'add tracked java'
+
+    echo 'class Staged {}' > staged.java
+    git add staged.java
+    echo 'class Dirty { int x; }' > dirty.java
+    echo 'class Untracked {}' > untracked.java
+
+    run hk run pre-commit
+    assert_success
+
+    run cat seen.txt
+    assert_success
+    assert_output "staged.java"
+}

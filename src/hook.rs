@@ -556,6 +556,10 @@ impl Hook {
         }
     }
 
+    fn defaults_to_staged_files(&self) -> bool {
+        self.name == "pre-commit"
+    }
+
     pub async fn plan(&self, opts: HookOptions) -> Result<()> {
         // Suppress progress output so plan output (especially JSON) is clean.
         clx::progress::set_output(ProgressOutput::Text);
@@ -1375,7 +1379,7 @@ impl Hook {
                 all_files.extend(git_status.untracked_files.iter().cloned());
             }
             all_files
-        } else if opts.staged || stash {
+        } else if opts.staged || stash || self.defaults_to_staged_files() {
             file_progress.prop("message", "Fetching staged files");
             git_status.staged_files.iter().cloned().collect()
         } else {
