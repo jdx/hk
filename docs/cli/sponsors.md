@@ -4,4 +4,4 @@
 
 - **Usage**: `hk sponsors`
 
-Show the companies sponsoring hk and the en.dev project family
+Show the companies sponsoring hk and the jdx.dev open source tools

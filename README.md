@@ -8,9 +8,9 @@ See docs: https://hk.jdx.dev/
 
 ## Sponsors
 
-hk is sponsored by [37signals](https://37signals.com).
+hk is sponsored by [entire.io](https://entire.io) and [37signals](https://37signals.com).
 
-[View all sponsors](https://en.dev/sponsors.html).
+[View all sponsors](https://jdx.dev/sponsors.html).
 
 ## Demo
 
