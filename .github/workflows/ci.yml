@@ -13,6 +13,7 @@ concurrency:
 
 env:
   MISE_EXPERIMENTAL: true
+  MISE_HTTP_TIMEOUT: 120
   CARGO_TERM_COLOR: always
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
