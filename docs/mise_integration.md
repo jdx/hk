@@ -45,12 +45,16 @@ Just run mise in `hk.pkl` like any other command:
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.pkl"
 
-`pre-commit` {
-    ["prelint"] {
-        check = "mise run prelint"
-        exclusive = true // ensures this completes before the next steps
+hooks {
+    ["pre-commit"] {
+        steps {
+            ["prelint"] {
+                check = "mise run prelint"
+                exclusive = true // ensures this completes before the next steps
+            }
+            // ... more steps ...
+        }
     }
-    // ... more steps ...
 }
 ```
 

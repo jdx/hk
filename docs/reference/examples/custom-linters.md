@@ -6,7 +6,6 @@
 /// * Demonstrates platform-specific commands
 /// * Uses conditions and workspace indicators
 /// * Shows test configuration
-
 amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Builtins.pkl"
 
@@ -95,25 +94,27 @@ local all_linters = new Mapping<String, Step> {
 hooks {
   ["pre-commit"] {
     fix = true
-    stash = "patch-file"  // Use patch file instead of git stash
+    stash = "patch-file" // Use patch file instead of git stash
     steps = all_linters
   }
   ["check"] {
     steps = all_linters
     // Generate a report after checking
-    report = #"""
-      echo "Check completed at $(date)"
-      echo "Results: $HK_REPORT_JSON" | jq '.'
-    """#
+    report =
+      #"""
+        echo "Check completed at $(date)"
+        echo "Results: $HK_REPORT_JSON" | jq '.'
+      """#
   }
 }
 
 // Show additional skip reasons for debugging
-display_skip_reasons = List(
-  "profile-not-enabled",
-  "no-files-to-process",
-  "condition-false"
-)
+display_skip_reasons =
+  List(
+    "profile-not-enabled",
+    "no-files-to-process",
+    "condition-false",
+  )
 
 // Environment variables for all steps
 env {
@@ -129,7 +130,3 @@ Example configuration with custom linters and platform-specific commands
 * Demonstrates platform-specific commands
 * Uses conditions and workspace indicators
 * Shows test configuration
-
-## Key Features
-
-- Standard configuration

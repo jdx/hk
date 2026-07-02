@@ -437,8 +437,10 @@ Strategy for temporarily saving unstaged changes before running hooks that might
 
 Available strategies:
 - `git`: Use `git stash` to stash changes
-- `patch-file`: Use hk-generated patch files (typically faster, avoids "index is locked" errors)
+- `patch-file`: Currently an alias of the `git` behavior
 - `none`: No stashing (fastest, but may cause staging conflicts if fixes modify unstaged changes in the same file)
+
+If not set, the hook-level `stash` setting applies (default: `none`).
 """
 
 [stash_untracked]

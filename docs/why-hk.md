@@ -110,7 +110,7 @@ Both require Node.js. If your project isn't a JS project, you're adding a runtim
 | Language | Rust | Python | Go | Rust |
 | Requires Python | No | Yes | No | Often* |
 | Config format | Pkl | YAML | YAML | YAML |
-| Built-in linter configs | [120+](/builtins) | — | — | — |
+| Built-in linter configs | [140+](/builtins) | — | — | — |
 | Plugin model | Pkl config (local) | Git repos (remote) | Shell commands | Git repos (remote) |
 | check_diff support | Yes | No | No | No |
 | check_list_files support | Yes | No | No | No |

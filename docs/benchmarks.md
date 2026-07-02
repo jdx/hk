@@ -104,7 +104,7 @@ uv tool install pre-commit prek black ruff
 ### Generate and run
 
 ```bash
-# Generate a synthetic project (~700 files)
+# Generate a synthetic project (~6,000 files by default)
 benchmark/generate-project.sh /tmp/hk-bench
 
 # Run benchmarks
