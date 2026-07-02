@@ -208,7 +208,7 @@ jobs:
             TAG_NAME="${GITHUB_REF_NAME}"
           fi
           communique generate "$TAG_NAME" --github-release
-      - name: Append en.dev sponsor blurb
+      - name: Append jdx.dev sponsor blurb
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           INPUTS_VERSION: ${{ inputs.version }}
@@ -226,9 +226,9 @@ jobs:
           cat <<'EOF' >> /tmp/release-notes.md
           ## 💚 Sponsor hk
 
-          hk is developed by [@jdx](https://github.com/jdx) at [**en.dev**](https://en.dev) — a small independent studio behind developer tools like [mise](https://mise.jdx.dev/), [aube](https://aube.en.dev/), hk, and more. Work on hk is funded by sponsorships.
+          hk is maintained by [@jdx](https://github.com/jdx), an open source developer for [**entire.io**](https://entire.io), the title sponsor of the [jdx.dev](https://jdx.dev) open source tools including [mise](https://mise.jdx.dev/), [aube](https://aube.jdx.dev/), and more. Work on hk is funded by sponsorships.
 
-          If hk has sped up your pre-commit loop or made linting feel less painful, please consider [sponsoring at en.dev](https://en.dev). Sponsorships are what keep hk moving and the project independent.
+          If hk has sped up your pre-commit loop or made linting feel less painful, please consider [sponsoring at jdx.dev](https://jdx.dev/sponsors.html). Sponsorships are what keep hk moving and the project independent.
           EOF
 
           gh release edit "$TAG_NAME" --notes-file /tmp/release-notes.md
