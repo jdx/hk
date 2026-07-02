@@ -15,7 +15,7 @@ hk builds its effective configuration by layering sources from lowest to highest
 | 5 | [Environment variables](#settings-reference) (`HK_*`) | Per-invocation |
 | 6 (highest) | [CLI flags](#settings-reference) | Per-invocation |
 
-Higher layers override lower. For hooks and steps, layers are **additive** — hkrc can define hooks the project doesn't have, but the project's definition wins on collision. See [hkrc merge semantics](#hkrc) for details.
+Higher layers override lower. For hooks and steps, layers are **additive** — hkrc can define hooks the project doesn't have, but the project's definition wins on collision. See the [hkrc](#hkrc) section for merge semantics.
 
 ## `hk.pkl`
 
@@ -48,7 +48,7 @@ amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.
 import "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-    // linters can be manually defined
+    // steps can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
         // this will filter the staged files and return the subset matching these globs
@@ -61,7 +61,7 @@ local linters = new Mapping<String, Step> {
         // defaults to the step's glob when staging is enabled, so usually not needed
         // stage = List("*.js", "*.ts")
     }
-    // linters can also be specified with the Builtins pkl library
+    // steps can also be pulled from the Builtins pkl library
     ["prettier"] = Builtins.prettier
 }
 

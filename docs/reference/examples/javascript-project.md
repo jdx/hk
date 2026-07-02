@@ -6,7 +6,6 @@
 /// * Uses eslint for linting
 /// * Runs type checking with tsc
 /// * Enables automatic fixes in pre-commit
-
 amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Builtins.pkl"
 
@@ -61,7 +60,3 @@ Example configuration for a JavaScript/TypeScript project
 * Uses eslint for linting
 * Runs type checking with tsc
 * Enables automatic fixes in pre-commit
-
-## Key Features
-
-- Standard configuration

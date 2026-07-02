@@ -4,7 +4,7 @@ outline: "deep"
 
 # Built-in Linters Reference
 
-hk provides 90+ pre-configured linters and formatters through the `Builtins` module. These are production-ready configurations that work out of the box.
+hk provides 140+ pre-configured linters and formatters through the `Builtins` module. These are production-ready configurations that work out of the box.
 
 ## Usage
 
@@ -101,5 +101,5 @@ If a builtin doesn't exist for your tool:
 
 ## See Also
 
-- [Configuration Guide](configuration.md)
-- [Getting Started](getting_started.md)
+- [Configuration Guide](/configuration)
+- [Getting Started](/getting_started)

@@ -11,8 +11,8 @@ hk provides several ways to control logging output for debugging issues and unde
 hk supports standard log levels that control the amount of information displayed:
 
 - **error**: Only show error messages
-- **warn**: Show warnings and errors (default)
-- **info**: Show informational messages, warnings, and errors
+- **warn**: Show warnings and errors
+- **info**: Show informational messages, warnings, and errors (default)
 - **debug**: Show debug information including file operations and step execution details
 - **trace**: Show detailed trace information including all internal operations
 
@@ -181,8 +181,8 @@ To see how configuration is being loaded and processed:
 # Validate configuration with verbose output
 hk validate -v
 
-# Check which steps would run
-HK_LOG=debug hk check --dry-run
+# Check which steps would run without running them
+hk check --plan
 ```
 
 ### Debugging Git Hook Issues

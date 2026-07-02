@@ -20,7 +20,7 @@ steps {
 }
 ```
 
-See: [Step Dependencies](/configuration.md#step-depends-list-string)
+See: [Step Dependencies](/configuration#step-depends-list-string)
 
 ## Group
 
@@ -38,7 +38,7 @@ steps {
 }
 ```
 
-See: [Group Configuration](/configuration.md#group)
+See: [Group Configuration](/configuration#group)
 
 ## Hook
 
@@ -55,7 +55,7 @@ hooks {
 }
 ```
 
-See: [Hooks](/hooks.md)
+See: [Hooks](/hooks)
 
 ## Job
 
@@ -70,7 +70,7 @@ hk check --jobs 4
 HK_JOBS=8 hk fix
 ```
 
-See: [HK_JOBS](/environment_variables.md#hk_jobs)
+See: [HK_JOBS](/environment_variables#hk-jobs)
 
 ## Skip
 
@@ -85,7 +85,7 @@ HK_SKIP_STEPS=lint,test hk run pre-commit
 HK_SKIP_HOOK=pre-commit,pre-push git commit
 ```
 
-See: [HK_SKIP_STEPS](/environment_variables.md#hk_skip_steps), [HK_SKIP_HOOK](/environment_variables.md#hk_skip_hook)
+See: [HK_SKIP_STEPS](/environment_variables#hk-skip-steps), [HK_SKIP_HOOK](/environment_variables#hk-skip-hook)
 
 ## Stash
 
@@ -93,8 +93,8 @@ A strategy for temporarily saving unstaged changes before running hooks that mig
 
 Stash strategies:
 - `git`: Uses `git stash`
-- `patch-file`: Uses hk-generated patch files (faster, avoids lock conflicts)
-- `none`: No stashing (fastest, but may cause staging conflicts)
+- `patch-file`: Currently an alias of the `git` strategy
+- `none`: No stashing (fastest, but may cause staging conflicts; the default)
 
 Example:
 ```pkl
@@ -106,7 +106,7 @@ hooks {
 }
 ```
 
-See: [HK_STASH](/environment_variables.md#hk_stash)
+See: [HK_STASH](/environment_variables#hk-stash)
 
 ## Step
 
@@ -124,4 +124,4 @@ steps {
 }
 ```
 
-See: [Step Configuration](/configuration.md#hooks-hook-steps-step-group)
+See: [Step Configuration](/configuration#hooks-hook-steps-step-group)

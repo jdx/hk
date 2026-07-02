@@ -102,21 +102,21 @@ Separately from global *hooks*, you can also create a global *config* file that 
 
 ## `hk.pkl`
 
-This will generate a `hk.pkl` file in the root of the repository, here's an example `hk.pkl` with eslint and prettier linters:
+`hk init` generates an `hk.pkl` file in the root of the repository. Here's an example `hk.pkl` with eslint and prettier linters:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.49.0/hk@1.49.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-    // linters can be manually defined
+    // steps can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
         glob = List("*.js", "*.ts")
         // a command that returns non-zero to fail the check
         check = "eslint {{files}}"
     }
-    // linters can also be specified with the builtins pkl library
+    // steps can also be pulled from the builtins pkl library
     ["prettier"] = Builtins.prettier
     // with pkl, builtins can also be extended:
     ["prettier-yaml"] = (Builtins.prettier) {

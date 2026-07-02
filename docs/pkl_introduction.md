@@ -52,8 +52,8 @@ hooks {
     fix = true
     steps {
       ["prelint"] {
-        command = "lint"
-        args = ["--fix"]
+        check = "mise run prelint"
+        exclusive = true
       }
     }
   }
@@ -98,10 +98,10 @@ Listings are for more complex ordered collections:
 
 ```pkl
 my_listing = new Listing<Step> {
-  new LinterStep {
+  new Step {
     check = "make lint"
   }
-  new LinterStep {
+  new Step {
     check = "make format"
   }
 }
@@ -112,7 +112,7 @@ my_listing = new Listing<Step> {
 hk will complain if you attempt to export variables that it doesn't expect, so you'll likely need to use the `local` keyword to create local variables:
 
 ```pkl
-local my_step = new LinterStep {
+local my_step = new Step {
   check = "make lint"
 }
 ```
@@ -122,7 +122,7 @@ local my_step = new LinterStep {
 You typically won't define your own class with an hk config, but you will instantiate the ones provided by [Config.pkl](https://github.com/jdx/hk/blob/main/pkl/Config.pkl):
 
 ```pkl
-local my_step = new LinterStep {
+local my_step = new Step {
   check = "make lint"
 }
 ```
@@ -132,14 +132,14 @@ local my_step = new LinterStep {
 If you want to use shared object but amend it with modifications, you do that with this syntax:
 
 ```pkl
-local make_lint = new LinterStep {
+local make_lint = new Step {
   check = "make lint"
 }
 local linters = new Mapping<String, Step> {
-  ["make-lint"] = (make_lint) {
+  ["make-lint-a"] = (make_lint) {
     dir = "proj_a"
   }
-  ["make-lint"] = (make_lint) {
+  ["make-lint-b"] = (make_lint) {
     dir = "proj_b"
   }
 }
@@ -149,11 +149,11 @@ Essentially this is the same as:
 
 ```pkl
 local linters = new Mapping<String, Step> {
-  ["make-lint"] = new LinterStep {
+  ["make-lint-a"] = new Step {
     check = "make lint"
     dir = "proj_a"
   }
-  ["make-lint"] = new LinterStep {
+  ["make-lint-b"] = new Step {
     check = "make lint"
     dir = "proj_b"
   }
@@ -184,12 +184,12 @@ Share code between files by importing:
 
 ```pkl
 import "./extra.pkl"
-# do something with `extra`
+// do something with `extra`
 
 import "https://example.com/remote.pkl"
-# do something with `remote`
+// do something with `remote`
 ```
 
 ## Caching
 
-hk will cache the output of parsing each `hk.pkl` file until it is modified. For now, I would discouraging using features like env vars inside of `hk.pkl` files as the cache will not be invalidated if the env vars change. Perhaps this could be fixed somehow.
+hk will cache the output of parsing each `hk.pkl` file until it is modified. For now, I would discourage using features like env vars inside of `hk.pkl` files as the cache will not be invalidated if the env vars change. Perhaps this could be fixed somehow.

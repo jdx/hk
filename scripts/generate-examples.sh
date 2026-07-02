@@ -37,11 +37,6 @@ $(cat "$pkl_file")
 ## Description
 
 $(grep -E "^///" "$pkl_file" 2>/dev/null | sed 's|^///[ ]*||' || echo "No description available.")
-
-## Key Features
-
-$(grep -E "^//\s+\*" "$pkl_file" 2>/dev/null | sed 's|^//[ ]*||' || echo "- Standard configuration")
-
 EOF
 done
 
