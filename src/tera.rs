@@ -6,8 +6,8 @@ use serde::Serialize;
 use tera::Tera;
 
 pub fn render(input: &str, ctx: &Context) -> Result<String> {
-    let mut tera = Tera::default();
-    let output = tera.render_str(input, &ctx.ctx)?;
+    let tera = Tera::default();
+    let output = tera.render_str(input, &ctx.ctx, false)?;
     Ok(output)
 }
 
@@ -34,7 +34,7 @@ impl Default for Context {
 
 impl Context {
     pub fn insert<T: Serialize + ?Sized, S: Into<String>>(&mut self, key: S, val: &T) {
-        self.ctx.insert(key, val);
+        self.ctx.insert(key.into(), val);
     }
 
     pub fn with_globs<P: AsRef<Path>>(&mut self, globs: &[P]) -> &mut Self {
@@ -169,7 +169,6 @@ fn split_quoted_tokens(s: &str) -> impl Iterator<Item = &str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     fn split(s: &str) -> Vec<&str> {
         split_quoted_tokens(s).collect()
@@ -195,13 +194,13 @@ mod tests {
 
     #[test]
     fn truncate_quoted_list_returns_none_for_single_token() {
-        let v = json!("only.txt");
+        let v = tera::Value::from("only.txt");
         assert_eq!(truncate_quoted_list(Some(&v)), None);
     }
 
     #[test]
     fn truncate_quoted_list_truncates_multiple_tokens() {
-        let v = json!("first.txt second.txt third.txt");
+        let v = tera::Value::from("first.txt second.txt third.txt");
         assert_eq!(
             truncate_quoted_list(Some(&v)),
             Some("first.txt …".to_string())
@@ -210,7 +209,7 @@ mod tests {
 
     #[test]
     fn truncate_quoted_list_preserves_quoted_first_token() {
-        let v = json!("'a b.txt' other.txt");
+        let v = tera::Value::from("'a b.txt' other.txt");
         assert_eq!(
             truncate_quoted_list(Some(&v)),
             Some("'a b.txt' …".to_string())
@@ -220,9 +219,9 @@ mod tests {
     #[test]
     fn truncate_quoted_list_returns_none_for_empty_or_missing() {
         assert_eq!(truncate_quoted_list(None), None);
-        let v = json!("");
+        let v = tera::Value::from("");
         assert_eq!(truncate_quoted_list(Some(&v)), None);
-        let v = json!("   ");
+        let v = tera::Value::from("   ");
         assert_eq!(truncate_quoted_list(Some(&v)), None);
     }
 }
