@@ -379,7 +379,12 @@ fn write_config_hook(scope: &str, command: &OsStr, event: &str) -> Result<()> {
     // with `HK=0 git commit` under config-based hooks.
     let mut cmd_value = OsString::from(r#"test "${HK:-1}" = "0" || "#);
     cmd_value.push(command);
-    cmd_value.push(format!(r#" run {event} --from-hook "$@""#));
+    // `--staged` on pre-commit restricts the run to staged files only and
+    // suppresses hk's internal `git stash`. It's the safe default for a
+    // pre-commit hook: an unstaged file cannot be silently drifted or lost
+    // by a failed stash/unstash cycle.
+    let staged_suffix = if event == "pre-commit" { " --staged" } else { "" };
+    cmd_value.push(format!(r#" run {event} --from-hook{staged_suffix} "$@""#));
 
     run_git([
         OsString::from("config"),
@@ -498,9 +503,12 @@ where
 }
 
 fn git_hook_content(hk: &str, hook: &str) -> String {
+    // `--staged` on pre-commit restricts the run to staged files only and
+    // suppresses hk's internal `git stash`. Safe default; see write_config_hook.
+    let staged_suffix = if hook == "pre-commit" { " --staged" } else { "" };
     format!(
         r#"#!/bin/sh
-test "${{HK:-1}}" = "0" || exec {hk} run {hook} --from-hook "$@"
+test "${{HK:-1}}" = "0" || exec {hk} run {hook} --from-hook{staged_suffix} "$@"
 "#
     )
 }
@@ -594,5 +602,29 @@ mod tests {
         let quoted = shell_quote_path(path);
 
         assert!(quoted.into_vec().contains(&0xFF));
+    }
+
+    #[test]
+    fn git_hook_content_appends_staged_for_pre_commit() {
+        let out = git_hook_content("hk", "pre-commit");
+        assert!(
+            out.contains("--from-hook --staged"),
+            "pre-commit hook script must include --staged: {out}",
+        );
+    }
+
+    #[test]
+    fn git_hook_content_omits_staged_for_non_pre_commit() {
+        for event in ["commit-msg", "pre-push", "prepare-commit-msg", "post-commit"] {
+            let out = git_hook_content("hk", event);
+            assert!(
+                out.contains("--from-hook \"$@\""),
+                "{event} hook script must not append --staged: {out}",
+            );
+            assert!(
+                !out.contains("--staged"),
+                "{event} hook script must not include --staged: {out}",
+            );
+        }
     }
 }
