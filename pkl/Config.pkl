@@ -178,7 +178,7 @@ walk_ignore: Boolean?
 /// Hooks define when and how linters are run. See [hooks](https://hk.jdx.dev/hooks) for more information.
 hooks: Mapping<String, Hook> = new Mapping<String, Hook> {}
 
-class Hook {
+open class Hook {
   /// Default: `false` (`true` for `fix` hook)
   ///
   /// If true, hk will run the fix command for each step (if it exists) to make modifications.
