@@ -142,6 +142,10 @@ impl Step {
         } else {
             self.run_cmd(job.run_type)
         };
+        let ran_check_list_files = matches!(check_first_cmd, Some(CheckFirstCmd::ListFiles(_)))
+            || (check_first_cmd.is_none() && run_cmd == self.check_list_files.as_ref());
+        let ran_check_diff = matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
+            || (check_first_cmd.is_none() && run_cmd == self.check_diff.as_ref());
         let Some(mut run) = run_cmd
             .map(|s| s.to_string())
             .filter(|s| !s.trim().is_empty())
@@ -251,7 +255,7 @@ impl Step {
             Ok(result) => {
                 // For both check_list_files and check_diff: stderr is informational only
                 // Files are read from stdout; stderr may contain warnings, debug info, etc.
-                if run_cmd == self.check_list_files.as_ref() {
+                if ran_check_list_files {
                     debug!(
                         "{self}: check_list_files succeeded (exit 0), stdout len={}, stderr len={}",
                         result.stdout.len(),
@@ -266,7 +270,7 @@ impl Step {
                             "{self}: check_list_files exited 0 (success) but returned files in stdout. This may indicate misconfiguration - the tool should exit non-zero when files need fixing."
                         );
                     }
-                } else if run_cmd == self.check_diff.as_ref() {
+                } else if ran_check_diff {
                     // For check_diff, stderr with exit 0 is just informational (e.g., "N files already formatted")
                     debug!(
                         "{self}: check_diff succeeded (exit 0), stdout len={}, stderr len={}",
@@ -287,8 +291,10 @@ impl Step {
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
                     if job.check_first
-                        && (run_cmd == self.check_list_files.as_ref()
-                            || run_cmd == self.check_diff.as_ref())
+                        && matches!(
+                            check_first_cmd,
+                            Some(CheckFirstCmd::ListFiles(_) | CheckFirstCmd::Diff(_))
+                        )
                     {
                         return Err(Error::CheckListFailed {
                             source: eyre::eyre!("{}", err),
