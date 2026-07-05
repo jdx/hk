@@ -369,12 +369,14 @@ impl Step {
 
     /// Get the command to run in "check first" mode.
     ///
-    /// Prefers check_diff, then check, then check_list_files.
+    /// Prefers check_diff, then check_list_files, then check.
     pub fn check_first_cmd(&self) -> Option<&Script> {
+        let is_present = |s: &&Script| !s.to_string().trim().is_empty();
         self.check_diff
             .as_ref()
-            .or(self.check.as_ref())
-            .or(self.check_list_files.as_ref())
+            .filter(is_present)
+            .or_else(|| self.check_list_files.as_ref().filter(is_present))
+            .or_else(|| self.check.as_ref().filter(is_present))
     }
 
     /// Check if this step has a command for the given run type.

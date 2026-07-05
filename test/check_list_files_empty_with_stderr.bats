@@ -115,6 +115,66 @@ EOF
     assert_output --partial "formatted test.txt"
 }
 
+@test "check_first prefers check_list_files over check" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["fix"] {
+    steps {
+      ["format"] {
+        check_first = true
+        glob = List("*.txt")
+        stage = List("<JOB_FILES>")
+        check = "sh -c 'echo generic-check; exit 1'"
+        check_list_files = "sh -c 'echo needs-format.txt; exit 1'"
+        fix = "echo 'formatted' {{files}}"
+      }
+    }
+  }
+}
+EOF
+    echo 'needs formatting' > needs-format.txt
+    echo 'already formatted' > already-format.txt
+    git add needs-format.txt already-format.txt
+
+    run hk fix
+    assert_success
+    assert_output --partial "formatted needs-format.txt"
+    refute_output --partial "formatted already-format.txt"
+    refute_output --partial "generic-check"
+}
+
+@test "check_first falls back when check_list_files is empty on this platform" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["fix"] {
+    steps {
+      ["format"] {
+        check_first = true
+        glob = List("*.txt")
+        stage = List("<JOB_FILES>")
+        check = "sh -c 'echo generic-check; exit 1'"
+        check_list_files = new Script {
+          linux = ""
+          other = "sh -c 'echo needs-format.txt; exit 1'"
+        }
+        fix = "echo 'formatted' {{files}}"
+      }
+    }
+  }
+}
+EOF
+    echo 'needs formatting' > needs-format.txt
+    echo 'already formatted' > already-format.txt
+    git add needs-format.txt already-format.txt
+
+    run hk fix
+    assert_success
+    assert_output --partial "generic-check"
+    assert_output --partial "formatted already-format.txt needs-format.txt"
+}
+
 @test "check_list_files with non-zero exit should be an error" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
