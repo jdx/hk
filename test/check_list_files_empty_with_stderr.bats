@@ -157,6 +157,8 @@ hooks {
         check = "sh -c 'echo generic-check; exit 1'"
         check_list_files = new Script {
           linux = ""
+          macos = ""
+          windows = ""
           other = "sh -c 'echo needs-format.txt; exit 1'"
         }
         fix = "echo 'formatted' {{files}}"

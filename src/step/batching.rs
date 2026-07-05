@@ -52,7 +52,7 @@ impl Step {
         base_tctx: &tera::Context,
     ) -> Option<usize> {
         let run_cmd = if original_job.check_first {
-            self.check_first_cmd()
+            self.check_first_cmd().map(|cmd| cmd.script())
         } else {
             self.run_cmd(original_job.run_type)
         }?;

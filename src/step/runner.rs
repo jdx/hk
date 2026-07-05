@@ -24,7 +24,7 @@ use std::process::Stdio;
 
 use super::expr_env::EXPR_ENV;
 use super::shell::ShellType;
-use super::types::{Pattern, RunType, Script, Step};
+use super::types::{CheckFirstCmd, Pattern, RunType, Script, Step};
 use crate::error::Error;
 
 /// Cap on the per-job progress message in printable characters. The
@@ -132,8 +132,13 @@ impl Step {
                 if files.len() == 1 { "" } else { "s" }
             )
         };
-        let run_cmd = if job.check_first {
+        let check_first_cmd = if job.check_first {
             self.check_first_cmd()
+        } else {
+            None
+        };
+        let run_cmd = if let Some(check_first_cmd) = check_first_cmd {
+            Some(check_first_cmd.script())
         } else {
             self.run_cmd(job.run_type)
         };
@@ -370,13 +375,24 @@ impl Step {
     /// Get the command to run in "check first" mode.
     ///
     /// Prefers check_diff, then check_list_files, then check.
-    pub fn check_first_cmd(&self) -> Option<&Script> {
+    pub fn check_first_cmd(&self) -> Option<CheckFirstCmd<'_>> {
         let is_present = |s: &&Script| !s.to_string().trim().is_empty();
         self.check_diff
             .as_ref()
             .filter(is_present)
-            .or_else(|| self.check_list_files.as_ref().filter(is_present))
-            .or_else(|| self.check.as_ref().filter(is_present))
+            .map(CheckFirstCmd::Diff)
+            .or_else(|| {
+                self.check_list_files
+                    .as_ref()
+                    .filter(is_present)
+                    .map(CheckFirstCmd::ListFiles)
+            })
+            .or_else(|| {
+                self.check
+                    .as_ref()
+                    .filter(is_present)
+                    .map(CheckFirstCmd::Check)
+            })
     }
 
     /// Check if this step has a command for the given run type.

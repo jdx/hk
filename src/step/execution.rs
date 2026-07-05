@@ -23,7 +23,7 @@ use std::sync::{Arc, LazyLock};
 use tokio::sync::OwnedSemaphorePermit;
 
 use super::expr_env::EXPR_ENV;
-use super::types::{RunType, Step};
+use super::types::{CheckFirstCmd, RunType, Step};
 
 /// Default stage pattern for steps with fix commands when staging is enabled.
 static DEFAULT_STAGE: LazyLock<Vec<String>> = LazyLock::new(|| vec!["<JOB_FILES>".to_string()]);
@@ -115,18 +115,7 @@ impl Step {
                 if job.check_first {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check;
-                    let (ran_check_diff, ran_check_list_files) =
-                        match step.check_first_cmd() {
-                            Some(cmd) => (
-                                step.check_diff
-                                    .as_ref()
-                                    .is_some_and(|check_diff| std::ptr::eq(cmd, check_diff)),
-                                step.check_list_files
-                                    .as_ref()
-                                    .is_some_and(|check_list_files| std::ptr::eq(cmd, check_list_files)),
-                            ),
-                            None => (false, false),
-                        };
+                    let check_first_cmd = step.check_first_cmd();
                     // Stash check output in case the second run is cancelled by fail_fast
                     let mut check_first_output: Option<(String, String, String)> = None;
                     match step.run(&ctx, &mut job).await {
@@ -148,9 +137,15 @@ impl Step {
                                 // Parse according to the check-first command that actually ran.
                                 // Platform-specific Script values can be empty, in which case
                                 // check_first_cmd falls back to the next available command.
-                                let (files, extras) = if ran_check_diff {
+                                let (files, extras) = if matches!(
+                                    check_first_cmd,
+                                    Some(CheckFirstCmd::Diff(_))
+                                ) {
                                     step.filter_files_from_check_diff(&job.files, stdout)
-                                } else if ran_check_list_files {
+                                } else if matches!(
+                                    check_first_cmd,
+                                    Some(CheckFirstCmd::ListFiles(_))
+                                ) {
                                     step.filter_files_from_check_list(&job.files, stdout)
                                 } else {
                                     (job.files.clone(), Vec::new())
@@ -163,10 +158,14 @@ impl Step {
                                 }
 
                                 // For check_diff: if no parseable files, keep all original files
-                                if files.is_empty() && ran_check_diff {
+                                if files.is_empty()
+                                    && matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
+                                {
                                     debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
                                     // Keep all original files for check_diff when diff parsing fails
-                                } else if files.is_empty() && ran_check_list_files {
+                                } else if files.is_empty()
+                                    && matches!(check_first_cmd, Some(CheckFirstCmd::ListFiles(_)))
+                                {
                                     // For check_list_files: non-zero exit with no files is an error
                                     // (Tool failed, not "files need fixing")
                                     error!("{step}: check_list_files failed with no files in output");
@@ -177,7 +176,9 @@ impl Step {
 
                                 // Try to apply diff directly when check_diff is defined and we're in Fix mode
                                 // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
-                                if ran_check_diff && prev_run_type == RunType::Fix {
+                                if matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
+                                    && prev_run_type == RunType::Fix
+                                {
                                     match step.apply_diff_output(stdout) {
                                         Ok(true) => {
                                             // Diff applied successfully - no need to run fixer
