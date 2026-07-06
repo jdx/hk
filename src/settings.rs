@@ -435,13 +435,15 @@ impl Settings {
                         }
                     }
                     "string" | "enum" => {
-                        if let Ok(v) = cfg.get_str(key) {
-                            map.insert(setting_name, SettingValue::String(v.to_string()));
+                        // `get_str` requires a snapshot on a live Config. `get_string`
+                        // returns an owned String and works on configs from Repository::config().
+                        if let Ok(v) = cfg.get_string(key) {
+                            map.insert(setting_name, SettingValue::String(v));
                             break;
                         }
                     }
                     "path" => {
-                        if let Ok(v) = cfg.get_str(key) {
+                        if let Ok(v) = cfg.get_string(key) {
                             map.insert(setting_name, SettingValue::Path(PathBuf::from(v)));
                             break;
                         }
@@ -909,5 +911,29 @@ mod tests {
         let merged = Settings::merge_settings_generic(&defaults, &env, &git, &pkl, &cli);
         assert!(merged.warnings.contains("warning4"));
         assert_eq!(merged.warnings.len(), 1);
+    }
+
+    #[test]
+    fn test_git_map_reads_string_setting_from_live_config() {
+        use git2::Config;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let cfg_path = tmp.path().join("gitconfig");
+        std::fs::write(&cfg_path, "[hk]\n\tstash = none\n").expect("write gitconfig");
+        let cfg = Config::open(&cfg_path).expect("open cfg");
+
+        let value = cfg
+            .get_string("hk.stash")
+            .expect("hk.stash must read on a live Config");
+        assert_eq!(value, "none");
+
+        let str_err = cfg
+            .get_str("hk.stash")
+            .expect_err("get_str must fail on a live config");
+        assert!(
+            str_err.message().contains("live config object"),
+            "unexpected libgit2 error message: {:?}",
+            str_err.message()
+        );
     }
 }
