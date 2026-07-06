@@ -195,6 +195,36 @@ EOF
     assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
 }
 
+@test "resolved config cache is shared across identical local configs" {
+    export HK_CACHE=1
+
+    mkdir repo1 repo2
+    for repo in repo1 repo2; do
+        cat <<EOF > "$repo/hk.pkl"
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["shared"] { check = "echo shared" }
+        }
+    }
+}
+EOF
+    done
+
+    run bash -c "cd repo1 && hk validate -vv"
+    assert_success
+    assert_output --partial "cache.miss"
+    resolved_count=$(find "$HK_CACHE_DIR/configs" -name "resolved-config-*.json" -type f | wc -l | tr -d ' ')
+    [ "$resolved_count" -eq 1 ]
+
+    run bash -c "cd repo2 && hk validate -vv"
+    assert_success
+    assert_output --partial "cache.hit"
+    resolved_count=$(find "$HK_CACHE_DIR/configs" -name "resolved-config-*.json" -type f | wc -l | tr -d ' ')
+    [ "$resolved_count" -eq 1 ]
+}
+
 @test "cache handles concurrent access safely" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

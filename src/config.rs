@@ -47,25 +47,71 @@ impl Config {
     }
 
     /// Analyze pkl imports to get all transitive dependencies.
-    /// Returns a set of local file paths that the config depends on.
-    fn analyze_imports(path: &Path) -> Result<IndexSet<PathBuf>> {
+    /// Returns local file paths that the config depends on and whether the
+    /// module graph contains imports whose bytes hk cannot hash.
+    fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
         if env::use_pklr_backend() {
-            return pklr::analyze_imports(path)
+            let local_paths: IndexSet<PathBuf> = pklr::analyze_imports(path)
                 .map(|v| v.into_iter().collect())
-                .map_err(|e| eyre::eyre!("{e}"));
+                .map_err(|e| eyre::eyre!("{e}"))?;
+            let has_untracked_imports =
+                Self::has_untracked_imports_in_pkl_sources(path, &local_paths)?;
+            return Ok(ImportAnalysis {
+                local_paths,
+                has_untracked_imports,
+            });
         }
         let imports: PklImports =
             run_pkl(&["analyze", "imports"], path).wrap_err("failed to analyze pkl")?;
 
         // Extract all local file paths from the imports map keys
-        let mut paths = IndexSet::new();
+        let mut local_paths = IndexSet::new();
+        let mut has_untracked_imports = false;
         for uri in imports.resolvedImports.keys() {
             if let Some(file_path) = uri.strip_prefix("file://") {
-                paths.insert(PathBuf::from(file_path));
+                local_paths.insert(PathBuf::from(file_path));
+            } else if Self::is_untracked_import_uri(uri) {
+                has_untracked_imports = true;
             }
         }
 
-        Ok(paths)
+        Ok(ImportAnalysis {
+            local_paths,
+            has_untracked_imports,
+        })
+    }
+
+    fn has_untracked_imports_in_pkl_sources(
+        path: &Path,
+        local_paths: &IndexSet<PathBuf>,
+    ) -> Result<bool> {
+        let mut paths = IndexSet::new();
+        paths.insert(path.to_path_buf());
+        paths.extend(local_paths.iter().cloned());
+        for path in paths {
+            let source = std::fs::read_to_string(&path)
+                .wrap_err_with(|| format!("failed to read pkl imports from {}", path.display()))?;
+            if Self::source_may_reference_untracked_import(&source) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn source_may_reference_untracked_import(source: &str) -> bool {
+        source.lines().map(str::trim_start).any(|line| {
+            !line.starts_with("//")
+                && ["amends", "extends", "import", "import*"]
+                    .iter()
+                    .any(|keyword| line.starts_with(keyword))
+                && ["\"http://", "\"https://", "\"package://"]
+                    .iter()
+                    .any(|scheme| line.contains(scheme))
+        })
+    }
+
+    fn is_untracked_import_uri(uri: &str) -> bool {
+        uri.starts_with("http://") || uri.starts_with("https://") || uri.starts_with("package://")
     }
 
     fn init(&mut self, path: &Path) -> Result<()> {
@@ -147,17 +193,19 @@ impl Config {
         // For pkl files, we need to track all transitive imports for cache invalidation
         let is_pkl = path.extension().is_some_and(|ext| ext == "pkl");
 
-        let fresh_files: Vec<PathBuf> = if is_pkl {
+        let (fresh_files, has_untracked_imports): (Vec<PathBuf>, bool) = if is_pkl {
             // First, get the imports (cached separately, invalidated only by the main config file)
             let imports_cache_path =
                 cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
             let imports_cache_mgr = CacheManagerBuilder::new(imports_cache_path)
                 .with_fresh_files(vec![path.clone()])
-                .build::<IndexSet<PathBuf>>();
+                .build::<ImportAnalysis>();
 
-            let imports = imports_cache_mgr
+            let import_analysis = imports_cache_mgr
                 .get_or_try_init(|| Self::analyze_imports(&path))?
                 .clone();
+            let has_untracked_imports = import_analysis.has_untracked_imports
+                || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
 
             // Always include the main config file. The pklr backend's
             // analyze_imports does not include the source file in its
@@ -165,18 +213,27 @@ impl Config {
             // the cache when using pklr. Using IndexSet avoids
             // double-listing the path on the pkl CLI backend, whose
             // resolvedImports already contains it.
-            let mut files: IndexSet<PathBuf> = imports;
+            let mut files: IndexSet<PathBuf> = import_analysis.local_paths;
             files.insert(path.clone());
-            files.into_iter().collect()
+            (files.into_iter().collect(), has_untracked_imports)
         } else {
-            vec![path.clone()]
+            (vec![path.clone()], false)
         };
 
         // Build the config cache with all fresh files (imports + main config)
-        let config_cache_path = cache_dir.join(hash_key);
-        let config_cache_mgr = CacheManagerBuilder::new(config_cache_path)
-            .with_fresh_files(fresh_files)
-            .build::<Config>();
+        let config_cache_path = if has_untracked_imports {
+            cache_dir.join(hash_key)
+        } else {
+            cache_dir.join("resolved-config.json")
+        };
+        let config_cache_builder = CacheManagerBuilder::new(config_cache_path)
+            .with_cache_key(format!("pkl-backend:{}", env::HK_PKL_BACKEND.as_str()));
+        let config_cache_mgr = if has_untracked_imports {
+            config_cache_builder.with_fresh_files(fresh_files)
+        } else {
+            config_cache_builder.with_content_fresh_files(fresh_files)
+        }
+        .build::<Config>();
 
         // Load from cache if fresh; otherwise read from disk. In both cases, run init
         // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
@@ -772,4 +829,10 @@ impl IntoIterator for StringOrList {
 #[allow(non_snake_case)]
 struct PklImports {
     resolvedImports: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ImportAnalysis {
+    local_paths: IndexSet<PathBuf>,
+    has_untracked_imports: bool,
 }
