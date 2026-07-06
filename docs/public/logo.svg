@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 4 140 112" width="140" height="112">
+  <title>hk</title>
+  <g fill="none" stroke="#4ADEF0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M28 16 V80"/>
+    <path d="M28 58 A16 16 0 0 1 60 58 V80"/>
+    <path d="M92 16 V80"/>
+    <path d="M126 46 L92 68"/>
+    <path d="M100 62 L122 76 C130 81 132 87 132 92 A13 13 0 0 1 106 92 V86 M106 86 L112 91"/>
+  </g>
+</svg>
