@@ -18,6 +18,13 @@ pub struct CacheManagerBuilder {
     cache_keys: Vec<String>,
     fresh_duration: Option<Duration>,
     fresh_files: Vec<PathBuf>,
+    fresh_file_key_mode: FreshFileKeyMode,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum FreshFileKeyMode {
+    PathAndContent,
+    ContentOnly,
 }
 
 pub static BASE_CACHE_KEYS: Lazy<Vec<String>> = Lazy::new(|| {
@@ -35,6 +42,7 @@ impl CacheManagerBuilder {
             cache_keys: BASE_CACHE_KEYS.clone(),
             fresh_files: vec![],
             fresh_duration: None,
+            fresh_file_key_mode: FreshFileKeyMode::PathAndContent,
         }
     }
 
@@ -48,10 +56,16 @@ impl CacheManagerBuilder {
         self
     }
 
-    // pub fn with_cache_key(mut self, key: String) -> Self {
-    //     self.cache_keys.push(key);
-    //     self
-    // }
+    pub fn with_content_fresh_files(mut self, paths: impl IntoIterator<Item = PathBuf>) -> Self {
+        self.fresh_files.extend(paths);
+        self.fresh_file_key_mode = FreshFileKeyMode::ContentOnly;
+        self
+    }
+
+    pub fn with_cache_key(mut self, key: String) -> Self {
+        self.cache_keys.push(key);
+        self
+    }
 
     fn cache_key(&self) -> String {
         hash_to_str(&self.cache_keys).chars().take(5).collect()
@@ -61,12 +75,16 @@ impl CacheManagerBuilder {
     where
         T: Serialize + DeserializeOwned,
     {
-        self.cache_keys.extend(
-            self.fresh_files
-                .iter()
-                .unique()
-                .map(|path| fresh_file_cache_key(path)),
-        );
+        self.cache_keys
+            .extend(
+                self.fresh_files
+                    .iter()
+                    .unique()
+                    .map(|path| match self.fresh_file_key_mode {
+                        FreshFileKeyMode::PathAndContent => fresh_file_cache_key(path),
+                        FreshFileKeyMode::ContentOnly => fresh_file_content_cache_key(path),
+                    }),
+            );
         let key = self.cache_key();
         let (base, ext) = split_file_name(&self.cache_file_path);
         let mut cache_file_path = self.cache_file_path;
@@ -179,6 +197,13 @@ fn fresh_file_cache_key(path: &Path) -> String {
     match std::fs::read(path) {
         Ok(contents) => format!("{}:{}", path.display(), hash_to_str(&contents)),
         Err(_) => format!("{}:<missing>", path.display()),
+    }
+}
+
+fn fresh_file_content_cache_key(path: &Path) -> String {
+    match std::fs::read(path) {
+        Ok(contents) => hash_to_str(&contents),
+        Err(_) => "<missing>".to_string(),
     }
 }
 
