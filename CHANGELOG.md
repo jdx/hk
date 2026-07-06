@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.50.0](https://github.com/jdx/hk/compare/v1.49.0..v1.50.0) - 2026-07-06
+
+### 🚀 Features
+
+- **(builtins)** add textlint linter by [@smasato](https://github.com/smasato) in [#1036](https://github.com/jdx/hk/pull/1036)
+
+### 🐛 Bug Fixes
+
+- **(config)** read string settings from live git config by [@jdx](https://github.com/jdx) in [#1042](https://github.com/jdx/hk/pull/1042)
+- **(hook)** scope pre-commit files to staged changes by [@jdx](https://github.com/jdx) in [#1023](https://github.com/jdx/hk/pull/1023)
+- **(install)** run installed pre-commit hooks staged by [@jdx](https://github.com/jdx) in [#1043](https://github.com/jdx/hk/pull/1043)
+- **(step)** prefer check_list_files in check-first by [@risu729](https://github.com/risu729) in [#1038](https://github.com/jdx/hk/pull/1038)
+- include staged renames in staged files list by [@smasato](https://github.com/smasato) in [#1035](https://github.com/jdx/hk/pull/1035)
+
+### 📚 Documentation
+
+- fix stale defaults, broken links, and invalid examples by [@jdx](https://github.com/jdx) in [#1022](https://github.com/jdx/hk/pull/1022)
+- redesign logo as vector hook wordmark by [@jdx](https://github.com/jdx) in [#1041](https://github.com/jdx/hk/pull/1041)
+
+### ⚡ Performance
+
+- **(config)** share resolved config cache by content by [@jdx](https://github.com/jdx) in [#1044](https://github.com/jdx/hk/pull/1044)
+
+### 🔍 Other Changes
+
+- stop running cargo update in release task by [@jdx](https://github.com/jdx) in [#1020](https://github.com/jdx/hk/pull/1020)
+- Update sponsor references for jdx.dev by [@jdx](https://github.com/jdx) in [#1024](https://github.com/jdx/hk/pull/1024)
+- use release backends for cargo tools by [@jdx](https://github.com/jdx) in [#1040](https://github.com/jdx/hk/pull/1040)
+- schedule releases for Monday morning by [@jdx](https://github.com/jdx) in [#1045](https://github.com/jdx/hk/pull/1045)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action action to v1.0.158 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1026](https://github.com/jdx/hk/pull/1026)
+- update zizmorcore/zizmor-action action to v0.5.7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1027](https://github.com/jdx/hk/pull/1027)
+- update rust crate tera to v2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1028](https://github.com/jdx/hk/pull/1028)
+- update anthropics/claude-code-action action to v1.0.159 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1029](https://github.com/jdx/hk/pull/1029)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1039](https://github.com/jdx/hk/pull/1039)
+
 ## [1.49.0](https://github.com/jdx/hk/compare/v1.48.0..v1.49.0) - 2026-07-01
 
 ### 🚀 Features
