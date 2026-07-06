@@ -346,6 +346,21 @@ impl Display for Script {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CheckFirstCmd<'a> {
+    Diff(&'a Script),
+    ListFiles(&'a Script),
+    Check(&'a Script),
+}
+
+impl<'a> CheckFirstCmd<'a> {
+    pub(crate) fn script(self) -> &'a Script {
+        match self {
+            Self::Diff(script) | Self::ListFiles(script) | Self::Check(script) => script,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
