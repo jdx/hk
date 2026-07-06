@@ -17,4 +17,9 @@ hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     hk install --legacy
     assert_file_exists ".git/hooks/pre-commit"
+
+    run cat ".git/hooks/pre-commit"
+    assert_success
+    assert_output --partial 'run pre-commit --from-hook "$@"'
+    refute_output --partial '--staged'
 }

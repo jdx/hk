@@ -325,7 +325,7 @@ fn warn_if_global_overlap(events: &[String]) {
 fn install_global(events: &[String], command: &OsStr) -> Result<()> {
     remove_config_entries("--global")?;
     for event in events {
-        write_config_hook("--global", command, event)?;
+        write_config_hook("--global", command, event, true)?;
     }
     println!(
         "Installed hk global hooks in ~/.gitconfig for: {}",
@@ -339,7 +339,7 @@ fn install_global(events: &[String], command: &OsStr) -> Result<()> {
 
 fn install_local_config(events: &[String], command: &OsStr) -> Result<()> {
     for event in events {
-        write_config_hook("--local", command, event)?;
+        write_config_hook("--local", command, event, false)?;
         println!("Installed hk hook via git config: hook.hk-{event}.command");
     }
     Ok(())
@@ -371,7 +371,12 @@ fn install_local_shims(events: &[String], command: &OsStr) -> Result<()> {
 
 /// Write both `hook.hk-<event>.command` and `hook.hk-<event>.event` at the
 /// given scope (`--local` or `--global`).
-fn write_config_hook(scope: &str, command: &OsStr, event: &str) -> Result<()> {
+fn write_config_hook(
+    scope: &str,
+    command: &OsStr,
+    event: &str,
+    staged_pre_commit: bool,
+) -> Result<()> {
     let name = format!("hk-{event}");
     let cmd_key = format!("hook.{name}.command");
     let event_key = format!("hook.{name}.event");
@@ -379,7 +384,7 @@ fn write_config_hook(scope: &str, command: &OsStr, event: &str) -> Result<()> {
     // with `HK=0 git commit` under config-based hooks.
     let mut cmd_value = OsString::from(r#"test "${HK:-1}" = "0" || "#);
     cmd_value.push(command);
-    cmd_value.push(format!(r#" run {event} --from-hook "$@""#));
+    cmd_value.push(hook_run_args(event, staged_pre_commit));
 
     run_git([
         OsString::from("config"),
@@ -501,8 +506,17 @@ fn git_hook_content(hk: &str, hook: &str) -> String {
     format!(
         r#"#!/bin/sh
 test "${{HK:-1}}" = "0" || exec {hk} run {hook} --from-hook "$@"
-"#
+"#,
     )
+}
+
+fn hook_run_args(event: &str, staged_pre_commit: bool) -> OsString {
+    let staged = if staged_pre_commit && event == "pre-commit" {
+        " --staged"
+    } else {
+        ""
+    };
+    OsString::from(format!(r#" run {event} --from-hook{staged} "$@""#))
 }
 
 fn check_hooks_path_config() -> Result<()> {
@@ -582,6 +596,22 @@ mod tests {
     fn local_mise_command_keeps_existing_behavior() {
         assert_eq!(local_hook_command(true), OsString::from("mise x -- hk"));
         assert_eq!(local_hook_command(false), OsString::from("hk"));
+    }
+
+    #[test]
+    fn hook_run_args_adds_staged_only_for_pre_commit() {
+        assert_eq!(
+            hook_run_args("pre-commit", true),
+            OsString::from(r#" run pre-commit --from-hook --staged "$@""#)
+        );
+        assert_eq!(
+            hook_run_args("pre-push", true),
+            OsString::from(r#" run pre-push --from-hook "$@""#)
+        );
+        assert_eq!(
+            hook_run_args("pre-commit", false),
+            OsString::from(r#" run pre-commit --from-hook "$@""#)
+        );
     }
 
     #[cfg(unix)]
