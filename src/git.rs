@@ -455,11 +455,22 @@ impl Git {
             let mut staged_renamed_files = BTreeSet::new();
             let staged_copied_files = BTreeSet::new();
             for s in staged_statuses.iter() {
-                if let Ok(path) = s.path().map(PathBuf::from) {
+                let st = s.status();
+                // For renamed entries, s.path() returns the old path which no longer
+                // exists in the worktree; use the new path from the head-to-index delta
+                let path = if st.is_index_renamed() {
+                    // INDEX_RENAMED implies a head-to-index rename delta, whose
+                    // new_file path is always present
+                    s.head_to_index()
+                        .and_then(|d| d.new_file().path())
+                        .map(PathBuf::from)
+                } else {
+                    s.path().map(PathBuf::from).ok()
+                };
+                if let Some(path) = path {
                     // Check if path exists (including broken symlinks)
                     // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
                     let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
-                    let st = s.status();
                     if st.is_index_new() {
                         staged_added_files.insert(path.clone());
                     }
@@ -507,6 +518,8 @@ impl Git {
                         unstaged_deleted_files.insert(path.clone());
                     }
                     if st == git2::Status::WT_RENAMED {
+                        // Note: s.path() would be the old path here, but WT_RENAMED
+                        // is unreachable while renames_index_to_workdir is not enabled
                         unstaged_renamed_files.insert(path.clone());
                     }
                     if exists && st != git2::Status::WT_NEW {
@@ -557,7 +570,8 @@ impl Git {
             let mut unstaged_modified_files = BTreeSet::new();
             let mut unstaged_deleted_files = BTreeSet::new();
             let mut unstaged_renamed_files = BTreeSet::new();
-            for file in output.split('\0') {
+            let mut entries = output.split('\0');
+            while let Some(file) = entries.next() {
                 if file.is_empty() {
                     continue;
                 }
@@ -565,6 +579,16 @@ impl Git {
                 let index_status = chars.next().unwrap_or_default();
                 let workdir_status = chars.next().unwrap_or_default();
                 let path = PathBuf::from(chars.skip(1).collect::<String>());
+                // Renamed/copied entries are followed by the original path as a
+                // separate NUL-terminated field; consume it so it is not parsed
+                // as another status entry
+                if index_status == 'R'
+                    || index_status == 'C'
+                    || workdir_status == 'R'
+                    || workdir_status == 'C'
+                {
+                    entries.next();
+                }
                 // Check if path exists (including broken symlinks)
                 // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
                 let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
