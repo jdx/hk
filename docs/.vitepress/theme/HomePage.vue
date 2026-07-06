@@ -7,11 +7,10 @@
 
       <div class="hero-content">
         <div class="hero-main">
-          <img src="/logo.png" alt="hk logo" class="hero-logo" />
+          <img src="/logo.svg" alt="hk" class="hero-logo" />
 
           <div class="hero-text">
             <h1 class="hero-title">
-              <span class="title-main">hk</span>
               <span class="title-sub">Git Hook Manager</span>
             </h1>
 
@@ -214,9 +213,9 @@ const copyToClipboard = async () => {
 }
 
 .hero-logo {
-  max-width: 180px;
+  max-width: 200px;
   height: auto;
-  filter: drop-shadow(0 8px 30px rgba(76, 201, 240, 0.4)) drop-shadow(0 4px 15px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 8px 30px rgba(74, 222, 240, 0.35)) drop-shadow(0 4px 15px rgba(0, 0, 0, 0.3));
   flex-shrink: 0;
 }
 
@@ -229,23 +228,10 @@ const copyToClipboard = async () => {
   margin-top: 0;
 }
 
-.title-main {
-  display: block;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 5.5rem;
-  font-weight: 400;
-  color: white;
-  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-  letter-spacing: 6px;
-  text-transform: uppercase;
-  margin-bottom: 0;
-  line-height: 0.85;
-}
-
 .title-sub {
   display: block;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.8rem;
+  font-size: 2.2rem;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.9);
   letter-spacing: 4px;
@@ -503,13 +489,12 @@ const copyToClipboard = async () => {
     max-width: 100%;
   }
 
-  .title-main {
-    font-size: 3.5rem;
-    letter-spacing: 3px;
+  .hero-logo {
+    max-width: 160px;
   }
 
   .title-sub {
-    font-size: 1.3rem;
+    font-size: 1.5rem;
   }
 
   .hero-actions {
