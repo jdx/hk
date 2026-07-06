@@ -1,0 +1,72 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Pluggable natural language linter"
+  project_indicators {
+    new { file = "package.json"; contains = "\"textlint\"" }
+    // https://textlint.org/docs/configuring/
+    new { file = ".textlintrc" }
+    new { file = ".textlintrc.json" }
+    new { file = ".textlintrc.yml" }
+    new { file = ".textlintrc.yaml" }
+    new { file = ".textlintrc.js" }
+  }
+}
+textlint = new Config.Step {
+  // textlint's default plugins support Markdown and plain text:
+  // https://textlint.org/docs/plugin/
+  glob = List("**/*.md", "**/*.markdown", "**/*.txt")
+  batch = true
+  check = "textlint {{ files }}"
+  fix = "textlint --fix {{ files }}"
+  tests {
+    // textlint has no built-in rules; ship a tiny fixable rule and reference it
+    // from .textlintrc.js by absolute path so the test does not depend on any
+    // rule package being installed.
+    local const rule =
+      """
+      const reporter = (context) => {
+        const { Syntax, RuleError, getSource, report, fixer } = context;
+        return {
+          [Syntax.Str](node) {
+            const text = getSource(node);
+            const index = text.indexOf("TODO");
+            if (index !== -1) {
+              report(node, new RuleError("Found TODO", {
+                index,
+                fix: fixer.replaceTextRange([index, index + 4], "DONE"),
+              }));
+            }
+          },
+        };
+      };
+      module.exports = { linter: reporter, fixer: reporter };
+
+      """
+    local const testMaker = new helpers.TestMaker {
+      filename = "test.md"
+      extra_files = new Mapping<String, String> {
+        ["textlint-rule-hk-test.js"] = rule
+        [".textlintrc.js"] =
+          """
+          const path = require("path");
+          module.exports = {
+            rules: {
+              [path.join(__dirname, "textlint-rule-hk-test.js")]: true,
+            },
+          };
+
+          """
+      }
+    }
+    local const bad = "This is TODO item.\n"
+    local const good = "This is DONE item.\n"
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+    ["fix bad file"] = testMaker.fixPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
+  }
+}
