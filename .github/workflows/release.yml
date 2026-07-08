@@ -30,6 +30,10 @@ jobs:
             os: macos-latest
             runner: namespace-profile-endev-macos-arm64
             build-tool: cargo
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            runner: namespace-profile-endev-macos-amd64
+            build-tool: cargo
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
