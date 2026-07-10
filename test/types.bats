@@ -216,7 +216,7 @@ hooks {
       ["shell"] {
         match_any = List(
           new { glob = List("**/*.bats") },
-          new { types = List("shell") }
+          new { types = List("sh", "bash") }
         )
         check = "echo {{ files }}"
       }
@@ -234,12 +234,17 @@ EOF
 echo shell
 SCRIPT
     echo "print('not shell')" > test.py
-    git add extension-only.bats extensionless test.py
+    cat > fish-script <<'SCRIPT'
+#!/usr/bin/env fish
+echo fish
+SCRIPT
+    git add extension-only.bats extensionless fish-script test.py
 
     run hk check
     assert_success
     assert_output --partial "extension-only.bats"
     assert_output --partial "extensionless"
+    refute_output --partial "fish-script"
     refute_output --partial "test.py"
 }
 

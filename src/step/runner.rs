@@ -114,17 +114,16 @@ impl Step {
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
         // `{{globs}}` contains every positive glob/regex pattern. Type-only
         // selectors are represented by the already-filtered `{{files}}` list.
-        let globs = self
-            .match_any
-            .as_ref()
-            .map(|selectors| {
-                selectors
-                    .iter()
-                    .filter_map(|selector| selector.glob.as_ref())
-            })
+        let patterns = if let Some(selectors) = &self.match_any {
+            selectors
+                .iter()
+                .filter_map(|selector| selector.glob.as_ref())
+                .collect::<Vec<_>>()
+        } else {
+            self.glob.iter().collect()
+        };
+        let globs = patterns
             .into_iter()
-            .flatten()
-            .chain(self.glob.iter())
             .flat_map(|pattern| match pattern {
                 Pattern::Globs(globs) => globs.clone(),
                 Pattern::Regex { pattern, .. } => vec![pattern.clone()],

@@ -365,7 +365,7 @@ class Step {
   /// ["shellcheck"] {
   ///   match_any = List(
   ///     new { glob = List("**/*.sh", "**/*.bash") },
-  ///     new { types = List("shell") }
+  ///     new { types = List("sh", "bash") }
   ///   )
   ///   check = "shellcheck {{files}}"
   /// }

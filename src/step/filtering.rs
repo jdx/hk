@@ -204,11 +204,14 @@ impl Step {
             // The path stripping should only happen in the command execution context via tera templates
         }
         files = if let Some(selectors) = &self.match_any {
-            let mut matched = IndexSet::new();
+            let mut matched = HashSet::new();
             for selector in selectors {
                 matched.extend(self.filter_match_any_selector(&files, selector)?);
             }
-            matched.into_iter().collect()
+            files
+                .into_iter()
+                .filter(|file| matched.contains(file))
+                .collect()
         } else {
             self.filter_selector(&files, self.glob.as_ref(), self.types.as_deref())?
         };
@@ -279,5 +282,30 @@ impl Step {
             }
         }
         Ok(Some(workspaces))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn match_any_preserves_input_order() {
+        let step = Step {
+            match_any: Some(vec![
+                FileSelector {
+                    glob: Some(Pattern::Globs(vec!["**/*.bats".to_string()])),
+                    types: None,
+                },
+                FileSelector {
+                    glob: Some(Pattern::Globs(vec!["**/*.sh".to_string()])),
+                    types: None,
+                },
+            ]),
+            ..Default::default()
+        };
+        let files = vec![PathBuf::from("first.sh"), PathBuf::from("second.bats")];
+
+        assert_eq!(step.filter_files(&files).unwrap(), files);
     }
 }

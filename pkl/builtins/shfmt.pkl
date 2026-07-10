@@ -16,7 +16,7 @@ shfmt = new Config.Step {
       new Config.FileSelector {
         glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
       },
-      new Config.FileSelector { types = List("shell") },
+      new Config.FileSelector { types = List("sh", "bash") },
     )
   check_diff = "shfmt -d --apply-ignore {{ files }}"
   check_list_files =
@@ -47,7 +47,10 @@ shfmt = new Config.Step {
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
 
-    local const extensionlessTestMaker = testMaker.withFilename("script")
+    local const extensionlessTestMaker = new helpers.TestMaker {
+      filename = "script"
+      files = List("script")
+    }
     ["check extensionless shell script"] =
       extensionlessTestMaker.checkFail(
         "#!/bin/sh\n" + before,

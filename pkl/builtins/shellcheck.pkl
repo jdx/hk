@@ -14,7 +14,7 @@ shellcheck = new Config.Step {
   match_any =
     List(
       new Config.FileSelector { glob = List("**/*.sh", "**/*.bash") },
-      new Config.FileSelector { types = List("shell") },
+      new Config.FileSelector { types = List("sh", "bash") },
     )
   check = "shellcheck {{ files }}"
   tests {
@@ -23,7 +23,11 @@ shellcheck = new Config.Step {
     }
     ["check bad file"] = testMaker.checkFail("#!/usr/bin/bash\necho 'oops I'm escaped'", 1)
     ["check good file"] = testMaker.checkPass("#!/usr/bin/bash\necho 'oops I'\\''m escaped'\n")
+    local const extensionlessTestMaker = new helpers.TestMaker {
+      filename = "script"
+      files = List("script")
+    }
     ["check extensionless shell script"] =
-      testMaker.withFilename("script").checkFail("#!/bin/sh\necho 'oops I'm escaped'", 1)
+      extensionlessTestMaker.checkFail("#!/bin/sh\necho 'oops I'm escaped'", 1)
   }
 }
