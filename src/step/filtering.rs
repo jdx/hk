@@ -17,7 +17,7 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-use super::types::Step;
+use super::{FileSelector, Pattern, Step};
 
 /// Check if a file is binary by reading the first 8KB and looking for null bytes.
 ///
@@ -90,6 +90,30 @@ pub fn is_symlink_file(path: &PathBuf) -> Option<bool> {
 }
 
 impl Step {
+    fn filter_match_any_selector(
+        &self,
+        files: &[PathBuf],
+        selector: &FileSelector,
+    ) -> Result<Vec<PathBuf>> {
+        self.filter_selector(files, selector.glob.as_ref(), selector.types.as_deref())
+    }
+
+    fn filter_selector(
+        &self,
+        files: &[PathBuf],
+        pattern: Option<&Pattern>,
+        types: Option<&[String]>,
+    ) -> Result<Vec<PathBuf>> {
+        let mut files = files.to_vec();
+        if let Some(pattern) = pattern {
+            files = glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?;
+        }
+        if let Some(types) = types {
+            files.retain(|f| crate::file_type::matches_types(f, types));
+        }
+        Ok(files)
+    }
+
     /// Get the profiles that enable this step.
     ///
     /// Returns profiles from the `profiles` field that don't start with `!`.
@@ -157,11 +181,10 @@ impl Step {
     ///
     /// Applies the following filters in order:
     /// 1. Directory filter (`dir`) - only files under this directory
-    /// 2. Glob/regex pattern (`glob`) - must match pattern
+    /// 2. Positive selectors (`glob` + `types`, or `match_any` clauses)
     /// 3. Exclusion pattern (`exclude`) - must not match
     /// 4. Binary filter (`allow_binary`) - skip binary files unless allowed
     /// 5. Symlink filter (`allow_symlinks`) - skip symlinks unless allowed
-    /// 6. Type filter (`types`) - must match file type
     ///
     /// # Arguments
     ///
@@ -180,10 +203,15 @@ impl Step {
             // Don't strip the dir prefix here - it causes issues when steps have different working directories
             // The path stripping should only happen in the command execution context via tera templates
         }
-        if let Some(pattern) = &self.glob {
-            // Use get_pattern_matches consistently for both globs and regex
-            files = glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?;
-        }
+        files = if let Some(selectors) = &self.match_any {
+            let mut matched = IndexSet::new();
+            for selector in selectors {
+                matched.extend(self.filter_match_any_selector(&files, selector)?);
+            }
+            matched.into_iter().collect()
+        } else {
+            self.filter_selector(&files, self.glob.as_ref(), self.types.as_deref())?
+        };
         if let Some(pattern) = self.exclude.as_ref().filter(|pattern| !pattern.is_empty()) {
             // Use get_pattern_matches consistently for excludes too
             let excluded: HashSet<_> =
@@ -211,11 +239,6 @@ impl Step {
                     .map(|is_symlink| !is_symlink)
                     .unwrap_or(true)
             });
-        }
-
-        // Filter by file types if specified
-        if let Some(types) = &self.types {
-            files.retain(|f| crate::file_type::matches_types(f, types));
         }
 
         Ok(files)

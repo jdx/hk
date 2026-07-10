@@ -11,7 +11,11 @@ import "./test/helpers.pkl"
 }
 shellcheck = new Config.Step {
   batch = true
-  glob = List("**/*.sh", "**/*.bash")
+  match_any =
+    List(
+      new Config.FileSelector { glob = List("**/*.sh", "**/*.bash") },
+      new Config.FileSelector { types = List("shell") },
+    )
   check = "shellcheck {{ files }}"
   tests {
     local const testMaker = new helpers.TestMaker {
@@ -19,5 +23,7 @@ shellcheck = new Config.Step {
     }
     ["check bad file"] = testMaker.checkFail("#!/usr/bin/bash\necho 'oops I'm escaped'", 1)
     ["check good file"] = testMaker.checkPass("#!/usr/bin/bash\necho 'oops I'\\''m escaped'\n")
+    ["check extensionless shell script"] =
+      testMaker.withFilename("script").checkFail("#!/bin/sh\necho 'oops I'm escaped'", 1)
   }
 }

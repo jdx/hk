@@ -47,7 +47,7 @@ mod types;
 // Re-export public API
 pub use expr_env::{EXPR_CTX, EXPR_ENV};
 pub use shell::ShellType;
-pub use types::{OutputSummary, Pattern, RunType, Script, Step};
+pub use types::{FileSelector, OutputSummary, Pattern, RunType, Script, Step};
 
 // Re-export for potential external use (currently only used internally)
 #[allow(unused_imports)]

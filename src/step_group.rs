@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
 
 use crate::{
-    Result, glob,
+    Result,
     hook::{HookContext, StepOrGroup},
     step::{Pattern, RunType, Script, Step},
     step_context::StepContext,
@@ -236,20 +236,7 @@ impl StepGroup {
             .steps
             .values()
             .map(|step| {
-                let step_files = if let Some(pattern) = &step.glob {
-                    // Use get_pattern_matches which handles dir filtering internally
-                    glob::get_pattern_matches(pattern, &files, step.dir.as_deref())?
-                } else if let Some(dir) = &step.dir {
-                    // If dir is set without glob, filter files to that directory
-                    files
-                        .iter()
-                        .filter(|f| f.starts_with(dir))
-                        .cloned()
-                        .collect()
-                } else {
-                    // No dir and no glob, use all files
-                    files.clone()
-                };
+                let step_files = step.filter_files(&files)?;
 
                 Ok((step.name.as_str(), step_files))
             })

@@ -261,6 +261,16 @@ class Hook {
   steps: Mapping<String, Step | Group> = new Mapping<String, Step> {}
 }
 
+/// A positive file-selection clause used by `Step.match_any`.
+/// Within a selector, `glob` and `types` compose with AND semantics.
+class FileSelector {
+  /// Glob or regex patterns to match.
+  glob: (String | List<String> | Regex)?
+
+  /// File types to match. A file may match any listed type.
+  types: List<String>?
+}
+
 class Step {
   /// List of environment variables that must be set for this step to run.
   /// A variable is considered satisfied if it is present in the process environment,
@@ -343,6 +353,24 @@ class Step {
   /// 3. Special filenames (e.g., `Dockerfile` → `dockerfile`)
   /// 4. Content/magic number detection for binary files
   types: List<String>?
+
+  /// Match files using any of the supplied selector clauses.
+  /// Selectors compose with OR semantics, while `glob` and `types` within
+  /// each selector compose with AND semantics.
+  ///
+  /// `match_any` cannot be combined with the top-level `glob` or `types`
+  /// fields. Each selector must contain a non-empty `glob` or `types` value.
+  ///
+  /// ```pkl
+  /// ["shellcheck"] {
+  ///   match_any = List(
+  ///     new { glob = List("**/*.sh", "**/*.bash") },
+  ///     new { types = List("shell") }
+  ///   )
+  ///   check = "shellcheck {{files}}"
+  /// }
+  /// ```
+  match_any: List<FileSelector>?
 
   /// Whether to include symbolic links (default: false)
   allow_symlinks: Boolean = false

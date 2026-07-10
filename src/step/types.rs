@@ -2,6 +2,7 @@
 //!
 //! This module contains the fundamental types used to define and configure steps:
 //! - [`Step`] - The main configuration struct for a linting/formatting step
+//! - [`FileSelector`] - A positive file selector used by `match_any`
 //! - [`Pattern`] - File matching patterns (globs or regex)
 //! - [`Script`] - Platform-specific command scripts
 //! - [`RunType`] - Whether to run in check or fix mode
@@ -91,6 +92,30 @@ impl<'de> Deserialize<'de> for Pattern {
     }
 }
 
+/// A positive file-selection clause.
+///
+/// Glob and type filters within one selector use AND semantics. Multiple
+/// selectors in [`Step::match_any`] use OR semantics.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
+pub struct FileSelector {
+    /// File matching pattern (globs or regex)
+    #[serde(default)]
+    pub glob: Option<Pattern>,
+
+    /// File types to match
+    #[serde(default)]
+    pub types: Option<Vec<String>>,
+}
+
+impl FileSelector {
+    pub fn is_empty(&self) -> bool {
+        self.glob.as_ref().is_none_or(Pattern::is_empty)
+            && self.types.as_ref().is_none_or(Vec::is_empty)
+    }
+}
+
 /// A step configuration that defines a linting or formatting task.
 ///
 /// Steps are the core building blocks of hk. Each step defines:
@@ -139,6 +164,10 @@ pub struct Step {
     /// File types to match (e.g., `["rust", "toml"]`)
     #[serde(default)]
     pub types: Option<Vec<String>>,
+
+    /// Alternative positive file selectors, combined with OR semantics
+    #[serde(default)]
+    pub match_any: Option<Vec<FileSelector>>,
 
     /// Whether this step requires interactive terminal input
     #[serde(default)]

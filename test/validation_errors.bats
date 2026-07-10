@@ -154,3 +154,92 @@ EOF
     assert_failure
     assert_output --partial "Step 'test-step' in hook 'pre-push' has 'stage' attribute but no 'fix' command"
 }
+
+@test "validation rejects match_any combined with top-level selectors" {
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["test-step"] {
+                glob = "*.sh"
+                match_any = List(new { types = List("shell") })
+                check = "echo {{ files }}"
+            }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_failure
+    assert_output --partial "cannot combine 'match_any' with top-level 'glob' or 'types'"
+}
+
+@test "validation rejects empty match_any" {
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["test-step"] {
+                match_any = List()
+                check = "echo {{ files }}"
+            }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_failure
+    assert_output --partial "has an empty 'match_any'; add at least one selector"
+}
+
+@test "validation rejects empty match_any selector" {
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["test-step"] {
+                match_any = List(new {})
+                check = "echo {{ files }}"
+            }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_failure
+    assert_output --partial "has an empty 'match_any' selector 1"
+}
+
+@test "validation rejects empty selector fields in groups" {
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["test-group"] = new Group {
+                steps {
+                    ["test-step"] {
+                        match_any = List(new { glob = List() })
+                        check = "echo {{ files }}"
+                    }
+                }
+            }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_failure
+    assert_output --partial "Step 'test-step' in group 'test-group' of hook 'check' has an empty 'glob' in 'match_any' selector 1"
+}

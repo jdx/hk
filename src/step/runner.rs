@@ -112,19 +112,25 @@ impl Step {
             return Ok(());
         }
         let mut tctx = job.tctx(&ctx.hook_ctx.tctx);
-        // Set {{globs}} template variable based on pattern type
-        match self.glob.as_ref() {
-            Some(Pattern::Globs(g)) => {
-                tctx.with_globs(g.as_slice());
-            }
-            Some(Pattern::Regex { pattern, .. }) => {
-                // For regex patterns, provide the pattern string so templates can use it
-                tctx.insert("globs", pattern);
-            }
-            None => {
-                tctx.with_globs(&[] as &[&str]);
-            }
-        }
+        // `{{globs}}` contains every positive glob/regex pattern. Type-only
+        // selectors are represented by the already-filtered `{{files}}` list.
+        let globs = self
+            .match_any
+            .as_ref()
+            .map(|selectors| {
+                selectors
+                    .iter()
+                    .filter_map(|selector| selector.glob.as_ref())
+            })
+            .into_iter()
+            .flatten()
+            .chain(self.glob.iter())
+            .flat_map(|pattern| match pattern {
+                Pattern::Globs(globs) => globs.clone(),
+                Pattern::Regex { pattern, .. } => vec![pattern.clone()],
+            })
+            .collect::<Vec<_>>();
+        tctx.with_globs(&globs);
         let file_msg = |files: &[PathBuf]| {
             format!(
                 "{} file{}",
@@ -165,10 +171,26 @@ impl Step {
             tera::render(&run, &tctx.for_display()).unwrap_or_else(|_| run.clone());
         let run = tera::render(&run, &tctx)
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
-        let pattern_display = match &self.glob {
-            Some(Pattern::Globs(g)) => g.join(" "),
-            Some(Pattern::Regex { pattern, .. }) => format!("regex: {}", pattern),
-            None => String::new(),
+        let display_pattern = |pattern: &Pattern| match pattern {
+            Pattern::Globs(globs) => globs.join(" "),
+            Pattern::Regex { pattern, .. } => format!("regex: {pattern}"),
+        };
+        let pattern_display = if let Some(selectors) = &self.match_any {
+            selectors
+                .iter()
+                .map(|selector| {
+                    let mut parts = Vec::new();
+                    if let Some(pattern) = &selector.glob {
+                        parts.push(display_pattern(pattern));
+                    }
+                    if let Some(types) = &selector.types {
+                        parts.push(format!("types: {}", types.join(", ")));
+                    }
+                    format!("({})", parts.join(" AND "))
+                })
+                .join(" OR ")
+        } else {
+            self.glob.as_ref().map(display_pattern).unwrap_or_default()
         };
         // Cap the full progress message: a `check =` value can be a
         // multi-line shell script or an inline-generated command, and
