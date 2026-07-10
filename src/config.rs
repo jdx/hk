@@ -316,6 +316,7 @@ impl Config {
             }
 
             if let Some(glob) = &step_config.glob {
+                step.match_any = None;
                 step.glob = Some(glob.clone());
             }
 
