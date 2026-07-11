@@ -138,11 +138,12 @@ Example timing report:
 To reduce output:
 
 ```bash
-# Suppress non-error output
+# Suppress non-essential output (info messages, progress indicators)
+# Failed-step diagnostics are still shown
 hk check --quiet
 hk check -q
 
-# Suppress all output (only exit codes)
+# Suppress all output including warnings (only errors are shown)
 hk check --silent
 ```
 

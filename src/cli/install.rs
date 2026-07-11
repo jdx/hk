@@ -1,6 +1,6 @@
 use crate::{Result, config::Config, env, git_util};
 use eyre::bail;
-use log::warn;
+use log::{info, warn};
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 use std::process::Command;
@@ -77,11 +77,11 @@ impl Install {
             // stale local install so it doesn't double-fire alongside global.
             let removed = remove_local_shims()? + remove_local_config_entries()?;
             if removed > 0 {
-                println!(
+                info!(
                     "hk hooks already configured globally (~/.gitconfig); removed {removed} stale local hook(s) and did not install new ones. Pass `--force-local` to install per-repo hooks anyway."
                 );
             } else {
-                println!(
+                info!(
                     "hk hooks already configured globally (~/.gitconfig); skipping local install. Pass `--force-local` to install per-repo hooks anyway."
                 );
             }
@@ -327,11 +327,11 @@ fn install_global(events: &[String], command: &OsStr) -> Result<()> {
     for event in events {
         write_config_hook("--global", command, event, true)?;
     }
-    println!(
+    info!(
         "Installed hk global hooks in ~/.gitconfig for: {}",
         events.join(", ")
     );
-    println!(
+    info!(
         "In repos without an hk.pkl, hk exits silently — add one with `hk init` to enable hooks."
     );
     Ok(())
@@ -340,7 +340,7 @@ fn install_global(events: &[String], command: &OsStr) -> Result<()> {
 fn install_local_config(events: &[String], command: &OsStr) -> Result<()> {
     for event in events {
         write_config_hook("--local", command, event, false)?;
-        println!("Installed hk hook via git config: hook.hk-{event}.command");
+        info!("Installed hk hook via git config: hook.hk-{event}.command");
     }
     Ok(())
 }
@@ -364,7 +364,7 @@ fn install_local_shims(events: &[String], command: &OsStr) -> Result<()> {
             git_hook_content(&command.to_string_lossy(), event),
         )?;
         xx::file::make_executable(&hook_file)?;
-        println!("Installed hk hook: {}", hook_file.display());
+        info!("Installed hk hook: {}", hook_file.display());
     }
     Ok(())
 }

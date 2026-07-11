@@ -345,9 +345,9 @@ type = "bool"
 default = false
 sources.cli = ["--quiet", "-q"]
 docs = """
-Suppresses non-essential output.
+Suppresses non-essential output (info messages, progress indicators).
 
-When enabled, only errors and critical information will be displayed.
+When enabled, only warnings and errors will be displayed.
 Useful for scripting or when you only care about the exit code.
 """
 
@@ -356,10 +356,10 @@ type = "bool"
 default = false
 sources.cli = ["--silent"]
 docs = """
-Completely suppresses all output, including errors.
+Suppresses all output including warnings. Only errors are shown.
 
-More extreme than `quiet` - absolutely no output will be displayed.
-Useful when only the exit code matters.
+More extreme than `quiet` - progress indicators, info messages, and
+warnings are all hidden. Useful when only the exit code matters.
 """
 
 [skip_hooks]

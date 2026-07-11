@@ -32,11 +32,11 @@ Disables progress output
 
 ### `-q --quiet`
 
-Suppresses output
+Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
 
 ### `--silent`
 
-Suppresses all output
+Suppresses all output including warnings. Only errors are shown
 
 ### `--trace`
 

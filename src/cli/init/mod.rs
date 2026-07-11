@@ -64,9 +64,9 @@ impl Init {
                 .map(|d| format!("{} ({})", d.builtin.name, d.reason))
                 .collect::<Vec<_>>()
                 .join(", ");
-            println!("Detected: {}", summary);
+            info!("Detected: {}", summary);
         }
-        println!("Created hk.pkl");
+        info!("Created hk.pkl");
 
         Ok(())
     }
@@ -74,14 +74,13 @@ impl Init {
     fn run_interactive(&self, detections: &[detector::Detection], version: &str) -> Result<String> {
         // Print detection info
         if !detections.is_empty() {
-            println!("\nScanning project...");
+            info!("Scanning project...");
             for detection in detections {
-                println!(
+                info!(
                     "  Detected: {} ({})",
                     detection.builtin.name, detection.reason
                 );
             }
-            println!();
         }
 
         // Let user pick builtins
@@ -130,7 +129,7 @@ run = "hk run pre-commit"
             warn!("mise.toml already exists, run with --force to overwrite");
         } else {
             xx::file::write(mise_toml, mise_content)?;
-            println!("Generated mise.toml");
+            info!("Generated mise.toml");
         }
         Ok(())
     }
