@@ -15,8 +15,8 @@ flag "-p --profile" help="Profiles to enable/disable prefix with ! to disable e.
 flag "-s --slow" help="Shorthand for --profile=slow" global=#true
 flag "-v --verbose" help="Enables verbose output" var=#true global=#true count=#true
 flag "-n --no-progress" help="Disables progress output" global=#true
-flag "-q --quiet" help="Suppresses output" global=#true
-flag --silent help="Suppresses all output" global=#true
+flag "-q --quiet" help="Suppresses non-essential output (info messages, progress indicators)" global=#true
+flag --silent help="Suppresses all output including warnings. Only errors are shown" global=#true
 flag --trace help="Enable tracing spans and performance diagnostics" global=#true
 flag --json help="Output in JSON format" global=#true
 cmd builtins help="Lists all available builtin linters"

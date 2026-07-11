@@ -882,6 +882,9 @@ impl Hook {
 
     pub async fn stats(&self, opts: HookOptions, hook_name: &str) -> Result<()> {
         let settings = Settings::get();
+        if settings.quiet || settings.silent {
+            return Ok(());
+        }
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
@@ -1195,11 +1198,13 @@ impl Hook {
         // summaries by default — but failed steps still get a summary so the
         // user can see the diagnostic in full (text-mode streaming truncates
         // each line via the `message` prop). `HK_SUMMARY_TEXT=1` forces all
-        // summaries to print in text mode.
+        // summaries to print in text mode. `--quiet`/`--silent` suppress
+        // summaries entirely.
         let in_text_mode = clx::progress::output() == ProgressOutput::Text;
         let force_summary = *env::HK_SUMMARY_TEXT;
         let failed_steps = hook_ctx.failed_steps.lock().unwrap().clone();
-        if !in_text_mode || force_summary || !failed_steps.is_empty() {
+        let suppress_summary = settings.quiet || settings.silent;
+        if !suppress_summary && (!in_text_mode || force_summary || !failed_steps.is_empty()) {
             let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
             for (step_name, (mode, output)) in outputs.into_iter() {
                 if in_text_mode && !force_summary && !failed_steps.contains(&step_name) {
