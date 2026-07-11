@@ -93,7 +93,7 @@ EOF
     git add hk.pkl
     run hk check --stats --silent
     assert_success
-    refute_output --partial "Statistics"
+    assert_output ""
 }
 
 @test "check --silent suppresses failed step output summary" {
