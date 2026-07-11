@@ -368,6 +368,11 @@ h1, .vp-doc h1 {
   text-transform: uppercase;
 }
 
+/* Social links */
+.VPSocialLinks {
+  align-items: center !important;
+}
+
 .VPSocialLinks a[href*="github.com/jdx/hk"] {
   display: inline-flex !important;
   flex-direction: column;
