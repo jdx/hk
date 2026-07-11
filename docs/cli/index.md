@@ -32,7 +32,7 @@ Disables progress output
 
 ### `-q --quiet`
 
-Suppresses non-essential output (info messages, progress indicators)
+Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
 
 ### `--silent`
 

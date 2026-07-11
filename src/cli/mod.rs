@@ -48,7 +48,7 @@ struct Cli {
     /// Disables progress output
     #[clap(short, long, global = true)]
     no_progress: bool,
-    /// Suppresses non-essential output (info messages, progress indicators)
+    /// Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
     #[clap(short, long, global = true, overrides_with_all = ["verbose", "silent"])]
     quiet: bool,
     /// Suppresses all output including warnings. Only errors are shown

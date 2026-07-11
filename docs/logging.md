@@ -139,6 +139,7 @@ To reduce output:
 
 ```bash
 # Suppress non-essential output (info messages, progress indicators)
+# Failed-step diagnostics are still shown
 hk check --quiet
 hk check -q
 

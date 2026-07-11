@@ -4895,8 +4895,8 @@
       {
         "name": "quiet",
         "usage": "-q --quiet",
-        "help": "Suppresses non-essential output (info messages, progress indicators)",
-        "help_first_line": "Suppresses non-essential output (info messages, progress indicators)",
+        "help": "Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown",
+        "help_first_line": "Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown",
         "short": ["q"],
         "long": ["quiet"],
         "hide": false,

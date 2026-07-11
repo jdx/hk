@@ -57,6 +57,45 @@ EOF
     refute_output --partial "files"
 }
 
+@test "check --quiet shows failed step output summary" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { check = "echo some diagnostic && exit 1" } } }
+}
+EOF
+    git add hk.pkl
+    run hk check --quiet
+    assert_failure
+    assert_output --partial "some diagnostic"
+}
+
+@test "check --stats --quiet suppresses statistics" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { check = "echo checking {{files}}" } } }
+}
+EOF
+    git add hk.pkl
+    run hk check --stats --quiet
+    assert_success
+    refute_output --partial "Statistics"
+}
+
+@test "check --stats --silent suppresses statistics" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps { ["a"] { check = "echo checking {{files}}" } } }
+}
+EOF
+    git add hk.pkl
+    run hk check --stats --silent
+    assert_success
+    refute_output --partial "Statistics"
+}
+
 @test "check --silent suppresses failed step output summary" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
