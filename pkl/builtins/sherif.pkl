@@ -1,0 +1,65 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Opinionated, zero-config linter for TypeScript & JavaScript monorepos"
+  project_indicators {
+    new { file = "package.json"; contains = "\"sherif\"" }
+  }
+}
+sherif = new Config.Step {
+  // sherif always scans the whole workspace from the repo root; it does not
+  // accept file arguments, so there's no {{ files }} in the commands below.
+  // https://github.com/QuiiBz/sherif
+  glob = List("**/package.json", "**/pnpm-workspace.yaml")
+  check = "sherif"
+  // --no-install skips the package-manager install sherif otherwise runs
+  // after autofixing. --select highest|lowest (for multiple-dependency-
+  // versions autofix) is left to the user to configure if needed.
+  // Note: fix may rewrite package.json files across the whole workspace
+  // (e.g. multiple-dependency-versions), including files hk did not match
+  // or lock for this run.
+  fix = "sherif --fix --no-install"
+  tests {
+    // sherif refuses to run --fix whenever the CI env var is set to any
+    // value ("Cannot fix issues inside a CI environment", exit 1). hk test
+    // inherits the parent process env and can only add env vars, never
+    // unset them, and this repo's GitHub Actions CI runs the builtin tests
+    // with CI=true. So only check-mode tests are included here; fix tests
+    // would fail in CI even though they pass locally.
+    local const bad =
+      """
+      {
+        "name": "root",
+        "packageManager": "npm@10.0.0",
+        "workspaces": [
+          "packages/*"
+        ]
+      }
+
+      """
+    local const good =
+      """
+      {
+        "name": "root",
+        "packageManager": "npm@10.0.0",
+        "workspaces": [
+          "packages/*"
+        ],
+        "private": true
+      }
+
+      """
+    local const testMaker = new helpers.TestMaker {
+      filename = "package.json"
+      extra_files = new Mapping<String, String> {
+        ["packages/a/package.json"] = "{\"name\":\"a\",\"version\":\"1.0.0\"}\n"
+        ["packages/b/package.json"] = "{\"name\":\"b\",\"version\":\"1.0.0\"}\n"
+      }
+    }
+    ["check bad file"] = testMaker.checkFail(bad, 1)
+    ["check good file"] = testMaker.checkPass(good)
+  }
+}
