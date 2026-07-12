@@ -316,6 +316,7 @@ impl Config {
             }
 
             if let Some(glob) = &step_config.glob {
+                step.match_any = None;
                 step.glob = Some(glob.clone());
             }
 
@@ -710,31 +711,19 @@ impl std::fmt::Display for Config {
 
 impl Config {
     pub fn validate(&self) -> Result<()> {
-        // Validate that steps with 'stage' attribute also have a 'fix' command
         for (hook_name, hook) in &self.hooks {
             for (step_name, step_or_group) in &hook.steps {
                 match step_or_group {
                     crate::hook::StepOrGroup::Step(step) => {
-                        if step.stage.is_some() && step.fix.is_none() {
-                            bail!(
-                                "Step '{}' in hook '{}' has 'stage' attribute but no 'fix' command. \
-                                Steps that stage files must have a fix command.",
-                                step_name,
-                                hook_name
-                            );
-                        }
+                        validate_step(step, step_name, &format!("in hook '{hook_name}'"))?;
                     }
                     crate::hook::StepOrGroup::Group(group) => {
                         for (group_step_name, group_step) in &group.steps {
-                            if group_step.stage.is_some() && group_step.fix.is_none() {
-                                bail!(
-                                    "Step '{}' in group '{}' of hook '{}' has 'stage' attribute but no 'fix' command. \
-                                    Steps that stage files must have a fix command.",
-                                    group_step_name,
-                                    step_name,
-                                    hook_name
-                                );
-                            }
+                            validate_step(
+                                group_step,
+                                group_step_name,
+                                &format!("in group '{step_name}' of hook '{hook_name}'"),
+                            )?;
                         }
                     }
                 }
@@ -742,6 +731,69 @@ impl Config {
         }
         Ok(())
     }
+}
+
+fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> Result<()> {
+    if step.stage.is_some() && step.fix.is_none() {
+        bail!(
+            "Step '{}' {} has 'stage' attribute but no 'fix' command. \
+            Steps that stage files must have a fix command.",
+            step_name,
+            location
+        );
+    }
+
+    let Some(selectors) = &step.match_any else {
+        return Ok(());
+    };
+
+    if step.glob.is_some() || step.types.is_some() {
+        bail!(
+            "Step '{}' {} cannot combine 'match_any' with top-level 'glob' or 'types'.",
+            step_name,
+            location
+        );
+    }
+    if selectors.is_empty() {
+        bail!(
+            "Step '{}' {} has an empty 'match_any'; add at least one selector.",
+            step_name,
+            location
+        );
+    }
+    for (index, selector) in selectors.iter().enumerate() {
+        if selector
+            .glob
+            .as_ref()
+            .is_some_and(crate::step::Pattern::is_empty)
+        {
+            bail!(
+                "Step '{}' {} has an empty 'glob' in 'match_any' selector {}.",
+                step_name,
+                location,
+                index + 1
+            );
+        }
+        if selector.types.as_ref().is_some_and(Vec::is_empty) {
+            bail!(
+                "Step '{}' {} has an empty 'types' in 'match_any' selector {}.",
+                step_name,
+                location,
+                index + 1
+            );
+        }
+        if selector.is_empty() {
+            bail!(
+                "Step '{}' {} has an empty 'match_any' selector {}. \
+                Each selector must define a non-empty 'glob' or 'types'.",
+                step_name,
+                location,
+                index + 1
+            );
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]

@@ -27,3 +27,37 @@ PKL
     # At least the newlines builtin has a test
     assert_output --partial "ok - newlines :: fix bad file"
 }
+
+@test "shell builtins select extensionless sh scripts but not fish" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["shellcheck"] = (Builtins.shellcheck) {
+        check = "echo shellcheck {{ files }}"
+      }
+      ["shfmt"] = (Builtins.shfmt) {
+        check = "echo shfmt {{ files }}"
+      }
+    }
+  }
+}
+PKL
+
+    cat <<'SCRIPT' > script
+#!/bin/sh
+echo shell
+SCRIPT
+    cat <<'SCRIPT' > fish-script
+#!/usr/bin/env fish
+echo fish
+SCRIPT
+
+    run hk check --all
+    assert_success
+    assert_output --partial "shellcheck script"
+    assert_output --partial "shfmt script"
+    refute_output --partial "fish-script"
+}

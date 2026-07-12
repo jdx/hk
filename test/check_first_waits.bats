@@ -19,7 +19,7 @@ hooks {
         fix = true
         steps {
             ["a"] {
-                glob = List("*.sh")
+                match_any = List(new { types = List("bash") })
                 stage = "*"
                 check_first = true
                 check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"

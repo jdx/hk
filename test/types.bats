@@ -205,3 +205,82 @@ EOF
     assert_output --partial "test.ts"
     refute_output --partial "test.py"
 }
+
+@test "match_any: ORs glob and type selectors" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["shell"] {
+        match_any = List(
+          new { glob = List("**/*.bats") },
+          new { types = List("sh", "bash") }
+        )
+        check = "echo {{ files }}"
+      }
+    }
+  }
+}
+EOF
+    git init
+    git add -A
+    git commit -m "init"
+
+    echo "echo bats" > extension-only.bats
+    cat > extensionless <<'SCRIPT'
+#!/bin/sh
+echo shell
+SCRIPT
+    echo "print('not shell')" > test.py
+    cat > fish-script <<'SCRIPT'
+#!/usr/bin/env fish
+echo fish
+SCRIPT
+    git add extension-only.bats extensionless fish-script test.py
+
+    run hk check
+    assert_success
+    assert_output --partial "extension-only.bats"
+    assert_output --partial "extensionless"
+    refute_output --partial "fish-script"
+    refute_output --partial "test.py"
+}
+
+@test "match_any: ANDs glob and types within each selector" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["python-in-src"] {
+        match_any = List(
+          new {
+            glob = "src/**/*"
+            types = List("python")
+          }
+        )
+        check = "echo {{ files }}"
+      }
+    }
+  }
+}
+EOF
+    git init
+    git add -A
+    git commit -m "init"
+
+    mkdir -p src lib
+    echo "print('hello')" > src/test.py
+    echo "console.log('hello')" > src/test.js
+    echo "print('hello')" > lib/test.py
+    git add src lib
+
+    run hk check
+    assert_success
+    assert_output --partial "src/test.py"
+    refute_output --partial "src/test.js"
+    refute_output --partial "lib/test.py"
+}

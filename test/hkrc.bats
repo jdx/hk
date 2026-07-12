@@ -157,7 +157,7 @@ EOF
     assert_output --partial "Hook var not found (correct)"
 }
 
-@test "hkrc: per-step configuration overrides" {
+@test "hkrc: per-step glob overrides match_any" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
@@ -165,7 +165,7 @@ hooks {
     ["pre-commit"] {
         steps {
             ["test_glob"] {
-                glob = "*.txt"
+                match_any = List(new { glob = "*.txt" })
                 check = "echo 'Found files:' && echo {{ files }}"
             }
         }

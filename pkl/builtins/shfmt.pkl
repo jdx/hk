@@ -11,7 +11,13 @@ import "./test/helpers.pkl"
 }
 shfmt = new Config.Step {
   batch = true
-  glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
+  match_any =
+    List(
+      new Config.FileSelector {
+        glob = List("**/*.sh", "**/*.bash", "**/*.mksh", "**/*.bats", "**/*.zsh")
+      },
+      new Config.FileSelector { types = List("sh", "bash") },
+    )
   check_diff = "shfmt -d --apply-ignore {{ files }}"
   check_list_files =
     """
@@ -40,6 +46,16 @@ shfmt = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+
+    local const extensionlessTestMaker = new helpers.TestMaker {
+      filename = "script"
+      files = List("script")
+    }
+    ["check extensionless shell script"] =
+      extensionlessTestMaker.checkFail(
+        "#!/bin/sh\n" + before,
+        1,
+      )
 
     local const ignoredTestMaker = new helpers.TestMaker {
       filename = "test.sh"

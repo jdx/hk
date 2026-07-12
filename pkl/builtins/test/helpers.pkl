@@ -6,6 +6,9 @@ class TestMaker {
   /// The name of the file to run the command on.
   filename: String = "file.txt"
 
+  /// Explicit files to pass to the command. Defaults to the written file keys.
+  files: List<String>?
+
   /// Extra files to include in the sandbox, useful for config files.
   extra_files: Mapping<String, String> = new Mapping {}
 
@@ -20,6 +23,7 @@ class TestMaker {
     expectedCode: Int,
   ): Config.StepTest = new Config.StepTest {
     run = runType
+    files = outer.files
     before = outer.before
     tmpdir = true
     write = new Mapping<String, String> {
