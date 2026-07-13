@@ -15,6 +15,17 @@ teardown() {
     temp_del "$TEST_REPO_DIR"
 }
 
+require_git_2_54() {
+    local version major minor
+    version="$(git version | awk '{print $3}')"
+    major="${version%%.*}"
+    minor="${version#*.}"
+    minor="${minor%%.*}"
+    if [ "$major" -lt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -lt 54 ]; }; then
+        skip "git 2.54+ required for config-based hooks"
+    fi
+}
+
 @test "pre-push hook" {
     export NO_COLOR=1
     if [ "$HK_LIBGIT2" = "0" ]; then
@@ -35,6 +46,31 @@ EOF
     git add test.js
     git commit -m "test"
     HK_LOG=trace run git push origin main
+    assert_failure
+    assert_output --partial "[warn] test.js"
+}
+
+@test "config-based pre-push hook checks pushed files" {
+    require_git_2_54
+    export NO_COLOR=1
+    if [ "$HK_LIBGIT2" = "0" ]; then
+        skip "libgit2 is not installed"
+    fi
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
+EOF
+    git add hk.pkl
+    git commit -m "install hk"
+    git push origin main
+    hk install
+    echo 'console.log("test")' > test.js
+    git add test.js
+    git commit -m "test"
+
+    run git push origin main
+
     assert_failure
     assert_output --partial "[warn] test.js"
 }
