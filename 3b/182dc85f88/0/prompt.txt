@@ -1,0 +1,5 @@
+investigate [https://github.com/jdx/hk/discussions/1061](https://github.com/jdx/hk/discussions/1061)
+
+---
+
+make a pr and reply to discussion
