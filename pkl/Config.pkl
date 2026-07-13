@@ -21,6 +21,15 @@ class Script {
   other: String?
 }
 
+/// A command executed directly without a shell.
+///
+/// The first entry is the executable. Exact `{{files}}` and
+/// `{{workspace_files}}` entries expand to one argument per file.
+/// Structured commands cannot be combined with a step's `shell` or `prefix`.
+class Command {
+  argv: List<String>
+}
+
 /// Default: auto-detected
 ///
 /// Specifies the preferred default branch to compare against when hk needs a reference
@@ -416,7 +425,15 @@ class Step {
   /// - `{{workspace_indicator}}`: Full path to the matched workspace indicator file
   ///   (e.g., `packages/app/package.json`).
   /// - `{{workspace_files}}`: A list of files relative to `{{workspace}}`.
-  check: (String | Script)?
+  ///
+  /// To bypass the shell and pass files as separate arguments, use `Command`:
+  ///
+  /// ```pkl
+  /// check = new Command {
+  ///   argv = List("wc", "-c", "{{files}}")
+  /// }
+  /// ```
+  check: (String | Script | Command)?
 
   /// A command that returns a list of files that need fixing.
   /// This is used to optimize the fix step when `check_first` is enabled.
@@ -431,7 +448,7 @@ class Step {
   ///     }
   /// }
   /// ```
-  check_list_files: (String | Script)?
+  check_list_files: (String | Script | Command)?
 
   /// A command that shows the diff of what would be changed.
   /// This is an alternative to `check` that can provide more detailed information about what would be changed.
@@ -441,7 +458,7 @@ class Step {
   /// produce standard unified diffs (black, ruff, shfmt, etc.).
   ///
   /// Falls back to running the fix command if patch application fails.
-  check_diff: (String | Script)?
+  check_diff: (String | Script | Command)?
 
   /// A command to run that modifies files.
   /// This typically is a "fix" command like `eslint --fix` or `prettier --write`.
@@ -457,7 +474,7 @@ class Step {
   ///
   /// By default, hk will use `fix` commands but this can be overridden by setting
   /// [`HK_FIX=0`](https://hk.jdx.dev/configuration#hk-fix) or running `hk run <HOOK> --check`.
-  fix: (String | Script)?
+  fix: (String | Script | Command)?
 
   /// If true, hk will run the check step first and only run the fix step if the check step fails.
   check_first: Boolean = true

@@ -4,11 +4,12 @@
 //! - [`Step`] - The main configuration struct for a linting/formatting step
 //! - [`FileSelector`] - A positive file selector used by `match_any`
 //! - [`Pattern`] - File matching patterns (globs or regex)
-//! - [`Script`] - Platform-specific command scripts
+//! - [`Command`] - Shell scripts or structured argument vectors
+//! - [`Script`] - Platform-specific shell scripts
 //! - [`RunType`] - Whether to run in check or fix mode
 //! - [`OutputSummary`] - How to capture and display command output
 
-use crate::step_test::StepTest;
+use crate::{Result, step_test::StepTest, tera};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
@@ -190,19 +191,19 @@ pub struct Step {
 
     /// Command to check for issues (exit non-zero if issues found)
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
-    pub check: Option<Script>,
+    pub check: Option<Command>,
 
     /// Command that outputs a list of files needing fixes (one per line)
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
-    pub check_list_files: Option<Script>,
+    pub check_list_files: Option<Command>,
 
     /// Command that outputs a unified diff of needed changes
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
-    pub check_diff: Option<Script>,
+    pub check_diff: Option<Command>,
 
     /// Command to fix issues
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
-    pub fix: Option<Script>,
+    pub fix: Option<Command>,
 
     /// File that indicates workspace roots (e.g., `Cargo.toml` for Rust)
     pub workspace_indicator: Option<String>,
@@ -347,6 +348,127 @@ pub struct Script {
     pub other: Option<String>,
 }
 
+/// A command represented as an executable followed by its arguments.
+///
+/// Exact `{{files}}` and `{{workspace_files}}` entries expand to multiple
+/// arguments. Every other entry is rendered as one Tera-templated argument.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArgvCommand {
+    pub argv: Vec<String>,
+}
+
+/// A step command that either runs through a shell or executes an argv directly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Command {
+    Argv(ArgvCommand),
+    Shell(Script),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RenderedCommand {
+    Shell(String),
+    Argv(Vec<String>),
+}
+
+impl Command {
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Shell(script) => script.to_string().trim().is_empty(),
+            Self::Argv(command) => command.argv.is_empty(),
+        }
+    }
+
+    pub fn is_argv(&self) -> bool {
+        matches!(self, Self::Argv(_))
+    }
+
+    pub(crate) fn render(
+        &self,
+        tctx: &tera::Context,
+        prefix: Option<&str>,
+    ) -> Result<RenderedCommand> {
+        match self {
+            Self::Shell(script) => {
+                let script = script.to_string();
+                let script = if let Some(prefix) = prefix {
+                    format!("{prefix} {script}")
+                } else {
+                    script
+                };
+                Ok(RenderedCommand::Shell(tera::render(&script, tctx)?))
+            }
+            Self::Argv(command) => {
+                if prefix.is_some() {
+                    eyre::bail!("structured argv commands cannot use `prefix`");
+                }
+                let mut rendered = Vec::new();
+                for (index, arg) in command.argv.iter().enumerate() {
+                    let placeholder = arg
+                        .chars()
+                        .filter(|c| !c.is_whitespace())
+                        .collect::<String>();
+                    let list = match placeholder.as_str() {
+                        "{{files}}" => Some("files_list"),
+                        "{{workspace_files}}" => Some("workspace_files_list"),
+                        _ => None,
+                    };
+                    if let Some(list) = list {
+                        if index == 0 {
+                            eyre::bail!("the executable cannot be a file-list placeholder");
+                        }
+                        rendered.extend(tctx.string_list(list).unwrap_or_default());
+                    } else {
+                        rendered.push(tera::render(arg, tctx)?);
+                    }
+                }
+                if rendered.is_empty() || rendered[0].trim().is_empty() {
+                    eyre::bail!("structured argv command must contain an executable");
+                }
+                Ok(RenderedCommand::Argv(rendered))
+            }
+        }
+    }
+}
+
+impl RenderedCommand {
+    pub(crate) fn execution_size(&self) -> usize {
+        match self {
+            Self::Shell(script) => script.len(),
+            Self::Argv(argv) => argv.iter().map(|arg| arg.len() + 1).sum(),
+        }
+    }
+
+    pub(crate) fn display(&self, shell_type: super::ShellType) -> String {
+        match self {
+            Self::Shell(script) => script.clone(),
+            Self::Argv(argv) => argv
+                .iter()
+                .map(|arg| shell_type.quote(arg))
+                .collect::<Vec<_>>()
+                .join(" "),
+        }
+    }
+}
+
+impl FromStr for Command {
+    type Err = eyre::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::Shell(s.parse()?))
+    }
+}
+
+impl Display for Command {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Shell(script) => script.fmt(f),
+            Self::Argv(command) => write!(f, "{}", command.argv.join(" ")),
+        }
+    }
+}
+
 impl FromStr for Script {
     type Err = eyre::Error;
 
@@ -377,15 +499,15 @@ impl Display for Script {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CheckFirstCmd<'a> {
-    Diff(&'a Script),
-    ListFiles(&'a Script),
-    Check(&'a Script),
+    Diff(&'a Command),
+    ListFiles(&'a Command),
+    Check(&'a Command),
 }
 
 impl<'a> CheckFirstCmd<'a> {
-    pub(crate) fn script(self) -> &'a Script {
+    pub(crate) fn command(self) -> &'a Command {
         match self {
-            Self::Diff(script) | Self::ListFiles(script) | Self::Check(script) => script,
+            Self::Diff(command) | Self::ListFiles(command) | Self::Check(command) => command,
         }
     }
 }
@@ -393,6 +515,46 @@ impl<'a> CheckFirstCmd<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn structured_argv_expands_file_lists_as_distinct_arguments() {
+        let command = Command::Argv(ArgvCommand {
+            argv: vec![
+                "tool".to_string(),
+                "--label={{color}}".to_string(),
+                "{{files}}".to_string(),
+                "{{workspace_files}}".to_string(),
+            ],
+        });
+        let mut tctx = tera::Context::default();
+        tctx.insert("color", "blue");
+        tctx.insert("files_list", &vec!["a b.txt", "semi;colon.txt"]);
+        tctx.insert("workspace_files_list", &vec!["src/lib.rs"]);
+
+        assert_eq!(
+            command.render(&tctx, None).unwrap(),
+            RenderedCommand::Argv(vec![
+                "tool".to_string(),
+                "--label=blue".to_string(),
+                "a b.txt".to_string(),
+                "semi;colon.txt".to_string(),
+                "src/lib.rs".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn structured_argv_rejects_shell_prefix() {
+        let command = Command::Argv(ArgvCommand {
+            argv: vec!["tool".to_string()],
+        });
+
+        let err = command
+            .render(&tera::Context::default(), Some("env FOO=bar"))
+            .unwrap_err();
+
+        assert!(err.to_string().contains("cannot use `prefix`"));
+    }
 
     #[test]
     fn test_script_empty_windows_command() {

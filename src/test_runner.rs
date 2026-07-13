@@ -4,8 +4,7 @@ use std::time::Instant;
 
 use crate::{
     Result, git_util,
-    step::RunType,
-    step::Step,
+    step::{RenderedCommand, RunType, Step},
     step_test::{RunKind, StepTest},
     tera,
 };
@@ -28,22 +27,28 @@ async fn execute_cmd(
     tctx: &tera::Context,
     base_dir: &Path,
     test: &StepTest,
-    cmd_str: &str,
+    command: &RenderedCommand,
     stdin: &Option<String>,
 ) -> Result<(String, String, i32)> {
-    let mut runner = if let Some(shell) = &step.shell {
-        let shell = shell.to_string();
-        let mut parts = shell.split_whitespace();
-        let bin = parts.next().unwrap_or("sh");
-        CmdLineRunner::new(bin).args(parts)
-    } else {
-        CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+    let mut runner = match command {
+        RenderedCommand::Argv(argv) => CmdLineRunner::new_direct(&argv[0]).args(&argv[1..]),
+        RenderedCommand::Shell(cmd_str) => {
+            let runner = if let Some(shell) = &step.shell {
+                let shell = shell.to_string();
+                let mut parts = shell.split_whitespace();
+                let bin = parts.next().unwrap_or("sh");
+                CmdLineRunner::new(bin).args(parts)
+            } else {
+                CmdLineRunner::new("sh").arg("-o").arg("errexit").arg("-c")
+            };
+            runner.arg(cmd_str)
+        }
     };
     if let Some(stdin) = stdin {
         let rendered_stdin = tera::render(stdin, tctx)?;
         runner = runner.stdin_string(rendered_stdin);
     }
-    runner = runner.arg(cmd_str).current_dir(base_dir);
+    runner = runner.current_dir(base_dir);
     for (k, v) in &step.env {
         let v = tera::render(v, tctx)?;
         runner = runner.env(k, v);
@@ -223,25 +228,19 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         RunKind::Check => RunType::Check,
     };
 
-    let Some(mut run) = step
-        .run_cmd(run_type)
-        .map(|s| s.to_string())
-        .filter(|s| !s.trim().is_empty())
-    else {
+    let Some(run_cmd) = step.run_cmd(run_type).filter(|command| !command.is_empty()) else {
         eyre::bail!("{}: no command for test", step.name);
     };
-    if let Some(prefix) = &step.prefix {
-        run = format!("{prefix} {run}");
-    }
-    let run = tera::render(&run, &tctx)?;
+    let run = run_cmd.render(&tctx, step.prefix.as_deref())?;
 
     // Run pre-command (before)
     let mut before_stdout = String::new();
     let mut before_stderr = String::new();
     if let Some(cmd_str) = &test.before {
         let rendered = tera::render(cmd_str, &tctx)?;
+        let command = RenderedCommand::Shell(rendered);
         let (stdout, stderr, code) =
-            execute_cmd(step, &tctx, &base_dir, test, &rendered, &None).await?;
+            execute_cmd(step, &tctx, &base_dir, test, &command, &None).await?;
         before_stdout = stdout.clone();
         before_stderr = stderr.clone();
         if code != 0 {
@@ -267,8 +266,9 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     let mut after_fail: Option<(i32, String, String)> = None;
     if let Some(cmd_str) = &test.after {
         let rendered = tera::render(cmd_str, &tctx)?;
+        let command = RenderedCommand::Shell(rendered);
         let (a_stdout, a_stderr, a_code) =
-            execute_cmd(step, &tctx, &base_dir, test, &rendered, &None).await?;
+            execute_cmd(step, &tctx, &base_dir, test, &command, &None).await?;
         if a_code != 0 {
             after_fail = Some((a_code, a_stdout, a_stderr));
         }
