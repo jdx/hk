@@ -1,5 +1,1 @@
-why did this fail [https://github.com/jdx/hk/actions/runs/29281880678/job/86925275137](https://github.com/jdx/hk/actions/runs/29281880678/job/86925275137)
-
----
-
 fix it in another pr
