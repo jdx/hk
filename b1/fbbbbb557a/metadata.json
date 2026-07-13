@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "b1fbbbbb557a",
+  "strategy": "manual-commit",
+  "branch": "codex/structured-argv",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "pkl/builtins/actionlint.pkl",
+    "pkl/builtins/biome.pkl",
+    "pkl/builtins/prettier.pkl",
+    "pkl/builtins/ruff.pkl",
+    "pkl/builtins/rustfmt.pkl",
+    "pkl/builtins/shellcheck.pkl"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b1/fbbbbb557a/0/metadata.json",
+      "transcript": "/b1/fbbbbb557a/0/full.jsonl",
+      "content_hash": "/b1/fbbbbb557a/0/content_hash.txt",
+      "prompt": "/b1/fbbbbb557a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 607685,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 30836992,
+    "output_tokens": 66774,
+    "api_call_count": 277
+  }
+}

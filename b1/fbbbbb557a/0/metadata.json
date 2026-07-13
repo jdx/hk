@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "b1fbbbbb557a",
+  "session_id": "019f5cfd-b70b-73a1-ad47-32159be95bba",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-13T20:47:35.615956Z",
+  "branch": "codex/structured-argv",
+  "checkpoints_count": 2,
+  "save_step_count": 1,
+  "files_touched": [
+    "pkl/builtins/actionlint.pkl",
+    "pkl/builtins/biome.pkl",
+    "pkl/builtins/prettier.pkl",
+    "pkl/builtins/ruff.pkl",
+    "pkl/builtins/rustfmt.pkl",
+    "pkl/builtins/shellcheck.pkl"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "293a3a23f346",
+  "token_usage": {
+    "input_tokens": 607685,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 30836992,
+    "output_tokens": 66774,
+    "api_call_count": 277
+  },
+  "session_metrics": {
+    "turn_count": 11
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-13T20:47:35.567179Z",
+    "agent_lines": 18,
+    "agent_removed": 12,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 18,
+    "total_lines_changed": 30,
+    "agent_percentage": 100,
+    "metric_version": 2
+  }
+}

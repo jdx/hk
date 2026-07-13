@@ -1,0 +1,9 @@
+ok do that, rebase this too
+
+---
+
+should we take this as an opportunity to update the builtins to use this?
+
+---
+
+address pr feedback and failing pr checks. I want builtin changes in this PR, it probably doesn't make sense to do all of the builtins but i'll let you be the judge.
