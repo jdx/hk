@@ -1,9 +1,1 @@
-ok make a pr for it, reply back to him when done
-
----
-
-should we document this in docs/ ?
-
----
-
 ok do that, rebase this too
