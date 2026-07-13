@@ -139,7 +139,7 @@ impl Step {
         let mut batched_jobs = Vec::with_capacity(jobs.len());
 
         for job in jobs {
-            if job.skip_reason.is_some() || job.files.len() <= 1 {
+            if job.skip_reason.is_some() || job.files.is_empty() {
                 batched_jobs.push(job);
                 continue;
             }
@@ -301,6 +301,31 @@ mod tests {
                 .unwrap()
                 <= 100
         }));
+    }
+
+    #[test]
+    fn auto_batch_rejects_oversized_single_file_command() {
+        let step = Step {
+            name: "test".to_string(),
+            check: Some(
+                format!("echo {} {{{{files}}}}", "x".repeat(100))
+                    .parse()
+                    .unwrap(),
+            ),
+            ..Default::default()
+        };
+        let job = StepJob::new(
+            Arc::new(step.clone()),
+            vec![PathBuf::from("file.txt")],
+            RunType::Check,
+        );
+
+        let err = step
+            .auto_batch_jobs_with_limit(vec![job], &tera::Context::default(), 100)
+            .unwrap_err();
+
+        assert!(err.to_string().contains("file.txt"));
+        assert!(err.to_string().contains("100-byte command-line limit"));
     }
 }
 

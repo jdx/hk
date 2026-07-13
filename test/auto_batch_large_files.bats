@@ -15,7 +15,7 @@ hooks {
     ["check"] {
         steps {
             ["count-files"] {
-                check = "echo 'Processing {{files}}' | wc -w"
+                check = "echo batch >> batches.log; echo 'Processing {{files}}' | wc -w"
             }
         }
     }
@@ -35,9 +35,11 @@ EOF
     run hk check
     assert_success
 
-    # The output should show multiple batches were created
-    # Each batch should process a subset of files
-    # We verify by checking that the command executed without errors
+    # Linux must split the command at MAX_ARG_STRLEN. Other platforms have
+    # different command-line limits, so the batch count is platform-specific.
+    if [[ "$OSTYPE" == "linux"* ]]; then
+        [ "$(wc -l < batches.log)" -gt 1 ]
+    fi
 }
 
 @test "auto-batch does not break small file lists" {
