@@ -22,9 +22,10 @@ hooks {
 }
 EOF
 
-    # Create a large number of files with long paths to exceed ARG_MAX safe limit
-    # We'll create files in deeply nested directories to ensure long paths
-    for i in {1..1000}; do
+    # Make the rendered sh -c argument exceed Linux's 128 KiB MAX_ARG_STRLEN.
+    # This remains below ARG_MAX / 2 on a typical glibc system, which is the
+    # regression case for discussion #1061.
+    for i in {1..1200}; do
         dir="very/long/directory/path/number/$i/with/many/levels/to/increase/path/length"
         mkdir -p "$dir"
         echo "test" > "$dir/file_with_very_long_name_to_increase_arg_size_$i.txt"
