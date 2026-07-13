@@ -9,7 +9,9 @@ teardown() {
     _common_teardown
 }
 
-@test "git stash waits for a transient index lock" {
+assert_stash_waits_for_transient_index_lock() {
+    local use_libgit2="$1"
+
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -37,7 +39,7 @@ EOF
     : > .git/index.lock
     (sleep 0.2; rm -f .git/index.lock) &
 
-    run hk run pre-commit
+    run env HK_LIBGIT2="$use_libgit2" hk run pre-commit
     assert_success
 
     run git diff -- unstaged.txt
@@ -51,4 +53,12 @@ EOF
     run git stash list
     assert_success
     assert_output ""
+}
+
+@test "partial-path git stash waits for a transient index lock with libgit2 enabled" {
+    assert_stash_waits_for_transient_index_lock 1
+}
+
+@test "git stash waits for a transient index lock with libgit2 disabled" {
+    assert_stash_waits_for_transient_index_lock 0
 }
