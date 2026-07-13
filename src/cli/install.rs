@@ -516,7 +516,9 @@ fn hook_run_args(event: &str, staged_pre_commit: bool) -> OsString {
     } else {
         ""
     };
-    OsString::from(format!(r#" run {event} --from-hook{staged} "$@""#))
+    // Config-based hooks receive their hook arguments from Git automatically.
+    // Forwarding "$@" here would pass every argument twice.
+    OsString::from(format!(r#" run {event} --from-hook{staged}"#))
 }
 
 fn check_hooks_path_config() -> Result<()> {
@@ -602,15 +604,15 @@ mod tests {
     fn hook_run_args_adds_staged_only_for_pre_commit() {
         assert_eq!(
             hook_run_args("pre-commit", true),
-            OsString::from(r#" run pre-commit --from-hook --staged "$@""#)
+            OsString::from(r#" run pre-commit --from-hook --staged"#)
         );
         assert_eq!(
             hook_run_args("pre-push", true),
-            OsString::from(r#" run pre-push --from-hook "$@""#)
+            OsString::from(r#" run pre-push --from-hook"#)
         );
         assert_eq!(
             hook_run_args("pre-commit", false),
-            OsString::from(r#" run pre-commit --from-hook "$@""#)
+            OsString::from(r#" run pre-commit --from-hook"#)
         );
     }
 

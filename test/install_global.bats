@@ -28,7 +28,8 @@ require_git_2_54() {
 
     run git config --global --get hook.hk-pre-commit.command
     assert_success
-    assert_output --partial 'run pre-commit --from-hook --staged "$@"'
+    assert_output --partial 'run pre-commit --from-hook --staged'
+    refute_output --partial '"$@"'
     refute_output --partial '|| hk run'
 
     run git config --global --get hook.hk-pre-rebase.command
@@ -62,7 +63,8 @@ EOF
 
     run git config --global --get hook.hk-pre-rebase.command
     assert_success
-    assert_output --partial 'run pre-rebase --from-hook "$@"'
+    assert_output --partial 'run pre-rebase --from-hook'
+    refute_output --partial '"$@"'
     refute_output --partial '--staged'
 
     run git config --global --get hook.hk-pre-commit.command
@@ -85,7 +87,8 @@ EOF
 
     run git config --global --get hook.hk-pre-commit.command
     assert_success
-    assert_output --partial '~/bin/mise x hk -- hk run pre-commit --from-hook --staged "$@"'
+    assert_output --partial '~/bin/mise x hk -- hk run pre-commit --from-hook --staged'
+    refute_output --partial '"$@"'
     refute_output --partial '|| mise x -- hk run'
 
     command="$(git config --global --get hook.hk-pre-commit.command)"
