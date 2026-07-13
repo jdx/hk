@@ -75,7 +75,7 @@ impl Step {
         // Apply ARG_MAX-safe auto-batching now that the full tera context is
         // available — only split jobs whose rendered run command would actually
         // exceed the limit.
-        let mut jobs = self.auto_batch_jobs(jobs, &ctx.hook_ctx.tctx);
+        let mut jobs = self.auto_batch_jobs(jobs, &ctx.hook_ctx.tctx)?;
         if let Some(job) = jobs.first_mut() {
             job.semaphore = Some(semaphore);
         }
