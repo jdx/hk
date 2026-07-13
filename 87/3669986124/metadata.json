@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "873669986124",
+  "strategy": "manual-commit",
+  "branch": "codex/structured-argv",
+  "checkpoints_count": 5,
+  "files_touched": [
+    "pkl/Config.pkl",
+    "src/step/batching.rs",
+    "src/step/mod.rs",
+    "src/step/output.rs",
+    "src/step/runner.rs",
+    "src/step/types.rs",
+    "src/tera.rs",
+    "src/test_runner.rs",
+    "test/structured_argv.bats"
+  ],
+  "sessions": [
+    {
+      "metadata": "/87/3669986124/0/metadata.json",
+      "transcript": "/87/3669986124/0/full.jsonl",
+      "content_hash": "/87/3669986124/0/content_hash.txt",
+      "prompt": "/87/3669986124/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 170063,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 7866624,
+    "output_tokens": 22800,
+    "api_call_count": 76
+  }
+}
