@@ -6,7 +6,6 @@
 
 use crate::step_context::StepContext;
 use crate::step_job::StepJob;
-use crate::tera;
 use crate::ui::style;
 use std::sync::Arc;
 
@@ -95,7 +94,7 @@ impl Step {
         &self,
         ctx: &StepContext,
         job: &StepJob,
-        run_cmd: Option<&super::types::Script>,
+        run_cmd: Option<&super::types::Command>,
         cmd_result: Option<&ensembler::CmdResult>,
     ) {
         // Only suggest fixes when the entire hook run is in check mode,
@@ -129,28 +128,24 @@ impl Step {
         // Build a minimal context based on the suggested files, honoring dir/workspace
         let temp_job = StepJob::new(Arc::new(self.clone()), suggest_files, RunType::Fix);
         let suggest_ctx = temp_job.tctx(&ctx.hook_ctx.tctx);
-        if let Some(mut fix_cmd) = self
+        if let Some(fix_cmd) = self
             .run_cmd(RunType::Fix)
-            .map(|s| s.to_string())
-            .filter(|s| !s.trim().is_empty())
+            .filter(|command| !command.is_empty())
+            && let Ok(rendered) = fix_cmd.render(&suggest_ctx, self.prefix.as_deref())
         {
-            if let Some(prefix) = &self.prefix {
-                fix_cmd = format!("{prefix} {fix_cmd}");
-            }
-            if let Ok(rendered) = tera::render(&fix_cmd, &suggest_ctx) {
-                let is_multi_line = rendered.contains('\n');
-                if is_multi_line {
-                    // Too long to inline; suggest hk fix with step filter
-                    let step_flag = format!("-S {}", &self.name);
-                    let cmd = format!(
-                        "To fix, run: {}",
-                        style::edim(format!("hk fix {}", step_flag))
-                    );
-                    ctx.hook_ctx.add_fix_suggestion(cmd);
-                } else {
-                    let cmd = format!("To fix, run: {}", style::edim(rendered));
-                    ctx.hook_ctx.add_fix_suggestion(cmd);
-                }
+            let rendered = rendered.display(self.shell_type());
+            let is_multi_line = rendered.contains('\n');
+            if is_multi_line {
+                // Too long to inline; suggest hk fix with step filter
+                let step_flag = format!("-S {}", &self.name);
+                let cmd = format!(
+                    "To fix, run: {}",
+                    style::edim(format!("hk fix {}", step_flag))
+                );
+                ctx.hook_ctx.add_fix_suggestion(cmd);
+            } else {
+                let cmd = format!("To fix, run: {}", style::edim(rendered));
+                ctx.hook_ctx.add_fix_suggestion(cmd);
             }
         }
     }

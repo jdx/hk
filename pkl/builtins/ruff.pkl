@@ -12,11 +12,11 @@ import "./test/helpers.pkl"
 }
 ruff = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")
-  check = "ruff check --force-exclude {{ files }}"
+  check = new Config.Command { argv = List("ruff", "check", "--force-exclude", "{{files}}") }
   // `ruff check --diff` can exit 0 even if non-fixable issues exist, making it an
   // unreliable signal for whether to run `fix`. We use `check` instead.
   // check_diff = "ruff check --force-exclude --diff {{ files }}"
-  fix = "ruff check --force-exclude --fix {{ files }}"
+  fix = new Config.Command { argv = List("ruff", "check", "--force-exclude", "--fix", "{{files}}") }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.py"

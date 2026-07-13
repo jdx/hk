@@ -15,10 +15,15 @@ use eyre::{Result, bail};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::{ShellType, types::Step};
+use super::{
+    ShellType,
+    types::{Command, Step},
+};
 
 const CMD_COMMAND_LINE_LIMIT: usize = 8191;
 const CMD_COMMAND_LINE_SAFE_LIMIT: usize = CMD_COMMAND_LINE_LIMIT / 2;
+const WINDOWS_CREATE_PROCESS_LIMIT: usize = 32767;
+const WINDOWS_CREATE_PROCESS_SAFE_LIMIT: usize = WINDOWS_CREATE_PROCESS_LIMIT / 2;
 #[cfg(target_os = "linux")]
 // Linux limits each argv/envp string to 32 pages, independently of ARG_MAX.
 const LINUX_MAX_ARG_STRLEN_PAGES: usize = 32;
@@ -47,8 +52,21 @@ fn shell_command_safe_limit(arg_max: usize, max_arg_strlen: Option<usize>) -> us
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RenderedCommandSize {
+    aggregate: usize,
+    max_argument: Option<usize>,
+}
+
 impl Step {
-    fn auto_batch_safe_limit(&self) -> usize {
+    fn auto_batch_safe_limit(&self, command: &Command) -> usize {
+        if command.is_argv() {
+            return if cfg!(windows) {
+                WINDOWS_CREATE_PROCESS_SAFE_LIMIT
+            } else {
+                *env::ARG_MAX / 2
+            };
+        }
         match self.shell_type() {
             ShellType::Cmd => CMD_COMMAND_LINE_SAFE_LIMIT,
             _ => shell_command_safe_limit(*env::ARG_MAX, platform_max_arg_strlen()),
@@ -78,21 +96,15 @@ impl Step {
         original_job: &StepJob,
         files: &[PathBuf],
         base_tctx: &tera::Context,
-    ) -> Option<usize> {
+    ) -> Option<RenderedCommandSize> {
         let run_cmd = if original_job.check_first {
-            self.check_first_cmd().map(|cmd| cmd.script())
+            self.check_first_cmd().map(|cmd| cmd.command())
         } else {
             self.run_cmd(original_job.run_type)
         }?;
-        let run = run_cmd.to_string();
-        if run.trim().is_empty() {
+        if run_cmd.is_empty() {
             return None;
         }
-        let run = if let Some(prefix) = &self.prefix {
-            format!("{prefix} {run}")
-        } else {
-            run
-        };
 
         let mut temp = StepJob::new(
             Arc::clone(&original_job.step),
@@ -104,7 +116,38 @@ impl Step {
             temp = temp.with_workspace_indicator(wi.clone());
         }
         let tctx = temp.tctx(base_tctx);
-        tera::render(&run, &tctx).ok().map(|s| s.len())
+        run_cmd
+            .render(&tctx, self.prefix.as_deref())
+            .ok()
+            .map(|command| RenderedCommandSize {
+                aggregate: command.execution_size(),
+                max_argument: command.max_argument_size(),
+            })
+    }
+
+    fn validate_direct_argument_size(
+        &self,
+        command: Option<&Command>,
+        size: Option<RenderedCommandSize>,
+        max_arg_strlen: Option<usize>,
+    ) -> Result<()> {
+        let Some(max_argument) = command
+            .filter(|command| command.is_argv())
+            .and(size.and_then(|size| size.max_argument))
+        else {
+            return Ok(());
+        };
+        if let Some(limit) = max_arg_strlen
+            && max_argument > limit
+        {
+            bail!(
+                "{}: structured argv contains a {}-byte argument, exceeding the {}-byte platform limit",
+                self.name,
+                max_argument,
+                limit
+            );
+        }
+        Ok(())
     }
 
     /// Automatically batch jobs whose rendered run command would exceed the safe exec limit.
@@ -122,14 +165,14 @@ impl Step {
         jobs: Vec<StepJob>,
         base_tctx: &tera::Context,
     ) -> Result<Vec<StepJob>> {
-        self.auto_batch_jobs_with_limit(jobs, base_tctx, self.auto_batch_safe_limit())
+        self.auto_batch_jobs_with_limit(jobs, base_tctx, None)
     }
 
     fn auto_batch_jobs_with_limit(
         &self,
         jobs: Vec<StepJob>,
         base_tctx: &tera::Context,
-        safe_limit: usize,
+        safe_limit_override: Option<usize>,
     ) -> Result<Vec<StepJob>> {
         if self.stdin.is_some() {
             // stdin path doesn't pass files via argv; never auto-batch
@@ -144,9 +187,22 @@ impl Step {
                 continue;
             }
 
+            let run_cmd = if job.check_first {
+                self.check_first_cmd().map(|cmd| cmd.command())
+            } else {
+                self.run_cmd(job.run_type)
+            };
+            let safe_limit = safe_limit_override.unwrap_or_else(|| {
+                run_cmd
+                    .map(|command| self.auto_batch_safe_limit(command))
+                    .unwrap_or(*env::ARG_MAX / 2)
+            });
+
             // Try render-based sizing first; fall back to byte estimation on render failure.
-            let full_size = self
-                .render_run_command_size(&job, &job.files, base_tctx)
+            let rendered_size = self.render_run_command_size(&job, &job.files, base_tctx);
+            self.validate_direct_argument_size(run_cmd, rendered_size, platform_max_arg_strlen())?;
+            let full_size = rendered_size
+                .map(|size| size.aggregate)
                 .unwrap_or_else(|| self.estimate_files_string_size(&job.files));
 
             if full_size <= safe_limit {
@@ -169,6 +225,7 @@ impl Step {
                 let remaining = &job.files[offset..];
                 let single_size = self
                     .render_run_command_size(&job, &remaining[..1], base_tctx)
+                    .map(|size| size.aggregate)
                     .unwrap_or_else(|| self.estimate_files_string_size(&remaining[..1]));
                 if single_size > safe_limit {
                     bail!(
@@ -187,6 +244,7 @@ impl Step {
                     let mid = (low + high).div_ceil(2);
                     let test_size = self
                         .render_run_command_size(&job, &remaining[..mid], base_tctx)
+                        .map(|size| size.aggregate)
                         .unwrap_or_else(|| self.estimate_files_string_size(&remaining[..mid]));
                     if test_size <= safe_limit {
                         low = mid;
@@ -225,10 +283,77 @@ mod tests {
     fn cmd_shell_uses_cmd_command_line_limit() {
         let step = Step {
             shell: Some("cmd.exe".parse().unwrap()),
+            check: Some("echo {{files}}".parse().unwrap()),
             ..Default::default()
         };
 
-        assert_eq!(step.auto_batch_safe_limit(), CMD_COMMAND_LINE_SAFE_LIMIT);
+        assert_eq!(
+            step.auto_batch_safe_limit(step.check.as_ref().unwrap()),
+            CMD_COMMAND_LINE_SAFE_LIMIT
+        );
+    }
+
+    #[test]
+    fn structured_argv_uses_aggregate_process_limit() {
+        let command = Command::Argv(super::super::types::ArgvCommand {
+            argv: vec!["echo".to_string(), "{{files}}".to_string()],
+        });
+        let step = Step::default();
+        let expected = if cfg!(windows) {
+            WINDOWS_CREATE_PROCESS_SAFE_LIMIT
+        } else {
+            *env::ARG_MAX / 2
+        };
+
+        assert_eq!(step.auto_batch_safe_limit(&command), expected);
+    }
+
+    #[test]
+    fn structured_argv_rejects_oversized_individual_argument() {
+        let command = Command::Argv(super::super::types::ArgvCommand {
+            argv: vec!["tool".to_string(), "x".repeat(100)],
+        });
+        let step = Step {
+            name: "test".to_string(),
+            ..Default::default()
+        };
+        let size = RenderedCommandSize {
+            aggregate: 105,
+            max_argument: Some(101),
+        };
+
+        let err = step
+            .validate_direct_argument_size(Some(&command), Some(size), Some(100))
+            .unwrap_err();
+
+        assert!(err.to_string().contains("101-byte argument"));
+        assert!(err.to_string().contains("100-byte platform limit"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn structured_argv_auto_batch_rejects_linux_max_arg_strlen() {
+        let limit = platform_max_arg_strlen().unwrap();
+        let step = Step {
+            name: "test".to_string(),
+            check: Some(Command::Argv(super::super::types::ArgvCommand {
+                // The terminating NUL makes this one byte larger than the limit.
+                argv: vec!["tool".to_string(), "x".repeat(limit)],
+            })),
+            ..Default::default()
+        };
+        let job = StepJob::new(
+            Arc::new(step.clone()),
+            vec![PathBuf::from("file.txt")],
+            RunType::Check,
+        );
+
+        let err = step
+            .auto_batch_jobs(vec![job], &tera::Context::default())
+            .unwrap_err();
+
+        assert!(err.to_string().contains("structured argv"));
+        assert!(err.to_string().contains("platform limit"));
     }
 
     #[test]
@@ -239,7 +364,8 @@ mod tests {
         };
 
         let expected = shell_command_safe_limit(*env::ARG_MAX, platform_max_arg_strlen());
-        assert_eq!(step.auto_batch_safe_limit(), expected);
+        let command: Command = "echo {{files}}".parse().unwrap();
+        assert_eq!(step.auto_batch_safe_limit(&command), expected);
     }
 
     #[test]
@@ -292,13 +418,14 @@ mod tests {
         let tctx = tera::Context::default();
 
         let jobs = step
-            .auto_batch_jobs_with_limit(vec![job], &tctx, 100)
+            .auto_batch_jobs_with_limit(vec![job], &tctx, Some(100))
             .unwrap();
 
         assert!(jobs.len() > 1);
         assert!(jobs.iter().all(|job| {
             step.render_run_command_size(job, &job.files, &tctx)
                 .unwrap()
+                .aggregate
                 <= 100
         }));
     }
@@ -321,7 +448,7 @@ mod tests {
         );
 
         let err = step
-            .auto_batch_jobs_with_limit(vec![job], &tera::Context::default(), 100)
+            .auto_batch_jobs_with_limit(vec![job], &tera::Context::default(), Some(100))
             .unwrap_err();
 
         assert!(err.to_string().contains("file.txt"));

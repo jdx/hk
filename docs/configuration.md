@@ -6,14 +6,14 @@ outline: "deep"
 
 hk builds its effective configuration by layering sources from lowest to highest precedence:
 
-| Precedence | Source | Scope |
-|---|---|---|
-| 1 (lowest) | Built-in defaults | All projects |
-| 2 | [hkrc](#hkrc) (`~/.config/hk/config.pkl`) | All projects (user-level) |
-| 3 | [Project config](#hk-pkl) (`hk.pkl` or `hk.local.pkl`) | Single project |
-| 4 | [Git config](#git-configuration) (global, then local) | Per-repo |
-| 5 | [Environment variables](#settings-reference) (`HK_*`) | Per-invocation |
-| 6 (highest) | [CLI flags](#settings-reference) | Per-invocation |
+| Precedence  | Source                                                 | Scope                     |
+| ----------- | ------------------------------------------------------ | ------------------------- |
+| 1 (lowest)  | Built-in defaults                                      | All projects              |
+| 2           | [hkrc](#hkrc) (`~/.config/hk/config.pkl`)              | All projects (user-level) |
+| 3           | [Project config](#hk-pkl) (`hk.pkl` or `hk.local.pkl`) | Single project            |
+| 4           | [Git config](#git-configuration) (global, then local)  | Per-repo                  |
+| 5           | [Environment variables](#settings-reference) (`HK_*`)  | Per-invocation            |
+| 6 (highest) | [CLI flags](#settings-reference)                       | Per-invocation            |
 
 Higher layers override lower. For hooks and steps, layers are **additive** — hkrc can define hooks the project doesn't have, but the project's definition wins on collision. See the [hkrc](#hkrc) section for merge semantics.
 
@@ -25,12 +25,12 @@ hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.or
 
 hk searches for config files in the following order (first match wins):
 
-| Precedence | Path | Purpose |
-|---|---|---|
-| 1 | `hk.local.pkl` | Local overrides, should not be committed to source control |
-| 2 | `.config/hk.local.pkl` | Local overrides, nested under `.config/` |
-| 3 | `hk.pkl` | Standard project config |
-| 4 | `.config/hk.pkl` | Standard project config, nested under `.config/` |
+| Precedence | Path                   | Purpose                                                    |
+| ---------- | ---------------------- | ---------------------------------------------------------- |
+| 1          | `hk.local.pkl`         | Local overrides, should not be committed to source control |
+| 2          | `.config/hk.local.pkl` | Local overrides, nested under `.config/`                   |
+| 3          | `hk.pkl`               | Standard project config                                    |
+| 4          | `.config/hk.pkl`       | Standard project config, nested under `.config/`           |
 
 hk walks up from the current directory to `/`, checking each directory for these files. The first file found is used.
 
@@ -114,8 +114,31 @@ hooks = (repo_config.hooks) {
 
 ```
 
-
 <!--@include: ./gen/pkl-config.md-->
+
+### Step commands
+
+Step commands such as `check`, `check_list_files`, `check_diff`, and `fix` accept either a shell command string or a structured `Command`.
+
+String commands run through a shell. Use them when the command needs shell features such as pipes, redirects, `&&`, variable expansion, or glob expansion:
+
+```pkl
+check = "eslint {{files}} | tee eslint.log"
+```
+
+Use a structured command to execute a program directly, without a shell:
+
+```pkl
+check = new Command {
+    argv = List("wc", "-c", "{{files}}")
+}
+```
+
+The first `argv` entry is the executable, which hk resolves using `PATH`. Each remaining entry is passed to the program as one argument after template rendering. Exact, standalone `{{files}}` and `{{workspace_files}}` entries are special: hk expands them into one argument per file. `{{workspace_files}}` contains paths relative to the matched workspace when `workspace_indicator` is configured.
+
+Structured commands preserve argument boundaries, so filenames containing spaces or shell metacharacters are passed literally. Shell syntax is not interpreted: entries such as `"*"`, `"$HOME"`, `"|"`, and `">"` remain literal arguments. Use a string command if shell interpretation is required.
+
+Structured commands cannot be combined with the step's `shell` or `prefix` options. Other step behavior, including `dir`, `env`, and automatic batching for large file lists, continues to apply.
 
 ### `<GROUP>`
 
@@ -153,14 +176,14 @@ hooks {
 
 Groups may define a small set of step settings that child steps inherit when they do not define their own value:
 
-| Group option | Inherited step option | Type |
-| --- | --- | --- |
-| `dir` | `dir` | `String?` |
-| `prefix` | `prefix` | `String?` |
-| `workspace_indicator` | `workspace_indicator` | `String?` |
-| `shell` | `shell` | `(String \| Script)?` |
-| `stage` | `stage` | `(String \| List<String>)?` |
-| `exclude` | `exclude` | `(String \| List<String> \| Regex)?` |
+| Group option          | Inherited step option | Type                                 |
+| --------------------- | --------------------- | ------------------------------------ |
+| `dir`                 | `dir`                 | `String?`                            |
+| `prefix`              | `prefix`              | `String?`                            |
+| `workspace_indicator` | `workspace_indicator` | `String?`                            |
+| `shell`               | `shell`               | `(String \| Script)?`                |
+| `stage`               | `stage`               | `(String \| List<String>)?`          |
+| `exclude`             | `exclude`             | `(String \| List<String> \| Regex)?` |
 
 Inheritance uses simple override semantics. If a child step defines the field, the child value is used. Otherwise, the group value is copied to the step. Values are not merged.
 
@@ -215,7 +238,6 @@ check = "echo staged: {{ git.staged_files }}"
 
 These lists contain repository-relative paths for files currently in each state.
 
-
 ## `hkrc`
 
 > [!WARNING]
@@ -226,11 +248,11 @@ These lists contain repository-relative paths for files currently in each state.
 
 The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. hk discovers it in this order (first match wins):
 
-| Precedence | Path | Purpose |
-|---|---|---|
-| 1 | `.hkrc.pkl` (CWD) | Per-directory override **(deprecated)** |
-| 2 | `~/.hkrc.pkl` | Home directory **(deprecated)** |
-| 3 | `~/.config/hk/config.pkl` | XDG config directory **(recommended)** |
+| Precedence | Path                      | Purpose                                 |
+| ---------- | ------------------------- | --------------------------------------- |
+| 1          | `.hkrc.pkl` (CWD)         | Per-directory override **(deprecated)** |
+| 2          | `~/.hkrc.pkl`             | Home directory **(deprecated)**         |
+| 3          | `~/.config/hk/config.pkl` | XDG config directory **(recommended)**  |
 
 ~~Use the `--hkrc` flag to override discovery and use a specific path.~~ The `--hkrc` flag is deprecated.
 
@@ -319,15 +341,15 @@ hooks = (upstream.hooks) {
 
 This section lists the configuration settings that control how hk behaves. Settings are sourced from multiple places; higher precedence overrides lower. Some list settings (e.g., `exclude`, `skip_steps`, `skip_hooks`, `hide_warnings`) use union semantics, combining values from multiple sources.
 
-| Precedence | Source | Example |
-|---|---|---|
-| 1 | CLI flags | `hk check --fail-fast` |
-| 2 | Environment variables (HK_*) | `HK_JOBS=8 hk check` |
-| 3 | Git config (local repo) | `git config --local hk.jobs 4` |
-| 4 | Git config (global/system) | `git config --global hk.failFast false` |
-| 5 | Project config (hk.pkl) | `jobs = 4` in `hk.pkl` |
-| 6 | User rc (hkrc) | `jobs = 4` in `~/.config/hk/config.pkl` |
-| 7 | Built-in defaults | `jobs = 0` (auto, CPU cores) |
+| Precedence | Source                         | Example                                 |
+| ---------- | ------------------------------ | --------------------------------------- |
+| 1          | CLI flags                      | `hk check --fail-fast`                  |
+| 2          | Environment variables (HK\_\*) | `HK_JOBS=8 hk check`                    |
+| 3          | Git config (local repo)        | `git config --local hk.jobs 4`          |
+| 4          | Git config (global/system)     | `git config --global hk.failFast false` |
+| 5          | Project config (hk.pkl)        | `jobs = 4` in `hk.pkl`                  |
+| 6          | User rc (hkrc)                 | `jobs = 4` in `~/.config/hk/config.pkl` |
+| 7          | Built-in defaults              | `jobs = 0` (auto, CPU cores)            |
 
 ### Git Configuration
 

@@ -8,9 +8,11 @@ import "./test/helpers.pkl"
 }
 rustfmt = new Config.Step {
   glob = "**/*.rs"
-  check = "rustfmt --check --edition 2024 {{ files }}"
-  check_list_files = "rustfmt --check --edition 2024 --files-with-diff {{ files }}"
-  fix = "rustfmt --edition 2024 {{ files }}"
+  check = new Config.Command { argv = List("rustfmt", "--check", "--edition", "2024", "{{files}}") }
+  check_list_files = new Config.Command {
+    argv = List("rustfmt", "--check", "--edition", "2024", "--files-with-diff", "{{files}}")
+  }
+  fix = new Config.Command { argv = List("rustfmt", "--edition", "2024", "{{files}}") }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.rs"

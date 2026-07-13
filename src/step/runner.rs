@@ -24,7 +24,7 @@ use std::process::Stdio;
 
 use super::expr_env::EXPR_ENV;
 use super::shell::ShellType;
-use super::types::{CheckFirstCmd, Pattern, RunType, Script, Step};
+use super::types::{CheckFirstCmd, Command, Pattern, RenderedCommand, RunType, Step};
 use crate::error::Error;
 
 /// Cap on the per-job progress message in printable characters. The
@@ -143,7 +143,7 @@ impl Step {
             None
         };
         let run_cmd = if let Some(check_first_cmd) = check_first_cmd {
-            Some(check_first_cmd.script())
+            Some(check_first_cmd.command())
         } else {
             self.run_cmd(job.run_type)
         };
@@ -151,25 +151,23 @@ impl Step {
             || (check_first_cmd.is_none() && run_cmd == self.check_list_files.as_ref());
         let ran_check_diff = matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
             || (check_first_cmd.is_none() && run_cmd == self.check_diff.as_ref());
-        let Some(mut run) = run_cmd
-            .map(|s| s.to_string())
-            .filter(|s| !s.trim().is_empty())
-        else {
+        let Some(run_cmd) = run_cmd.filter(|command| !command.is_empty()) else {
             eyre::bail!("{self}: no run command");
         };
-        if let Some(prefix) = &self.prefix {
-            run = format!("{prefix} {run}");
-        }
         // Render twice: once with the full file list for execution, and
         // once with the display context — which truncates `files` /
         // `workspace_files` to `first_file …` when there are multiple
         // files. A 98-file step would otherwise emit ~4KB of paths in the
         // progress message; this keeps the command shape and one
         // concrete example path visible without unbounded expansion.
-        let run_for_display =
-            tera::render(&run, &tctx.for_display()).unwrap_or_else(|_| run.clone());
-        let run = tera::render(&run, &tctx)
+        let run_for_display = run_cmd
+            .render(&tctx.for_display(), self.prefix.as_deref())
+            .map(|command| command.display(self.shell_type()))
+            .unwrap_or_else(|_| run_cmd.to_string());
+        let rendered_command = run_cmd
+            .render(&tctx, self.prefix.as_deref())
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
+        let run = rendered_command.display(self.shell_type());
         let display_pattern = |pattern: &Pattern| match pattern {
             Pattern::Globs(globs) => globs.join(" "),
             Pattern::Regex { pattern, .. } => format!("regex: {pattern}"),
@@ -216,31 +214,36 @@ impl Step {
         // strings, so we must append the final command line verbatim via
         // `raw_arg` — otherwise Rust re-escapes the already-quoted payload and
         // cmd.exe delivers tools arguments with literal `"` characters embedded.
-        let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
-        let mut cmd = if let Some(shell) = &self.shell {
-            let shell = shell.to_string();
-            let shell = shell.split_whitespace().collect_vec();
-            let mut cmd = if use_raw_cmd {
-                CmdLineRunner::new_direct(shell[0])
-            } else {
-                CmdLineRunner::new(shell[0])
-            };
-            for arg in shell[1..].iter() {
-                cmd = cmd.arg(arg);
+        let mut cmd = match &rendered_command {
+            RenderedCommand::Argv(argv) => CmdLineRunner::new_direct(&argv[0]).args(&argv[1..]),
+            RenderedCommand::Shell(run) => {
+                let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
+                if let Some(shell) = &self.shell {
+                    let shell = shell.to_string();
+                    let shell = shell.split_whitespace().collect_vec();
+                    let mut cmd = if use_raw_cmd {
+                        CmdLineRunner::new_direct(shell[0])
+                    } else {
+                        CmdLineRunner::new(shell[0])
+                    };
+                    for arg in shell[1..].iter() {
+                        cmd = cmd.arg(arg);
+                    }
+                    if use_raw_cmd {
+                        cmd.raw_arg(run)
+                    } else {
+                        cmd.arg(run)
+                    }
+                } else if use_raw_cmd {
+                    CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(run)
+                } else {
+                    CmdLineRunner::new("sh")
+                        .arg("-o")
+                        .arg("errexit")
+                        .arg("-c")
+                        .arg(run)
+                }
             }
-            if use_raw_cmd {
-                cmd.raw_arg(&run)
-            } else {
-                cmd.arg(&run)
-            }
-        } else if use_raw_cmd {
-            CmdLineRunner::new_direct("cmd.exe").arg("/c").raw_arg(&run)
-        } else {
-            CmdLineRunner::new("sh")
-                .arg("-o")
-                .arg("errexit")
-                .arg("-c")
-                .arg(&run)
         };
         cmd = cmd
             .with_pr(job.progress.as_ref().unwrap().clone())
@@ -335,7 +338,7 @@ impl Step {
                     );
 
                     // If we're in check mode and a fix command exists, collect a helpful suggestion
-                    self.collect_fix_suggestion(ctx, job, run_cmd, Some(&e.3));
+                    self.collect_fix_suggestion(ctx, job, Some(run_cmd), Some(&e.3));
                 }
                 if job.check_first && job.run_type == RunType::Check {
                     ctx.progress.set_status(ProgressStatus::Warn);
@@ -371,6 +374,20 @@ impl Step {
                 name
             );
         }
+        let commands = [
+            self.check.as_ref(),
+            self.check_list_files.as_ref(),
+            self.check_diff.as_ref(),
+            self.fix.as_ref(),
+        ];
+        if commands.iter().flatten().any(|command| command.is_argv()) {
+            if self.shell.is_some() {
+                eyre::bail!("Step '{name}' can't combine structured argv commands with `shell`.");
+            }
+            if self.prefix.is_some() {
+                eyre::bail!("Step '{name}' can't combine structured argv commands with `prefix`.");
+            }
+        }
         self.name = name.to_string();
         if self.interactive {
             self.exclusive = true;
@@ -382,7 +399,7 @@ impl Step {
     ///
     /// For Fix mode, returns the fix command if available, otherwise falls back to check.
     /// For Check mode, returns check, check_diff, or check_list_files (in that preference order).
-    pub fn run_cmd(&self, run_type: RunType) -> Option<&Script> {
+    pub fn run_cmd(&self, run_type: RunType) -> Option<&Command> {
         match run_type {
             RunType::Fix => {
                 self.fix
@@ -403,7 +420,7 @@ impl Step {
     ///
     /// Prefers check_diff, then check_list_files, then check.
     pub fn check_first_cmd(&self) -> Option<CheckFirstCmd<'_>> {
-        let is_present = |s: &&Script| !s.to_string().trim().is_empty();
+        let is_present = |command: &&Command| !command.is_empty();
         self.check_diff
             .as_ref()
             .filter(is_present)
@@ -425,7 +442,7 @@ impl Step {
     /// Check if this step has a command for the given run type.
     pub fn has_command_for(&self, run_type: RunType) -> bool {
         self.run_cmd(run_type)
-            .map(|cmd| !cmd.to_string().trim().is_empty())
+            .map(|command| !command.is_empty())
             .unwrap_or(false)
     }
 
@@ -482,6 +499,7 @@ impl Step {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::step::Script;
 
     #[test]
     fn truncate_progress_message_passes_short_input() {
@@ -518,12 +536,12 @@ mod tests {
         // on every other platform the `other` fallback provides a valid command.
         let step = Step {
             name: "test_step".to_string(),
-            check: Some(Script {
+            check: Some(Command::Shell(Script {
                 linux: None,
                 macos: None,
                 windows: Some("".to_string()),
                 other: Some("other_cmd".to_string()),
-            }),
+            })),
             fix: None,
             ..Default::default()
         };
@@ -544,12 +562,12 @@ mod tests {
         // Test that has_command_for returns true when command is valid
         let step = Step {
             name: "test_step".to_string(),
-            check: Some(Script {
+            check: Some(Command::Shell(Script {
                 linux: Some("cmd".to_string()),
                 macos: Some("cmd".to_string()),
                 windows: Some("cmd".to_string()),
                 other: Some("cmd".to_string()),
-            }),
+            })),
             fix: None,
             ..Default::default()
         };

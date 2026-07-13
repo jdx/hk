@@ -37,6 +37,15 @@ impl Context {
         self.ctx.insert(key.into(), val);
     }
 
+    pub fn string_list(&self, key: &str) -> Option<Vec<String>> {
+        self.ctx.get(key)?.as_array().map(|values| {
+            values
+                .iter()
+                .filter_map(|value| value.as_str().map(ToString::to_string))
+                .collect()
+        })
+    }
+
     pub fn with_globs<P: AsRef<Path>>(&mut self, globs: &[P]) -> &mut Self {
         let globs = globs.iter().map(|m| m.as_ref().to_str().unwrap()).join(" ");
         self.insert("globs", &globs);
@@ -80,13 +89,18 @@ impl Context {
         workspace_dir: &Path,
         files: &[P],
     ) -> &mut Self {
-        let files = files
+        let files_list = files
             .iter()
             .map(|m| {
                 let p = m.as_ref();
                 let rel = p.strip_prefix(workspace_dir).unwrap_or(p);
-                shell_type.quote(rel.to_str().unwrap())
+                rel.to_str().unwrap().to_string()
             })
+            .collect::<Vec<_>>();
+        self.insert("workspace_files_list", &files_list);
+        let files = files_list
+            .iter()
+            .map(|file| shell_type.quote(file))
             .join(" ");
         self.insert("workspace_files", &files);
         self
@@ -105,8 +119,22 @@ impl Context {
         if let Some(truncated) = truncate_quoted_list(self.ctx.get("workspace_files")) {
             ctx.insert("workspace_files", &truncated);
         }
+        if let Some(truncated) = truncate_string_list(self.ctx.get("files_list")) {
+            ctx.insert("files_list", &truncated);
+        }
+        if let Some(truncated) = truncate_string_list(self.ctx.get("workspace_files_list")) {
+            ctx.insert("workspace_files_list", &truncated);
+        }
         ctx
     }
+}
+
+fn truncate_string_list(value: Option<&tera::Value>) -> Option<Vec<String>> {
+    let values = value?.as_array()?;
+    if values.len() <= 1 {
+        return None;
+    }
+    Some(vec![values[0].as_str()?.to_string(), "…".to_string()])
 }
 
 /// Truncate a space-separated quoted-token list to "first …" when it
@@ -223,5 +251,16 @@ mod tests {
         assert_eq!(truncate_quoted_list(Some(&v)), None);
         let v = tera::Value::from("   ");
         assert_eq!(truncate_quoted_list(Some(&v)), None);
+    }
+
+    #[test]
+    fn for_display_truncates_raw_file_lists() {
+        let mut ctx = Context::default();
+        ctx.insert("files_list", &vec!["a b.txt", "c.txt"]);
+
+        assert_eq!(
+            ctx.for_display().string_list("files_list"),
+            Some(vec!["a b.txt".to_string(), "…".to_string()])
+        );
     }
 }
