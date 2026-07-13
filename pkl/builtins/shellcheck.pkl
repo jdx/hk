@@ -16,7 +16,7 @@ shellcheck = new Config.Step {
       new Config.FileSelector { glob = List("**/*.sh", "**/*.bash") },
       new Config.FileSelector { types = List("sh", "bash") },
     )
-  check = "shellcheck {{ files }}"
+  check = new Config.Command { argv = List("shellcheck", "{{files}}") }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.sh"
