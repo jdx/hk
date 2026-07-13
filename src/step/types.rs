@@ -376,7 +376,7 @@ impl Command {
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Shell(script) => script.to_string().trim().is_empty(),
-            Self::Argv(command) => command.argv.is_empty(),
+            Self::Argv(command) => command.argv.is_empty() || command.argv[0].trim().is_empty(),
         }
     }
 
@@ -567,6 +567,29 @@ mod tests {
             .unwrap_err();
 
         assert!(err.to_string().contains("cannot use `prefix`"));
+    }
+
+    #[test]
+    fn structured_argv_with_blank_executable_is_empty() {
+        let command = Command::Argv(ArgvCommand {
+            argv: vec!["  ".to_string(), "--flag".to_string()],
+        });
+
+        assert!(command.is_empty());
+    }
+
+    #[test]
+    fn structured_argv_with_file_list_executable_is_invalid_not_empty() {
+        let command = Command::Argv(ArgvCommand {
+            argv: vec!["{{files}}".to_string()],
+        });
+
+        assert!(!command.is_empty());
+        let err = command.render(&tera::Context::default(), None).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("executable cannot be a file-list placeholder")
+        );
     }
 
     #[test]
