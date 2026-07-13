@@ -196,6 +196,7 @@ exit 1
       }
       ["other-step"] {
         glob = List("*.txt")
+        depends = List("format")
         fix = "echo 'other'"
       }
     }
