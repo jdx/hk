@@ -52,6 +52,12 @@ fn shell_command_safe_limit(arg_max: usize, max_arg_strlen: Option<usize>) -> us
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct RenderedCommandSize {
+    aggregate: usize,
+    max_argument: Option<usize>,
+}
+
 impl Step {
     fn auto_batch_safe_limit(&self, command: &Command) -> usize {
         if command.is_argv() {
@@ -90,7 +96,7 @@ impl Step {
         original_job: &StepJob,
         files: &[PathBuf],
         base_tctx: &tera::Context,
-    ) -> Option<usize> {
+    ) -> Option<RenderedCommandSize> {
         let run_cmd = if original_job.check_first {
             self.check_first_cmd().map(|cmd| cmd.command())
         } else {
@@ -113,7 +119,35 @@ impl Step {
         run_cmd
             .render(&tctx, self.prefix.as_deref())
             .ok()
-            .map(|command| command.execution_size())
+            .map(|command| RenderedCommandSize {
+                aggregate: command.execution_size(),
+                max_argument: command.max_argument_size(),
+            })
+    }
+
+    fn validate_direct_argument_size(
+        &self,
+        command: Option<&Command>,
+        size: Option<RenderedCommandSize>,
+        max_arg_strlen: Option<usize>,
+    ) -> Result<()> {
+        let Some(max_argument) = command
+            .filter(|command| command.is_argv())
+            .and(size.and_then(|size| size.max_argument))
+        else {
+            return Ok(());
+        };
+        if let Some(limit) = max_arg_strlen
+            && max_argument > limit
+        {
+            bail!(
+                "{}: structured argv contains a {}-byte argument, exceeding the {}-byte platform limit",
+                self.name,
+                max_argument,
+                limit
+            );
+        }
+        Ok(())
     }
 
     /// Automatically batch jobs whose rendered run command would exceed the safe exec limit.
@@ -165,8 +199,10 @@ impl Step {
             });
 
             // Try render-based sizing first; fall back to byte estimation on render failure.
-            let full_size = self
-                .render_run_command_size(&job, &job.files, base_tctx)
+            let rendered_size = self.render_run_command_size(&job, &job.files, base_tctx);
+            self.validate_direct_argument_size(run_cmd, rendered_size, platform_max_arg_strlen())?;
+            let full_size = rendered_size
+                .map(|size| size.aggregate)
                 .unwrap_or_else(|| self.estimate_files_string_size(&job.files));
 
             if full_size <= safe_limit {
@@ -189,6 +225,7 @@ impl Step {
                 let remaining = &job.files[offset..];
                 let single_size = self
                     .render_run_command_size(&job, &remaining[..1], base_tctx)
+                    .map(|size| size.aggregate)
                     .unwrap_or_else(|| self.estimate_files_string_size(&remaining[..1]));
                 if single_size > safe_limit {
                     bail!(
@@ -207,6 +244,7 @@ impl Step {
                     let mid = (low + high).div_ceil(2);
                     let test_size = self
                         .render_run_command_size(&job, &remaining[..mid], base_tctx)
+                        .map(|size| size.aggregate)
                         .unwrap_or_else(|| self.estimate_files_string_size(&remaining[..mid]));
                     if test_size <= safe_limit {
                         low = mid;
@@ -268,6 +306,54 @@ mod tests {
         };
 
         assert_eq!(step.auto_batch_safe_limit(&command), expected);
+    }
+
+    #[test]
+    fn structured_argv_rejects_oversized_individual_argument() {
+        let command = Command::Argv(super::super::types::ArgvCommand {
+            argv: vec!["tool".to_string(), "x".repeat(100)],
+        });
+        let step = Step {
+            name: "test".to_string(),
+            ..Default::default()
+        };
+        let size = RenderedCommandSize {
+            aggregate: 105,
+            max_argument: Some(101),
+        };
+
+        let err = step
+            .validate_direct_argument_size(Some(&command), Some(size), Some(100))
+            .unwrap_err();
+
+        assert!(err.to_string().contains("101-byte argument"));
+        assert!(err.to_string().contains("100-byte platform limit"));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn structured_argv_auto_batch_rejects_linux_max_arg_strlen() {
+        let limit = platform_max_arg_strlen().unwrap();
+        let step = Step {
+            name: "test".to_string(),
+            check: Some(Command::Argv(super::super::types::ArgvCommand {
+                // The terminating NUL makes this one byte larger than the limit.
+                argv: vec!["tool".to_string(), "x".repeat(limit)],
+            })),
+            ..Default::default()
+        };
+        let job = StepJob::new(
+            Arc::new(step.clone()),
+            vec![PathBuf::from("file.txt")],
+            RunType::Check,
+        );
+
+        let err = step
+            .auto_batch_jobs(vec![job], &tera::Context::default())
+            .unwrap_err();
+
+        assert!(err.to_string().contains("structured argv"));
+        assert!(err.to_string().contains("platform limit"));
     }
 
     #[test]
@@ -339,6 +425,7 @@ mod tests {
         assert!(jobs.iter().all(|job| {
             step.render_run_command_size(job, &job.files, &tctx)
                 .unwrap()
+                .aggregate
                 <= 100
         }));
     }

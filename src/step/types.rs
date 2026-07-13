@@ -418,7 +418,12 @@ impl Command {
                         if index == 0 {
                             eyre::bail!("the executable cannot be a file-list placeholder");
                         }
-                        rendered.extend(tctx.string_list(list).unwrap_or_default());
+                        let values = tctx.string_list(list).ok_or_else(|| {
+                            eyre::eyre!(
+                                "structured argv placeholder `{arg}` is unavailable in this step context"
+                            )
+                        })?;
+                        rendered.extend(values);
                     } else {
                         rendered.push(tera::render(arg, tctx)?);
                     }
@@ -437,6 +442,14 @@ impl RenderedCommand {
         match self {
             Self::Shell(script) => script.len(),
             Self::Argv(argv) => argv.iter().map(|arg| arg.len() + 1).sum(),
+        }
+    }
+
+    pub(crate) fn max_argument_size(&self) -> Option<usize> {
+        match self {
+            Self::Shell(_) => None,
+            // execve counts each argument's terminating NUL toward MAX_ARG_STRLEN.
+            Self::Argv(argv) => argv.iter().map(|arg| arg.len() + 1).max(),
         }
     }
 
@@ -554,6 +567,20 @@ mod tests {
             .unwrap_err();
 
         assert!(err.to_string().contains("cannot use `prefix`"));
+    }
+
+    #[test]
+    fn structured_argv_rejects_unavailable_workspace_files() {
+        let command = Command::Argv(ArgvCommand {
+            argv: vec!["tool".to_string(), "{{workspace_files}}".to_string()],
+        });
+
+        let err = command.render(&tera::Context::default(), None).unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("`{{workspace_files}}` is unavailable")
+        );
     }
 
     #[test]
