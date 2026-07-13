@@ -196,14 +196,6 @@ url_api = "https://api.github.com/repos/cargo-bins/cargo-binstall/releases/asset
 version = "0.13.7"
 backend = "cargo:cargo-edit"
 
-[[tools."cargo:cargo-msrv"]]
-version = "0.18.4"
-backend = "cargo:cargo-msrv"
-
-[[tools."cargo:cargo-release"]]
-version = "0.25.18"
-backend = "cargo:cargo-release"
-
 [[tools.communique]]
 version = "1.1.2"
 backend = "github:jdx/communique"
