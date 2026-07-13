@@ -3,6 +3,8 @@ use std::{
     ffi::{CString, OsString},
     path::PathBuf,
     process::Command,
+    thread,
+    time::Duration,
 };
 
 use crate::Result;
@@ -49,6 +51,38 @@ where
     let args = args.into_iter().map(|s| s.into()).collect::<Vec<_>>();
     // Silently ignore stderr output by using an empty handler
     xx::process::cmd("git", args).on_stderr_line(|_line| {})
+}
+
+fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
+    const LOCK_RETRY_DELAYS: [Duration; 5] = [
+        Duration::from_millis(25),
+        Duration::from_millis(50),
+        Duration::from_millis(100),
+        Duration::from_millis(200),
+        Duration::from_millis(400),
+    ];
+
+    let index_lock = git_cmd_silent(["rev-parse", "--git-path", "index.lock"])
+        .read()
+        .ok()
+        .map(PathBuf::from);
+
+    if let Some(index_lock) = index_lock {
+        for delay in LOCK_RETRY_DELAYS {
+            if !index_lock.exists() {
+                break;
+            }
+            debug!(
+                "waiting {}ms for transient git index lock {}",
+                delay.as_millis(),
+                index_lock.display()
+            );
+            thread::sleep(delay);
+        }
+    }
+
+    cmd.run()?;
+    Ok(())
 }
 
 fn git_run<I, S>(args: I) -> Result<()>
@@ -850,7 +884,7 @@ impl Git {
                     cmd = cmd.arg("--");
                     cmd = cmd.args(utf8_paths);
                 }
-                cmd.run()?;
+                run_git_stash(&cmd)?;
                 // Record the stash commit we just created and save patch backup
                 if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
                     let commit_hash = h.trim().to_string();
@@ -876,7 +910,7 @@ impl Git {
                         if *env::HK_STASH_UNTRACKED {
                             cmd = cmd.arg("--include-untracked");
                         }
-                        cmd.run()?;
+                        run_git_stash(&cmd)?;
                         // Record the stash commit we just created and save patch backup
                         if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read()
                         {
@@ -900,7 +934,7 @@ impl Git {
                     cmd = cmd.args(utf8_paths);
                 }
             }
-            cmd.run()?;
+            run_git_stash(&cmd)?;
             // Record the stash commit we just created and save patch backup
             if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read() {
                 let commit_hash = h.trim().to_string();
