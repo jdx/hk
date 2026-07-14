@@ -24,7 +24,7 @@ pub fn version_cmp_or_bail(v: &str) -> Result<()> {
     match version_cmp(v) {
         Ok(Ordering::Greater) => {
             bail!(
-                "hk version {v} is less than the minimum required version {}",
+                "hk version {} is less than the minimum required version {v}",
                 version()
             );
         }
