@@ -2,7 +2,16 @@
 module hk.Config
 import "pkl:base" as base
 
-min_hk_version = "{{version | truncate(length=1)}}.0.0"
+/// The minimum hk version required by this config.
+///
+/// If the running hk version is older, hk errors out while loading the config.
+///
+/// Example:
+///
+/// ```pkl
+/// min_hk_version = "1.0.0"
+/// ```
+min_hk_version: String = "{{version | truncate(length=1)}}.0.0"
 
 typealias StashMethod = Boolean | "git" | "patch-file" | "none"
 

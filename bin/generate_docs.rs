@@ -355,7 +355,6 @@ fn generate_pkl_config_doc() -> Result<(), Box<dyn std::error::Error>> {
     for (key, value) in properties {
         match key.as_str() {
             "output" => continue,
-            "min_hk_version" => continue,
             // TODO(thejcannon): Include these
             "display_skip_reasons" => continue,
             "warnings" => continue,
