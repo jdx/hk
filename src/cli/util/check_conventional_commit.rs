@@ -66,10 +66,22 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
         return Err(eyre::eyre!("Invalid commit type: '{commit_type}'"));
     }
 
-    if let Some(scope) = type_and_scope.next()
-        && !scope.ends_with(')')
-    {
-        return Err(eyre::eyre!("Invalid scope, missing closing parentheses"));
+    if let Some(scope) = type_and_scope.next() {
+        // Per the spec, a scope is "a noun ... surrounded by parenthesis", i.e. a
+        // single `(<non-empty>)` pair. `scope` here is everything after the first
+        // `(`, so it must end with `)`, be non-empty inside, and contain no further
+        // parentheses.
+        let Some(inner) = scope.strip_suffix(')') else {
+            return Err(eyre::eyre!("Invalid scope, missing closing parentheses"));
+        };
+        if inner.is_empty() {
+            return Err(eyre::eyre!("Invalid scope, empty scope"));
+        }
+        if inner.contains('(') || inner.contains(')') {
+            return Err(eyre::eyre!(
+                "Invalid scope, unexpected parentheses after closing parenthesis"
+            ));
+        }
     }
 
     // Ensure description has been provided and isn't an empty string
@@ -165,6 +177,45 @@ mod tests {
         let commit_msg_file = NamedTempFile::new().unwrap();
         let path = commit_msg_file.path().to_path_buf();
         fs::write(&path, b"test(scope): test description").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_empty_scope() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"test(): test description").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid scope, empty scope"
+        );
+    }
+
+    #[test]
+    fn test_junk_after_closing_paren() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"test(scope)(x): test description").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Invalid scope, unexpected parentheses after closing parenthesis"
+        );
+    }
+
+    #[test]
+    fn test_valid_scope_with_bang() {
+        // Regression guard: `!` is stripped before the scope split, so this must stay valid.
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"test(scope)!: test description").unwrap();
 
         let result = check_conventional_commit(&path, &["test".to_string()]);
         assert!(result.is_ok());
