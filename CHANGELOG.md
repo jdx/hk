@@ -1,5 +1,45 @@
 # Changelog
 
+## [1.51.0](https://github.com/jdx/hk/compare/v1.50.0..v1.51.0) - 2026-07-13
+
+### 🚀 Features
+
+- **(builtins)** add sherif linter by [@smasato](https://github.com/smasato) in [#1062](https://github.com/jdx/hk/pull/1062)
+- **(config)** add disjunctive file selectors by [@risu729](https://github.com/risu729) in [#1055](https://github.com/jdx/hk/pull/1055)
+- **(step)** add structured argv commands by [@jdx](https://github.com/jdx) in [#1067](https://github.com/jdx/hk/pull/1067)
+
+### 🐛 Bug Fixes
+
+- **(install)** avoid duplicating config hook arguments by [@jdx](https://github.com/jdx) in [#1065](https://github.com/jdx/hk/pull/1065)
+- **(stash)** wait for transient index locks by [@jdx](https://github.com/jdx) in [#1060](https://github.com/jdx/hk/pull/1060)
+- **(step)** respect linux argument size limit by [@jdx](https://github.com/jdx) in [#1066](https://github.com/jdx/hk/pull/1066)
+- make --quiet and --silent suppress progress output by [@smasato](https://github.com/smasato) in [#1058](https://github.com/jdx/hk/pull/1058)
+
+### 📚 Documentation
+
+- align social links icons vertically center by [@smasato](https://github.com/smasato) in [#1059](https://github.com/jdx/hk/pull/1059)
+
+### 🧪 Testing
+
+- **(step)** make check list failure test deterministic by [@jdx](https://github.com/jdx) in [#1068](https://github.com/jdx/hk/pull/1068)
+
+### 🛡️ Security
+
+- **(deps)** update namespacelabs/nscloud-cache-action action to v1.6.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1054](https://github.com/jdx/hk/pull/1054)
+
+### 🔍 Other Changes
+
+- **(release)** skip ai reviews for release prs by [@jdx](https://github.com/jdx) in [#1049](https://github.com/jdx/hk/pull/1049)
+- gate autorelease on fix and feat commits by [@jdx](https://github.com/jdx) in [#1046](https://github.com/jdx/hk/pull/1046)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action action to v1.0.163 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1051](https://github.com/jdx/hk/pull/1051)
+- update rust crate pklr to v1.1.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1053](https://github.com/jdx/hk/pull/1053)
+- update rust crate demand to v2.0.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1052](https://github.com/jdx/hk/pull/1052)
+- update anthropics/claude-code-action action to v1.0.165 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1057](https://github.com/jdx/hk/pull/1057)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1064](https://github.com/jdx/hk/pull/1064)
+
 ## [1.50.0](https://github.com/jdx/hk/compare/v1.49.0..v1.50.0) - 2026-07-06
 
 ### 🚀 Features
