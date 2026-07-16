@@ -1,4 +1,5 @@
 use crate::Result;
+use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, clap::Args)]
@@ -15,47 +16,91 @@ impl NoCommitToBranch {
             .clone()
             .unwrap_or_else(|| vec!["main".to_string(), "master".to_string()]);
 
-        let current_branch = get_current_branch()?;
-
-        if protected_branches.contains(&current_branch) {
-            return Err(std::io::Error::other(format!(
-                "Cannot commit directly to protected branch '{}'",
-                current_branch
-            ))
-            .into());
+        if let Some(current_branch) = get_current_branch()? {
+            if protected_branches.contains(&current_branch) {
+                return Err(std::io::Error::other(format!(
+                    "Cannot commit directly to protected branch '{}'",
+                    current_branch
+                ))
+                .into());
+            }
         }
 
         Ok(())
     }
 }
 
-fn get_current_branch() -> Result<String> {
+fn get_current_branch() -> Result<Option<String>> {
+    get_current_branch_in(Path::new("."))
+}
+
+fn get_current_branch_in(dir: &Path) -> Result<Option<String>> {
     // Use symbolic-ref instead of rev-parse to work in repos without commits
     let output = Command::new("git")
-        .args(["symbolic-ref", "--short", "HEAD"])
+        .args(["symbolic-ref", "--quiet", "--short", "HEAD"])
+        .current_dir(dir)
         .output()?;
 
-    if !output.status.success() {
-        return Err(std::io::Error::other("Failed to get current git branch").into());
+    if output.status.success() {
+        let branch = String::from_utf8(output.stdout)?.trim().to_string();
+        return Ok(Some(branch));
     }
 
-    let branch = String::from_utf8(output.stdout)?.trim().to_string();
+    // A detached HEAD is expected during operations such as interactive rebases.
+    if output.status.code() == Some(1) {
+        return Ok(None);
+    }
 
-    Ok(branch)
+    Err(std::io::Error::other("Failed to get current git branch").into())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn git(dir: &Path, args: &[&str]) {
+        assert!(
+            Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .status()
+                .unwrap()
+                .success()
+        );
+    }
+
     #[test]
-    fn test_get_current_branch() {
-        // This test will only pass in a git repository
-        // In CI or non-git environments, it might fail
-        let result = get_current_branch();
-        if let Ok(branch) = result {
-            // Branch name should not be empty
-            assert!(!branch.is_empty());
-        }
+    fn test_get_current_branch_attached_and_detached() {
+        let dir = tempfile::tempdir().unwrap();
+        git(dir.path(), &["init", "-q"]);
+        git(dir.path(), &["checkout", "-q", "-b", "feature"]);
+
+        assert_eq!(
+            get_current_branch_in(dir.path()).unwrap(),
+            Some("feature".to_string())
+        );
+
+        git(
+            dir.path(),
+            &[
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                "commit",
+                "--allow-empty",
+                "-qm",
+                "initial",
+            ],
+        );
+        git(dir.path(), &["checkout", "-q", "--detach", "HEAD"]);
+
+        assert_eq!(get_current_branch_in(dir.path()).unwrap(), None);
+    }
+
+    #[test]
+    fn test_get_current_branch_errors_outside_repository() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(get_current_branch_in(dir.path()).is_err());
     }
 }

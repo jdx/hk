@@ -20,5 +20,11 @@ no_commit_to_branch = new Config.Step {
       before = "git init -q && git checkout -q -b main"
       expect { code = 1 }
     }
+    ["passes with detached HEAD"] {
+      run = "check"
+      write { ["{{tmp}}/.gitkeep"] = "" }
+      before = "git init -q && git checkout -q -b feature-branch && git -c user.name=Test -c user.email=test@example.com commit --allow-empty -qm initial && git checkout -q --detach HEAD"
+      expect { code = 0 }
+    }
   }
 }
