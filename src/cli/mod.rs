@@ -151,6 +151,7 @@ pub async fn run() -> Result<()> {
     // - Completion/Usage: shell completion generation shouldn't require valid config
     // - Version: just prints version info
     // - Builtins: just lists compiled-in builtin names, no project config needed
+    // - Util: standalone file utilities must not recursively load hk config
     let settings = if matches!(
         args.command,
         Commands::Builtins(_)
@@ -159,6 +160,7 @@ pub async fn run() -> Result<()> {
             | Commands::Completion(_)
             | Commands::Sponsors(_)
             | Commands::Usage(_)
+            | Commands::Util(_)
             | Commands::Version(_)
     ) {
         Arc::new(crate::settings::generated::settings::Settings::default())

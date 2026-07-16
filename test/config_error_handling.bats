@@ -77,6 +77,28 @@ EOF
     assert_output --partial "Failed to load config"
 }
 
+@test "hk util ignores invalid project and user config" {
+    echo "clean line" > clean.txt
+
+    cat > hk.pkl <<'EOF'
+invalid project config
+EOF
+
+    run hk util trailing-whitespace clean.txt
+    assert_success
+    refute_output
+
+    rm hk.pkl
+    mkdir -p "$XDG_CONFIG_HOME/hk"
+    cat > "$XDG_CONFIG_HOME/hk/config.pkl" <<'EOF'
+invalid user config
+EOF
+
+    run hk util trailing-whitespace clean.txt
+    assert_success
+    refute_output
+}
+
 
 @test "config error shows helpful details" {
     cd "$BATS_TEST_TMPDIR"
