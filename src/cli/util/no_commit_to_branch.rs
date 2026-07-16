@@ -16,14 +16,14 @@ impl NoCommitToBranch {
             .clone()
             .unwrap_or_else(|| vec!["main".to_string(), "master".to_string()]);
 
-        if let Some(current_branch) = get_current_branch()? {
-            if protected_branches.contains(&current_branch) {
-                return Err(std::io::Error::other(format!(
-                    "Cannot commit directly to protected branch '{}'",
-                    current_branch
-                ))
-                .into());
-            }
+        if let Some(current_branch) = get_current_branch()?
+            && protected_branches.contains(&current_branch)
+        {
+            return Err(std::io::Error::other(format!(
+                "Cannot commit directly to protected branch '{}'",
+                current_branch
+            ))
+            .into());
         }
 
         Ok(())

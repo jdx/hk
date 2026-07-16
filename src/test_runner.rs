@@ -199,14 +199,18 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     // Handle `workspace_indicator`
     if let Some(workspaces) = step.workspaces_for_files(&abs_files)? {
         let workspace_indicator = match workspaces.len() {
-            0 => eyre::bail!("{}: no workspace_indicator found for files", step.name,),
+            0 => {
+                eyre::bail!("{}: no workspace_indicator found for files", step.name,);
+            }
             1 => workspaces.into_iter().next().unwrap(),
-            n => eyre::bail!(
-                "{}: expected exactly one workspace_indicator, found {}: {:?}",
-                step.name,
-                n,
-                workspaces
-            ),
+            n => {
+                eyre::bail!(
+                    "{}: expected exactly one workspace_indicator, found {}: {:?}",
+                    step.name,
+                    n,
+                    workspaces
+                );
+            }
         };
 
         tctx.with_workspace_indicator(&workspace_indicator);
