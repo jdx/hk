@@ -137,11 +137,13 @@ fn has_global_hk_hooks() -> Result<bool> {
     match output.status.code().unwrap_or(1) {
         0 => Ok(!output.stdout.is_empty()),
         1 => Ok(false),
-        code => bail!(
-            "git config --get-regexp failed (exit {}): {}",
-            code,
-            String::from_utf8_lossy(&output.stderr).trim()
-        ),
+        code => {
+            bail!(
+                "git config --get-regexp failed (exit {}): {}",
+                code,
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+        }
     }
 }
 
