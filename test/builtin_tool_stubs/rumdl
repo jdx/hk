@@ -1,4 +1,4 @@
 #!/usr/bin/env -S mise tool-stub
 
-version = "0.0.198"
+version = "0.1.0"
 tool = "aqua:rvben/rumdl"
