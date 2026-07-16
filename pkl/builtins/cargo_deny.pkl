@@ -15,14 +15,15 @@ import "./test/helpers.pkl"
   }
 }
 cargo_deny = new Config.Step {
-  glob = List(
-    "**/Cargo.toml",
-    "**/Cargo.lock",
-    "**/deny.toml",
-    "**/.deny.toml",
-    "**/deny.exceptions.toml",
-    "**/.deny.exceptions.toml",
-  )
+  glob =
+    List(
+      "**/Cargo.toml",
+      "**/Cargo.lock",
+      "**/deny.toml",
+      "**/.deny.toml",
+      "**/deny.exceptions.toml",
+      "**/.deny.exceptions.toml",
+    )
   workspace_indicator = "Cargo.toml"
   check = "cd {{workspace}} && cargo-deny --locked --workspace check"
   tests {
