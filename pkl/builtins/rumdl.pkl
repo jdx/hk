@@ -4,7 +4,7 @@ import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Markdown"
-  description = "Markdown linter and formatter"
+  description = "Markdown linter"
 }
 rumdl = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
