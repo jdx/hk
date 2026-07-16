@@ -7,12 +7,24 @@ import "./test/helpers.pkl"
   description = "Rust dependency linter"
   project_indicators {
     new { file = "deny.toml" }
+    new { file = ".deny.toml" }
+    new { file = ".cargo/deny.toml" }
+    new { file = "deny.exceptions.toml" }
+    new { file = ".deny.exceptions.toml" }
+    new { file = ".cargo/deny.exceptions.toml" }
   }
 }
 cargo_deny = new Config.Step {
-  glob = List("**/Cargo.toml", "**/Cargo.lock", "**/deny.toml")
+  glob = List(
+    "**/Cargo.toml",
+    "**/Cargo.lock",
+    "**/deny.toml",
+    "**/.deny.toml",
+    "**/deny.exceptions.toml",
+    "**/.deny.exceptions.toml",
+  )
   workspace_indicator = "Cargo.toml"
-  check = "cd {{workspace}} && cargo-deny --locked check"
+  check = "cd {{workspace}} && cargo-deny --locked --workspace check"
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "deny.toml"
@@ -42,5 +54,9 @@ cargo_deny = new Config.Step {
     }
     ["check bad config"] = testMaker.checkFail("invalid = [\n", 1)
     ["check good config"] = testMaker.checkPass("[licenses]\nallow = [\"MIT\"]\n")
+    ["check good dotfile config"] =
+      testMaker.withFilename(".deny.toml").checkPass("[licenses]\nallow = [\"MIT\"]\n")
+    ["check good cargo config"] =
+      testMaker.withFilename(".cargo/deny.toml").checkPass("[licenses]\nallow = [\"MIT\"]\n")
   }
 }
