@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "a3e13cc6b6d2",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-util-skip-config",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/cli/mod.rs",
+    "test/config_error_handling.bats"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a3/e13cc6b6d2/0/metadata.json",
+      "transcript": "/a3/e13cc6b6d2/0/full.jsonl",
+      "content_hash": "/a3/e13cc6b6d2/0/content_hash.txt",
+      "prompt": "/a3/e13cc6b6d2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 108314,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1240064,
+    "output_tokens": 5724,
+    "api_call_count": 28
+  }
+}

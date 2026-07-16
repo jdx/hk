@@ -1,0 +1,5 @@
+thoughts on [https://github.com/jdx/hk/discussions/1077#discussioncomment-17664163](https://github.com/jdx/hk/discussions/1077#discussioncomment-17664163)
+
+---
+
+can we make a pr to do that and maybe see if they can build/test it?
