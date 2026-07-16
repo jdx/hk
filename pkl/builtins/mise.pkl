@@ -25,7 +25,8 @@ mise = new Config.Step {
       ".config/mise/mise.*.toml",
       ".config/mise/conf.d/*.toml",
     )
-  batch = true
+  // `mise fmt` processes all configuration files itself and accepts no file arguments.
+  batch = false
   check = "mise fmt --check"
   fix = "mise fmt"
   tests {
