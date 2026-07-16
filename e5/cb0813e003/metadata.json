@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "e5cb0813e003",
+  "strategy": "manual-commit",
+  "branch": "codex/fix-no-commit-detached-head",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/cli/install.rs",
+    "src/cli/util/no_commit_to_branch.rs",
+    "src/test_runner.rs"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e5/cb0813e003/0/metadata.json",
+      "transcript": "/e5/cb0813e003/0/full.jsonl",
+      "content_hash": "/e5/cb0813e003/0/content_hash.txt",
+      "prompt": "/e5/cb0813e003/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 67351,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1734656,
+    "output_tokens": 3982,
+    "api_call_count": 20
+  }
+}

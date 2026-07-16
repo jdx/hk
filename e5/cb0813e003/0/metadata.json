@@ -1,0 +1,50 @@
+{
+  "cli_version": "0.7.7",
+  "checkpoint_id": "e5cb0813e003",
+  "session_id": "019f690c-8f7b-7631-86d1-935c66dbf4f4",
+  "strategy": "manual-commit",
+  "created_at": "2026-07-16T04:08:09.341481Z",
+  "branch": "codex/fix-no-commit-detached-head",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/cli/install.rs",
+    "src/cli/util/no_commit_to_branch.rs",
+    "src/test_runner.rs"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "1c7f472126ad",
+  "checkpoint_transcript_start": 191,
+  "transcript_lines_at_start": 191,
+  "token_usage": {
+    "input_tokens": 67351,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1734656,
+    "output_tokens": 3982,
+    "api_call_count": 20
+  },
+  "session_metrics": {
+    "turn_count": 1
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-07-16T04:08:09.326105Z",
+    "agent_lines": 26,
+    "agent_removed": 20,
+    "human_added": 2,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 28,
+    "total_lines_changed": 49,
+    "agent_percentage": 93.87755102040816,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0
+    }
+  ]
+}
