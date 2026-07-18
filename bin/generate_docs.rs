@@ -180,7 +180,7 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(serde_json::Value::Object(props)) = properties {
                 for (name, prop) in props {
                     // Get annotations from the property
-                    let annotations = prop.get("annnotations"); // Note: typo in reflect.pkl
+                    let annotations = prop.get("annotations");
                     let (category, description) =
                         if let Some(serde_json::Value::Array(anns)) = annotations {
                             let mut cat = "Uncategorized".to_string();
