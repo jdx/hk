@@ -21,7 +21,9 @@ hooks {
 }
 PKL
 
-    PATH="$PATH":"$PROJECT_ROOT"/test/builtin_tool_stubs
+    # Prepend so stub-pinned tools take precedence over any ambient tools
+    # preinstalled on the runner (e.g. ubuntu-latest ships a global tsc).
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
     run hk test
     assert_success
     # At least the newlines builtin has a test
