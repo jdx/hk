@@ -9,7 +9,7 @@ teardown() {
     _common_teardown
 }
 
-@test "hk run check --unstaged passes only unstaged and untracked files and does not stash" {
+@test "hk check --unstaged passes only unstaged and untracked files and does not stash" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -47,7 +47,39 @@ EOF
     assert_output ""
 }
 
-@test "hk run check --unstaged conflicts with --staged" {
+@test "hk run check --unstaged passes only unstaged and untracked files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["capture"] {
+                check = "printf '%s\n' {{files}} | sort > seen.txt"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "init"
+
+    echo "tracked" > tracked.txt
+    git add tracked.txt
+    git commit -m "add tracked"
+
+    echo "unstaged" >> tracked.txt
+    echo "staged" > staged.txt
+    git add staged.txt
+    echo "untracked" > untracked.txt
+
+    run hk run check --unstaged
+    assert_success
+
+    run cat seen.txt
+    assert_output $'tracked.txt\nuntracked.txt'
+}
+
+@test "hk check --unstaged conflicts with --staged" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -65,9 +97,10 @@ EOF
 
     run hk check --unstaged --staged
     assert_failure
+    assert_output --partial "cannot be used with"
 }
 
-@test "hk run check --unstaged conflicts with explicit stash option" {
+@test "hk check --unstaged conflicts with explicit stash option" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {

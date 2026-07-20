@@ -1359,6 +1359,17 @@ impl Hook {
             }
             let all_files = all_files.into_iter().collect_vec();
             glob::get_matches(glob, &all_files)?.into_iter().collect()
+        } else if opts.unstaged {
+            // Checked before `from_ref` because `pre-push` fills from_ref/to_ref
+            // programmatically after arg parsing (bypassing the clap conflict),
+            // and an explicit `--unstaged` should still win there.
+            file_progress.prop("message", "Fetching unstaged files");
+            git_status
+                .unstaged_files
+                .iter()
+                .chain(git_status.untracked_files.iter())
+                .cloned()
+                .collect()
         } else if let Some(from) = &opts.from_ref {
             if opts.to_ref.as_deref().map(crate::git::is_zero_sha) == Some(true) {
                 file_progress.prop("message", "No files to compare for remote branch deletion");
@@ -1385,14 +1396,6 @@ impl Hook {
                 all_files.extend(git_status.untracked_files.iter().cloned());
             }
             all_files
-        } else if opts.unstaged {
-            file_progress.prop("message", "Fetching unstaged files");
-            git_status
-                .unstaged_files
-                .iter()
-                .chain(git_status.untracked_files.iter())
-                .cloned()
-                .collect()
         } else if opts.staged || stash || self.defaults_to_staged_files() {
             file_progress.prop("message", "Fetching staged files");
             git_status.staged_files.iter().cloned().collect()
