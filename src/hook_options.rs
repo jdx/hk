@@ -6,7 +6,7 @@ pub(crate) struct HookOptions {
     #[clap(conflicts_with_all = &["all", "fix", "check"], value_hint = clap::ValueHint::FilePath)]
     pub files: Option<Vec<String>>,
     /// Run on all files instead of just staged files
-    #[clap(short, long, conflicts_with = "staged")]
+    #[clap(short, long, conflicts_with_all = &["staged", "unstaged"])]
     pub all: bool,
     /// Run check command instead of fix command
     #[clap(short, long, overrides_with = "fix")]
@@ -61,7 +61,7 @@ pub(crate) struct HookOptions {
     /// Run on staged files only without stashing unstaged changes
     #[clap(
         long,
-        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "stash", "to_ref"]
+        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "stash", "to_ref", "unstaged"]
     )]
     pub staged: bool,
     /// Stash method to use for git hooks
@@ -73,6 +73,13 @@ pub(crate) struct HookOptions {
     /// End reference for checking files (requires --from-ref)
     #[clap(long)]
     pub to_ref: Option<String>,
+    /// Run on unstaged and untracked files only (excludes staged files),
+    /// without stashing. Useful for linting files an agent just changed.
+    #[clap(
+        long,
+        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "stash", "to_ref", "staged"]
+    )]
+    pub unstaged: bool,
     /// Prefilled tera context
     #[clap(skip)]
     pub tctx: Context,
@@ -83,6 +90,11 @@ impl HookOptions {
         if self.staged && self.stash.is_some() {
             return Err(eyre::eyre!(
                 "argument '--staged' cannot be used with '--stash <STASH>'"
+            ));
+        }
+        if self.unstaged && self.stash.is_some() {
+            return Err(eyre::eyre!(
+                "argument '--unstaged' cannot be used with '--stash <STASH>'"
             ));
         }
         Ok(())

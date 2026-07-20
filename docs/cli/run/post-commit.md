@@ -97,3 +97,7 @@ Display statistics about files matching each step
 ### `--to-ref <TO_REF>`
 
 End reference for checking files (requires --from-ref)
+
+### `--unstaged`
+
+Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed
