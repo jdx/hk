@@ -1,0 +1,5 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "7.0.2"
+tool = "npm:typescript"
+bin = "tsc"
