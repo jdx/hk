@@ -103,6 +103,31 @@ EOF
     assert_output --partial "[warn] new.js"
 }
 
+@test "pre-push hook on first push to empty remote" {
+    export NO_COLOR=1
+    if [ "$HK_LIBGIT2" = "0" ]; then
+        skip "libgit2 is not installed"
+    fi
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
+EOF
+    git add hk.pkl
+    git commit -m "install hk"
+    hk install --legacy
+
+    # First push to an empty remote: no origin/HEAD, no remote branches, so
+    # default_branch() falls through to the literal "origin/HEAD". The push
+    # should lint the pushed files, not fail resolving that ref.
+    echo 'console.log("first")' > first.js
+    git add first.js
+    git commit -m "add first.js"
+    HK_LOG=trace run git push -u origin main
+    assert_failure
+    assert_output --partial "[warn] first.js"
+}
+
 @test "pre-push hook skips branch deletion" {
     export NO_COLOR=1
     if [ "$HK_LIBGIT2" = "0" ]; then

@@ -1488,9 +1488,6 @@ impl Git {
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {
         let to_ref = to_ref.unwrap_or("HEAD");
         if let Some(repo) = &self.repo {
-            let from_obj = repo
-                .revparse_single(from_ref)
-                .wrap_err(format!("Failed to parse reference: {from_ref}"))?;
             let to_obj = repo
                 .revparse_single(to_ref)
                 .wrap_err(format!("Failed to parse reference: {to_ref}"))?;
@@ -1498,6 +1495,24 @@ impl Git {
             let to_tree = to_obj
                 .peel_to_tree()
                 .wrap_err(format!("Failed to get tree for reference: {to_ref}"))?;
+
+            let from_obj = match repo.revparse_single(from_ref) {
+                Ok(from_obj) => from_obj,
+                // Unresolvable from-ref (e.g. first push, `default_branch()` returned the literal
+                // "origin/HEAD"): diff against the empty tree so all pushed files are linted.
+                // Passing `None` as the old tree diffs against empty without materializing an
+                // empty-tree object in the ODB, keeping this query side-effect free.
+                Err(err) if err.code() == ErrorCode::NotFound => {
+                    debug!("could not resolve from-ref '{from_ref}'; diffing against empty tree");
+                    let diff = repo
+                        .diff_tree_to_tree(None, Some(&to_tree), None)
+                        .wrap_err("Failed to diff against empty tree")?;
+                    return collect_existing_paths_from_diff(diff);
+                }
+                Err(err) => {
+                    return Err(err).wrap_err(format!("Failed to resolve from-ref: {from_ref}"));
+                }
+            };
 
             // Prefer merge-base semantics (`from...to`). In shallow clones the
             // merge base can be missing, so fall back to a direct `from..to`
@@ -1539,7 +1554,7 @@ impl Git {
             };
 
             collect_existing_paths_from_diff(diff)
-        } else {
+        } else if git_rev_exists(from_ref)? {
             let range = match git_merge_base(from_ref, to_ref)? {
                 Some(merge_base) => format!("{}..{}", merge_base.trim(), to_ref),
                 None => format!("{from_ref}..{to_ref}"),
@@ -1552,6 +1567,16 @@ impl Git {
                 "--diff-filter=ACMRTUXB",
                 range.as_str(),
             ])?;
+            Ok(output
+                .split('\0')
+                .filter(|p| !p.is_empty())
+                .map(PathBuf::from)
+                .collect())
+        } else {
+            // No resolvable base: lint every file at `to_ref`. `ls-tree` is
+            // object-format agnostic, unlike a hard-coded empty-tree hash.
+            debug!("could not resolve from-ref '{from_ref}'; listing all files at {to_ref}");
+            let output = git_read(["ls-tree", "-z", "-r", "--name-only", to_ref])?;
             Ok(output
                 .split('\0')
                 .filter(|p| !p.is_empty())
@@ -1580,6 +1605,24 @@ fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
     .wrap_err("Failed to process diff")?;
 
     Ok(files.into_iter().collect())
+}
+
+fn git_rev_exists(rev: &str) -> Result<bool> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--verify", "--quiet", rev])
+        .output()
+        .wrap_err("Failed to run git rev-parse")?;
+
+    match output.status.code() {
+        // 0: rev resolves. 1: rev is absent (with --quiet). Anything else (or a
+        // spawn failure above) is a real error, not evidence the rev is missing.
+        Some(0) => Ok(true),
+        Some(1) => Ok(false),
+        _ => Err(eyre!(
+            "Failed to check rev '{rev}': {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )),
+    }
 }
 
 fn git_merge_base(from_ref: &str, to_ref: &str) -> Result<Option<String>> {

@@ -194,6 +194,64 @@ EOF
     refute_output --partial "unrelated.txt"
 }
 
+@test "files_between_refs lints all files when from-ref is unresolvable using libgit2" {
+    echo "main content" > main.txt
+    mkdir -p src
+    echo "nested content" > src/nested.txt
+    git add main.txt src/nested.txt
+    git commit -m "main commit"
+    MAIN_COMMIT=$(git rev-parse HEAD)
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["print-files"] {
+                check = "echo '{{files}}'"
+            }
+        }
+    }
+}
+EOF
+
+    # An unresolvable from-ref (mirrors the empty-remote first push, where
+    # default_branch() yields the literal "origin/HEAD") diffs against the
+    # empty tree, so every file at to-ref is linted.
+    HK_LIBGIT2=1 run hk check --from-ref=origin/HEAD --to-ref=$MAIN_COMMIT
+    assert_success
+    assert_output --partial "print-files – main.txt src/nested.txt"
+}
+
+@test "files_between_refs lints all files when from-ref is unresolvable using shell git" {
+    echo "main content" > main.txt
+    mkdir -p src
+    echo "nested content" > src/nested.txt
+    git add main.txt src/nested.txt
+    git commit -m "main commit"
+    MAIN_COMMIT=$(git rev-parse HEAD)
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["print-files"] {
+                check = "echo '{{files}}'"
+            }
+        }
+    }
+}
+EOF
+
+    # Shell-git fallback: git_rev_exists() returns false for the unresolvable
+    # from-ref, so files_between_refs lists every file at to-ref via ls-tree
+    # (object-format agnostic, unlike a hard-coded empty-tree hash).
+    HK_LIBGIT2=0 run hk check --from-ref=origin/HEAD --to-ref=$MAIN_COMMIT
+    assert_success
+    assert_output --partial "print-files – main.txt src/nested.txt"
+}
+
 @test "files staged for deletion are not included with --all" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
