@@ -4,54 +4,31 @@ import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Markdown"
-  description = "Markdown linter and formatter"
+  description = "Markdown linter"
 }
 rumdl = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
   check_diff = "rumdl check --diff {{ files }}"
   fix = "rumdl check --fix {{ files }}"
   tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "file.md"
-      extra_files = new Mapping<String, String> {
-        [".rumdl.toml"] = "[MD007]\nindent = 2\n"
-      }
-    }
-    ["check bad file"] =
-      testMaker.checkFail(
-        """
-        # Hello
-
-        - indent 1
-                   - indent 2
-
-        """,
-        1,
-      )
-    ["check good file"] = testMaker.checkPass("# Hello\n\n- indent 1\n  - indent 2\n")
+    local const testMaker = new helpers.TestMaker { filename = "file.md" }
+    ["check bad file"] = testMaker.checkFail("# Hello\n\n\nParagraph\n", 1)
+    ["check good file"] = testMaker.checkPass("# Hello\n\nParagraph\n")
     ["fix bad file violations remain"] =
       testMaker.fixFail(
-        """
-        - indent 1
-                   - indent 2
-
-        """,
-        """
-        - indent 1
-          - indent 2
-
-        """,
+        "Paragraph\n\n\nSecond paragraph\n\n",
+        "Paragraph\n\nSecond paragraph\n",
         1,
       )
     ["fix bad file all violations are fixed"] =
       testMaker.fixPass(
-        "# Hello\n\n- indent 1\n           - indent 2\n",
-        "# Hello\n\n- indent 1\n  - indent 2\n",
+        "# Hello\n\n\nParagraph\n",
+        "# Hello\n\nParagraph\n",
       )
     ["fix good file"] =
       testMaker.fixPass(
-        "# Hello\n\n- indent 1\n  - indent 2\n",
-        "# Hello\n\n- indent 1\n  - indent 2\n",
+        "# Hello\n\nParagraph\n",
+        "# Hello\n\nParagraph\n",
       )
   }
 }

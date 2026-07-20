@@ -1,0 +1,22 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Markdown"
+  description = "Markdown formatter"
+}
+rumdl_format = new Config.Step {
+  glob = List("**/*.md", "**/*.markdown")
+  check_diff = "rumdl fmt --check --diff {{ files }}"
+  fix = "rumdl fmt {{ files }}"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "file.md" }
+    local const before = "# Hello\n\n\nParagraph\n"
+    local const after = "# Hello\n\nParagraph\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}
