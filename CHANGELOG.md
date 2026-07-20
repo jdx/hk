@@ -1,6 +1,47 @@
 # Changelog
 
-## [1.51.0](https://github.com/jdx/hk/compare/v1.50.0..v1.51.0) - 2026-07-13
+## [1.52.0](https://github.com/jdx/hk/compare/v1.51.0..v1.52.0) - 2026-07-20
+
+### 🚀 Features
+
+- **(builtins)** add rumdl formatter by [@risu729](https://github.com/risu729) in [#1080](https://github.com/jdx/hk/pull/1080)
+- **(check)** add --unstaged flag to lint working-tree changes only by [@jdx](https://github.com/jdx) in [#1093](https://github.com/jdx/hk/pull/1093)
+- **(config)** add subprojects for nested hk configs in monorepos by [@jdx](https://github.com/jdx) in [#1094](https://github.com/jdx/hk/pull/1094)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** allow detached HEAD for branch guard by [@jdx](https://github.com/jdx) in [#1075](https://github.com/jdx/hk/pull/1075)
+- **(builtins)** avoid batching mise formatter by [@risu729](https://github.com/risu729) in [#1079](https://github.com/jdx/hk/pull/1079)
+- **(config)** correct swapped versions in min_hk_version error message by [@smasato](https://github.com/smasato) in [#1070](https://github.com/jdx/hk/pull/1070)
+- **(conventional-commit)** reject empty and malformed scopes by [@LordAizen1](https://github.com/LordAizen1) in [#1071](https://github.com/jdx/hk/pull/1071)
+- **(git)** lint against empty remote (base ref unresolvable) by [@sshine](https://github.com/sshine) in [#1090](https://github.com/jdx/hk/pull/1090)
+- **(util)** skip configuration loading by [@jdx](https://github.com/jdx) in [#1078](https://github.com/jdx/hk/pull/1078)
+
+### 📚 Documentation
+
+- **(builtins)** use correct annotations key so docs group by category by [@smasato](https://github.com/smasato) in [#1088](https://github.com/jdx/hk/pull/1088)
+- **(config)** document min_hk_version property by [@smasato](https://github.com/smasato) in [#1069](https://github.com/jdx/hk/pull/1069)
+- fix sponsor logo rendering in footer by [@smasato](https://github.com/smasato) in [#1087](https://github.com/jdx/hk/pull/1087)
+
+### 🔍 Other Changes
+
+- regenerate aube-lock.yaml on renovate branches by [@jdx](https://github.com/jdx) in [#1092](https://github.com/jdx/hk/pull/1092)
+
+### 📦️ Dependency Updates
+
+- bump communique to 1.2.3 by [@jdx](https://github.com/jdx) in [#1073](https://github.com/jdx/hk/pull/1073)
+- update anthropics/claude-code-action action to v1.0.170 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1082](https://github.com/jdx/hk/pull/1082)
+- update rust crate pklr to v1.2.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1083](https://github.com/jdx/hk/pull/1083)
+- update anthropics/claude-code-action action to v1.0.171 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1086](https://github.com/jdx/hk/pull/1086)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1091](https://github.com/jdx/hk/pull/1091)
+- remove unused typescript and dead typescript-eslint by [@jdx](https://github.com/jdx) in [#1095](https://github.com/jdx/hk/pull/1095)
+
+### New Contributors
+
+- @sshine made their first contribution in [#1090](https://github.com/jdx/hk/pull/1090)
+- @LordAizen1 made their first contribution in [#1071](https://github.com/jdx/hk/pull/1071)
+
+## [1.51.0](https://github.com/jdx/hk/compare/v1.50.0..v1.51.0) - 2026-07-14
 
 ### 🚀 Features
 
