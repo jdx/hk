@@ -182,6 +182,7 @@ If set to `true`:
 
 - When installing hooks with `hk install`, hk will use `mise x` to execute hooks which won't require activating mise to use mise tools
 - When generating files with `hk init`, hk will create a `mise.toml` file with hk configured
+- When running steps with a `dir`, hk resolves the mise environment for that directory (`mise env`, cached per directory) so tools and env vars from the directory's mise config are available — see [mise integration](/mise_integration#per-directory-environments-monorepos)
 
 ## `HK_PKL_BACKEND`
 

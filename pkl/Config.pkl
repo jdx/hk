@@ -185,6 +185,22 @@ stage: Boolean?
 /// Default: 20
 stash_backup_count: UInt?
 
+/// Directories containing their own hk config files, for monorepos. Entries may be
+/// literal directories or glob patterns (e.g. `"packages/*"`).
+///
+/// Each subproject's hooks are merged into this config, scoped to its directory:
+/// step working directories and glob matching are relative to the subdirectory,
+/// step names are prefixed with `"<dir>:"` (e.g. `packages/web:eslint`), and the
+/// subproject's `env` applies only to its own steps.
+///
+/// This pairs well with [mise monorepo config roots](https://mise.jdx.dev/tasks/monorepo.html):
+/// each config root can own its linting config next to its code.
+///
+/// ```pkl
+/// subprojects = List("subproject", "packages/*")
+/// ```
+subprojects: List<String>?
+
 /// Enables or disables reporting progress via OSC sequences to compatible terminals.
 terminal_progress: Boolean?
 
