@@ -13,21 +13,19 @@
     "vitepress": "^1.6.3"
   },
   "devDependencies": {
-    "globals": "^17.0.0",
-    "typescript-eslint": "^8.24.1"
+    "globals": "^17.0.0"
   },
   "pnpm": {
     "supportedArchitectures": {
       "os": [
-        "current",
-        "linux"
+        "linux",
+        "darwin"
       ],
       "cpu": [
-        "current",
-        "x64"
+        "x64",
+        "arm64"
       ],
       "libc": [
-        "current",
         "glibc"
       ]
     }

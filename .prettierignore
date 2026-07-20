@@ -2,3 +2,5 @@ docs/.vitepress
 test/bats
 test/data
 test/test_helper
+
+**/aube-lock.yaml
