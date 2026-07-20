@@ -472,12 +472,7 @@ impl Config {
                 bail!("subprojects entries must be relative paths without '..': {pattern}");
             }
         }
-        let root = self
-            .path
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| PathBuf::from("."));
+        let root = Self::project_root_of(&self.path);
         for (dir, config_path) in Self::discover_subprojects(&root, &patterns)? {
             debug!("loading subproject config: {}", config_path.display());
             let sub = Self::load_config_cached_with(config_path.clone(), false)?;
@@ -491,6 +486,26 @@ impl Config {
         Ok(())
     }
 
+    /// The project root a config file belongs to. Configs may live at the root
+    /// itself (hk.pkl) or under a `.config/` directory (.config/hk.pkl), in
+    /// which case the root is one level further up.
+    fn project_root_of(config_path: &Path) -> PathBuf {
+        let parent = config_path.parent().filter(|p| !p.as_os_str().is_empty());
+        let parent = match parent {
+            Some(p) => p,
+            None => return PathBuf::from("."),
+        };
+        if parent.file_name().is_some_and(|name| name == ".config") {
+            parent
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."))
+        } else {
+            parent.to_path_buf()
+        }
+    }
+
     /// Resolve `subprojects` entries to (relative dir, config file) pairs.
     /// Literal entries warn when missing; glob matches without a config file
     /// are silently skipped.
@@ -502,11 +517,14 @@ impl Config {
         let walked: Vec<String> = if glob_patterns.is_empty() {
             vec![]
         } else {
+            // `**` patterns get a generous but bounded depth so a pathological
+            // tree can't make discovery walk forever
+            const MAX_WALK_DEPTH: usize = 32;
             let max_depth = glob_patterns
                 .iter()
                 .map(|p| {
                     if p.contains("**") {
-                        usize::MAX
+                        MAX_WALK_DEPTH
                     } else {
                         p.split('/').count()
                     }
@@ -624,14 +642,9 @@ impl Config {
                 report: sub_hook.report.clone(),
                 ..Default::default()
             });
-            // Names of the subproject hook's flat steps, for rewriting `depends`
-            // references to their scoped names.
-            let flat_names = sub_hook
-                .steps
-                .iter()
-                .filter(|(_, sog)| matches!(sog, crate::hook::StepOrGroup::Step(_)))
-                .map(|(name, _)| name.clone())
-                .collect::<IndexSet<_>>();
+            // Names of the subproject hook's steps and groups, for rewriting
+            // `depends` references to their scoped names.
+            let sibling_names = sub_hook.steps.keys().cloned().collect::<IndexSet<_>>();
             for (name, step_or_group) in sub_hook.steps {
                 let scoped_name = format!("{subdir}:{name}");
                 if root_hook.steps.contains_key(&scoped_name) {
@@ -645,7 +658,7 @@ impl Config {
                             .depends
                             .iter()
                             .map(|dep| {
-                                if flat_names.contains(dep) {
+                                if sibling_names.contains(dep) {
                                     format!("{subdir}:{dep}")
                                 } else {
                                     dep.clone()
@@ -1270,6 +1283,26 @@ mod tests {
         assert_eq!(Config::join_subdir("sub", None), "sub");
         assert_eq!(Config::join_subdir("sub", Some("")), "sub");
         assert_eq!(Config::join_subdir("sub", Some("ui")), "sub/ui");
+    }
+
+    #[test]
+    fn project_root_of_handles_config_directory() {
+        assert_eq!(
+            Config::project_root_of(Path::new("/repo/hk.pkl")),
+            PathBuf::from("/repo")
+        );
+        assert_eq!(
+            Config::project_root_of(Path::new("/repo/.config/hk.pkl")),
+            PathBuf::from("/repo")
+        );
+        assert_eq!(
+            Config::project_root_of(Path::new("hk.pkl")),
+            PathBuf::from(".")
+        );
+        assert_eq!(
+            Config::project_root_of(Path::new(".config/hk.pkl")),
+            PathBuf::from(".")
+        );
     }
 
     #[test]

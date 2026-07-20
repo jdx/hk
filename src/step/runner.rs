@@ -14,12 +14,12 @@ use crate::hook::SkipReason;
 use crate::step_context::StepContext;
 use crate::step_job::{StepJob, StepJobStatus};
 use crate::timings::StepTimingGuard;
-use crate::{Result, tera};
+use crate::{Result, env, tera};
 use clx::progress::ProgressStatus;
 use ensembler::CmdLineRunner;
 use eyre::WrapErr;
 use itertools::Itertools;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use super::expr_env::EXPR_ENV;
@@ -264,6 +264,16 @@ impl Step {
         }
         if let Some(dir) = &self.dir {
             cmd = cmd.current_dir(dir);
+            // With HK_MISE enabled, resolve the mise environment for the step's
+            // directory so tools/env from that directory's mise config (e.g. a
+            // subproject's mise.toml) are available even when hk was started
+            // from the repo root. Explicit step env still wins below.
+            if *env::HK_MISE {
+                let mise_env = crate::mise_env::mise_env_for_dir(Path::new(dir)).await;
+                for (key, value) in mise_env.iter() {
+                    cmd = cmd.env(key, value);
+                }
+            }
         }
         for (key, value) in &self.env {
             let value = tera::render(value, &tctx)?;
