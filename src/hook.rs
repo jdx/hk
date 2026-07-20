@@ -545,7 +545,7 @@ impl Hook {
     }
 
     fn resolve_stash_method_for_opts(&self, opts: &HookOptions) -> StashMethod {
-        if opts.staged {
+        if opts.staged || opts.unstaged {
             StashMethod::None
         } else if let Some(stash_str) = &opts.stash {
             stash_str
@@ -1385,6 +1385,14 @@ impl Hook {
                 all_files.extend(git_status.untracked_files.iter().cloned());
             }
             all_files
+        } else if opts.unstaged {
+            file_progress.prop("message", "Fetching unstaged files");
+            git_status
+                .unstaged_files
+                .iter()
+                .chain(git_status.untracked_files.iter())
+                .cloned()
+                .collect()
         } else if opts.staged || stash || self.defaults_to_staged_files() {
             file_progress.prop("message", "Fetching staged files");
             git_status.staged_files.iter().cloned().collect()

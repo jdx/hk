@@ -64,6 +64,7 @@ cmd check help="Checks code" {
     flag --to-ref help="End reference for checking files (requires --from-ref)" {
         arg <TO_REF>
     }
+    flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
 }
 cmd completion help="Generates shell completion scripts" {
@@ -133,6 +134,7 @@ cmd fix help="Fixes code" {
     flag --to-ref help="End reference for checking files (requires --from-ref)" {
         arg <TO_REF>
     }
+    flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
 }
 cmd init help="Generates a new hk.pkl file for a project" {
@@ -208,6 +210,7 @@ cmd run help="Run a hook" {
     flag --to-ref help="End reference for checking files (requires --from-ref)" {
         arg <TO_REF>
     }
+    flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
     arg "[OTHER]" required=#false hide=#true
     arg "[FILES]…" help="Run on specific files" required=#false var=#true
     cmd commit-msg {
@@ -251,6 +254,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
@@ -294,6 +298,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg <PREV_HEAD> help="SHA of the HEAD before the checkout"
         arg <NEW_HEAD> help="SHA of the new HEAD"
         arg <IS_BRANCH_CHECKOUT> help="Flag indicating whether the checkout was a branch checkout (1) or file checkout (0)"
@@ -339,6 +344,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
     cmd post-merge {
@@ -381,6 +387,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg <IS_SQUASH> help="Flag indicating whether the merge was a squash merge (1) or not (0)"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
@@ -424,6 +431,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg <COMMAND> help="The command that triggered the rewrite (\"amend\" or \"rebase\")"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
@@ -468,6 +476,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
     }
     cmd pre-push {
@@ -511,6 +520,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg "[REMOTE]" help="Remote name" required=#false
         arg "[URL]" help="Remote URL" required=#false
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
@@ -555,6 +565,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg <UPSTREAM> help="The upstream from which the series was forked"
         arg "[BRANCH]" help="The branch being rebased (unset when rebasing the current branch)" required=#false
         arg "[FILES]…" help="Run on specific files" required=#false var=#true
@@ -600,6 +611,7 @@ cmd run help="Run a hook" {
         flag --to-ref help="End reference for checking files (requires --from-ref)" {
             arg <TO_REF>
         }
+        flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed"
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message so far"
         arg "[SOURCE]" help="The source of the commit message (e.g., \"message\", \"template\", \"merge\")" required=#false
         arg "[SHA]" help="The SHA of the commit being amended (if applicable)" required=#false

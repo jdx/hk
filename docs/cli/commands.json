@@ -338,6 +338,16 @@
               "double_dash": "Optional",
               "hide": false
             }
+          },
+          {
+            "name": "unstaged",
+            "usage": "--unstaged",
+            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "short": [],
+            "long": ["unstaged"],
+            "hide": false,
+            "global": false
           }
         ],
         "mounts": [],
@@ -780,6 +790,16 @@
               "double_dash": "Optional",
               "hide": false
             }
+          },
+          {
+            "name": "unstaged",
+            "usage": "--unstaged",
+            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "short": [],
+            "long": ["unstaged"],
+            "hide": false,
+            "global": false
           }
         ],
         "mounts": [],
@@ -1289,6 +1309,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -1614,6 +1644,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -1912,6 +1952,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -2219,6 +2269,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -2526,6 +2586,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -2824,6 +2894,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -3141,6 +3221,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -3457,6 +3547,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -3782,6 +3882,16 @@
                   "double_dash": "Optional",
                   "hide": false
                 }
+              },
+              {
+                "name": "unstaged",
+                "usage": "--unstaged",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "short": [],
+                "long": ["unstaged"],
+                "hide": false,
+                "global": false
               }
             ],
             "mounts": [],
@@ -4084,6 +4194,16 @@
               "double_dash": "Optional",
               "hide": false
             }
+          },
+          {
+            "name": "unstaged",
+            "usage": "--unstaged",
+            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "short": [],
+            "long": ["unstaged"],
+            "hide": false,
+            "global": false
           }
         ],
         "mounts": [],

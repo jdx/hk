@@ -101,6 +101,10 @@ Display statistics about files matching each step
 
 End reference for checking files (requires --from-ref)
 
+### `--unstaged`
+
+Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed
+
 ## Subcommands
 
 - [`hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`](/cli/run/commit-msg.md)
