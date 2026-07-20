@@ -105,3 +105,50 @@ hooks {
 - Group-level defaults keep shared settings close to the component they apply to.
 - Child steps can override inherited values when a tool needs a different working directory, glob, shell, stage, prefix, workspace indicator, or exclude list.
 - Override semantics are simple: a child value replaces the group value instead of merging with it.
+
+## Nested configs with `subprojects`
+
+Instead of describing every component in the root `hk.pkl`, each subproject can own
+its own `hk.pkl` next to its code. The root config lists the subproject directories
+(literals or globs):
+
+```pkl
+// hk.pkl (repo root)
+amends "package://github.com/jdx/hk/releases/download/v1.51.0/hk@1.51.0#/Config.pkl"
+
+subprojects = List("frontend", "backend", "packages/*")
+
+hooks {
+  ["check"] {}
+  ["pre-commit"] { fix = true }
+}
+```
+
+```pkl
+// frontend/hk.pkl
+amends "package://github.com/jdx/hk/releases/download/v1.51.0/hk@1.51.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.51.0/hk@1.51.0#/Builtins.pkl"
+
+hooks {
+  ["check"] {
+    steps {
+      ["eslint"] = (Builtins.eslint) { batch = true }
+      ["prettier"] = (Builtins.prettier) { batch = true }
+    }
+  }
+}
+```
+
+When hk runs from the repo root, each subproject's hooks are merged in, scoped to
+its directory:
+
+- Step working directories and glob matching are relative to the subdirectory, so
+  `frontend/hk.pkl` only sees files under `frontend/`.
+- Step names are prefixed with the directory (e.g. `frontend:eslint`), which is the
+  name to use with `--step` or `skip_steps`.
+- A subproject's `env` applies to its own steps only.
+- Glob entries like `packages/*` match any directory containing an hk config file;
+  directories without one are skipped.
+
+This maps directly onto [mise monorepo config roots](https://mise.jdx.dev/tasks/monorepo.html):
+the same directories that own a `mise.toml` can own their `hk.pkl`.
