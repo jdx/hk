@@ -1236,7 +1236,12 @@ mod tests {
             dir: Some("ui".to_string()), // as propagated by group.init
             ..step("ts")
         };
+        let tsc = Step {
+            depends: vec!["ts".to_string()],
+            ..step("tsc")
+        };
         group.steps.insert("ts".to_string(), ts);
+        group.steps.insert("tsc".to_string(), tsc);
         sub_hook
             .steps
             .insert("build".to_string(), StepOrGroup::Group(Box::new(group)));
@@ -1251,9 +1256,13 @@ mod tests {
         assert_eq!(group.name.as_deref(), Some("sub:build"));
         assert_eq!(group.dir.as_deref(), Some("sub/ui"));
         let ts = group.steps.get("ts").unwrap();
-        // group child names are not prefixed; in-group depends still work
         assert_eq!(ts.name, "ts");
         assert_eq!(ts.dir.as_deref(), Some("sub/ui"));
+        // Group child names are NOT prefixed, and hk builds a per-group
+        // dependency tracker keyed by those child names, so intra-group
+        // `depends` must stay unprefixed to keep resolving after merge.
+        let tsc = group.steps.get("tsc").unwrap();
+        assert_eq!(tsc.depends, vec!["ts".to_string()]);
     }
 
     #[test]
