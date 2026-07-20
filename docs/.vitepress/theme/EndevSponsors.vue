@@ -136,8 +136,10 @@ onMounted(async () => {
 
 .EndevSponsorsLogo img {
   display: block;
-  max-height: 22px;
+  height: 22px;
+  width: auto;
   max-width: 120px;
+  object-fit: contain;
 }
 
 .EndevSponsorsCta {
