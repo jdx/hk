@@ -69,6 +69,30 @@ PRETTIER_CONFIG = ".prettierrc.json"
 
 mise has much more functionality around environment variables, so see the [mise docs](https://mise.jdx.dev/environments/) for more information.
 
+## Per-directory environments (monorepos)
+
+When `HK_MISE=1` is set, hk resolves the mise environment for each step's `dir` by
+running `mise env` in that directory (cached, once per directory per run). Tools and
+env vars defined by a subdirectory's mise config — such as a
+[mise monorepo](https://mise.jdx.dev/tasks/monorepo.html) config root's `mise.toml` —
+are available to steps running in that directory, even when hk is started from the
+repo root:
+
+```pkl
+hooks {
+    ["check"] {
+        steps {
+            ["oxlint"] = (Builtins.ox_lint) {
+                // with HK_MISE=1, tools from subproject/mise.toml are on PATH
+                dir = "subproject"
+            }
+        }
+    }
+}
+```
+
+Explicit step `env` values always win over the mise-provided environment.
+
 ## Recommended Setup
 
 The recommended approach is to use `mise.toml` as the source of truth for your tools and environment, while using `hk` specifically for managing the Git lifecycle.

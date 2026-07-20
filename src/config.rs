@@ -10,13 +10,14 @@ impl Config {
     #[tracing::instrument(level = "info", name = "config.load")]
     pub fn get() -> Result<Self> {
         let mut config = Self::load_project_config()?;
+        config.load_subprojects()?;
         config.apply_hkrc()?;
         config.validate()?;
         Ok(config)
     }
 
     #[tracing::instrument(level = "info", name = "config.read", skip_all, fields(path = %path.display()))]
-    fn read(path: &Path) -> Result<Self> {
+    fn read(path: &Path, apply_env: bool) -> Result<Self> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
         let mut config: Config = match ext {
             "toml" => {
@@ -42,7 +43,7 @@ impl Config {
                 bail!("Unsupported file extension: {}", ext);
             }
         };
-        config.init(path)?;
+        config.init(path, apply_env)?;
         Ok(config)
     }
 
@@ -114,7 +115,7 @@ impl Config {
         uri.starts_with("http://") || uri.starts_with("https://") || uri.starts_with("package://")
     }
 
-    fn init(&mut self, path: &Path) -> Result<()> {
+    fn init(&mut self, path: &Path, apply_env: bool) -> Result<()> {
         self.path = path.to_path_buf();
         if let Some(min_hk_version) = &self.min_hk_version {
             version::version_cmp_or_bail(min_hk_version)?;
@@ -122,8 +123,12 @@ impl Config {
         for (name, hook) in self.hooks.iter_mut() {
             hook.init(name)?;
         }
-        for (key, value) in self.env.iter() {
-            unsafe { std::env::set_var(key, value) };
+        // Subproject configs keep their env scoped to their own steps, so only
+        // the root config exports env vars to the hk process itself.
+        if apply_env {
+            for (key, value) in self.env.iter() {
+                unsafe { std::env::set_var(key, value) };
+            }
         }
         // No imperative settings mutation; values are consumed during Settings build
         Ok(())
@@ -137,7 +142,7 @@ impl Config {
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
-        config.init(Path::new(&paths[0]))?;
+        config.init(Path::new(&paths[0]), true)?;
         Ok(config)
     }
 
@@ -187,6 +192,14 @@ impl Config {
     }
 
     fn load_config_cached(path: PathBuf) -> Result<Config> {
+        Self::load_config_cached_with(path, true)
+    }
+
+    /// Load a config file with caching. `is_root` controls whether the config's
+    /// `env` is exported to the hk process (root config only) and whether the
+    /// shared `resolved-config.json` cache slot may be used — subproject configs
+    /// always get a path-keyed cache file so they don't thrash the root's slot.
+    fn load_config_cached_with(path: PathBuf, is_root: bool) -> Result<Config> {
         let hash_key = format!("{}.json", hash::hash_to_str(&path));
         let cache_dir = env::HK_CACHE_DIR.join("configs");
 
@@ -221,7 +234,7 @@ impl Config {
         };
 
         // Build the config cache with all fresh files (imports + main config)
-        let config_cache_path = if has_untracked_imports {
+        let config_cache_path = if has_untracked_imports || !is_root {
             cache_dir.join(hash_key)
         } else {
             cache_dir.join("resolved-config.json")
@@ -239,11 +252,11 @@ impl Config {
         // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
         let mut config = config_cache_mgr
             .get_or_try_init(|| {
-                Self::read(&path)
+                Self::read(&path, is_root)
                     .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))
             })?
             .clone();
-        config.init(&path)?;
+        config.init(&path, is_root)?;
         Ok(config)
     }
 
@@ -395,7 +408,7 @@ impl Config {
             } else {
                 let mut hkrc_config: Config = serde_json::from_value(json_value)
                     .wrap_err("failed to parse hkrc as Config")?;
-                hkrc_config.init(&path)?;
+                hkrc_config.init(&path, true)?;
                 self.merge_from_hkrc(hkrc_config);
             }
         }
@@ -437,6 +450,255 @@ impl Config {
             } else {
                 self.hooks.insert(hook_name, hkrc_hook);
             }
+        }
+    }
+
+    /// Load configs from `subprojects` directories and merge their hooks into
+    /// this config, scoped to each subdirectory. Entries may be literal
+    /// directories ("subproject") or glob patterns ("packages/*").
+    fn load_subprojects(&mut self) -> Result<()> {
+        let Some(patterns) = self.subprojects.clone() else {
+            return Ok(());
+        };
+        if patterns.is_empty() {
+            return Ok(());
+        }
+        for pattern in &patterns {
+            let p = Path::new(pattern);
+            if p.is_absolute()
+                || p.components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir))
+            {
+                bail!("subprojects entries must be relative paths without '..': {pattern}");
+            }
+        }
+        let root = Self::project_root_of(&self.path);
+        for (dir, config_path) in Self::discover_subprojects(&root, &patterns)? {
+            debug!("loading subproject config: {}", config_path.display());
+            let sub = Self::load_config_cached_with(config_path.clone(), false)?;
+            self.merge_subproject(&dir, sub).wrap_err_with(|| {
+                format!(
+                    "failed to merge subproject config: {}",
+                    config_path.display()
+                )
+            })?;
+        }
+        Ok(())
+    }
+
+    /// The project root a config file belongs to. Configs may live at the root
+    /// itself (hk.pkl) or under a `.config/` directory (.config/hk.pkl), in
+    /// which case the root is one level further up.
+    fn project_root_of(config_path: &Path) -> PathBuf {
+        let parent = config_path.parent().filter(|p| !p.as_os_str().is_empty());
+        let parent = match parent {
+            Some(p) => p,
+            None => return PathBuf::from("."),
+        };
+        if parent.file_name().is_some_and(|name| name == ".config") {
+            parent
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| PathBuf::from("."))
+        } else {
+            parent.to_path_buf()
+        }
+    }
+
+    /// Resolve `subprojects` entries to (relative dir, config file) pairs.
+    /// Literal entries warn when missing; glob matches without a config file
+    /// are silently skipped.
+    fn discover_subprojects(root: &Path, patterns: &[String]) -> Result<Vec<(String, PathBuf)>> {
+        let is_glob = |p: &str| p.chars().any(|c| matches!(c, '*' | '?' | '[' | '{'));
+        let mut out: IndexMap<String, PathBuf> = IndexMap::new();
+        // Walk the tree once (bounded by the deepest glob) if any globs are present
+        let glob_patterns = patterns.iter().filter(|p| is_glob(p)).collect::<Vec<_>>();
+        let walked: Vec<String> = if glob_patterns.is_empty() {
+            vec![]
+        } else {
+            // `**` patterns get a generous but bounded depth so a pathological
+            // tree can't make discovery walk forever
+            const MAX_WALK_DEPTH: usize = 32;
+            let max_depth = glob_patterns
+                .iter()
+                .map(|p| {
+                    if p.contains("**") {
+                        MAX_WALK_DEPTH
+                    } else {
+                        p.split('/').count()
+                    }
+                })
+                .max()
+                .unwrap();
+            let mut dirs = vec![];
+            Self::walk_dirs(root, root, max_depth, &mut dirs);
+            dirs.sort();
+            dirs
+        };
+        for pattern in patterns {
+            if is_glob(pattern) {
+                let matcher = globset::GlobBuilder::new(pattern)
+                    .literal_separator(true)
+                    .empty_alternates(true)
+                    .build()
+                    .wrap_err_with(|| format!("invalid subprojects glob: {pattern}"))?
+                    .compile_matcher();
+                for dir in walked.iter().filter(|d| matcher.is_match(d)) {
+                    if out.contains_key(dir) {
+                        continue;
+                    }
+                    if let Some(config_path) = Self::find_subproject_config(&root.join(dir)) {
+                        out.insert(dir.clone(), config_path);
+                    } else {
+                        debug!("subprojects: no hk config in {dir}, skipping");
+                    }
+                }
+            } else {
+                let dir = pattern.trim_end_matches('/').to_string();
+                if !root.join(&dir).is_dir() {
+                    warn!("subprojects: directory not found: {dir}");
+                    continue;
+                }
+                if out.contains_key(&dir) {
+                    continue;
+                }
+                match Self::find_subproject_config(&root.join(&dir)) {
+                    Some(config_path) => {
+                        out.insert(dir, config_path);
+                    }
+                    None => warn!("subprojects: no hk config found in {dir}"),
+                }
+            }
+        }
+        Ok(out.into_iter().collect())
+    }
+
+    /// Recursively collect directories (relative, '/'-separated) up to max_depth,
+    /// skipping hidden directories, node_modules, and symlinks.
+    fn walk_dirs(root: &Path, dir: &Path, max_depth: usize, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.starts_with('.') || name == "node_modules" {
+                continue;
+            }
+            let path = entry.path();
+            if path.is_symlink() || !path.is_dir() {
+                continue;
+            }
+            let Ok(rel) = path.strip_prefix(root) else {
+                continue;
+            };
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            let depth = rel.split('/').count();
+            if depth <= max_depth {
+                out.push(rel);
+            }
+            if depth < max_depth {
+                Self::walk_dirs(root, &path, max_depth, out);
+            }
+        }
+    }
+
+    fn find_subproject_config(dir: &Path) -> Option<PathBuf> {
+        [
+            "hk.local.pkl",
+            ".config/hk.local.pkl",
+            "hk.pkl",
+            ".config/hk.pkl",
+            "hk.toml",
+            "hk.yaml",
+            "hk.yml",
+            "hk.json",
+        ]
+        .iter()
+        .map(|name| dir.join(name))
+        .find(|p| p.exists())
+    }
+
+    /// Merge a subproject config into this one. Each hook's steps are scoped to
+    /// `subdir`: working directories are joined onto the subdirectory (which also
+    /// scopes glob matching), step/group names are prefixed with "{subdir}:", and
+    /// the subproject's `env` is applied to its own steps only.
+    fn merge_subproject(&mut self, subdir: &str, mut sub: Config) -> Result<()> {
+        if sub.subprojects.as_ref().is_some_and(|s| !s.is_empty()) {
+            warn!(
+                "subprojects: nested `subprojects` in {} is ignored (only one level is supported)",
+                sub.path.display()
+            );
+        }
+        let sub_env = std::mem::take(&mut sub.env);
+        for (hook_name, sub_hook) in std::mem::take(&mut sub.hooks) {
+            let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| Hook {
+                name: hook_name.clone(),
+                fix: sub_hook.fix,
+                stash: sub_hook.stash.clone(),
+                stage: sub_hook.stage,
+                fail_on_fix: sub_hook.fail_on_fix,
+                report: sub_hook.report.clone(),
+                ..Default::default()
+            });
+            // Names of the subproject hook's steps and groups, for rewriting
+            // `depends` references to their scoped names.
+            let sibling_names = sub_hook.steps.keys().cloned().collect::<IndexSet<_>>();
+            for (name, step_or_group) in sub_hook.steps {
+                let scoped_name = format!("{subdir}:{name}");
+                if root_hook.steps.contains_key(&scoped_name) {
+                    bail!("duplicate step name '{scoped_name}' in hook '{hook_name}'");
+                }
+                let step_or_group = match step_or_group {
+                    crate::hook::StepOrGroup::Step(mut step) => {
+                        Self::scope_subproject_step(&mut step, subdir, &sub_hook.env, &sub_env);
+                        step.name = scoped_name.clone();
+                        step.depends = step
+                            .depends
+                            .iter()
+                            .map(|dep| {
+                                if sibling_names.contains(dep) {
+                                    format!("{subdir}:{dep}")
+                                } else {
+                                    dep.clone()
+                                }
+                            })
+                            .collect();
+                        crate::hook::StepOrGroup::Step(step)
+                    }
+                    crate::hook::StepOrGroup::Group(mut group) => {
+                        group.name = Some(scoped_name.clone());
+                        group.dir = Some(Self::join_subdir(subdir, group.dir.as_deref()));
+                        for step in group.steps.values_mut() {
+                            Self::scope_subproject_step(step, subdir, &sub_hook.env, &sub_env);
+                        }
+                        crate::hook::StepOrGroup::Group(group)
+                    }
+                };
+                root_hook.steps.insert(scoped_name, step_or_group);
+            }
+        }
+        Ok(())
+    }
+
+    fn scope_subproject_step(
+        step: &mut crate::step::Step,
+        subdir: &str,
+        hook_env: &IndexMap<String, String>,
+        config_env: &IndexMap<String, String>,
+    ) {
+        step.dir = Some(Self::join_subdir(subdir, step.dir.as_deref()));
+        // step env wins over the subproject's hook env, which wins over its config env
+        for (key, value) in hook_env.iter().chain(config_env.iter()) {
+            step.env.entry(key.clone()).or_insert_with(|| value.clone());
+        }
+    }
+
+    fn join_subdir(subdir: &str, dir: Option<&str>) -> String {
+        match dir {
+            Some(dir) if !dir.is_empty() => format!("{subdir}/{dir}"),
+            _ => subdir.to_string(),
         }
     }
 }
@@ -701,6 +963,9 @@ pub struct Config {
     pub profiles: Option<Vec<String>>,
     pub skip_hooks: Option<Vec<String>>,
     pub skip_steps: Option<Vec<String>>,
+    /// Directories (or glob patterns) containing their own hk config files.
+    /// Their hooks are merged into this config, scoped to the subdirectory.
+    pub subprojects: Option<Vec<String>>,
 }
 
 impl std::fmt::Display for Config {
@@ -887,4 +1152,201 @@ struct PklImports {
 struct ImportAnalysis {
     local_paths: IndexSet<PathBuf>,
     has_untracked_imports: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hook::{Hook, StepOrGroup};
+    use crate::step::Step;
+    use crate::step_group::StepGroup;
+
+    fn step(name: &str) -> Step {
+        Step {
+            name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    fn hook(name: &str) -> Hook {
+        Hook {
+            name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn merge_subproject_scopes_flat_steps() {
+        let mut root = Config::default();
+        let mut sub = Config::default();
+        sub.env.insert("FOO".to_string(), "from-config".to_string());
+
+        let mut hook = hook("check");
+        let lint = Step {
+            depends: vec!["fmt".to_string(), "external".to_string()],
+            ..step("lint")
+        };
+        let mut fmt = Step {
+            dir: Some("nested".to_string()),
+            ..step("fmt")
+        };
+        fmt.env.insert("FOO".to_string(), "from-step".to_string());
+        hook.steps
+            .insert("lint".to_string(), StepOrGroup::Step(Box::new(lint)));
+        hook.steps
+            .insert("fmt".to_string(), StepOrGroup::Step(Box::new(fmt)));
+        sub.hooks.insert("check".to_string(), hook);
+
+        root.merge_subproject("packages/web", sub).unwrap();
+
+        let hook = root.hooks.get("check").unwrap();
+        let StepOrGroup::Step(lint) = hook.steps.get("packages/web:lint").unwrap() else {
+            panic!("expected step");
+        };
+        assert_eq!(lint.name, "packages/web:lint");
+        assert_eq!(lint.dir.as_deref(), Some("packages/web"));
+        // sibling references are rewritten; unknown names are left alone
+        assert_eq!(
+            lint.depends,
+            vec!["packages/web:fmt".to_string(), "external".to_string()]
+        );
+        assert_eq!(lint.env.get("FOO").map(String::as_str), Some("from-config"));
+
+        let StepOrGroup::Step(fmt) = hook.steps.get("packages/web:fmt").unwrap() else {
+            panic!("expected step");
+        };
+        assert_eq!(fmt.dir.as_deref(), Some("packages/web/nested"));
+        // step env wins over subproject config env
+        assert_eq!(fmt.env.get("FOO").map(String::as_str), Some("from-step"));
+    }
+
+    #[test]
+    fn merge_subproject_scopes_groups() {
+        let mut root = Config::default();
+        root.hooks.insert("check".to_string(), hook("check"));
+
+        let mut sub = Config::default();
+        let mut sub_hook = hook("check");
+        let mut group = StepGroup {
+            name: Some("build".to_string()),
+            dir: Some("ui".to_string()),
+            ..Default::default()
+        };
+        let ts = Step {
+            dir: Some("ui".to_string()), // as propagated by group.init
+            ..step("ts")
+        };
+        let tsc = Step {
+            depends: vec!["ts".to_string()],
+            ..step("tsc")
+        };
+        group.steps.insert("ts".to_string(), ts);
+        group.steps.insert("tsc".to_string(), tsc);
+        sub_hook
+            .steps
+            .insert("build".to_string(), StepOrGroup::Group(Box::new(group)));
+        sub.hooks.insert("check".to_string(), sub_hook);
+
+        root.merge_subproject("sub", sub).unwrap();
+
+        let hook = root.hooks.get("check").unwrap();
+        let StepOrGroup::Group(group) = hook.steps.get("sub:build").unwrap() else {
+            panic!("expected group");
+        };
+        assert_eq!(group.name.as_deref(), Some("sub:build"));
+        assert_eq!(group.dir.as_deref(), Some("sub/ui"));
+        let ts = group.steps.get("ts").unwrap();
+        assert_eq!(ts.name, "ts");
+        assert_eq!(ts.dir.as_deref(), Some("sub/ui"));
+        // Group child names are NOT prefixed, and hk builds a per-group
+        // dependency tracker keyed by those child names, so intra-group
+        // `depends` must stay unprefixed to keep resolving after merge.
+        let tsc = group.steps.get("tsc").unwrap();
+        assert_eq!(tsc.depends, vec!["ts".to_string()]);
+    }
+
+    #[test]
+    fn merge_subproject_duplicate_name_errors() {
+        let mut root = Config::default();
+        let mut root_hook = hook("check");
+        root_hook.steps.insert(
+            "sub:lint".to_string(),
+            StepOrGroup::Step(Box::new(step("sub:lint"))),
+        );
+        root.hooks.insert("check".to_string(), root_hook);
+
+        let mut sub = Config::default();
+        let mut sub_hook = hook("check");
+        sub_hook.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("check".to_string(), sub_hook);
+
+        let err = root.merge_subproject("sub", sub).unwrap_err();
+        assert!(err.to_string().contains("duplicate step name 'sub:lint'"));
+    }
+
+    #[test]
+    fn join_subdir_handles_nested_and_empty() {
+        assert_eq!(Config::join_subdir("sub", None), "sub");
+        assert_eq!(Config::join_subdir("sub", Some("")), "sub");
+        assert_eq!(Config::join_subdir("sub", Some("ui")), "sub/ui");
+    }
+
+    #[test]
+    fn project_root_of_handles_config_directory() {
+        assert_eq!(
+            Config::project_root_of(Path::new("/repo/hk.pkl")),
+            PathBuf::from("/repo")
+        );
+        assert_eq!(
+            Config::project_root_of(Path::new("/repo/.config/hk.pkl")),
+            PathBuf::from("/repo")
+        );
+        assert_eq!(
+            Config::project_root_of(Path::new("hk.pkl")),
+            PathBuf::from(".")
+        );
+        assert_eq!(
+            Config::project_root_of(Path::new(".config/hk.pkl")),
+            PathBuf::from(".")
+        );
+    }
+
+    #[test]
+    fn discover_subprojects_literal_and_glob() {
+        let base = std::env::temp_dir().join(format!(
+            "hk-test-discover-subprojects-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&base);
+        for dir in [
+            "sub",
+            "packages/a",
+            "packages/b",
+            "packages/.hidden",
+            "node_modules/pkg",
+        ] {
+            std::fs::create_dir_all(base.join(dir)).unwrap();
+        }
+        for config in [
+            "sub/hk.pkl",
+            "packages/a/hk.pkl",
+            "packages/.hidden/hk.pkl",
+            "node_modules/pkg/hk.pkl",
+        ] {
+            std::fs::write(base.join(config), "").unwrap();
+        }
+
+        let found =
+            Config::discover_subprojects(&base, &["sub".to_string(), "packages/*".to_string()])
+                .unwrap();
+        let dirs = found.iter().map(|(d, _)| d.as_str()).collect::<Vec<_>>();
+        // packages/b has no config, hidden dirs and node_modules are skipped
+        assert_eq!(dirs, vec!["sub", "packages/a"]);
+        assert_eq!(found[0].1, base.join("sub/hk.pkl"));
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
 }
