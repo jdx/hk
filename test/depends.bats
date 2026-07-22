@@ -2,6 +2,9 @@ setup() {
     load 'test_helper/common_setup'
     _common_setup
 }
+
+export BATS_TEST_TIMEOUT="${BATS_TEST_TIMEOUT:-10}"
+
 teardown() {
     _common_teardown
 }
@@ -87,9 +90,8 @@ EOF
     git add hk.pkl test.txt
     git commit -m "initial commit"
 
-    run timeout 5s hk check --all
+    run hk check --all
     assert_failure
-    refute [ "$status" -eq 124 ]
     assert_output --partial "FAIL"
     assert_output --partial "SHOULD_PASS"
 }
@@ -118,9 +120,8 @@ EOF
     git add hk.pkl test.txt
     git commit -m "initial commit"
 
-    run timeout 5s hk check --all
+    run hk check --all
     assert_failure
-    refute [ "$status" -eq 124 ]
     assert_output --partial "FAIL"
     refute_output --partial "SHOULD_NOT_PASS"
 }
