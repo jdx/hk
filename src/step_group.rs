@@ -172,6 +172,7 @@ impl StepGroup {
                 .get(&step.name)
                 .unwrap()
                 .clone();
+            let fail_fast = ctx.fail_fast;
             set.spawn({
                 let step_ctx = step_ctx.clone();
                 let hook_ctx = ctx.hook_ctx.clone();
@@ -179,6 +180,9 @@ impl StepGroup {
                     let result = step.run_all_jobs(step_ctx.clone(), semaphore).await;
                     if let Err(err) = &result {
                         step_ctx.status_errored(&err.to_string());
+                    }
+                    if !fail_fast && result.is_err() {
+                        step_ctx.depends.mark_done(&step.name)?;
                     }
                     hook_ctx
                         .step_contexts

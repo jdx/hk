@@ -2,6 +2,9 @@ setup() {
     load 'test_helper/common_setup'
     _common_setup
 }
+
+export BATS_TEST_TIMEOUT="${BATS_TEST_TIMEOUT:-10}"
+
 teardown() {
     _common_teardown
 }
@@ -61,4 +64,64 @@ EOF
     git add hk.pkl
     git commit -m "initial commit"
     hk fix -v
+}
+
+@test "dependent step proceeds when dependency fails and fail_fast is false" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+fail_fast = false
+hooks {
+    ["check"] {
+        steps {
+            ["fail"] {
+                glob = "**/*"
+                check = "echo FAIL && exit 1"
+            }
+            ["should-pass"] {
+                glob = "**/*"
+                depends = List("fail")
+                check = "echo SHOULD_PASS"
+            }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+    git add hk.pkl test.txt
+    git commit -m "initial commit"
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "FAIL"
+    assert_output --partial "SHOULD_PASS"
+}
+
+@test "dependent step does not proceed when dependency fails and fail_fast is true" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+fail_fast = true
+hooks {
+    ["check"] {
+        steps {
+            ["fail"] {
+                glob = "**/*"
+                check = "echo FAIL && exit 1"
+            }
+            ["should-not-pass"] {
+                glob = "**/*"
+                depends = List("fail")
+                check = "echo SHOULD_NOT_PASS"
+            }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+    git add hk.pkl test.txt
+    git commit -m "initial commit"
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "FAIL"
+    refute_output --partial "SHOULD_NOT_PASS"
 }
