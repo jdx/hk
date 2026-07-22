@@ -62,3 +62,34 @@ EOF
     git commit -m "initial commit"
     hk fix -v
 }
+
+@test "dependent step proceeds when dependency fails and fail_fast is false" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+fail_fast = false
+hooks {
+    ["check"] {
+        steps {
+            ["fail"] {
+                glob = "**/*"
+                check = "echo FAIL && exit 1"
+            }
+            ["should-pass"] {
+                glob = "**/*"
+                depends = List("fail")
+                check = "echo SHOULD_PASS"
+            }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+    git add hk.pkl test.txt
+    git commit -m "initial commit"
+
+    run timeout 5s hk check --all
+    assert_failure
+    refute [ "$status" -eq 124 ]
+    assert_output --partial "FAIL"
+    assert_output --partial "SHOULD_PASS"
+}
