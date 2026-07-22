@@ -93,3 +93,34 @@ EOF
     assert_output --partial "FAIL"
     assert_output --partial "SHOULD_PASS"
 }
+
+@test "dependent step does not proceed when dependency fails and fail_fast is true" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+fail_fast = true
+hooks {
+    ["check"] {
+        steps {
+            ["fail"] {
+                glob = "**/*"
+                check = "echo FAIL && exit 1"
+            }
+            ["should-not-pass"] {
+                glob = "**/*"
+                depends = List("fail")
+                check = "echo SHOULD_NOT_PASS"
+            }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+    git add hk.pkl test.txt
+    git commit -m "initial commit"
+
+    run timeout 5s hk check --all
+    assert_failure
+    refute [ "$status" -eq 124 ]
+    assert_output --partial "FAIL"
+    refute_output --partial "SHOULD_NOT_PASS"
+}

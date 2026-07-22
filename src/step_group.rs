@@ -181,7 +181,7 @@ impl StepGroup {
                     if let Err(err) = &result {
                         step_ctx.status_errored(&err.to_string());
                     }
-                    if !fail_fast || result.is_ok() {
+                    if !fail_fast && result.is_err() {
                         step_ctx.depends.mark_done(&step.name)?;
                     }
                     hook_ctx
