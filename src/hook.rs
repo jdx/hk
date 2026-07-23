@@ -1168,8 +1168,8 @@ impl Hook {
                 warn!("Failed to pop stash: {err}");
             }
         }
-        // Capture final git state for diagnostics (counts at debug, names at trace)
-        if log::log_enabled!(log::Level::Debug) {
+        // Capture final git state when its log output or timing span is observable.
+        if log::log_enabled!(log::Level::Debug) || crate::trace::enabled() {
             match repo.lock().await.status(None) {
                 Ok(s) => {
                     debug!(
