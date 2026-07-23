@@ -80,6 +80,50 @@ EOF
     assert_output --partial '"name":"git.status"'
 }
 
+@test "trace: final git status is only collected for diagnostic modes" {
+    export REAL_GIT="$(command -v git)"
+    export GIT_STATUS_LOG="$TEST_TEMP_DIR/git-status.log"
+    mkdir fake-bin
+    cat >fake-bin/git <<'EOF'
+#!/usr/bin/env bash
+if [[ "$1" == "status" ]]; then
+    printf '%s\n' status >>"$GIT_STATUS_LOG"
+fi
+exec "$REAL_GIT" "$@"
+EOF
+    chmod +x fake-bin/git
+    export PATH="$PWD/fake-bin:$PATH"
+
+    HK_LIBGIT2=false run hk check
+    assert_success
+    info_status_calls="$(wc -l <"$GIT_STATUS_LOG" | tr -d '[:space:]')"
+
+    : >"$GIT_STATUS_LOG"
+    HK_LIBGIT2=false run hk -v check
+    assert_success
+    debug_status_calls="$(wc -l <"$GIT_STATUS_LOG" | tr -d '[:space:]')"
+
+    : >"$GIT_STATUS_LOG"
+    HK_LIBGIT2=false run hk --trace check
+    assert_success
+    cli_trace_status_calls="$(wc -l <"$GIT_STATUS_LOG" | tr -d '[:space:]')"
+
+    : >"$GIT_STATUS_LOG"
+    HK_LIBGIT2=false HK_TRACE=1 run hk check
+    assert_success
+    env_trace_status_calls="$(wc -l <"$GIT_STATUS_LOG" | tr -d '[:space:]')"
+
+    : >"$GIT_STATUS_LOG"
+    HK_LIBGIT2=false HK_TRACE=json run hk check
+    assert_success
+    json_trace_status_calls="$(wc -l <"$GIT_STATUS_LOG" | tr -d '[:space:]')"
+
+    assert_equal "$debug_status_calls" "$((info_status_calls + 1))"
+    assert_equal "$cli_trace_status_calls" "$((info_status_calls + 1))"
+    assert_equal "$env_trace_status_calls" "$((info_status_calls + 1))"
+    assert_equal "$json_trace_status_calls" "$((info_status_calls + 1))"
+}
+
 @test "trace: enabled when HK_LOG=trace" {
     HK_LOG=trace run hk check
     assert_success
