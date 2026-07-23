@@ -1013,6 +1013,14 @@ impl Hook {
         let groups = self.get_step_groups(&opts);
         let stash_method = self.resolve_stash_method_for_opts(&opts);
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
+        // Exit before any side effects (notably stashing) when there are no steps to run.
+        // Stashing here would strip the working tree, and the early return below used to
+        // happen *after* the stash was created but *before* pop_stash ran, leaving a
+        // dangling stash and a stripped worktree. See #1105.
+        if total_steps == 0 {
+            info!("no steps to run");
+            return Ok(());
+        }
         let hk_progress = self.start_hk_progress(run_type, total_steps);
         let file_progress = ProgressJobBuilder::new().body(
             "{{spinner()}} files - {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}"
@@ -1082,10 +1090,6 @@ impl Hook {
             }
         }
 
-        if hook_ctx.groups.is_empty() {
-            info!("no steps to run");
-            return Ok(());
-        }
         // Snapshot file content hashes before running groups so fail_on_fix can detect
         // which files were actually modified by fixers (ignoring pre-existing changes).
         let pre_file_hashes: std::collections::HashMap<PathBuf, u64> =
@@ -1161,11 +1165,20 @@ impl Hook {
             }
         }
 
-        if let Err(err) = repo.lock().await.pop_stash() {
-            if result.is_ok() {
-                result = Err(err);
-            } else {
-                warn!("Failed to pop stash: {err}");
+        {
+            let mut repo = repo.lock().await;
+            if let Err(err) = repo.pop_stash() {
+                // The stashed content is also backed up as a patch; surface it so the
+                // user can recover manually if the automatic restore failed.
+                let patch_hint = repo
+                    .last_patch_path()
+                    .map(|p| format!(" (a backup of the stashed changes is at {})", p.display()))
+                    .unwrap_or_default();
+                if result.is_ok() {
+                    result = Err(err.wrap_err(format!("failed to restore stash{patch_hint}")));
+                } else {
+                    warn!("Failed to pop stash: {err}{patch_hint}");
+                }
             }
         }
         // Capture final git state when its log output or timing span is observable.
