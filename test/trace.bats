@@ -96,12 +96,12 @@ EOF
 
     HK_LIBGIT2=false run hk check
     assert_success
-    info_status_calls="$(wc -l <"$GIT_STATUS_LOG")"
+    info_status_calls="$(wc -l <"$GIT_STATUS_LOG" | tr -d '[:space:]')"
 
     : >"$GIT_STATUS_LOG"
     HK_LIBGIT2=false run hk -v check
     assert_success
-    debug_status_calls="$(wc -l <"$GIT_STATUS_LOG")"
+    debug_status_calls="$(wc -l <"$GIT_STATUS_LOG" | tr -d '[:space:]')"
 
     assert_equal "$debug_status_calls" "$((info_status_calls + 1))"
 }
