@@ -1,6 +1,30 @@
 # Changelog
 
-## [1.52.0](https://github.com/jdx/hk/compare/v1.51.0..v1.52.0) - 2026-07-20
+## [1.53.0](https://github.com/jdx/hk/compare/v1.52.0..v1.53.0) - 2026-07-23
+
+### 🚀 Features
+
+- **(builtins)** add cargo-deny by [@risu729](https://github.com/risu729) in [#1081](https://github.com/jdx/hk/pull/1081)
+
+### 🐛 Bug Fixes
+
+- **(hook)** don't stash when a hook has no steps to run by [@jdx](https://github.com/jdx) in [#1106](https://github.com/jdx/hk/pull/1106)
+- **(step)** unblock dependents after failed dependency by [@jdx](https://github.com/jdx) in [#1099](https://github.com/jdx/hk/pull/1099)
+
+### ⚡ Performance
+
+- **(config)** cache resolved config in-process by [@mharris-figma](https://github.com/mharris-figma) in [#1104](https://github.com/jdx/hk/pull/1104)
+- **(hook)** skip final status outside debug logging by [@mharris-figma](https://github.com/mharris-figma) in [#1102](https://github.com/jdx/hk/pull/1102)
+
+### 🔍 Other Changes
+
+- **(git)** pass --end-of-options before untrusted revs by [@sshine](https://github.com/sshine) in [#1101](https://github.com/jdx/hk/pull/1101)
+
+### New Contributors
+
+- @mharris-figma made their first contribution in [#1104](https://github.com/jdx/hk/pull/1104)
+
+## [1.52.0](https://github.com/jdx/hk/compare/v1.51.0..v1.52.0) - 2026-07-21
 
 ### 🚀 Features
 
