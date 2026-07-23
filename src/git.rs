@@ -403,7 +403,13 @@ impl Git {
                     return Ok(_ref.name().ok().map(|s| s.to_string()));
                 }
             } else {
-                let output = xx::process::sh(&format!("git ls-remote --heads {remote} {branch}"))?;
+                let output = git_read([
+                    "ls-remote",
+                    "--heads",
+                    "--end-of-options",
+                    remote,
+                    branch.as_str(),
+                ])?;
                 for line in output.lines() {
                     if line.contains(&format!("refs/remotes/{remote}/{branch}")) {
                         return Ok(Some(branch.to_string()));
@@ -1565,6 +1571,7 @@ impl Git {
                 "-z",
                 "--name-only",
                 "--diff-filter=ACMRTUXB",
+                "--end-of-options",
                 range.as_str(),
             ])?;
             Ok(output
@@ -1576,7 +1583,14 @@ impl Git {
             // No resolvable base: lint every file at `to_ref`. `ls-tree` is
             // object-format agnostic, unlike a hard-coded empty-tree hash.
             debug!("could not resolve from-ref '{from_ref}'; listing all files at {to_ref}");
-            let output = git_read(["ls-tree", "-z", "-r", "--name-only", to_ref])?;
+            let output = git_read([
+                "ls-tree",
+                "-z",
+                "-r",
+                "--name-only",
+                "--end-of-options",
+                to_ref,
+            ])?;
             Ok(output
                 .split('\0')
                 .filter(|p| !p.is_empty())
@@ -1609,7 +1623,7 @@ fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
 
 fn git_rev_exists(rev: &str) -> Result<bool> {
     let output = Command::new("git")
-        .args(["rev-parse", "--verify", "--quiet", rev])
+        .args(["rev-parse", "--verify", "--quiet", "--end-of-options", rev])
         .output()
         .wrap_err("Failed to run git rev-parse")?;
 
@@ -1627,7 +1641,7 @@ fn git_rev_exists(rev: &str) -> Result<bool> {
 
 fn git_merge_base(from_ref: &str, to_ref: &str) -> Result<Option<String>> {
     let output = Command::new("git")
-        .args(["merge-base", from_ref, to_ref])
+        .args(["merge-base", "--end-of-options", from_ref, to_ref])
         .output()
         .wrap_err("Failed to run git merge-base")?;
 
