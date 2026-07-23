@@ -134,6 +134,8 @@ pub struct Git {
     stashed_paths: Option<BTreeSet<PathBuf>>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
     saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
+    // Path of the most recent stash patch backup, surfaced if restore fails
+    last_patch_path: Option<PathBuf>,
 }
 
 enum StashType {
@@ -217,6 +219,7 @@ impl Git {
             stashed_paths: None,
             saved_index: None,
             saved_worktree: None,
+            last_patch_path: None,
         })
     }
 
@@ -272,7 +275,7 @@ impl Git {
     }
 
     /// Save a patch backup of the stash
-    fn save_stash_patch(&self, stash_ref: &str) {
+    fn save_stash_patch(&mut self, stash_ref: &str) {
         // If backup_count is 0, skip patch backup entirely
         let backup_count = Settings::get().stash_backup_count;
         if backup_count == 0 {
@@ -333,6 +336,7 @@ impl Git {
             return;
         }
         debug!("Saved stash patch: {}", patch_path.display());
+        self.last_patch_path = Some(patch_path);
 
         // Rotate old patches based on configured backup count
         if let Err(e) = self.rotate_patch_files(backup_count) {
@@ -983,6 +987,11 @@ impl Git {
         self.saved_index = Some(entries);
         self.saved_worktree = Some(wt_map);
         Ok(())
+    }
+
+    /// Path of the most recent stash patch backup, if one was written.
+    pub fn last_patch_path(&self) -> Option<&PathBuf> {
+        self.last_patch_path.as_ref()
     }
 
     pub fn pop_stash(&mut self) -> Result<()> {
