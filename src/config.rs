@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
 use indexmap::IndexSet;
+use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::path::{Path, PathBuf};
 
@@ -7,8 +8,18 @@ use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail};
 
 impl Config {
-    #[tracing::instrument(level = "info", name = "config.load")]
+    /// Return the resolved config for this hk invocation.
+    ///
+    /// An hk process handles a single command in a single project, so config
+    /// resolution only needs to happen once. Callers receive a clone so their
+    /// mutations cannot affect later callers.
     pub fn get() -> Result<Self> {
+        static RESOLVED_CONFIG: OnceCell<Config> = OnceCell::new();
+        Ok(RESOLVED_CONFIG.get_or_try_init(Self::load)?.clone())
+    }
+
+    #[tracing::instrument(level = "info", name = "config.load")]
+    fn load() -> Result<Self> {
         let mut config = Self::load_project_config()?;
         config.load_subprojects()?;
         config.apply_hkrc()?;

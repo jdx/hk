@@ -36,6 +36,14 @@ EOF
     assert_output --partial '"type":"span_end"'
 }
 
+@test "trace: resolved config is loaded once per process" {
+    run hk --trace --json check
+    assert_success
+
+    load_count="$(printf '%s\n' "$output" | grep -c '"type":"span_start".*"name":"config.load"')"
+    assert_equal "$load_count" 1
+}
+
 @test "trace: disabled by default" {
     run hk check
     assert_success
