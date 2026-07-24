@@ -1,3 +1,5 @@
+use memchr::{memchr, memchr2};
+
 use crate::Result;
 use std::fs;
 use std::path::PathBuf;
@@ -72,7 +74,7 @@ fn has_mixed_line_endings(path: &PathBuf) -> Result<bool> {
     let content = fs::read(path)?;
 
     // Skip binary files
-    if content.contains(&0) {
+    if memchr(0, &content).is_some() {
         return Ok(false);
     }
 
@@ -80,16 +82,25 @@ fn has_mixed_line_endings(path: &PathBuf) -> Result<bool> {
     let mut found_crlf = false;
 
     let mut i = 0;
-    while i < content.len() {
-        if content[i] == b'\n' {
-            // Check if preceded by \r
-            if i > 0 && content[i - 1] == b'\r' {
+    while let Some(offset) = memchr2(b'\r', b'\n', &content[i..]) {
+        let pos = i + offset;
+        match content[pos] {
+            b'\r' if content.get(pos + 1) == Some(&b'\n') => {
                 found_crlf = true;
-            } else {
-                found_lf = true;
+                i = pos + 2;
             }
+            b'\r' => {
+                // Ignore this case. CR is the line ending on certain legacy systems,
+                // particularly old Mac OS, but we don't target those.
+                i = pos + 1;
+                continue;
+            }
+            b'\n' => {
+                found_lf = true;
+                i = pos + 1;
+            }
+            _ => unreachable!(),
         }
-        i += 1;
     }
 
     Ok(found_lf && found_crlf)
@@ -106,16 +117,22 @@ fn fix_line_endings(path: &PathBuf) -> Result<()> {
     // Convert all CRLF to LF
     let mut normalized = Vec::new();
     let mut i = 0;
-    while i < content.len() {
-        if i + 1 < content.len() && content[i] == b'\r' && content[i + 1] == b'\n' {
-            // Skip the \r, keep only \n
-            normalized.push(b'\n');
-            i += 2;
-        } else {
-            normalized.push(content[i]);
-            i += 1;
+    while let Some(offset) = memchr2(b'\r', b'\n', &content[i..]) {
+        let pos = i + offset;
+        normalized.extend_from_slice(&content[i..pos]);
+        match content[pos] {
+            b'\r' if content.get(pos + 1) == Some(&b'\n') => {
+                normalized.push(b'\n');
+                i = pos + 2;
+            }
+            // Other cases pass through.
+            _ => {
+                normalized.push(content[pos]);
+                i = pos + 1;
+            }
         }
     }
+    normalized.extend_from_slice(&content[i..]);
 
     fs::write(path, normalized)?;
     Ok(())

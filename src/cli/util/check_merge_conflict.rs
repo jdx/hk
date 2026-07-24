@@ -1,3 +1,5 @@
+use memchr::memchr;
+
 use crate::Result;
 use std::fs;
 use std::path::PathBuf;
@@ -56,6 +58,15 @@ fn is_in_merge() -> bool {
     (merge_msg.exists() && merge_head.exists()) || rebase_apply.exists() || rebase_merge.exists()
 }
 
+/// Check if a line has merge conflict markers
+fn is_merge_conflict_line(line: &[u8]) -> bool {
+    line.starts_with(b"<<<<<<< ")
+        || line.starts_with(b">>>>>>> ")
+        || line == b"======="
+        || line == b"=======\r"
+        || line.starts_with(b"======= ")
+}
+
 /// Check if a file has merge conflict markers
 fn has_merge_conflict_markers(path: &PathBuf) -> Result<bool> {
     use std::io::Read;
@@ -66,18 +77,18 @@ fn has_merge_conflict_markers(path: &PathBuf) -> Result<bool> {
 
     // Check for conflict markers at the start of lines
     // Patterns from pre-commit: '<<<<<<< ', '======= ', '=======\n', '=======\r\n', '>>>>>>> '
-    for line in buffer.split(|&b| b == b'\n') {
-        if line.starts_with(b"<<<<<<< ")
-            || line.starts_with(b">>>>>>> ")
-            || line == b"======="
-            || line == b"=======\r"
-            || line.starts_with(b"======= ")
-        {
+    let mut start = 0;
+    while let Some(offset) = memchr(b'\n', &buffer[start..]) {
+        let idx = start + offset;
+        let line = &buffer[start..idx];
+        if is_merge_conflict_line(line) {
             return Ok(true);
         }
+        start = idx + 1;
     }
 
-    Ok(false)
+    // Cover the trailing segment too
+    Ok(is_merge_conflict_line(&buffer[start..]))
 }
 
 #[cfg(test)]

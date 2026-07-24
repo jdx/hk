@@ -988,6 +988,7 @@ dependencies = [
  "itertools 0.15.0",
  "libc",
  "log",
+ "memchr",
  "once_cell",
  "pklr",
  "regex",
