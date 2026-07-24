@@ -6,8 +6,8 @@
 /// * Uses eslint for linting
 /// * Runs type checking with tsc
 /// * Enables automatic fixes in pre-commit
-amends "package://github.com/jdx/hk/releases/download/v1.53.0/hk@1.53.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.53.0/hk@1.53.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.53.1/hk@1.53.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.53.1/hk@1.53.1#/Builtins.pkl"
 
 // Configure environment for all tools
 env {
