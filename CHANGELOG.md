@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.53.1](https://github.com/jdx/hk/compare/v1.53.0..v1.53.1) - 2026-07-24
+
+### 📦️ Dependency Updates
+
+- update zizmorcore/zizmor-action action to v0.6.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1112](https://github.com/jdx/hk/pull/1112)
+- update anthropics/claude-code-action action to v1.0.176 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1108](https://github.com/jdx/hk/pull/1108)
+- update jdx/renovate-config digest to 5fee46e by [@renovate[bot]](https://github.com/renovate[bot]) in [#1107](https://github.com/jdx/hk/pull/1107)
+- update rust crate clx to v2.1.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1111](https://github.com/jdx/hk/pull/1111)
+- update namespacelabs/nscloud-cache-action action to v1.6.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1110](https://github.com/jdx/hk/pull/1110)
+- update rust crate infer to 0.22 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1113](https://github.com/jdx/hk/pull/1113)
+- update jdx/mise-action action to v4.2.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1109](https://github.com/jdx/hk/pull/1109)
+
 ## [1.53.0](https://github.com/jdx/hk/compare/v1.52.0..v1.53.0) - 2026-07-23
 
 ### 🚀 Features
