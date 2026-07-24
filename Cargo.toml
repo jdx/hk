@@ -43,7 +43,7 @@ git2               = { version = "0.21", features = ["vendored-libgit2"] }
 globset            = "0.4"
 ignore             = "0.4"
 indexmap           = { version = "2", features = ["serde"] }
-infer              = "0.19"
+infer              = "0.22"
 is_ci              = "1"
 itertools          = "0.15"
 libc               = "0.2"
