@@ -3,6 +3,7 @@
 # `hk util detect-private-key`
 
 - **Usage**: `hk util detect-private-key <FILES>…`
+- **Effect**: read-only
 
 Detect private keys in files
 

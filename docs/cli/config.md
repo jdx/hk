@@ -4,6 +4,7 @@
 
 - **Usage**: `hk config <SUBCOMMAND>`
 - **Aliases**: `cfg`
+- **Effect**: read-only
 
 Configuration introspection and management
 

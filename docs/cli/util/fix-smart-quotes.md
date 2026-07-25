@@ -3,6 +3,7 @@
 # `hk util fix-smart-quotes`
 
 - **Usage**: `hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`
+- **Effect**: modifies state
 
 Replace UTF-8 smart quotes
 

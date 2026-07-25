@@ -3,6 +3,7 @@
 # `hk util check-merge-conflict`
 
 - **Usage**: `hk util check-merge-conflict [--assume-in-merge] <FILES>…`
+- **Effect**: read-only
 
 Check for merge conflict markers
 

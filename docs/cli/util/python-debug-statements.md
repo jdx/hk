@@ -3,6 +3,7 @@
 # `hk util python-debug-statements`
 
 - **Usage**: `hk util python-debug-statements <FILES>…`
+- **Effect**: read-only
 
 Detect Python debug statements
 

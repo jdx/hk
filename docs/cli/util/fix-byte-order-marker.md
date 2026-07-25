@@ -3,6 +3,7 @@
 # `hk util fix-byte-order-marker`
 
 - **Usage**: `hk util fix-byte-order-marker <FILES>…`
+- **Effect**: modifies state
 
 Remove UTF-8 byte order marker (BOM)
 

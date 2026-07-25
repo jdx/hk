@@ -3,6 +3,7 @@
 # `hk config explain`
 
 - **Usage**: `hk config explain <KEY>`
+- **Effect**: read-only
 
 Explain where a configuration value comes from
 

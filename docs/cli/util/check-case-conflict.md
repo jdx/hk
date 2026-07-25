@@ -3,6 +3,7 @@
 # `hk util check-case-conflict`
 
 - **Usage**: `hk util check-case-conflict <FILES>…`
+- **Effect**: read-only
 
 Check for case-insensitive filename conflicts
 

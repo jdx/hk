@@ -3,5 +3,6 @@
 # `hk sponsors`
 
 - **Usage**: `hk sponsors`
+- **Effect**: read-only
 
 Show the companies sponsoring hk and the jdx.dev open source tools

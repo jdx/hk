@@ -3,6 +3,7 @@
 # `hk util check-conventional-commit`
 
 - **Usage**: `hk util check-conventional-commit [--allowed-types… <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`
+- **Effect**: read-only
 
 Check for conventional commit message
 

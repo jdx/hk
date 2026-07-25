@@ -3,6 +3,7 @@
 # `hk migrate pre-commit`
 
 - **Usage**: `hk migrate pre-commit [FLAGS]`
+- **Effect**: modifies state
 
 Migrate from pre-commit to hk
 

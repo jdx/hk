@@ -3,5 +3,6 @@
 # `hk validate`
 
 - **Usage**: `hk validate`
+- **Effect**: read-only
 
 Validate the config file

@@ -3,6 +3,7 @@
 # `hk util trailing-whitespace`
 
 - **Usage**: `hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`
+- **Effect**: modifies state
 
 Check for and optionally fix trailing whitespace
 

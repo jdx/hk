@@ -4,6 +4,7 @@
 
 - **Usage**: `hk install [FLAGS]`
 - **Aliases**: `i`
+- **Effect**: modifies state
 
 Sets up git hooks to run hk.
 
