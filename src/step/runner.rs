@@ -312,12 +312,23 @@ impl Step {
                         result.stderr.len()
                     );
                 }
+                // `check_list_files` and `check_diff` report their results through
+                // stdout, so on success their stderr carries nothing actionable —
+                // usually a tally like "1 file did not need formatting". Drop it from
+                // the end-of-run summary rather than reporting it under an otherwise
+                // clean step. Steps that do want it can set
+                // `output_summary = "combined"`.
+                let summary_stderr = if ran_check_list_files || ran_check_diff {
+                    ""
+                } else {
+                    result.stderr.as_str()
+                };
                 // Save output for end-of-run summary based on configured mode
                 self.save_output_summary(
                     ctx,
                     job,
                     &result.stdout,
-                    &result.stderr,
+                    summary_stderr,
                     &result.combined_output,
                     false, // not a failure
                 );
