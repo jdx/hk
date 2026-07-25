@@ -18,7 +18,8 @@
 
 use std::collections::HashMap;
 
-use usage::SpecCommandEffect::{self, Destructive, Read, Write};
+use clap_usage::usage;
+use clap_usage::usage::SpecCommandEffect::{self, Destructive, Read, Write};
 
 /// Commands whose effect is fixed, keyed by their full path under `hk`.
 pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[

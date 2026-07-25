@@ -29,7 +29,7 @@ path = "bin/generate_docs.rs"
 arc-swap           = "1"
 chrono             = "0.4"
 clap               = { version = "4", features = ["derive"] }
-usage-lib          = { version = "3", features = ["clap"] }
+clap_usage         = "4"
 clx                = "2.0.1"
 color-eyre         = "0.6"
 console            = "0.16"
