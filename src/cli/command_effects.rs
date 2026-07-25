@@ -70,6 +70,9 @@ pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
 /// `fix` to modify files, but hk cannot enforce either — a check step is an
 /// arbitrary command. Claiming `read` here would be exactly the kind of
 /// reassurance the field exists to avoid giving falsely.
+// Only the coverage test reads this; it exists so the reason a command is
+// left unclassified lives next to the decision rather than in a commit message.
+#[cfg(test)]
 pub const UNCLASSIFIED: &[(&str, &str)] = &[
     ("check", "runs check steps declared in hk.pkl"),
     ("fix", "runs fix steps declared in hk.pkl"),
