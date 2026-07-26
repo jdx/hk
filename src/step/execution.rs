@@ -230,13 +230,18 @@ impl Step {
                 } else {
                     vec![job]
                 };
-                let additional_jobs = jobs.len().saturating_sub(1);
-                ctx.increment_job_count(additional_jobs);
-                ctx.hook_ctx.inc_total_jobs(additional_jobs);
 
                 let mut files_to_return = IndexSet::new();
                 let mut last_job = None;
-                for mut job in jobs {
+                for (index, mut job) in jobs.into_iter().enumerate() {
+                    // Focused batches run sequentially. Register each
+                    // additional batch only when it is about to run so a
+                    // failure cannot leave later, unrun batches in progress
+                    // totals.
+                    if index > 0 {
+                        ctx.increment_job_count(1);
+                        ctx.hook_ctx.inc_total_jobs(1);
+                    }
                     let result = step.run(&ctx, &mut job).await;
                     if let Err(err) = &result {
                         if focused_check_failed
