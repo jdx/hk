@@ -222,31 +222,54 @@ impl Step {
                             );
                         }
                 }
-                let mut result = step.run(&ctx, &mut job).await;
-                // The file-listing check is authoritative. If it found
-                // failures but the focused diagnostic check unexpectedly
-                // succeeds, keep the overall step failed and preserve the
-                // original output instead of silently hiding the mismatch.
-                if result.is_ok() && focused_check_failed {
-                    if let Some((stdout, stderr, combined)) = &focused_check_output {
-                        step.save_output_summary(&ctx, &job, stdout, stderr, combined, true);
-                    }
-                    result = Err(eyre::eyre!(
-                        "{step}: file-listing check failed but focused check succeeded"
-                    ));
-                }
-                if let Err(err) = &result {
-                    job.status_errored(&ctx, format!("{err}")).await?;
-                }
-                ctx.hook_ctx.inc_completed_jobs(1);
-                // Return the actual files that were processed after filtering
-                // If job was skipped (status still Pending or marked skipped), return empty
-                let files_to_return = if matches!(job.status, StepJobStatus::Pending) {
-                    vec![]
+                // The initial auto-batching pass sizes the file-listing
+                // command. Reapply it after narrowing so a larger focused
+                // check command receives the same ARG_MAX protection.
+                let jobs = if focused_check_failed {
+                    step.auto_batch_jobs(vec![job], &ctx.hook_ctx.tctx)?
                 } else {
-                    job.files
+                    vec![job]
                 };
-                result.map(|_| files_to_return)
+                let additional_jobs = jobs.len().saturating_sub(1);
+                ctx.increment_job_count(additional_jobs);
+                ctx.hook_ctx.inc_total_jobs(additional_jobs);
+
+                let mut files_to_return = IndexSet::new();
+                let mut last_job = None;
+                for mut job in jobs {
+                    let result = step.run(&ctx, &mut job).await;
+                    if let Err(err) = &result {
+                        job.status_errored(&ctx, format!("{err}")).await?;
+                    }
+                    ctx.hook_ctx.inc_completed_jobs(1);
+                    if !matches!(job.status, StepJobStatus::Pending) {
+                        files_to_return.extend(job.files.clone());
+                    }
+                    result?;
+                    last_job = Some(job);
+                }
+
+                // The file-listing check is authoritative. If every focused
+                // diagnostic command completed successfully, keep the overall
+                // step failed and preserve the original output. Cancellation
+                // returns Ok without executing a command and must not be
+                // reported as a contradictory success.
+                if focused_check_failed && !ctx.hook_ctx.failed.is_cancelled() {
+                    if let Some((stdout, stderr, combined)) = &focused_check_output
+                        && let Some(job) = &last_job
+                    {
+                        step.save_output_summary(&ctx, job, stdout, stderr, combined, true);
+                    }
+                    let err = eyre::eyre!(
+                        "{step}: file-listing check failed but focused check succeeded"
+                    );
+                    if let Some(job) = &mut last_job {
+                        job.status_errored(&ctx, format!("{err}")).await?;
+                    }
+                    return Err(err);
+                }
+
+                Ok(files_to_return.into_iter().collect())
             });
         }
         let mut actual_job_files: IndexSet<PathBuf> = IndexSet::new();

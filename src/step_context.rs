@@ -44,6 +44,23 @@ impl StepContext {
         }
     }
 
+    pub fn increment_job_count(&self, count: usize) {
+        if count == 0 {
+            return;
+        }
+        *self.jobs_remaining.lock().unwrap() += count;
+        let jobs_total = {
+            let mut jobs_total = self.jobs_total.lock().unwrap();
+            *jobs_total += count;
+            *jobs_total
+        };
+        if jobs_total > 1 {
+            self.progress.progress_total(jobs_total);
+            self.progress.prop("show_step_progress", &true);
+        }
+        self.update_progress();
+    }
+
     pub fn add_files(&self, added_paths: &[PathBuf], created_paths: &[PathBuf]) {
         let mut files_added = self.files_added.lock().unwrap();
         files_added.extend(added_paths.iter().cloned());
