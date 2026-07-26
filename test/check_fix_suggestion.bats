@@ -161,6 +161,30 @@ EOF
     assert_output --partial "file-listing check failed but focused check succeeded"
 }
 
+@test "check_failed_files preserves listing diagnostics when focused check fails" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] {
+        check_list_files = "sh -c 'echo a.js; echo listing-diagnostic >&2; exit 1'"
+        check = "sh -c 'echo focused-diagnostic >&2; exit 1'"
+        check_failed_files = true
+      }
+    }
+  }
+}
+EOF
+
+    echo "bad" > a.js
+
+    run hk check a.js
+    assert_failure
+    assert_output --partial "listing-diagnostic"
+    assert_output --partial "focused-diagnostic"
+}
+
 @test "long fix suggestion falls back to focused hk command" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

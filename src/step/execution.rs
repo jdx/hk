@@ -239,6 +239,13 @@ impl Step {
                 for mut job in jobs {
                     let result = step.run(&ctx, &mut job).await;
                     if let Err(err) = &result {
+                        if focused_check_failed
+                            && let Some((stdout, stderr, combined)) = &focused_check_output
+                        {
+                            step.save_output_summary(
+                                &ctx, &job, stdout, stderr, combined, true,
+                            );
+                        }
                         job.status_errored(&ctx, format!("{err}")).await?;
                     }
                     ctx.hook_ctx.inc_completed_jobs(1);
