@@ -105,6 +105,8 @@ impl Step {
             let step = self.clone();
             let mut job = job;
             set.spawn(async move {
+                let mut focused_check_failed = false;
+                let mut focused_check_output: Option<(String, String, String)> = None;
                 if let Some(reason) = &job.skip_reason {
                     step.mark_skipped(&ctx, reason)?;
                     // Skipped jobs reduce the total rather than incrementing completed
@@ -134,6 +136,13 @@ impl Step {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
                                 check_first_output = Some((stdout.clone(), stderr.clone(), combined.clone()));
+                                if step.check_failed_files
+                                    && matches!(prev_run_type, RunType::Check)
+                                {
+                                    focused_check_failed = true;
+                                    focused_check_output =
+                                        Some((stdout.clone(), stderr.clone(), combined.clone()));
+                                }
                                 // Parse according to the check-first command that actually ran.
                                 // Platform-specific Script values can be empty, in which case
                                 // check_first_cmd falls back to the next available command.
@@ -213,7 +222,19 @@ impl Step {
                             );
                         }
                 }
-                let result = step.run(&ctx, &mut job).await;
+                let mut result = step.run(&ctx, &mut job).await;
+                // The file-listing check is authoritative. If it found
+                // failures but the focused diagnostic check unexpectedly
+                // succeeds, keep the overall step failed and preserve the
+                // original output instead of silently hiding the mismatch.
+                if result.is_ok() && focused_check_failed {
+                    if let Some((stdout, stderr, combined)) = &focused_check_output {
+                        step.save_output_summary(&ctx, &job, stdout, stderr, combined, true);
+                    }
+                    result = Err(eyre::eyre!(
+                        "{step}: file-listing check failed but focused check succeeded"
+                    ));
+                }
                 if let Err(err) = &result {
                     job.status_errored(&ctx, format!("{err}")).await?;
                 }

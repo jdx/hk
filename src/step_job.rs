@@ -147,7 +147,10 @@ impl StepJob {
 
     pub async fn status_errored(&mut self, ctx: &StepContext, err: String) -> Result<()> {
         match &mut self.status {
-            StepJobStatus::Pending | StepJobStatus::Started(_) => {}
+            // A command may finish successfully before an orchestration-level
+            // postcondition detects a failure (for example, disagreement
+            // between a file-listing check and a focused diagnostic check).
+            StepJobStatus::Pending | StepJobStatus::Started(_) | StepJobStatus::Finished => {}
             _ => unreachable!("invalid status: {:?}", self.status),
         }
         self.status = StepJobStatus::Errored(err.to_string());

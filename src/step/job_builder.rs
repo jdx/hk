@@ -18,7 +18,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use super::types::{RunType, Step};
+use super::types::{CheckFirstCmd, RunType, Step};
 
 impl Step {
     /// Create step jobs from a list of files.
@@ -173,10 +173,20 @@ impl Step {
         // In Check mode, this is avoided as check_diff may hide non-auto-fixable errors.
         let can_apply_diff = self.check_diff.is_some() && matches!(run_type, RunType::Fix);
 
+        // Optionally use the list/diff command to focus the regular check on
+        // only the files that failed. This is opt-in because it adds a second
+        // tool invocation and not every check command accepts file arguments.
+        let needs_focused_check = self.check_failed_files
+            && matches!(run_type, RunType::Check)
+            && matches!(
+                self.check_first_cmd(),
+                Some(CheckFirstCmd::Diff(_) | CheckFirstCmd::ListFiles(_))
+            );
+
         for job in jobs.iter_mut() {
-            if needs_filtering_for_stage || can_apply_diff {
+            if needs_filtering_for_stage || can_apply_diff || needs_focused_check {
                 // Always run check_first when we need to filter files for stage=<JOB_FILES>
-                // or when we can apply the diff directly
+                // or when we can apply the diff directly or focus a check
                 job.check_first = true;
             } else if job.check_first {
                 // Only adjust check_first for jobs where it was already enabled from config

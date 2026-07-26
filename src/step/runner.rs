@@ -384,6 +384,15 @@ impl Step {
                 name
             );
         }
+        if self.check_failed_files
+            && (self.check.is_none()
+                || (self.check_diff.is_none() && self.check_list_files.is_none()))
+        {
+            eyre::bail!(
+                "Step '{name}' with `check_failed_files = true` requires `check` and at least one \
+                 of `check_diff` or `check_list_files`."
+            );
+        }
         let commands = [
             self.check.as_ref(),
             self.check_list_files.as_ref(),

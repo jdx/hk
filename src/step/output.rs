@@ -11,6 +11,8 @@ use std::sync::Arc;
 
 use super::types::{OutputSummary, RunType, Step};
 
+const MAX_INLINE_FIX_COMMAND_CHARS: usize = 2048;
+
 impl Step {
     /// Save command output for the end-of-run summary.
     ///
@@ -134,9 +136,10 @@ impl Step {
             && let Ok(rendered) = fix_cmd.render(&suggest_ctx, self.prefix.as_deref())
         {
             let rendered = rendered.display(self.shell_type());
-            let is_multi_line = rendered.contains('\n');
-            if is_multi_line {
-                // Too long to inline; suggest hk fix with step filter
+            let should_use_hk_fix =
+                rendered.contains('\n') || rendered.chars().count() > MAX_INLINE_FIX_COMMAND_CHARS;
+            if should_use_hk_fix {
+                // Multi-line or overly long commands are clearer through hk.
                 let step_flag = format!("-S {}", &self.name);
                 let cmd = format!(
                     "To fix, run: {}",
