@@ -105,6 +105,8 @@ impl Step {
             let step = self.clone();
             let mut job = job;
             set.spawn(async move {
+                let mut focused_check_failed = false;
+                let mut focused_check_output: Option<(String, String, String)> = None;
                 if let Some(reason) = &job.skip_reason {
                     step.mark_skipped(&ctx, reason)?;
                     // Skipped jobs reduce the total rather than incrementing completed
@@ -134,6 +136,13 @@ impl Step {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
                                 check_first_output = Some((stdout.clone(), stderr.clone(), combined.clone()));
+                                if step.check_failed_files
+                                    && matches!(prev_run_type, RunType::Check)
+                                {
+                                    focused_check_failed = true;
+                                    focused_check_output =
+                                        Some((stdout.clone(), stderr.clone(), combined.clone()));
+                                }
                                 // Parse according to the check-first command that actually ran.
                                 // Platform-specific Script values can be empty, in which case
                                 // check_first_cmd falls back to the next available command.
@@ -213,19 +222,82 @@ impl Step {
                             );
                         }
                 }
-                let result = step.run(&ctx, &mut job).await;
-                if let Err(err) = &result {
-                    job.status_errored(&ctx, format!("{err}")).await?;
-                }
-                ctx.hook_ctx.inc_completed_jobs(1);
-                // Return the actual files that were processed after filtering
-                // If job was skipped (status still Pending or marked skipped), return empty
-                let files_to_return = if matches!(job.status, StepJobStatus::Pending) {
-                    vec![]
+                // The initial auto-batching pass sizes the file-listing
+                // command. Reapply it after narrowing so a larger focused
+                // check command receives the same ARG_MAX protection.
+                let jobs = if focused_check_failed {
+                    let batch_error_job = job.clone();
+                    match step.auto_batch_jobs(vec![job], &ctx.hook_ctx.tctx) {
+                        Ok(jobs) => jobs,
+                        Err(err) => {
+                            if let Some((stdout, stderr, combined)) = &focused_check_output {
+                                step.save_output_summary(
+                                    &ctx,
+                                    &batch_error_job,
+                                    stdout,
+                                    stderr,
+                                    combined,
+                                    true,
+                                );
+                            }
+                            return Err(err);
+                        }
+                    }
                 } else {
-                    job.files
+                    vec![job]
                 };
-                result.map(|_| files_to_return)
+
+                let mut files_to_return = IndexSet::new();
+                let mut last_job = None;
+                for (index, mut job) in jobs.into_iter().enumerate() {
+                    // Focused batches run sequentially. Register each
+                    // additional batch only when it is about to run so a
+                    // failure cannot leave later, unrun batches in progress
+                    // totals.
+                    if index > 0 {
+                        ctx.increment_job_count(1);
+                        ctx.hook_ctx.inc_total_jobs(1);
+                    }
+                    let result = step.run(&ctx, &mut job).await;
+                    if let Err(err) = &result {
+                        if focused_check_failed
+                            && let Some((stdout, stderr, combined)) = &focused_check_output
+                        {
+                            step.save_output_summary(
+                                &ctx, &job, stdout, stderr, combined, true,
+                            );
+                        }
+                        job.status_errored(&ctx, format!("{err}")).await?;
+                    }
+                    ctx.hook_ctx.inc_completed_jobs(1);
+                    if !matches!(job.status, StepJobStatus::Pending) {
+                        files_to_return.extend(job.files.clone());
+                    }
+                    result?;
+                    last_job = Some(job);
+                }
+
+                // The file-listing check is authoritative. If every focused
+                // diagnostic command completed successfully, keep the overall
+                // step failed and preserve the original output. Cancellation
+                // returns Ok without executing a command and must not be
+                // reported as a contradictory success.
+                if focused_check_failed && !ctx.hook_ctx.failed.is_cancelled() {
+                    if let Some((stdout, stderr, combined)) = &focused_check_output
+                        && let Some(job) = &last_job
+                    {
+                        step.save_output_summary(&ctx, job, stdout, stderr, combined, true);
+                    }
+                    let err = eyre::eyre!(
+                        "{step}: file-listing check failed but focused check succeeded"
+                    );
+                    if let Some(job) = &mut last_job {
+                        job.status_errored(&ctx, format!("{err}")).await?;
+                    }
+                    return Err(err);
+                }
+
+                Ok(files_to_return.into_iter().collect())
             });
         }
         let mut actual_job_files: IndexSet<PathBuf> = IndexSet::new();

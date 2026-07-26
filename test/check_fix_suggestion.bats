@@ -110,3 +110,126 @@ EOF
     # Should not print the multi-line fix body
     refute_output --partial "echo line1"
 }
+
+@test "check_failed_files runs detailed check only on listed files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] {
+        check_list_files = "sh -c 'echo a.js; exit 1'"
+        check = "sh -c 'echo detailed:{{files}} >&2; exit 1'"
+        fix = "echo fix {{files}}"
+        check_failed_files = true
+      }
+    }
+  }
+}
+EOF
+
+    echo "bad" > a.js
+    echo "good" > b.js
+
+    run hk check a.js b.js
+    assert_failure
+    assert_output --partial "detailed:a.js"
+    refute_output --partial "detailed:a.js b.js"
+    assert_output --partial "To fix, run: echo fix a.js"
+}
+
+@test "check_failed_files keeps listing failure authoritative" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] {
+        check_list_files = "sh -c 'echo a.js; exit 1'"
+        check = "echo focused {{files}}"
+        check_failed_files = true
+      }
+    }
+  }
+}
+EOF
+
+    echo "bad" > a.js
+
+    run hk check a.js
+    assert_failure
+    assert_output --partial "file-listing check failed but focused check succeeded"
+}
+
+@test "check_failed_files preserves listing diagnostics when focused check fails" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] {
+        check_list_files = "sh -c 'echo a.js; echo listing-diagnostic >&2; exit 1'"
+        check = "sh -c 'echo focused-diagnostic >&2; exit 1'"
+        check_failed_files = true
+      }
+    }
+  }
+}
+EOF
+
+    echo "bad" > a.js
+
+    run hk check a.js
+    assert_failure
+    assert_output --partial "listing-diagnostic"
+    assert_output --partial "focused-diagnostic"
+}
+
+@test "long fix suggestion falls back to focused hk command" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["fmt"] {
+        check = "exit 1"
+        fix = "echo fix {{files}}"
+      }
+    }
+  }
+}
+EOF
+
+    files=()
+    for i in $(seq 1 400); do
+        file="long-filename-for-output-$i.js"
+        echo "bad" > "$file"
+        files+=("$file")
+    done
+
+    run hk check "${files[@]}"
+    assert_failure
+    assert_output --partial "To fix, run: hk fix -S fmt"
+    refute_output --partial "To fix, run: echo fix"
+}
+
+@test "check_failed_files validates required commands" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["lint"] {
+        check = "exit 1"
+        check_failed_files = true
+      }
+    }
+  }
+}
+EOF
+
+    run hk validate
+    assert_failure
+    assert_output --partial \
+        "check_failed_files = true\` requires \`check\` and at least one of \`check_diff\` or \`check_list_files"
+}

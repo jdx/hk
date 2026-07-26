@@ -485,6 +485,16 @@ class Step {
   /// Falls back to running the fix command if patch application fails.
   check_diff: (String | Script | Command)?
 
+  /// Default: `false`
+  ///
+  /// If true, check mode first runs `check_diff` or `check_list_files` to
+  /// identify failing files, then runs `check` only on those files. This keeps
+  /// detailed diagnostics while avoiding commands and suggestions containing
+  /// every file in a large repository.
+  ///
+  /// Requires `check` and at least one of `check_diff` or `check_list_files`.
+  check_failed_files: Boolean = false
+
   /// A command to run that modifies files.
   /// This typically is a "fix" command like `eslint --fix` or `prettier --write`.
   /// Templates variables are the same as for `check`.
