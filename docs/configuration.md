@@ -140,6 +140,26 @@ Structured commands preserve argument boundaries, so filenames containing spaces
 
 Structured commands cannot be combined with the step's `shell` or `prefix` options. Other step behavior, including `dir`, `env`, and automatic batching for large file lists, continues to apply.
 
+### Focus checks on failing files
+
+For tools whose detailed `check` output cannot identify failing files in a machine-readable form, set `check_failed_files = true` and provide either `check_list_files` or `check_diff`:
+
+```pkl
+local linters = new Mapping<String, Step> {
+    ["my-linter"] {
+        glob = List("**/*.py")
+        check_list_files = "my-linter --list-failing-files {{files}}"
+        check = "my-linter check {{files}}"
+        fix = "my-linter fix {{files}}"
+        check_failed_files = true
+    }
+}
+```
+
+In check mode, hk first runs `check_diff` or `check_list_files` over the complete job. If that command reports a failure, hk extracts and deduplicates the affected paths, then runs `check` only on those files so its full diagnostics remain available without rendering every input path again. If both file-reporting commands are configured, `check_diff` takes precedence.
+
+This behavior is opt-in because it adds another process invocation and requires `check` to accept file arguments. Enabling it requires `check` and at least one of `check_diff` or `check_list_files`. Paths not present in the original job are ignored, focused commands retain automatic argument-limit batching, and a failure from the file-reporting command remains authoritative if the focused check unexpectedly succeeds.
+
 ### `<GROUP>`
 
 A group is a collection of steps that are executed in parallel, waiting for previous steps/groups to finish and blocking other steps/groups from starting until it finishes. This is a naive way to ensure the order of execution. It's better to make use of read/write locks and depends.

@@ -21,7 +21,7 @@ hk hooks perform the following assuming `fix = true`:
   * if any of the files have been modified and match the `stage` globs, they will be added to the git index (defaults to the step's `glob` for steps with a `fix` command)
 * untracked/unstaged changes are unstashed
 
-If `fix = false`, hk will just run the `check` steps and won't need to deal with read/write locks as nothing should be making modifications.
+If `fix = false`, hk will just run the `check` steps and won't need to deal with read/write locks as nothing should be making modifications. Steps with [`check_failed_files = true`](/configuration#focus-checks-on-failing-files) first use `check_diff` or `check_list_files` to identify affected paths, then run the detailed `check` command only on that focused set.
 
 ## `pre-commit`
 
