@@ -159,3 +159,32 @@ EOF
         [ "$(wc -l < batches.log)" -gt 1 ]
     fi
 }
+
+@test "focused re-batch errors preserve listing diagnostics" {
+    if [[ "$OSTYPE" != "linux"* ]]; then
+        skip "Linux MAX_ARG_STRLEN behavior"
+    fi
+
+    max_arg_strlen=$(( $(getconf PAGESIZE) * 32 ))
+    oversized=$(printf '%*s' "$max_arg_strlen" '' | tr ' ' x)
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["focused"] {
+                check_list_files = "sh -c 'echo bad.txt; echo listing-diagnostic >&2; exit 1'"
+                check = "echo $oversized {{files}}"
+                check_failed_files = true
+            }
+        }
+    }
+}
+EOF
+    echo "bad" > bad.txt
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "listing-diagnostic"
+    assert_output --partial "command-line limit"
+}

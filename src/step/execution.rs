@@ -226,7 +226,23 @@ impl Step {
                 // command. Reapply it after narrowing so a larger focused
                 // check command receives the same ARG_MAX protection.
                 let jobs = if focused_check_failed {
-                    step.auto_batch_jobs(vec![job], &ctx.hook_ctx.tctx)?
+                    let batch_error_job = job.clone();
+                    match step.auto_batch_jobs(vec![job], &ctx.hook_ctx.tctx) {
+                        Ok(jobs) => jobs,
+                        Err(err) => {
+                            if let Some((stdout, stderr, combined)) = &focused_check_output {
+                                step.save_output_summary(
+                                    &ctx,
+                                    &batch_error_job,
+                                    stdout,
+                                    stderr,
+                                    combined,
+                                    true,
+                                );
+                            }
+                            return Err(err);
+                        }
+                    }
                 } else {
                     vec![job]
                 };
