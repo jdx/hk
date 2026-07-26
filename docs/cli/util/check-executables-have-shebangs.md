@@ -3,6 +3,7 @@
 # `hk util check-executables-have-shebangs`
 
 - **Usage**: `hk util check-executables-have-shebangs <FILES>…`
+- **Effect**: read-only
 
 Check that executable files have shebangs
 

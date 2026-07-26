@@ -3,6 +3,7 @@
 # `hk config dump`
 
 - **Usage**: `hk config dump [--format <FORMAT>]`
+- **Effect**: read-only
 
 Print effective runtime settings (JSON format)
 

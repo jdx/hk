@@ -3,6 +3,7 @@
 # `hk util check-symlinks`
 
 - **Usage**: `hk util check-symlinks <FILES>…`
+- **Effect**: read-only
 
 Check for broken symlinks
 

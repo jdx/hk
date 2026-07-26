@@ -3,5 +3,6 @@
 # `hk version`
 
 - **Usage**: `hk version`
+- **Effect**: read-only
 
 Print the version of hk

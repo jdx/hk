@@ -3,6 +3,7 @@
 # `hk completion`
 
 - **Usage**: `hk completion <SHELL>`
+- **Effect**: read-only
 
 Generates shell completion scripts
 

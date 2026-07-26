@@ -3,6 +3,7 @@
 # `hk init`
 
 - **Usage**: `hk init [FLAGS]`
+- **Effect**: modifies state
 
 Generates a new hk.pkl file for a project
 

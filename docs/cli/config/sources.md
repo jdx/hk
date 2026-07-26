@@ -3,6 +3,7 @@
 # `hk config sources`
 
 - **Usage**: `hk config sources`
+- **Effect**: read-only
 
 Show the configuration source precedence order
 

@@ -3,6 +3,7 @@
 # `hk util no-commit-to-branch`
 
 - **Usage**: `hk util no-commit-to-branch [--branch… <BRANCH>]`
+- **Effect**: read-only
 
 Prevent commits to specific branches
 

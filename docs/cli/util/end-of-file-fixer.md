@@ -3,6 +3,7 @@
 # `hk util end-of-file-fixer`
 
 - **Usage**: `hk util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…`
+- **Effect**: modifies state
 
 Check for and optionally fix missing final newlines
 

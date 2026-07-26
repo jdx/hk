@@ -3,6 +3,7 @@
 # `hk config get`
 
 - **Usage**: `hk config get <KEY>`
+- **Effect**: read-only
 
 Get a specific configuration value
 

@@ -10,6 +10,7 @@ use clx::progress::ProgressOutput;
 mod builtins;
 mod cache;
 mod check;
+mod command_effects;
 mod completion;
 mod config;
 mod fix;

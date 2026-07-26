@@ -3,6 +3,7 @@
 # `hk util mixed-line-ending`
 
 - **Usage**: `hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`
+- **Effect**: modifies state
 
 Detect and fix mixed line endings
 

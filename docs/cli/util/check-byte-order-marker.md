@@ -3,6 +3,7 @@
 # `hk util check-byte-order-marker`
 
 - **Usage**: `hk util check-byte-order-marker [-d --diff] <FILES>…`
+- **Effect**: read-only
 
 Check for UTF-8 byte order marker (BOM)
 

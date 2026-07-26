@@ -3,6 +3,7 @@
 # `hk util`
 
 - **Usage**: `hk util <SUBCOMMAND>`
+- **Effect**: read-only
 
 Utility commands for file operations
 
