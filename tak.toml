@@ -1,0 +1,24 @@
+# Instruction-counted benchmarks, measured by tak (https://github.com/jdx/tak).
+#
+# Everything here is pure CPU against no input but hk's own command tree: no
+# network, no repository state, no pkl. Hermeticity was checked by running each
+# with the proxy pointed at a dead port; all succeed unchanged, and `hk usage`
+# is byte-identical run to run.
+#
+# `--version` is deliberately absent. It measures clap rather than hk, and a
+# subject that can reach the network retires a different number of instructions
+# depending on conditions unrelated to the code under test.
+
+# The fixed cost of any invocation: process start, dynamic linking, and building
+# the clap command tree. Every other benchmark here pays it too, so reading them
+# against this one separates "hk got slower to start" from "this command's path
+# got slower".
+[bench.builtins]
+cmd = ["./target/release/hk", "builtins"]
+
+# The whole command tree, walked and serialised to ~42KB of KDL. A subcommand
+# added with an expensive default shows up here first, and it is the largest
+# pure-CPU path hk has that needs no configuration to run.
+[bench.usage]
+cmd = ["./target/release/hk", "usage"]
+runs = 10
