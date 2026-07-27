@@ -3,7 +3,6 @@ build = "build/mod.rs"
 description = "A tool for managing git hooks"
 documentation = "https://hk.jdx.dev"
 edition = "2024"
-resolver = "3"
 homepage = "https://hk.jdx.dev"
 include = [
   "/src/**/*",
@@ -19,6 +18,7 @@ include = [
 license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
+resolver = "3"
 rust-version = "1.88.0"
 version = "1.53.0"
 
