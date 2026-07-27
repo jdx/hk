@@ -3,6 +3,7 @@ build = "build/mod.rs"
 description = "A tool for managing git hooks"
 documentation = "https://hk.jdx.dev"
 edition = "2024"
+resolver = "3"
 homepage = "https://hk.jdx.dev"
 include = [
   "/src/**/*",
