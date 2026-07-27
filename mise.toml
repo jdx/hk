@@ -13,15 +13,15 @@ git-cliff                       = "latest"
 # Pinned rather than "latest" because tak is the measuring instrument: an
 # upgrade that changes how it samples would land in the series as a step change
 # in hk's numbers, indistinguishable from a real regression. Bump deliberately.
-"github:jdx/tak"                = "0.0.4"
-node                            = "latest"
-"npm:prettier"                  = "latest"
-pkl                             = "latest"
-ripgrep                         = "latest"
-taplo                           = "latest"
-usage                           = "latest"
-uv                              = "latest"
-vhs                             = "latest"
+"github:jdx/tak" = "0.0.4"
+node             = "latest"
+"npm:prettier"   = "latest"
+pkl              = "latest"
+ripgrep          = "latest"
+taplo            = "latest"
+usage            = "latest"
+uv               = "latest"
+vhs              = "latest"
 
 # Instruction-counted benchmarks (see tak.toml). Needs valgrind for the counts;
 # without it tak reports wall clock only and says so, so this still works on

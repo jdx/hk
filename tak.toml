@@ -20,5 +20,5 @@ cmd = ["./target/release/hk", "builtins"]
 # added with an expensive default shows up here first, and it is the largest
 # pure-CPU path hk has that needs no configuration to run.
 [bench.usage]
-cmd = ["./target/release/hk", "usage"]
+cmd  = ["./target/release/hk", "usage"]
 runs = 10
