@@ -31,13 +31,13 @@ arc-swap           = "1"
 chrono             = "0.4"
 clap               = { version = "4", features = ["derive"] }
 clap_usage         = "4"
-clx                = "2.0.1"
+clx                = "3"
 color-eyre         = "0.6"
 console            = "0.16"
 dashmap            = "6.1.0"
 demand             = "2"
 dirs               = "6"
-ensembler          = "1.1"
+ensembler          = "1.1.3"
 expr-lang          = { version = "1.0.0", features = ["serde"] }
 eyre               = "0.6"
 git2               = { version = "0.21", features = ["vendored-libgit2"] }
