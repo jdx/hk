@@ -31,7 +31,7 @@ arc-swap           = "1"
 chrono             = "0.4"
 clap               = { version = "4", features = ["derive"] }
 clap_usage         = "4"
-clx                = "2.0.1"
+clx                = "3.0.0"
 color-eyre         = "0.6"
 console            = "0.16"
 dashmap            = "6.1.0"

@@ -378,6 +378,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "clx"
+version = "3.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03a65674abcd65c2846d6bfc4c9816ab9177b15277a18a78aa1691683ce63095"
+dependencies = [
+ "console",
+ "nix 0.31.3",
+ "serde",
+ "serde_json",
+ "strum 0.28.0",
+ "tera 2.1.0",
+ "thiserror",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -704,7 +720,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bc9b814f798806f908b68040c316be35d7e90ebb625ecfc59b21da884820306"
 dependencies = [
  "aho-corasick",
- "clx",
+ "clx 2.1.1",
  "console",
  "indexmap 2.14.0",
  "indicatif",
@@ -970,7 +986,7 @@ dependencies = [
  "clap",
  "clap-sort",
  "clap_usage",
- "clx",
+ "clx 3.0.2",
  "codegen",
  "color-eyre",
  "console",
