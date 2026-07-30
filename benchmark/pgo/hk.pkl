@@ -1,0 +1,23 @@
+amends "../../pkl/Config.pkl"
+
+hooks = new {
+  ["check"] {
+    steps = new {
+      // Exercise file discovery, glob filtering, batching, structured argv,
+      // the scheduler, file locks, and subprocess execution.
+      ["rust-files"] {
+        glob = List("**/*.rs")
+        check = new Command {
+          argv = List("true", "{{files}}")
+        }
+        batch = true
+      }
+      // A broad overlapping reader makes lock planning representative of a
+      // normal hook with global whitespace/newline checks.
+      ["all-files"] {
+        glob = "**/*"
+        check = "true"
+      }
+    }
+  }
+}

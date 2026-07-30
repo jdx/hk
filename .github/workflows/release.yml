@@ -20,6 +20,7 @@ env:
 jobs:
   build-binaries:
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
     permissions:
       contents: write
     strategy:
@@ -30,30 +31,37 @@ jobs:
             os: macos-latest
             runner: namespace-profile-endev-macos-arm64
             build-tool: cargo
+            optimized: false
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
+            optimized: false
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
+            optimized: false
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
+            optimized: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
+            optimized: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             runner: windows-latest
             build-tool: cargo
+            optimized: false
           - target: aarch64-pc-windows-msvc
             os: windows-latest
             runner: windows-latest
             build-tool: cargo
+            optimized: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,7 +71,41 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
           p12-password: ${{ secrets.CERTIFICATES_P12_PASS }}
-      - uses: taiki-e/upload-rust-binary-action@f0d45ae91ee7b8ee928de7a9d04d893a08bcbec6 # v1
+      - name: Install PGO and BOLT build tools
+        if: matrix.optimized
+        shell: bash
+        run: |
+          rustup component add llvm-tools
+          cargo install cross --locked --version 0.2.5
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget gnupg ca-certificates
+          sudo install -d -m 0755 /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /etc/apt/keyrings/llvm.gpg
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-18 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-toolchain-18.list
+          sudo apt-get update
+          sudo apt-get install -y bolt-18
+      - name: Build PGO+BOLT binary
+        if: matrix.optimized
+        shell: bash
+        env:
+          HK_PGO_BUILD_TOOL: ${{ matrix.build-tool }}
+          HK_PGO_TARGET: ${{ matrix.target }}
+        run: scripts/pgo-bolt.bash
+      - name: Package PGO+BOLT binary
+        if: matrix.optimized
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          # Match upload-rust-binary-action's default Unix archive format.
+          # tar.xz is disabled by default and zip is reserved for Windows.
+          tar -czf "hk-${TARGET}.tar.gz" \
+            -C "target/${TARGET}/serious-pgo" hk
+      - if: matrix.optimized != true
+        uses: taiki-e/upload-rust-binary-action@f0d45ae91ee7b8ee928de7a9d04d893a08bcbec6 # v1
         with:
           bin: hk
           target: ${{ matrix.target }}

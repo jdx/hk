@@ -32,7 +32,6 @@ chrono             = "0.4"
 clap               = { version = "4", features = ["derive"] }
 clap_usage         = "4"
 clx                = "3"
-color-eyre         = "0.6"
 console            = "0.16"
 dashmap            = "6.1.0"
 demand             = "2"
@@ -66,7 +65,7 @@ strum              = { version = "0.28", features = ["derive"] }
 tempfile           = "3"
 tera               = "2"
 thiserror          = "2"
-tokio              = { version = "1", features = ["full", "rt-multi-thread"] }
+tokio              = { version = "1", features = ["process", "rt-multi-thread", "signal", "sync"] }
 tokio-util         = "0.7"
 toml               = "1.0"
 tracing            = "0.1"
@@ -74,7 +73,7 @@ tracing-error      = "0.2"
 tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
-xx                 = { version = "2.5.1", features = ["http", "hash", "rustls", "rustls-native-roots"] }
+xx                 = { version = "2.5.1", features = ["hash"] }
 
 [build-dependencies]
 codegen    = "0.3"
@@ -89,6 +88,15 @@ clap-sort = "1"
 [profile.serious]
 inherits = "release"
 lto      = true
+panic    = "abort"
+strip    = true
+
+# BOLT needs the linked symbol table and relocations while it rewrites the
+# executable. The PGO+BOLT pipeline strips the final artifact after rewriting.
+[profile.serious-pgo]
+codegen-units = 1
+inherits      = "serious"
+strip         = "debuginfo"
 
 [package.metadata.release]
 pre-release-hook = ["mise", "run", "pre-release", "--version", "{{version}}"]

@@ -138,14 +138,21 @@ impl StepGroup {
                 .collect::<Vec<_>>(),
         ));
         let mut set = tokio::task::JoinSet::new();
+        let steps = self
+            .steps
+            .values()
+            .cloned()
+            .map(Arc::new)
+            .collect::<Vec<_>>();
         *ctx.hook_ctx.step_contexts.lock().unwrap() = self
             .steps
             .values()
-            .map(|s| {
+            .zip(&steps)
+            .map(|(s, shared_step)| {
                 (
                     s.name.clone(),
                     Arc::new(StepContext {
-                        step: s.clone(),
+                        step: shared_step.clone(),
                         hook_ctx: ctx.hook_ctx.clone(),
                         depends: depends.clone(),
                         progress: s.build_step_progress(),
@@ -162,7 +169,7 @@ impl StepGroup {
         } else {
             *ctx.hook_ctx.files_in_contention.lock().unwrap() = Default::default();
         }
-        for (_, step) in self.steps.clone() {
+        for step in steps {
             let semaphore = ctx.hook_ctx.try_semaphore();
             let step_ctx = ctx
                 .hook_ctx
@@ -177,7 +184,7 @@ impl StepGroup {
                 let step_ctx = step_ctx.clone();
                 let hook_ctx = ctx.hook_ctx.clone();
                 async move {
-                    let result = step.run_all_jobs(step_ctx.clone(), semaphore).await;
+                    let result = step.clone().run_all_jobs(step_ctx.clone(), semaphore).await;
                     if let Err(err) = &result {
                         step_ctx.status_errored(&err.to_string());
                     }

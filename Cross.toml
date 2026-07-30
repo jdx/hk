@@ -1,0 +1,10 @@
+[target.x86_64-unknown-linux-gnu]
+# Keep the release artifact compatible with older glibc distributions while
+# still running the instrumented binary on the newer CI host for training.
+image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5"
+
+[target.x86_64-unknown-linux-gnu.env]
+# scripts/pgo-bolt.bash sets profile-generate/profile-use and emit-relocs
+# through RUSTFLAGS. Cross otherwise filters the variable at the container
+# boundary and silently produces an uninstrumented build.
+passthrough = ["RUSTFLAGS"]

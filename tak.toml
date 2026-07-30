@@ -22,3 +22,38 @@ cmd = ["./target/release/hk", "builtins"]
 [bench.usage]
 cmd  = ["./target/release/hk", "usage"]
 runs = 10
+
+# Warm Pkl evaluation and configuration validation. `env` immediately execs hk
+# in the same process, so cachegrind continues measuring the actual binary
+# without adding a shell process.
+[bench.validate]
+cmd = [
+  "env",
+  "HK_CACHE_DIR=target/tak-cache",
+  "HK_CONFIG_DIR=target/tak-config",
+  "HK_FILE=benchmark/pgo/hk.pkl",
+  "HK_STATE_DIR=target/tak-state",
+  "./target/release/hk",
+  "validate",
+  "--quiet",
+]
+runs = 10
+
+# Representative all-files hook planning and execution: Git status, file walk,
+# overlapping glob filters, batching, file locks, Tokio scheduling, and small
+# subprocesses. Stashing is disabled to keep the committed fixture read-only.
+[bench.check]
+cmd = [
+  "env",
+  "HK_CACHE_DIR=target/tak-cache",
+  "HK_CONFIG_DIR=target/tak-config",
+  "HK_FILE=benchmark/pgo/hk.pkl",
+  "HK_STATE_DIR=target/tak-state",
+  "HK_STASH=false",
+  "HK_STASH_UNTRACKED=false",
+  "./target/release/hk",
+  "check",
+  "--all",
+  "--quiet",
+]
+runs = 10
