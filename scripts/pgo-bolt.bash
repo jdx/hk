@@ -112,6 +112,24 @@ if [ ! -x "$FINAL_BIN" ]; then
 	exit 1
 fi
 
+run_isolated() {
+	local bin=$1
+	local state_root=$2
+	shift 2
+
+	env -i \
+		PATH="$PATH" \
+		HOME="$state_root/home" \
+		HK_CACHE_DIR="$state_root/cache" \
+		HK_CONFIG_DIR="$state_root/config" \
+		HK_FILE="$TRAIN_CONFIG" \
+		HK_STATE_DIR="$state_root/state" \
+		HK_STASH=false \
+		HK_STASH_UNTRACKED=false \
+		LLVM_PROFILE_FILE="${LLVM_PROFILE_FILE:-}" \
+		"$bin" "$@"
+}
+
 train() {
 	local bin=$1
 	local label=$2
@@ -121,39 +139,9 @@ train() {
 
 	for pass in 1 2 3; do
 		echo "  train: $label pass $pass"
-		env -i \
-			PATH="$PATH" \
-			HOME="$state_root/home" \
-			HK_CACHE_DIR="$state_root/cache" \
-			HK_CONFIG_DIR="$state_root/config" \
-			HK_FILE="$TRAIN_CONFIG" \
-			HK_STATE_DIR="$state_root/state" \
-			HK_STASH=false \
-			HK_STASH_UNTRACKED=false \
-			LLVM_PROFILE_FILE="${LLVM_PROFILE_FILE:-}" \
-			"$bin" builtins >/dev/null
-		env -i \
-			PATH="$PATH" \
-			HOME="$state_root/home" \
-			HK_CACHE_DIR="$state_root/cache" \
-			HK_CONFIG_DIR="$state_root/config" \
-			HK_FILE="$TRAIN_CONFIG" \
-			HK_STATE_DIR="$state_root/state" \
-			HK_STASH=false \
-			HK_STASH_UNTRACKED=false \
-			LLVM_PROFILE_FILE="${LLVM_PROFILE_FILE:-}" \
-			"$bin" validate --quiet
-		env -i \
-			PATH="$PATH" \
-			HOME="$state_root/home" \
-			HK_CACHE_DIR="$state_root/cache" \
-			HK_CONFIG_DIR="$state_root/config" \
-			HK_FILE="$TRAIN_CONFIG" \
-			HK_STATE_DIR="$state_root/state" \
-			HK_STASH=false \
-			HK_STASH_UNTRACKED=false \
-			LLVM_PROFILE_FILE="${LLVM_PROFILE_FILE:-}" \
-			"$bin" check --all --quiet
+		run_isolated "$bin" "$state_root" builtins >/dev/null
+		run_isolated "$bin" "$state_root" validate --quiet
+		run_isolated "$bin" "$state_root" check --all --quiet
 	done
 }
 
@@ -216,10 +204,17 @@ strip --strip-all "$FINAL_BIN"
 
 # Release-pipeline smoke checks use both configuration-free and representative
 # project paths after the final rewrite and strip.
-"$FINAL_BIN" builtins >/dev/null
-"$FINAL_BIN" usage >/dev/null
-HK_FILE="$TRAIN_CONFIG" HK_STASH=false "$FINAL_BIN" validate --quiet
-HK_FILE="$TRAIN_CONFIG" HK_STASH=false "$FINAL_BIN" check --all --quiet
+SMOKE_STATE_ROOT="$PGO_DATA_DIR/state-smoke"
+rm -rf "$SMOKE_STATE_ROOT"
+mkdir -p \
+	"$SMOKE_STATE_ROOT/cache" \
+	"$SMOKE_STATE_ROOT/config" \
+	"$SMOKE_STATE_ROOT/home" \
+	"$SMOKE_STATE_ROOT/state"
+run_isolated "$FINAL_BIN" "$SMOKE_STATE_ROOT" builtins >/dev/null
+run_isolated "$FINAL_BIN" "$SMOKE_STATE_ROOT" usage >/dev/null
+run_isolated "$FINAL_BIN" "$SMOKE_STATE_ROOT" validate --quiet
+run_isolated "$FINAL_BIN" "$SMOKE_STATE_ROOT" check --all --quiet
 
 echo ">>> PGO+BOLT build complete: $FINAL_BIN"
 ls -lh "$FINAL_BIN"

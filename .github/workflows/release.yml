@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           rustup component add llvm-tools
-          cargo install cross --locked
+          cargo install cross --locked --version 0.2.5
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends wget gnupg ca-certificates
           sudo install -d -m 0755 /etc/apt/keyrings
@@ -100,6 +100,8 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: |
+          # Match upload-rust-binary-action's default Unix archive format.
+          # tar.xz is disabled by default and zip is reserved for Windows.
           tar -czf "hk-${TARGET}.tar.gz" \
             -C "target/${TARGET}/serious-pgo" hk
       - if: matrix.optimized != true
