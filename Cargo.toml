@@ -94,8 +94,8 @@ strip    = true
 # BOLT needs the linked symbol table and relocations while it rewrites the
 # executable. The PGO+BOLT pipeline strips the final artifact after rewriting.
 [profile.serious-pgo]
-inherits      = "serious"
 codegen-units = 1
+inherits      = "serious"
 strip         = "debuginfo"
 
 [package.metadata.release]
