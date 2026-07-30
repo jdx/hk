@@ -48,7 +48,7 @@ impl Step {
     ///
     /// `Ok(())` on success, `Err` if any job fails
     pub(crate) async fn run_all_jobs(
-        &self,
+        self: Arc<Self>,
         ctx: Arc<StepContext>,
         semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
@@ -66,7 +66,7 @@ impl Step {
         }
 
         let files = ctx.hook_ctx.files();
-        let jobs = self.build_step_jobs(
+        let jobs = self.build_step_jobs_shared(
             &files,
             ctx.hook_ctx.run_type,
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
@@ -97,12 +97,13 @@ impl Step {
         // Capture the full set of files this step will actually operate on across all jobs.
         // We'll use this to scope staging so that broad stage globs (e.g., prettier's *.yaml)
         // cannot rope unrelated, non-job files into the index.
-        let all_job_files: IndexSet<PathBuf> = jobs.iter().flat_map(|j| j.files.clone()).collect();
+        let all_job_files: IndexSet<PathBuf> =
+            jobs.iter().flat_map(|j| j.files.iter().cloned()).collect();
 
         let mut set = tokio::task::JoinSet::new();
         for job in jobs {
             let ctx = ctx.clone();
-            let step = self.clone();
+            let step = job.step.clone();
             let mut job = job;
             set.spawn(async move {
                 let mut focused_check_failed = false;

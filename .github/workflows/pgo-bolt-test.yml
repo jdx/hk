@@ -1,0 +1,62 @@
+name: temporary-pgo-bolt-test
+
+# Temporary PR-only validation. Remove after the exact cross-built release
+# pipeline succeeds; this workflow is not intended to land on main.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/pgo-bolt-test.yml
+      - Cargo.lock
+      - Cargo.toml
+      - Cross.toml
+      - benchmark/pgo/**
+      - scripts/pgo-bolt.bash
+  workflow_dispatch:
+
+permissions: {}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  pgo-bolt:
+    name: Exercise x86_64 GNU PGO+BOLT release build
+    runs-on: namespace-profile-endev-linux-amd64
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
+        with:
+          cache: rust
+      - name: Install PGO and BOLT build tools
+        run: |
+          rustup component add llvm-tools
+          cargo install cross --locked
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends wget gnupg ca-certificates
+          sudo install -d -m 0755 /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /etc/apt/keyrings/llvm.gpg
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.gpg] https://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-18 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-toolchain-18.list
+          sudo apt-get update
+          sudo apt-get install -y bolt-18
+      - name: Build and smoke-test the release binary
+        env:
+          HK_PGO_BUILD_TOOL: cross
+          HK_PGO_TARGET: x86_64-unknown-linux-gnu
+        run: scripts/pgo-bolt.bash
+      - name: Report artifact size
+        run: |
+          stat --format='raw-bytes=%s' target/x86_64-unknown-linux-gnu/serious-pgo/hk
+          gzip -9c target/x86_64-unknown-linux-gnu/serious-pgo/hk | wc -c
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: hk-x86_64-unknown-linux-gnu-pgo-bolt
+          path: target/x86_64-unknown-linux-gnu/serious-pgo/hk
+          retention-days: 1

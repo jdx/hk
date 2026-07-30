@@ -56,15 +56,48 @@ impl Step {
         files_in_contention: &HashSet<PathBuf>,
         skip_steps: &IndexMap<String, SkipReason>,
     ) -> Result<Vec<StepJob>> {
+        self.build_step_jobs_with_shared(
+            Arc::new(self.clone()),
+            files,
+            run_type,
+            files_in_contention,
+            skip_steps,
+        )
+    }
+
+    pub(crate) fn build_step_jobs_shared(
+        self: &Arc<Self>,
+        files: &[PathBuf],
+        run_type: RunType,
+        files_in_contention: &HashSet<PathBuf>,
+        skip_steps: &IndexMap<String, SkipReason>,
+    ) -> Result<Vec<StepJob>> {
+        self.build_step_jobs_with_shared(
+            self.clone(),
+            files,
+            run_type,
+            files_in_contention,
+            skip_steps,
+        )
+    }
+
+    fn build_step_jobs_with_shared(
+        &self,
+        shared_step: Arc<Self>,
+        files: &[PathBuf],
+        run_type: RunType,
+        files_in_contention: &HashSet<PathBuf>,
+        skip_steps: &IndexMap<String, SkipReason>,
+    ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
             let reason = skip_steps.get(&self.name).unwrap().clone();
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            let mut j = StepJob::new(shared_step, vec![], run_type);
             j.skip_reason = Some(reason);
             return Ok(vec![j]);
         }
         if !self.has_command_for(run_type) {
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            let mut j = StepJob::new(shared_step, vec![], run_type);
             j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
             return Ok(vec![j]);
         }
@@ -76,7 +109,7 @@ impl Step {
                 .cloned()
                 .collect();
             if !missing.is_empty() {
-                let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+                let mut j = StepJob::new(shared_step, vec![], run_type);
                 j.skip_reason = Some(SkipReason::MissingRequiredEnv(missing));
                 return Ok(vec![j]);
             }
@@ -86,7 +119,7 @@ impl Step {
         // This means the step was explicitly looking for specific files and found none
         if files.is_empty() && self.has_filters() {
             debug!("{self}: no file matches for step");
-            let mut j = StepJob::new(Arc::new(self.clone()), vec![], run_type);
+            let mut j = StepJob::new(shared_step, vec![], run_type);
             j.skip_reason = Some(SkipReason::NoFilesToProcess);
             return Ok(vec![j]);
         }
@@ -102,32 +135,26 @@ impl Step {
                 .sorted_by(|a, b| b.as_os_str().len().cmp(&a.as_os_str().len()))
                 .flat_map(|workspace_indicator| {
                     let workspace_dir = workspace_indicator.parent();
-                    let mut workspace_files = Vec::new();
-                    let mut i = 0;
-
-                    while i < files.len() {
-                        if workspace_dir
-                            .map(|dir| files[i].starts_with(dir))
+                    let remaining = std::mem::take(&mut files);
+                    let (workspace_files, other_files) = remaining.into_iter().partition(|file| {
+                        workspace_dir
+                            .map(|dir| file.starts_with(dir))
                             .unwrap_or(true)
-                        {
-                            let val = files.remove(i);
-                            workspace_files.push(val);
-                        } else {
-                            i += 1;
-                        }
-                    }
+                    });
+                    files = other_files;
 
                     if self.batch {
+                        let shared_step = shared_step.clone();
                         workspace_files
                             .chunks(chunk_size)
                             .map(|chunk| {
-                                StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_type)
+                                StepJob::new(shared_step.clone(), chunk.to_vec(), run_type)
                                     .with_workspace_indicator(workspace_indicator.clone())
                             })
                             .collect::<Vec<_>>()
                     } else {
                         vec![
-                            StepJob::new(Arc::new((*self).clone()), workspace_files, run_type)
+                            StepJob::new(shared_step.clone(), workspace_files, run_type)
                                 .with_workspace_indicator(workspace_indicator),
                         ]
                     }
@@ -136,14 +163,10 @@ impl Step {
         } else if self.batch {
             files
                 .chunks((files.len() / Settings::get().jobs().get()).max(1))
-                .map(|chunk| StepJob::new(Arc::new((*self).clone()), chunk.to_vec(), run_type))
+                .map(|chunk| StepJob::new(shared_step.clone(), chunk.to_vec(), run_type))
                 .collect()
         } else {
-            vec![StepJob::new(
-                Arc::new((*self).clone()),
-                files.clone(),
-                run_type,
-            )]
+            vec![StepJob::new(shared_step, files.clone(), run_type)]
         };
 
         // Note: auto-batching for ARG_MAX safety happens at execution time

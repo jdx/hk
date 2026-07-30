@@ -9,7 +9,7 @@ use std::{
 
 /// Stores all the information/mutexes needed to run a StepJob
 pub struct StepContext {
-    pub step: Step,
+    pub step: Arc<Step>,
     pub hook_ctx: Arc<HookContext>,
     pub depends: Arc<StepDepends>,
     pub progress: Arc<ProgressJob>,

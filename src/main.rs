@@ -3,7 +3,7 @@ extern crate log;
 #[macro_use]
 mod output;
 
-use std::{panic, time::Duration};
+use std::{panic, thread, time::Duration};
 
 pub use eyre::Result;
 
@@ -46,8 +46,20 @@ use tokio::signal;
 #[cfg(unix)]
 use tokio::signal::unix::SignalKind;
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
+    let worker_threads = runtime_worker_threads(
+        thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1),
+    );
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(worker_threads)
+        .build()?
+        .block_on(async_main())
+}
+
+async fn async_main() -> Result<()> {
     #[cfg(unix)]
     handle_epipe();
     clx::progress::set_interval(Duration::from_millis(200));
@@ -58,6 +70,10 @@ async fn main() -> Result<()> {
         Err(e) if !log::log_enabled!(log::Level::Debug) => friendly_error(e),
         r => r,
     }
+}
+
+fn runtime_worker_threads(available_parallelism: usize) -> usize {
+    available_parallelism.clamp(1, 16)
 }
 
 /// Suppress the eyre backtrace for ScriptFailed errors.
@@ -103,4 +119,16 @@ fn handle_panic() {
         clx::progress::flush();
         default_panic(panic_info);
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::runtime_worker_threads;
+
+    #[test]
+    fn runtime_workers_are_bounded() {
+        assert_eq!(runtime_worker_threads(0), 1);
+        assert_eq!(runtime_worker_threads(4), 4);
+        assert_eq!(runtime_worker_threads(32), 16);
+    }
 }
