@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.54.0](https://github.com/jdx/hk/compare/v1.53.0..v1.54.0) - 2026-07-30
+
+### 🚀 Features
+
+- **(check)** add focused diagnostics for failed files by [@jdx](https://github.com/jdx) in [#1123](https://github.com/jdx/hk/pull/1123)
+- **(usage)** declare what each command does to the world by [@jdx](https://github.com/jdx) in [#1121](https://github.com/jdx/hk/pull/1121)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** pass --quiet to tombi-format by [@jdx](https://github.com/jdx) in [#1117](https://github.com/jdx/hk/pull/1117)
+- **(builtins)** oxlint does not error for unmatched patterns by [@CallumKerson](https://github.com/CallumKerson) in [#1119](https://github.com/jdx/hk/pull/1119)
+
+### 📚 Documentation
+
+- **(contributing)** standardize AI disclosures by [@jdx](https://github.com/jdx) in [#1128](https://github.com/jdx/hk/pull/1128)
+
+### ⚡ Performance
+
+- **(release)** add PGO and BOLT optimization pipeline by [@jdx](https://github.com/jdx) in [#1136](https://github.com/jdx/hk/pull/1136)
+- **(util)** optimize `mixed-line-ending` and `check-merge-conflict` using `memchr` crate by [@astei](https://github.com/astei) in [#1115](https://github.com/jdx/hk/pull/1115)
+- track instruction counts, and gate pull requests on them by [@jdx](https://github.com/jdx) in [#1125](https://github.com/jdx/hk/pull/1125)
+
+### 🧪 Testing
+
+- **(builtins)** exclude hono from textlint trust policy by [@jdx](https://github.com/jdx) in [#1120](https://github.com/jdx/hk/pull/1120)
+
+### 📦️ Dependency Updates
+
+- update zizmorcore/zizmor-action action to v0.6.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1112](https://github.com/jdx/hk/pull/1112)
+- update anthropics/claude-code-action action to v1.0.176 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1108](https://github.com/jdx/hk/pull/1108)
+- update jdx/renovate-config digest to 5fee46e by [@renovate[bot]](https://github.com/renovate[bot]) in [#1107](https://github.com/jdx/hk/pull/1107)
+- update rust crate clx to v2.1.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1111](https://github.com/jdx/hk/pull/1111)
+- update namespacelabs/nscloud-cache-action action to v1.6.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1110](https://github.com/jdx/hk/pull/1110)
+- update rust crate infer to 0.22 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1113](https://github.com/jdx/hk/pull/1113)
+- update jdx/mise-action action to v4.2.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1109](https://github.com/jdx/hk/pull/1109)
+- update demand by [@jdx](https://github.com/jdx) in [#1124](https://github.com/jdx/hk/pull/1124)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1126](https://github.com/jdx/hk/pull/1126)
+- use rust-aware cargo resolver by [@jdx](https://github.com/jdx) in [#1127](https://github.com/jdx/hk/pull/1127)
+- update anthropics/claude-code-action action to v1.0.179 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1131](https://github.com/jdx/hk/pull/1131)
+- update jdx/pr-closer action to v1.2.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1132](https://github.com/jdx/hk/pull/1132)
+- update actions/checkout action to v7.0.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1130](https://github.com/jdx/hk/pull/1130)
+- update jdx/renovate-config digest to aa7a43b by [@renovate[bot]](https://github.com/renovate[bot]) in [#1129](https://github.com/jdx/hk/pull/1129)
+- update rust crate clx to v3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1133](https://github.com/jdx/hk/pull/1133)
+- update jdx/renovate-config digest to d4f71e1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1134](https://github.com/jdx/hk/pull/1134)
+- update anthropics/claude-code-action action to v1.0.180 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1135](https://github.com/jdx/hk/pull/1135)
+
+### New Contributors
+
+- @astei made their first contribution in [#1115](https://github.com/jdx/hk/pull/1115)
+
 ## [1.53.0](https://github.com/jdx/hk/compare/v1.52.0..v1.53.0) - 2026-07-23
 
 ### 🚀 Features
