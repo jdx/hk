@@ -8,7 +8,10 @@ use std::{
     ffi::OsString,
     fmt,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex as StdMutex},
+    sync::{
+        Arc, Mutex as StdMutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use tokio::{
     signal,
@@ -321,6 +324,9 @@ pub struct HookContext {
     pub failed_steps: std::sync::Mutex<HashSet<String>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
+    /// Whether a failed step reported Git's index lock. This is tracked at the
+    /// hook level so concurrent failures still produce only one actionable hint.
+    git_index_lock_contention: AtomicBool,
     pub should_stage: bool,
     /// Untracked files at the start of the hook run, used to avoid staging
     /// pre-existing untracked files that were not created by a fixer.
@@ -371,6 +377,7 @@ impl HookContext {
             output_by_step: StdMutex::new(IndexMap::new()),
             failed_steps: StdMutex::new(HashSet::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
+            git_index_lock_contention: AtomicBool::new(false),
             should_stage,
             initial_untracked,
         }
@@ -472,6 +479,15 @@ impl HookContext {
 
     pub fn take_fix_suggestions(&self) -> Vec<String> {
         self.fix_suggestions.lock().unwrap().clone()
+    }
+
+    pub fn mark_git_index_lock_contention(&self) {
+        self.git_index_lock_contention
+            .store(true, Ordering::Relaxed);
+    }
+
+    pub fn saw_git_index_lock_contention(&self) -> bool {
+        self.git_index_lock_contention.load(Ordering::Relaxed)
     }
 }
 
@@ -1239,6 +1255,19 @@ impl Hook {
                 eprintln!("\n{}", style::ebold(format!("{} {}:", step_name, label)));
                 eprintln!("{}", trimmed);
             }
+        }
+
+        if !settings.silent && hook_ctx.saw_git_index_lock_contention() {
+            eprintln!(
+                "\n{}",
+                style::eyellow(
+                    "hint: this may be contention between concurrent steps that write the Git index."
+                )
+            );
+            eprintln!(
+                "      serialize index-writing steps with `exclusive = true`, `depends`, or separate groups."
+            );
+            eprintln!("      https://hk.jdx.dev/hooks#hook-behavior");
         }
 
         // Display summary of profile-skipped steps

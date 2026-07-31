@@ -686,6 +686,9 @@ class Step {
   /// If true, this step will wait for any previous steps to finish before running.
   /// No other steps will start until this one finishes.
   /// Under the hood this groups the previous steps into a group.
+  /// Prefer declaring generated files with `stage` and letting hk own Git staging.
+  /// Use this for legacy or third-party commands that access shared resources hk
+  /// cannot infer, such as scripts that cannot avoid writing the Git index themselves.
   ///
   /// ```pkl
   /// hooks {
