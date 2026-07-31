@@ -164,7 +164,7 @@ This behavior is opt-in because it adds another process invocation and requires 
 
 A group is a collection of steps that are executed in parallel, waiting for previous steps/groups to finish and blocking other steps/groups from starting until it finishes. This is a naive way to ensure the order of execution. It's better to make use of read/write locks and depends.
 
-Commands that write the Git index, including scripts that invoke `git add` or `git update-index`, must not run concurrently. hk cannot infer those hidden writes from a command, so serialize them with `exclusive = true`, a `depends` chain, or separate groups.
+Steps should not normally run `git add` or `git update-index` themselves. Declare generated or modified files with the step's `stage` setting and let hk stage them; hk serializes its own index writes. If a legacy or third-party command stages files internally and cannot be changed, hk cannot infer that hidden write, so serialize it with `exclusive = true`, a `depends` chain, or a separate group.
 
 ```pkl
 hooks {
