@@ -324,6 +324,7 @@ impl Step {
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
+                    self.collect_failure_hint(ctx, &e.3.combined_output);
                     if job.check_first
                         && matches!(
                             check_first_cmd,

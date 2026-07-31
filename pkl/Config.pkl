@@ -686,6 +686,8 @@ class Step {
   /// If true, this step will wait for any previous steps to finish before running.
   /// No other steps will start until this one finishes.
   /// Under the hood this groups the previous steps into a group.
+  /// Use this for commands that access shared resources hk cannot infer, such as
+  /// commands or scripts that write the Git index with `git add` or `git update-index`.
   ///
   /// ```pkl
   /// hooks {

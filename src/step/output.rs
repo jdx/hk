@@ -13,7 +13,20 @@ use super::types::{OutputSummary, RunType, Step};
 
 const MAX_INLINE_FIX_COMMAND_CHARS: usize = 2048;
 
+/// Git localizes and occasionally changes the surrounding error text, but the
+/// lock filename itself is stable. Keep this deliberately narrow so ordinary
+/// command failures do not receive Git-specific advice.
+pub(crate) fn indicates_git_index_lock_contention(output: &str) -> bool {
+    output.to_ascii_lowercase().contains("index.lock")
+}
+
 impl Step {
+    pub(crate) fn collect_failure_hint(&self, ctx: &StepContext, combined: &str) {
+        if indicates_git_index_lock_contention(combined) {
+            ctx.hook_ctx.mark_git_index_lock_contention();
+        }
+    }
+
     /// Save command output for the end-of-run summary.
     ///
     /// Based on the step's `output_summary` setting, captures the appropriate
@@ -151,5 +164,28 @@ impl Step {
                 ctx.hook_ctx.add_fix_suggestion(cmd);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::indicates_git_index_lock_contention;
+
+    #[test]
+    fn detects_git_index_lock_output_without_relying_on_surrounding_wording() {
+        assert!(indicates_git_index_lock_contention(
+            "fatal: Unable to create '/repo/.git/index.lock': File exists."
+        ));
+        assert!(indicates_git_index_lock_contention(
+            "fatal: could not create C:\\repo\\.git\\INDEX.LOCK"
+        ));
+    }
+
+    #[test]
+    fn ignores_generic_index_write_failures() {
+        assert!(!indicates_git_index_lock_contention(
+            "fatal: could not write index"
+        ));
+        assert!(!indicates_git_index_lock_contention("lint failed"));
     }
 }
