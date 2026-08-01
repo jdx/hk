@@ -195,9 +195,11 @@ EOF
     git add hk.pkl partial.js
     git commit -m "initial commit"
 
-    sed -i 's/x = 1/x=2/' partial.js
+    sed 's/x = 1/x=2/' partial.js > partial.js.tmp
+    mv partial.js.tmp partial.js
     git add partial.js
-    sed -i 's/z = 1/z=2/' partial.js
+    sed 's/z = 1/z=2/' partial.js > partial.js.tmp
+    mv partial.js.tmp partial.js
 
     run hk run pre-commit
     assert_failure
@@ -239,9 +241,11 @@ EOF
     git add hk.pkl deleted.txt
     git commit -m "initial commit"
 
-    sed -i 's/x = 1/x=2/' deleted.txt
+    sed 's/x = 1/x=2/' deleted.txt > deleted.txt.tmp
+    mv deleted.txt.tmp deleted.txt
     git add deleted.txt
-    sed -i 's/z = 1/z=2/' deleted.txt
+    sed 's/z = 1/z=2/' deleted.txt > deleted.txt.tmp
+    mv deleted.txt.tmp deleted.txt
 
     run hk run pre-commit
     assert_failure
@@ -280,9 +284,11 @@ EOF
     git add hk.pkl binary.dat
     git commit -m "initial commit"
 
-    sed -i 's/x = 1/x=2/' binary.dat
+    sed 's/x = 1/x=2/' binary.dat > binary.dat.tmp
+    mv binary.dat.tmp binary.dat
     git add binary.dat
-    sed -i 's/z = 1/z=2/' binary.dat
+    sed 's/z = 1/z=2/' binary.dat > binary.dat.tmp
+    mv binary.dat.tmp binary.dat
 
     run hk run pre-commit
     assert_failure
