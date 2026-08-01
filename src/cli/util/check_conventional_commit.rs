@@ -39,6 +39,17 @@ fn check_conventional_commit(path: &PathBuf, allowed_types: &[String]) -> Result
 }
 
 fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
+    // `git commit --fixup`/`--squash` and `rebase --autosquash` produce commits titled
+    // `fixup! <msg>` / `squash! <msg>` / `amend! <msg>`. These are meant to be squashed
+    // away by `git rebase --autosquash` and never carry a conventional format themselves,
+    // so skip validation for them.
+    if ["fixup! ", "squash! ", "amend! "]
+        .iter()
+        .any(|prefix| title.starts_with(prefix))
+    {
+        return Ok(true);
+    }
+
     // Per conventional commit spec:
     //
     // 1. Commits MUST be prefixed with a type, which consists of a noun, feat, fix, etc.,
@@ -219,5 +230,61 @@ mod tests {
 
         let result = check_conventional_commit(&path, &["test".to_string()]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_fixup_commit_skipped() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"fixup! chore: some description").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_squash_commit_skipped() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"squash! feat: something").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_amend_commit_skipped() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"amend! fix: something").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_nested_fixup_skipped() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"fixup! fixup! chore: deps").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_fixup_without_space_not_skipped() {
+        let commit_msg_file = NamedTempFile::new().unwrap();
+        let path = commit_msg_file.path().to_path_buf();
+        fs::write(&path, b"fixup!chore: description").unwrap();
+
+        let result = check_conventional_commit(&path, &["test".to_string()]);
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .starts_with("Invalid commit type")
+        );
     }
 }
