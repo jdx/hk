@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::{Result, env, logger, settings::Settings};
 use clap::Parser;
 use clx::progress::ProgressOutput;
+use eyre::WrapErr;
 
 mod builtins;
 mod cache;
@@ -166,7 +167,7 @@ pub async fn run() -> Result<()> {
     ) {
         Arc::new(crate::settings::generated::settings::Settings::default())
     } else {
-        Settings::get()
+        Settings::try_get().wrap_err("Failed to load configuration")?
     };
     if !settings.terminal_progress {
         clx::osc::configure(settings.terminal_progress);
