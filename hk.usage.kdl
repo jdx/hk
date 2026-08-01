@@ -713,6 +713,11 @@ cmd util subcommand_required=#true help="Utility commands for file operations" e
         arg <FILES>… help="Files to check for case conflicts" var=#true
     }
     cmd check-conventional-commit help="Check for conventional commit message" effect=read {
+        long_help #"""
+Check for conventional commit message
+
+Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.
+"""#
         flag --allowed-types var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test {
             arg <ALLOWED_TYPES>
         }
