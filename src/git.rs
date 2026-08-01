@@ -1306,6 +1306,14 @@ impl Git {
                         .is_some_and(|b| std::str::from_utf8(b).is_err());
 
                     if is_binary {
+                        if !should_stage && fixer_worktree.is_some() {
+                            warn!(
+                                "text fixer output for {} cannot be merged with binary stashed edits; preserving the fixer output{}",
+                                display_path(&path),
+                                patch_hint
+                            );
+                            continue;
+                        }
                         debug!(
                             "manual-unstash: binary file detected; restoring worktree snapshot directly path={}",
                             display_path(&path),

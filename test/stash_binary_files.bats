@@ -148,6 +148,44 @@ EOF
     [ "$actual_md5" = "$expected_md5" ]
 }
 
+@test "stage=false preserves text fixer output over conflicting binary changes" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    stage = false
+    fail_on_fix = true
+    steps {
+      ["replace"] {
+        glob = "*.png"
+        fix = #"for f in {{ files }}; do printf 'fixed\n' > "\$f"; done"#
+      }
+    }
+  }
+}
+EOF
+    echo "base" > snapshot.png
+    git add hk.pkl snapshot.png
+    git commit -m "base"
+
+    echo "staged" > snapshot.png
+    git add snapshot.png
+    local expected_index_md5
+    expected_index_md5=$(git show :snapshot.png | md5sum | cut -d' ' -f1)
+    create_binary_file snapshot.png
+
+    run hk run pre-commit
+    assert_failure
+
+    run cat snapshot.png
+    assert_output "fixed"
+    local actual_index_md5
+    actual_index_md5=$(git show :snapshot.png | md5sum | cut -d' ' -f1)
+    [ "$actual_index_md5" = "$expected_index_md5" ]
+}
+
 @test "stash=git preserves untracked binary files" {
     create_config_with_stash "git"
 
