@@ -166,7 +166,7 @@ pub async fn run() -> Result<()> {
     ) {
         Arc::new(crate::settings::generated::settings::Settings::default())
     } else {
-        Settings::get()
+        Settings::try_get()?
     };
     if !settings.terminal_progress {
         clx::osc::configure(settings.terminal_progress);
