@@ -48,6 +48,9 @@ enum UtilCommands {
     /// Check for case-insensitive filename conflicts
     CheckCaseConflict(CheckCaseConflict),
     /// Check for conventional commit message
+    ///
+    /// Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits
+    /// created for `git rebase --autosquash`) skip validation.
     CheckConventionalCommit(CheckConventionalCommit),
     /// Check that executable files have shebangs
     CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),

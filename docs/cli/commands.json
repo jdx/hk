@@ -4497,6 +4497,7 @@
             "effect": "read",
             "hide": false,
             "help": "Check for conventional commit message",
+            "help_long": "Check for conventional commit message\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.",
             "name": "check-conventional-commit",
             "aliases": [],
             "hidden_aliases": [],
