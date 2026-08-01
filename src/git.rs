@@ -1000,7 +1000,7 @@ impl Git {
         self.last_patch_path.as_ref()
     }
 
-    pub fn pop_stash(&mut self) -> Result<()> {
+    pub fn pop_stash(&mut self, should_stage: bool) -> Result<()> {
         let Some(diff) = self.stash.take() else {
             return Ok(());
         };
@@ -1062,6 +1062,42 @@ impl Git {
                     })
                     .collect();
 
+                // When staging is disabled, fixer output remains in the isolated worktree.
+                // Ask Git which hook files differ from the unchanged index so unchanged files
+                // (especially large or binary ones) are not read eagerly.
+                let fixer_worktree_paths: std::collections::HashSet<PathBuf> = if should_stage {
+                    std::collections::HashSet::new()
+                } else {
+                    let candidate_paths: Vec<&PathBuf> = self
+                        .saved_index
+                        .as_deref()
+                        .unwrap_or_default()
+                        .iter()
+                        .map(|(_, _, p)| p)
+                        .filter(|p| stash_paths.contains(p))
+                        .collect();
+                    if candidate_paths.is_empty() {
+                        std::collections::HashSet::new()
+                    } else {
+                        let mut args: Vec<OsString> = vec![
+                            "diff".into(),
+                            "--name-only".into(),
+                            "-z".into(),
+                            "--".into(),
+                        ];
+                        args.extend(
+                            candidate_paths
+                                .iter()
+                                .map(|p| OsString::from(p.as_os_str())),
+                        );
+                        git_read(args)?
+                            .split('\0')
+                            .filter(|s| !s.is_empty())
+                            .map(PathBuf::from)
+                            .collect()
+                    }
+                };
+
                 // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs.
                 // Only include files that are actually staged-changed to avoid treating unrelated
                 // tracked files (e.g., lockfiles) as fixers and pulling their contents into memory.
@@ -1110,6 +1146,10 @@ impl Git {
 
                 // Track whether any file restoration failed so we can preserve the stash
                 let mut restoration_failed = false;
+                let patch_hint = self
+                    .last_patch_path()
+                    .map(|p| format!("; stashed edits are backed up at {}", p.display()))
+                    .unwrap_or_default();
 
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
@@ -1173,16 +1213,107 @@ impl Git {
                         continue;
                     }
 
+                    let has_fixer = if should_stage {
+                        fixer_map.contains_key(&path)
+                    } else {
+                        fixer_worktree_paths.contains(&path)
+                    };
+                    let work_ref = format!("{}:{}", &stash_ref, path_str);
+                    let work_size = git_cmd_silent(["cat-file", "-s", &work_ref])
+                        .read()
+                        .ok()
+                        .and_then(|size| size.trim().parse::<usize>().ok());
+                    if work_size.unwrap_or(0) >= LARGE_STASH_FILE_BYTES && !has_fixer {
+                        debug!(
+                            "manual-unstash: large file without fixer; restoring worktree snapshot directly path={} size={}",
+                            display_path(&path),
+                            work_size.unwrap_or(0)
+                        );
+                        if let Ok(bytes) = git_read_bytes(["cat-file", "-p", &work_ref]) {
+                            if let Err(err) = xx::file::write(&path, &bytes) {
+                                warn!(
+                                    "failed to write large worktree snapshot for {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                        } else {
+                            warn!(
+                                "failed to read large worktree snapshot for {}",
+                                display_path(&path)
+                            );
+                            restoration_failed = true;
+                        }
+                        continue;
+                    }
+
+                    let fixer_worktree = if !should_stage && has_fixer {
+                        if std::fs::symlink_metadata(&path)
+                            .is_ok_and(|metadata| metadata.file_type().is_symlink())
+                        {
+                            warn!(
+                                "fixer replaced {} with a symlink; preserving the symlink instead of conflicting stashed edits{}",
+                                display_path(&path),
+                                patch_hint
+                            );
+                            continue;
+                        }
+                        match std::fs::read(&path) {
+                            Ok(contents) => match String::from_utf8(contents) {
+                                Ok(contents) => Some(contents),
+                                Err(err) => {
+                                    warn!(
+                                        "fixer wrote binary content to {}; preserving it instead of conflicting stashed edits{}",
+                                        display_path(&path),
+                                        patch_hint
+                                    );
+                                    if let Err(write_err) = xx::file::write(&path, err.as_bytes()) {
+                                        warn!(
+                                            "failed to preserve binary fixer output for {}: {write_err:?}",
+                                            display_path(&path)
+                                        );
+                                        restoration_failed = true;
+                                    }
+                                    continue;
+                                }
+                            },
+                            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                                warn!(
+                                    "fixer deleted {}; preserving the deletion instead of conflicting stashed edits{}",
+                                    display_path(&path),
+                                    patch_hint
+                                );
+                                continue;
+                            }
+                            Err(err) => {
+                                warn!(
+                                    "failed to read fixer output for {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                                continue;
+                            }
+                        }
+                    } else {
+                        None
+                    };
+
                     // Detect binary files: try reading the worktree blob as UTF-8.
                     // If it fails, restore using raw bytes and skip text merging entirely.
-                    let work_bytes =
-                        git_read_bytes(["cat-file", "-p", &format!("{}:{}", &stash_ref, path_str)])
-                            .ok();
+                    let work_bytes = git_read_bytes(["cat-file", "-p", &work_ref]).ok();
                     let is_binary = work_bytes
                         .as_ref()
                         .is_some_and(|b| std::str::from_utf8(b).is_err());
 
                     if is_binary {
+                        if !should_stage && fixer_worktree.is_some() {
+                            warn!(
+                                "text fixer output for {} cannot be merged with binary stashed edits; preserving the fixer output{}",
+                                display_path(&path),
+                                patch_hint
+                            );
+                            continue;
+                        }
                         debug!(
                             "manual-unstash: binary file detected; restoring worktree snapshot directly path={}",
                             display_path(&path),
@@ -1199,32 +1330,6 @@ impl Git {
                         continue;
                     }
 
-                    let work_size: Option<usize> = work_bytes.as_ref().map(|b| b.len());
-                    let has_fixer = fixer_map.contains_key(&path);
-                    if work_size.unwrap_or(0) >= LARGE_STASH_FILE_BYTES && !has_fixer {
-                        debug!(
-                            "manual-unstash: large file without fixer; restoring worktree snapshot directly path={} size={}",
-                            display_path(&path),
-                            work_size.unwrap_or(0)
-                        );
-                        if let Some(bytes) = &work_bytes {
-                            if let Err(err) = xx::file::write(&path, bytes) {
-                                warn!(
-                                    "failed to write large worktree snapshot for {}: {err:?}",
-                                    display_path(&path)
-                                );
-                                restoration_failed = true;
-                            }
-                        } else {
-                            warn!(
-                                "failed to read large worktree snapshot for {}",
-                                display_path(&path)
-                            );
-                            restoration_failed = true;
-                        }
-                        // Skip normal merge path for large files
-                        continue;
-                    }
                     // Worktree content and Base (HEAD at stash time) from stash
                     // Prefer saved worktree snapshot captured before stashing; fallback to stash blob
                     // Prefer saved worktree snapshot; fall back to already-fetched work_bytes
@@ -1244,10 +1349,15 @@ impl Git {
                     let index_pre =
                         git_read_raw(["cat-file", "-p", &format!("{}^2:{}", &stash_ref, path_str)])
                             .ok();
-                    // Fixer content from saved index blob
-                    let fixer = fixer_map
-                        .get(&path)
-                        .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok());
+                    // Fixer content comes from the index when fixes were staged, or from the
+                    // isolated post-step worktree when staging was disabled.
+                    let fixer = if should_stage {
+                        fixer_map
+                            .get(&path)
+                            .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
+                    } else {
+                        fixer_worktree
+                    };
 
                     // Trace summaries of inputs for diagnostics (trace-level only)
                     {
@@ -1433,7 +1543,7 @@ impl Git {
                             "manual-unstash: newline-only change; leaving index untouched path={}",
                             display_path(&path)
                         );
-                    } else if let Some((mode, oid)) = fixer_map.get(&path) {
+                    } else if should_stage && let Some((mode, oid)) = fixer_map.get(&path) {
                         let mode_str = format!("{:o}", mode);
                         if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob
                             .arg(mode_str)

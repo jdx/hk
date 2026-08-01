@@ -168,3 +168,135 @@ EOF
     run cat b.md
     assert_output "modified"
 }
+
+@test "fail_on_fix=true preserves fixer output in a partially staged file (#1144)" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["format"] {
+                glob = "*.js"
+                fix = #"for f in {{ files }}; do sed 's/x=2/x = 2/' "\$f" > "\$f.tmp" && mv "\$f.tmp" "\$f"; done"#
+            }
+        }
+    }
+}
+EOF
+    cat <<'EOF' > partial.js
+const x = 1;
+const y = 1;
+const z = 1;
+EOF
+    git add hk.pkl partial.js
+    git commit -m "initial commit"
+
+    sed 's/x = 1/x=2/' partial.js > partial.js.tmp
+    mv partial.js.tmp partial.js
+    git add partial.js
+    sed 's/z = 1/z=2/' partial.js > partial.js.tmp
+    mv partial.js.tmp partial.js
+
+    run hk run pre-commit
+    assert_failure
+
+    # The index retains only the user's staged change, without the fixer's formatting.
+    run git show :partial.js
+    assert_line "const x=2;"
+    assert_line "const z = 1;"
+
+    # The worktree combines the formatter output with the user's unstaged change.
+    run cat partial.js
+    assert_line "const x = 2;"
+    assert_line "const z=2;"
+}
+
+@test "fail_on_fix=true preserves fixer deletion of a partially staged file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["delete"] {
+                glob = "deleted.txt"
+                fix = "rm -- {{ files }}"
+            }
+        }
+    }
+}
+EOF
+    cat <<'EOF' > deleted.txt
+x = 1
+y = 1
+z = 1
+EOF
+    git add hk.pkl deleted.txt
+    git commit -m "initial commit"
+
+    sed 's/x = 1/x=2/' deleted.txt > deleted.txt.tmp
+    mv deleted.txt.tmp deleted.txt
+    git add deleted.txt
+    sed 's/z = 1/z=2/' deleted.txt > deleted.txt.tmp
+    mv deleted.txt.tmp deleted.txt
+
+    run hk run pre-commit
+    assert_failure
+
+    # The deletion remains in the worktree while the original staged blob stays in the index.
+    run test -e deleted.txt
+    assert_failure
+    run git show :deleted.txt
+    assert_line "x=2"
+    assert_line "z = 1"
+}
+
+@test "fail_on_fix=true preserves binary fixer output for a partially staged file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["binary"] {
+                glob = "binary.dat"
+                fix = #"for f in {{ files }}; do printf '\377' > "\$f"; done"#
+            }
+        }
+    }
+}
+EOF
+    cat <<'EOF' > binary.dat
+x = 1
+y = 1
+z = 1
+EOF
+    git add hk.pkl binary.dat
+    git commit -m "initial commit"
+
+    sed 's/x = 1/x=2/' binary.dat > binary.dat.tmp
+    mv binary.dat.tmp binary.dat
+    git add binary.dat
+    sed 's/z = 1/z=2/' binary.dat > binary.dat.tmp
+    mv binary.dat.tmp binary.dat
+
+    run hk run pre-commit
+    assert_failure
+
+    # The binary fixer result remains in the worktree while the index stays unchanged.
+    run od -An -tx1 binary.dat
+    assert_output --partial "ff"
+    run git show :binary.dat
+    assert_line "x=2"
+    assert_line "z = 1"
+}
