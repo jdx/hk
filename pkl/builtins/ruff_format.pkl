@@ -11,7 +11,7 @@ import "./test/helpers.pkl"
   }
 }
 ruff_format = new Config.Step {
-  glob = List("**/*.py", "**/*.pyi")
+  types = List("python")
   check_diff = "ruff format --quiet --force-exclude --diff {{ files }}"
   fix = "ruff format --quiet --force-exclude {{ files }}"
   tests {

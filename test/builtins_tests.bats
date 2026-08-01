@@ -63,3 +63,38 @@ SCRIPT
     assert_output --partial "shfmt script"
     refute_output --partial "fish-script"
 }
+
+@test "ruff builtins select extensionless python scripts" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["ruff"] = (Builtins.ruff) {
+        check = "for f in {{ files }}; do echo ruff:\$f; done"
+      }
+      ["ruff_format"] = (Builtins.ruff_format) {
+        check = "for f in {{ files }}; do echo ruff_format:\$f; done"
+      }
+    }
+  }
+}
+PKL
+
+    echo "print('python')" > test.py
+    cat <<'SCRIPT' > script
+#!/usr/bin/env python
+print('python')
+SCRIPT
+    chmod +x script
+    echo "console.log('javascript')" > test.js
+
+    run hk check --all
+    assert_success
+    assert_output --partial "ruff:script"
+    assert_output --partial "ruff:test.py"
+    assert_output --partial "ruff_format:script"
+    assert_output --partial "ruff_format:test.py"
+    refute_output --partial "test.js"
+}
