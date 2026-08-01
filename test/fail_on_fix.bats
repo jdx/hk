@@ -168,3 +168,47 @@ EOF
     run cat b.md
     assert_output "modified"
 }
+
+@test "fail_on_fix=true preserves fixer output in a partially staged file (#1144)" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["format"] {
+                glob = "*.js"
+                fix = #"for f in {{ files }}; do sed 's/x=2/x = 2/' "\$f" > "\$f.tmp" && mv "\$f.tmp" "\$f"; done"#
+            }
+        }
+    }
+}
+EOF
+    cat <<'EOF' > partial.js
+const x = 1;
+const y = 1;
+const z = 1;
+EOF
+    git add hk.pkl partial.js
+    git commit -m "initial commit"
+
+    sed -i 's/x = 1/x=2/' partial.js
+    git add partial.js
+    sed -i 's/z = 1/z=2/' partial.js
+
+    run hk run pre-commit
+    assert_failure
+
+    # The index retains only the user's staged change, without the fixer's formatting.
+    run git show :partial.js
+    assert_line "const x=2;"
+    assert_line "const z = 1;"
+
+    # The worktree combines the formatter output with the user's unstaged change.
+    run cat partial.js
+    assert_line "const x = 2;"
+    assert_line "const z=2;"
+}

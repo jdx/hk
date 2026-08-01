@@ -1167,7 +1167,7 @@ impl Hook {
 
         {
             let mut repo = repo.lock().await;
-            if let Err(err) = repo.pop_stash() {
+            if let Err(err) = repo.pop_stash(hook_ctx.should_stage) {
                 // The stashed content is also backed up as a patch; surface it so the
                 // user can recover manually if the automatic restore failed.
                 let patch_hint = repo

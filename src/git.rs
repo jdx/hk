@@ -1000,7 +1000,7 @@ impl Git {
         self.last_patch_path.as_ref()
     }
 
-    pub fn pop_stash(&mut self) -> Result<()> {
+    pub fn pop_stash(&mut self, should_stage: bool) -> Result<()> {
         let Some(diff) = self.stash.take() else {
             return Ok(());
         };
@@ -1061,6 +1061,26 @@ impl Git {
                             .is_none_or(|stashed_paths| stashed_paths.contains(p))
                     })
                     .collect();
+
+                // When staging is disabled, fixer output remains in the isolated worktree
+                // rather than being written to the index. Snapshot it before restoring the
+                // user's unstaged changes so it can be used as the fixer side of the merge.
+                let fixer_worktree_map: std::collections::HashMap<PathBuf, String> = if should_stage
+                {
+                    std::collections::HashMap::new()
+                } else {
+                    self.saved_index
+                        .as_deref()
+                        .unwrap_or_default()
+                        .iter()
+                        .filter(|(_, _, p)| stash_paths.contains(p))
+                        .filter_map(|(_, _, p)| {
+                            xx::file::read_to_string(p)
+                                .ok()
+                                .map(|contents| (p.clone(), contents))
+                        })
+                        .collect()
+                };
 
                 // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs.
                 // Only include files that are actually staged-changed to avoid treating unrelated
@@ -1200,7 +1220,11 @@ impl Git {
                     }
 
                     let work_size: Option<usize> = work_bytes.as_ref().map(|b| b.len());
-                    let has_fixer = fixer_map.contains_key(&path);
+                    let has_fixer = if should_stage {
+                        fixer_map.contains_key(&path)
+                    } else {
+                        fixer_worktree_map.contains_key(&path)
+                    };
                     if work_size.unwrap_or(0) >= LARGE_STASH_FILE_BYTES && !has_fixer {
                         debug!(
                             "manual-unstash: large file without fixer; restoring worktree snapshot directly path={} size={}",
@@ -1244,10 +1268,15 @@ impl Git {
                     let index_pre =
                         git_read_raw(["cat-file", "-p", &format!("{}^2:{}", &stash_ref, path_str)])
                             .ok();
-                    // Fixer content from saved index blob
-                    let fixer = fixer_map
-                        .get(&path)
-                        .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok());
+                    // Fixer content comes from the index when fixes were staged, or from the
+                    // isolated post-step worktree when staging was disabled.
+                    let fixer = if should_stage {
+                        fixer_map
+                            .get(&path)
+                            .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
+                    } else {
+                        fixer_worktree_map.get(&path).cloned()
+                    };
 
                     // Trace summaries of inputs for diagnostics (trace-level only)
                     {
@@ -1433,7 +1462,7 @@ impl Git {
                             "manual-unstash: newline-only change; leaving index untouched path={}",
                             display_path(&path)
                         );
-                    } else if let Some((mode, oid)) = fixer_map.get(&path) {
+                    } else if should_stage && let Some((mode, oid)) = fixer_map.get(&path) {
                         let mode_str = format!("{:o}", mode);
                         if let Err(err) = git_cmd(["update-index", "--cacheinfo"]) // set index blob
                             .arg(mode_str)
