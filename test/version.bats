@@ -24,7 +24,7 @@ hooks {
 EOF
 
     run hk check
-    assert_failure
+    assert_failure 1
     assert_output --partial "less than the minimum required version 999.0.0"
     refute_output --partial "panicked"
 }
