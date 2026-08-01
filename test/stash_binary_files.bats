@@ -113,6 +113,41 @@ create_binary_file() {
     [ "$actual_md5" = "$expected_md5" ]
 }
 
+@test "stage=false preserves unstaged binary changes when fixer is a no-op" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    stage = false
+    steps {
+      ["no-op"] {
+        glob = "*.png"
+        fix = "true"
+      }
+    }
+  }
+}
+EOF
+    create_binary_file snapshot.png
+    git add hk.pkl snapshot.png
+    git commit -m "base"
+
+    printf '\xde\xad\xbe\xef' >> snapshot.png
+    git add snapshot.png
+    printf '\xca\xfe\xba\xbe' >> snapshot.png
+
+    local expected_md5
+    expected_md5=$(md5sum snapshot.png | cut -d' ' -f1)
+
+    hk run pre-commit
+
+    local actual_md5
+    actual_md5=$(md5sum snapshot.png | cut -d' ' -f1)
+    [ "$actual_md5" = "$expected_md5" ]
+}
+
 @test "stash=git preserves untracked binary files" {
     create_config_with_stash "git"
 

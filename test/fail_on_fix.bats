@@ -212,3 +212,85 @@ EOF
     assert_line "const x = 2;"
     assert_line "const z=2;"
 }
+
+@test "fail_on_fix=true preserves fixer deletion of a partially staged file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["delete"] {
+                glob = "deleted.txt"
+                fix = "rm -- {{ files }}"
+            }
+        }
+    }
+}
+EOF
+    cat <<'EOF' > deleted.txt
+x = 1
+y = 1
+z = 1
+EOF
+    git add hk.pkl deleted.txt
+    git commit -m "initial commit"
+
+    sed -i 's/x = 1/x=2/' deleted.txt
+    git add deleted.txt
+    sed -i 's/z = 1/z=2/' deleted.txt
+
+    run hk run pre-commit
+    assert_failure
+
+    # The deletion remains in the worktree while the original staged blob stays in the index.
+    run test -e deleted.txt
+    assert_failure
+    run git show :deleted.txt
+    assert_line "x=2"
+    assert_line "z = 1"
+}
+
+@test "fail_on_fix=true preserves binary fixer output for a partially staged file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        stage = false
+        fail_on_fix = true
+        steps {
+            ["binary"] {
+                glob = "binary.dat"
+                fix = #"for f in {{ files }}; do printf '\377' > "\$f"; done"#
+            }
+        }
+    }
+}
+EOF
+    cat <<'EOF' > binary.dat
+x = 1
+y = 1
+z = 1
+EOF
+    git add hk.pkl binary.dat
+    git commit -m "initial commit"
+
+    sed -i 's/x = 1/x=2/' binary.dat
+    git add binary.dat
+    sed -i 's/z = 1/z=2/' binary.dat
+
+    run hk run pre-commit
+    assert_failure
+
+    # The binary fixer result remains in the worktree while the index stays unchanged.
+    run od -An -tx1 binary.dat
+    assert_output --partial "ff"
+    run git show :binary.dat
+    assert_line "x=2"
+    assert_line "z = 1"
+}

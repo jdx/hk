@@ -1065,22 +1065,42 @@ impl Git {
                 // When staging is disabled, fixer output remains in the isolated worktree
                 // rather than being written to the index. Snapshot it before restoring the
                 // user's unstaged changes so it can be used as the fixer side of the merge.
-                let fixer_worktree_map: std::collections::HashMap<PathBuf, String> = if should_stage
-                {
-                    std::collections::HashMap::new()
-                } else {
-                    self.saved_index
+                // Map presence identifies hook files; None distinguishes a fixer deletion
+                // from a path that was not processed. Keep bytes so non-UTF-8 output survives.
+                let mut fixer_worktree_map: std::collections::HashMap<PathBuf, Option<Vec<u8>>> =
+                    std::collections::HashMap::new();
+                if !should_stage {
+                    for (_, oid, p) in self
+                        .saved_index
                         .as_deref()
                         .unwrap_or_default()
                         .iter()
                         .filter(|(_, _, p)| stash_paths.contains(p))
-                        .filter_map(|(_, _, p)| {
-                            xx::file::read_to_string(p)
-                                .ok()
-                                .map(|contents| (p.clone(), contents))
-                        })
-                        .collect()
-                };
+                    {
+                        let contents = match std::fs::read(p) {
+                            Ok(contents) => Some(contents),
+                            Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+                            Err(err) => {
+                                return Err(err).wrap_err_with(|| {
+                                    format!(
+                                        "failed to snapshot fixer output for {}",
+                                        display_path(p)
+                                    )
+                                });
+                            }
+                        };
+                        let index_contents = git_read_bytes(["cat-file", "-p", oid])
+                            .wrap_err_with(|| {
+                                format!(
+                                    "failed to read saved index content for {}",
+                                    display_path(p)
+                                )
+                            })?;
+                        if contents.as_deref() != Some(index_contents.as_slice()) {
+                            fixer_worktree_map.insert(p.clone(), contents);
+                        }
+                    }
+                }
 
                 // Build a map of CURRENT index (post-step) entries to re-stage Fixer blobs.
                 // Only include files that are actually staged-changed to avoid treating unrelated
@@ -1193,6 +1213,43 @@ impl Git {
                         continue;
                     }
 
+                    // A stage-disabled fixer can delete a file or replace it with binary
+                    // content. Neither result can participate in the text merge below, so
+                    // restore it directly while leaving the original index untouched.
+                    match fixer_worktree_map.get(&path) {
+                        Some(None) => {
+                            debug!(
+                                "manual-unstash: preserving fixer deletion path={}",
+                                display_path(&path)
+                            );
+                            if let Err(err) = std::fs::remove_file(&path)
+                                && err.kind() != std::io::ErrorKind::NotFound
+                            {
+                                warn!(
+                                    "failed to preserve fixer deletion for {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                            continue;
+                        }
+                        Some(Some(contents)) if std::str::from_utf8(contents).is_err() => {
+                            debug!(
+                                "manual-unstash: preserving binary fixer output path={}",
+                                display_path(&path)
+                            );
+                            if let Err(err) = xx::file::write(&path, contents) {
+                                warn!(
+                                    "failed to preserve binary fixer output for {}: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                            continue;
+                        }
+                        _ => {}
+                    }
+
                     // Detect binary files: try reading the worktree blob as UTF-8.
                     // If it fails, restore using raw bytes and skip text merging entirely.
                     let work_bytes =
@@ -1275,7 +1332,11 @@ impl Git {
                             .get(&path)
                             .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
                     } else {
-                        fixer_worktree_map.get(&path).cloned()
+                        fixer_worktree_map
+                            .get(&path)
+                            .and_then(|contents| contents.as_deref())
+                            .and_then(|contents| std::str::from_utf8(contents).ok())
+                            .map(str::to_owned)
                     };
 
                     // Trace summaries of inputs for diagnostics (trace-level only)
