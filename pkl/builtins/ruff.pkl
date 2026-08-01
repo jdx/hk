@@ -11,7 +11,7 @@ import "./test/helpers.pkl"
   }
 }
 ruff = new Config.Step {
-  glob = List("**/*.py", "**/*.pyi")
+  types = List("python")
   check = new Config.Command { argv = List("ruff", "check", "--force-exclude", "{{files}}") }
   // `ruff check --diff` can exit 0 even if non-fixable issues exist, making it an
   // unreliable signal for whether to run `fix`. We use `check` instead.
