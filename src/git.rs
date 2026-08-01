@@ -1146,6 +1146,10 @@ impl Git {
 
                 // Track whether any file restoration failed so we can preserve the stash
                 let mut restoration_failed = false;
+                let patch_hint = self
+                    .last_patch_path()
+                    .map(|p| format!("; stashed edits are backed up at {}", p.display()))
+                    .unwrap_or_default();
 
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
@@ -1244,13 +1248,24 @@ impl Git {
                     }
 
                     let fixer_worktree = if !should_stage && has_fixer {
+                        if std::fs::symlink_metadata(&path)
+                            .is_ok_and(|metadata| metadata.file_type().is_symlink())
+                        {
+                            warn!(
+                                "fixer replaced {} with a symlink; preserving the symlink instead of conflicting stashed edits{}",
+                                display_path(&path),
+                                patch_hint
+                            );
+                            continue;
+                        }
                         match std::fs::read(&path) {
                             Ok(contents) => match String::from_utf8(contents) {
                                 Ok(contents) => Some(contents),
                                 Err(err) => {
-                                    debug!(
-                                        "manual-unstash: preserving binary fixer output path={}",
-                                        display_path(&path)
+                                    warn!(
+                                        "fixer wrote binary content to {}; preserving it instead of conflicting stashed edits{}",
+                                        display_path(&path),
+                                        patch_hint
                                     );
                                     if let Err(write_err) = xx::file::write(&path, err.as_bytes()) {
                                         warn!(
@@ -1263,9 +1278,10 @@ impl Git {
                                 }
                             },
                             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                                debug!(
-                                    "manual-unstash: preserving fixer deletion path={}",
-                                    display_path(&path)
+                                warn!(
+                                    "fixer deleted {}; preserving the deletion instead of conflicting stashed edits{}",
+                                    display_path(&path),
+                                    patch_hint
                                 );
                                 continue;
                             }
