@@ -1,6 +1,29 @@
 # Changelog
 
-## [1.54.0](https://github.com/jdx/hk/compare/v1.53.0..v1.54.0) - 2026-07-30
+## [1.54.1](https://github.com/jdx/hk/compare/v1.54.0..v1.54.1) - 2026-08-04
+
+### 🐛 Bug Fixes
+
+- **(builtins)** detect extensionless python scripts with ruff by [@jdx](https://github.com/jdx) in [#1147](https://github.com/jdx/hk/pull/1147)
+- **(config)** report min_hk_version errors without panicking by [@smasato](https://github.com/smasato) in [#1143](https://github.com/jdx/hk/pull/1143)
+- **(conventional-commit)** allow fixup!, squash!, and amend! commit prefixes by [@smasato](https://github.com/smasato) in [#1142](https://github.com/jdx/hk/pull/1142)
+- **(hook)** suggest serialization for git index lock failures by [@jdx](https://github.com/jdx) in [#1140](https://github.com/jdx/hk/pull/1140)
+- **(stash)** preserve unstaged fixer output by [@jdx](https://github.com/jdx) in [#1145](https://github.com/jdx/hk/pull/1145)
+
+### 🔍 Other Changes
+
+- run perf jobs on bamboo by [@jdx](https://github.com/jdx) in [#1148](https://github.com/jdx/hk/pull/1148)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action action to v1.0.183 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1152](https://github.com/jdx/hk/pull/1152)
+- update dependency github:jdx/tak to v0.0.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1153](https://github.com/jdx/hk/pull/1153)
+- update jdx/mise-action action to v4.2.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1154](https://github.com/jdx/hk/pull/1154)
+- update rust crate pklr to v1.3.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1156](https://github.com/jdx/hk/pull/1156)
+- update zizmorcore/zizmor-action action to v0.6.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1155](https://github.com/jdx/hk/pull/1155)
+- update rust crate clap_usage to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1157](https://github.com/jdx/hk/pull/1157)
+
+## [1.54.0](https://github.com/jdx/hk/compare/v1.53.0..v1.54.0) - 2026-07-31
 
 ### 🚀 Features
 
