@@ -1,0 +1,28 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Secrets"
+  description = "Secret scanner with live validation and 1,000+ rules"
+  project_indicators {
+    new { file = "kingfisher.yaml" }
+  }
+}
+kingfisher = new Config.Step {
+  types = List("text")
+  // Reference: https://github.com/mongodb/kingfisher/blob/v1.109.0/.pre-commit-hooks.yaml
+  check = "kingfisher scan {{ files }} --no-update-check --no-validate --quiet"
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+    // Findings exit with code 200 (205 when validation is enabled and a secret is live).
+    // Reference: https://github.com/mongodb/kingfisher/blob/v1.109.0/testdata/slack_tokens.properties
+    // The token is split so secret-scanning push protection does not match the literal.
+    ["check bad file"] =
+      testMaker.checkFail(
+        "token = \"xoxb-229090314224-691247287811-FAKE5lrl" + "R3O9eYVKf4eKpras\"",
+        200,
+      )
+    ["check good file"] = testMaker.checkPass("message = foobar")
+  }
+}
