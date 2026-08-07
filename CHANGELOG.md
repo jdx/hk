@@ -1,6 +1,12 @@
 # Changelog
 
-## [1.54.1](https://github.com/jdx/hk/compare/v1.54.0..v1.54.1) - 2026-08-04
+## [1.54.2](https://github.com/jdx/hk/compare/v1.54.1..v1.54.2) - 2026-08-07
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1151](https://github.com/jdx/hk/pull/1151)
+
+## [1.54.1](https://github.com/jdx/hk/compare/v1.54.0..v1.54.1) - 2026-08-07
 
 ### 🐛 Bug Fixes
 
