@@ -35,6 +35,12 @@ All commit messages and PR titles MUST follow conventional commit format:
 - `docs: update pkl configuration examples`
 - `chore: release 0.5.0`
 
+## Dependency Updates
+
+- Use the lowest compatibility-significant specificity in `Cargo.toml` (for example, `"1"` for stable 1.x dependencies).
+- When the existing manifest requirement accepts a routine dependency update, change only `Cargo.lock`.
+- Keep lockfile updates focused and avoid unrelated transitive dependency churn.
+
 ## Development Commands
 
 **Build the project:**
