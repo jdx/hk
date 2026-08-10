@@ -116,7 +116,10 @@ pub fn emit_run(
             if let Some(diagnostic_output) = diagnostic_output {
                 output_kind.get_or_insert_with(|| step.output_summary.clone());
                 match &mut output {
-                    Some(output) => output.insert_str(0, diagnostic_output),
+                    Some(output) if !output.contains(diagnostic_output) => {
+                        output.insert_str(0, diagnostic_output)
+                    }
+                    Some(_) => {}
                     None => output = Some(diagnostic_output.clone()),
                 }
             }

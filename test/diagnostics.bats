@@ -302,7 +302,7 @@ EOF
 
     run bash -c "HK_FAIL_FAST=1 hk --format json check --all 2>/dev/null"
     assert_failure
-    run jq -r '.steps[] | select(.name == "focused") | [.status, (.output | contains("listing diagnostic"))] | @tsv' <<<"$output"
+    run jq -r '.steps[] | select(.name == "focused") | [.status, (.output | contains("listing diagnostic")), (.output | split("listing diagnostic") | length - 1)] | @tsv' <<<"$output"
     assert_success
-    assert_output $'cancelled\ttrue'
+    assert_output $'cancelled\ttrue\t1'
 }
