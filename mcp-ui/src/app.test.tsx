@@ -147,6 +147,14 @@ describe("Dashboard", () => {
     ).toBeEnabled();
   });
 
+  it("does not claim normal checks used safe mode", () => {
+    const normal = { ...run, kind: "check" };
+    render(<Dashboard initial={normal} call={vi.fn(async () => normal)} />);
+
+    expect(screen.getByText("standard mode")).toBeInTheDocument();
+    expect(screen.queryByText("safe mode accepted")).not.toBeInTheDocument();
+  });
+
   it("replaces state when a different run is rendered", async () => {
     const next = { ...run, id: "hk-2", kind: "safe_fix", has_diff: false };
     const call = vi.fn(async (name: string, args: Record<string, unknown>) => {

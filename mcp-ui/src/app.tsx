@@ -424,7 +424,11 @@ export function Dashboard({
                     ),
                   ].join(" + ") || "none"}
                 </strong>
-                <small>safe mode accepted</small>
+                <small>
+                  {run.kind.startsWith("safe_")
+                    ? "safe mode accepted"
+                    : "standard mode"}
+                </small>
               </div>
             </div>
             <div class="execution-review">
