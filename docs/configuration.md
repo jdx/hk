@@ -138,7 +138,10 @@ The first `argv` entry is the executable, which hk resolves using `PATH`. Each r
 
 Structured commands preserve argument boundaries, so filenames containing spaces or shell metacharacters are passed literally. Shell syntax is not interpreted: entries such as `"*"`, `"$HOME"`, `"|"`, and `">"` remain literal arguments. Use a string command if shell interpretation is required.
 
-Structured commands cannot be combined with the step's `shell` or `prefix` options. Other step behavior, including `dir`, `env`, and automatic batching for large file lists, continues to apply.
+Structured commands cannot be combined with the step's `shell` option or a string
+`prefix`. Use an argv-list prefix such as `List("mise", "x", "--")` when the
+structured command should run through a launcher. Other step behavior, including
+`dir`, `env`, and automatic batching for large file lists, continues to apply.
 
 ### Focus checks on failing files
 
@@ -201,7 +204,7 @@ Groups may define a small set of step settings that child steps inherit when the
 | Group option          | Inherited step option | Type                                 |
 | --------------------- | --------------------- | ------------------------------------ |
 | `dir`                 | `dir`                 | `String?`                            |
-| `prefix`              | `prefix`              | `String?`                            |
+| `prefix`              | `prefix`              | `(String \| List<String>)?`          |
 | `workspace_indicator` | `workspace_indicator` | `String?`                            |
 | `shell`               | `shell`               | `(String \| Script)?`                |
 | `stage`               | `stage`               | `(String \| List<String>)?`          |
@@ -226,6 +229,19 @@ local frontend = new Group {
 ```
 
 In this example, `prettier` inherits `dir = "packages/frontend"` and `prefix = "mise x --"`. `eslint` keeps its explicit `dir = "different/path"` and still inherits `prefix = "mise x --"`.
+
+String prefixes are shell syntax and can only be used with string commands. For a
+structured command, use a list so each prefix argument retains its boundary:
+
+```pkl
+["ruff"] = (Builtins.ruff) {
+    prefix = List("mise", "x", "--")
+}
+```
+
+An argv prefix is rendered and prepended to the structured command without invoking
+a shell. It cannot be combined with a string command, and it cannot contain
+`{{files}}` or `{{workspace_files}}`.
 
 ## Git status in conditions and templates
 

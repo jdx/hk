@@ -235,7 +235,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     let Some(run_cmd) = step.run_cmd(run_type).filter(|command| !command.is_empty()) else {
         eyre::bail!("{}: no command for test", step.name);
     };
-    let run = run_cmd.render(&tctx, step.prefix.as_deref())?;
+    let run = run_cmd.render(&tctx, step.prefix.as_ref())?;
 
     // Run pre-command (before)
     let mut before_stdout = String::new();

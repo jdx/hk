@@ -146,7 +146,7 @@ impl Step {
         if let Some(fix_cmd) = self
             .run_cmd(RunType::Fix)
             .filter(|command| !command.is_empty())
-            && let Ok(rendered) = fix_cmd.render(&suggest_ctx, self.prefix.as_deref())
+            && let Ok(rendered) = fix_cmd.render(&suggest_ctx, self.prefix.as_ref())
         {
             let rendered = rendered.display(self.shell_type());
             let should_use_hk_fix =

@@ -48,7 +48,9 @@ mod types;
 pub use expr_env::{EXPR_CTX, EXPR_ENV};
 pub use shell::ShellType;
 pub(crate) use types::RenderedCommand;
-pub use types::{FileSelector, OutputSummary, Pattern, RunType, Script, Step};
+#[cfg(test)]
+pub(crate) use types::{ArgvCommand, Command};
+pub use types::{CommandPrefix, FileSelector, OutputSummary, Pattern, RunType, Script, Step};
 
 // Re-export for potential external use (currently only used internally)
 #[allow(unused_imports)]

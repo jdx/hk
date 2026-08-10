@@ -213,7 +213,7 @@ pub struct Step {
     pub workspace_indicator: Option<String>,
 
     /// Prefix to prepend to all commands
-    pub prefix: Option<String>,
+    pub prefix: Option<CommandPrefix>,
 
     /// Working directory for commands (relative to repo root)
     pub dir: Option<String>,
@@ -362,6 +362,14 @@ pub struct ArgvCommand {
     pub argv: Vec<String>,
 }
 
+/// A command prefix that preserves the execution mode of the command it wraps.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CommandPrefix {
+    Shell(String),
+    Argv(Vec<String>),
+}
+
 /// A step command that either runs through a shell or executes an argv directly.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -391,34 +399,41 @@ impl Command {
     pub(crate) fn render(
         &self,
         tctx: &tera::Context,
-        prefix: Option<&str>,
+        prefix: Option<&CommandPrefix>,
     ) -> Result<RenderedCommand> {
         match self {
             Self::Shell(script) => {
                 let script = script.to_string();
-                let script = if let Some(prefix) = prefix {
-                    format!("{prefix} {script}")
-                } else {
-                    script
+                let script = match prefix {
+                    Some(CommandPrefix::Shell(prefix)) => format!("{prefix} {script}"),
+                    Some(CommandPrefix::Argv(_)) => {
+                        eyre::bail!("shell commands cannot use an argv `prefix`");
+                    }
+                    None => script,
                 };
                 Ok(RenderedCommand::Shell(tera::render(&script, tctx)?))
             }
             Self::Argv(command) => {
-                if prefix.is_some() {
-                    eyre::bail!("structured argv commands cannot use `prefix`");
+                let prefix: &[String] = match prefix {
+                    Some(CommandPrefix::Argv(prefix)) => prefix.as_slice(),
+                    Some(CommandPrefix::Shell(_)) => {
+                        eyre::bail!("structured argv commands cannot use a shell `prefix`");
+                    }
+                    None => &[],
+                };
+                let mut rendered = Vec::with_capacity(prefix.len() + command.argv.len());
+                for arg in prefix {
+                    if file_list_placeholder(arg).is_some() {
+                        eyre::bail!("argv `prefix` cannot contain file-list placeholders");
+                    }
+                    rendered.push(tera::render(arg, tctx)?);
                 }
-                let mut rendered = Vec::new();
+                if !prefix.is_empty() && rendered[0].trim().is_empty() {
+                    eyre::bail!("argv `prefix` must contain an executable");
+                }
+                let command_start = rendered.len();
                 for (index, arg) in command.argv.iter().enumerate() {
-                    let placeholder = arg
-                        .chars()
-                        .filter(|c| !c.is_whitespace())
-                        .collect::<String>();
-                    let list = match placeholder.as_str() {
-                        "{{files}}" => Some("files_list"),
-                        "{{workspace_files}}" => Some("workspace_files_list"),
-                        _ => None,
-                    };
-                    if let Some(list) = list {
+                    if let Some(list) = file_list_placeholder(arg) {
                         if index == 0 {
                             eyre::bail!("the executable cannot be a file-list placeholder");
                         }
@@ -432,12 +447,28 @@ impl Command {
                         rendered.push(tera::render(arg, tctx)?);
                     }
                 }
-                if rendered.is_empty() || rendered[0].trim().is_empty() {
+                if command.argv.is_empty()
+                    || rendered
+                        .get(command_start)
+                        .is_none_or(|executable| executable.trim().is_empty())
+                {
                     eyre::bail!("structured argv command must contain an executable");
                 }
                 Ok(RenderedCommand::Argv(rendered))
             }
         }
+    }
+}
+
+fn file_list_placeholder(arg: &str) -> Option<&'static str> {
+    let placeholder = arg
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>();
+    match placeholder.as_str() {
+        "{{files}}" => Some("files_list"),
+        "{{workspace_files}}" => Some("workspace_files_list"),
+        _ => None,
     }
 }
 
@@ -565,12 +596,66 @@ mod tests {
         let command = Command::Argv(ArgvCommand {
             argv: vec!["tool".to_string()],
         });
+        let prefix = CommandPrefix::Shell("env FOO=bar".to_string());
 
         let err = command
-            .render(&tera::Context::default(), Some("env FOO=bar"))
+            .render(&tera::Context::default(), Some(&prefix))
             .unwrap_err();
 
-        assert!(err.to_string().contains("cannot use `prefix`"));
+        assert!(err.to_string().contains("cannot use a shell `prefix`"));
+    }
+
+    #[test]
+    fn structured_argv_prepends_rendered_prefix_arguments() {
+        let command = Command::Argv(ArgvCommand {
+            argv: vec!["tool".to_string(), "{{files}}".to_string()],
+        });
+        let prefix = CommandPrefix::Argv(vec![
+            "{{launcher}}".to_string(),
+            "prefix value".to_string(),
+            "$HOME".to_string(),
+        ]);
+        let mut tctx = tera::Context::default();
+        tctx.insert("launcher", "mise");
+        tctx.insert("files_list", &vec!["a b.txt", "semi;colon.txt"]);
+
+        assert_eq!(
+            command.render(&tctx, Some(&prefix)).unwrap(),
+            RenderedCommand::Argv(vec![
+                "mise".to_string(),
+                "prefix value".to_string(),
+                "$HOME".to_string(),
+                "tool".to_string(),
+                "a b.txt".to_string(),
+                "semi;colon.txt".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn shell_command_rejects_argv_prefix() {
+        let command: Command = "echo ok".parse().unwrap();
+        let prefix = CommandPrefix::Argv(vec!["mise".to_string(), "x".to_string()]);
+
+        let err = command
+            .render(&tera::Context::default(), Some(&prefix))
+            .unwrap_err();
+
+        assert!(err.to_string().contains("cannot use an argv `prefix`"));
+    }
+
+    #[test]
+    fn argv_prefix_rejects_file_list_placeholders() {
+        let command = Command::Argv(ArgvCommand {
+            argv: vec!["tool".to_string()],
+        });
+        let prefix = CommandPrefix::Argv(vec!["mise".to_string(), "{{files}}".to_string()]);
+
+        let err = command
+            .render(&tera::Context::default(), Some(&prefix))
+            .unwrap_err();
+
+        assert!(err.to_string().contains("file-list placeholders"));
     }
 
     #[test]

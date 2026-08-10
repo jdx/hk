@@ -34,7 +34,8 @@ class Script {
 ///
 /// The first entry is the executable. Exact `{{files}}` and
 /// `{{workspace_files}}` entries expand to one argument per file.
-/// Structured commands cannot be combined with a step's `shell` or `prefix`.
+/// Structured commands cannot be combined with a step's `shell` or a string
+/// `prefix`.
 class Command {
   argv: List<String>
 }
@@ -589,7 +590,8 @@ class Step {
   /// ```
   workspace_indicator: String?
 
-  /// If set, run the linter scripts with this prefix, e.g.: "mise exec --" or "npm run".
+  /// If set, run commands with this prefix. Use a string for shell commands or
+  /// a list of explicit arguments for structured commands.
   ///
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
@@ -598,7 +600,7 @@ class Step {
   ///     }
   /// }
   /// ```
-  prefix: String?
+  prefix: (String | List<String>)?
 
   /// If set, run the linter scripts in this directory.
   ///
@@ -987,7 +989,7 @@ class Group {
   /// Command prefix inherited by child steps that do not set `prefix`.
   ///
   /// This is copied to each child step as a default; child step values override it completely.
-  prefix: String?
+  prefix: (String | List<String>)?
 
   /// Workspace indicator inherited by child steps that do not set `workspace_indicator`.
   ///

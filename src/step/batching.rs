@@ -117,7 +117,7 @@ impl Step {
         }
         let tctx = temp.tctx(base_tctx);
         run_cmd
-            .render(&tctx, self.prefix.as_deref())
+            .render(&tctx, self.prefix.as_ref())
             .ok()
             .map(|command| RenderedCommandSize {
                 aggregate: command.execution_size(),
@@ -328,6 +328,36 @@ mod tests {
 
         assert!(err.to_string().contains("101-byte argument"));
         assert!(err.to_string().contains("100-byte platform limit"));
+    }
+
+    #[test]
+    fn structured_argv_auto_batch_accounts_for_prefix() {
+        let step = Step {
+            name: "test".to_string(),
+            check: Some(Command::Argv(super::super::types::ArgvCommand {
+                argv: vec!["tool".to_string(), "{{files}}".to_string()],
+            })),
+            prefix: Some(super::super::types::CommandPrefix::Argv(vec![
+                "launcher".to_string(),
+                "1234567890".to_string(),
+            ])),
+            ..Default::default()
+        };
+        let files = (0..6).map(|i| PathBuf::from(format!("f{i}"))).collect();
+        let job = StepJob::new(Arc::new(step.clone()), files, RunType::Check);
+        let tctx = tera::Context::default();
+
+        let jobs = step
+            .auto_batch_jobs_with_limit(vec![job], &tctx, Some(40))
+            .unwrap();
+
+        assert!(jobs.len() > 1);
+        assert!(jobs.iter().all(|job| {
+            step.render_run_command_size(job, &job.files, &tctx)
+                .unwrap()
+                .aggregate
+                <= 40
+        }));
     }
 
     #[cfg(target_os = "linux")]
