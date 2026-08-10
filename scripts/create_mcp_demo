@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_root=$(cd "$(dirname "$0")/.." && pwd)
+fixture=$(mktemp -d)
+cp "$project_root/test/fixtures/mcp-dashboard/demo.txt" "$fixture/demo.txt"
+sed "s|@HK_CONFIG@|$project_root/pkl/Config.pkl|" \
+  "$project_root/test/fixtures/mcp-dashboard/hk.pkl.template" > "$fixture/hk.pkl"
+git -C "$fixture" init -b main >/dev/null
+git -C "$fixture" add .
+git -C "$fixture" -c user.name=demo -c user.email=demo@example.com commit -m init >/dev/null
+printf '%s\n' "$fixture"

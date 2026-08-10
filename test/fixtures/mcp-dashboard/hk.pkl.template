@@ -1,0 +1,22 @@
+amends "@HK_CONFIG@"
+
+hooks {
+  ["check"] {
+    steps {
+      ["demo"] {
+        glob = "demo.txt"
+        check = new CommandSpec {
+          command = "sleep 5; if grep -q 'teh' {{files}}; then printf 'demo.txt:1:1: warning: typo: replace teh with the [demo-spell]\\n'; exit 1; fi"
+          effect = "read"
+        }
+        fix = new CommandSpec {
+          command = "sed -i.bak 's/teh/the/g' {{files}} && rm -f {{files}}.bak"
+          effect = "write"
+        }
+        output_summary = "combined"
+        diagnostic_format = "gcc"
+        diagnostic_tool = "demo-spell"
+      }
+    }
+  }
+}

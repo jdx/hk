@@ -4,7 +4,8 @@
   "description": "A tool for running hooks on files in a git repository.",
   "main": "index.js",
   "workspaces": [
-    "docs"
+    "docs",
+    "mcp-ui"
   ],
   "directories": {
     "doc": "docs",

@@ -2,6 +2,7 @@
 /tmp
 .aube/
 node_modules
+mcp-ui/dist
 .aider*
 .pkl-lsp
 /.pre-commit-config.yaml
