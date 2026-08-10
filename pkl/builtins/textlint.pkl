@@ -20,8 +20,14 @@ textlint = new Config.Step {
   // https://textlint.org/docs/plugin/
   glob = List("**/*.md", "**/*.markdown", "**/*.txt")
   batch = true
-  check = "textlint {{ files }}"
-  fix = "textlint --fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "textlint {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "textlint --fix {{ files }}"
+    effect = "write"
+  }
   tests {
     // textlint has no built-in rules; ship a tiny fixable rule and reference it
     // from .textlintrc.js by absolute path so the test does not depend on any

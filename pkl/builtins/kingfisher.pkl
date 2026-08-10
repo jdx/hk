@@ -12,7 +12,10 @@ import "./test/helpers.pkl"
 kingfisher = new Config.Step {
   types = List("text")
   // Reference: https://github.com/mongodb/kingfisher/blob/v1.109.0/.pre-commit-hooks.yaml
-  check = "kingfisher scan {{ files }} --no-update-check --no-validate --quiet"
+  check = new Config.CommandSpec {
+    command = "kingfisher scan {{ files }} --no-update-check --no-validate --quiet"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
     // Findings exit with code 200 (205 when validation is enabled and a secret is live).

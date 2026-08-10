@@ -8,20 +8,26 @@ import "./test/helpers.pkl"
 }
 jq = new Config.Step {
   glob = "**/*.json"
-  check_diff =
-    """
+  check_diff = new Config.CommandSpec {
+    command =
+      """
       failed=0
       for f in {{ files }}; do
-        jq . "$f" | diff -u "$f" - || failed=1
+      jq . "$f" | diff -u "$f" - || failed=1
       done
       exit $failed
-    """
-  fix =
-    """
+      """
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command =
+      """
       for f in {{ files }}; do
-        tmp=$(mktemp) && jq -S . "$f" > "$tmp" && mv "$tmp" "$f"
+      tmp=$(mktemp) && jq -S . "$f" > "$tmp" && mv "$tmp" "$f"
       done
-    """
+      """
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.json"

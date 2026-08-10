@@ -19,7 +19,10 @@ const aqua_update_checksum = new Config.Step {
       "aqua-checksums.json",
       "{aqua,.aqua}/aqua-checksums.json",
     )
-  fix = "aqua update-checksum --prune"
+  fix = new Config.CommandSpec {
+    command = "aqua update-checksum --prune"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "aqua-checksums.json"

@@ -7,5 +7,8 @@ import "../Config.pkl"
 }
 luacheck = new Config.Step {
   types = List("lua")
-  check = "luacheck {{ files }}"
+  check = new Config.CommandSpec {
+    command = "luacheck {{ files }}"
+    effect = "read"
+  }
 }

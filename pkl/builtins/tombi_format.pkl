@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 tombi_format = new Config.Step {
   glob = "**/*.toml"
-  check_diff = "tombi format --quiet --check --diff {{ files }}"
-  fix = "tombi format --quiet {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "tombi format --quiet --check --diff {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "tombi format --quiet {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.toml"

@@ -21,8 +21,14 @@ dclint = new Config.Step {
       "**/docker-compose*.yaml",
     )
   batch = true
-  check = "dclint {{files}}"
-  fix = "dclint --fix {{files}}"
+  check = new Config.CommandSpec {
+    command = "dclint {{files}}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "dclint --fix {{files}}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "docker-compose.yml"

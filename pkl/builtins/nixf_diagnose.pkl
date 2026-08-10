@@ -7,5 +7,8 @@ import "../Config.pkl"
 }
 nixf_diagnose = new Config.Step {
   glob = "**/*.nix"
-  check = "nixf-diagnose {{ files }}"
+  check = new Config.CommandSpec {
+    command = "nixf-diagnose {{ files }}"
+    effect = "read"
+  }
 }

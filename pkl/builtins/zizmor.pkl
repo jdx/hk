@@ -18,8 +18,14 @@ zizmor = new Config.Step {
       "**/action.yml",
       "**/action.yaml",
     )
-  check_diff = "zizmor --no-progress {{ files }}"
-  fix = "zizmor --no-progress --fix {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "zizmor --no-progress {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "zizmor --no-progress --fix {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = ".github/workflows/action.yaml"

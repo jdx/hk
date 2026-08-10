@@ -7,5 +7,8 @@ import "../Config.pkl"
 }
 astro = new Config.Step {
   glob = "**/*.astro"
-  check = "astro check {{ files }}"
+  check = new Config.CommandSpec {
+    command = "astro check {{ files }}"
+    effect = "write"
+  }
 }

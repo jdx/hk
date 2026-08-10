@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 newlines = new Config.Step {
   types = List("text")
-  check_diff = "hk util end-of-file-fixer --diff {{files}}"
-  fix = "hk util end-of-file-fixer --fix {{files}}"
+  check_diff = new Config.CommandSpec {
+    command = "hk util end-of-file-fixer --diff {{files}}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "hk util end-of-file-fixer --fix {{files}}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {}
     ["check bad file"] = testMaker.checkFail("content", 1)

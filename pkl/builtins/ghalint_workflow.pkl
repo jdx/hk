@@ -9,7 +9,10 @@ import "./test/helpers.pkl"
 const ghalint_workflow = new Config.Step {
   glob = List(".github/workflows/*")
   types = List("yaml")
-  check = "ghalint run"
+  check = new Config.CommandSpec {
+    command = "ghalint run"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = ".github/workflows/test.yml"

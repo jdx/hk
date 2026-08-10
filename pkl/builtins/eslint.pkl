@@ -11,6 +11,12 @@ import "../Config.pkl"
 eslint = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
   batch = true
-  check = "eslint {{ files }}"
-  fix = "eslint --fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "eslint {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "eslint --fix {{ files }}"
+    effect = "write"
+  }
 }

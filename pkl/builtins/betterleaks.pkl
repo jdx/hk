@@ -13,7 +13,10 @@ import "./test/helpers.pkl"
 betterleaks = new Config.Step {
   types = List("text")
   // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
-  check = "betterleaks dir --redact --verbose --no-banner {{ files }}"
+  check = new Config.CommandSpec {
+    command = "betterleaks dir --redact --verbose --no-banner {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
     // aws-access-token alone is not reported since betterleaks 1.2.0 (composite rule); use github-pat instead.

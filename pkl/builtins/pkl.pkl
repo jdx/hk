@@ -8,7 +8,10 @@ import "./test/helpers.pkl"
 }
 pkl = new Config.Step {
   types = List("pkl")
-  check = "pkl eval {{files}} >/dev/null"
+  check = new Config.CommandSpec {
+    command = "pkl eval {{files}} >/dev/null"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.pkl" }
     ["check bad file"] = testMaker.checkFail("x == 1", 1)

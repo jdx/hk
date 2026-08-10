@@ -8,7 +8,10 @@ import "../Config.pkl"
 check_symlinks = new Config.Step {
   glob = "**/*"
   allow_symlinks = true
-  check = "hk util check-symlinks {{files}}"
+  check = new Config.CommandSpec {
+    command = "hk util check-symlinks {{files}}"
+    effect = "read"
+  }
   tests {
     ["detects broken symlink"] {
       run = "check"

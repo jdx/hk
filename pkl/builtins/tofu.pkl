@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 tofu = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
-  check_list_files = "tofu fmt -check {{ files }}"
-  fix = "tofu fmt {{ files }}"
+  check_list_files = new Config.CommandSpec {
+    command = "tofu fmt -check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "tofu fmt {{ files }}"
+    effect = "write"
+  }
 }

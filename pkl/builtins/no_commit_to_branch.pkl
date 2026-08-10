@@ -6,7 +6,10 @@ import "../Config.pkl"
   description = "Prevent direct commits to protected branches"
 }
 no_commit_to_branch = new Config.Step {
-  check = "hk util no-commit-to-branch"
+  check = new Config.CommandSpec {
+    command = "hk util no-commit-to-branch"
+    effect = "read"
+  }
   tests {
     ["passes on feature branch"] {
       run = "check"

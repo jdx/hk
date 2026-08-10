@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 isort = new Config.Step {
   glob = "**/*.py"
-  check = "isort --check-only {{ files }}"
-  fix = "isort {{ files }}"
+  check = new Config.CommandSpec {
+    command = "isort --check-only {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "isort {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.py" }
     local const before = "import base64\nimport ast\n"

@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 go_imports = new Config.Step {
   glob = "**/*.go"
-  check = "goimports -l {{ files }}"
-  fix = "goimports -w {{ files }}"
+  check = new Config.CommandSpec {
+    command = "goimports -l {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "goimports -w {{ files }}"
+    effect = "write"
+  }
 }

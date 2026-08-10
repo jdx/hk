@@ -1,4 +1,5 @@
 import "../Builtins.pkl"
+import "../Config.pkl"
 import "./rubocop.pkl"
 
 @Builtins.meta {
@@ -10,7 +11,16 @@ import "./rubocop.pkl"
 }
 rubocop_server = (rubocop.rubocop) {
   // `--server`: Use a long-lived RuboCop server process to speed up repeated invocations.
-  check = "rubocop --server --force-exclusion {{ files }}"
-  check_list_files = "rubocop --server --force-exclusion --list-target-files {{ files }}"
-  fix = "rubocop --server --force-exclusion --autocorrect {{ files }}"
+  check = new Config.CommandSpec {
+    command = "rubocop --server --force-exclusion {{ files }}"
+    effect = "write"
+  }
+  check_list_files = new Config.CommandSpec {
+    command = "rubocop --server --force-exclusion --list-target-files {{ files }}"
+    effect = "write"
+  }
+  fix = new Config.CommandSpec {
+    command = "rubocop --server --force-exclusion --autocorrect {{ files }}"
+    effect = "write"
+  }
 }

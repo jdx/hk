@@ -11,9 +11,15 @@ import "../Config.pkl"
 cargo_clippy = new Config.Step {
   glob = "**/*.rs"
   workspace_indicator = "Cargo.toml"
-  check = "cargo clippy --manifest-path {{workspace_indicator}} --quiet"
-  fix =
-    "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
+  check = new Config.CommandSpec {
+    command = "cargo clippy --manifest-path {{workspace_indicator}} --quiet"
+    effect = "write"
+  }
+  fix = new Config.CommandSpec {
+    command =
+      "cargo clippy --manifest-path {{workspace_indicator}} --fix --allow-dirty --allow-staged --quiet"
+    effect = "write"
+  }
   check_first = false
   env {
     ["CARGO_TERM_PROGRESS_WHEN"] = "never"

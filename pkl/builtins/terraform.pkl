@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 terraform = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
-  check_list_files = "terraform fmt -check {{ files }}"
-  fix = "terraform fmt {{ files }}"
+  check_list_files = new Config.CommandSpec {
+    command = "terraform fmt -check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "terraform fmt {{ files }}"
+    effect = "write"
+  }
 }

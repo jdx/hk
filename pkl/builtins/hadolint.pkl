@@ -11,7 +11,10 @@ import "./test/helpers.pkl"
 }
 hadolint = new Config.Step {
   glob = "**/Dockerfile*"
-  check = "hadolint {{ files }}"
+  check = new Config.CommandSpec {
+    command = "hadolint {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "Dockerfile" }
     ["check bad file"] = testMaker.checkFail("FROM debian\n", 1)

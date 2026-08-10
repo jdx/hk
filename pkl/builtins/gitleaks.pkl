@@ -12,7 +12,10 @@ import "./test/helpers.pkl"
 gitleaks = new Config.Step {
   types = List("text")
   // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/.pre-commit-hooks.yaml#L4
-  check = "gitleaks dir --redact --verbose --no-banner {{ files }}"
+  check = new Config.CommandSpec {
+    command = "gitleaks dir --redact --verbose --no-banner {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
     // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/testdata/repos/nogit/api.go#L20

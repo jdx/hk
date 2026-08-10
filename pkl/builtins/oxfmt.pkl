@@ -58,9 +58,18 @@ oxfmt = new Config.Step {
       "**/*.handlebars",
       "**/*.hbs",
     )
-  check = "oxfmt --check --no-error-on-unmatched-pattern {{ files }}"
-  check_list_files = "oxfmt --list-different --no-error-on-unmatched-pattern {{ files }}"
-  fix = "oxfmt --write --no-error-on-unmatched-pattern {{ files }}"
+  check = new Config.CommandSpec {
+    command = "oxfmt --check --no-error-on-unmatched-pattern {{ files }}"
+    effect = "read"
+  }
+  check_list_files = new Config.CommandSpec {
+    command = "oxfmt --list-different --no-error-on-unmatched-pattern {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "oxfmt --write --no-error-on-unmatched-pattern {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "foo.ts" }
     // Source: https://github.com/oxc-project/oxc/blob/apps_v1.63.0/apps/oxfmt/test/api/basic.test.ts

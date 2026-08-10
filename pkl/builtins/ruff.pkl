@@ -12,11 +12,19 @@ import "./test/helpers.pkl"
 }
 ruff = new Config.Step {
   types = List("python")
-  check = new Config.Command { argv = List("ruff", "check", "--force-exclude", "{{files}}") }
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ruff", "check", "--force-exclude", "{{files}}") }
+    effect = "write"
+  }
   // `ruff check --diff` can exit 0 even if non-fixable issues exist, making it an
   // unreliable signal for whether to run `fix`. We use `check` instead.
   // check_diff = "ruff check --force-exclude --diff {{ files }}"
-  fix = new Config.Command { argv = List("ruff", "check", "--force-exclude", "--fix", "{{files}}") }
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("ruff", "check", "--force-exclude", "--fix", "{{files}}")
+    }
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.py"

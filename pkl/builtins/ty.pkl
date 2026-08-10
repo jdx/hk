@@ -8,7 +8,10 @@ import "./test/helpers.pkl"
 }
 ty = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")
-  check = "ty check {{ files }}"
+  check = new Config.CommandSpec {
+    command = "ty check {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.py" }
     ["check bad file"] = testMaker.checkFail("x: int = ''", 1)

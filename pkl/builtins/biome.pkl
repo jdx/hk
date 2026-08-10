@@ -12,11 +12,17 @@ import "./test/helpers.pkl"
 }
 biome = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "**/*.json")
-  check = new Config.Command {
-    argv = List("biome", "check", "--no-errors-on-unmatched", "{{files}}")
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("biome", "check", "--no-errors-on-unmatched", "{{files}}")
+    }
+    effect = "write"
   }
-  fix = new Config.Command {
-    argv = List("biome", "check", "--write", "--no-errors-on-unmatched", "{{files}}")
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("biome", "check", "--write", "--no-errors-on-unmatched", "{{files}}")
+    }
+    effect = "write"
   }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.ts" }

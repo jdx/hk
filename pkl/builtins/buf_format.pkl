@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 buf_format = new Config.Step {
   glob = "**/*.proto"
-  check_diff = "buf format {{workspace}} --diff --exit-code"
-  fix = "buf format {{workspace}} --write"
+  check_diff = new Config.CommandSpec {
+    command = "buf format {{workspace}} --diff --exit-code"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "buf format {{workspace}} --write"
+    effect = "write"
+  }
   workspace_indicator = "buf.yaml"
   tests {
     local const testMaker = new helpers.TestMaker {

@@ -56,9 +56,18 @@ vp_fmt = new Config.Step {
       "**/*.handlebars",
       "**/*.hbs",
     )
-  check = "vp fmt --check {{ files }}"
-  check_list_files = "vp fmt --list-different {{ files }}"
-  fix = "vp fmt {{ files }}"
+  check = new Config.CommandSpec {
+    command = "vp fmt --check {{ files }}"
+    effect = "read"
+  }
+  check_list_files = new Config.CommandSpec {
+    command = "vp fmt --list-different {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "vp fmt {{ files }}"
+    effect = "write"
+  }
   workspace_indicator = "package.json"
   tests {
     local const testMaker = new helpers.TestMaker {

@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 deadnix = new Config.Step {
   glob = "**/*.nix"
-  check = "deadnix --fail {{ files }}"
-  fix = "deadnix --edit {{ files }}"
+  check = new Config.CommandSpec {
+    command = "deadnix --fail {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "deadnix --edit {{ files }}"
+    effect = "write"
+  }
 }

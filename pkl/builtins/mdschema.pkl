@@ -12,7 +12,10 @@ import "./test/helpers.pkl"
 mdschema = new Config.Step {
   workspace_indicator = ".mdschema.yml"
   types = List("markdown")
-  check = "mdschema check {{ files }}"
+  check = new Config.CommandSpec {
+    command = "mdschema check {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "foo.md"

@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 markdown_lint = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
-  check = "markdownlint {{ files }}"
-  fix = "markdownlint --fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "markdownlint {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "markdownlint --fix {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.md" }
     local const before = "# Title\ncontent."

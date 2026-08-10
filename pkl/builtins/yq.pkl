@@ -8,15 +8,21 @@ import "./test/helpers.pkl"
 }
 yq = new Config.Step {
   glob = List("**/*.yaml", "**/*.yml")
-  check_diff =
-    """
-    failed=0
-    for f in {{ files }}; do
+  check_diff = new Config.CommandSpec {
+    command =
+      """
+      failed=0
+      for f in {{ files }}; do
       yq -P "$f" | diff -u "$f" - || failed=1
-    done
-    exit $failed
-    """
-  fix = "yq -iP {{ files }}"
+      done
+      exit $failed
+      """
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "yq -iP {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.yaml" }
     ["check bad file"] = testMaker.checkFail("foo:  bar", 1)

@@ -11,8 +11,14 @@ import "./test/helpers.pkl"
 }
 black = new Config.Step {
   glob = List("**/*.py")
-  check_diff = "black --check --diff {{ files }}"
-  fix = "black {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "black --check --diff {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "black {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.py" }
     local const before = "x=1"

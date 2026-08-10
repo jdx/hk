@@ -24,8 +24,14 @@ buildifier_format = new Config.Step {
       "**/*.star",
       "**/*.sky",
     )
-  check = "buildifier -mode=check {{ files }}"
-  fix = "buildifier {{ files }}"
+  check = new Config.CommandSpec {
+    command = "buildifier -mode=check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "buildifier {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "BUILD.bazel" }
     local const before =

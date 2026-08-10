@@ -8,7 +8,10 @@ import "../Config.pkl"
 hk_test = new Config.Step {
   // See: src/config.rs `project_config_search_paths()`
   glob = List("hk.pkl", ".config/hk.pkl")
-  check = "hk test --quiet"
+  check = new Config.CommandSpec {
+    command = "hk test --quiet"
+    effect = "write"
+  }
   // No tests here. They would duplicate the existing `hk test` tests.
   // See: test/hk_test_*.bats
 }

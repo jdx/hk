@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 sql_fluff = new Config.Step {
   glob = "**/*.sql"
-  check = "sqlfluff lint {{ files }}"
-  fix = "sqlfluff fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "sqlfluff lint {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "sqlfluff fix {{ files }}"
+    effect = "write"
+  }
 }

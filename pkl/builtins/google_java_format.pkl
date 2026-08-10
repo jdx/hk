@@ -11,9 +11,18 @@ import "./test/helpers.pkl"
 }
 google_java_format = new Config.Step {
   glob = "**/*.java"
-  check = "google-java-format --dry-run --set-exit-if-changed {{ files }}"
-  check_list_files = "google-java-format --dry-run {{ files }}"
-  fix = "google-java-format --replace {{ files }}"
+  check = new Config.CommandSpec {
+    command = "google-java-format --dry-run --set-exit-if-changed {{ files }}"
+    effect = "read"
+  }
+  check_list_files = new Config.CommandSpec {
+    command = "google-java-format --dry-run {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "google-java-format --replace {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "Test.java"

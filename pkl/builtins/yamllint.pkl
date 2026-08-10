@@ -8,7 +8,10 @@ import "./test/helpers.pkl"
 }
 yamllint = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
-  check = "yamllint --strict {{ files }}"
+  check = new Config.CommandSpec {
+    command = "yamllint --strict {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.yaml" }
     ["check good file"] = testMaker.checkPass("---\nx: 1\n")

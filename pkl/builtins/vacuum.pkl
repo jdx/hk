@@ -15,6 +15,12 @@ vacuum = new Config.Step {
       "**/*swagger*.yml",
       "**/*swagger*.json",
     )
-  check = "vacuum lint {{files}}"
-  fix = "vacuum lint --fix {{files}}"
+  check = new Config.CommandSpec {
+    command = "vacuum lint {{files}}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "vacuum lint --fix {{files}}"
+    effect = "write"
+  }
 }

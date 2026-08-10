@@ -7,5 +7,8 @@ import "../Config.pkl"
 }
 hclfmt = new Config.Step {
   glob = "**/*.hcl"
-  fix = "hclfmt -w {{ files }}"
+  fix = new Config.CommandSpec {
+    command = "hclfmt -w {{ files }}"
+    effect = "write"
+  }
 }

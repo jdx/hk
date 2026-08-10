@@ -8,5 +8,8 @@ import "../Config.pkl"
 cpp_lint = new Config.Step {
   glob =
     List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
-  check = "cpplint {{ files }}"
+  check = new Config.CommandSpec {
+    command = "cpplint {{ files }}"
+    effect = "read"
+  }
 }

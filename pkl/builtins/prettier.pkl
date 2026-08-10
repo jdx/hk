@@ -39,9 +39,18 @@ prettier = new Config.Step {
       "**/*.vue",
     )
   batch = true
-  check = new Config.Command { argv = List("prettier", "--check", "{{files}}") }
-  check_list_files = new Config.Command { argv = List("prettier", "--list-different", "{{files}}") }
-  fix = new Config.Command { argv = List("prettier", "--write", "{{files}}") }
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("prettier", "--check", "{{files}}") }
+    effect = "read"
+  }
+  check_list_files = new Config.CommandSpec {
+    command = new Config.Command { argv = List("prettier", "--list-different", "{{files}}") }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command { argv = List("prettier", "--write", "{{files}}") }
+    effect = "write"
+  }
   tests {
     ["formats json"] {
       run = "fix"

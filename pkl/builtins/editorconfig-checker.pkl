@@ -8,7 +8,10 @@ import "./test/helpers.pkl"
 }
 editorconfig_checker = new Config.Step {
   types = List("text")
-  check = "ec {{ files }}"
+  check = new Config.CommandSpec {
+    command = "ec {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.txt"

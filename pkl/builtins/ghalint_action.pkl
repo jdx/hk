@@ -9,7 +9,10 @@ import "./test/helpers.pkl"
 const ghalint_action = new Config.Step {
   glob = List("**/action.*")
   types = List("yaml")
-  check = "ghalint run-action {{ files }}"
+  check = new Config.CommandSpec {
+    command = "ghalint run-action {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "action.yml"

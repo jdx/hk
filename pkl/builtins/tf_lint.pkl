@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 tf_lint = new Config.Step {
   glob = "**/*.tf"
-  check = "tflint"
-  fix = "tflint --fix"
+  check = new Config.CommandSpec {
+    command = "tflint"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "tflint --fix"
+    effect = "write"
+  }
 }

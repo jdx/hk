@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 sort_package_json = new Config.Step {
   glob = "**/package.json"
-  check = "sort-package-json --check {{ files }}"
-  fix = "sort-package-json {{ files }}"
+  check = new Config.CommandSpec {
+    command = "sort-package-json --check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "sort-package-json {{ files }}"
+    effect = "write"
+  }
 }

@@ -11,8 +11,14 @@ import "./test/helpers.pkl"
 }
 stylelint = new Config.Step {
   glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")
-  check = "stylelint {{ files }}"
-  fix = "stylelint --fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "stylelint {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "stylelint --fix {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.css"
