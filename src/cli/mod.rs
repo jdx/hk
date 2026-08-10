@@ -30,6 +30,9 @@ mod version;
 #[derive(clap::Parser)]
 #[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
+    /// Run as if hk was started in this directory
+    #[clap(long, global = true, value_name = "DIRECTORY", value_hint = clap::ValueHint::DirPath)]
+    cd: Option<PathBuf>,
     /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
     #[clap(long, global = true, value_name = "PATH", hide = true)]
     hkrc: Option<PathBuf>,
@@ -64,6 +67,34 @@ struct Cli {
     json: bool,
     #[clap(subcommand)]
     command: Commands,
+}
+
+/// Re-execute hk in the directory selected by `--cd`.
+///
+/// `std::process::Command::current_dir` applies the directory at process creation
+/// time, avoiding a process-global `set_current_dir` while preserving all of the
+/// existing cwd-based config and repository discovery.
+pub(crate) fn reexec_for_cd() -> Result<Option<std::process::ExitStatus>> {
+    const APPLIED: &str = "_HK_INTERNAL_CD_REEXEC_APPLIED";
+    if std::env::var_os(APPLIED).is_some() {
+        return Ok(None);
+    }
+
+    let Ok(args) = Cli::try_parse() else {
+        // Let the normal parse path render clap's diagnostic.
+        return Ok(None);
+    };
+    let Some(cd) = args.cd else {
+        return Ok(None);
+    };
+
+    let status = std::process::Command::new(std::env::current_exe()?)
+        .args(std::env::args_os().skip(1))
+        .env(APPLIED, "1")
+        .current_dir(&cd)
+        .status()
+        .wrap_err_with(|| format!("failed to run hk in {}", cd.display()))?;
+    Ok(Some(status))
 }
 
 #[derive(clap::Subcommand)]

@@ -47,6 +47,9 @@ use tokio::signal;
 use tokio::signal::unix::SignalKind;
 
 fn main() -> Result<()> {
+    if let Some(status) = cli::reexec_for_cd()? {
+        std::process::exit(status.code().unwrap_or(1));
+    }
     let worker_threads = runtime_worker_threads(
         thread::available_parallelism()
             .map(|n| n.get())
