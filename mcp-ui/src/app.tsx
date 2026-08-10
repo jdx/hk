@@ -35,11 +35,21 @@ async function readPages(
     })) as TextPage;
     text += page.text ?? "";
     const next = page.next_offset ?? offset + (page.text?.length ?? 0);
-    if (page.eof !== false || next <= offset) break;
+    const hasMore =
+      page.eof === false ||
+      (page.eof == null &&
+        page.total_bytes != null &&
+        next < page.total_bytes);
+    if (!hasMore || next <= offset) break;
     offset = next;
   }
   const loaded = page.next_offset ?? offset;
-  if (page.eof === false) {
+  const hasMore =
+    page.eof === false ||
+    (page.eof == null &&
+      page.total_bytes != null &&
+      loaded < page.total_bytes);
+  if (hasMore) {
     text += `\n… ${Math.max(0, (page.total_bytes ?? loaded) - loaded)} more bytes available from the server`;
   }
   if (page.truncated) text += "\n… capture truncated by server";
@@ -92,7 +102,6 @@ export function Dashboard({
     const requestSequence = ++refreshSequence.current;
     try {
       const next = (await call("get_run", { run_id: runId })) as RunSnapshot;
-      const output = await readPages(call, "get_output", runId);
       if (
         requestGeneration !== generation.current ||
         requestSequence !== refreshSequence.current ||
@@ -100,9 +109,17 @@ export function Dashboard({
       )
         return;
       setRun(next);
-      setLogs(output);
       setUpdated(Date.now());
       setRefreshError("");
+      const output = await readPages(call, "get_output", runId);
+      if (
+        requestGeneration !== generation.current ||
+        requestSequence !== refreshSequence.current ||
+        activeRunId.current !== runId
+      )
+        return;
+      setLogs(output);
+      setUpdated(Date.now());
       if (!next.has_diff) {
         setDiff("");
         setDiffLoading(false);

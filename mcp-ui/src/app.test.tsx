@@ -286,7 +286,7 @@ describe("Dashboard", () => {
 
   it("does not relabel the patch when log retrieval fails", async () => {
     const call = vi.fn(async (name: string) => {
-      if (name === "get_run") return run;
+      if (name === "get_run") return { ...run, kind: "safe_fix" };
       if (name === "get_output") throw new Error("logs unavailable");
       return run;
     });
@@ -297,6 +297,7 @@ describe("Dashboard", () => {
     );
     expect(screen.getByText("Loading patch…")).toBeInTheDocument();
     expect(screen.queryByText("Patch unavailable.")).not.toBeInTheDocument();
+    expect(screen.getByText("safe fix")).toBeInTheDocument();
   });
 
   it("shows action failures and follows output pagination", async () => {
@@ -306,7 +307,7 @@ describe("Dashboard", () => {
       if (name === "get_output") {
         outputPage += 1;
         return outputPage === 1
-          ? { text: "page one\n", eof: false, next_offset: 9, total_bytes: 17 }
+          ? { text: "page one\n", next_offset: 9, total_bytes: 17 }
           : { text: "page two", eof: true, next_offset: 17, total_bytes: 17 };
       }
       if (name === "get_diff") return { text: "", eof: true, next_offset: 0 };
