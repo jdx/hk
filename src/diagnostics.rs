@@ -340,30 +340,41 @@ pub fn write_sarif(path: &Path, diagnostics: &[Diagnostic]) -> Result<()> {
         .iter()
         .map(|diagnostic| {
             let location = diagnostic.path.as_ref().map(|path| {
-                serde_json::json!({
-                    "physicalLocation": {
-                        "artifactLocation": {"uri": path},
-                        "region": diagnostic.range.as_ref().map(|range| serde_json::json!({
-                            "startLine": range.start.line,
-                            "startColumn": range.start.column,
-                            "endLine": range.end.as_ref().map(|end| end.line),
-                            "endColumn": range.end.as_ref().map(|end| end.column),
-                        }))
+                let mut physical_location = serde_json::json!({
+                    "artifactLocation": {"uri": path},
+                });
+                if let Some(range) = &diagnostic.range {
+                    let mut region = serde_json::json!({
+                        "startLine": range.start.line,
+                        "startColumn": range.start.column,
+                    });
+                    if let Some(end) = &range.end {
+                        region["endLine"] = serde_json::json!(end.line);
+                        region["endColumn"] = serde_json::json!(end.column);
                     }
+                    physical_location["region"] = region;
+                }
+                serde_json::json!({
+                    "physicalLocation": physical_location,
                 })
             });
-            serde_json::json!({
-                "ruleId": diagnostic.rule,
+            let mut result = serde_json::json!({
                 "level": match diagnostic.severity {
                     Severity::Error => "error",
                     Severity::Warning => "warning",
                     Severity::Note | Severity::Help => "note",
                 },
                 "message": {"text": diagnostic.message},
-                "helpUri": diagnostic.help_url,
                 "locations": location.into_iter().collect::<Vec<_>>(),
                 "properties": {"step": diagnostic.step, "tool": diagnostic.tool},
-            })
+            });
+            if let Some(rule) = &diagnostic.rule {
+                result["ruleId"] = serde_json::json!(rule);
+            }
+            if let Some(help_url) = &diagnostic.help_url {
+                result["helpUri"] = serde_json::json!(help_url);
+            }
+            result
         })
         .collect::<Vec<_>>();
     let sarif = serde_json::json!({
@@ -436,17 +447,33 @@ mod tests {
         let path = dir.path().join("diagnostics.sarif");
         write_sarif(
             &path,
-            &[Diagnostic {
-                step: "scan".into(),
-                tool: "scanner".into(),
-                severity: Severity::Warning,
-                message: "problem".into(),
-                path: None,
-                range: None,
-                rule: Some("R1".into()),
-                help_url: Some("https://example.test/R1".into()),
-                fix: None,
-            }],
+            &[
+                Diagnostic {
+                    step: "scan".into(),
+                    tool: "scanner".into(),
+                    severity: Severity::Warning,
+                    message: "problem".into(),
+                    path: None,
+                    range: None,
+                    rule: Some("R1".into()),
+                    help_url: Some("https://example.test/R1".into()),
+                    fix: None,
+                },
+                Diagnostic {
+                    step: "scan".into(),
+                    tool: "scanner".into(),
+                    severity: Severity::Note,
+                    message: "location only".into(),
+                    path: Some("src/main.rs".into()),
+                    range: Some(Range {
+                        start: Position { line: 2, column: 3 },
+                        end: None,
+                    }),
+                    rule: None,
+                    help_url: None,
+                    fix: None,
+                },
+            ],
         )
         .unwrap();
         let value: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
@@ -456,5 +483,12 @@ mod tests {
                 .and_then(Value::as_str),
             Some("https://example.test/R1")
         );
+        let location_only = &value["runs"][0]["results"][1];
+        assert!(location_only.get("ruleId").is_none());
+        assert!(location_only.get("helpUri").is_none());
+        let region = &location_only["locations"][0]["physicalLocation"]["region"];
+        assert_eq!(region["startLine"], 2);
+        assert!(region.get("endLine").is_none());
+        assert!(region.get("endColumn").is_none());
     }
 }

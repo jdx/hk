@@ -178,6 +178,9 @@ pub fn emit_run(
         reason: None,
         steps,
     };
+    if format != OutputFormat::Human {
+        emit_result(format, &result)?;
+    }
     if let Some(path) = sarif_path {
         let diagnostics = result
             .steps
@@ -186,10 +189,7 @@ pub fn emit_run(
             .collect::<Vec<_>>();
         diagnostics::write_sarif(path, &diagnostics)?;
     }
-    if format == OutputFormat::Human {
-        return Ok(());
-    }
-    emit_result(format, &result)
+    Ok(())
 }
 
 /// Emit a complete machine-readable result for a successful run that did not
@@ -203,12 +203,6 @@ pub fn emit_noop_run(
     reason: &str,
     sarif_path: Option<&Path>,
 ) -> Result<()> {
-    if let Some(path) = sarif_path {
-        diagnostics::write_sarif(path, &[])?;
-    }
-    if format == OutputFormat::Human {
-        return Ok(());
-    }
     let result = RunResult {
         schema_version: 1,
         kind: "run_result",
@@ -233,7 +227,13 @@ pub fn emit_noop_run(
             })
             .collect(),
     };
-    emit_result(format, &result)
+    if format != OutputFormat::Human {
+        emit_result(format, &result)?;
+    }
+    if let Some(path) = sarif_path {
+        diagnostics::write_sarif(path, &[])?;
+    }
+    Ok(())
 }
 
 pub fn emit_error_run(

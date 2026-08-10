@@ -54,9 +54,12 @@ EOF
 @test "SARIF write errors are reported even when the hook also fails" {
     write_config
 
-    run hk check --all --sarif hk.pkl/diagnostics.sarif
+    run bash -c "hk --format json check --all --sarif hk.pkl/diagnostics.sarif 2>machine-errors.log"
     assert_failure
-    assert_output --partial "failed to emit result after hook also failed"
+    run jq -e '.schema_version == 1 and .status == "failed"' <<<"$output"
+    assert_success
+    run grep -F "failed to emit result after hook also failed" machine-errors.log
+    assert_success
     assert_file_not_exists hk.pkl/diagnostics.sarif
 }
 
@@ -138,6 +141,23 @@ EOF
     assert_file_exists diagnostics.sarif
     run jq -e '.version == "2.1.0" and .runs[0].results == []' diagnostics.sarif
     assert_success
+}
+
+@test "early no-op runs emit JSON before reporting a SARIF write error" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] { steps {} }
+}
+EOF
+    git add .
+    git commit -m init
+
+    run bash -c "hk --format json check --all --sarif hk.pkl/diagnostics.sarif 2>/dev/null"
+    assert_failure
+    run jq -e '.schema_version == 1 and .status == "passed"' <<<"$output"
+    assert_success
+    assert_file_not_exists hk.pkl/diagnostics.sarif
 }
 
 @test "safe preflight failures still write an empty SARIF report" {
