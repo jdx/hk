@@ -726,6 +726,30 @@ impl HkMcpServer {
         ))
     }
 
+    #[cfg(debug_assertions)]
+    #[tool(
+        description = "Shut down this debug MCP server after replying; active runs are terminated and the host must reconnect",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = false
+        )
+    )]
+    async fn debug_shutdown(&self) -> Result<CallToolResult, String> {
+        tokio::spawn(async {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            std::process::exit(0);
+        });
+        Ok(tool_success(
+            "Debug MCP server is shutting down; reconnect it in the host".into(),
+            json!({
+                "schema_version": 1,
+                "status": "shutting_down",
+            }),
+        ))
+    }
+
     #[tool(
         description = "Render a run for an MCP Apps host, with structured fallback for other clients",
         annotations(
@@ -1320,26 +1344,28 @@ mod tests {
         read.read_line(&mut line).await.unwrap();
         let response: Value = serde_json::from_str(&line).unwrap();
         let tools = response["result"]["tools"].as_array().unwrap();
-        assert_eq!(tools.len(), 10);
+        let expected_tool_count = if cfg!(debug_assertions) { 11 } else { 10 };
+        assert_eq!(tools.len(), expected_tool_count);
         let tools = tools
             .iter()
             .map(|tool| (tool["name"].as_str().unwrap(), tool))
             .collect::<BTreeMap<_, _>>();
-        assert_eq!(
-            tools.keys().copied().collect::<Vec<_>>(),
-            vec![
-                "cancel_run",
-                "get_diff",
-                "get_output",
-                "get_run",
-                "inspect_project",
-                "plan",
-                "render_run",
-                "start_check",
-                "start_safe_check",
-                "start_safe_fix",
-            ]
-        );
+        let mut expected_tools = vec![
+            "cancel_run",
+            "get_diff",
+            "get_output",
+            "get_run",
+            "inspect_project",
+            "plan",
+            "render_run",
+            "start_check",
+            "start_safe_check",
+            "start_safe_fix",
+        ];
+        if cfg!(debug_assertions) {
+            expected_tools.insert(1, "debug_shutdown");
+        }
+        assert_eq!(tools.keys().copied().collect::<Vec<_>>(), expected_tools,);
         assert_eq!(tools["start_check"]["annotations"]["destructiveHint"], true);
         assert_eq!(tools["start_check"]["annotations"]["openWorldHint"], true);
         assert_eq!(
