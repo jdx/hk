@@ -10,6 +10,6 @@ err_check = new Config.Step {
   workspace_indicator = "go.mod"
   check = new Config.CommandSpec {
     command = "cd {{workspace}} && errcheck ./..."
-    effect = "read"
+    effect = "write"
   }
 }
