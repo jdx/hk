@@ -241,26 +241,24 @@ pub fn emit_error_run(
     failure: String,
     sarif_path: Option<&Path>,
 ) -> Result<()> {
+    let result = RunResult {
+        schema_version: 1,
+        kind: "run_result",
+        hook: hook.to_string(),
+        status: "failed",
+        started_at,
+        duration_ms,
+        failure: Some(failure),
+        reason: None,
+        steps: vec![],
+    };
+    if format != OutputFormat::Human {
+        emit_result(format, &result)?;
+    }
     if let Some(path) = sarif_path {
         diagnostics::write_sarif(path, &[])?;
     }
-    if format == OutputFormat::Human {
-        return Ok(());
-    }
-    emit_result(
-        format,
-        &RunResult {
-            schema_version: 1,
-            kind: "run_result",
-            hook: hook.to_string(),
-            status: "failed",
-            started_at,
-            duration_ms,
-            failure: Some(failure),
-            reason: None,
-            steps: vec![],
-        },
-    )
+    Ok(())
 }
 
 fn emit_result(format: OutputFormat, result: &RunResult) -> Result<()> {

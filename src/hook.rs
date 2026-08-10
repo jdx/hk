@@ -1123,16 +1123,15 @@ impl Hook {
         let repo = match Git::new() {
             Ok(repo) => Arc::new(Mutex::new(repo)),
             Err(err) => {
-                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                crate::structured_output::emit_error_run(
                     output_format,
                     &self.name,
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
                     sarif_path.as_deref(),
-                ) {
-                    warn!("failed to emit structured setup failure: {emit_err}");
-                }
+                )
+                .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
                 return Err(err);
             }
         };
@@ -1164,16 +1163,15 @@ impl Hook {
         let git_status = match repo.lock().await.status(None) {
             Ok(status) => status,
             Err(err) => {
-                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                crate::structured_output::emit_error_run(
                     output_format,
                     &self.name,
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
                     sarif_path.as_deref(),
-                ) {
-                    warn!("failed to emit structured setup failure: {emit_err}");
-                }
+                )
+                .wrap_err_with(|| format!("git status collection also failed: {err}"))?;
                 return Err(err);
             }
         };
@@ -1189,16 +1187,15 @@ impl Hook {
         {
             Ok(files) => files,
             Err(err) => {
-                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                crate::structured_output::emit_error_run(
                     output_format,
                     &self.name,
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
                     sarif_path.as_deref(),
-                ) {
-                    warn!("failed to emit structured setup failure: {emit_err}");
-                }
+                )
+                .wrap_err_with(|| format!("file selection also failed: {err}"))?;
                 return Err(err);
             }
         };
@@ -1230,16 +1227,15 @@ impl Hook {
                 &skip_steps,
             )
         {
-            if let Err(emit_err) = crate::structured_output::emit_error_run(
+            crate::structured_output::emit_error_run(
                 output_format,
                 &self.name,
                 started_at,
                 run_started.elapsed().as_millis(),
                 err.to_string(),
                 sarif_path.as_deref(),
-            ) {
-                warn!("failed to emit structured safety failure: {emit_err}");
-            }
+            )
+            .wrap_err_with(|| format!("safe command validation also failed: {err}"))?;
             return Err(err);
         }
         // Enrich Tera and expr contexts with git status for template/condition use

@@ -60,6 +60,19 @@ EOF
     assert_file_not_exists hk.pkl/diagnostics.sarif
 }
 
+@test "setup failures emit JSON before reporting a SARIF write error" {
+    write_config
+    mv .git .git.saved
+
+    run bash -c "hk --format json check --all --sarif hk.pkl/diagnostics.sarif 2>machine-errors.log"
+    assert_failure
+    run jq -e '.schema_version == 1 and .status == "failed"' <<<"$output"
+    assert_success
+    run grep -F "hook setup also failed" machine-errors.log
+    assert_success
+    assert_file_not_exists hk.pkl/diagnostics.sarif
+}
+
 @test "malformed diagnostic data reports parse warnings without dropping raw output" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
