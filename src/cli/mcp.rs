@@ -258,8 +258,15 @@ impl HkMcpServer {
         if !supports_roots {
             return;
         }
-        let Ok(result) = peer.list_roots().await else {
-            return;
+        let result = match peer.list_roots().await {
+            Ok(result) => result,
+            Err(_) => {
+                self.state
+                    .lock()
+                    .await
+                    .replace_client_roots(BTreeSet::new());
+                return;
+            }
         };
         let mut client_roots = BTreeSet::new();
         {
@@ -1103,7 +1110,10 @@ mod tests {
 
         state.replace_client_roots(BTreeSet::from([current.clone()]));
 
-        assert_eq!(state.roots, BTreeSet::from([startup, current]));
+        assert_eq!(state.roots, BTreeSet::from([startup.clone(), current]));
+
+        state.replace_client_roots(BTreeSet::new());
+        assert_eq!(state.roots, BTreeSet::from([startup]));
     }
 
     #[tokio::test]
