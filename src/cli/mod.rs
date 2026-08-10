@@ -1,6 +1,6 @@
 use crate::version as version_lib;
 use std::num::NonZero;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::{Result, env, logger, settings::Settings};
@@ -30,6 +30,9 @@ mod version;
 #[derive(clap::Parser)]
 #[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
+    /// Run as if hk was started in this directory
+    #[clap(long, global = true, value_name = "DIRECTORY", value_hint = clap::ValueHint::DirPath)]
+    cd: Option<PathBuf>,
     /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
     #[clap(long, global = true, value_name = "PATH", hide = true)]
     hkrc: Option<PathBuf>,
@@ -66,6 +69,49 @@ struct Cli {
     command: Commands,
 }
 
+/// Re-execute hk in the directory selected by `--cd`.
+///
+/// `std::process::Command::current_dir` applies the directory at process creation
+/// time, avoiding a process-global `set_current_dir` while preserving all of the
+/// existing cwd-based config and repository discovery.
+fn reexec_for_cd(cd: &Path) -> Result<std::process::ExitStatus> {
+    // The child is already rooted correctly, so remove --cd while copying its
+    // arguments. This avoids a process-global cwd change and avoids a marker
+    // environment variable that would incorrectly affect nested hk commands.
+    let mut args = std::env::args_os().skip(1);
+    let mut child_args = Vec::new();
+    while let Some(arg) = args.next() {
+        if arg == "--" {
+            child_args.push(arg);
+            child_args.extend(args);
+            break;
+        }
+        if arg == "--cd" {
+            let _ = args.next();
+            continue;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            if arg.as_bytes().starts_with(b"--cd=") {
+                continue;
+            }
+        }
+        #[cfg(not(unix))]
+        if arg.to_str().is_some_and(|arg| arg.starts_with("--cd=")) {
+            continue;
+        }
+        child_args.push(arg);
+    }
+
+    let status = std::process::Command::new(std::env::current_exe()?)
+        .args(child_args)
+        .current_dir(cd)
+        .status()
+        .wrap_err_with(|| format!("failed to run hk in {}", cd.display()))?;
+    Ok(status)
+}
+
 #[derive(clap::Subcommand)]
 enum Commands {
     Builtins(Box<builtins::Builtins>),
@@ -87,8 +133,11 @@ enum Commands {
     Version(Box<version::Version>),
 }
 
-pub async fn run() -> Result<()> {
+pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     let args = Cli::parse();
+    if let Some(cd) = &args.cd {
+        return reexec_for_cd(cd).map(Some);
+    }
 
     // Determine effective log level from CLI flags (env default applied by logger if None)
     let mut level: Option<log::LevelFilter> = None;
@@ -192,7 +241,8 @@ pub async fn run() -> Result<()> {
         Commands::Validate(cmd) => cmd.run().await,
         Commands::Version(cmd) => cmd.run().await,
         Commands::Test(cmd) => cmd.run().await,
-    }
+    }?;
+    Ok(None)
 }
 
 #[cfg(test)]

@@ -1385,7 +1385,7 @@ impl Hook {
             files
                 .iter()
                 .map(|f| {
-                    let p = PathBuf::from(f);
+                    let p = f.clone();
                     if p.is_dir() {
                         all_files_in_dir(&p)
                     } else {

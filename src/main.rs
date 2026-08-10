@@ -67,8 +67,10 @@ async fn async_main() -> Result<()> {
     let result = cli::run().await;
     clx::progress::flush();
     match result {
+        Ok(Some(status)) => std::process::exit(status.code().unwrap_or(1)),
+        Ok(None) => Ok(()),
         Err(e) if !log::log_enabled!(log::Level::Debug) => friendly_error(e),
-        r => r,
+        Err(e) => Err(e),
     }
 }
 

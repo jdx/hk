@@ -14,6 +14,11 @@ pub struct PostRewrite {
 
 impl PostRewrite {
     pub async fn run(mut self) -> Result<()> {
+        if self.hook.reads_file_list_from_stdin() {
+            return Err(eyre::eyre!(
+                "--files0-from - cannot be used with post-rewrite because the hook reads rewrite data from stdin"
+            ));
+        }
         self.hook.tctx.insert("hook_args", &self.command);
         let hook_stdin = if std::io::stdin().is_terminal() {
             String::new()

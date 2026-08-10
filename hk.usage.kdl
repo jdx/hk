@@ -5,6 +5,9 @@ bin hk
 version "1.54.1"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
+flag --cd help="Run as if hk was started in this directory" global=#true {
+    arg <DIRECTORY>
+}
 flag --hkrc help="Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)" hide=#true global=#true {
     arg <PATH>
 }
@@ -45,6 +48,9 @@ cmd check help="Checks code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
+    flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+        arg <PATH>
+    }
     flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
@@ -139,6 +145,9 @@ cmd fix help="Fixes code" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
+    flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+        arg <PATH>
+    }
     flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
@@ -249,6 +258,9 @@ cmd run help="Run a hook" {
         arg <STEP>
     }
     flag --fail-fast help="Abort on first failure"
+    flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+        arg <PATH>
+    }
     flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
@@ -293,6 +305,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -337,6 +352,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -383,6 +401,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -426,6 +447,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -470,6 +494,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -515,6 +542,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -559,6 +589,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -604,6 +637,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>
@@ -650,6 +686,9 @@ cmd run help="Run a hook" {
             arg <STEP>
         }
         flag --fail-fast help="Abort on first failure"
+        flag --files0-from help="Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)" {
+            arg <PATH>
+        }
         flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`" hide=#true
         flag --from-ref help="Start reference for checking files (requires --to-ref)" {
             arg <FROM_REF>

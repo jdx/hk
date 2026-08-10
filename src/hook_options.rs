@@ -1,10 +1,11 @@
 use crate::{Result, config::Config, git::Git, settings::Settings, tera::Context};
+use std::path::PathBuf;
 
 #[derive(clap::Args)]
 pub(crate) struct HookOptions {
     /// Run on specific files
     #[clap(conflicts_with_all = &["all", "fix", "check"], value_hint = clap::ValueHint::FilePath)]
-    pub files: Option<Vec<String>>,
+    pub files: Option<Vec<PathBuf>>,
     /// Run on all files instead of just staged files
     #[clap(short, long, conflicts_with_all = &["staged", "unstaged"])]
     pub all: bool,
@@ -36,6 +37,14 @@ pub(crate) struct HookOptions {
     /// Abort on first failure
     #[clap(long, overrides_with = "no_fail_fast")]
     pub fail_fast: bool,
+    /// Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
+    #[clap(
+        long,
+        value_name = "PATH",
+        value_hint = clap::ValueHint::FilePath,
+        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "staged", "to_ref", "unstaged"]
+    )]
+    pub files0_from: Option<PathBuf>,
     /// Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is
     /// present or the event isn't defined. Set automatically by `hk install`.
     #[clap(long, hide = true)]
@@ -100,6 +109,46 @@ impl HookOptions {
         Ok(())
     }
 
+    pub(crate) fn reads_file_list_from_stdin(&self) -> bool {
+        self.files0_from.as_deref() == Some(std::path::Path::new("-"))
+    }
+
+    fn load_files0(&mut self) -> Result<()> {
+        use std::io::Read;
+
+        let Some(source) = self.files0_from.take() else {
+            return Ok(());
+        };
+        let mut bytes = Vec::new();
+        if source == std::path::Path::new("-") {
+            std::io::stdin().read_to_end(&mut bytes)?;
+        } else {
+            std::fs::File::open(&source)?.read_to_end(&mut bytes)?;
+        }
+
+        let mut files = Vec::new();
+        for raw in bytes.split(|byte| *byte == 0) {
+            if raw.is_empty() {
+                continue;
+            }
+            #[cfg(unix)]
+            let path = {
+                use std::os::unix::ffi::OsStringExt;
+                std::str::from_utf8(raw).map_err(|_| {
+                    eyre::eyre!("--files0-from contains a path that is not valid UTF-8")
+                })?;
+                PathBuf::from(std::ffi::OsString::from_vec(raw.to_vec()))
+            };
+            #[cfg(not(unix))]
+            let path = PathBuf::from(String::from_utf8(raw.to_vec()).map_err(|_| {
+                eyre::eyre!("--files0-from contains a path that is not valid UTF-8")
+            })?);
+            files.push(path);
+        }
+        self.files = Some(files);
+        Ok(())
+    }
+
     pub fn should_stage(&self) -> Option<bool> {
         if self.stage {
             Some(true)
@@ -112,6 +161,7 @@ impl HookOptions {
 
     pub(crate) async fn run(mut self, name: &str) -> Result<()> {
         self.validate()?;
+        self.load_files0()?;
         // Under `--from-hook`, short-circuit *before* loading the config. A
         // broken user-global hkrc (or missing `pkl`) shouldn't fail every
         // `git commit` in a repo that doesn't even use hk — which is the
