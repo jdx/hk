@@ -458,6 +458,19 @@ impl HkMcpServer {
             .map(RunRecord::snapshot)
             .ok_or_else(|| "run not found or expired".into())
     }
+
+    #[cfg(debug_assertions)]
+    async fn prepare_debug_shutdown(&self) -> usize {
+        let mut state = self.state.lock().await;
+        state.cleanup();
+        let mut active_runs = 0;
+        for run in state.runs.iter_mut().filter(|run| run.active()) {
+            active_runs += 1;
+            run.status = "cancelling".into();
+            run.cancel.cancel();
+        }
+        active_runs
+    }
 }
 
 fn is_within_startup_roots(startup_roots: &BTreeSet<PathBuf>, path: &Path) -> bool {
@@ -737,15 +750,30 @@ impl HkMcpServer {
         )
     )]
     async fn debug_shutdown(&self) -> Result<CallToolResult, String> {
-        tokio::spawn(async {
+        let active_runs = self.prepare_debug_shutdown().await;
+        let state = self.state.clone();
+        tokio::spawn(async move {
+            loop {
+                let runs_stopped = {
+                    let state = state.lock().await;
+                    !state.runs.iter().any(RunRecord::active)
+                };
+                if runs_stopped {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
             tokio::time::sleep(Duration::from_millis(250)).await;
             std::process::exit(0);
         });
         Ok(tool_success(
-            "Debug MCP server is shutting down; reconnect it in the host".into(),
+            format!(
+                "Debug MCP server is shutting down after {active_runs} active run(s) stop; reconnect it in the host"
+            ),
             json!({
                 "schema_version": 1,
                 "status": "shutting_down",
+                "active_runs": active_runs,
             }),
         ))
     }
@@ -1301,6 +1329,23 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         panic!("cancelled run did not complete");
+    }
+
+    #[cfg(debug_assertions)]
+    #[tokio::test]
+    async fn debug_shutdown_cancels_active_runs_before_exit() {
+        let root = tempfile::tempdir().unwrap();
+        let server = HkMcpServer::new(root.path().canonicalize().unwrap());
+        let run = test_run("active", "running", Vec::new());
+        let cancellation = run.cancel.clone();
+        server.state.lock().await.runs.push_back(run);
+
+        assert_eq!(server.prepare_debug_shutdown().await, 1);
+        assert!(cancellation.is_cancelled());
+        assert_eq!(
+            server.snapshot("active").await.unwrap().status,
+            "cancelling"
+        );
     }
 
     #[tokio::test]
