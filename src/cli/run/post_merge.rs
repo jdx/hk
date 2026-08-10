@@ -6,7 +6,7 @@ pub struct PostMerge {
     /// Flag indicating whether the merge was a squash merge (1) or not (0)
     is_squash: String,
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl PostMerge {

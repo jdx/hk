@@ -10,7 +10,7 @@ pub struct CommitMsg {
     /// The path to the file that contains the commit message
     commit_msg_file: PathBuf,
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl CommitMsg {

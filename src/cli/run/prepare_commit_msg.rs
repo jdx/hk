@@ -14,7 +14,7 @@ pub struct PrepareCommitMsg {
     /// The SHA of the commit being amended (if applicable)
     sha: Option<String>,
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl PrepareCommitMsg {

@@ -47,6 +47,13 @@ impl TimingRecorder {
         self.start_instant.elapsed().as_millis()
     }
 
+    pub fn step_wall_times(&self) -> BTreeMap<String, u128> {
+        let mut map = self.intervals_by_step.lock().unwrap().clone();
+        map.iter_mut()
+            .map(|(name, intervals)| (name.clone(), Self::merge_and_sum(intervals.as_mut_slice())))
+            .collect()
+    }
+
     pub fn add_interval(&self, step: &str, start_ms: u128, end_ms: u128) {
         if end_ms < start_ms {
             return;

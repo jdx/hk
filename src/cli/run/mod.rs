@@ -41,6 +41,21 @@ enum Commands {
 }
 
 impl Run {
+    pub(crate) fn output_format(&self) -> Option<crate::structured_output::OutputFormat> {
+        let command_format = self.command.as_ref().and_then(|command| match command {
+            Commands::CommitMsg(command) => command.hook.format,
+            Commands::PostCheckout(command) => command.hook.format,
+            Commands::PostCommit(command) => command.hook.format,
+            Commands::PostMerge(command) => command.hook.format,
+            Commands::PostRewrite(command) => command.hook.format,
+            Commands::PreCommit(command) => command.hook.format,
+            Commands::PrePush(command) => command.hook.format,
+            Commands::PreRebase(command) => command.hook.format,
+            Commands::PrepareCommitMsg(command) => command.hook.format,
+        });
+        command_format.or(self.hook.format)
+    }
+
     pub async fn run(mut self) -> Result<()> {
         if let Some(hook) = &self.other {
             // Hooks without a dedicated handler get an empty hook_args;

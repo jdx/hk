@@ -8,7 +8,7 @@ pub struct PreRebase {
     /// The branch being rebased (unset when rebasing the current branch)
     branch: Option<String>,
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl PreRebase {

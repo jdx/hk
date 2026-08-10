@@ -33,6 +33,9 @@ struct Cli {
     /// Run as if hk was started in this directory
     #[clap(long, global = true, value_name = "DIRECTORY", value_hint = clap::ValueHint::DirPath)]
     cd: Option<PathBuf>,
+    /// Select human or machine-readable execution output
+    #[clap(long, value_enum, default_value_t)]
+    format: crate::structured_output::OutputFormat,
     /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
     #[clap(long, global = true, value_name = "PATH", hide = true)]
     hkrc: Option<PathBuf>,
@@ -133,11 +136,24 @@ enum Commands {
     Version(Box<version::Version>),
 }
 
+impl Commands {
+    fn output_format(&self) -> Option<crate::structured_output::OutputFormat> {
+        match self {
+            Self::Check(command) => command.hook.format,
+            Self::Fix(command) => command.hook.format,
+            Self::Run(command) => command.output_format(),
+            _ => None,
+        }
+    }
+}
+
 pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     let args = Cli::parse();
     if let Some(cd) = &args.cd {
         return reexec_for_cd(cd).map(Some);
     }
+
+    let output_format = args.command.output_format().unwrap_or(args.format);
 
     // Determine effective log level from CLI flags (env default applied by logger if None)
     let mut level: Option<log::LevelFilter> = None;
@@ -150,6 +166,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         quiet: args.quiet,
         silent: args.silent,
         trace: args.trace,
+        output_format,
     });
 
     if is_ci::cached() || !console::user_attended_stderr() || args.no_progress {
@@ -174,7 +191,9 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
 
     // Decide tracing enablement and output format
     // Support: --trace, HK_TRACE mode (Text/Json), or effective log level TRACE
-    let json_output = args.json || *env::HK_JSON || matches!(*env::HK_TRACE, env::TraceMode::Json);
+    // Structured execution output owns stdout. Keep trace records on stderr so
+    // JSON remains a single document and JSONL contains only lifecycle events.
+    let json_trace = args.json || *env::HK_JSON || matches!(*env::HK_TRACE, env::TraceMode::Json);
 
     let mut trace_enabled =
         args.trace || matches!(*env::HK_TRACE, env::TraceMode::Text | env::TraceMode::Json);
@@ -193,7 +212,10 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     logger::init(level);
     if trace_enabled {
         clx::progress::set_output(ProgressOutput::Text);
-        crate::trace::init_tracing(json_output)?;
+        crate::trace::init_tracing(
+            json_trace,
+            output_format != crate::structured_output::OutputFormat::Human,
+        )?;
     }
 
     // Skip config loading for commands that don't need it

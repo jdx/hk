@@ -60,6 +60,16 @@ Abort on first failure
 
 Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
 
+### `--format <FORMAT>`
+
+Select human or machine-readable execution output
+
+**Choices:**
+
+- `human`
+- `json`
+- `jsonl`
+
 ### `--from-ref <FROM_REF>`
 
 Start reference for checking files (requires --to-ref)

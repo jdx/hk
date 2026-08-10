@@ -10,7 +10,7 @@ pub struct PostCheckout {
     /// Flag indicating whether the checkout was a branch checkout (1) or file checkout (0)
     is_branch_checkout: String,
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl PostCheckout {
