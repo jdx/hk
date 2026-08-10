@@ -341,6 +341,7 @@ pub enum OutputSummary {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde_as]
+#[serde(deny_unknown_fields)]
 pub struct Script {
     /// Command for Linux
     pub linux: Option<String>,
@@ -370,10 +371,44 @@ pub enum CommandPrefix {
     Argv(Vec<String>),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommandEffect {
+    Read,
+    Write,
+    Destructive,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CommandSpec {
+    #[serde(deserialize_with = "deserialize_boxed_command")]
+    pub command: Box<Command>,
+    pub effect: CommandEffect,
+}
+
+fn deserialize_boxed_command<'de, D>(deserializer: D) -> std::result::Result<Box<Command>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    let value = serde_json::Value::deserialize(deserializer)?;
+    if let serde_json::Value::String(command) = &value {
+        return command
+            .parse::<Command>()
+            .map(Box::new)
+            .map_err(D::Error::custom);
+    }
+    serde_json::from_value(value)
+        .map(Box::new)
+        .map_err(D::Error::custom)
+}
+
 /// A step command that either runs through a shell or executes an argv directly.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Command {
+    Spec(CommandSpec),
     Argv(ArgvCommand),
     Shell(Script),
 }
@@ -387,13 +422,29 @@ pub(crate) enum RenderedCommand {
 impl Command {
     pub fn is_empty(&self) -> bool {
         match self {
+            Self::Spec(spec) => spec.command.is_empty(),
             Self::Shell(script) => script.to_string().trim().is_empty(),
             Self::Argv(command) => command.argv.is_empty() || command.argv[0].trim().is_empty(),
         }
     }
 
     pub fn is_argv(&self) -> bool {
-        matches!(self, Self::Argv(_))
+        match self {
+            Self::Spec(spec) => spec.command.is_argv(),
+            Self::Argv(_) => true,
+            Self::Shell(_) => false,
+        }
+    }
+
+    pub fn effect(&self) -> Option<CommandEffect> {
+        match self {
+            Self::Spec(spec) => Some(
+                spec.command
+                    .effect()
+                    .map_or(spec.effect, |inner| spec.effect.max(inner)),
+            ),
+            Self::Argv(_) | Self::Shell(_) => None,
+        }
     }
 
     pub(crate) fn render(
@@ -402,6 +453,7 @@ impl Command {
         prefix: Option<&CommandPrefix>,
     ) -> Result<RenderedCommand> {
         match self {
+            Self::Spec(spec) => spec.command.render(tctx, prefix),
             Self::Shell(script) => {
                 let script = script.to_string();
                 let script = match prefix {
@@ -511,6 +563,7 @@ impl FromStr for Command {
 impl Display for Command {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Spec(spec) => spec.command.fmt(f),
             Self::Shell(script) => script.fmt(f),
             Self::Argv(command) => write!(f, "{}", command.argv.join(" ")),
         }
@@ -563,6 +616,44 @@ impl<'a> CheckFirstCmd<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn command_spec_deserializes_shell_script_and_argv_commands() {
+        let shell: Command = serde_json::from_value(serde_json::json!({
+            "command": "tool --check",
+            "effect": "read"
+        }))
+        .unwrap();
+        assert_eq!(shell.effect(), Some(CommandEffect::Read));
+        assert_eq!(shell.to_string(), "tool --check");
+
+        let script: Command = serde_json::from_value(serde_json::json!({
+            "command": {"linux": "tool-linux", "other": "tool"},
+            "effect": "write"
+        }))
+        .unwrap();
+        assert_eq!(script.effect(), Some(CommandEffect::Write));
+
+        let argv: Command = serde_json::from_value(serde_json::json!({
+            "command": {"argv": ["tool", "{{files}}"]},
+            "effect": "destructive"
+        }))
+        .unwrap();
+        assert_eq!(argv.effect(), Some(CommandEffect::Destructive));
+        assert!(argv.is_argv());
+    }
+
+    #[test]
+    fn legacy_commands_have_unknown_effect() {
+        let shell: Command = "tool --check".parse().unwrap();
+        let argv: Command = serde_json::from_value(serde_json::json!({
+            "argv": ["tool", "--check"]
+        }))
+        .unwrap();
+
+        assert_eq!(shell.effect(), None);
+        assert_eq!(argv.effect(), None);
+    }
 
     #[test]
     fn structured_argv_expands_file_lists_as_distinct_arguments() {
@@ -665,6 +756,19 @@ mod tests {
         });
 
         assert!(command.is_empty());
+    }
+
+    #[test]
+    fn nested_command_specs_keep_the_most_restrictive_effect() {
+        let command = Command::Spec(CommandSpec {
+            effect: CommandEffect::Read,
+            command: Box::new(Command::Spec(CommandSpec {
+                effect: CommandEffect::Destructive,
+                command: Box::new("true".parse().unwrap()),
+            })),
+        });
+
+        assert_eq!(command.effect(), Some(CommandEffect::Destructive));
     }
 
     #[test]

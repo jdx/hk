@@ -50,7 +50,9 @@ pub use shell::ShellType;
 pub(crate) use types::RenderedCommand;
 #[cfg(test)]
 pub(crate) use types::{ArgvCommand, Command};
-pub use types::{CommandPrefix, FileSelector, OutputSummary, Pattern, RunType, Script, Step};
+pub use types::{
+    CommandEffect, CommandPrefix, FileSelector, OutputSummary, Pattern, RunType, Script, Step,
+};
 
 // Re-export for potential external use (currently only used internally)
 #[allow(unused_imports)]

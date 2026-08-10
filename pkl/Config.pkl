@@ -40,6 +40,15 @@ class Command {
   argv: List<String>
 }
 
+typealias CommandEffect = "read" | "write" | "destructive"
+
+/// A command paired with its declared effect on user or project state.
+/// Commands that do not use CommandSpec remain valid and have an unknown effect.
+class CommandSpec {
+  command: String | Script | Command
+  effect: CommandEffect
+}
+
 /// Default: auto-detected
 ///
 /// Specifies the preferred default branch to compare against when hk needs a reference
@@ -459,7 +468,7 @@ class Step {
   ///   argv = List("wc", "-c", "{{files}}")
   /// }
   /// ```
-  check: (String | Script | Command)?
+  check: (String | Script | Command | CommandSpec)?
 
   /// A command that returns a list of files that need fixing.
   /// This is used to optimize the fix step when `check_first` is enabled.
@@ -474,7 +483,7 @@ class Step {
   ///     }
   /// }
   /// ```
-  check_list_files: (String | Script | Command)?
+  check_list_files: (String | Script | Command | CommandSpec)?
 
   /// A command that shows the diff of what would be changed.
   /// This is an alternative to `check` that can provide more detailed information about what would be changed.
@@ -484,7 +493,7 @@ class Step {
   /// produce standard unified diffs (black, ruff, shfmt, etc.).
   ///
   /// Falls back to running the fix command if patch application fails.
-  check_diff: (String | Script | Command)?
+  check_diff: (String | Script | Command | CommandSpec)?
 
   /// Default: `false`
   ///
@@ -510,7 +519,7 @@ class Step {
   ///
   /// By default, hk will use `fix` commands but this can be overridden by setting
   /// [`HK_FIX=0`](https://hk.jdx.dev/configuration#hk-fix) or running `hk run <HOOK> --check`.
-  fix: (String | Script | Command)?
+  fix: (String | Script | Command | CommandSpec)?
 
   /// If true, hk will run the check step first and only run the fix step if the check step fails.
   check_first: Boolean = true

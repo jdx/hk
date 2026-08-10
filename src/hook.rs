@@ -28,7 +28,7 @@ use crate::{
     hook_options::HookOptions,
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
-    step::{EXPR_CTX, EXPR_ENV, OutputSummary, RunType, Script, Step},
+    step::{CommandEffect, EXPR_CTX, EXPR_ENV, OutputSummary, RunType, Script, Step},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -300,6 +300,8 @@ mod tests {
     }
 }
 
+type CommandEffectsByStep = IndexMap<String, Vec<(String, Option<CommandEffect>)>>;
+
 pub struct HookContext {
     pub file_locks: FileRwLocks,
     pub git: Arc<Mutex<Git>>,
@@ -319,6 +321,8 @@ pub struct HookContext {
     skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
     /// Aggregated output per step name (in insertion order)
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
+    /// Command fields and effects actually selected for execution per step.
+    pub command_effects_by_step: std::sync::Mutex<CommandEffectsByStep>,
     /// Names of steps that failed during this run. Tracked here because
     /// `step_contexts` are shift_remove'd as soon as each step finishes, so
     /// status info is not available to the end-of-run summary.
@@ -381,6 +385,7 @@ impl HookContext {
             skip_steps,
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
+            command_effects_by_step: StdMutex::new(IndexMap::new()),
             failed_steps: StdMutex::new(HashSet::new()),
             finished_steps: StdMutex::new(HashSet::new()),
             cancelled_steps: StdMutex::new(HashSet::new()),
@@ -472,6 +477,20 @@ impl HookContext {
         map.entry(step_name.to_string())
             .and_modify(|(_, s)| s.push_str(text))
             .or_insert_with(|| (mode, text.to_string()));
+    }
+
+    pub fn record_step_effect(
+        &self,
+        step_name: &str,
+        command: &str,
+        effect: Option<CommandEffect>,
+    ) {
+        let record = (command.to_string(), effect);
+        let mut effects = self.command_effects_by_step.lock().unwrap();
+        let records = effects.entry(step_name.to_string()).or_default();
+        if !records.contains(&record) {
+            records.push(record);
+        }
     }
 
     pub fn mark_step_failed(&self, step_name: &str) {
@@ -603,6 +622,7 @@ impl Hook {
         clx::progress::set_output(ProgressOutput::Text);
         let settings = Settings::get();
         let run_type = self.run_type(&opts);
+        let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
         let git_status = repo.lock().await.status(None)?;
         let stash_method = self.resolve_stash_method_for_opts(&opts);
@@ -616,8 +636,10 @@ impl Hook {
             .collect();
 
         let skip_steps = build_skip_steps(&settings, &opts);
+        if opts.safe {
+            validate_safe_commands(&groups, &files, run_type, &skip_steps)?;
+        }
 
-        let groups = self.get_step_groups(&opts);
         let expr_ctx = build_expr_ctx(&git_status);
 
         let mut plan = Plan::new(self.name.clone(), run_type.as_str().to_string())
@@ -628,10 +650,23 @@ impl Hook {
             let group_id = format!("group_{}", group_idx);
             let multi = group.steps.len() > 1;
             let mut group_step_ids: Vec<String> = Vec::new();
+            let files_in_contention = group.files_in_contention_for(&files, run_type)?;
 
             for (step_name, step) in &group.steps {
                 let (status, reasons, file_count) =
                     self.analyze_step(step, &files, run_type, &skip_steps, &expr_ctx, &opts);
+
+                let jobs =
+                    step.build_step_jobs(&files, run_type, &files_in_contention, &skip_steps)?;
+                // A step may produce jobs with different check-first choices.
+                // Report the most restrictive selected effect so the single
+                // plan field remains conservative without describing commands
+                // that no runnable job will execute.
+                let selected_effect = step
+                    .commands_for_jobs(run_type, &jobs)
+                    .into_iter()
+                    .filter_map(|(_, command)| command.effect())
+                    .max();
 
                 let planned = PlannedStep {
                     name: step_name.clone(),
@@ -641,7 +676,14 @@ impl Hook {
                     depends_on: step.depends.clone(),
                     reasons,
                     file_count,
-                    metadata: HashMap::new(),
+                    metadata: selected_effect
+                        .map(|effect| {
+                            HashMap::from([(
+                                "effect".to_string(),
+                                serde_json::to_value(effect).expect("effect serializes"),
+                            )])
+                        })
+                        .unwrap_or_default(),
                 };
 
                 plan.add_step(planned);
@@ -1059,6 +1101,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         // fail_on_fix exists to surface fixes for review; staging would defeat that.
         let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
+        let groups = self.get_step_groups(&opts);
         let repo = match Git::new() {
             Ok(repo) => Arc::new(Mutex::new(repo)),
             Err(err) => {
@@ -1074,7 +1117,6 @@ impl Hook {
                 return Err(err);
             }
         };
-        let groups = self.get_step_groups(&opts);
         let stash_method = self.resolve_stash_method_for_opts(&opts);
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
         // Exit before any side effects (notably stashing) when there are no steps to run.
@@ -1156,6 +1198,14 @@ impl Hook {
                 "no matching files",
             )?;
             return Ok(());
+        }
+        if opts.safe {
+            validate_safe_commands(
+                &groups,
+                &files.iter().cloned().collect::<Vec<_>>(),
+                run_type,
+                &skip_steps,
+            )?;
         }
         // Enrich Tera and expr contexts with git status for template/condition use
         let git_status_for_ctx = git_status.clone();
@@ -1749,6 +1799,42 @@ fn build_skip_steps(settings: &Settings, opts: &HookOptions) -> IndexMap<String,
         );
     }
     m
+}
+
+fn validate_safe_commands(
+    groups: &[StepGroup],
+    files: &[PathBuf],
+    run_type: RunType,
+    skip_steps: &IndexMap<String, SkipReason>,
+) -> Result<()> {
+    let mut blockers = BTreeSet::new();
+    for group in groups {
+        let files_in_contention = group.files_in_contention_for(files, run_type)?;
+        for (step_name, step) in &group.steps {
+            let jobs = step.build_step_jobs(files, run_type, &files_in_contention, skip_steps)?;
+            if jobs.iter().all(|job| job.skip_reason.is_some()) {
+                continue;
+            }
+            for (field, command) in step.commands_for_jobs(run_type, &jobs) {
+                match command.effect() {
+                    None => {
+                        blockers.insert(format!("{step_name}.{field}: effect is unknown"));
+                    }
+                    Some(CommandEffect::Destructive) => {
+                        blockers.insert(format!("{step_name}.{field}: effect is destructive"));
+                    }
+                    Some(CommandEffect::Read | CommandEffect::Write) => {}
+                }
+            }
+        }
+    }
+    if !blockers.is_empty() {
+        eyre::bail!(
+            "--safe refused to run:\n  {}",
+            blockers.into_iter().join("\n  ")
+        );
+    }
+    Ok(())
 }
 
 fn build_expr_ctx(git_status: &GitStatus) -> expr::Context {

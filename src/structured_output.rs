@@ -1,4 +1,8 @@
-use crate::{Result, hook::HookContext, step::OutputSummary};
+use crate::{
+    Result,
+    hook::HookContext,
+    step::{CommandEffect, OutputSummary},
+};
 use serde::Serialize;
 use std::io::Write;
 
@@ -41,12 +45,20 @@ struct StepResult {
     name: String,
     status: &'static str,
     duration_ms: u128,
+    effects: Vec<ExecutedEffect>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_kind: Option<OutputSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     skip_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct ExecutedEffect {
+    command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effect: Option<CommandEffect>,
 }
 
 #[derive(Debug, Serialize)]
@@ -75,6 +87,7 @@ pub fn emit_run(
     let run_was_cancelled = !cancelled.is_empty();
     let skipped = ctx.get_skipped_steps();
     let outputs = ctx.output_by_step.lock().unwrap();
+    let executed_effects = ctx.command_effects_by_step.lock().unwrap();
     let timings = ctx.timing.step_wall_times();
     let mut steps = Vec::new();
     for group in &ctx.groups {
@@ -99,6 +112,15 @@ pub fn emit_run(
                 name: name.clone(),
                 status,
                 duration_ms: timings.get(name).copied().unwrap_or(0),
+                effects: executed_effects
+                    .get(name)
+                    .into_iter()
+                    .flatten()
+                    .map(|(command, effect)| ExecutedEffect {
+                        command: command.clone(),
+                        effect: *effect,
+                    })
+                    .collect(),
                 output_kind,
                 output,
                 skip_reason,
@@ -152,6 +174,7 @@ pub fn emit_noop_run(
                 name,
                 status: "skipped",
                 duration_ms: 0,
+                effects: vec![],
                 output_kind: None,
                 output: None,
                 skip_reason: Some(skip_reason),

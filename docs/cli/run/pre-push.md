@@ -91,6 +91,10 @@ Disable auto-staging of fixed files
 
 Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
 
+### `--safe`
+
+Reject commands with unknown or destructive effects before execution
+
 ### `--skip-step… <STEP>`
 
 Skip specific step(s)
