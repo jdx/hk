@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "hk": {
+      "command": "hk",
+      "args": ["mcp", "--root", "/absolute/path/to/project"]
+    }
+  }
+}

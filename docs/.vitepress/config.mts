@@ -55,6 +55,7 @@ export default defineConfig({
       { text: 'Why hk?', link: '/why-hk' },
       { text: 'Sea Shanty', link: '/shanty' },
       { text: 'Getting Started', link: '/getting_started' },
+      { text: 'Coding Agents', link: '/agents' },
       { text: 'Configuration', link: '/configuration' },
       {
         text: 'Reference',

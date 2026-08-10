@@ -8,6 +8,7 @@ use clap::Parser;
 use clx::progress::ProgressOutput;
 use eyre::WrapErr;
 
+mod agent;
 mod builtins;
 mod cache;
 mod check;
@@ -118,6 +119,7 @@ fn reexec_for_cd(cd: &Path) -> Result<std::process::ExitStatus> {
 
 #[derive(clap::Subcommand)]
 enum Commands {
+    Agent(Box<agent::Agent>),
     Builtins(Box<builtins::Builtins>),
     Cache(Box<cache::Cache>),
     Check(Box<check::Check>),
@@ -229,7 +231,8 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     // - Util: standalone file utilities must not recursively load hk config
     let settings = if matches!(
         args.command,
-        Commands::Builtins(_)
+        Commands::Agent(_)
+            | Commands::Builtins(_)
             | Commands::Init(_)
             | Commands::Mcp(_)
             | Commands::Migrate(_)
@@ -249,6 +252,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
 
     // CLI settings snapshot applied above; settings are built from snapshot
     match args.command {
+        Commands::Agent(cmd) => cmd.run().await,
         Commands::Builtins(cmd) => cmd.run().await,
         Commands::Cache(cmd) => cmd.run().await,
         Commands::Check(cmd) => cmd.hook.run("check").await,

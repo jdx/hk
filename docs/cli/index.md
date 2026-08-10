@@ -66,6 +66,10 @@ Select human or machine-readable execution output
 
 ## Subcommands
 
+- [`hk agent <SUBCOMMAND>`](/cli/agent.md)
+- [`hk agent hooks <--target <TARGET>>`](/cli/agent/hooks.md)
+- [`hk agent instructions <--target <TARGET>>`](/cli/agent/instructions.md)
+- [`hk agent mcp <--target <TARGET>>`](/cli/agent/mcp.md)
 - [`hk builtins`](/cli/builtins.md)
 - [`hk cache clear`](/cli/cache/clear.md)
 - [`hk check [FLAGS] [FILES]…`](/cli/check.md)

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": null,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hk run check --safe --format json",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

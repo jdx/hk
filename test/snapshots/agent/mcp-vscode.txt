@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "hk": {
+      "type": "stdio",
+      "command": "hk",
+      "args": ["mcp", "--root", "."]
+    }
+  }
+}
