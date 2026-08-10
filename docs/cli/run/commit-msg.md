@@ -57,6 +57,10 @@ Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one 
 
 Abort on first failure
 
+### `--files0-from <PATH>`
+
+Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
+
 ### `--from-ref <FROM_REF>`
 
 Start reference for checking files (requires --to-ref)

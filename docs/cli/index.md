@@ -10,6 +10,10 @@
 
 ## Global Flags
 
+### `--cd <DIRECTORY>`
+
+Run as if hk was started in this directory
+
 ### `-j --jobs <JOBS>`
 
 Number of jobs to run in parallel

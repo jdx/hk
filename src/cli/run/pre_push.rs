@@ -36,6 +36,11 @@ impl From<&str> for PrePushRefs {
 
 impl PrePush {
     pub async fn run(mut self) -> Result<()> {
+        if self.hook.reads_file_list_from_stdin() {
+            return Err(eyre::eyre!(
+                "--files0-from - cannot be used with pre-push because the hook reads refs from stdin"
+            ));
+        }
         self.hook.tctx.insert(
             "hook_args",
             &format!(

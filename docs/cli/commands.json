@@ -201,6 +201,23 @@
             "global": false
           },
           {
+            "name": "files0-from",
+            "usage": "--files0-from <PATH>",
+            "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+            "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+            "short": [],
+            "long": ["files0-from"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
             "name": "from-hook",
             "usage": "--from-hook",
             "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -657,6 +674,23 @@
             "long": ["fail-fast"],
             "hide": false,
             "global": false
+          },
+          {
+            "name": "files0-from",
+            "usage": "--files0-from <PATH>",
+            "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+            "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+            "short": [],
+            "long": ["files0-from"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
           },
           {
             "name": "from-hook",
@@ -1182,6 +1216,23 @@
                 "global": false
               },
               {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -1517,6 +1568,23 @@
                 "global": false
               },
               {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -1823,6 +1891,23 @@
                 "long": ["fail-fast"],
                 "hide": false,
                 "global": false
+              },
+              {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
               },
               {
                 "name": "from-hook",
@@ -2142,6 +2227,23 @@
                 "global": false
               },
               {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -2459,6 +2561,23 @@
                 "global": false
               },
               {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -2765,6 +2884,23 @@
                 "long": ["fail-fast"],
                 "hide": false,
                 "global": false
+              },
+              {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
               },
               {
                 "name": "from-hook",
@@ -3094,6 +3230,23 @@
                 "global": false
               },
               {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -3418,6 +3571,23 @@
                 "long": ["fail-fast"],
                 "hide": false,
                 "global": false
+              },
+              {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
               },
               {
                 "name": "from-hook",
@@ -3755,6 +3925,23 @@
                 "global": false
               },
               {
+                "name": "files0-from",
+                "usage": "--files0-from <PATH>",
+                "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+                "short": [],
+                "long": ["files0-from"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -4065,6 +4252,23 @@
             "long": ["fail-fast"],
             "hide": false,
             "global": false
+          },
+          {
+            "name": "files0-from",
+            "usage": "--files0-from <PATH>",
+            "help": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+            "help_first_line": "Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)",
+            "short": [],
+            "long": ["files0-from"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
           },
           {
             "name": "from-hook",
@@ -4964,6 +5168,23 @@
     },
     "args": [],
     "flags": [
+      {
+        "name": "cd",
+        "usage": "--cd <DIRECTORY>",
+        "help": "Run as if hk was started in this directory",
+        "help_first_line": "Run as if hk was started in this directory",
+        "short": [],
+        "long": ["cd"],
+        "hide": false,
+        "global": true,
+        "arg": {
+          "name": "DIRECTORY",
+          "usage": "<DIRECTORY>",
+          "required": true,
+          "double_dash": "Optional",
+          "hide": false
+        }
+      },
       {
         "name": "hkrc",
         "usage": "--hkrc <PATH>",
