@@ -52,6 +52,8 @@ memchr             = "2"
 once_cell          = "1"
 pklr               = "1"
 regex              = "1"
+rmcp               = { version = "3.1.2", features = ["transport-io"] }
+schemars           = "1"
 semver             = "1"
 serde              = { version = "1", features = ["derive"] }
 serde_json         = { version = "1", features = ["preserve_order"] }
@@ -65,7 +67,7 @@ strum              = { version = "0.28", features = ["derive"] }
 tempfile           = "3"
 tera               = "2"
 thiserror          = "2"
-tokio              = { version = "1", features = ["process", "rt-multi-thread", "signal", "sync"] }
+tokio              = { version = "1", features = ["io-util", "process", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util         = "0.7"
 toml               = "1"
 tracing            = "0.1"
@@ -73,6 +75,7 @@ tracing-error      = "0.2"
 tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+url                = "2"
 xx                 = { version = "2", features = ["hash"] }
 
 [build-dependencies]

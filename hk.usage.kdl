@@ -247,6 +247,11 @@ Set HK_MISE=1 to make this default behavior.
 """#
     }
 }
+cmd mcp help="Runs an MCP server for coding agents over standard input/output" {
+    flag --root help="Restrict hk tools to this project root (defaults to the current directory)" {
+        arg <PATH>
+    }
+}
 cmd migrate subcommand_required=#true help="Migrate from other hook managers to hk" effect=read {
     cmd pre-commit help="Migrate from pre-commit to hk" effect=write {
         flag "-c --config" help="Path to .pre-commit-config.yaml" default=.pre-commit-config.yaml {

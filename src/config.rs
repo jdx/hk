@@ -182,8 +182,13 @@ impl Config {
     }
 
     fn find_project_config(paths: &[String]) -> Option<PathBuf> {
-        let mut cwd = std::env::current_dir().ok()?;
-        while cwd != Path::new("/") {
+        let cwd = std::env::current_dir().ok()?;
+        Self::find_project_config_from(&cwd, paths)
+    }
+
+    fn find_project_config_from(start: &Path, paths: &[String]) -> Option<PathBuf> {
+        let mut cwd = start.to_path_buf();
+        while cwd.parent().is_some() {
             for name in paths {
                 let p = cwd.join(name);
                 if p.exists() {
@@ -200,6 +205,12 @@ impl Config {
     /// hkrc doesn't blow up `git commit` in repos that have no hk.pkl.
     pub fn project_config_exists() -> bool {
         Self::find_project_config(&Self::project_config_search_paths()).is_some()
+    }
+
+    /// Returns true when project config discovery from `start` would find a
+    /// config in that directory or one of its ancestors.
+    pub fn project_config_exists_from(start: &Path) -> bool {
+        Self::find_project_config_from(start, &Self::project_config_search_paths()).is_some()
     }
 
     fn load_config_cached(path: PathBuf) -> Result<Config> {

@@ -77,6 +77,10 @@ pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
 pub const UNCLASSIFIED: &[(&str, &str)] = &[
     ("check", "runs check steps declared in hk.pkl"),
     ("fix", "runs fix steps declared in hk.pkl"),
+    (
+        "mcp",
+        "serves effect-classified project tools to MCP clients",
+    ),
     ("run", "runs the steps a hook declares in hk.pkl"),
     ("run commit-msg", "runs the steps this hook declares"),
     ("run post-checkout", "runs the steps this hook declares"),

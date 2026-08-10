@@ -78,6 +78,7 @@ Select human or machine-readable execution output
 - [`hk fix [FLAGS] [FILES]…`](/cli/fix.md)
 - [`hk init [FLAGS]`](/cli/init.md)
 - [`hk install [FLAGS]`](/cli/install.md)
+- [`hk mcp [--root <PATH>]`](/cli/mcp.md)
 - [`hk migrate <SUBCOMMAND>`](/cli/migrate.md)
 - [`hk migrate pre-commit [FLAGS]`](/cli/migrate/pre-commit.md)
 - [`hk run [FLAGS] [FILES]… <SUBCOMMAND>`](/cli/run.md)
