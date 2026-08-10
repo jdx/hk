@@ -119,8 +119,6 @@ impl Step {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check;
                     let check_first_cmd = step.check_first_cmd();
-                    // Stash check output in case the second run is cancelled by fail_fast
-                    let mut check_first_output: Option<(String, String, String)> = None;
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
@@ -136,7 +134,12 @@ impl Step {
                                 if !stderr.trim().is_empty() {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
-                                check_first_output = Some((stdout.clone(), stderr.clone(), combined.clone()));
+                                // Preserve the first command's raw diagnostics even when a
+                                // subsequent fixer succeeds. Successful steps stay quiet in
+                                // human text mode, while structured output can still parse and
+                                // expose the diagnostic that caused the fix to run.
+                                ctx.hook_ctx
+                                    .append_diagnostic_output(&step.name, combined);
                                 if step.check_failed_files
                                     && matches!(prev_run_type, RunType::Check)
                                 {
@@ -214,14 +217,6 @@ impl Step {
                     }
                     job.run_type = prev_run_type;
                     job.check_first = false;
-                    // If the hook was cancelled (fail_fast) before the second run,
-                    // save the check output so diagnostics aren't lost.
-                    if ctx.hook_ctx.failed.is_cancelled()
-                        && let Some((stdout, stderr, combined)) = &check_first_output {
-                            step.save_output_summary(
-                                &ctx, &job, stdout, stderr, combined, true,
-                            );
-                        }
                 }
                 // The initial auto-batching pass sizes the file-listing
                 // command. Reapply it after narrowing so a larger focused
@@ -297,7 +292,6 @@ impl Step {
                     }
                     return Err(err);
                 }
-
                 Ok(files_to_return.into_iter().collect())
             });
         }

@@ -67,6 +67,9 @@ pub(crate) struct HookOptions {
     /// Reject commands with unknown or destructive effects before execution
     #[clap(long)]
     pub safe: bool,
+    /// Write normalized diagnostics as SARIF
+    #[clap(long, value_name = "PATH", value_hint = clap::ValueHint::FilePath)]
+    pub sarif: Option<PathBuf>,
     /// Skip specific step(s)
     #[clap(long, value_name = "STEP")]
     pub skip_step: Vec<String>,
@@ -181,6 +184,7 @@ impl HookOptions {
                 0,
                 vec![],
                 "no project configuration found for installed hook",
+                self.sarif.as_deref(),
             )?;
             return Ok(());
         }
@@ -232,6 +236,7 @@ impl HookOptions {
                         0,
                         vec![],
                         "hook not defined in project configuration",
+                        self.sarif.as_deref(),
                     )?;
                     return Ok(());
                 }

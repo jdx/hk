@@ -89,6 +89,10 @@ Check only files changed in the current PR/branch (shortcut for --from-ref DEFAU
 
 Reject commands with unknown or destructive effects before execution
 
+### `--sarif <PATH>`
+
+Write normalized diagnostics as SARIF
+
 ### `--skip-step… <STEP>`
 
 Skip specific step(s)

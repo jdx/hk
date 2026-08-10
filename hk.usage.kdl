@@ -69,6 +69,9 @@ cmd check help="Checks code" {
     flag --no-stage help="Disable auto-staging of fixed files"
     flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
     flag --safe help="Reject commands with unknown or destructive effects before execution"
+    flag --sarif help="Write normalized diagnostics as SARIF" {
+        arg <PATH>
+    }
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
@@ -172,6 +175,9 @@ cmd fix help="Fixes code" {
     flag --no-stage help="Disable auto-staging of fixed files"
     flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
     flag --safe help="Reject commands with unknown or destructive effects before execution"
+    flag --sarif help="Write normalized diagnostics as SARIF" {
+        arg <PATH>
+    }
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
@@ -291,6 +297,9 @@ cmd run help="Run a hook" {
     flag --no-stage help="Disable auto-staging of fixed files"
     flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
     flag --safe help="Reject commands with unknown or destructive effects before execution"
+    flag --sarif help="Write normalized diagnostics as SARIF" {
+        arg <PATH>
+    }
     flag --skip-step help="Skip specific step(s)" var=#true {
         arg <STEP>
     }
@@ -344,6 +353,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -397,6 +409,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -452,6 +467,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -504,6 +522,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -557,6 +578,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -611,6 +635,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -664,6 +691,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -718,6 +748,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
@@ -773,6 +806,9 @@ cmd run help="Run a hook" {
         flag --no-stage help="Disable auto-staging of fixed files"
         flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)"
         flag --safe help="Reject commands with unknown or destructive effects before execution"
+        flag --sarif help="Write normalized diagnostics as SARIF" {
+            arg <PATH>
+        }
         flag --skip-step help="Skip specific step(s)" var=#true {
             arg <STEP>
         }
