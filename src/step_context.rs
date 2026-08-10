@@ -100,6 +100,7 @@ impl StepContext {
             StepStatus::Pending | StepStatus::Started => {
                 *status = StepStatus::Aborted;
                 drop(status);
+                self.hook_ctx.mark_step_cancelled(&self.step.name);
                 self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }
@@ -113,6 +114,7 @@ impl StepContext {
             StepStatus::Pending | StepStatus::Started => {
                 *status = StepStatus::Errored(err.to_string());
                 drop(status);
+                self.hook_ctx.mark_step_failed(&self.step.name);
                 self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }
@@ -126,6 +128,7 @@ impl StepContext {
             StepStatus::Started => {
                 *status = StepStatus::Finished;
                 drop(status);
+                self.hook_ctx.mark_step_finished(&self.step.name);
                 self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }

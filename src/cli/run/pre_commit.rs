@@ -5,7 +5,7 @@ use crate::{Result, hook_options::HookOptions};
 #[clap(visible_alias = "pc")]
 pub struct PreCommit {
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl PreCommit {

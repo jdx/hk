@@ -12,6 +12,7 @@ use std::{
         Arc, Mutex as StdMutex,
         atomic::{AtomicBool, Ordering},
     },
+    time::Instant,
 };
 use tokio::{
     signal,
@@ -322,6 +323,11 @@ pub struct HookContext {
     /// `step_contexts` are shift_remove'd as soon as each step finishes, so
     /// status info is not available to the end-of-run summary.
     pub failed_steps: std::sync::Mutex<HashSet<String>>,
+    /// Steps that reached a terminal successful state. Timing alone is not a
+    /// completion signal because an in-flight command can be aborted.
+    pub finished_steps: std::sync::Mutex<HashSet<String>>,
+    /// Steps explicitly aborted by cancellation or fail-fast.
+    pub cancelled_steps: std::sync::Mutex<HashSet<String>>,
     /// Collected fix suggestions to display at end of run
     pub fix_suggestions: std::sync::Mutex<Vec<String>>,
     /// Whether a failed step reported Git's index lock. This is tracked at the
@@ -376,6 +382,8 @@ impl HookContext {
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
             failed_steps: StdMutex::new(HashSet::new()),
+            finished_steps: StdMutex::new(HashSet::new()),
+            cancelled_steps: StdMutex::new(HashSet::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
             git_index_lock_contention: AtomicBool::new(false),
             should_stage,
@@ -468,6 +476,20 @@ impl HookContext {
 
     pub fn mark_step_failed(&self, step_name: &str) {
         self.failed_steps
+            .lock()
+            .unwrap()
+            .insert(step_name.to_string());
+    }
+
+    pub fn mark_step_finished(&self, step_name: &str) {
+        self.finished_steps
+            .lock()
+            .unwrap()
+            .insert(step_name.to_string());
+    }
+
+    pub fn mark_step_cancelled(&self, step_name: &str) {
+        self.cancelled_steps
             .lock()
             .unwrap()
             .insert(step_name.to_string());
@@ -1005,6 +1027,10 @@ impl Hook {
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         tracing::info!("running hook");
         let settings = Settings::get();
+        let output_format = Settings::cli_output_format();
+        let machine_output = output_format != crate::structured_output::OutputFormat::Human;
+        let run_started = Instant::now();
+        let started_at = chrono::Utc::now().to_rfc3339();
         let fail_fast = if opts.fail_fast {
             true
         } else if opts.no_fail_fast {
@@ -1020,12 +1046,34 @@ impl Hook {
 
         if settings.skip_hooks.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
+            crate::structured_output::emit_noop_run(
+                output_format,
+                &self.name,
+                started_at,
+                run_started.elapsed().as_millis(),
+                vec![],
+                "hook disabled by HK_SKIP_HOOK",
+            )?;
             return Ok(());
         }
         let run_type = self.run_type(&opts);
         // fail_on_fix exists to surface fixes for review; staging would defeat that.
         let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
-        let repo = Arc::new(Mutex::new(Git::new()?));
+        let repo = match Git::new() {
+            Ok(repo) => Arc::new(Mutex::new(repo)),
+            Err(err) => {
+                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                    output_format,
+                    &self.name,
+                    started_at,
+                    run_started.elapsed().as_millis(),
+                    err.to_string(),
+                ) {
+                    warn!("failed to emit structured setup failure: {emit_err}");
+                }
+                return Err(err);
+            }
+        };
         let groups = self.get_step_groups(&opts);
         let stash_method = self.resolve_stash_method_for_opts(&opts);
         let total_steps: usize = groups.iter().map(|g| g.steps.len()).sum();
@@ -1035,6 +1083,14 @@ impl Hook {
         // dangling stash and a stripped worktree. See #1105.
         if total_steps == 0 {
             info!("no steps to run");
+            crate::structured_output::emit_noop_run(
+                output_format,
+                &self.name,
+                started_at,
+                run_started.elapsed().as_millis(),
+                vec![],
+                "no configured steps",
+            )?;
             return Ok(());
         }
         let hk_progress = self.start_hk_progress(run_type, total_steps);
@@ -1043,8 +1099,22 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
-        let git_status = repo.lock().await.status(None)?;
-        let files = self
+        let git_status = match repo.lock().await.status(None) {
+            Ok(status) => status,
+            Err(err) => {
+                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                    output_format,
+                    &self.name,
+                    started_at,
+                    run_started.elapsed().as_millis(),
+                    err.to_string(),
+                ) {
+                    warn!("failed to emit structured setup failure: {emit_err}");
+                }
+                return Err(err);
+            }
+        };
+        let files = match self
             .file_list(
                 &opts,
                 repo.clone(),
@@ -1052,14 +1122,39 @@ impl Hook {
                 stash_method,
                 &file_progress,
             )
-            .await?;
+            .await
+        {
+            Ok(files) => files,
+            Err(err) => {
+                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                    output_format,
+                    &self.name,
+                    started_at,
+                    run_started.elapsed().as_millis(),
+                    err.to_string(),
+                ) {
+                    warn!("failed to emit structured setup failure: {emit_err}");
+                }
+                return Err(err);
+            }
+        };
 
         let skip_steps = build_skip_steps(&settings, &opts);
-        if files.is_empty() && can_exit_early(&groups, &files, run_type, &skip_steps) {
+        if files.is_empty()
+            && let Some(noop_steps) = early_exit_steps(&groups, &files, run_type, &skip_steps)
+        {
             info!("no files to run");
             if let Some(hk_progress) = &hk_progress {
                 hk_progress.set_status(ProgressStatus::Hide);
             }
+            crate::structured_output::emit_noop_run(
+                output_format,
+                &self.name,
+                started_at,
+                run_started.elapsed().as_millis(),
+                noop_steps,
+                "no matching files",
+            )?;
             return Ok(());
         }
         // Enrich Tera and expr contexts with git status for template/condition use
@@ -1236,7 +1331,7 @@ impl Hook {
         let force_summary = *env::HK_SUMMARY_TEXT;
         let failed_steps = hook_ctx.failed_steps.lock().unwrap().clone();
         let only_failed = settings.quiet || (in_text_mode && !force_summary);
-        if !settings.silent && (!only_failed || !failed_steps.is_empty()) {
+        if !machine_output && !settings.silent && (!only_failed || !failed_steps.is_empty()) {
             let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
             for (step_name, (mode, output)) in outputs.into_iter() {
                 if only_failed && !failed_steps.contains(&step_name) {
@@ -1257,7 +1352,7 @@ impl Hook {
             }
         }
 
-        if !settings.silent && hook_ctx.saw_git_index_lock_contention() {
+        if !machine_output && !settings.silent && hook_ctx.saw_git_index_lock_contention() {
             eprintln!(
                 "\n{}",
                 style::eyellow(
@@ -1272,7 +1367,8 @@ impl Hook {
 
         // Display summary of profile-skipped steps
         // Only show summary if user has enabled the warning tag and it's not hidden
-        if settings.warnings.contains("missing-profiles")
+        if !machine_output
+            && settings.warnings.contains("missing-profiles")
             && !settings.hide_warnings.contains("missing-profiles")
         {
             let skipped_steps = hook_ctx.get_skipped_steps();
@@ -1368,6 +1464,21 @@ impl Hook {
             }
         } else {
             debug!("{self}: hook finished successfully");
+        }
+        let failure = result.as_ref().err().map(ToString::to_string);
+        if let Err(emit_err) = crate::structured_output::emit_run(
+            output_format,
+            &self.name,
+            started_at,
+            run_started.elapsed().as_millis(),
+            &hook_ctx,
+            failure,
+        ) {
+            if result.is_err() {
+                warn!("failed to emit structured run result: {emit_err}");
+            } else {
+                return Err(emit_err);
+            }
         }
         result
     }
@@ -1648,20 +1759,38 @@ fn build_expr_ctx(git_status: &GitStatus) -> expr::Context {
     expr_ctx
 }
 
-fn can_exit_early(
+fn early_exit_steps(
     groups: &[StepGroup],
     files: &BTreeSet<PathBuf>,
     run_type: RunType,
     skip_steps: &IndexMap<String, SkipReason>,
-) -> bool {
+) -> Option<Vec<(String, String)>> {
     let files = files.iter().cloned().collect::<Vec<_>>();
-    groups.iter().all(|g| {
-        g.steps.iter().all(|(_, s)| {
-            // Reuse job builder to determine if this step has any runnable work
-            s.build_step_jobs(&files, run_type, &Default::default(), skip_steps)
-                .is_ok_and(|jobs| jobs.iter().all(|j| j.skip_reason.is_some()))
+    groups
+        .iter()
+        .flat_map(|group| group.steps.iter())
+        .map(|(name, step)| {
+            // Conditions are evaluated at execution time and can take
+            // precedence over the no-files reason. Let normal execution record
+            // their authoritative result instead of guessing here.
+            if step.step_condition.is_some() || step.job_condition.is_some() {
+                return None;
+            }
+            // Reuse job builder so machine output reports the same reason that
+            // execution would have tracked for each skipped step.
+            let jobs = step
+                .build_step_jobs(&files, run_type, &Default::default(), skip_steps)
+                .ok()?;
+            if jobs.is_empty() {
+                return Some((name.clone(), SkipReason::NoFilesToProcess.message()));
+            }
+            if jobs.iter().any(|job| job.skip_reason.is_none()) {
+                return None;
+            }
+            let reason = jobs.first()?.skip_reason.as_ref()?.message();
+            Some((name.clone(), reason))
         })
-    })
+        .collect()
 }
 
 fn skip_reason_to_reason(reason: &SkipReason) -> Reason {

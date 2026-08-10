@@ -45,6 +45,9 @@ pub(crate) struct HookOptions {
         conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "staged", "to_ref", "unstaged"]
     )]
     pub files0_from: Option<PathBuf>,
+    /// Select human or machine-readable execution output
+    #[clap(long, value_enum)]
+    pub format: Option<crate::structured_output::OutputFormat>,
     /// Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is
     /// present or the event isn't defined. Set automatically by `hk install`.
     #[clap(long, hide = true)]
@@ -168,6 +171,14 @@ impl HookOptions {
         // main risk under `hk install --global`.
         if self.from_hook && !Config::project_config_exists() {
             log::debug!("no hk config found for {name}, skipping (--from-hook)");
+            crate::structured_output::emit_noop_run(
+                Settings::cli_output_format(),
+                name,
+                chrono::Utc::now().to_rfc3339(),
+                0,
+                vec![],
+                "no project configuration found for installed hook",
+            )?;
             return Ok(());
         }
         let config = Config::get()?;
@@ -211,6 +222,14 @@ impl HookOptions {
                         "hook '{name}' not defined in {}, skipping (--from-hook)",
                         config.path.display()
                     );
+                    crate::structured_output::emit_noop_run(
+                        Settings::cli_output_format(),
+                        name,
+                        chrono::Utc::now().to_rfc3339(),
+                        0,
+                        vec![],
+                        "hook not defined in project configuration",
+                    )?;
                     return Ok(());
                 }
                 let hook_names: Vec<&str> = config.hooks.keys().map(|s| s.as_str()).collect();

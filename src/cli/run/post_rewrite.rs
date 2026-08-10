@@ -9,7 +9,7 @@ pub struct PostRewrite {
     /// The command that triggered the rewrite ("amend" or "rebase")
     command: String,
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl PostRewrite {

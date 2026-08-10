@@ -40,6 +40,7 @@ pub struct CliSnapshot {
     pub quiet: bool,
     pub silent: bool,
     pub trace: bool,
+    pub output_format: crate::structured_output::OutputFormat,
 }
 
 static CLI_SNAPSHOT: Lazy<Mutex<Option<CliSnapshot>>> = Lazy::new(|| Mutex::new(None));
@@ -94,6 +95,15 @@ impl Settings {
             .as_ref()
             .map(|s| s.trace)
             .unwrap_or(false)
+    }
+
+    pub fn cli_output_format() -> crate::structured_output::OutputFormat {
+        CLI_SNAPSHOT
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|snapshot| snapshot.output_format)
+            .unwrap_or_default()
     }
 
     pub fn get() -> Arc<Settings> {

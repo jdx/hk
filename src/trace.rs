@@ -19,7 +19,7 @@ pub fn enabled() -> bool {
 }
 
 /// Initialize the tracing subscriber
-pub fn init_tracing(json_output: bool) -> Result<()> {
+pub fn init_tracing(json_output: bool, json_to_stderr: bool) -> Result<()> {
     use tracing_subscriber::prelude::*;
 
     TRACE_ENABLED.store(true, Ordering::Relaxed);
@@ -32,7 +32,7 @@ pub fn init_tracing(json_output: bool) -> Result<()> {
     // Try to set our subscriber, but handle the case where one is already set
     let result = if json_output {
         // JSON Lines output to stdout
-        let json_layer = JsonLayer::new();
+        let json_layer = JsonLayer::new(json_to_stderr);
         tracing_subscriber::registry().with(json_layer).try_init()
     } else {
         // Pretty console output to stderr with hierarchical spans
@@ -79,13 +79,17 @@ pub fn init_tracing(json_output: bool) -> Result<()> {
 
 /// JSON Lines layer for tracing output
 struct JsonLayer {
-    writer: Mutex<std::io::Stdout>,
+    writer: Mutex<Box<dyn Write + Send>>,
 }
 
 impl JsonLayer {
-    fn new() -> Self {
+    fn new(to_stderr: bool) -> Self {
         // Write metadata line
-        let mut stdout = std::io::stdout();
+        let mut writer: Box<dyn Write + Send> = if to_stderr {
+            Box::new(std::io::stderr())
+        } else {
+            Box::new(std::io::stdout())
+        };
         let meta = JsonMeta {
             r#type: "meta",
             span_schema_version: 1,
@@ -93,11 +97,11 @@ impl JsonLayer {
             pid: std::process::id(),
         };
         if let Ok(json) = serde_json::to_string(&meta) {
-            let _ = writeln!(stdout, "{}", json);
+            let _ = writeln!(writer, "{}", json);
         }
 
         Self {
-            writer: Mutex::new(stdout),
+            writer: Mutex::new(writer),
         }
     }
 

@@ -4,7 +4,7 @@ use crate::hook_options::HookOptions;
 #[derive(clap::Args)]
 pub struct PostCommit {
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 impl PostCommit {

@@ -218,6 +218,26 @@
             }
           },
           {
+            "name": "format",
+            "usage": "--format <FORMAT>",
+            "help": "Select human or machine-readable execution output",
+            "help_first_line": "Select human or machine-readable execution output",
+            "short": [],
+            "long": ["format"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "FORMAT",
+              "usage": "<FORMAT>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false,
+              "choices": {
+                "choices": ["human", "json", "jsonl"]
+              }
+            }
+          },
+          {
             "name": "from-hook",
             "usage": "--from-hook",
             "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -690,6 +710,26 @@
               "required": true,
               "double_dash": "Optional",
               "hide": false
+            }
+          },
+          {
+            "name": "format",
+            "usage": "--format <FORMAT>",
+            "help": "Select human or machine-readable execution output",
+            "help_first_line": "Select human or machine-readable execution output",
+            "short": [],
+            "long": ["format"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "FORMAT",
+              "usage": "<FORMAT>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false,
+              "choices": {
+                "choices": ["human", "json", "jsonl"]
+              }
             }
           },
           {
@@ -1233,6 +1273,26 @@
                 }
               },
               {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -1585,6 +1645,26 @@
                 }
               },
               {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -1907,6 +1987,26 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
+                }
+              },
+              {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
                 }
               },
               {
@@ -2244,6 +2344,26 @@
                 }
               },
               {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -2578,6 +2698,26 @@
                 }
               },
               {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -2900,6 +3040,26 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
+                }
+              },
+              {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
                 }
               },
               {
@@ -3247,6 +3407,26 @@
                 }
               },
               {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -3587,6 +3767,26 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
+                }
+              },
+              {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
                 }
               },
               {
@@ -3942,6 +4142,26 @@
                 }
               },
               {
+                "name": "format",
+                "usage": "--format <FORMAT>",
+                "help": "Select human or machine-readable execution output",
+                "help_first_line": "Select human or machine-readable execution output",
+                "short": [],
+                "long": ["format"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "FORMAT",
+                  "usage": "<FORMAT>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["human", "json", "jsonl"]
+                  }
+                }
+              },
+              {
                 "name": "from-hook",
                 "usage": "--from-hook",
                 "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
@@ -4268,6 +4488,26 @@
               "required": true,
               "double_dash": "Optional",
               "hide": false
+            }
+          },
+          {
+            "name": "format",
+            "usage": "--format <FORMAT>",
+            "help": "Select human or machine-readable execution output",
+            "help_first_line": "Select human or machine-readable execution output",
+            "short": [],
+            "long": ["format"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "FORMAT",
+              "usage": "<FORMAT>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false,
+              "choices": {
+                "choices": ["human", "json", "jsonl"]
+              }
             }
           },
           {
@@ -5184,6 +5424,27 @@
           "double_dash": "Optional",
           "hide": false
         }
+      },
+      {
+        "name": "format",
+        "usage": "--format <FORMAT>",
+        "help": "Select human or machine-readable execution output",
+        "help_first_line": "Select human or machine-readable execution output",
+        "short": [],
+        "long": ["format"],
+        "hide": false,
+        "global": false,
+        "arg": {
+          "name": "FORMAT",
+          "usage": "<FORMAT>",
+          "required": true,
+          "double_dash": "Optional",
+          "hide": false,
+          "choices": {
+            "choices": ["human", "json", "jsonl"]
+          }
+        },
+        "default": ["human"]
       },
       {
         "name": "hkrc",

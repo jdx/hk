@@ -50,6 +50,20 @@ Enable tracing spans and performance diagnostics
 
 Output in JSON format
 
+## Flags
+
+### `--format <FORMAT>`
+
+Select human or machine-readable execution output
+
+**Choices:**
+
+- `human`
+- `json`
+- `jsonl`
+
+**Default:** `human`
+
 ## Subcommands
 
 - [`hk builtins`](/cli/builtins.md)

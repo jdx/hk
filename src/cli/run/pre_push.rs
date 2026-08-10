@@ -15,7 +15,7 @@ pub struct PrePush {
     /// Remote URL
     url: Option<String>,
     #[clap(flatten)]
-    hook: HookOptions,
+    pub(super) hook: HookOptions,
 }
 
 #[derive(Debug)]
