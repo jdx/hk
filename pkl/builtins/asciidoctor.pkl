@@ -10,7 +10,10 @@ const asciidoctor = new Config.Step {
   types = List("asciidoc")
   // The `failure-level` option ensures non-zero exit code when warnings occur
   // The `out-file=/dev/null` option prevents HTML file generation
-  check = "asciidoctor --failure-level=WARNING --out-file=/dev/null {{ files }}"
+  check = new Config.CommandSpec {
+    command = "asciidoctor --failure-level=WARNING --out-file=/dev/null {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.adoc"

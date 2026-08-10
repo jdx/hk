@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 stylua = new Config.Step {
   types = List("lua")
-  check_diff = "stylua --check {{ files }}"
-  fix = "stylua {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "stylua --check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "stylua {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.lua"

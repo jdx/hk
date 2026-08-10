@@ -12,8 +12,14 @@ import "./test/helpers.pkl"
 }
 ruff_format = new Config.Step {
   types = List("python")
-  check_diff = "ruff format --quiet --force-exclude --diff {{ files }}"
-  fix = "ruff format --quiet --force-exclude {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "ruff format --quiet --force-exclude --diff {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "ruff format --quiet --force-exclude {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.py"

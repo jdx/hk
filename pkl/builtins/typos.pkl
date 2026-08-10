@@ -8,14 +8,20 @@ import "./test/helpers.pkl"
 }
 typos = new Config.Step {
   types = List("text")
-  check_diff =
-    """
-    output=$(typos --force-exclude --diff {{files}})
-    [ -z "$output" ] && exit 0
-    printf "%s" "$output"
-    exit 1
-    """
-  fix = "typos --force-exclude --write-changes {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command =
+      """
+      output=$(typos --force-exclude --diff {{files}})
+      [ -z "$output" ] && exit 0
+      printf "%s" "$output"
+      exit 1
+      """
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "typos --force-exclude --write-changes {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.txt"

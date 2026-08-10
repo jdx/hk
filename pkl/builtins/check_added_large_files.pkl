@@ -7,7 +7,10 @@ import "../Config.pkl"
 }
 check_added_large_files = new Config.Step {
   glob = "**/*"
-  check = "hk util check-added-large-files {{files}}"
+  check = new Config.CommandSpec {
+    command = "hk util check-added-large-files {{files}}"
+    effect = "read"
+  }
   tests {
     ["detects large file with default 500KB limit"] {
       run = "check"

@@ -8,6 +8,12 @@ import "../Config.pkl"
 clang_format = new Config.Step {
   glob =
     List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
-  check = "clang-format --dry-run -Werror {{ files }}"
-  fix = "clang-format -i {{ files }}"
+  check = new Config.CommandSpec {
+    command = "clang-format --dry-run -Werror {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "clang-format -i {{ files }}"
+    effect = "write"
+  }
 }

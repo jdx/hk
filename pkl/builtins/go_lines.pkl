@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 go_lines = new Config.Step {
   glob = "**/*.go"
-  check = "golines --dry-run {{ files }}"
-  fix = "golines -w {{ files }}"
+  check = new Config.CommandSpec {
+    command = "golines --dry-run {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "golines -w {{ files }}"
+    effect = "write"
+  }
 }

@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 yamlfmt = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
-  check_diff = "yamlfmt -lint {{ files }}"
-  fix = "yamlfmt {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "yamlfmt -lint {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "yamlfmt {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.yaml"

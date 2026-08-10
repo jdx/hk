@@ -11,23 +11,32 @@ import "./test/helpers.pkl"
 }
 go_fmt = new Config.Step {
   glob = "**/*.go"
-  check_list_files =
-    """
-    FILES=$(gofmt -s -l {{files}})
-    if [ -n "$FILES" ]; then
+  check_list_files = new Config.CommandSpec {
+    command =
+      """
+      FILES=$(gofmt -s -l {{files}})
+      if [ -n "$FILES" ]; then
       echo "$FILES"
       exit 1
-    fi
-    """
-  check_diff =
-    """
-    DIFF=$(gofmt -s -d {{files}})
-    if [ -n "$DIFF" ]; then
+      fi
+      """
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command =
+      """
+      DIFF=$(gofmt -s -d {{files}})
+      if [ -n "$DIFF" ]; then
       echo "$DIFF"
       exit 1
-    fi
-    """
-  fix = "gofmt -s -w {{files}}"
+      fi
+      """
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "gofmt -s -w {{files}}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.go" }
     local const before = "package name"

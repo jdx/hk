@@ -8,22 +8,28 @@ import "./test/helpers.pkl"
 }
 pkl_format = new Config.Step {
   types = List("pkl")
-  check_list_files = "pkl format --diff-name-only {{ files }}"
+  check_list_files = new Config.CommandSpec {
+    command = "pkl format --diff-name-only {{ files }}"
+    effect = "read"
+  }
   // NB: pkl format exits 11 even if it fixes files
   //  (If you're using a version of pkl that includes https://github.com/apple/pkl/pull/1340
   //  you can override this command to just use `pkl format --write {{ files }}`
   //  and remove the `shell` definition)
   shell = "sh -c"
-  fix =
-    """
-        pkl format --write {{ files }}
-        code=$?
-        if [ $code -eq 11 ]; then
-            exit 0
-        else
-            exit $code
-        fi
-    """
+  fix = new Config.CommandSpec {
+    command =
+      """
+      pkl format --write {{ files }}
+      code=$?
+      if [ $code -eq 11 ]; then
+      exit 0
+      else
+      exit $code
+      fi
+      """
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.pkl" }
     ["check bad file"] = testMaker.checkFail("x = new {  }", 11)

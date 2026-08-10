@@ -7,7 +7,16 @@ import "../Config.pkl"
 }
 dprint = new Config.Step {
   types = List("text")
-  check = "dprint check --allow-no-files {{ files }}"
-  check_list_files = "dprint check --allow-no-files --list-different {{ files }}"
-  fix = "dprint fmt --allow-no-files {{ files }}"
+  check = new Config.CommandSpec {
+    command = "dprint check --allow-no-files {{ files }}"
+    effect = "read"
+  }
+  check_list_files = new Config.CommandSpec {
+    command = "dprint check --allow-no-files --list-different {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "dprint fmt --allow-no-files {{ files }}"
+    effect = "write"
+  }
 }

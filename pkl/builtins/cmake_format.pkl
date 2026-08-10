@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 cmake_format = new Config.Step {
   glob = List("**/CMakeLists.txt", "**/*.cmake")
-  check = "cmake-format --check {{ files }}"
-  fix = "cmake-format --in-place {{ files }}"
+  check = new Config.CommandSpec {
+    command = "cmake-format --check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "cmake-format --in-place {{ files }}"
+    effect = "write"
+  }
 }

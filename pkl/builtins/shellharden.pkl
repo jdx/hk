@@ -15,8 +15,14 @@ shellharden = new Config.Step {
   batch = true
   // `check_diff` cannot be added.
   // `shellharden {{ files }}` shows a diff but exits with code 0 even when changes are suggested
-  check = "shellharden --check {{ files }}"
-  fix = "shellharden --replace {{ files }}"
+  check = new Config.CommandSpec {
+    command = "shellharden --check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "shellharden --replace {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.sh"

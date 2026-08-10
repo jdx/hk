@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 fix_smart_quotes = new Config.Step {
   types = List("text")
-  check_diff = "hk util fix-smart-quotes --diff {{files}}"
-  fix = "hk util fix-smart-quotes {{files}}"
+  check_diff = new Config.CommandSpec {
+    command = "hk util fix-smart-quotes --diff {{files}}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "hk util fix-smart-quotes {{files}}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {}
     ["check file with smart quotes"] = testMaker.checkFail("\u{FF02}Hello, world!\u{FF02}", 1)

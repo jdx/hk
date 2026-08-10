@@ -12,7 +12,10 @@ import "./test/helpers.pkl"
 const actionlint = new Config.Step {
   glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
   batch = true
-  check = new Config.Command { argv = List("actionlint", "{{files}}") }
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("actionlint", "{{files}}") }
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = ".github/workflows/test.yml"

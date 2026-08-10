@@ -8,5 +8,8 @@ import "../Config.pkl"
 go_sec = new Config.Step {
   glob = "**/*.go"
   workspace_indicator = "go.mod"
-  check = "cd {{workspace}} && gosec ./..."
+  check = new Config.CommandSpec {
+    command = "cd {{workspace}} && gosec ./..."
+    effect = "write"
+  }
 }

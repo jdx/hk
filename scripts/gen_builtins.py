@@ -8,10 +8,13 @@ import subprocess
 import sys
 import tempfile
 
+COMMAND_FIELDS = ("check", "check_list_files", "check_diff", "fix")
+
 HEADER = """\
 // THIS FILE IS GENERATED: Run 'mise run pkl:gen' to generate.
 
 import* "builtins/*.pkl" as Builtins
+import "Config.pkl" as Config
 
 /// Indicator for detecting if a builtin is relevant to a project
 class ProjectIndicator {
@@ -61,6 +64,31 @@ DEPRECATED_ALIASES = [
 ]
 
 
+def validate_effect_coverage():
+    result = subprocess.run(
+        ["pkl", "eval", "pkl/Builtins.pkl", "--format", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    builtins = json.loads(result.stdout)
+    missing = []
+    for name, step in builtins.items():
+        if not isinstance(step, dict):
+            continue
+        for field in COMMAND_FIELDS:
+            command = step.get(field)
+            if command is not None and (
+                not isinstance(command, dict)
+                or command.get("effect") not in {"read", "write", "destructive"}
+            ):
+                missing.append(f"{name}.{field}")
+    if missing:
+        raise RuntimeError(
+            "builtin commands missing effects:\n  " + "\n  ".join(sorted(missing))
+        )
+
+
 def main():
     skip = {alias for alias, _, _, _ in DEPRECATED_ALIASES}
 
@@ -80,10 +108,11 @@ def main():
             f.write(f'  since = "{since}"\n')
             f.write(f'  message = "{message}"\n')
             f.write("}\n")
-            f.write(f'{alias} = Builtins["builtins/{canonical}.pkl"].{canonical}\n')
+            f.write(f"{alias} = {canonical}\n")
 
     # pkl format (exits 11 after formatting, ignore that)
     subprocess.run(["pkl", "format", "--write", "pkl/Builtins.pkl"])
+    validate_effect_coverage()
 
     # Generate builtins metadata JSON for build script
     reflect_script = os.path.join(os.getcwd(), "scripts", "reflect.pkl")
@@ -99,9 +128,18 @@ def main():
         # Use pkl reflection to extract metadata
         try:
             result = subprocess.run(
-                ["pkl", "eval", filepath, "--format", "json", "-x",
-                 f'import("{reflect_uri}").render(module)'],
-                capture_output=True, text=True, timeout=30,
+                [
+                    "pkl",
+                    "eval",
+                    filepath,
+                    "--format",
+                    "json",
+                    "-x",
+                    f'import("{reflect_uri}").render(module)',
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode != 0:
                 continue
@@ -127,18 +165,22 @@ def main():
                         if isinstance(indicators, list):
                             project_indicators = indicators
 
-                entries.append({
-                    "name": name,
-                    "category": category,
-                    "description": description,
-                    "project_indicators": project_indicators,
-                })
+                entries.append(
+                    {
+                        "name": name,
+                        "category": category,
+                        "description": description,
+                        "project_indicators": project_indicators,
+                    }
+                )
                 break  # Only first property (the builtin definition)
         except Exception:
             continue
 
     # Write atomically
-    fd, tmpfile = tempfile.mkstemp(dir="pkl", prefix="builtins_meta.json.", suffix=".tmp")
+    fd, tmpfile = tempfile.mkstemp(
+        dir="pkl", prefix="builtins_meta.json.", suffix=".tmp"
+    )
     try:
         with os.fdopen(fd, "w", newline="\n") as f:
             json.dump(entries, f, indent=None)

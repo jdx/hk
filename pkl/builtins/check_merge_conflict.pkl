@@ -8,7 +8,10 @@ import "./test/helpers.pkl"
 }
 check_merge_conflict = new Config.Step {
   types = List("text")
-  check = "hk util check-merge-conflict --assume-in-merge {{files}}"
+  check = new Config.CommandSpec {
+    command = "hk util check-merge-conflict --assume-in-merge {{files}}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {}
     ["check bad file"] = testMaker.checkFail("<<<<<<< HEAD\nconflict\n", 1)

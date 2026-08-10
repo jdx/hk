@@ -8,7 +8,10 @@ import "./test/helpers.pkl"
 }
 detect_private_key = new Config.Step {
   types = List("text")
-  check = "hk util detect-private-key {{files}}"
+  check = new Config.CommandSpec {
+    command = "hk util detect-private-key {{files}}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {}
     ["check RSA private key"] =

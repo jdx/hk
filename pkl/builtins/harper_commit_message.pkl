@@ -6,5 +6,8 @@ import "../Config.pkl"
   description = "Grammar checker for commit message"
 }
 harper_commit_message = new Config.Step {
-  check = "harper-cli lint {{commit_msg_file}}"
+  check = new Config.CommandSpec {
+    command = "harper-cli lint {{commit_msg_file}}"
+    effect = "read"
+  }
 }

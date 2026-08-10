@@ -12,7 +12,10 @@ import "./test/helpers.pkl"
 contextlint = new Config.Step {
   workspace_indicator = "contextlint.config.json"
   types = List("markdown")
-  check = "contextlint {{ files }}"
+  check = new Config.CommandSpec {
+    command = "contextlint {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "foo.md"

@@ -9,7 +9,10 @@ import "./test/helpers.pkl"
 vale = new Config.Step {
   types = List("text")
   // `vale sync` command downloads and installs external configuration sources.
-  check = "vale sync && vale {{ files }}"
+  check = new Config.CommandSpec {
+    command = "vale sync && vale {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.rs"

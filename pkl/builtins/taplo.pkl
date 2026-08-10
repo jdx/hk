@@ -12,7 +12,10 @@ taplo = new Config.Step {
     // prevent logs to stderr with the list of checked files
     ["RUST_LOG"] = "warn"
   }
-  check = "taplo lint {{ files }}"
+  check = new Config.CommandSpec {
+    command = "taplo lint {{ files }}"
+    effect = "read"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.toml" }
     ["check bad file"] = testMaker.checkFail("[table]\nkey = 0\nkey = 1\n", 1)

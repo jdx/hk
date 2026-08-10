@@ -8,6 +8,12 @@ import "../Config.pkl"
 mix_fmt = new Config.Step {
   glob = List("**/*.ex", "**/*.exs")
   exclude = List("deps/**/*")
-  check = "mix format --check-formatted {{files}}"
-  fix = "mix format {{files}}"
+  check = new Config.CommandSpec {
+    command = "mix format --check-formatted {{files}}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "mix format {{files}}"
+    effect = "write"
+  }
 }

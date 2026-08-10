@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 php_cs = new Config.Step {
   glob = "**/*.php"
-  check = "phpcs {{ files }}"
-  fix = "phpcbf {{ files }}"
+  check = new Config.CommandSpec {
+    command = "phpcs {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "phpcbf {{ files }}"
+    effect = "write"
+  }
 }

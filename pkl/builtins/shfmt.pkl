@@ -18,16 +18,25 @@ shfmt = new Config.Step {
       },
       new Config.FileSelector { types = List("sh", "bash") },
     )
-  check_diff = "shfmt -d --apply-ignore {{ files }}"
-  check_list_files =
-    """
-    files=$(shfmt -l --apply-ignore {{ files }})
-    if [ -n "$files" ]; then
+  check_diff = new Config.CommandSpec {
+    command = "shfmt -d --apply-ignore {{ files }}"
+    effect = "read"
+  }
+  check_list_files = new Config.CommandSpec {
+    command =
+      """
+      files=$(shfmt -l --apply-ignore {{ files }})
+      if [ -n "$files" ]; then
       echo "$files"
       exit 1
-    fi
-    """
-  fix = "shfmt -w --apply-ignore {{ files }}"
+      fi
+      """
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "shfmt -w --apply-ignore {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.sh" }
     local const before =

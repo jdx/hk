@@ -14,14 +14,20 @@ sherif = new Config.Step {
   // accept file arguments, so there's no {{ files }} in the commands below.
   // https://github.com/QuiiBz/sherif
   glob = List("**/package.json", "**/pnpm-workspace.yaml")
-  check = "sherif"
+  check = new Config.CommandSpec {
+    command = "sherif"
+    effect = "read"
+  }
   // --no-install skips the package-manager install sherif otherwise runs
   // after autofixing. --select highest|lowest (for multiple-dependency-
   // versions autofix) is left to the user to configure if needed.
   // Note: fix may rewrite package.json files across the whole workspace
   // (e.g. multiple-dependency-versions), including files hk did not match
   // or lock for this run.
-  fix = "sherif --fix --no-install"
+  fix = new Config.CommandSpec {
+    command = "sherif --fix --no-install"
+    effect = "write"
+  }
   tests {
     // sherif refuses to run --fix whenever the CI env var is set to any
     // value ("Cannot fix issues inside a CI environment", exit 1). hk test

@@ -35,8 +35,14 @@ vp_lint = new Config.Step {
     )
   // Without `--deny-warnings`,
   // the exit code will be 0 even if there is code that violates the rules.
-  check = "vp lint --deny-warnings {{ files }}"
-  fix = "vp lint --deny-warnings --fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "vp lint --deny-warnings {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "vp lint --deny-warnings --fix {{ files }}"
+    effect = "write"
+  }
   workspace_indicator = "package.json"
   tests {
     local const testMaker = new helpers.TestMaker {

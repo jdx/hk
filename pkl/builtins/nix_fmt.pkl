@@ -7,12 +7,18 @@ import "../Config.pkl"
 }
 nix_fmt = new Config.Step {
   glob = "**/*.nix"
-  check = new Config.Script {
-    windows = ""
-    other = "nixfmt --check {{ files }}"
+  check = new Config.CommandSpec {
+    command = new Config.Script {
+      windows = ""
+      other = "nixfmt --check {{ files }}"
+    }
+    effect = "read"
   }
-  fix = new Config.Script {
-    windows = ""
-    other = "nixfmt {{ files }}"
+  fix = new Config.CommandSpec {
+    command = new Config.Script {
+      windows = ""
+      other = "nixfmt {{ files }}"
+    }
+    effect = "write"
   }
 }

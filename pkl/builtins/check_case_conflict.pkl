@@ -7,7 +7,10 @@ import "../Config.pkl"
 }
 check_case_conflict = new Config.Step {
   glob = "**/*"
-  check = "hk util check-case-conflict {{files}}"
+  check = new Config.CommandSpec {
+    command = "hk util check-case-conflict {{files}}"
+    effect = "read"
+  }
   tests {
     ["detects case conflicts"] {
       run = "check"

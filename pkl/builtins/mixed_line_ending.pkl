@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 mixed_line_ending = new Config.Step {
   types = List("text")
-  check_diff = "hk util mixed-line-ending --diff {{files}}"
-  fix = "hk util mixed-line-ending --fix {{files}}"
+  check_diff = new Config.CommandSpec {
+    command = "hk util mixed-line-ending --diff {{files}}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "hk util mixed-line-ending --fix {{files}}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {}
     ["check bad file"] = testMaker.checkFail("line1\r\nline2\nline3\r\n", 1)

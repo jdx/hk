@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 rumdl = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
-  check_diff = "rumdl check --diff {{ files }}"
-  fix = "rumdl check --fix {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "rumdl check --diff {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "rumdl check --fix {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "file.md" }
     ["check bad file"] = testMaker.checkFail("# Hello\n\n\nParagraph\n", 1)

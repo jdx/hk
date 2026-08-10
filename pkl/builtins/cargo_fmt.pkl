@@ -12,10 +12,18 @@ import "./test/helpers.pkl"
 cargo_fmt = new Config.Step {
   glob = "**/*.rs"
   workspace_indicator = "Cargo.toml"
-  check = "cargo fmt --check --manifest-path {{workspace_indicator}}"
-  check_list_files =
-    "cargo fmt --check --manifest-path {{workspace_indicator}} -- --files-with-diff"
-  fix = "cargo fmt --manifest-path {{workspace_indicator}}"
+  check = new Config.CommandSpec {
+    command = "cargo fmt --check --manifest-path {{workspace_indicator}}"
+    effect = "read"
+  }
+  check_list_files = new Config.CommandSpec {
+    command = "cargo fmt --check --manifest-path {{workspace_indicator}} -- --files-with-diff"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "cargo fmt --manifest-path {{workspace_indicator}}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "src/main.rs"

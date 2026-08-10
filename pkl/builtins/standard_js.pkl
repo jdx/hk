@@ -7,6 +7,12 @@ import "../Config.pkl"
 }
 standard_js = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
-  check = "standard {{ files }}"
-  fix = "standard --fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "standard {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "standard --fix {{ files }}"
+    effect = "write"
+  }
 }

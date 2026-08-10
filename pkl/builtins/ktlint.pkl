@@ -8,8 +8,14 @@ import "./test/helpers.pkl"
 }
 ktlint = new Config.Step {
   glob = "**/*.kt"
-  check = "ktlint {{ files }}"
-  fix = "ktlint -F {{ files }}"
+  check = new Config.CommandSpec {
+    command = "ktlint {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "ktlint -F {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "Test.kt" }
     ["check bad file"] = testMaker.checkFail("const val FOO_1  =  \"foo1\"", 1)

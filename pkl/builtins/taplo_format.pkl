@@ -12,8 +12,14 @@ taplo_format = new Config.Step {
     // prevent logs to stderr with the list of checked files
     ["RUST_LOG"] = "warn"
   }
-  check_diff = "taplo format --check --diff {{ files }}"
-  fix = "taplo format {{ files }}"
+  check_diff = new Config.CommandSpec {
+    command = "taplo format --check --diff {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "taplo format {{ files }}"
+    effect = "write"
+  }
   tests {
     local const testMaker = new helpers.TestMaker { filename = "test.toml" }
     ["check bad file"] = testMaker.checkFail("[table]\nkey  =  \"value\"\n", 1)

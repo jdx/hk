@@ -8,7 +8,10 @@ import "./test/helpers.pkl"
 }
 buf_lint = new Config.Step {
   glob = "**/*.proto"
-  check = "buf lint {{workspace}}"
+  check = new Config.CommandSpec {
+    command = "buf lint {{workspace}}"
+    effect = "read"
+  }
   workspace_indicator = "buf.yaml"
   tests {
     local const testMaker = new helpers.TestMaker {

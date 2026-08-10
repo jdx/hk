@@ -10,5 +10,8 @@ import "../Config.pkl"
 }
 cocogitto_commit_msg = new Config.Step {
   // Reference: https://github.com/cocogitto/cocogitto/blob/7.0.0/cog.toml#L62-L63
-  check = "cog --quiet verify --file {{commit_msg_file}}"
+  check = new Config.CommandSpec {
+    command = "cog --quiet verify --file {{commit_msg_file}}"
+    effect = "read"
+  }
 }

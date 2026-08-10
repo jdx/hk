@@ -58,8 +58,14 @@ vp_check = new Config.Step {
       // TOML
       "**/*.toml",
     )
-  check = "vp check {{ files }}"
-  fix = "vp check --fix {{ files }}"
+  check = new Config.CommandSpec {
+    command = "vp check {{ files }}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = "vp check --fix {{ files }}"
+    effect = "write"
+  }
   workspace_indicator = "package.json"
   tests {
     local const testMaker = new helpers.TestMaker {

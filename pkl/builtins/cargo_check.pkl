@@ -10,8 +10,14 @@ cargo_check = new Config.Step {
   glob = "**/*.rs"
   // NB: We need nightly to enable `warnings` unstable feature: https://doc.rust-lang.org/cargo/reference/unstable.html#warnings
   // (See the comment for `CARGO_BUILD_WARNINGS` below)
-  check = "cargo +nightly check -Zwarnings --quiet"
-  fix = "cargo fix --allow-dirty --allow-staged --quiet"
+  check = new Config.CommandSpec {
+    command = "cargo +nightly check -Zwarnings --quiet"
+    effect = "write"
+  }
+  fix = new Config.CommandSpec {
+    command = "cargo fix --allow-dirty --allow-staged --quiet"
+    effect = "write"
+  }
   env {
     ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
     // NB: This is needed to treat warnings as errors.
