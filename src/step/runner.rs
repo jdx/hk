@@ -48,6 +48,62 @@ fn truncate_progress_message(s: &str, max_chars: usize) -> String {
 }
 
 impl Step {
+    pub fn commands_for_jobs<'a>(
+        &'a self,
+        run_type: RunType,
+        jobs: &[StepJob],
+    ) -> Vec<(&'static str, &'a Command)> {
+        let mut commands = Vec::new();
+        for job in jobs.iter().filter(|job| job.skip_reason.is_none()) {
+            let first = if job.check_first {
+                self.check_first_cmd().map(|command| command.command())
+            } else {
+                self.run_cmd(run_type)
+            };
+
+            // A failed check-first command falls through to the command for the
+            // requested run type. Include both possible commands in plans and
+            // safe-mode preflight even though a successful check-first command
+            // can make the fallback unnecessary at runtime.
+            let fallback = job.check_first.then(|| self.run_cmd(run_type)).flatten();
+            for command in [first, fallback]
+                .into_iter()
+                .flatten()
+                .filter(|command| !command.is_empty())
+            {
+                let field = self.command_field(command);
+                if !commands.iter().any(|(existing, _)| *existing == field) {
+                    commands.push((field, command));
+                }
+            }
+        }
+        commands
+    }
+
+    fn command_field(&self, command: &Command) -> &'static str {
+        if self
+            .check
+            .as_ref()
+            .is_some_and(|candidate| std::ptr::eq(candidate, command))
+        {
+            "check"
+        } else if self
+            .check_diff
+            .as_ref()
+            .is_some_and(|candidate| std::ptr::eq(candidate, command))
+        {
+            "check_diff"
+        } else if self
+            .check_list_files
+            .as_ref()
+            .is_some_and(|candidate| std::ptr::eq(candidate, command))
+        {
+            "check_list_files"
+        } else {
+            "fix"
+        }
+    }
+
     /// Execute a single job.
     ///
     /// This is the core execution function that runs a command for a step.
@@ -284,6 +340,23 @@ impl Step {
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
         let exec_result = cmd.execute().await;
         timing_guard.finish();
+        // Record only commands that reached a running process. Template,
+        // environment, mise, or spawn failures must not claim an effect that
+        // never occurred. Script failures, cancellation, and timeouts all
+        // happen after the child started and therefore do count.
+        if matches!(
+            &exec_result,
+            Ok(_)
+                | Err(ensembler::Error::ScriptFailed(_))
+                | Err(ensembler::Error::Cancelled)
+                | Err(ensembler::Error::TimedOut)
+        ) {
+            ctx.hook_ctx.record_step_effect(
+                &self.name,
+                self.command_field(run_cmd),
+                run_cmd.effect(),
+            );
+        }
         if self.interactive {
             clx::progress::resume();
         }

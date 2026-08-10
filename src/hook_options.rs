@@ -64,6 +64,9 @@ pub(crate) struct HookOptions {
     /// Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
     #[clap(long, conflicts_with_all = &["files", "all", "from_ref", "glob", "to_ref"])]
     pub pr: bool,
+    /// Reject commands with unknown or destructive effects before execution
+    #[clap(long)]
+    pub safe: bool,
     /// Skip specific step(s)
     #[clap(long, value_name = "STEP")]
     pub skip_step: Vec<String>,

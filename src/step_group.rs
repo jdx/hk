@@ -164,7 +164,8 @@ impl StepGroup {
                 )
             })
             .collect();
-        *ctx.hook_ctx.files_in_contention.lock().unwrap() = self.files_in_contention(&ctx)?;
+        *ctx.hook_ctx.files_in_contention.lock().unwrap() =
+            self.files_in_contention_for(&ctx.hook_ctx.files(), ctx.hook_ctx.run_type)?;
         if self.steps.values().any(|j| j.check_first) {
         } else {
             *ctx.hook_ctx.files_in_contention.lock().unwrap() = Default::default();
@@ -233,11 +234,14 @@ impl StepGroup {
         result
     }
 
-    fn files_in_contention(&self, ctx: &StepGroupContext) -> Result<HashSet<PathBuf>> {
-        if ctx.hook_ctx.run_type != RunType::Fix || !self.steps.values().any(|j| j.check_first) {
+    pub(crate) fn files_in_contention_for(
+        &self,
+        files: &[PathBuf],
+        run_type: RunType,
+    ) -> Result<HashSet<PathBuf>> {
+        if run_type != RunType::Fix || !self.steps.values().any(|j| j.check_first) {
             return Ok(Default::default());
         }
-        let files = ctx.hook_ctx.files();
         let step_map: HashMap<&str, &Step> = self
             .steps
             .values()
@@ -247,7 +251,7 @@ impl StepGroup {
             .steps
             .values()
             .map(|step| {
-                let step_files = step.filter_files(&files)?;
+                let step_files = step.filter_files(files)?;
 
                 Ok((step.name.as_str(), step_files))
             })

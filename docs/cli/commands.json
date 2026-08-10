@@ -295,6 +295,16 @@
             "global": false
           },
           {
+            "name": "safe",
+            "usage": "--safe",
+            "help": "Reject commands with unknown or destructive effects before execution",
+            "help_first_line": "Reject commands with unknown or destructive effects before execution",
+            "short": [],
+            "long": ["safe"],
+            "hide": false,
+            "global": false
+          },
+          {
             "name": "skip-step",
             "usage": "--skip-step… <STEP>",
             "help": "Skip specific step(s)",
@@ -786,6 +796,16 @@
             "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
             "short": [],
             "long": ["pr"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "safe",
+            "usage": "--safe",
+            "help": "Reject commands with unknown or destructive effects before execution",
+            "help_first_line": "Reject commands with unknown or destructive effects before execution",
+            "short": [],
+            "long": ["safe"],
             "hide": false,
             "global": false
           },
@@ -1350,6 +1370,16 @@
                 "global": false
               },
               {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -1722,6 +1752,16 @@
                 "global": false
               },
               {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -2063,6 +2103,16 @@
                 "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
                 "short": [],
                 "long": ["pr"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
                 "hide": false,
                 "global": false
               },
@@ -2421,6 +2471,16 @@
                 "global": false
               },
               {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -2775,6 +2835,16 @@
                 "global": false
               },
               {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -3116,6 +3186,16 @@
                 "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
                 "short": [],
                 "long": ["pr"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
                 "hide": false,
                 "global": false
               },
@@ -3484,6 +3564,16 @@
                 "global": false
               },
               {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -3843,6 +3933,16 @@
                 "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
                 "short": [],
                 "long": ["pr"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
                 "hide": false,
                 "global": false
               },
@@ -4219,6 +4319,16 @@
                 "global": false
               },
               {
+                "name": "safe",
+                "usage": "--safe",
+                "help": "Reject commands with unknown or destructive effects before execution",
+                "help_first_line": "Reject commands with unknown or destructive effects before execution",
+                "short": [],
+                "long": ["safe"],
+                "hide": false,
+                "global": false
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -4564,6 +4674,16 @@
             "help_first_line": "Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)",
             "short": [],
             "long": ["pr"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "safe",
+            "usage": "--safe",
+            "help": "Reject commands with unknown or destructive effects before execution",
+            "help_first_line": "Reject commands with unknown or destructive effects before execution",
+            "short": [],
+            "long": ["safe"],
             "hide": false,
             "global": false
           },
