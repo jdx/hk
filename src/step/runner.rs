@@ -24,7 +24,9 @@ use std::process::Stdio;
 
 use super::expr_env::EXPR_ENV;
 use super::shell::ShellType;
-use super::types::{CheckFirstCmd, Command, Pattern, RenderedCommand, RunType, Step};
+use super::types::{
+    CheckFirstCmd, Command, CommandPrefix, Pattern, RenderedCommand, RunType, Step,
+};
 use crate::error::Error;
 
 /// Cap on the per-job progress message in printable characters. The
@@ -161,11 +163,11 @@ impl Step {
         // progress message; this keeps the command shape and one
         // concrete example path visible without unbounded expansion.
         let run_for_display = run_cmd
-            .render(&tctx.for_display(), self.prefix.as_deref())
+            .render(&tctx.for_display(), self.prefix.as_ref())
             .map(|command| command.display(self.shell_type()))
             .unwrap_or_else(|_| run_cmd.to_string());
         let rendered_command = run_cmd
-            .render(&tctx, self.prefix.as_deref())
+            .render(&tctx, self.prefix.as_ref())
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
         let run = rendered_command.display(self.shell_type());
         let display_pattern = |pattern: &Pattern| match pattern {
@@ -400,13 +402,20 @@ impl Step {
             self.check_diff.as_ref(),
             self.fix.as_ref(),
         ];
-        if commands.iter().flatten().any(|command| command.is_argv()) {
+        let has_argv = commands.iter().flatten().any(|command| command.is_argv());
+        let has_shell = commands.iter().flatten().any(|command| !command.is_argv());
+        if has_argv {
             if self.shell.is_some() {
                 eyre::bail!("Step '{name}' can't combine structured argv commands with `shell`.");
             }
-            if self.prefix.is_some() {
-                eyre::bail!("Step '{name}' can't combine structured argv commands with `prefix`.");
+            if matches!(self.prefix, Some(CommandPrefix::Shell(_))) {
+                eyre::bail!(
+                    "Step '{name}' can't combine structured argv commands with a shell `prefix`."
+                );
             }
+        }
+        if has_shell && matches!(self.prefix, Some(CommandPrefix::Argv(_))) {
+            eyre::bail!("Step '{name}' can't combine shell commands with an argv `prefix`.");
         }
         self.name = name.to_string();
         if self.interactive {
@@ -520,6 +529,7 @@ impl Step {
 mod tests {
     use super::*;
     use crate::step::Script;
+    use crate::step::types::ArgvCommand;
 
     #[test]
     fn truncate_progress_message_passes_short_input() {
@@ -608,5 +618,33 @@ mod tests {
 
         assert!(!step.has_command_for(RunType::Check));
         assert!(!step.has_command_for(RunType::Fix));
+    }
+
+    #[test]
+    fn init_rejects_shell_prefix_for_structured_command() {
+        let mut step = Step {
+            check: Some(Command::Argv(ArgvCommand {
+                argv: vec!["tool".to_string()],
+            })),
+            prefix: Some(CommandPrefix::Shell("mise x --".to_string())),
+            ..Default::default()
+        };
+
+        let err = step.init("test").unwrap_err();
+
+        assert!(err.to_string().contains("shell `prefix`"));
+    }
+
+    #[test]
+    fn init_rejects_argv_prefix_for_shell_command() {
+        let mut step = Step {
+            check: Some("tool".parse().unwrap()),
+            prefix: Some(CommandPrefix::Argv(vec!["mise".to_string()])),
+            ..Default::default()
+        };
+
+        let err = step.init("test").unwrap_err();
+
+        assert!(err.to_string().contains("argv `prefix`"));
     }
 }

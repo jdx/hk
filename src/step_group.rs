@@ -7,7 +7,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use crate::{
     Result,
     hook::{HookContext, StepOrGroup},
-    step::{Pattern, RunType, Script, Step},
+    step::{CommandPrefix, Pattern, RunType, Script, Step},
     step_context::StepContext,
     step_depends::StepDepends,
 };
@@ -25,7 +25,7 @@ pub struct StepGroup {
     pub _type: Option<String>,
     pub name: Option<String>,
     pub workspace_indicator: Option<String>,
-    pub prefix: Option<String>,
+    pub prefix: Option<CommandPrefix>,
     pub dir: Option<String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub shell: Option<Script>,
@@ -274,6 +274,7 @@ impl StepGroup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::step::{ArgvCommand, Command};
 
     #[test]
     fn init_inherits_group_fields_without_merging_child_overrides() {
@@ -289,7 +290,7 @@ mod tests {
         let mut override_step = Step::default();
         override_step.check = Some("echo override".parse().unwrap());
         override_step.dir = Some("different/path".to_string());
-        override_step.prefix = Some("npm exec --".to_string());
+        override_step.prefix = Some(CommandPrefix::Shell("npm exec --".to_string()));
         override_step.workspace_indicator = Some("eslint.config.js".to_string());
         override_step.shell = Some(child_shell.clone());
         override_step.stage = Some(vec!["eslint-output/**".to_string()]);
@@ -297,7 +298,7 @@ mod tests {
 
         let mut group = StepGroup {
             dir: Some("packages/frontend".to_string()),
-            prefix: Some("mise x --".to_string()),
+            prefix: Some(CommandPrefix::Shell("mise x --".to_string())),
             workspace_indicator: Some("package.json".to_string()),
             shell: Some(group_shell.clone()),
             stage: Some(vec!["dist/**".to_string()]),
@@ -313,7 +314,10 @@ mod tests {
 
         let prettier = group.steps.get("prettier").unwrap();
         assert_eq!(prettier.dir.as_deref(), Some("packages/frontend"));
-        assert_eq!(prettier.prefix.as_deref(), Some("mise x --"));
+        assert_eq!(
+            prettier.prefix.as_ref(),
+            Some(&CommandPrefix::Shell("mise x --".to_string()))
+        );
         assert_eq!(
             prettier.workspace_indicator.as_deref(),
             Some("package.json")
@@ -327,7 +331,10 @@ mod tests {
 
         let eslint = group.steps.get("eslint").unwrap();
         assert_eq!(eslint.dir.as_deref(), Some("different/path"));
-        assert_eq!(eslint.prefix.as_deref(), Some("npm exec --"));
+        assert_eq!(
+            eslint.prefix.as_ref(),
+            Some(&CommandPrefix::Shell("npm exec --".to_string()))
+        );
         assert_eq!(
             eslint.workspace_indicator.as_deref(),
             Some("eslint.config.js")
@@ -338,5 +345,26 @@ mod tests {
             Some(&["eslint-output/**".to_string()][..])
         );
         assert_eq!(eslint.exclude.as_ref(), Some(&child_exclude));
+    }
+
+    #[test]
+    fn init_inherits_argv_prefix_for_structured_command() {
+        let step = Step {
+            check: Some(Command::Argv(ArgvCommand {
+                argv: vec!["ruff".to_string(), "check".to_string()],
+            })),
+            ..Default::default()
+        };
+        let prefix =
+            CommandPrefix::Argv(vec!["mise".to_string(), "x".to_string(), "--".to_string()]);
+        let mut group = StepGroup {
+            prefix: Some(prefix.clone()),
+            steps: IndexMap::from([("ruff".to_string(), step)]),
+            ..Default::default()
+        };
+
+        group.init("python").unwrap();
+
+        assert_eq!(group.steps["ruff"].prefix.as_ref(), Some(&prefix));
     }
 }
