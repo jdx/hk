@@ -8,13 +8,19 @@ import "./style.css";
 const root = document.getElementById("app")!;
 let bridge: Awaited<ReturnType<typeof connectBridge>> | undefined;
 let pendingRun: RunSnapshot | undefined;
+let dashboardMounted = false;
 const call: ToolCaller = (name, args) =>
   bridge
     ? bridge.call(name, args)
     : Promise.reject(new Error("MCP Apps bridge is not ready"));
 
-const renderRun = (run: RunSnapshot) =>
+const renderRun = (run: RunSnapshot) => {
+  if (!dashboardMounted) {
+    root.replaceChildren();
+    dashboardMounted = true;
+  }
   render(<Dashboard key={run.id} initial={run} call={call} />, root);
+};
 
 connectBridge((value) => {
   const payload = value as { run?: RunSnapshot } | undefined;
