@@ -404,17 +404,10 @@ impl HkMcpServer {
         match status {
             Ok(status) => {
                 run.exit_code = status.code();
-                if run.stdout_truncated {
-                    run.error = Some(format!(
-                        "structured result exceeded the {} byte capture limit",
-                        MAX_RUN_OUTPUT_BYTES
-                    ));
-                } else {
-                    run.result = serde_json::from_slice(&run.stdout).ok();
-                }
+                let invalid_result = parse_run_result(run);
                 run.status = if cancelled {
                     "cancelled"
-                } else if run.stdout_truncated {
+                } else if invalid_result {
                     "failed"
                 } else if status.success() {
                     "succeeded"
@@ -837,6 +830,26 @@ fn tool_success(summary: String, value: Value) -> CallToolResult {
     result
 }
 
+fn parse_run_result(run: &mut RunRecord) -> bool {
+    if run.stdout_truncated {
+        run.error = Some(format!(
+            "structured result exceeded the {} byte capture limit",
+            MAX_RUN_OUTPUT_BYTES
+        ));
+        return true;
+    }
+    match serde_json::from_slice(&run.stdout) {
+        Ok(result) => {
+            run.result = Some(result);
+            false
+        }
+        Err(error) => {
+            run.error = Some(format!("failed to parse hk structured result: {error}"));
+            true
+        }
+    }
+}
+
 async fn read_output<R>(state: Arc<Mutex<McpState>>, id: String, mut reader: R, stdout: bool)
 where
     R: AsyncRead + Unpin,
@@ -1185,6 +1198,31 @@ mod tests {
         assert_eq!(run.stdout.len(), MAX_RUN_OUTPUT_BYTES);
         assert!(run.output_truncated);
         assert!(run.stdout_truncated);
+    }
+
+    #[test]
+    fn malformed_structured_output_is_a_run_error() {
+        let mut run = test_run("malformed", "running", Vec::new());
+        run.stdout = b"not json".to_vec();
+
+        assert!(parse_run_result(&mut run));
+        assert!(run.result.is_none());
+        assert!(
+            run.error
+                .as_deref()
+                .unwrap()
+                .starts_with("failed to parse hk structured result:")
+        );
+    }
+
+    #[test]
+    fn valid_structured_output_is_retained() {
+        let mut run = test_run("valid", "running", Vec::new());
+        run.stdout = br#"{"schema_version":1,"status":"passed"}"#.to_vec();
+
+        assert!(!parse_run_result(&mut run));
+        assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
+        assert!(run.error.is_none());
     }
 
     #[test]
