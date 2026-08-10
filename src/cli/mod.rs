@@ -33,6 +33,9 @@ struct Cli {
     /// Run as if hk was started in this directory
     #[clap(long, global = true, value_name = "DIRECTORY", value_hint = clap::ValueHint::DirPath)]
     cd: Option<PathBuf>,
+    /// Select human or machine-readable execution output
+    #[clap(long, global = true, value_enum, default_value_t)]
+    format: crate::structured_output::OutputFormat,
     /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
     #[clap(long, global = true, value_name = "PATH", hide = true)]
     hkrc: Option<PathBuf>,
@@ -132,6 +135,7 @@ pub async fn run() -> Result<()> {
         quiet: args.quiet,
         silent: args.silent,
         trace: args.trace,
+        output_format: args.format,
     });
 
     if is_ci::cached() || !console::user_attended_stderr() || args.no_progress {

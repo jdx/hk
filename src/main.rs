@@ -34,6 +34,7 @@ mod step_group;
 mod step_job;
 mod step_locks;
 mod step_test;
+mod structured_output;
 mod tera;
 mod test_runner;
 mod timings;

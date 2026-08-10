@@ -1005,6 +1005,9 @@ impl Hook {
     pub async fn run(&self, opts: HookOptions) -> Result<()> {
         tracing::info!("running hook");
         let settings = Settings::get();
+        let output_format = Settings::cli_output_format();
+        let machine_output = output_format != crate::structured_output::OutputFormat::Human;
+        let started_at = chrono::Utc::now().to_rfc3339();
         let fail_fast = if opts.fail_fast {
             true
         } else if opts.no_fail_fast {
@@ -1236,7 +1239,7 @@ impl Hook {
         let force_summary = *env::HK_SUMMARY_TEXT;
         let failed_steps = hook_ctx.failed_steps.lock().unwrap().clone();
         let only_failed = settings.quiet || (in_text_mode && !force_summary);
-        if !settings.silent && (!only_failed || !failed_steps.is_empty()) {
+        if !machine_output && !settings.silent && (!only_failed || !failed_steps.is_empty()) {
             let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
             for (step_name, (mode, output)) in outputs.into_iter() {
                 if only_failed && !failed_steps.contains(&step_name) {
@@ -1257,7 +1260,7 @@ impl Hook {
             }
         }
 
-        if !settings.silent && hook_ctx.saw_git_index_lock_contention() {
+        if !machine_output && !settings.silent && hook_ctx.saw_git_index_lock_contention() {
             eprintln!(
                 "\n{}",
                 style::eyellow(
@@ -1272,7 +1275,8 @@ impl Hook {
 
         // Display summary of profile-skipped steps
         // Only show summary if user has enabled the warning tag and it's not hidden
-        if settings.warnings.contains("missing-profiles")
+        if !machine_output
+            && settings.warnings.contains("missing-profiles")
             && !settings.hide_warnings.contains("missing-profiles")
         {
             let skipped_steps = hook_ctx.get_skipped_steps();
@@ -1369,6 +1373,13 @@ impl Hook {
         } else {
             debug!("{self}: hook finished successfully");
         }
+        crate::structured_output::emit_run(
+            output_format,
+            &self.name,
+            started_at,
+            &hook_ctx,
+            result.is_ok(),
+        )?;
         result
     }
 
