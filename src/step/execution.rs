@@ -134,10 +134,9 @@ impl Step {
                                 if !stderr.trim().is_empty() {
                                     debug!("{step}: check stderr output:\n{}", stderr);
                                 }
-                                // Preserve the first command's raw diagnostics even when a
-                                // subsequent fixer succeeds. Successful steps stay quiet in
-                                // human text mode, while structured output can still parse and
-                                // expose the diagnostic that caused the fix to run.
+                                // The command runner records ordinary diagnostic output, but
+                                // check-first errors return through a dedicated error type.
+                                // Preserve that listing/diff output for structured reporting.
                                 ctx.hook_ctx
                                     .append_diagnostic_output(&step.name, combined);
                                 if step.check_failed_files

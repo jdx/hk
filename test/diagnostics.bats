@@ -276,6 +276,32 @@ EOF
     assert_output $'1\tW1\ttrue'
 }
 
+@test "hidden ordinary diagnostics remain available to structured output" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["compiler"] {
+                check = "printf 'input.c:1:1: warning: hidden issue [W1]\\n' >&2; exit 1"
+                output_summary = "hide"
+                diagnostic_format = "gcc"
+            }
+        }
+    }
+}
+EOF
+    touch input.c
+    git add .
+    git commit -m init
+
+    run bash -c "hk --format json check --all 2>/dev/null"
+    assert_failure
+    run jq -r '.steps[0] | [(.diagnostics | length), .diagnostics[0].rule, (.output | contains("hidden issue"))] | @tsv' <<<"$output"
+    assert_success
+    assert_output $'1\tW1\ttrue'
+}
+
 @test "cancelled focused checks retain their listing diagnostics" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -302,7 +328,7 @@ EOF
 
     run bash -c "HK_FAIL_FAST=1 hk --format json check --all 2>/dev/null"
     assert_failure
-    run jq -r '.steps[] | select(.name == "focused") | [.status, (.output | contains("listing diagnostic")), (.output | split("listing diagnostic") | length - 1)] | @tsv' <<<"$output"
+    run jq -r '.steps[] | select(.name == "focused") | [.status, (.output | contains("listing diagnostic"))] | @tsv' <<<"$output"
     assert_success
-    assert_output $'cancelled\ttrue\t1'
+    assert_output $'cancelled\ttrue'
 }

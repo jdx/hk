@@ -362,6 +362,10 @@ impl Step {
         }
         match exec_result {
             Ok(result) => {
+                if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
+                    ctx.hook_ctx
+                        .append_diagnostic_output(&self.name, &result.combined_output);
+                }
                 // For both check_list_files and check_diff: stderr is informational only
                 // Files are read from stdout; stderr may contain warnings, debug info, etc.
                 if ran_check_list_files {
@@ -399,6 +403,10 @@ impl Step {
             }
             Err(err) => {
                 if let ensembler::Error::ScriptFailed(e) = &err {
+                    if self.diagnostic_format.is_some() && matches!(job.run_type, RunType::Check) {
+                        ctx.hook_ctx
+                            .append_diagnostic_output(&self.name, &e.3.combined_output);
+                    }
                     self.collect_failure_hint(ctx, &e.3.combined_output);
                     if job.check_first && matches!(job.run_type, RunType::Check) {
                         return Err(Error::CheckListFailed {

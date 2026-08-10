@@ -491,7 +491,11 @@ impl HookContext {
         }
         let mut map = self.diagnostic_output_by_step.lock().unwrap();
         map.entry(step_name.to_string())
-            .and_modify(|output| output.push_str(text))
+            .and_modify(|output| {
+                if !output.contains(text) {
+                    output.push_str(text);
+                }
+            })
             .or_insert_with(|| text.to_string());
     }
 
