@@ -246,7 +246,7 @@ impl HkMcpServer {
                 runs: VecDeque::new(),
             })),
             next_id: Arc::new(AtomicU64::new(1)),
-            tool_router: Self::tool_router(),
+            tool_router: Self::combined_tool_router(),
         }
     }
 
@@ -452,7 +452,7 @@ impl HkMcpServer {
             .ok_or_else(|| "run not found or expired".into())
     }
 
-    #[cfg(debug_assertions)]
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
     async fn prepare_debug_shutdown(&self) -> usize {
         let mut state = self.state.lock().await;
         state.cleanup();
@@ -732,7 +732,63 @@ impl HkMcpServer {
         ))
     }
 
-    #[cfg(debug_assertions)]
+    #[tool(
+        description = "Render a run for an MCP Apps host, with structured fallback for other clients",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn render_run(
+        &self,
+        Parameters(request): Parameters<RunRequest>,
+    ) -> Result<CallToolResult, String> {
+        let snapshot = self.snapshot(&request.run_id).await?;
+        let value = json!({
+            "schema_version": 1,
+            "view": "hk.run",
+            "run": snapshot,
+            "ui_available": false,
+        });
+        Ok(tool_success(
+            "Run view is available as structured content".into(),
+            value,
+        ))
+    }
+}
+
+impl HkMcpServer {
+    fn combined_tool_router() -> ToolRouter<Self> {
+        let router = Self::tool_router();
+        #[cfg(debug_assertions)]
+        {
+            router + Self::debug_tool_router()
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            router
+        }
+    }
+
+    async fn start_tool(
+        &self,
+        request: RootRequest,
+        peer: Peer<RoleServer>,
+        kind: RunKind,
+    ) -> Result<CallToolResult, String> {
+        self.refresh_client_roots(&peer).await;
+        let root = self.select_root(request.root.as_deref()).await?;
+        let snapshot = self.start(root, kind).await?;
+        let value = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
+        Ok(tool_success(format!("Started run {}", snapshot.id), value))
+    }
+}
+
+#[cfg(debug_assertions)]
+#[tool_router(router = debug_tool_router)]
+impl HkMcpServer {
     #[tool(
         description = "Shut down this debug MCP server after replying; active runs are terminated and the host must reconnect",
         annotations(
@@ -769,47 +825,6 @@ impl HkMcpServer {
                 "active_runs": active_runs,
             }),
         ))
-    }
-
-    #[tool(
-        description = "Render a run for an MCP Apps host, with structured fallback for other clients",
-        annotations(
-            read_only_hint = true,
-            destructive_hint = false,
-            idempotent_hint = true,
-            open_world_hint = false
-        )
-    )]
-    async fn render_run(
-        &self,
-        Parameters(request): Parameters<RunRequest>,
-    ) -> Result<CallToolResult, String> {
-        let snapshot = self.snapshot(&request.run_id).await?;
-        let value = json!({
-            "schema_version": 1,
-            "view": "hk.run",
-            "run": snapshot,
-            "ui_available": false,
-        });
-        Ok(tool_success(
-            "Run view is available as structured content".into(),
-            value,
-        ))
-    }
-}
-
-impl HkMcpServer {
-    async fn start_tool(
-        &self,
-        request: RootRequest,
-        peer: Peer<RoleServer>,
-        kind: RunKind,
-    ) -> Result<CallToolResult, String> {
-        self.refresh_client_roots(&peer).await;
-        let root = self.select_root(request.root.as_deref()).await?;
-        let snapshot = self.start(root, kind).await?;
-        let value = serde_json::to_value(&snapshot).map_err(|error| error.to_string())?;
-        Ok(tool_success(format!("Started run {}", snapshot.id), value))
     }
 }
 
