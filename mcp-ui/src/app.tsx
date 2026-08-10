@@ -155,6 +155,8 @@ export function Dashboard({
   }, [run.id, run.status]);
 
   const steps = run.result?.steps ?? [];
+  const passedSteps = steps.filter((step) => step.status === "passed");
+  const visibleSteps = steps.filter((step) => step.status !== "passed");
   const diagnostics = steps.flatMap((step) => step.diagnostics ?? []);
   const diagnosticsByFile = useMemo(() => {
     const grouped = new Map<string, Diagnostic[]>();
@@ -290,7 +292,7 @@ export function Dashboard({
             <section class="live-steps">
               <h3>Execution</h3>
               <ol>
-                {steps.map((step) => (
+                {visibleSteps.map((step) => (
                   <li key={step.name} class={step.status}>
                     <span class={`dot ${step.status}`} />
                     <span>
@@ -308,6 +310,30 @@ export function Dashboard({
                   <li class="empty">Waiting for structured step results…</li>
                 )}
               </ol>
+              {passedSteps.length > 0 && (
+                <details class="passed-steps">
+                  <summary>
+                    {passedSteps.length} passed{" "}
+                    {passedSteps.length === 1 ? "step" : "steps"}
+                  </summary>
+                  <ol>
+                    {passedSteps.map((step) => (
+                      <li key={step.name} class={step.status}>
+                        <span class={`dot ${step.status}`} />
+                        <span>
+                          <strong>{step.name}</strong>
+                          <small>
+                            {step.effects
+                              ?.map((effect) => effect.effect ?? "unknown")
+                              .join(" · ") || step.status}
+                          </small>
+                        </span>
+                        <time>{step.duration_ms} ms</time>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
             </section>
             <section class="live-output">
               <div class="section-heading">
@@ -396,6 +422,19 @@ export function Dashboard({
             aria-labelledby="tab-overview"
             hidden={activeTab !== "overview"}
           >
+            {run.status === "failed" && !run.result && (
+              <section class="run-failure" role="alert">
+                <div>
+                  <strong>Run failed before step results were available</strong>
+                  <p>
+                    Open the captured logs for the configuration or setup error.
+                  </p>
+                </div>
+                <button type="button" onClick={() => setActiveTab("logs")}>
+                  View logs
+                </button>
+              </section>
+            )}
             <div class="summary-strip" aria-label="Run summary">
               <div>
                 <span>Steps</span>
@@ -434,7 +473,7 @@ export function Dashboard({
             <div class="execution-review">
               <h2>Execution</h2>
               <ol>
-                {steps.map((step) => (
+                {visibleSteps.map((step) => (
                   <li key={step.name}>
                     <span class={`dot ${step.status}`} />
                     <strong>{step.name}</strong>
@@ -448,6 +487,28 @@ export function Dashboard({
                 ))}
                 {!steps.length && <li class="empty">No steps reported.</li>}
               </ol>
+              {passedSteps.length > 0 && (
+                <details class="passed-steps">
+                  <summary>
+                    {passedSteps.length} passed{" "}
+                    {passedSteps.length === 1 ? "step" : "steps"}
+                  </summary>
+                  <ol>
+                    {passedSteps.map((step) => (
+                      <li key={step.name}>
+                        <span class={`dot ${step.status}`} />
+                        <strong>{step.name}</strong>
+                        <small>
+                          {step.effects
+                            ?.map((effect) => effect.effect ?? "unknown")
+                            .join(" · ")}
+                        </small>
+                        <time>{step.duration_ms} ms</time>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              )}
             </div>
           </section>
 

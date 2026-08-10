@@ -300,6 +300,7 @@ jobs:
       - ci-nogit
       - ci-other
       - ci-windows
+      - mcp-ui
       - msrv
     runs-on: namespace-profile-endev-linux-amd64
     timeout-minutes: 1
@@ -335,6 +336,10 @@ jobs:
           fi
           if [ "${{ needs.ci-windows.result }}" != "success" ]; then
             echo "ci-windows failed or was skipped"
+            exit 1
+          fi
+          if [ "${{ needs.mcp-ui.result }}" != "success" ]; then
+            echo "mcp-ui failed or was skipped"
             exit 1
           fi
           if [ "${{ needs.msrv.result }}" != "success" ]; then

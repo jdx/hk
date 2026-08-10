@@ -155,6 +155,57 @@ describe("Dashboard", () => {
     expect(screen.queryByText("safe mode accepted")).not.toBeInTheDocument();
   });
 
+  it("collapses passed steps and keeps non-passing steps visible", () => {
+    const mixed: RunSnapshot = {
+      ...run,
+      has_diff: false,
+      result: {
+        ...run.result!,
+        steps: [
+          {
+            name: "format",
+            status: "passed",
+            duration_ms: 4,
+            diagnostics: [],
+          },
+          {
+            name: "lint",
+            status: "failed",
+            duration_ms: 8,
+            diagnostics: [],
+          },
+        ],
+      },
+    };
+
+    render(<Dashboard initial={mixed} call={vi.fn(async () => mixed)} />);
+
+    const disclosure = screen.getByText("1 passed step").closest("details");
+    expect(disclosure).not.toHaveAttribute("open");
+    expect(screen.getByText("lint")).toBeVisible();
+  });
+
+  it("links pre-step failures to captured logs", async () => {
+    const setupFailure: RunSnapshot = {
+      ...run,
+      result: undefined,
+      has_diff: false,
+    };
+    const call = vi.fn(async (name: string) => {
+      if (name === "get_output")
+        return { text: "configuration failed", eof: true, next_offset: 20 };
+      return setupFailure;
+    });
+
+    render(<Dashboard initial={setupFailure} call={call} />);
+    expect(
+      screen.getByText("Run failed before step results were available"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "View logs" }));
+    expect(await screen.findByText("configuration failed")).toBeVisible();
+  });
+
   it("replaces state when a different run is rendered", async () => {
     const next = { ...run, id: "hk-2", kind: "safe_fix", has_diff: false };
     const call = vi.fn(async (name: string, args: Record<string, unknown>) => {

@@ -51,14 +51,14 @@ pre:focus-visible {
 
 main {
   max-width: 1100px;
-  min-height: 520px;
+  min-height: 420px;
   margin: auto;
   overflow: hidden;
   background: var(--surface);
 }
 
 .topbar {
-  min-height: 70px;
+  min-height: 62px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -214,7 +214,7 @@ aside[role="alert"] {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  padding: 24px 20px 14px;
+  padding: 18px 20px 10px;
 }
 
 .running-summary > strong {
@@ -228,7 +228,7 @@ aside[role="alert"] {
 
 .progress {
   height: 6px;
-  margin: 0 20px 20px;
+  margin: 0 20px 14px;
   overflow: hidden;
   border-radius: 4px;
   background: #222c39;
@@ -249,27 +249,27 @@ aside[role="alert"] {
 }
 
 .live-grid {
-  min-height: 330px;
+  min-height: 270px;
   display: grid;
   grid-template-columns: minmax(220px, 36%) 1fr;
   border-top: 1px solid var(--line-soft);
 }
 
 .live-steps {
-  padding: 18px;
+  padding: 14px;
   border-right: 1px solid var(--line-soft);
   background: #0f1621;
 }
 
 .live-steps ol,
 .execution-review ol {
-  margin: 13px 0 0;
+  margin: 9px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .live-steps li {
-  min-height: 52px;
+  min-height: 38px;
   display: grid;
   grid-template-columns: 12px 1fr auto;
   align-items: center;
@@ -279,7 +279,7 @@ aside[role="alert"] {
 
 .live-steps li > span:nth-child(2) {
   display: grid;
-  gap: 4px;
+  gap: 1px;
 }
 
 .live-steps small,
@@ -313,7 +313,7 @@ aside[role="alert"] {
 
 .live-output {
   min-width: 0;
-  padding: 18px;
+  padding: 14px;
 }
 
 .section-heading,
@@ -350,12 +350,12 @@ pre {
 }
 
 .live-output pre {
-  min-height: 265px;
+  min-height: 215px;
 }
 
 .live-footer,
 .review-footer {
-  min-height: 54px;
+  min-height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -392,7 +392,7 @@ nav button {
 
 /* Completed runs switch to a compact tabbed review workspace. */
 .reviewbar {
-  min-height: 56px;
+  min-height: 48px;
   display: flex;
   align-items: stretch;
   justify-content: space-between;
@@ -465,8 +465,8 @@ button:disabled {
 }
 
 .review-panel {
-  min-height: 390px;
-  padding: 26px 22px;
+  min-height: 300px;
+  padding: 18px 20px;
 }
 
 .review-panel[hidden] {
@@ -477,7 +477,7 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-bottom: 22px;
+  margin-bottom: 15px;
 }
 
 .summary-strip > div {
@@ -485,7 +485,7 @@ button:disabled {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 5px 12px;
-  padding: 14px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -519,7 +519,7 @@ button:disabled {
 }
 
 .execution-review li {
-  min-height: 48px;
+  min-height: 34px;
   display: grid;
   grid-template-columns: 10px 1fr auto auto;
   align-items: center;
@@ -527,9 +527,77 @@ button:disabled {
   border-bottom: 1px solid var(--line-soft);
 }
 
+.passed-steps {
+  margin-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.passed-steps summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  list-style: none;
+}
+
+.passed-steps summary::-webkit-details-marker {
+  display: none;
+}
+
+.passed-steps summary::before {
+  content: "›";
+  color: var(--green);
+  font-size: 16px;
+  transition: transform 120ms ease;
+}
+
+.passed-steps[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.passed-steps ol {
+  margin-top: 0;
+}
+
+.run-failure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border: 1px solid #684c24;
+  border-radius: 8px;
+  background: #2b2115;
+  color: #ffd894;
+}
+
+.run-failure div {
+  display: grid;
+  gap: 3px;
+}
+
+.run-failure p {
+  color: #d5b980;
+  font-size: 11px;
+}
+
+.run-failure button {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid #8b6733;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+}
+
 .panel-title {
   align-items: end;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .panel-title input {
@@ -548,12 +616,12 @@ button:disabled {
 }
 
 .diagnostic-list article {
-  min-height: 72px;
+  min-height: 58px;
   display: grid;
   grid-template-columns: 30px 170px 1fr;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 9px 12px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--surface-soft);
 }
