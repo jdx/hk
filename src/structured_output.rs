@@ -356,9 +356,6 @@ fn emit_result(format: OutputFormat, result: &RunResult) -> Result<()> {
         }
         OutputFormat::Jsonl => {
             drop(stdout);
-            for step in &result.steps {
-                write_jsonl_event("step_completed", step)?;
-            }
             write_jsonl_event("run_completed", result)?;
         }
     }
