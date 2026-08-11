@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hk run check --safe --format json"
+          }
+        ]
+      }
+    ]
+  }
+}

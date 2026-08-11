@@ -5,6 +5,133 @@
     "full_cmd": [],
     "usage": "[FLAGS] <SUBCOMMAND>",
     "subcommands": {
+      "agent": {
+        "full_cmd": ["agent"],
+        "usage": "agent <SUBCOMMAND>",
+        "subcommands": {
+          "hooks": {
+            "full_cmd": ["agent", "hooks"],
+            "usage": "agent hooks <--target <TARGET>>",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "target",
+                "usage": "--target <TARGET>",
+                "short": [],
+                "long": ["target"],
+                "required": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TARGET",
+                  "usage": "<TARGET>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["codex", "claude-code", "vscode"]
+                  }
+                }
+              }
+            ],
+            "mounts": [],
+            "effect": "read",
+            "hide": false,
+            "help": "Print a hook configuration for an agent or editor",
+            "name": "hooks",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "instructions": {
+            "full_cmd": ["agent", "instructions"],
+            "usage": "agent instructions <--target <TARGET>>",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "target",
+                "usage": "--target <TARGET>",
+                "short": [],
+                "long": ["target"],
+                "required": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TARGET",
+                  "usage": "<TARGET>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["codex", "claude-code", "generic"]
+                  }
+                }
+              }
+            ],
+            "mounts": [],
+            "effect": "read",
+            "hide": false,
+            "help": "Print project instructions for a coding agent",
+            "name": "instructions",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          },
+          "mcp": {
+            "full_cmd": ["agent", "mcp"],
+            "usage": "agent mcp <--target <TARGET>>",
+            "subcommands": {},
+            "args": [],
+            "flags": [
+              {
+                "name": "target",
+                "usage": "--target <TARGET>",
+                "short": [],
+                "long": ["target"],
+                "required": true,
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "TARGET",
+                  "usage": "<TARGET>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": [
+                      "codex",
+                      "claude-desktop",
+                      "claude-code",
+                      "vscode"
+                    ]
+                  }
+                }
+              }
+            ],
+            "mounts": [],
+            "effect": "read",
+            "hide": false,
+            "help": "Print an MCP server configuration",
+            "name": "mcp",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": []
+          }
+        },
+        "args": [],
+        "flags": [],
+        "mounts": [],
+        "effect": "read",
+        "hide": false,
+        "subcommand_required": true,
+        "help": "Generate integration snippets for coding agents",
+        "name": "agent",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": []
+      },
       "builtins": {
         "full_cmd": ["builtins"],
         "usage": "builtins",

@@ -8,6 +8,7 @@ pub fn generate_pkl(builtins: &[&BuiltinMeta], hooks: &[String], version: &str) 
     output.push_str(&format!(
         r#"amends "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl"
+// Using a coding agent? See https://hk.jdx.dev/agents
 
 "#
     ));
@@ -76,6 +77,7 @@ pub fn generate_default_template(version: &str) -> String {
     format!(
         r#"amends "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl"
+// Using a coding agent? See https://hk.jdx.dev/agents
 
 local linters = new Mapping<String, Step> {{
     // Add linters here. Examples:
@@ -138,5 +140,12 @@ mod tests {
         let template = generate_default_template("1.34.0");
         assert!(template.contains("v1.34.0"));
         assert!(template.contains("// Add linters here"));
+    }
+
+    #[test]
+    fn test_agent_docs_link_follows_imports() {
+        let expected = "import \"package://github.com/jdx/hk/releases/download/v1.34.0/hk@1.34.0#/Builtins.pkl\"\n// Using a coding agent? See https://hk.jdx.dev/agents";
+        assert!(generate_pkl(&[], &[], "1.34.0").contains(expected));
+        assert!(generate_default_template("1.34.0").contains(expected));
     }
 }

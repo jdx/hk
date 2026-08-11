@@ -29,6 +29,29 @@ flag "-q --quiet" help="Suppresses non-essential output (info messages, progress
 flag --silent help="Suppresses all output including warnings. Only errors are shown" global=#true
 flag --trace help="Enable tracing spans and performance diagnostics" global=#true
 flag --json help="Output in JSON format" global=#true
+cmd agent subcommand_required=#true help="Generate integration snippets for coding agents" effect=read {
+    cmd hooks help="Print a hook configuration for an agent or editor" effect=read {
+        flag --target required=#true {
+            arg <TARGET> {
+                choices codex claude-code vscode
+            }
+        }
+    }
+    cmd instructions help="Print project instructions for a coding agent" effect=read {
+        flag --target required=#true {
+            arg <TARGET> {
+                choices codex claude-code generic
+            }
+        }
+    }
+    cmd mcp help="Print an MCP server configuration" effect=read {
+        flag --target required=#true {
+            arg <TARGET> {
+                choices codex claude-desktop claude-code vscode
+            }
+        }
+    }
+}
 cmd builtins help="Lists all available builtin linters" effect=read
 cmd cache hide=#true subcommand_required=#true help="Manage hk internal cache" effect=read {
     cmd clear help="Clear the cache directory" effect=write

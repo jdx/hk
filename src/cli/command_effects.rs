@@ -23,6 +23,10 @@ use clap_usage::usage::SpecCommandEffect::{self, Destructive, Read, Write};
 
 /// Commands whose effect is fixed, keyed by their full path under `hk`.
 pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
+    ("agent", Read),
+    ("agent hooks", Read),
+    ("agent instructions", Read),
+    ("agent mcp", Read),
     ("builtins", Read),
     ("cache", Read),
     // The cache is regenerated on demand, so clearing it costs only time.

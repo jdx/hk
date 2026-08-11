@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "hk: safe check",
+      "type": "shell",
+      "command": "hk run check --safe --format json",
+      "problemMatcher": []
+    }
+  ]
+}

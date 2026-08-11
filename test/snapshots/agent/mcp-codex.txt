@@ -1,0 +1,3 @@
+[mcp_servers.hk]
+args    = ["mcp", "--root", "."]
+command = "hk"
