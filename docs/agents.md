@@ -51,6 +51,10 @@ Codex, Claude Code, Claude Desktop, and VS Code can use the structured MCP tools
 
 The dashboard shows the current run, step status and timing, normalized diagnostics grouped by file, searchable logs, and the resulting diff. Mutating actions are limited to confirmed safe fixes, and the server remains the source of truth.
 
+![hk MCP dashboard showing a completed project check](/agent-dashboard.png)
+
+_A completed project check in an MCP Apps host, with step timing and command effects._
+
 See the [dashboard demo runbook](./agents/mcp-dashboard.md) for a deterministic project fixture.
 
 ## ChatGPT Desktop
