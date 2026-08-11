@@ -285,6 +285,7 @@ pre.language-sh::before {
 .VPLocalSearchBox {
   --vp-local-search-highlight-bg: rgba(76, 201, 240, 0.2);
   --vp-local-search-highlight-text: var(--hk-blue-primary);
+  z-index: 1100 !important;
 }
 
 /* Custom scrollbar */
