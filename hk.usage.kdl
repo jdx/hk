@@ -2,7 +2,7 @@
 min_usage_version "4.0"
 name hk
 bin hk
-version "1.54.1"
+version "1.55.0"
 about "A tool for managing git hooks"
 usage "Usage: hk [OPTIONS] <COMMAND>"
 flag --cd help="Run as if hk was started in this directory" global=#true {

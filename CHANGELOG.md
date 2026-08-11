@@ -1,6 +1,47 @@
 # Changelog
 
-## [1.54.1](https://github.com/jdx/hk/compare/v1.54.0..v1.54.1) - 2026-08-04
+## [1.55.0](https://github.com/jdx/hk/compare/v1.54.1..v1.55.0) - 2026-08-11
+
+### 🚀 Features
+
+- **(agent)** generate coding-agent integrations by [@jdx](https://github.com/jdx) in [#1171](https://github.com/jdx/hk/pull/1171)
+- **(builtins)** add kingfisher secret scanner by [@thoroc](https://github.com/thoroc) in [#1160](https://github.com/jdx/hk/pull/1160)
+- **(builtins)** classify command effects by [@jdx](https://github.com/jdx) in [#1167](https://github.com/jdx/hk/pull/1167)
+- **(check)** add normalized diagnostics and SARIF by [@jdx](https://github.com/jdx) in [#1168](https://github.com/jdx/hk/pull/1168)
+- **(mcp)** expose hk to coding agents by [@jdx](https://github.com/jdx) in [#1169](https://github.com/jdx/hk/pull/1169)
+- **(mcp)** add interactive hk dashboard by [@jdx](https://github.com/jdx) in [#1170](https://github.com/jdx/hk/pull/1170)
+- **(run)** add agent-friendly execution scoping by [@jdx](https://github.com/jdx) in [#1162](https://github.com/jdx/hk/pull/1162)
+- **(run)** add structured execution results by [@jdx](https://github.com/jdx) in [#1163](https://github.com/jdx/hk/pull/1163)
+- **(step)** add command effect safety by [@jdx](https://github.com/jdx) in [#1166](https://github.com/jdx/hk/pull/1166)
+
+### 🐛 Bug Fixes
+
+- **(check)** exclude deleted paths from ref checks by [@jdx](https://github.com/jdx) in [#1177](https://github.com/jdx/hk/pull/1177)
+- **(docs)** keep search modal above site navigation by [@jdx](https://github.com/jdx) in [#1188](https://github.com/jdx/hk/pull/1188)
+- **(step)** support argv prefixes for structured commands by [@jdx](https://github.com/jdx) in [#1175](https://github.com/jdx/hk/pull/1175)
+
+### 🧪 Testing
+
+- **(init)** decouple agent docs assertion from releases by [@jdx](https://github.com/jdx) in [#1187](https://github.com/jdx/hk/pull/1187)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1151](https://github.com/jdx/hk/pull/1151)
+- simplify cargo version requirements by [@jdx](https://github.com/jdx) in [#1161](https://github.com/jdx/hk/pull/1161)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1173](https://github.com/jdx/hk/pull/1173)
+- update zizmorcore/zizmor-action action to v0.6.2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1180](https://github.com/jdx/hk/pull/1180)
+- update jdx/mise-action action to v4.2.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1179](https://github.com/jdx/hk/pull/1179)
+- update anthropics/claude-code-action action to v1.0.184 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1178](https://github.com/jdx/hk/pull/1178)
+- update dependency @testing-library/jest-dom to v7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1182](https://github.com/jdx/hk/pull/1182)
+- update dependency jsdom to v30 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1183](https://github.com/jdx/hk/pull/1183)
+- update dependency typescript to v7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1184](https://github.com/jdx/hk/pull/1184)
+- update jdx/mise-action action to v4.2.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1181](https://github.com/jdx/hk/pull/1181)
+
+### New Contributors
+
+- @thoroc made their first contribution in [#1160](https://github.com/jdx/hk/pull/1160)
+
+## [1.54.1](https://github.com/jdx/hk/compare/v1.54.0..v1.54.1) - 2026-08-07
 
 ### 🐛 Bug Fixes
 

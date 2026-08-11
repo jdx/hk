@@ -20,7 +20,7 @@ name = "hk"
 repository = "https://github.com/jdx/hk"
 resolver = "3"
 rust-version = "1.88.0"
-version = "1.54.1"
+version = "1.55.0"
 
 [[bin]]
 name = "generate-docs"
