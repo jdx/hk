@@ -124,23 +124,37 @@ export function Dashboard({
       setRun(next);
       setUpdated(Date.now());
       setRefreshError("");
-      const output = await readPages(call, "get_output", runId);
-      if (
-        requestGeneration !== generation.current ||
-        requestSequence !== refreshSequence.current ||
-        activeRunId.current !== runId
-      )
-        return;
-      setLogs(output);
-      setUpdated(Date.now());
+      setLogs("");
+      setDiff("");
       if (!next.has_diff) {
-        setDiff("");
         setDiffLoading(false);
         setDiffError("");
-        return;
+      } else {
+        setDiffLoading(true);
+        setDiffError("");
       }
-      setDiffLoading(true);
-      setDiffError("");
+      try {
+        const output = await readPages(call, "get_output", runId);
+        if (
+          requestGeneration !== generation.current ||
+          requestSequence !== refreshSequence.current ||
+          activeRunId.current !== runId
+        )
+          return;
+        setLogs(output);
+        setUpdated(Date.now());
+      } catch (reason) {
+        if (
+          requestGeneration !== generation.current ||
+          requestSequence !== refreshSequence.current ||
+          activeRunId.current !== runId
+        )
+          return;
+        setRefreshError(
+          reason instanceof Error ? reason.message : String(reason),
+        );
+      }
+      if (!next.has_diff) return;
       try {
         const patch = await readPages(call, "get_diff", runId);
         if (

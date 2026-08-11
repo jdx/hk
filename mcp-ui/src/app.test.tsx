@@ -292,6 +292,7 @@ describe("Dashboard", () => {
     const call = vi.fn(async (name: string) => {
       if (name === "get_run") return { ...run, kind: "safe_fix" };
       if (name === "get_output") throw new Error("logs unavailable");
+      if (name === "get_diff") return new Promise(() => {});
       return run;
     });
 
@@ -302,6 +303,36 @@ describe("Dashboard", () => {
     expect(screen.getByText("Loading patch…")).toBeInTheDocument();
     expect(screen.queryByText("Patch unavailable.")).not.toBeInTheDocument();
     expect(screen.getByText("safe fix")).toBeInTheDocument();
+  });
+
+  it("clears stale logs and patches before a partial refresh fails", async () => {
+    let refreshCount = 0;
+    const call = vi.fn(async (name: string) => {
+      if (name === "get_run") {
+        refreshCount += 1;
+        return refreshCount === 1 ? run : { ...run, has_diff: false };
+      }
+      if (name === "get_output") {
+        if (refreshCount === 1)
+          return { text: "old log", eof: true, next_offset: 7 };
+        throw new Error("new logs unavailable");
+      }
+      if (name === "get_diff")
+        return { text: "+old patch", eof: true, next_offset: 10 };
+      return run;
+    });
+
+    render(<Dashboard initial={run} call={call} />);
+    expect(await screen.findByText("old log")).toBeInTheDocument();
+    expect(await screen.findByText("+old patch")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "new logs unavailable",
+    );
+    expect(screen.queryByText("old log")).not.toBeInTheDocument();
+    expect(screen.queryByText("+old patch")).not.toBeInTheDocument();
+    expect(screen.queryByText("Loading patch…")).not.toBeInTheDocument();
   });
 
   it("shows action failures and follows output pagination", async () => {
