@@ -386,6 +386,36 @@ describe("Dashboard", () => {
     expect(await screen.findByText("new output")).toBeInTheDocument();
   });
 
+  it("clears an old refresh alert once the next snapshot succeeds", async () => {
+    let refreshCount = 0;
+    const pendingPatch = new Promise(() => {});
+    const call = vi.fn(async (name: string) => {
+      if (name === "get_run") {
+        refreshCount += 1;
+        return run;
+      }
+      if (name === "get_output") {
+        if (refreshCount === 1) throw new Error("logs unavailable");
+        return { text: "recovered logs", eof: true, next_offset: 14 };
+      }
+      if (name === "get_diff") {
+        if (refreshCount === 1)
+          return { text: "+old patch", eof: true, next_offset: 10 };
+        return pendingPatch;
+      }
+      return run;
+    });
+
+    render(<Dashboard initial={run} call={call} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "logs unavailable",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(await screen.findByText("recovered logs")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading patch…")).toBeInTheDocument();
+  });
+
   it("shows action failures and follows output pagination", async () => {
     let outputPage = 0;
     const call = vi.fn(async (name: string) => {

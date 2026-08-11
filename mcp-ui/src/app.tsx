@@ -123,6 +123,7 @@ export function Dashboard({
         return;
       setRun(next);
       setUpdated(Date.now());
+      setRefreshError("");
       const refreshErrors: string[] = [];
       if (!next.has_diff) {
         setDiff("");
