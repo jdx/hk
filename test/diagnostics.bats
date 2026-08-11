@@ -221,23 +221,25 @@ hooks {
     ["check"] {
         steps {
             ["compiler"] {
-                check = "printf 'src/main.c:2:4: warning: cancelled fix [W1]\\n' >&2; touch ready; exit 1"
+                glob = "compiler.txt"
+                check_diff = "printf 'src/main.c:2:4: warning: cancelled fix [W1]\\n' >&2; touch ready; exit 1"
                 fix = "sleep 5"
                 output_summary = "combined"
                 diagnostic_format = "gcc"
             }
             ["stop"] {
+                glob = "stop.txt"
                 check = "while [ ! -f ready ]; do sleep 0.01; done; exit 1"
             }
         }
     }
 }
 EOF
-    touch input.txt
+    touch compiler.txt stop.txt
     git add .
     git commit -m init
 
-    run env HK_CHECK_FIRST=1 HK_FAIL_FAST=1 hk check --fix --all
+    HK_CHECK_FIRST=1 HK_FAIL_FAST=1 HK_SUMMARY_TEXT=1 run hk check --fix --all
     assert_failure
     assert_output --partial "cancelled fix"
 }
