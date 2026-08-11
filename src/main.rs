@@ -11,6 +11,7 @@ mod builtins;
 mod cache;
 mod cli;
 mod config;
+mod diagnostics;
 mod diff;
 mod env;
 mod error;

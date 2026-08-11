@@ -305,6 +305,23 @@
             "global": false
           },
           {
+            "name": "sarif",
+            "usage": "--sarif <PATH>",
+            "help": "Write normalized diagnostics as SARIF",
+            "help_first_line": "Write normalized diagnostics as SARIF",
+            "short": [],
+            "long": ["sarif"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
             "name": "skip-step",
             "usage": "--skip-step… <STEP>",
             "help": "Skip specific step(s)",
@@ -808,6 +825,23 @@
             "long": ["safe"],
             "hide": false,
             "global": false
+          },
+          {
+            "name": "sarif",
+            "usage": "--sarif <PATH>",
+            "help": "Write normalized diagnostics as SARIF",
+            "help_first_line": "Write normalized diagnostics as SARIF",
+            "short": [],
+            "long": ["sarif"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
           },
           {
             "name": "skip-step",
@@ -1380,6 +1414,23 @@
                 "global": false
               },
               {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -1762,6 +1813,23 @@
                 "global": false
               },
               {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -2115,6 +2183,23 @@
                 "long": ["safe"],
                 "hide": false,
                 "global": false
+              },
+              {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
               },
               {
                 "name": "skip-step",
@@ -2481,6 +2566,23 @@
                 "global": false
               },
               {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -2845,6 +2947,23 @@
                 "global": false
               },
               {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -3198,6 +3317,23 @@
                 "long": ["safe"],
                 "hide": false,
                 "global": false
+              },
+              {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
               },
               {
                 "name": "skip-step",
@@ -3574,6 +3710,23 @@
                 "global": false
               },
               {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -3945,6 +4098,23 @@
                 "long": ["safe"],
                 "hide": false,
                 "global": false
+              },
+              {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
               },
               {
                 "name": "skip-step",
@@ -4329,6 +4499,23 @@
                 "global": false
               },
               {
+                "name": "sarif",
+                "usage": "--sarif <PATH>",
+                "help": "Write normalized diagnostics as SARIF",
+                "help_first_line": "Write normalized diagnostics as SARIF",
+                "short": [],
+                "long": ["sarif"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "skip-step",
                 "usage": "--skip-step… <STEP>",
                 "help": "Skip specific step(s)",
@@ -4686,6 +4873,23 @@
             "long": ["safe"],
             "hide": false,
             "global": false
+          },
+          {
+            "name": "sarif",
+            "usage": "--sarif <PATH>",
+            "help": "Write normalized diagnostics as SARIF",
+            "help_first_line": "Write normalized diagnostics as SARIF",
+            "short": [],
+            "long": ["sarif"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
           },
           {
             "name": "skip-step",

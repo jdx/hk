@@ -41,6 +41,7 @@ class Command {
 }
 
 typealias CommandEffect = "read" | "write" | "destructive"
+typealias DiagnosticFormat = "sarif" | "cargo-json" | "eslint-json" | "gcc"
 
 /// A command paired with its declared effect on user or project state.
 /// Commands that do not use CommandSpec remain valid and have an unknown effect.
@@ -853,6 +854,12 @@ class Step {
   /// }
   /// ```
   output_summary: "stdout" | "stderr" | "combined" | "hide" = "stderr"
+
+  /// Parse command output into normalized diagnostics for structured output and SARIF export.
+  diagnostic_format: DiagnosticFormat?
+
+  /// Tool name recorded on normalized diagnostics. Defaults to the step name.
+  diagnostic_tool: String?
 
   /// Environment variables specific to this step.
   /// These are merged with the global environment variables.

@@ -1,10 +1,12 @@
 use crate::{
     Result,
+    diagnostics::{self, Diagnostic},
     hook::HookContext,
     step::{CommandEffect, OutputSummary},
 };
 use serde::Serialize;
 use std::io::Write;
+use std::path::Path;
 
 #[derive(
     Debug,
@@ -46,6 +48,9 @@ struct StepResult {
     status: &'static str,
     duration_ms: u128,
     effects: Vec<ExecutedEffect>,
+    diagnostics: Vec<Diagnostic>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    parse_warnings: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     output_kind: Option<OutputSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -76,17 +81,15 @@ pub fn emit_run(
     duration_ms: u128,
     ctx: &HookContext,
     failure: Option<String>,
+    sarif_path: Option<&Path>,
 ) -> Result<()> {
-    if format == OutputFormat::Human {
-        return Ok(());
-    }
-
     let failed = ctx.failed_steps.lock().unwrap();
     let finished = ctx.finished_steps.lock().unwrap();
     let cancelled = ctx.cancelled_steps.lock().unwrap();
     let run_was_cancelled = !cancelled.is_empty();
     let skipped = ctx.get_skipped_steps();
     let outputs = ctx.output_by_step.lock().unwrap();
+    let diagnostic_outputs = ctx.diagnostic_output_by_step.lock().unwrap();
     let executed_effects = ctx.command_effects_by_step.lock().unwrap();
     let timings = ctx.timing.step_wall_times();
     let mut steps = Vec::new();
@@ -104,10 +107,39 @@ pub fn emit_run(
             } else {
                 "cancelled"
             };
-            let (output_kind, output) = outputs
+            let (mut output_kind, mut output) = outputs
                 .get(name)
                 .map(|(kind, output)| (Some(kind.clone()), Some(output.clone())))
                 .unwrap_or((None, None));
+            let step = &group.steps[name];
+            let diagnostic_output = diagnostic_outputs.get(name);
+            if let Some(diagnostic_output) = diagnostic_output {
+                output_kind.get_or_insert_with(|| step.output_summary.clone());
+                match &mut output {
+                    Some(output) if !output.contains(diagnostic_output) => {
+                        output.insert_str(0, diagnostic_output)
+                    }
+                    Some(_) => {}
+                    None => output = Some(diagnostic_output.clone()),
+                }
+            }
+            let parsed = step
+                .diagnostic_format
+                .zip(
+                    diagnostic_output
+                        .map(String::as_str)
+                        .or(output.as_deref())
+                        .filter(|output| !output.is_empty()),
+                )
+                .map(|(diagnostic_format, output)| {
+                    diagnostics::parse(
+                        diagnostic_format,
+                        name,
+                        step.diagnostic_tool.as_deref().unwrap_or(name),
+                        output,
+                    )
+                })
+                .unwrap_or_default();
             steps.push(StepResult {
                 name: name.clone(),
                 status,
@@ -121,6 +153,8 @@ pub fn emit_run(
                         effect: *effect,
                     })
                     .collect(),
+                diagnostics: parsed.diagnostics,
+                parse_warnings: parsed.warnings,
                 output_kind,
                 output,
                 skip_reason,
@@ -128,6 +162,7 @@ pub fn emit_run(
         }
     }
     drop(outputs);
+    drop(diagnostic_outputs);
     drop(cancelled);
     drop(finished);
     drop(failed);
@@ -143,7 +178,18 @@ pub fn emit_run(
         reason: None,
         steps,
     };
-    emit_result(format, &result)
+    if format != OutputFormat::Human {
+        emit_result(format, &result)?;
+    }
+    if let Some(path) = sarif_path {
+        let diagnostics = result
+            .steps
+            .iter()
+            .flat_map(|step| step.diagnostics.iter().cloned())
+            .collect::<Vec<_>>();
+        diagnostics::write_sarif(path, &diagnostics)?;
+    }
+    Ok(())
 }
 
 /// Emit a complete machine-readable result for a successful run that did not
@@ -155,10 +201,8 @@ pub fn emit_noop_run(
     duration_ms: u128,
     steps: Vec<(String, String)>,
     reason: &str,
+    sarif_path: Option<&Path>,
 ) -> Result<()> {
-    if format == OutputFormat::Human {
-        return Ok(());
-    }
     let result = RunResult {
         schema_version: 1,
         kind: "run_result",
@@ -175,13 +219,21 @@ pub fn emit_noop_run(
                 status: "skipped",
                 duration_ms: 0,
                 effects: vec![],
+                diagnostics: vec![],
+                parse_warnings: vec![],
                 output_kind: None,
                 output: None,
                 skip_reason: Some(skip_reason),
             })
             .collect(),
     };
-    emit_result(format, &result)
+    if format != OutputFormat::Human {
+        emit_result(format, &result)?;
+    }
+    if let Some(path) = sarif_path {
+        diagnostics::write_sarif(path, &[])?;
+    }
+    Ok(())
 }
 
 pub fn emit_error_run(
@@ -190,24 +242,26 @@ pub fn emit_error_run(
     started_at: String,
     duration_ms: u128,
     failure: String,
+    sarif_path: Option<&Path>,
 ) -> Result<()> {
-    if format == OutputFormat::Human {
-        return Ok(());
+    let result = RunResult {
+        schema_version: 1,
+        kind: "run_result",
+        hook: hook.to_string(),
+        status: "failed",
+        started_at,
+        duration_ms,
+        failure: Some(failure),
+        reason: None,
+        steps: vec![],
+    };
+    if format != OutputFormat::Human {
+        emit_result(format, &result)?;
     }
-    emit_result(
-        format,
-        &RunResult {
-            schema_version: 1,
-            kind: "run_result",
-            hook: hook.to_string(),
-            status: "failed",
-            started_at,
-            duration_ms,
-            failure: Some(failure),
-            reason: None,
-            steps: vec![],
-        },
-    )
+    if let Some(path) = sarif_path {
+        diagnostics::write_sarif(path, &[])?;
+    }
+    Ok(())
 }
 
 fn emit_result(format: OutputFormat, result: &RunResult) -> Result<()> {

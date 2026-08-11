@@ -273,6 +273,12 @@ pub struct Step {
     /// How to capture and display output (stderr, stdout, combined, hide)
     #[serde(default)]
     pub output_summary: OutputSummary,
+
+    /// Parser used to normalize this step's command output.
+    pub diagnostic_format: Option<DiagnosticFormat>,
+
+    /// Tool name included in normalized diagnostics (defaults to step name).
+    pub diagnostic_tool: Option<String>,
 }
 
 impl fmt::Display for Step {
@@ -377,6 +383,15 @@ pub enum CommandEffect {
     Read,
     Write,
     Destructive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DiagnosticFormat {
+    Sarif,
+    CargoJson,
+    EslintJson,
+    Gcc,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

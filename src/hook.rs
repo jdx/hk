@@ -1,4 +1,5 @@
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressOutput, ProgressStatus};
+use eyre::WrapErr;
 use indexmap::IndexMap;
 use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error, ser};
@@ -321,6 +322,10 @@ pub struct HookContext {
     skipped_steps: std::sync::Mutex<IndexMap<String, SkipReason>>,
     /// Aggregated output per step name (in insertion order)
     pub output_by_step: std::sync::Mutex<IndexMap<String, (OutputSummary, String)>>,
+    /// Additional raw output retained only for structured diagnostics. This is
+    /// separate so a successful fixer does not resurrect a suppressed
+    /// check-first failure in the human summary.
+    pub diagnostic_output_by_step: std::sync::Mutex<IndexMap<String, String>>,
     /// Command fields and effects actually selected for execution per step.
     pub command_effects_by_step: std::sync::Mutex<CommandEffectsByStep>,
     /// Names of steps that failed during this run. Tracked here because
@@ -385,6 +390,7 @@ impl HookContext {
             skip_steps,
             skipped_steps: StdMutex::new(IndexMap::new()),
             output_by_step: StdMutex::new(IndexMap::new()),
+            diagnostic_output_by_step: StdMutex::new(IndexMap::new()),
             command_effects_by_step: StdMutex::new(IndexMap::new()),
             failed_steps: StdMutex::new(HashSet::new()),
             finished_steps: StdMutex::new(HashSet::new()),
@@ -477,6 +483,20 @@ impl HookContext {
         map.entry(step_name.to_string())
             .and_modify(|(_, s)| s.push_str(text))
             .or_insert_with(|| (mode, text.to_string()));
+    }
+
+    pub fn append_diagnostic_output(&self, step_name: &str, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        let mut map = self.diagnostic_output_by_step.lock().unwrap();
+        map.entry(step_name.to_string())
+            .and_modify(|output| {
+                if !output.contains(text) {
+                    output.push_str(text);
+                }
+            })
+            .or_insert_with(|| text.to_string());
     }
 
     pub fn record_step_effect(
@@ -1071,6 +1091,7 @@ impl Hook {
         let settings = Settings::get();
         let output_format = Settings::cli_output_format();
         let machine_output = output_format != crate::structured_output::OutputFormat::Human;
+        let sarif_path = opts.sarif.clone();
         let run_started = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
         let fail_fast = if opts.fail_fast {
@@ -1095,6 +1116,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 vec![],
                 "hook disabled by HK_SKIP_HOOK",
+                sarif_path.as_deref(),
             )?;
             return Ok(());
         }
@@ -1105,15 +1127,15 @@ impl Hook {
         let repo = match Git::new() {
             Ok(repo) => Arc::new(Mutex::new(repo)),
             Err(err) => {
-                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                crate::structured_output::emit_error_run(
                     output_format,
                     &self.name,
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                ) {
-                    warn!("failed to emit structured setup failure: {emit_err}");
-                }
+                    sarif_path.as_deref(),
+                )
+                .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
                 return Err(err);
             }
         };
@@ -1132,6 +1154,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 vec![],
                 "no configured steps",
+                sarif_path.as_deref(),
             )?;
             return Ok(());
         }
@@ -1144,15 +1167,15 @@ impl Hook {
         let git_status = match repo.lock().await.status(None) {
             Ok(status) => status,
             Err(err) => {
-                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                crate::structured_output::emit_error_run(
                     output_format,
                     &self.name,
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                ) {
-                    warn!("failed to emit structured setup failure: {emit_err}");
-                }
+                    sarif_path.as_deref(),
+                )
+                .wrap_err_with(|| format!("git status collection also failed: {err}"))?;
                 return Err(err);
             }
         };
@@ -1168,15 +1191,15 @@ impl Hook {
         {
             Ok(files) => files,
             Err(err) => {
-                if let Err(emit_err) = crate::structured_output::emit_error_run(
+                crate::structured_output::emit_error_run(
                     output_format,
                     &self.name,
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                ) {
-                    warn!("failed to emit structured setup failure: {emit_err}");
-                }
+                    sarif_path.as_deref(),
+                )
+                .wrap_err_with(|| format!("file selection also failed: {err}"))?;
                 return Err(err);
             }
         };
@@ -1196,16 +1219,28 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 noop_steps,
                 "no matching files",
+                sarif_path.as_deref(),
             )?;
             return Ok(());
         }
-        if opts.safe {
-            validate_safe_commands(
+        if opts.safe
+            && let Err(err) = validate_safe_commands(
                 &groups,
                 &files.iter().cloned().collect::<Vec<_>>(),
                 run_type,
                 &skip_steps,
-            )?;
+            )
+        {
+            crate::structured_output::emit_error_run(
+                output_format,
+                &self.name,
+                started_at,
+                run_started.elapsed().as_millis(),
+                err.to_string(),
+                sarif_path.as_deref(),
+            )
+            .wrap_err_with(|| format!("safe command validation also failed: {err}"))?;
+            return Err(err);
         }
         // Enrich Tera and expr contexts with git status for template/condition use
         let git_status_for_ctx = git_status.clone();
@@ -1380,11 +1415,38 @@ impl Hook {
         let in_text_mode = clx::progress::output() == ProgressOutput::Text;
         let force_summary = *env::HK_SUMMARY_TEXT;
         let failed_steps = hook_ctx.failed_steps.lock().unwrap().clone();
+        let cancelled_steps = hook_ctx.cancelled_steps.lock().unwrap().clone();
         let only_failed = settings.quiet || (in_text_mode && !force_summary);
-        if !machine_output && !settings.silent && (!only_failed || !failed_steps.is_empty()) {
-            let outputs = hook_ctx.output_by_step.lock().unwrap().clone();
+        if !machine_output
+            && !settings.silent
+            && (!only_failed || !failed_steps.is_empty() || !cancelled_steps.is_empty())
+        {
+            let mut outputs = hook_ctx.output_by_step.lock().unwrap().clone();
+            let diagnostic_outputs = hook_ctx.diagnostic_output_by_step.lock().unwrap();
+            for (step_name, diagnostic_output) in diagnostic_outputs.iter() {
+                if !cancelled_steps.contains(step_name) {
+                    continue;
+                }
+                let mode = hook_ctx
+                    .groups
+                    .iter()
+                    .find_map(|group| group.steps.get(step_name))
+                    .map(|step| step.output_summary.clone())
+                    .unwrap_or(OutputSummary::Combined);
+                outputs
+                    .entry(step_name.clone())
+                    .and_modify(|(_, output)| {
+                        if !output.contains(diagnostic_output) {
+                            output.insert_str(0, diagnostic_output);
+                        }
+                    })
+                    .or_insert_with(|| (mode, diagnostic_output.clone()));
+            }
             for (step_name, (mode, output)) in outputs.into_iter() {
-                if only_failed && !failed_steps.contains(&step_name) {
+                if only_failed
+                    && !failed_steps.contains(&step_name)
+                    && !cancelled_steps.contains(&step_name)
+                {
                     continue;
                 }
                 let trimmed = output.trim_end();
@@ -1523,12 +1585,15 @@ impl Hook {
             run_started.elapsed().as_millis(),
             &hook_ctx,
             failure,
+            sarif_path.as_deref(),
         ) {
-            if result.is_err() {
-                warn!("failed to emit structured run result: {emit_err}");
-            } else {
-                return Err(emit_err);
+            if let Err(run_err) = &result {
+                error!("failed to emit result after hook also failed: {emit_err}");
+                return Err(emit_err).wrap_err_with(|| {
+                    format!("failed to emit result after hook also failed: {run_err}")
+                });
             }
+            return Err(emit_err);
         }
         result
     }
