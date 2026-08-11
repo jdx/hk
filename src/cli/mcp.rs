@@ -638,12 +638,12 @@ impl HkMcpServer {
             .iter()
             .find(|run| run.id == request.run_id)
             .ok_or_else(|| "run not found or expired".to_string())?;
-        let offset = request.offset.min(run.output.len());
+        let requested_offset = request.offset.min(run.output.len());
         let limit = request
             .limit
             .unwrap_or(OUTPUT_PAGE_MAX)
             .clamp(1, OUTPUT_PAGE_MAX);
-        let end = offset.saturating_add(limit).min(run.output.len());
+        let (offset, end) = utf8_page_bounds(&run.output, requested_offset, limit);
         let page = OutputPage {
             schema_version: 1,
             run_id: run.id.clone(),
@@ -768,6 +768,24 @@ impl HkMcpServer {
             value,
         ))
     }
+}
+
+fn utf8_page_bounds(bytes: &[u8], requested_offset: usize, limit: usize) -> (usize, usize) {
+    let mut offset = requested_offset.min(bytes.len());
+    while offset < bytes.len() && bytes[offset] & 0b1100_0000 == 0b1000_0000 {
+        offset += 1;
+    }
+    let mut end = offset.saturating_add(limit).min(bytes.len());
+    while end > offset && end < bytes.len() && bytes[end] & 0b1100_0000 == 0b1000_0000 {
+        end -= 1;
+    }
+    if end == offset && offset < bytes.len() {
+        end = offset + 1;
+        while end < bytes.len() && bytes[end] & 0b1100_0000 == 0b1000_0000 {
+            end += 1;
+        }
+    }
+    (offset, end)
 }
 
 impl HkMcpServer {
@@ -1447,6 +1465,44 @@ mod tests {
         assert_eq!(value["offset"], 0);
         assert_eq!(value["next_offset"], 1);
         assert_eq!(value["text"], "a");
+    }
+
+    #[tokio::test]
+    async fn output_pagination_does_not_split_a_multibyte_character() {
+        let root = tempfile::tempdir().unwrap();
+        let server = HkMcpServer::new(root.path().canonicalize().unwrap());
+        server.state.lock().await.runs.push_back(test_run(
+            "unicode-output",
+            "succeeded",
+            "éx".as_bytes().to_vec(),
+        ));
+
+        let first = server
+            .get_output(Parameters(OutputRequest {
+                run_id: "unicode-output".into(),
+                offset: 0,
+                limit: Some(1),
+            }))
+            .await
+            .unwrap()
+            .structured_content
+            .unwrap();
+        assert_eq!(first["offset"], 0);
+        assert_eq!(first["next_offset"], 2);
+        assert_eq!(first["text"], "é");
+
+        let second = server
+            .get_output(Parameters(OutputRequest {
+                run_id: "unicode-output".into(),
+                offset: 1,
+                limit: Some(1),
+            }))
+            .await
+            .unwrap()
+            .structured_content
+            .unwrap();
+        assert_eq!(second["offset"], 2);
+        assert_eq!(second["text"], "x");
     }
 
     #[tokio::test]
