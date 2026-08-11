@@ -128,6 +128,47 @@ EOF
     assert_output --partial "print-files – main.txt"
 }
 
+@test "files_between_refs excludes deleted paths for case-only renames" {
+    _disable_test_cache
+
+    mkdir -p src
+    echo "content" > src/example.txt
+    git add src/example.txt
+    git commit -m "add example"
+    BASE_COMMIT=$(git rev-parse HEAD)
+
+    git mv src/example.txt src/Example.txt
+    git commit -m "rename example"
+    TARGET_COMMIT=$(git rev-parse HEAD)
+
+    # On case-sensitive filesystems, emulate the case-insensitive exists() check
+    # by recreating the deleted spelling as an untracked path. On case-insensitive
+    # filesystems this writes through the old spelling to the tracked target path.
+    echo "worktree content" > src/example.txt
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["print-files"] {
+                check = "echo '{{files}}'"
+            }
+        }
+    }
+}
+EOF
+
+    for use_libgit2 in 1 0; do
+        HK_LIBGIT2="$use_libgit2" run hk check \
+            --from-ref="$BASE_COMMIT" \
+            --to-ref="$TARGET_COMMIT"
+        assert_success
+        assert_output --partial "print-files – src/Example.txt"
+        refute_output --partial "src/example.txt"
+    done
+}
+
 @test "files_between_refs falls back to two-dot diff without merge base using libgit2" {
     echo "main content" > main.txt
     git add main.txt
