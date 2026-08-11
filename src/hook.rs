@@ -1125,6 +1125,13 @@ impl Hook {
         // fail_on_fix exists to surface fixes for review; staging would defeat that.
         let should_stage = should_stage && !(self.fail_on_fix && matches!(run_type, RunType::Fix));
         let groups = self.get_step_groups(&opts);
+        crate::structured_output::emit_run_planned(
+            output_format,
+            &groups
+                .iter()
+                .flat_map(|group| group.steps.keys().cloned())
+                .collect::<Vec<_>>(),
+        )?;
         let repo = match Git::new() {
             Ok(repo) => Arc::new(Mutex::new(repo)),
             Err(err) => {

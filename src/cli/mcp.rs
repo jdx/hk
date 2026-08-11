@@ -902,6 +902,16 @@ fn apply_jsonl_event(run: &mut RunRecord, line: &[u8]) {
                 "steps": [],
             }));
         }
+        "run_planned" => {
+            let Some(steps) = data.get("steps").and_then(Value::as_array) else {
+                run.error =
+                    Some("failed to parse hk structured result: planned steps are invalid".into());
+                return;
+            };
+            if let Some(result) = run.result.as_mut() {
+                result["steps"] = Value::Array(steps.clone());
+            }
+        }
         "step_started" | "step_completed" => {
             let Some(name) = data.get("name").and_then(Value::as_str) else {
                 run.error =

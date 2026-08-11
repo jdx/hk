@@ -113,6 +113,41 @@ pub fn emit_step_started(format: OutputFormat, name: &str) -> Result<()> {
         serde_json::json!({
             "name": name,
             "status": "running",
+            "started_at": chrono::Utc::now().to_rfc3339(),
+            "duration_ms": 0,
+            "effects": [],
+            "diagnostics": [],
+        }),
+    )
+}
+
+pub fn emit_run_planned(format: OutputFormat, steps: &[String]) -> Result<()> {
+    if format != OutputFormat::Jsonl {
+        return Ok(());
+    }
+    write_jsonl_event(
+        "run_planned",
+        serde_json::json!({
+            "steps": steps.iter().map(|name| serde_json::json!({
+                "name": name,
+                "status": "pending",
+                "duration_ms": 0,
+                "effects": [],
+                "diagnostics": [],
+            })).collect::<Vec<_>>(),
+        }),
+    )
+}
+
+pub fn emit_step_completed(format: OutputFormat, name: &str, status: &str) -> Result<()> {
+    if format != OutputFormat::Jsonl {
+        return Ok(());
+    }
+    write_jsonl_event(
+        "step_completed",
+        serde_json::json!({
+            "name": name,
+            "status": status,
             "duration_ms": 0,
             "effects": [],
             "diagnostics": [],
