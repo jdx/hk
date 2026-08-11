@@ -9,9 +9,14 @@ use std::{
 };
 
 use rmcp::{
-    Peer, RoleServer, ServerHandler, ServiceExt,
+    ErrorData, Peer, RoleServer, ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerInfo},
+    model::{
+        CallToolResult, ContentBlock, Implementation, ListResourcesResult, MetaObject,
+        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+    },
+    service::RequestContext,
     tool, tool_handler, tool_router,
     transport::stdio,
 };
@@ -32,6 +37,17 @@ const MAX_RUN_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 const MAX_RUN_DIFF_BYTES: usize = 16 * 1024 * 1024;
 const COMPLETED_RUN_LIMIT: usize = 32;
 const COMPLETED_RUN_TTL: Duration = Duration::from_secs(30 * 60);
+const DASHBOARD_URI: &str = "ui://hk/run-dashboard";
+const MCP_APP_MIME: &str = "text/html;profile=mcp-app";
+const DASHBOARD_HTML: &str = include_str!("mcp_dashboard.html");
+
+fn dashboard_tool_meta() -> MetaObject {
+    serde_json::from_value(json!({
+        "ui": {"resourceUri": DASHBOARD_URI},
+        "openai/outputTemplate": DASHBOARD_URI,
+    }))
+    .expect("dashboard metadata is an object")
+}
 
 /// Runs an MCP server for coding agents over standard input/output.
 #[derive(clap::Args)]
@@ -745,6 +761,7 @@ impl HkMcpServer {
 
     #[tool(
         description = "Render a run for an MCP Apps host, with structured fallback for other clients",
+        meta = dashboard_tool_meta(),
         annotations(
             read_only_hint = true,
             destructive_hint = false,
@@ -761,7 +778,7 @@ impl HkMcpServer {
             "schema_version": 1,
             "view": "hk.run",
             "run": snapshot,
-            "ui_available": false,
+            "ui_available": true,
         });
         Ok(tool_success(
             "Run view is available as structured content".into(),
@@ -860,11 +877,54 @@ impl HkMcpServer {
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for HkMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
             .with_server_info(Implementation::new("hk", env!("CARGO_PKG_VERSION")))
             .with_instructions(
                 "Inspect and run hk within authorized project roots. Prefer plan and safe tools; review diffs after fixes.",
             )
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        let resource = Resource::new(DASHBOARD_URI, "hk-run-dashboard")
+            .with_title("hk run dashboard")
+            .with_description(
+                "Interactive status, diagnostics, logs, and patch review for an hk run",
+            )
+            .with_mime_type(MCP_APP_MIME)
+            .with_size(DASHBOARD_HTML.len() as u64)
+            .with_meta(
+                serde_json::from_value(json!({
+                    "ui": {
+                        "csp": {"connectDomains": [], "resourceDomains": []},
+                        "prefersBorder": true
+                    }
+                }))
+                .expect("dashboard resource metadata is an object"),
+            );
+        Ok(ListResourcesResult::with_all_items(vec![resource]))
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, ErrorData> {
+        if request.uri != DASHBOARD_URI {
+            return Err(ErrorData::resource_not_found("resource not found", None));
+        }
+        Ok(ReadResourceResult::new(vec![
+            ResourceContents::text(DASHBOARD_HTML, DASHBOARD_URI).with_mime_type(MCP_APP_MIME),
+        ])
+        .into())
     }
 }
 
@@ -1677,6 +1737,37 @@ mod tests {
         assert_eq!(
             tools["inspect_project"]["annotations"]["readOnlyHint"],
             true
+        );
+        assert_eq!(
+            tools["render_run"]["_meta"]["ui"]["resourceUri"],
+            DASHBOARD_URI
+        );
+        assert_eq!(
+            tools["render_run"]["_meta"]["openai/outputTemplate"],
+            DASHBOARD_URI
+        );
+
+        write
+            .write_all(
+                br#"{"jsonrpc":"2.0","id":3,"method":"resources/list","params":{}}
+{"jsonrpc":"2.0","id":4,"method":"resources/read","params":{"uri":"ui://hk/run-dashboard"}}
+"#,
+            )
+            .await
+            .unwrap();
+        line.clear();
+        read.read_line(&mut line).await.unwrap();
+        let response: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(response["result"]["resources"][0]["mimeType"], MCP_APP_MIME);
+        line.clear();
+        read.read_line(&mut line).await.unwrap();
+        let response: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(response["result"]["contents"][0]["mimeType"], MCP_APP_MIME);
+        assert!(
+            response["result"]["contents"][0]["text"]
+                .as_str()
+                .unwrap()
+                .contains("hk dashboard")
         );
         drop(write);
         server_task.abort();

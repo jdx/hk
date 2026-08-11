@@ -1,4 +1,5 @@
 docs/.vitepress
+mcp-ui/dist
 test/bats
 test/data
 test/test_helper

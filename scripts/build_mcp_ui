@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+./mcp-ui/node_modules/.bin/tsc --noEmit -p mcp-ui/tsconfig.json
+(cd mcp-ui && ./node_modules/.bin/vite build)
+clean_html="$(mktemp mcp-ui/dist/index.html.XXXXXX)"
+trap 'rm -f "$clean_html"' EXIT
+sed 's/[[:blank:]]*$//' mcp-ui/dist/index.html >"$clean_html"
+mv "$clean_html" mcp-ui/dist/index.html
+cp mcp-ui/dist/index.html src/cli/mcp_dashboard.html
