@@ -85,6 +85,10 @@ impl StepContext {
             StepStatus::Pending => {
                 *status = StepStatus::Started;
                 drop(status);
+                let _ = crate::structured_output::emit_step_started(
+                    crate::settings::Settings::cli_output_format(),
+                    &self.step.name,
+                );
                 self.update_progress();
             }
             StepStatus::Started
@@ -101,6 +105,11 @@ impl StepContext {
                 *status = StepStatus::Aborted;
                 drop(status);
                 self.hook_ctx.mark_step_cancelled(&self.step.name);
+                let _ = crate::structured_output::emit_step_completed(
+                    crate::settings::Settings::cli_output_format(),
+                    &self.step.name,
+                    "cancelled",
+                );
                 self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }
@@ -115,6 +124,11 @@ impl StepContext {
                 *status = StepStatus::Errored(err.to_string());
                 drop(status);
                 self.hook_ctx.mark_step_failed(&self.step.name);
+                let _ = crate::structured_output::emit_step_completed(
+                    crate::settings::Settings::cli_output_format(),
+                    &self.step.name,
+                    "failed",
+                );
                 self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }
@@ -129,6 +143,11 @@ impl StepContext {
                 *status = StepStatus::Finished;
                 drop(status);
                 self.hook_ctx.mark_step_finished(&self.step.name);
+                let _ = crate::structured_output::emit_step_completed(
+                    crate::settings::Settings::cli_output_format(),
+                    &self.step.name,
+                    "passed",
+                );
                 self.progress.prop("show_step_progress", &false);
                 self.update_progress();
             }

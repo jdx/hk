@@ -1052,6 +1052,38 @@
         "hidden_aliases": [],
         "examples": []
       },
+      "mcp": {
+        "full_cmd": ["mcp"],
+        "usage": "mcp [--root <PATH>]",
+        "subcommands": {},
+        "args": [],
+        "flags": [
+          {
+            "name": "root",
+            "usage": "--root <PATH>",
+            "help": "Restrict hk tools to this project root (defaults to the current directory)",
+            "help_first_line": "Restrict hk tools to this project root (defaults to the current directory)",
+            "short": [],
+            "long": ["root"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          }
+        ],
+        "mounts": [],
+        "hide": false,
+        "help": "Runs an MCP server for coding agents over standard input/output",
+        "name": "mcp",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": []
+      },
       "migrate": {
         "full_cmd": ["migrate"],
         "usage": "migrate <SUBCOMMAND>",

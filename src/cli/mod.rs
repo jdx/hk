@@ -17,6 +17,7 @@ mod config;
 mod fix;
 mod init;
 mod install;
+mod mcp;
 mod migrate;
 mod run;
 mod sponsors;
@@ -125,6 +126,7 @@ enum Commands {
     Fix(Box<fix::Fix>),
     Init(Box<init::Init>),
     Install(Box<install::Install>),
+    Mcp(Box<mcp::Mcp>),
     Migrate(Box<migrate::Migrate>),
     Run(Box<run::Run>),
     Sponsors(Box<sponsors::Sponsors>),
@@ -229,6 +231,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         args.command,
         Commands::Builtins(_)
             | Commands::Init(_)
+            | Commands::Mcp(_)
             | Commands::Migrate(_)
             | Commands::Completion(_)
             | Commands::Sponsors(_)
@@ -254,6 +257,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         Commands::Fix(cmd) => cmd.hook.run("fix").await,
         Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
+        Commands::Mcp(cmd) => cmd.run().await,
         Commands::Migrate(cmd) => cmd.run().await,
         Commands::Run(cmd) => cmd.run().await,
         Commands::Sponsors(cmd) => cmd.run().await,

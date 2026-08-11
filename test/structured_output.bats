@@ -68,7 +68,7 @@ EOF
     jsonl="$output"
     run jq -s -r 'map(.event) | join(",")' <<<"$jsonl"
     assert_success
-    assert_output "run_started,step_completed,step_completed,run_completed"
+    assert_output "run_started,run_planned,step_started,step_started,step_completed,step_completed,run_completed"
     run jq -s -e '.[].sequence' <<<"$jsonl"
     assert_success
     run jq -s -e 'last.data.status == "failed" and (last.data.failure | length > 0)' <<<"$jsonl"
