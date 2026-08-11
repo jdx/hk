@@ -417,6 +417,9 @@ class Step {
   /// ```
   match_any: List<FileSelector>?
 
+  /// Whether to include binary files (default: false)
+  allow_binary: Boolean = false
+
   /// Whether to include symbolic links (default: false)
   allow_symlinks: Boolean = false
 

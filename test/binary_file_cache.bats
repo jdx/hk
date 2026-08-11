@@ -42,6 +42,31 @@ EOF
     refute_output --partial "binary.dat"
 }
 
+@test "allow_binary includes binary files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["test"] {
+                types = List("binary")
+                allow_binary = true
+                check = "echo {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    printf '\x00\x01\x02\x03' > binary.dat
+    git add binary.dat
+
+    run hk check
+    assert_success
+    assert_output --partial "binary.dat"
+}
+
 @test "binary file detection caches results" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
