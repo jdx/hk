@@ -123,10 +123,9 @@ export function Dashboard({
         return;
       setRun(next);
       setUpdated(Date.now());
-      setRefreshError("");
-      setLogs("");
-      setDiff("");
+      const refreshErrors: string[] = [];
       if (!next.has_diff) {
+        setDiff("");
         setDiffLoading(false);
         setDiffError("");
       } else {
@@ -150,11 +149,15 @@ export function Dashboard({
           activeRunId.current !== runId
         )
           return;
-        setRefreshError(
-          reason instanceof Error ? reason.message : String(reason),
-        );
+        const message = reason instanceof Error ? reason.message : String(reason);
+        setLogs("");
+        refreshErrors.push(`Logs: ${message}`);
+        setRefreshError(refreshErrors.join(" · "));
       }
-      if (!next.has_diff) return;
+      if (!next.has_diff) {
+        setRefreshError(refreshErrors.join(" · "));
+        return;
+      }
       try {
         const patch = await readPages(call, "get_diff", runId);
         if (
@@ -175,10 +178,12 @@ export function Dashboard({
           return;
         const message =
           reason instanceof Error ? reason.message : String(reason);
+        setDiff("");
         setDiffLoading(false);
         setDiffError(message);
-        setRefreshError(message);
+        refreshErrors.push(`Patch: ${message}`);
       }
+      setRefreshError(refreshErrors.join(" · "));
     } catch (reason) {
       if (
         requestGeneration !== generation.current ||

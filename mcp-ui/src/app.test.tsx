@@ -335,6 +335,57 @@ describe("Dashboard", () => {
     expect(screen.queryByText("Loading patch…")).not.toBeInTheDocument();
   });
 
+  it("reports independent log and patch refresh failures together", async () => {
+    const call = vi.fn(async (name: string) => {
+      if (name === "get_run") return run;
+      if (name === "get_output") throw new Error("logs unavailable");
+      if (name === "get_diff") throw new Error("patch unavailable");
+      return run;
+    });
+
+    render(<Dashboard initial={run} call={call} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Logs: logs unavailable");
+    expect(alert).toHaveTextContent("Patch: patch unavailable");
+    expect(screen.queryByText("Loading patch…")).not.toBeInTheDocument();
+  });
+
+  it("keeps live output visible while a successful poll is pending", async () => {
+    let outputCount = 0;
+    let resolveOutput!: (value: {
+      text: string;
+      eof: boolean;
+      next_offset: number;
+    }) => void;
+    const pendingOutput = new Promise<{
+      text: string;
+      eof: boolean;
+      next_offset: number;
+    }>((resolve) => {
+      resolveOutput = resolve;
+    });
+    const noDiff = { ...run, has_diff: false };
+    const call = vi.fn(async (name: string) => {
+      if (name === "get_run") return noDiff;
+      if (name === "get_output") {
+        outputCount += 1;
+        return outputCount === 1
+          ? { text: "live output", eof: true, next_offset: 11 }
+          : pendingOutput;
+      }
+      return noDiff;
+    });
+
+    render(<Dashboard initial={noDiff} call={call} />);
+    expect(await screen.findByText("live output")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(outputCount).toBe(2));
+    expect(screen.getByText("live output")).toBeInTheDocument();
+
+    resolveOutput({ text: "new output", eof: true, next_offset: 10 });
+    expect(await screen.findByText("new output")).toBeInTheDocument();
+  });
+
   it("shows action failures and follows output pagination", async () => {
     let outputPage = 0;
     const call = vi.fn(async (name: string) => {
