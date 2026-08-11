@@ -857,15 +857,15 @@ fn tool_success(summary: String, value: Value) -> CallToolResult {
 }
 
 fn parse_run_result(run: &mut RunRecord) -> bool {
+    if run.saw_run_completed && run.result.is_some() {
+        return false;
+    }
     if run.stdout_truncated {
         run.error = Some(format!(
             "structured result exceeded the {} byte capture limit",
             MAX_RUN_OUTPUT_BYTES
         ));
         return true;
-    }
-    if run.saw_run_completed && run.result.is_some() {
-        return false;
     }
     if run.error.is_none() {
         run.error =
@@ -1350,6 +1350,21 @@ mod tests {
             br#"{"schema_version":1,"event":"run_completed","sequence":1,"data":{"schema_version":1,"kind":"run_result","status":"passed","steps":[]}}
 "#,
         );
+
+        assert!(!parse_run_result(&mut run));
+        assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
+        assert!(run.error.is_none());
+    }
+
+    #[test]
+    fn parsed_completion_survives_trailing_structured_output_truncation() {
+        let mut run = test_run("valid-truncated", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_completed","sequence":1,"data":{"schema_version":1,"kind":"run_result","status":"passed","steps":[]}}
+"#,
+        );
+        run.stdout_truncated = true;
 
         assert!(!parse_run_result(&mut run));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
