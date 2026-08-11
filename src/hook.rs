@@ -1094,6 +1094,7 @@ impl Hook {
         let sarif_path = opts.sarif.clone();
         let run_started = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
+        crate::structured_output::emit_run_started(output_format, &self.name, &started_at)?;
         let fail_fast = if opts.fail_fast {
             true
         } else if opts.no_fail_fast {

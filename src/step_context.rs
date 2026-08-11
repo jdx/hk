@@ -85,6 +85,10 @@ impl StepContext {
             StepStatus::Pending => {
                 *status = StepStatus::Started;
                 drop(status);
+                let _ = crate::structured_output::emit_step_started(
+                    crate::settings::Settings::cli_output_format(),
+                    &self.step.name,
+                );
                 self.update_progress();
             }
             StepStatus::Started

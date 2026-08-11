@@ -109,8 +109,10 @@ struct RunRecord {
     exit_code: Option<i32>,
     output: Vec<u8>,
     stdout: Vec<u8>,
+    stdout_event_buffer: Vec<u8>,
     output_truncated: bool,
     stdout_truncated: bool,
+    saw_run_completed: bool,
     result: Option<Value>,
     diff: String,
     diff_truncated: bool,
@@ -330,8 +332,10 @@ impl HkMcpServer {
                 exit_code: None,
                 output: Vec::new(),
                 stdout: Vec::new(),
+                stdout_event_buffer: Vec::new(),
                 output_truncated: false,
                 stdout_truncated: false,
+                saw_run_completed: false,
                 result: None,
                 diff: String::new(),
                 diff_truncated: false,
@@ -361,7 +365,7 @@ impl HkMcpServer {
         command
             .arg("--cd")
             .arg(&root)
-            .args(["--format", "json"])
+            .args(["--format", "jsonl"])
             .arg(kind.command())
             .arg("--all")
             .stdin(std::process::Stdio::null())
@@ -860,14 +864,97 @@ fn parse_run_result(run: &mut RunRecord) -> bool {
         ));
         return true;
     }
-    match serde_json::from_slice(&run.stdout) {
-        Ok(result) => {
-            run.result = Some(result);
-            false
-        }
+    if run.saw_run_completed && run.result.is_some() {
+        return false;
+    }
+    if run.error.is_none() {
+        run.error =
+            Some("failed to parse hk structured result: missing run_completed event".into());
+    }
+    true
+}
+
+fn apply_jsonl_event(run: &mut RunRecord, line: &[u8]) {
+    let event: Value = match serde_json::from_slice(line) {
+        Ok(event) => event,
         Err(error) => {
             run.error = Some(format!("failed to parse hk structured result: {error}"));
-            true
+            return;
+        }
+    };
+    let Some(kind) = event.get("event").and_then(Value::as_str) else {
+        run.error = Some("failed to parse hk structured result: event name is missing".into());
+        return;
+    };
+    let Some(data) = event.get("data").cloned() else {
+        run.error = Some("failed to parse hk structured result: event data is missing".into());
+        return;
+    };
+    match kind {
+        "run_started" => {
+            run.result = Some(json!({
+                "schema_version": 1,
+                "kind": "run_result",
+                "hook": data.get("hook").and_then(Value::as_str).unwrap_or(run.kind.command()),
+                "status": "running",
+                "started_at": data.get("started_at").and_then(Value::as_str).unwrap_or(&run.started_at),
+                "duration_ms": 0,
+                "steps": [],
+            }));
+        }
+        "step_started" | "step_completed" => {
+            let Some(name) = data.get("name").and_then(Value::as_str) else {
+                run.error =
+                    Some("failed to parse hk structured result: step name is missing".into());
+                return;
+            };
+            let fallback = || {
+                json!({
+                    "schema_version": 1,
+                    "kind": "run_result",
+                    "hook": run.kind.command(),
+                    "status": "running",
+                    "started_at": run.started_at,
+                    "duration_ms": 0,
+                    "steps": [],
+                })
+            };
+            let result = run.result.get_or_insert_with(fallback);
+            let Some(steps) = result.get_mut("steps").and_then(Value::as_array_mut) else {
+                run.error = Some("failed to parse hk structured result: steps are invalid".into());
+                return;
+            };
+            if let Some(existing) = steps
+                .iter_mut()
+                .find(|step| step.get("name").and_then(Value::as_str) == Some(name))
+            {
+                *existing = data;
+            } else {
+                steps.push(data);
+            }
+        }
+        "run_completed" => {
+            run.result = Some(data);
+            run.saw_run_completed = true;
+        }
+        _ => {}
+    }
+}
+
+fn consume_jsonl_events(run: &mut RunRecord, bytes: &[u8]) {
+    run.stdout_event_buffer.extend_from_slice(bytes);
+    while let Some(newline) = run
+        .stdout_event_buffer
+        .iter()
+        .position(|byte| *byte == b'\n')
+    {
+        let mut line = run
+            .stdout_event_buffer
+            .drain(..=newline)
+            .collect::<Vec<_>>();
+        line.pop();
+        if !line.iter().all(u8::is_ascii_whitespace) {
+            apply_jsonl_event(run, &line);
         }
     }
 }
@@ -886,11 +973,14 @@ where
         let Some(run) = state.runs.iter_mut().find(|run| run.id == id) else {
             break;
         };
-        if stdout && append_capped(&mut run.stdout, &buffer[..count]) {
-            run.stdout_truncated = true;
-            run.output_truncated = true;
-        }
-        if append_capped(&mut run.output, &buffer[..count]) {
+        if stdout {
+            let previous_len = run.stdout.len();
+            if append_capped(&mut run.stdout, &buffer[..count]) {
+                run.stdout_truncated = true;
+            }
+            let appended = run.stdout[previous_len..].to_vec();
+            consume_jsonl_events(run, &appended);
+        } else if append_capped(&mut run.output, &buffer[..count]) {
             run.output_truncated = true;
         }
     }
@@ -1056,8 +1146,10 @@ mod tests {
             exit_code: None,
             output,
             stdout: Vec::new(),
+            stdout_event_buffer: Vec::new(),
             output_truncated: false,
             stdout_truncated: false,
+            saw_run_completed: false,
             result: None,
             diff: String::new(),
             diff_truncated: false,
@@ -1207,7 +1299,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn run_output_is_capped_while_the_reader_is_fully_drained() {
+    async fn structured_output_is_capped_without_polluting_run_logs() {
         let mut state = McpState::default();
         state
             .runs
@@ -1219,16 +1311,16 @@ mod tests {
 
         let state = state.lock().await;
         let run = &state.runs[0];
-        assert_eq!(run.output.len(), MAX_RUN_OUTPUT_BYTES);
+        assert!(run.output.is_empty());
         assert_eq!(run.stdout.len(), MAX_RUN_OUTPUT_BYTES);
-        assert!(run.output_truncated);
+        assert!(!run.output_truncated);
         assert!(run.stdout_truncated);
     }
 
     #[test]
     fn malformed_structured_output_is_a_run_error() {
         let mut run = test_run("malformed", "running", Vec::new());
-        run.stdout = b"not json".to_vec();
+        consume_jsonl_events(&mut run, b"not json\n");
 
         assert!(parse_run_result(&mut run));
         assert!(run.result.is_none());
@@ -1243,11 +1335,32 @@ mod tests {
     #[test]
     fn valid_structured_output_is_retained() {
         let mut run = test_run("valid", "running", Vec::new());
-        run.stdout = br#"{"schema_version":1,"status":"passed"}"#.to_vec();
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_completed","sequence":1,"data":{"schema_version":1,"kind":"run_result","status":"passed","steps":[]}}
+"#,
+        );
 
         assert!(!parse_run_result(&mut run));
         assert_eq!(run.result.as_ref().unwrap()["status"], "passed");
         assert!(run.error.is_none());
+    }
+
+    #[test]
+    fn step_started_event_is_visible_before_run_completion() {
+        let mut run = test_run("live", "running", Vec::new());
+        consume_jsonl_events(
+            &mut run,
+            br#"{"schema_version":1,"event":"run_started","sequence":0,"data":{"hook":"check","started_at":"now"}}
+{"schema_version":1,"event":"step_started","sequence":1,"data":{"name":"cargo-check","status":"running","duration_ms":0,"effects":[],"diagnostics":[]}}
+"#,
+        );
+
+        let result = run.result.as_ref().unwrap();
+        assert_eq!(result["status"], "running");
+        assert_eq!(result["steps"][0]["name"], "cargo-check");
+        assert_eq!(result["steps"][0]["status"], "running");
+        assert!(!run.saw_run_completed);
     }
 
     #[test]

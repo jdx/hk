@@ -5,8 +5,11 @@ use crate::{
     step::{CommandEffect, OutputSummary},
 };
 use serde::Serialize;
-use std::io::Write;
 use std::path::Path;
+use std::{
+    io::Write,
+    sync::{Mutex, OnceLock},
+};
 
 #[derive(
     Debug,
@@ -72,6 +75,49 @@ struct Event<'a, T: Serialize> {
     event: &'a str,
     sequence: usize,
     data: T,
+}
+
+fn jsonl_sequence() -> &'static Mutex<usize> {
+    static SEQUENCE: OnceLock<Mutex<usize>> = OnceLock::new();
+    SEQUENCE.get_or_init(|| Mutex::new(0))
+}
+
+pub fn emit_run_started(format: OutputFormat, hook: &str, started_at: &str) -> Result<()> {
+    if format != OutputFormat::Jsonl {
+        return Ok(());
+    }
+    let mut sequence = jsonl_sequence().lock().unwrap();
+    *sequence = 0;
+    write_event(
+        &mut std::io::stdout().lock(),
+        &Event {
+            schema_version: 1,
+            event: "run_started",
+            sequence: *sequence,
+            data: serde_json::json!({
+                "hook": hook,
+                "started_at": started_at,
+            }),
+        },
+    )?;
+    *sequence += 1;
+    Ok(())
+}
+
+pub fn emit_step_started(format: OutputFormat, name: &str) -> Result<()> {
+    if format != OutputFormat::Jsonl {
+        return Ok(());
+    }
+    write_jsonl_event(
+        "step_started",
+        serde_json::json!({
+            "name": name,
+            "status": "running",
+            "duration_ms": 0,
+            "effects": [],
+            "diagnostics": [],
+        }),
+    )
 }
 
 pub fn emit_run(
@@ -274,46 +320,28 @@ fn emit_result(format: OutputFormat, result: &RunResult) -> Result<()> {
             writeln!(stdout)?;
         }
         OutputFormat::Jsonl => {
-            write_event(
-                &mut stdout,
-                &Event {
-                    schema_version: 1,
-                    event: "run_started",
-                    sequence: 0,
-                    data: serde_json::json!({
-                        "hook": result.hook,
-                        "started_at": result.started_at,
-                    }),
-                },
-            )?;
-            for (index, step) in result.steps.iter().enumerate() {
-                write_event(
-                    &mut stdout,
-                    &Event {
-                        schema_version: 1,
-                        event: "step_completed",
-                        sequence: index + 1,
-                        data: step,
-                    },
-                )?;
+            drop(stdout);
+            for step in &result.steps {
+                write_jsonl_event("step_completed", step)?;
             }
-            write_event(
-                &mut stdout,
-                &Event {
-                    schema_version: 1,
-                    event: "run_completed",
-                    sequence: result.steps.len() + 1,
-                    data: serde_json::json!({
-                        "hook": result.hook,
-                        "status": result.status,
-                        "duration_ms": result.duration_ms,
-                        "failure": result.failure,
-                        "reason": result.reason,
-                    }),
-                },
-            )?;
+            write_jsonl_event("run_completed", result)?;
         }
     }
+    Ok(())
+}
+
+fn write_jsonl_event(event: &str, data: impl Serialize) -> Result<()> {
+    let mut sequence = jsonl_sequence().lock().unwrap();
+    write_event(
+        &mut std::io::stdout().lock(),
+        &Event {
+            schema_version: 1,
+            event,
+            sequence: *sequence,
+            data,
+        },
+    )?;
+    *sequence += 1;
     Ok(())
 }
 
