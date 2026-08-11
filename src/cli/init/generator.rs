@@ -144,8 +144,11 @@ mod tests {
 
     #[test]
     fn test_agent_docs_link_follows_imports() {
-        let expected = "import \"package://github.com/jdx/hk/releases/download/v1.34.0/hk@1.34.0#/Builtins.pkl\"\n// Using a coding agent? See https://hk.jdx.dev/agents";
-        assert!(generate_pkl(&[], &[], "1.34.0").contains(expected));
-        assert!(generate_default_template("1.34.0").contains(expected));
+        let version = "test-version";
+        let expected = format!(
+            "import \"package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl\"\n// Using a coding agent? See https://hk.jdx.dev/agents"
+        );
+        assert!(generate_pkl(&[], &[], version).contains(&expected));
+        assert!(generate_default_template(version).contains(&expected));
     }
 }
