@@ -55,6 +55,7 @@ describe("Dashboard", () => {
           {
             name: "compiler",
             status: "running",
+            started_at: new Date().toISOString(),
             duration_ms: 0,
             effects: [{ command: "check", effect: "read" }],
             diagnostics: [],
@@ -72,6 +73,9 @@ describe("Dashboard", () => {
     render(<Dashboard initial={active} call={call} />);
     expect(screen.getByRole("img", { name: "hk" })).toBeInTheDocument();
     expect(screen.getByText("0 of 1 steps complete")).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: "compiler is running" }),
+    ).toHaveAttribute("aria-valuetext", expect.stringContaining("elapsed"));
     expect(await screen.findByText("checking compiler")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel run" })).toBeEnabled();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();

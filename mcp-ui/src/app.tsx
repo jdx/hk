@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import logoUrl from "../../docs/public/logo.svg";
 import type { ToolCaller } from "./bridge";
-import type { Diagnostic, RunSnapshot, TextPage } from "./types";
+import type { Diagnostic, RunSnapshot, StepResult, TextPage } from "./types";
 
 const terminal = new Set(["succeeded", "failed", "cancelled"]);
 const pageSize = 65536;
@@ -17,6 +17,19 @@ function preferredReviewTab(run: RunSnapshot): ReviewTab {
   if (diagnosticCount > 0) return "diagnostics";
   if (run.has_diff) return "patch";
   return "overview";
+}
+
+function stepElapsed(step: StepResult) {
+  if (step.status !== "running" || !step.started_at) return step.duration_ms;
+  const started = Date.parse(step.started_at);
+  return Number.isNaN(started)
+    ? step.duration_ms
+    : Math.max(step.duration_ms, Date.now() - started);
+}
+
+function formatElapsed(durationMs: number) {
+  if (durationMs < 1000) return `${durationMs} ms`;
+  return `${(durationMs / 1000).toFixed(durationMs < 10_000 ? 1 : 0)} s`;
 }
 
 async function readPages(
@@ -320,7 +333,17 @@ export function Dashboard({
                           .join(" · ") || step.status}
                       </small>
                     </span>
-                    <time>{step.duration_ms} ms</time>
+                    <time>{formatElapsed(stepElapsed(step))}</time>
+                    {step.status === "running" && (
+                      <span
+                        class="step-activity"
+                        role="progressbar"
+                        aria-label={`${step.name} is running`}
+                        aria-valuetext={`${formatElapsed(stepElapsed(step))} elapsed`}
+                      >
+                        <i />
+                      </span>
+                    )}
                   </li>
                 ))}
                 {!steps.length && (

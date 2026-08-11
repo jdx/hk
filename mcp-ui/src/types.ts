@@ -16,6 +16,7 @@ export type Diagnostic = {
 export type StepResult = {
   name: string;
   status: string;
+  started_at?: string;
   duration_ms: number;
   diagnostics?: Diagnostic[];
   effects?: Array<{ command: string; effect?: string }>;

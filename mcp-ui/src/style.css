@@ -269,12 +269,33 @@ aside[role="alert"] {
 }
 
 .live-steps li {
+  position: relative;
   min-height: 38px;
   display: grid;
   grid-template-columns: 12px 1fr auto;
   align-items: center;
   gap: 9px;
   border-bottom: 1px solid var(--line-soft);
+}
+
+.step-activity {
+  position: absolute;
+  right: 0;
+  bottom: 2px;
+  left: 21px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: #223040;
+}
+
+.step-activity i {
+  display: block;
+  width: 28%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+  animation: indeterminate 1.2s ease-in-out infinite;
 }
 
 .live-steps li > span:nth-child(2) {
@@ -797,6 +818,7 @@ button:disabled {
 
 @media (prefers-reduced-motion: reduce) {
   .progress i,
+  .step-activity i,
   .live-steps .running .dot,
   .status.running i {
     animation: none;
