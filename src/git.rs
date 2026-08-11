@@ -1723,6 +1723,9 @@ fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
     let mut files = BTreeSet::new();
     diff.foreach(
         &mut |diff_delta, _| {
+            if diff_delta.status() == git2::Delta::Deleted {
+                return true;
+            }
             if let Some(path) = diff_delta.new_file().path() {
                 let path_buf = PathBuf::from(path);
                 if path_buf.exists() {
