@@ -201,6 +201,15 @@ This is useful in corporate environments with SSL-intercepting proxies where pkl
 
 This variable is read directly from the environment before pkl is invoked, so it cannot be configured in `hk.pkl`.
 
+## `HK_PKL_CACHE_DIR`
+
+Type: `path`
+Default: the platform cache directory with `pklr` appended (`~/.cache/pklr` on Linux, `~/Library/Caches/pklr` on macOS, and `%LOCALAPPDATA%\pklr` on Windows). Falls back to `~/.cache/pklr` when the platform cache directory is unavailable.
+
+The directory used by the built-in pklr evaluator to persist downloaded Pkl packages. Packages in this cache can be reused after hk's resolved configuration cache is invalidated, including in offline mode.
+
+This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
+
 ## `HK_PKL_HTTP_REWRITE`
 
 Type: `string`
@@ -208,6 +217,15 @@ Type: `string`
 A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`, in the form `http(s)://<FROM>/=http(s)://<TO>/`.
 
 This variable is read directly from the environment before pkl is invoked, so it cannot be configured in `hk.pkl`.
+
+## `HK_PKL_OFFLINE`
+
+Type: `bool`
+Default: `false`
+
+Disables network access in the built-in pklr evaluator. Package imports already present in `HK_PKL_CACHE_DIR` remain available; a missing package fails immediately with its URL and cache location.
+
+This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
 ## `HK_PROFILE`
 

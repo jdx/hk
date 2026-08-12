@@ -742,18 +742,17 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
         .as_deref()
         .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
         .unwrap_or_default();
-    let options = pklr::EvalOptions {
-        client: Some(client),
-        http_rewrites,
-    };
+    let evaluator = pklr::EvaluatorBuilder::new()
+        .http_client(client)
+        .http_rewrites(http_rewrites)
+        .package_cache_dir(env::HK_PKL_CACHE_DIR.clone())
+        .offline(*env::HK_PKL_OFFLINE);
     let rt = tokio::runtime::Handle::try_current();
     let json = match rt {
-        Ok(handle) => tokio::task::block_in_place(|| {
-            handle.block_on(pklr::eval_to_json_with_options(path, options))
-        }),
+        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(evaluator.eval_to_json(path))),
         Err(_) => {
             let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(pklr::eval_to_json_with_options(path, options))
+            rt.block_on(evaluator.eval_to_json(path))
         }
     }
     .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;

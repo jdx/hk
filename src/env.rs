@@ -99,6 +99,16 @@ pub static HK_PKL_HTTP_REWRITE: LazyLock<Option<String>> =
 pub static HK_PKL_CA_CERTIFICATES: LazyLock<Option<PathBuf>> =
     LazyLock::new(|| var_path("HK_PKL_CA_CERTIFICATES"));
 
+pub static HK_PKL_CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
+    var_path("HK_PKL_CACHE_DIR").unwrap_or(
+        dirs::cache_dir()
+            .unwrap_or(HOME_DIR.join(".cache"))
+            .join("pklr"),
+    )
+});
+
+pub static HK_PKL_OFFLINE: LazyLock<bool> = LazyLock::new(|| var_true("HK_PKL_OFFLINE"));
+
 /// Set to "pkl" to use the pkl CLI instead of the built-in pklr evaluator.
 pub static HK_PKL_BACKEND: LazyLock<String> =
     LazyLock::new(|| var("HK_PKL_BACKEND").unwrap_or_else(|_| "pklr".to_string()));
