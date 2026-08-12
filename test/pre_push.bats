@@ -50,6 +50,36 @@ EOF
     assert_output --partial "[warn] test.js"
 }
 
+@test "pre-push hook allows pushing annotated tags" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+    git push origin main
+    git remote set-head origin --auto
+
+    echo "tagged content" > tagged.txt
+    git add tagged.txt
+    git commit -m "test(pre-push): add tagged content"
+    git tag -a v1.0.0 -m v1.0.0
+    hk install --legacy
+
+    run git push origin v1.0.0
+
+    assert_success
+    assert_output --partial "print-files – tagged.txt"
+    run git ls-remote --exit-code origin refs/tags/v1.0.0
+    assert_success
+}
+
 @test "config-based pre-push hook checks pushed files" {
     require_git_2_54
     export NO_COLOR=1
