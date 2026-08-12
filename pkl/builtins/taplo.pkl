@@ -13,7 +13,7 @@ taplo = new Config.Step {
     ["RUST_LOG"] = "warn"
   }
   check = new Config.CommandSpec {
-    command = "taplo lint {{ files }}"
+    command = new Config.Command { argv = List("taplo", "lint", "{{files}}") }
     effect = "read"
   }
   tests {

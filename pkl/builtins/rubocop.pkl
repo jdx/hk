@@ -72,15 +72,19 @@ rubocop = new Config.Step {
     )
   // `--force-exclusion`: Any files excluded by `Exclude` in RuboCop configuration files will be excluded, even if given explicitly as arguments.
   check = new Config.CommandSpec {
-    command = "rubocop --force-exclusion {{ files }}"
+    command = new Config.Command { argv = List("rubocop", "--force-exclusion", "{{files}}") }
     effect = "write"
   }
   check_list_files = new Config.CommandSpec {
-    command = "rubocop --force-exclusion --list-target-files {{ files }}"
+    command = new Config.Command {
+      argv = List("rubocop", "--force-exclusion", "--list-target-files", "{{files}}")
+    }
     effect = "write"
   }
   fix = new Config.CommandSpec {
-    command = "rubocop --force-exclusion --autocorrect {{ files }}"
+    command = new Config.Command {
+      argv = List("rubocop", "--force-exclusion", "--autocorrect", "{{files}}")
+    }
     effect = "write"
   }
   tests {

@@ -9,11 +9,13 @@ clang_format = new Config.Step {
   glob =
     List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
   check = new Config.CommandSpec {
-    command = "clang-format --dry-run -Werror {{ files }}"
+    command = new Config.Command {
+      argv = List("clang-format", "--dry-run", "-Werror", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "clang-format -i {{ files }}"
+    command = new Config.Command { argv = List("clang-format", "-i", "{{files}}") }
     effect = "write"
   }
 }

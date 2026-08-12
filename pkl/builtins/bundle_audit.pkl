@@ -8,11 +8,11 @@ import "../Config.pkl"
 bundle_audit = new Config.Step {
   glob = "**/Gemfile.lock"
   check = new Config.CommandSpec {
-    command = "bundle-audit check {{ files }}"
+    command = new Config.Command { argv = List("bundle-audit", "check", "{{files}}") }
     effect = "write"
   }
   fix = new Config.CommandSpec {
-    command = "bundle-audit update"
+    command = new Config.Command { argv = List("bundle-audit", "update") }
     effect = "write"
   }
 }

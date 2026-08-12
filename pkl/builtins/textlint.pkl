@@ -21,11 +21,11 @@ textlint = new Config.Step {
   glob = List("**/*.md", "**/*.markdown", "**/*.txt")
   batch = true
   check = new Config.CommandSpec {
-    command = "textlint {{ files }}"
+    command = new Config.Command { argv = List("textlint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "textlint --fix {{ files }}"
+    command = new Config.Command { argv = List("textlint", "--fix", "{{files}}") }
     effect = "write"
   }
   tests {

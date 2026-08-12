@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 yamllint = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
   check = new Config.CommandSpec {
-    command = "yamllint --strict {{ files }}"
+    command = new Config.Command { argv = List("yamllint", "--strict", "{{files}}") }
     effect = "read"
   }
   tests {

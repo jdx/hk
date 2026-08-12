@@ -13,7 +13,7 @@ mdschema = new Config.Step {
   workspace_indicator = ".mdschema.yml"
   types = List("markdown")
   check = new Config.CommandSpec {
-    command = "mdschema check {{ files }}"
+    command = new Config.Command { argv = List("mdschema", "check", "{{files}}") }
     effect = "read"
   }
   tests {

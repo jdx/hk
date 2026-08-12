@@ -9,7 +9,7 @@ cpp_lint = new Config.Step {
   glob =
     List("**/*.c", "**/*.h", "**/*.cpp", "**/*.hpp", "**/*.cc", "**/*.hh", "**/*.cxx", "**/*.hxx")
   check = new Config.CommandSpec {
-    command = "cpplint {{ files }}"
+    command = new Config.Command { argv = List("cpplint", "{{files}}") }
     effect = "read"
   }
 }

@@ -8,7 +8,7 @@ import "../Config.pkl"
 deno_check = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
   check = new Config.CommandSpec {
-    command = "deno check {{ files }}"
+    command = new Config.Command { argv = List("deno", "check", "{{files}}") }
     effect = "write"
   }
 }

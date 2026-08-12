@@ -10,7 +10,7 @@ const ghalint_action = new Config.Step {
   glob = List("**/action.*")
   types = List("yaml")
   check = new Config.CommandSpec {
-    command = "ghalint run-action {{ files }}"
+    command = new Config.Command { argv = List("ghalint", "run-action", "{{files}}") }
     effect = "read"
   }
   tests {

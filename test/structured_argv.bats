@@ -83,7 +83,7 @@ EOF
     assert_equal "${#lines[@]}" 4
 }
 
-@test "structured argv prefix composes with a builtin" {
+@test "structured argv prefix composes with builtins" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
@@ -91,6 +91,9 @@ hooks {
     ["check"] {
         steps {
             ["ruff"] = (Builtins.ruff) {
+                prefix = List("mise", "x", "--")
+            }
+            ["ruff_format"] = (Builtins.ruff_format) {
                 prefix = List("mise", "x", "--")
             }
         }

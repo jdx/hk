@@ -9,11 +9,13 @@ import "./test/helpers.pkl"
 tombi_format = new Config.Step {
   glob = "**/*.toml"
   check_diff = new Config.CommandSpec {
-    command = "tombi format --quiet --check --diff {{ files }}"
+    command = new Config.Command {
+      argv = List("tombi", "format", "--quiet", "--check", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "tombi format --quiet {{ files }}"
+    command = new Config.Command { argv = List("tombi", "format", "--quiet", "{{files}}") }
     effect = "write"
   }
   tests {

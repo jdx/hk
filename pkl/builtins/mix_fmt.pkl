@@ -9,11 +9,11 @@ mix_fmt = new Config.Step {
   glob = List("**/*.ex", "**/*.exs")
   exclude = List("deps/**/*")
   check = new Config.CommandSpec {
-    command = "mix format --check-formatted {{files}}"
+    command = new Config.Command { argv = List("mix", "format", "--check-formatted", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "mix format {{files}}"
+    command = new Config.Command { argv = List("mix", "format", "{{files}}") }
     effect = "write"
   }
 }

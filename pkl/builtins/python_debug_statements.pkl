@@ -9,7 +9,9 @@ import "./test/helpers.pkl"
 python_debug_statements = new Config.Step {
   glob = "**/*.py"
   check = new Config.CommandSpec {
-    command = "hk util python-debug-statements {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "python-debug-statements", "{{files}}")
+    }
     effect = "read"
   }
   tests {

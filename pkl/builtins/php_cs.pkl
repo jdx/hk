@@ -8,11 +8,11 @@ import "../Config.pkl"
 php_cs = new Config.Step {
   glob = "**/*.php"
   check = new Config.CommandSpec {
-    command = "phpcs {{ files }}"
+    command = new Config.Command { argv = List("phpcs", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "phpcbf {{ files }}"
+    command = new Config.Command { argv = List("phpcbf", "{{files}}") }
     effect = "write"
   }
 }

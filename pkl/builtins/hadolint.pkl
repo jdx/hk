@@ -12,7 +12,7 @@ import "./test/helpers.pkl"
 hadolint = new Config.Step {
   glob = "**/Dockerfile*"
   check = new Config.CommandSpec {
-    command = "hadolint {{ files }}"
+    command = new Config.Command { argv = List("hadolint", "{{files}}") }
     effect = "read"
   }
   tests {

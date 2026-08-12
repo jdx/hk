@@ -14,7 +14,9 @@ betterleaks = new Config.Step {
   types = List("text")
   // Reference: https://github.com/betterleaks/betterleaks/blob/v1.5.0/.pre-commit-hooks.yaml#L4
   check = new Config.CommandSpec {
-    command = "betterleaks dir --redact --verbose --no-banner {{ files }}"
+    command = new Config.Command {
+      argv = List("betterleaks", "dir", "--redact", "--verbose", "--no-banner", "{{files}}")
+    }
     effect = "read"
   }
   tests {

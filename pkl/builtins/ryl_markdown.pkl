@@ -20,15 +20,15 @@ import "./test/helpers.pkl"
 ryl_markdown = new Config.Step {
   types = List("markdown")
   check_diff = new Config.CommandSpec {
-    command = "ryl --diff --markdown {{ files }}"
+    command = new Config.Command { argv = List("ryl", "--diff", "--markdown", "{{files}}") }
     effect = "read"
   }
   check_list_files = new Config.CommandSpec {
-    command = "ryl --list-files --markdown {{ files }}"
+    command = new Config.Command { argv = List("ryl", "--list-files", "--markdown", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "ryl --fix --markdown {{ files }}"
+    command = new Config.Command { argv = List("ryl", "--fix", "--markdown", "{{files}}") }
     effect = "write"
   }
   tests {

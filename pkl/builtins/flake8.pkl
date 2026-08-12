@@ -8,7 +8,7 @@ import "../Config.pkl"
 flake8 = new Config.Step {
   glob = "**/*.py"
   check = new Config.CommandSpec {
-    command = "flake8 {{ files }}"
+    command = new Config.Command { argv = List("flake8", "{{files}}") }
     effect = "read"
   }
 }

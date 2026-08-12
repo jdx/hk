@@ -12,11 +12,11 @@ eslint = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
   batch = true
   check = new Config.CommandSpec {
-    command = "eslint {{ files }}"
+    command = new Config.Command { argv = List("eslint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "eslint --fix {{ files }}"
+    command = new Config.Command { argv = List("eslint", "--fix", "{{files}}") }
     effect = "write"
   }
 }

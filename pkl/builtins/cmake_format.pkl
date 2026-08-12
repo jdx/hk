@@ -8,11 +8,11 @@ import "../Config.pkl"
 cmake_format = new Config.Step {
   glob = List("**/CMakeLists.txt", "**/*.cmake")
   check = new Config.CommandSpec {
-    command = "cmake-format --check {{ files }}"
+    command = new Config.Command { argv = List("cmake-format", "--check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "cmake-format --in-place {{ files }}"
+    command = new Config.Command { argv = List("cmake-format", "--in-place", "{{files}}") }
     effect = "write"
   }
 }

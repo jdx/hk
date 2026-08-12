@@ -11,11 +11,11 @@ import "../Config.pkl"
 standard_rb = new Config.Step {
   types = List("ruby")
   check = new Config.CommandSpec {
-    command = "standardrb {{ files }}"
+    command = new Config.Command { argv = List("standardrb", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "standardrb --fix {{ files }}"
+    command = new Config.Command { argv = List("standardrb", "--fix", "{{files}}") }
     effect = "write"
   }
 }

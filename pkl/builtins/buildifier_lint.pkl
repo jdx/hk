@@ -25,11 +25,13 @@ buildifier_lint = new Config.Step {
       "**/*.sky",
     )
   check = new Config.CommandSpec {
-    command = "buildifier -mode=check -lint=warn {{ files }}"
+    command = new Config.Command {
+      argv = List("buildifier", "-mode=check", "-lint=warn", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "buildifier -lint=fix {{ files }}"
+    command = new Config.Command { argv = List("buildifier", "-lint=fix", "{{files}}") }
     effect = "write"
   }
   tests {

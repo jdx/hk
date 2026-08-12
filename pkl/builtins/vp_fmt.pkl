@@ -57,15 +57,15 @@ vp_fmt = new Config.Step {
       "**/*.hbs",
     )
   check = new Config.CommandSpec {
-    command = "vp fmt --check {{ files }}"
+    command = new Config.Command { argv = List("vp", "fmt", "--check", "{{files}}") }
     effect = "read"
   }
   check_list_files = new Config.CommandSpec {
-    command = "vp fmt --list-different {{ files }}"
+    command = new Config.Command { argv = List("vp", "fmt", "--list-different", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "vp fmt {{ files }}"
+    command = new Config.Command { argv = List("vp", "fmt", "{{files}}") }
     effect = "write"
   }
   workspace_indicator = "package.json"

@@ -9,11 +9,15 @@ import "./test/helpers.pkl"
 mixed_line_ending = new Config.Step {
   types = List("text")
   check_diff = new Config.CommandSpec {
-    command = "hk util mixed-line-ending --diff {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "mixed-line-ending", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "hk util mixed-line-ending --fix {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "mixed-line-ending", "--fix", "{{files}}")
+    }
     effect = "write"
   }
   tests {

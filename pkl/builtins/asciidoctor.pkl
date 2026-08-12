@@ -11,7 +11,9 @@ const asciidoctor = new Config.Step {
   // The `failure-level` option ensures non-zero exit code when warnings occur
   // The `out-file=/dev/null` option prevents HTML file generation
   check = new Config.CommandSpec {
-    command = "asciidoctor --failure-level=WARNING --out-file=/dev/null {{ files }}"
+    command = new Config.Command {
+      argv = List("asciidoctor", "--failure-level=WARNING", "--out-file=/dev/null", "{{files}}")
+    }
     effect = "read"
   }
   tests {

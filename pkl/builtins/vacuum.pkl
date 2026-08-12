@@ -16,11 +16,11 @@ vacuum = new Config.Step {
       "**/*swagger*.json",
     )
   check = new Config.CommandSpec {
-    command = "vacuum lint {{files}}"
+    command = new Config.Command { argv = List("vacuum", "lint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "vacuum lint --fix {{files}}"
+    command = new Config.Command { argv = List("vacuum", "lint", "--fix", "{{files}}") }
     effect = "write"
   }
 }

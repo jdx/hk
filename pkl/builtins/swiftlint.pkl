@@ -8,11 +8,11 @@ import "../Config.pkl"
 swiftlint = new Config.Step {
   glob = "**/*.swift"
   check = new Config.CommandSpec {
-    command = "swiftlint lint {{ files }}"
+    command = new Config.Command { argv = List("swiftlint", "lint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "swiftlint --fix {{ files }}"
+    command = new Config.Command { argv = List("swiftlint", "--fix", "{{files}}") }
     effect = "write"
   }
 }

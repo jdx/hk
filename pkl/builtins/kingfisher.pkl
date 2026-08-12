@@ -13,7 +13,10 @@ kingfisher = new Config.Step {
   types = List("text")
   // Reference: https://github.com/mongodb/kingfisher/blob/v1.109.0/.pre-commit-hooks.yaml
   check = new Config.CommandSpec {
-    command = "kingfisher scan {{ files }} --no-update-check --no-validate --quiet"
+    command = new Config.Command {
+      argv =
+        List("kingfisher", "scan", "{{files}}", "--no-update-check", "--no-validate", "--quiet")
+    }
     effect = "read"
   }
   tests {

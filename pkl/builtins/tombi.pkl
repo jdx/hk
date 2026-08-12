@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 tombi = new Config.Step {
   glob = "**/*.toml"
   check = new Config.CommandSpec {
-    command = "tombi lint --quiet {{ files }}"
+    command = new Config.Command { argv = List("tombi", "lint", "--quiet", "{{files}}") }
     effect = "read"
   }
   tests {

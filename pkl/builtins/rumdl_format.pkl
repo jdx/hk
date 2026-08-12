@@ -9,11 +9,11 @@ import "./test/helpers.pkl"
 rumdl_format = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
   check_diff = new Config.CommandSpec {
-    command = "rumdl fmt --check --diff {{ files }}"
+    command = new Config.Command { argv = List("rumdl", "fmt", "--check", "--diff", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "rumdl fmt {{ files }}"
+    command = new Config.Command { argv = List("rumdl", "fmt", "{{files}}") }
     effect = "write"
   }
   tests {

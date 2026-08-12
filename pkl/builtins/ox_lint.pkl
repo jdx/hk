@@ -37,11 +37,11 @@ ox_lint = new Config.Step {
   // Without `--deny-warnings`,
   // the exit code will be 0 even if there is code that violates the rules.
   check = new Config.CommandSpec {
-    command = "oxlint --deny-warnings {{ files }}"
+    command = new Config.Command { argv = List("oxlint", "--deny-warnings", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "oxlint --deny-warnings --fix {{ files }}"
+    command = new Config.Command { argv = List("oxlint", "--deny-warnings", "--fix", "{{files}}") }
     effect = "write"
   }
   tests {

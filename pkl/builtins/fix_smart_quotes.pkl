@@ -9,11 +9,13 @@ import "./test/helpers.pkl"
 fix_smart_quotes = new Config.Step {
   types = List("text")
   check_diff = new Config.CommandSpec {
-    command = "hk util fix-smart-quotes --diff {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "fix-smart-quotes", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "hk util fix-smart-quotes {{files}}"
+    command = new Config.Command { argv = List("hk", "util", "fix-smart-quotes", "{{files}}") }
     effect = "write"
   }
   tests {

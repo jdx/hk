@@ -13,11 +13,13 @@ taplo_format = new Config.Step {
     ["RUST_LOG"] = "warn"
   }
   check_diff = new Config.CommandSpec {
-    command = "taplo format --check --diff {{ files }}"
+    command = new Config.Command {
+      argv = List("taplo", "format", "--check", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "taplo format {{ files }}"
+    command = new Config.Command { argv = List("taplo", "format", "{{files}}") }
     effect = "write"
   }
   tests {

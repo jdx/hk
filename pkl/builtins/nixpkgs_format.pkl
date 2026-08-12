@@ -8,11 +8,11 @@ import "../Config.pkl"
 nixpkgs_format = new Config.Step {
   glob = "**/*.nix"
   check = new Config.CommandSpec {
-    command = "nixpkgs-fmt --check {{ files }}"
+    command = new Config.Command { argv = List("nixpkgs-fmt", "--check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "nixpkgs-fmt {{ files }}"
+    command = new Config.Command { argv = List("nixpkgs-fmt", "{{files}}") }
     effect = "write"
   }
 }

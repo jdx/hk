@@ -8,7 +8,7 @@ import "../Config.pkl"
 tsserver = new Config.Step {
   glob = List("**/*.ts", "**/*.tsx")
   check = new Config.CommandSpec {
-    command = "tsc-files --noEmit {{ files }}"
+    command = new Config.Command { argv = List("tsc-files", "--noEmit", "{{files}}") }
     effect = "write"
   }
 }

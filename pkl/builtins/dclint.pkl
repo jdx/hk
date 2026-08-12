@@ -22,11 +22,11 @@ dclint = new Config.Step {
     )
   batch = true
   check = new Config.CommandSpec {
-    command = "dclint {{files}}"
+    command = new Config.Command { argv = List("dclint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "dclint --fix {{files}}"
+    command = new Config.Command { argv = List("dclint", "--fix", "{{files}}") }
     effect = "write"
   }
   tests {

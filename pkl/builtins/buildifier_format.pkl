@@ -25,11 +25,11 @@ buildifier_format = new Config.Step {
       "**/*.sky",
     )
   check = new Config.CommandSpec {
-    command = "buildifier -mode=check {{ files }}"
+    command = new Config.Command { argv = List("buildifier", "-mode=check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "buildifier {{ files }}"
+    command = new Config.Command { argv = List("buildifier", "{{files}}") }
     effect = "write"
   }
   tests {

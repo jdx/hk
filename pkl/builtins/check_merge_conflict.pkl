@@ -9,7 +9,9 @@ import "./test/helpers.pkl"
 check_merge_conflict = new Config.Step {
   types = List("text")
   check = new Config.CommandSpec {
-    command = "hk util check-merge-conflict --assume-in-merge {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "check-merge-conflict", "--assume-in-merge", "{{files}}")
+    }
     effect = "read"
   }
   tests {

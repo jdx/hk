@@ -9,11 +9,11 @@ import "./test/helpers.pkl"
 stylua = new Config.Step {
   types = List("lua")
   check_diff = new Config.CommandSpec {
-    command = "stylua --check {{ files }}"
+    command = new Config.Command { argv = List("stylua", "--check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "stylua {{ files }}"
+    command = new Config.Command { argv = List("stylua", "{{files}}") }
     effect = "write"
   }
   tests {

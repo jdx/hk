@@ -8,7 +8,9 @@ import "../Config.pkl"
 check_added_large_files = new Config.Step {
   glob = "**/*"
   check = new Config.CommandSpec {
-    command = "hk util check-added-large-files {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "check-added-large-files", "{{files}}")
+    }
     effect = "read"
   }
   tests {
