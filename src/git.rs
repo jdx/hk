@@ -1617,8 +1617,11 @@ impl Git {
                 .revparse_single(to_ref)
                 .wrap_err(format!("Failed to parse reference: {to_ref}"))?;
 
-            let to_tree = to_obj
-                .peel_to_tree()
+            let to_commit = to_obj
+                .peel_to_commit()
+                .wrap_err(format!("Failed to get commit for reference: {to_ref}"))?;
+            let to_tree = to_commit
+                .tree()
                 .wrap_err(format!("Failed to get tree for reference: {to_ref}"))?;
 
             let from_obj = match repo.revparse_single(from_ref) {
@@ -1638,11 +1641,14 @@ impl Git {
                     return Err(err).wrap_err(format!("Failed to resolve from-ref: {from_ref}"));
                 }
             };
+            let from_commit = from_obj
+                .peel_to_commit()
+                .wrap_err(format!("Failed to get commit for reference: {from_ref}"))?;
 
             // Prefer merge-base semantics (`from...to`). In shallow clones the
             // merge base can be missing, so fall back to a direct `from..to`
             // diff instead of failing the whole run.
-            let diff = match repo.merge_base(from_obj.id(), to_obj.id()) {
+            let diff = match repo.merge_base(from_commit.id(), to_commit.id()) {
                 Ok(merge_base) => {
                     let merge_base_obj = repo
                         .find_object(merge_base, None)
@@ -1668,8 +1674,8 @@ impl Git {
                         repo.diff_tree_to_tree(Some(&merge_base_tree), Some(&to_tree), None)
                             .wrap_err("Failed to get diff between references")?
                     } else {
-                        let from_tree = from_obj
-                            .peel_to_tree()
+                        let from_tree = from_commit
+                            .tree()
                             .wrap_err(format!("Failed to get tree for reference: {from_ref}"))?;
                         repo.diff_tree_to_tree(Some(&from_tree), Some(&to_tree), None)
                             .wrap_err("Failed to get fallback diff between references")?
