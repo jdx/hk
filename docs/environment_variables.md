@@ -204,7 +204,7 @@ This variable is read directly from the environment before pkl is invoked, so it
 ## `HK_PKL_CACHE_DIR`
 
 Type: `path`
-Default: `~/.cache/pklr`
+Default: the platform cache directory with `pklr` appended (`~/.cache/pklr` on Linux, `~/Library/Caches/pklr` on macOS, and `%LOCALAPPDATA%\pklr` on Windows). Falls back to `~/.cache/pklr` when the platform cache directory is unavailable.
 
 The directory used by the built-in pklr evaluator to persist downloaded Pkl packages. Packages in this cache can be reused after hk's resolved configuration cache is invalidated, including in offline mode.
 
