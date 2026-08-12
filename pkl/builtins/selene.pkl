@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 selene = new Config.Step {
   types = List("lua")
   check_diff = new Config.CommandSpec {
-    command = "selene {{ files }}"
+    command = new Config.Command { argv = List("selene", "{{files}}") }
     effect = "read"
   }
   tests {

@@ -12,15 +12,21 @@ import "./rubocop.pkl"
 rubocop_server = (rubocop.rubocop) {
   // `--server`: Use a long-lived RuboCop server process to speed up repeated invocations.
   check = new Config.CommandSpec {
-    command = "rubocop --server --force-exclusion {{ files }}"
+    command = new Config.Command {
+      argv = List("rubocop", "--server", "--force-exclusion", "{{files}}")
+    }
     effect = "write"
   }
   check_list_files = new Config.CommandSpec {
-    command = "rubocop --server --force-exclusion --list-target-files {{ files }}"
+    command = new Config.Command {
+      argv = List("rubocop", "--server", "--force-exclusion", "--list-target-files", "{{files}}")
+    }
     effect = "write"
   }
   fix = new Config.CommandSpec {
-    command = "rubocop --server --force-exclusion --autocorrect {{ files }}"
+    command = new Config.Command {
+      argv = List("rubocop", "--server", "--force-exclusion", "--autocorrect", "{{files}}")
+    }
     effect = "write"
   }
 }

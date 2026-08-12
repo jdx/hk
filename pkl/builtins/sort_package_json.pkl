@@ -8,11 +8,11 @@ import "../Config.pkl"
 sort_package_json = new Config.Step {
   glob = "**/package.json"
   check = new Config.CommandSpec {
-    command = "sort-package-json --check {{ files }}"
+    command = new Config.Command { argv = List("sort-package-json", "--check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "sort-package-json {{ files }}"
+    command = new Config.Command { argv = List("sort-package-json", "{{files}}") }
     effect = "write"
   }
 }

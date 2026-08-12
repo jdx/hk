@@ -8,11 +8,11 @@ import "../Config.pkl"
 standard_js = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
   check = new Config.CommandSpec {
-    command = "standard {{ files }}"
+    command = new Config.Command { argv = List("standard", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "standard --fix {{ files }}"
+    command = new Config.Command { argv = List("standard", "--fix", "{{files}}") }
     effect = "write"
   }
 }

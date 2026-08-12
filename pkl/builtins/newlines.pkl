@@ -9,11 +9,15 @@ import "./test/helpers.pkl"
 newlines = new Config.Step {
   types = List("text")
   check_diff = new Config.CommandSpec {
-    command = "hk util end-of-file-fixer --diff {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "end-of-file-fixer", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "hk util end-of-file-fixer --fix {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "end-of-file-fixer", "--fix", "{{files}}")
+    }
     effect = "write"
   }
   tests {

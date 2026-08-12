@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 detect_private_key = new Config.Step {
   types = List("text")
   check = new Config.CommandSpec {
-    command = "hk util detect-private-key {{files}}"
+    command = new Config.Command { argv = List("hk", "util", "detect-private-key", "{{files}}") }
     effect = "read"
   }
   tests {

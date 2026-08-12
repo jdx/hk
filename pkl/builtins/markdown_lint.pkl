@@ -9,11 +9,11 @@ import "./test/helpers.pkl"
 markdown_lint = new Config.Step {
   glob = List("**/*.md", "**/*.markdown")
   check = new Config.CommandSpec {
-    command = "markdownlint {{ files }}"
+    command = new Config.Command { argv = List("markdownlint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "markdownlint --fix {{ files }}"
+    command = new Config.Command { argv = List("markdownlint", "--fix", "{{files}}") }
     effect = "write"
   }
   tests {

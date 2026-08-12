@@ -10,11 +10,15 @@ const pinact_update = new Config.Step {
   types = List("yaml")
   // `verify` flag to verify pairs of commit CHA and version are correct
   check_diff = new Config.CommandSpec {
-    command = "pinact run --update --verify --check {{ files }}"
+    command = new Config.Command {
+      argv = List("pinact", "run", "--update", "--verify", "--check", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "pinact run --update --verify {{ files }}"
+    command = new Config.Command {
+      argv = List("pinact", "run", "--update", "--verify", "{{files}}")
+    }
     effect = "write"
   }
   // Tests removed: they check against live GitHub Action versions, making them flaky

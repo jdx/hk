@@ -9,11 +9,11 @@ import "./test/helpers.pkl"
 isort = new Config.Step {
   glob = "**/*.py"
   check = new Config.CommandSpec {
-    command = "isort --check-only {{ files }}"
+    command = new Config.Command { argv = List("isort", "--check-only", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "isort {{ files }}"
+    command = new Config.Command { argv = List("isort", "{{files}}") }
     effect = "write"
   }
   tests {

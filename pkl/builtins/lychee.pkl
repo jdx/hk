@@ -9,7 +9,7 @@ lychee = new Config.Step {
   // https://github.com/lycheeverse/lychee/blob/db0f8a842f594e0a879563caf7d183266c02ca95/.pre-commit-hooks.yaml#L7
   types = List("text")
   check = new Config.CommandSpec {
-    command = "lychee --no-progress {{ files }}"
+    command = new Config.Command { argv = List("lychee", "--no-progress", "{{files}}") }
     effect = "read"
   }
 }

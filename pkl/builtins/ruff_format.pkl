@@ -13,11 +13,15 @@ import "./test/helpers.pkl"
 ruff_format = new Config.Step {
   types = List("python")
   check_diff = new Config.CommandSpec {
-    command = "ruff format --quiet --force-exclude --diff {{ files }}"
+    command = new Config.Command {
+      argv = List("ruff", "format", "--quiet", "--force-exclude", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "ruff format --quiet --force-exclude {{ files }}"
+    command = new Config.Command {
+      argv = List("ruff", "format", "--quiet", "--force-exclude", "{{files}}")
+    }
     effect = "write"
   }
   tests {

@@ -12,11 +12,11 @@ import "./test/helpers.pkl"
 stylelint = new Config.Step {
   glob = List("**/*.css", "**/*.scss", "**/*.sass", "**/*.less")
   check = new Config.CommandSpec {
-    command = "stylelint {{ files }}"
+    command = new Config.Command { argv = List("stylelint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "stylelint --fix {{ files }}"
+    command = new Config.Command { argv = List("stylelint", "--fix", "{{files}}") }
     effect = "write"
   }
   tests {

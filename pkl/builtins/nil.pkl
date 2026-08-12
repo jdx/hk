@@ -8,7 +8,9 @@ import "../Config.pkl"
 nil = new Config.Step {
   glob = "**/*.nix"
   check = new Config.CommandSpec {
-    command = "nil diagnostics --deny-warnings {{ files }}"
+    command = new Config.Command {
+      argv = List("nil", "diagnostics", "--deny-warnings", "{{files}}")
+    }
     effect = "read"
   }
 }

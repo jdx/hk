@@ -59,11 +59,11 @@ vp_check = new Config.Step {
       "**/*.toml",
     )
   check = new Config.CommandSpec {
-    command = "vp check {{ files }}"
+    command = new Config.Command { argv = List("vp", "check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "vp check --fix {{ files }}"
+    command = new Config.Command { argv = List("vp", "check", "--fix", "{{files}}") }
     effect = "write"
   }
   workspace_indicator = "package.json"

@@ -9,11 +9,11 @@ import "./test/helpers.pkl"
 yamlfmt = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
   check_diff = new Config.CommandSpec {
-    command = "yamlfmt -lint {{ files }}"
+    command = new Config.Command { argv = List("yamlfmt", "-lint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "yamlfmt {{ files }}"
+    command = new Config.Command { argv = List("yamlfmt", "{{files}}") }
     effect = "write"
   }
   tests {

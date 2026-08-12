@@ -12,11 +12,11 @@ import "./test/helpers.pkl"
 black = new Config.Step {
   glob = List("**/*.py")
   check_diff = new Config.CommandSpec {
-    command = "black --check --diff {{ files }}"
+    command = new Config.Command { argv = List("black", "--check", "--diff", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "black {{ files }}"
+    command = new Config.Command { argv = List("black", "{{files}}") }
     effect = "write"
   }
   tests {

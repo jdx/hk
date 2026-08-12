@@ -8,11 +8,11 @@ import "../Config.pkl"
 alejandra = new Config.Step {
   glob = "**/*.nix"
   check = new Config.CommandSpec {
-    command = "alejandra --check {{ files }}"
+    command = new Config.Command { argv = List("alejandra", "--check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "alejandra {{ files }}"
+    command = new Config.Command { argv = List("alejandra", "{{files}}") }
     effect = "write"
   }
 }

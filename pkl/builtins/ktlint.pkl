@@ -9,11 +9,11 @@ import "./test/helpers.pkl"
 ktlint = new Config.Step {
   glob = "**/*.kt"
   check = new Config.CommandSpec {
-    command = "ktlint {{ files }}"
+    command = new Config.Command { argv = List("ktlint", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "ktlint -F {{ files }}"
+    command = new Config.Command { argv = List("ktlint", "-F", "{{files}}") }
     effect = "write"
   }
   tests {

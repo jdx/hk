@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 python_check_ast = new Config.Step {
   glob = "**/*.py"
   check = new Config.CommandSpec {
-    command = "hk util python-check-ast {{files}}"
+    command = new Config.Command { argv = List("hk", "util", "python-check-ast", "{{files}}") }
     effect = "read"
   }
   tests {

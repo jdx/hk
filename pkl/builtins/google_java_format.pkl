@@ -12,15 +12,17 @@ import "./test/helpers.pkl"
 google_java_format = new Config.Step {
   glob = "**/*.java"
   check = new Config.CommandSpec {
-    command = "google-java-format --dry-run --set-exit-if-changed {{ files }}"
+    command = new Config.Command {
+      argv = List("google-java-format", "--dry-run", "--set-exit-if-changed", "{{files}}")
+    }
     effect = "read"
   }
   check_list_files = new Config.CommandSpec {
-    command = "google-java-format --dry-run {{ files }}"
+    command = new Config.Command { argv = List("google-java-format", "--dry-run", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "google-java-format --replace {{ files }}"
+    command = new Config.Command { argv = List("google-java-format", "--replace", "{{files}}") }
     effect = "write"
   }
   tests {

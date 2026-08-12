@@ -12,7 +12,7 @@ import "./test/helpers.pkl"
 mypy = new Config.Step {
   glob = List("**/*.py", "**/*.pyi")
   check = new Config.CommandSpec {
-    command = "mypy {{ files }}"
+    command = new Config.Command { argv = List("mypy", "{{files}}") }
     effect = "write"
   }
   tests {

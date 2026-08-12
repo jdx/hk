@@ -13,7 +13,7 @@ contextlint = new Config.Step {
   workspace_indicator = "contextlint.config.json"
   types = List("markdown")
   check = new Config.CommandSpec {
-    command = "contextlint {{ files }}"
+    command = new Config.Command { argv = List("contextlint", "{{files}}") }
     effect = "read"
   }
   tests {

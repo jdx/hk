@@ -9,7 +9,7 @@ mix_test = new Config.Step {
   glob = List("**/*.ex", "**/*.exs")
   exclude = List("deps/**/*")
   check = new Config.CommandSpec {
-    command = "mix test --warnings-as-errors {{files}}"
+    command = new Config.Command { argv = List("mix", "test", "--warnings-as-errors", "{{files}}") }
     effect = "write"
   }
 }

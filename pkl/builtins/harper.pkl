@@ -9,7 +9,7 @@ import "./test/helpers.pkl"
 harper = new Config.Step {
   types = List("text")
   check = new Config.CommandSpec {
-    command = "harper-cli lint {{ files }}"
+    command = new Config.Command { argv = List("harper-cli", "lint", "{{files}}") }
     effect = "read"
   }
   tests {

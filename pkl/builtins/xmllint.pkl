@@ -8,7 +8,7 @@ import "../Config.pkl"
 xmllint = new Config.Step {
   glob = "**/*.xml"
   check = new Config.CommandSpec {
-    command = "xmllint --noout {{ files }}"
+    command = new Config.Command { argv = List("xmllint", "--noout", "{{files}}") }
     effect = "read"
   }
 }

@@ -19,11 +19,11 @@ zizmor = new Config.Step {
       "**/action.yaml",
     )
   check_diff = new Config.CommandSpec {
-    command = "zizmor --no-progress {{ files }}"
+    command = new Config.Command { argv = List("zizmor", "--no-progress", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "zizmor --no-progress --fix {{ files }}"
+    command = new Config.Command { argv = List("zizmor", "--no-progress", "--fix", "{{files}}") }
     effect = "write"
   }
   tests {

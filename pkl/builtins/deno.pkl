@@ -8,11 +8,11 @@ import "../Config.pkl"
 deno = new Config.Step {
   glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
   check = new Config.CommandSpec {
-    command = "deno fmt --check {{ files }}"
+    command = new Config.Command { argv = List("deno", "fmt", "--check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "deno fmt {{ files }}"
+    command = new Config.Command { argv = List("deno", "fmt", "{{files}}") }
     effect = "write"
   }
 }

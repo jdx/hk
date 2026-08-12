@@ -8,11 +8,11 @@ import "../Config.pkl"
 go_imports = new Config.Step {
   glob = "**/*.go"
   check = new Config.CommandSpec {
-    command = "goimports -l {{ files }}"
+    command = new Config.Command { argv = List("goimports", "-l", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "goimports -w {{ files }}"
+    command = new Config.Command { argv = List("goimports", "-w", "{{files}}") }
     effect = "write"
   }
 }

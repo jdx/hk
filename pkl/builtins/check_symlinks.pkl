@@ -9,7 +9,7 @@ check_symlinks = new Config.Step {
   glob = "**/*"
   allow_symlinks = true
   check = new Config.CommandSpec {
-    command = "hk util check-symlinks {{files}}"
+    command = new Config.Command { argv = List("hk", "util", "check-symlinks", "{{files}}") }
     effect = "read"
   }
   tests {

@@ -9,7 +9,9 @@ mix_compile = new Config.Step {
   glob = "**/*.ex"
   exclude = List("deps/**/*")
   check = new Config.CommandSpec {
-    command = "mix compile --warnings-as-errors --strict-errors {{files}}"
+    command = new Config.Command {
+      argv = List("mix", "compile", "--warnings-as-errors", "--strict-errors", "{{files}}")
+    }
     effect = "write"
   }
 }

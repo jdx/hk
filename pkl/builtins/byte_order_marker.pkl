@@ -9,11 +9,13 @@ import "./test/helpers.pkl"
 byte_order_marker = new Config.Step {
   types = List("text")
   check_diff = new Config.CommandSpec {
-    command = "hk util check-byte-order-marker --diff {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "check-byte-order-marker", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "hk util fix-byte-order-marker {{files}}"
+    command = new Config.Command { argv = List("hk", "util", "fix-byte-order-marker", "{{files}}") }
     effect = "write"
   }
   tests {

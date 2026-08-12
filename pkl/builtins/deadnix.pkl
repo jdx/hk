@@ -8,11 +8,11 @@ import "../Config.pkl"
 deadnix = new Config.Step {
   glob = "**/*.nix"
   check = new Config.CommandSpec {
-    command = "deadnix --fail {{ files }}"
+    command = new Config.Command { argv = List("deadnix", "--fail", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "deadnix --edit {{ files }}"
+    command = new Config.Command { argv = List("deadnix", "--edit", "{{files}}") }
     effect = "write"
   }
 }

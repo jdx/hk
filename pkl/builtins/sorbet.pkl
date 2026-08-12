@@ -8,7 +8,7 @@ import "../Config.pkl"
 sorbet = new Config.Step {
   types = List("ruby")
   check = new Config.CommandSpec {
-    command = "srb tc {{ files }}"
+    command = new Config.Command { argv = List("srb", "tc", "{{files}}") }
     effect = "write"
   }
 }

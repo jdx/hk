@@ -8,11 +8,11 @@ import "../Config.pkl"
 tofu = new Config.Step {
   glob = List("**/*.tf", "**/*.tfvars", "**/*.tftest.hcl")
   check_list_files = new Config.CommandSpec {
-    command = "tofu fmt -check {{ files }}"
+    command = new Config.Command { argv = List("tofu", "fmt", "-check", "{{files}}") }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "tofu fmt {{ files }}"
+    command = new Config.Command { argv = List("tofu", "fmt", "{{files}}") }
     effect = "write"
   }
 }

@@ -9,11 +9,15 @@ import "./test/helpers.pkl"
 trailing_whitespace = new Config.Step {
   types = List("text")
   check_diff = new Config.CommandSpec {
-    command = "hk util trailing-whitespace --diff {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "trailing-whitespace", "--diff", "{{files}}")
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "hk util trailing-whitespace --fix {{files}}"
+    command = new Config.Command {
+      argv = List("hk", "util", "trailing-whitespace", "--fix", "{{files}}")
+    }
     effect = "write"
   }
   tests {
