@@ -11,14 +11,15 @@ const pinact_update = new Config.Step {
   // `verify-comment` verifies pairs of commit SHA and version comments are correct
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
-      argv = List(
-        "pinact",
-        "run",
-        "--update",
-        "--verify-comment",
-        "--check",
-        "{{files}}",
-      )
+      argv =
+        List(
+          "pinact",
+          "run",
+          "--update",
+          "--verify-comment",
+          "--check",
+          "{{files}}",
+        )
     }
     effect = "read"
   }
