@@ -13,6 +13,7 @@ setup() {
     # Create a worktree
     WORKTREE_DIR="$TEST_TEMP_DIR/worktree"
     git worktree add "$WORKTREE_DIR" -b test-branch
+    WORKTREE_DIR="$(cd "$WORKTREE_DIR" && pwd -P)"
 }
 
 teardown() {
@@ -101,6 +102,8 @@ EOF
 @test "scoped pre-commit step keeps the linked worktree root" {
     cd "$WORKTREE_DIR"
     mkdir -p src
+    echo "original" > src/tracked.txt
+    NORMAL_INDEX="$(git rev-parse --git-path index)"
 
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -109,19 +112,18 @@ hooks {
         steps {
             ["git-root"] {
                 dir = "src"
-                check = "test \"\$(git rev-parse --show-toplevel)\" = \"$WORKTREE_DIR\" && test \"\$GIT_WORK_TREE\" = \"$WORKTREE_DIR\""
+                check = "test \"\$(git rev-parse --show-toplevel)\" = \"$WORKTREE_DIR\" && test \"\$GIT_WORK_TREE\" = \"$WORKTREE_DIR\" && test -n \"\$GIT_INDEX_FILE\" && test \"\$GIT_INDEX_FILE\" != \"$NORMAL_INDEX\" && ! git diff --cached --quiet -- tracked.txt"
             }
         }
     }
 }
 EOF
-    git add hk.pkl
+    git add hk.pkl src/tracked.txt
     git commit -m "add hk config"
     hk install
 
-    echo "new content" > src/newfile.txt
-    git add src/newfile.txt
-    run git commit -m "test scoped git command"
+    echo "modified" > src/tracked.txt
+    run git commit -am "test scoped git command"
     assert_success
 }
 
