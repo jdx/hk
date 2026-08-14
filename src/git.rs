@@ -182,6 +182,18 @@ impl Git {
                 .and_then(|p| p.parent().map(|p| p.to_path_buf()))
                 .ok_or(eyre!("failed to find git repository"))?
         };
+        // Git invokes hooks from the work-tree root, so GIT_DIR alone is
+        // sufficient until hk scopes a step to a subdirectory. Preserve that
+        // original work-tree root explicitly for Git commands run by scoped
+        // steps. Keep GIT_INDEX_FILE intact since it may refer to the temporary
+        // index used by `git commit -a` or a path-limited commit.
+        if std::env::var_os("GIT_DIR").is_some()
+            && std::env::var_os("GIT_WORK_TREE").is_none()
+            && root.join(".git").exists()
+        {
+            // SAFETY: this runs before any worker threads are spawned.
+            unsafe { std::env::set_var("GIT_WORK_TREE", &root) };
+        }
         // Always cd into the work tree root so libgit2 and shell-git return
         // relative paths that resolve against the correct directory.
         std::env::set_current_dir(&root)?;
