@@ -320,6 +320,16 @@ impl Step {
                 .stdout(Stdio::inherit())
                 .stderr(Stdio::inherit());
         }
+        // Git invokes hooks from the work-tree root, so GIT_DIR alone is
+        // sufficient until hk scopes a step to a subdirectory. Make the root
+        // explicit only in the child process, keeping the temporary index from
+        // GIT_INDEX_FILE without mutating the environment shared by workers.
+        if std::env::var_os("GIT_DIR").is_some() && std::env::var_os("GIT_WORK_TREE").is_none() {
+            let root = std::env::current_dir()?;
+            if root.join(".git").exists() {
+                cmd = cmd.env("GIT_WORK_TREE", root);
+            }
+        }
         if let Some(dir) = &self.dir {
             cmd = cmd.current_dir(dir);
             // With HK_MISE enabled, resolve the mise environment for the step's
