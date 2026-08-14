@@ -123,7 +123,7 @@ EOF
     hk install
 
     echo "modified" > src/tracked.txt
-    run git commit -am "test scoped git command"
+    GIT_DIR=.git run git commit -am "test scoped git command"
     assert_success
 }
 
