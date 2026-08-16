@@ -8,16 +8,24 @@ import "../Config.pkl"
 const pinact_update = new Config.Step {
   glob = List(".github/workflows/*", "*/action.*")
   types = List("yaml")
-  // `verify` flag to verify pairs of commit CHA and version are correct
+  // `verify-comment` verifies pairs of commit SHA and version comments are correct
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
-      argv = List("pinact", "run", "--update", "--verify", "--check", "{{files}}")
+      argv =
+        List(
+          "pinact",
+          "run",
+          "--update",
+          "--verify-comment",
+          "--check",
+          "{{files}}",
+        )
     }
     effect = "read"
   }
   fix = new Config.CommandSpec {
     command = new Config.Command {
-      argv = List("pinact", "run", "--update", "--verify", "{{files}}")
+      argv = List("pinact", "run", "--update", "--verify-comment", "{{files}}")
     }
     effect = "write"
   }
