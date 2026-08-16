@@ -1,0 +1,23 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./pinact_update.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Update GitHub Actions to latest versions using pinact v3"
+}
+const pinact_update_v3 = (pinact_update.pinact_update) {
+  // pinact v3 calls this flag `verify`; v4 renamed it to `verify-comment`.
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("pinact", "run", "--update", "--verify", "--check", "{{files}}")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("pinact", "run", "--update", "--verify", "{{files}}")
+    }
+    effect = "write"
+  }
+}
