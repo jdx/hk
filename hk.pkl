@@ -1,5 +1,6 @@
 // amends "package://github.com/jdx/hk/releases/download/v1.55.0/hk@1.55.0#/Config.pkl"
 amends "pkl/Config.pkl"
+
 import "pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
