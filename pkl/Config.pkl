@@ -1,5 +1,6 @@
 @ModuleInfo { minPklVersion = "0.27.2" }
 module hk.Config
+
 import "pkl:base" as base
 
 /// The minimum hk version required by this config.

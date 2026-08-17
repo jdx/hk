@@ -1,5 +1,6 @@
 @ModuleInfo { minPklVersion = "0.27.2" }
 module hk.Types
+
 import "pkl:base"
 
 /// Helper function to create regex patterns with clean syntax
