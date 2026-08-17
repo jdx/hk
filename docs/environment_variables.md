@@ -173,6 +173,13 @@ Default: `HK_LOG`
 
 The log level to use for the log file.
 
+## `HK_OUTPUT_FILE`
+
+Type: `path`
+Default: `~/.local/state/hk/output.log`
+
+The file where hk writes the complete output of a failed command. An empty value uses the default location.
+
 ## `HK_MISE`
 
 Type: `bool`

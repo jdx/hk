@@ -280,6 +280,19 @@ Defaults to the same level as `log_level` if not specified.
 This allows you to have different verbosity levels for console and file output.
 """
 
+[output_file]
+type = "path"
+sources.env = ["HK_OUTPUT_FILE"]
+docs = """
+Path to the file where hk writes the complete output of a failed command.
+
+Default location: `~/.local/state/hk/output.log`
+
+An empty value uses the default location.
+
+Useful for preserving full command output when hook summaries are abbreviated.
+"""
+
 [log_level]
 type = "enum"
 default = "info"

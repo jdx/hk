@@ -94,13 +94,18 @@ fn friendly_error(e: eyre::Report) -> Result<()> {
 }
 
 fn write_output_file(result: &ensembler::CmdResult) {
-    let path = env::HK_STATE_DIR.join("output.log");
-    let Some(parent) = path.parent() else {
-        return;
+    let path = &*env::HK_OUTPUT_FILE;
+    let create_parent = if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent)
+    } else {
+        Ok(())
     };
-    if let Err(e) = std::fs::create_dir_all(parent).and_then(|_| {
+    if let Err(e) = create_parent.and_then(|_| {
         let output = console::strip_ansi_codes(&result.combined_output);
-        std::fs::write(&path, output.as_ref())
+        std::fs::write(path, output.as_ref())
     }) {
         warn!("Error writing output file: {e:?}");
         return;
