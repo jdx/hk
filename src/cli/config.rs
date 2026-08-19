@@ -22,14 +22,14 @@ fn unknown_config_key_error(key: &str) -> eyre::Report {
 /// Configuration is merged from multiple sources in precedence order:
 /// CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >
 /// Git config (global) > Project config (hk.pkl) > Built-in defaults.
-#[derive(Debug, clap::Args)]
-#[clap(visible_alias = "cfg")]
+#[derive(Debug, usage_derive::Args)]
+#[usage(arg, alias = "cfg")]
 pub struct Config {
-    #[clap(subcommand)]
+    #[usage(subcommand)]
     command: Option<ConfigCommand>,
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(Debug, usage_derive::Subcommands)]
 enum ConfigCommand {
     /// Print effective runtime settings (JSON format)
     ///
@@ -53,14 +53,14 @@ enum ConfigCommand {
     Sources(ConfigSources),
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 struct ConfigDump {
     /// Output format (json or toml)
-    #[clap(long, value_parser = ["json", "toml"], default_value = "json")]
+    #[usage(long, value_parser = ["json", "toml"], default = "json")]
     format: String,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 struct ConfigGet {
     /// Configuration key to retrieve
     ///
@@ -69,13 +69,13 @@ struct ConfigGet {
     key: String,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 struct ConfigExplain {
     /// Configuration key to explain
     key: String,
 }
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 struct ConfigSources {}
 
 impl Config {

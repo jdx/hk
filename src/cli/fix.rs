@@ -1,9 +1,9 @@
 use crate::hook_options::HookOptions;
 
 /// Fixes code
-#[derive(clap::Args)]
-#[clap(visible_alias = "f")]
+#[derive(usage_derive::Args)]
+#[usage(arg, alias = "f")]
 pub struct Fix {
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(crate) hook: HookOptions,
 }

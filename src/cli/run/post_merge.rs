@@ -1,11 +1,11 @@
 use crate::Result;
 use crate::hook_options::HookOptions;
 
-#[derive(clap::Args)]
+#[derive(usage_derive::Args)]
 pub struct PostMerge {
     /// Flag indicating whether the merge was a squash merge (1) or not (0)
     is_squash: String,
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

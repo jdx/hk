@@ -4,18 +4,18 @@ use indexmap::IndexSet;
 use tokio::sync::Semaphore;
 
 /// Run step-defined tests
-#[derive(Args)]
+#[derive(usage_derive::Args)]
 pub struct Test {
     /// List tests without running
-    #[clap(long)]
+    #[usage(long)]
     list: bool,
 
     /// Filter by test name (repeatable)
-    #[clap(long, value_name = "NAME", num_args = 1..)]
+    #[usage(long, value_name = "NAME", num_args = 1..)]
     name: Vec<String>,
 
     /// Filter by step name (repeatable)
-    #[clap(long, value_name = "STEP", num_args = 1..)]
+    #[usage(long, value_name = "STEP", num_args = 1..)]
     step: Vec<String>,
 }
 

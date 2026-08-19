@@ -5,14 +5,14 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Check for merge conflict markers in files
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct CheckMergeConflict {
     /// Files to check
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 
     /// Run the check even when not in a merge
-    #[clap(long)]
+    #[usage(long)]
     pub assume_in_merge: bool,
 }
 

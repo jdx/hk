@@ -4,10 +4,10 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct CheckExecutablesHaveShebangs {
     /// Files to check
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 

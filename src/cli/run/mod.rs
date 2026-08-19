@@ -12,22 +12,18 @@ mod pre_rebase;
 mod prepare_commit_msg;
 
 /// Run a hook
-#[derive(clap::Args)]
-#[clap(
-    arg_required_else_help = true,
-    visible_alias = "r",
-    verbatim_doc_comment
-)]
+#[derive(usage_derive::Args)]
+#[usage(arg, arg_required_else_help = true, alias = "r", verbatim_doc_comment)]
 pub struct Run {
-    #[clap(subcommand)]
+    #[usage(subcommand)]
     command: Option<Commands>,
-    #[clap(hide = true)]
+    #[usage(arg, hide)]
     other: Option<String>,
-    #[clap(flatten)]
+    #[usage(flatten)]
     hook: HookOptions,
 }
 
-#[derive(clap::Subcommand)]
+#[derive(usage_derive::Subcommands)]
 enum Commands {
     CommitMsg(commit_msg::CommitMsg),
     PostCheckout(post_checkout::PostCheckout),

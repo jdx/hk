@@ -2,10 +2,10 @@ use crate::Result;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct CheckSymlinks {
     /// Files to check
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 

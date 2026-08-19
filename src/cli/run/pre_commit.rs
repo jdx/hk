@@ -1,10 +1,10 @@
 use crate::{Result, hook_options::HookOptions};
 
 /// Sets up git hooks to run hk
-#[derive(clap::Args)]
-#[clap(visible_alias = "pc")]
+#[derive(usage_derive::Args)]
+#[usage(arg, alias = "pc")]
 pub struct PreCommit {
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

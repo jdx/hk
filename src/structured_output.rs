@@ -18,7 +18,7 @@ use std::{
     Default,
     Eq,
     PartialEq,
-    clap::ValueEnum,
+    usage_derive::ValueEnum,
     serde::Serialize,
     serde::Deserialize,
 )]

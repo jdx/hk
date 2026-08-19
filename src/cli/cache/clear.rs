@@ -1,6 +1,6 @@
 use crate::{Result, env};
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct Clear {}
 
 impl Clear {

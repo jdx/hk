@@ -6,13 +6,13 @@ use std::string::ToString;
 
 use crate::Result;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct CheckConventionalCommit {
     /// Commit message file to check
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub commit_msg_file: PathBuf,
 
-    #[clap(long, default_value = default_allowed_types(), value_delimiter = ',')]
+    #[usage(long, default = default_allowed_types(), delimiter = ',')]
     pub allowed_types: Vec<String>,
 }
 

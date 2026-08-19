@@ -2,7 +2,7 @@ use crate::Result;
 use crate::builtins::BUILTINS;
 
 /// Lists all available builtin linters
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct Builtins;
 
 impl Builtins {

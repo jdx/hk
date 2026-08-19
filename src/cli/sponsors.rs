@@ -1,7 +1,7 @@
 use crate::Result;
 
 /// Show the companies sponsoring hk and the jdx.dev open source tools
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct Sponsors {}
 
 impl Sponsors {

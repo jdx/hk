@@ -5,8 +5,8 @@ use clap::CommandFactory;
 /// Generates a usage spec for the CLI
 ///
 /// https://usage.jdx.dev
-#[derive(Debug, clap::Args)]
-#[clap(hide = true, verbatim_doc_comment)]
+#[derive(Debug, usage_derive::Args)]
+#[usage(arg, hide, verbatim_doc_comment)]
 pub struct Usage {}
 
 impl Usage {

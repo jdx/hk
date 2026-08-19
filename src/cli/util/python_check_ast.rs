@@ -2,10 +2,10 @@ use crate::Result;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct PythonCheckAst {
     /// Files to check
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 

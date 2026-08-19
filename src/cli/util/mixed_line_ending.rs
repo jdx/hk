@@ -4,18 +4,18 @@ use crate::Result;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_derive::Args)]
 pub struct MixedLineEnding {
     /// Output a diff of the change. Cannot use with `fix`.
-    #[clap(short, long, conflicts_with = "fix")]
+    #[usage(short, long, conflicts = "--fix")]
     pub diff: bool,
 
     /// Fix mixed line endings by normalizing to LF
-    #[clap(short, long)]
+    #[usage(short, long)]
     pub fix: bool,
 
     /// Files to check or fix
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 

@@ -4,8 +4,8 @@ use crate::Result;
 use crate::git_util;
 use crate::hook_options::HookOptions;
 
-#[derive(clap::Args)]
-#[clap(visible_alias = "pcm")]
+#[derive(usage_derive::Args)]
+#[usage(arg, alias = "pcm")]
 pub struct PrepareCommitMsg {
     /// The path to the file that contains the commit message so far
     commit_msg_file: PathBuf,
@@ -13,7 +13,7 @@ pub struct PrepareCommitMsg {
     source: Option<String>,
     /// The SHA of the commit being amended (if applicable)
     sha: Option<String>,
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

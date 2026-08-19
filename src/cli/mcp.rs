@@ -50,10 +50,10 @@ fn dashboard_tool_meta() -> MetaObject {
 }
 
 /// Runs an MCP server for coding agents over standard input/output.
-#[derive(clap::Args)]
+#[derive(usage_derive::Args)]
 pub struct Mcp {
     /// Restrict hk tools to this project root (defaults to the current directory)
-    #[clap(long, value_name = "PATH", value_hint = clap::ValueHint::DirPath)]
+    #[usage(long, value_name = "PATH", value_hint = clap::ValueHint::DirPath)]
     root: Option<PathBuf>,
 }
 

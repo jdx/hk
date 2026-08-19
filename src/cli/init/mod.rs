@@ -10,19 +10,19 @@ use crate::{Result, env};
 pub(crate) const DEFAULT_HOOKS: &[&str] = &["pre-commit", "check", "fix"];
 
 /// Generates a new hk.pkl file for a project
-#[derive(Debug, clap::Args)]
-#[clap(alias = "generate")]
+#[derive(Debug, usage_derive::Args)]
+#[usage(arg, alias = "generate")]
 pub struct Init {
     /// Overwrite existing hk.pkl file
-    #[clap(short, long)]
+    #[usage(short, long)]
     force: bool,
     /// Interactive mode: select linters and hooks manually
-    #[clap(short, long)]
+    #[usage(short, long)]
     interactive: bool,
     /// Generate a mise.toml file with hk configured
     ///
     /// Set HK_MISE=1 to make this default behavior.
-    #[clap(long, verbatim_doc_comment)]
+    #[usage(long, verbatim_doc_comment)]
     mise: bool,
 }
 

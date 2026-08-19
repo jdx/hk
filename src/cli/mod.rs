@@ -29,48 +29,48 @@ mod util;
 mod validate;
 mod version;
 
-#[derive(clap::Parser)]
-#[clap(name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
+#[derive(usage_derive::Cli)]
+#[usage(arg, name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
     /// Run as if hk was started in this directory
-    #[clap(long, global = true, value_name = "DIRECTORY", value_hint = clap::ValueHint::DirPath)]
+    #[usage(long, global, value_name = "DIRECTORY", value_hint = clap::ValueHint::DirPath)]
     cd: Option<PathBuf>,
     /// Select human or machine-readable execution output
-    #[clap(long, value_enum, default_value_t)]
+    #[usage(long, value_enum, default_value_t)]
     format: crate::structured_output::OutputFormat,
     /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
-    #[clap(long, global = true, value_name = "PATH", hide = true)]
+    #[usage(long, global, value_name = "PATH", hide)]
     hkrc: Option<PathBuf>,
     /// Number of jobs to run in parallel
-    #[clap(short, long, global = true)]
+    #[usage(short, long, global)]
     jobs: Option<NonZero<usize>>,
     /// Profiles to enable/disable
     /// prefix with ! to disable
     /// e.g. --profile slow --profile !fast
-    #[clap(short, long, global = true)]
+    #[usage(short, long, global)]
     profile: Vec<String>,
     /// Shorthand for --profile=slow
-    #[clap(short, long, global = true)]
+    #[usage(short, long, global)]
     slow: bool,
     /// Enables verbose output
-    #[clap(short, long, global = true, action = clap::ArgAction::Count, overrides_with_all = ["quiet", "silent"])]
+    #[usage(short, long, global, count, overrides("--quiet", "--silent"))]
     verbose: u8,
     /// Disables progress output
-    #[clap(short, long, global = true)]
+    #[usage(short, long, global)]
     no_progress: bool,
     /// Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
-    #[clap(short, long, global = true, overrides_with_all = ["verbose", "silent"])]
+    #[usage(short, long, global, overrides("--verbose", "--silent"))]
     quiet: bool,
     /// Suppresses all output including warnings. Only errors are shown
-    #[clap(long, global = true, overrides_with_all = ["quiet", "verbose"])]
+    #[usage(long, global, overrides("--quiet", "--verbose"))]
     silent: bool,
     /// Enable tracing spans and performance diagnostics
-    #[clap(long, global = true)]
+    #[usage(long, global)]
     trace: bool,
     /// Output in JSON format
-    #[clap(long, global = true)]
+    #[usage(long, global)]
     json: bool,
-    #[clap(subcommand)]
+    #[usage(subcommand)]
     command: Commands,
 }
 
@@ -117,7 +117,7 @@ fn reexec_for_cd(cd: &Path) -> Result<std::process::ExitStatus> {
     Ok(status)
 }
 
-#[derive(clap::Subcommand)]
+#[derive(usage_derive::Subcommands)]
 enum Commands {
     Agent(Box<agent::Agent>),
     Builtins(Box<builtins::Builtins>),
