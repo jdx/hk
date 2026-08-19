@@ -45,7 +45,7 @@ mod shell;
 mod types;
 
 // Re-export public API
-pub use expr_env::{EXPR_CTX, EXPR_ENV};
+pub use expr_env::{EXPR_CTX, eval_condition};
 pub use shell::ShellType;
 pub(crate) use types::RenderedCommand;
 #[cfg(test)]

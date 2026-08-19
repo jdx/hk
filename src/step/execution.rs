@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::OwnedSemaphorePermit;
 
-use super::expr_env::EXPR_ENV;
+use super::expr_env::eval_condition;
 use super::types::{CheckFirstCmd, RunType, Step};
 
 /// Default stage pattern for steps with fix commands when staging is enabled.
@@ -56,7 +56,7 @@ impl Step {
         let ctx = Arc::new(ctx);
 
         if let Some(step_condition) = &self.step_condition {
-            let val = EXPR_ENV.eval(step_condition, &ctx.hook_ctx.expr_ctx())?;
+            let val = eval_condition(step_condition, &ctx.hook_ctx.expr_ctx())?;
             debug!("{self}: condition: {step_condition} = {val}");
             if val == expr::Value::Bool(false) {
                 self.mark_skipped(&ctx, &SkipReason::ConditionFalse)?;

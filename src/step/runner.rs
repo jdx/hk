@@ -22,7 +22,7 @@ use itertools::Itertools;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
-use super::expr_env::EXPR_ENV;
+use super::expr_env::eval_condition;
 use super::shell::ShellType;
 use super::types::{
     CheckFirstCmd, Command, CommandPrefix, Pattern, RenderedCommand, RunType, Step,
@@ -140,7 +140,7 @@ impl Step {
             return Ok(());
         }
         if let Some(job_condition) = &self.job_condition {
-            let val = EXPR_ENV.eval(job_condition, &ctx.hook_ctx.expr_ctx())?;
+            let val = eval_condition(job_condition, &ctx.hook_ctx.expr_ctx())?;
             debug!("{self}: condition: {job_condition} = {val}");
             if val == expr::Value::Bool(false) {
                 self.mark_skipped(ctx, &SkipReason::ConditionFalse)?;
