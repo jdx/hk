@@ -29,7 +29,12 @@ mod validate;
 mod version;
 
 #[derive(usage_derive::Cli)]
-#[usage(name = "hk", version = version_lib::version(), version_spec = "1.55.0")]
+#[usage(
+    name = "hk",
+    version = version_lib::version(),
+    version_spec = "1.55.0",
+    unknown_flags = "error"
+)]
 struct Cli {
     /// Run as if hk was started in this directory
     #[usage(long, global, value_name = "DIRECTORY", value_hint = ValueHint::DirPath)]
