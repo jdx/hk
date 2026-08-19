@@ -122,16 +122,7 @@ pub(crate) struct HookOptions {
 impl HookOptions {
     fn validate(&self) -> Result<()> {
         if self.files.is_some()
-            && (self.all
-                || self.fix
-                || self.check
-                || self.files0_from.is_some()
-                || self.from_ref.is_some()
-                || self.glob.is_some()
-                || self.pr
-                || self.staged
-                || self.to_ref.is_some()
-                || self.unstaged)
+            && (self.all || self.files0_from.is_some() || self.pr || self.staged || self.unstaged)
         {
             return Err(eyre::eyre!(
                 "positional files cannot be combined with another file-selection mode"

@@ -58,3 +58,27 @@ EOF
     assert_success
     assert_output "content$"
 }
+
+@test "--check overrides fix mode with positional files" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["fix"] {
+        steps {
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "init"
+    echo "content  " > file.txt
+
+    run hk run fix --check file.txt
+    assert_failure
+
+    run cat -e file.txt
+    assert_success
+    assert_output "content  $"
+}
