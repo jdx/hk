@@ -31,7 +31,8 @@ Exclude files that otherwise would have been selected
 
 ### `-f --fix`
 
-Run fix command instead of check command (this is the default behavior unless HK_FIX=0)
+Run fix command instead of check command
+(this is the default behavior unless HK_FIX=0)
 
 ### `-g --glob… <GLOB>`
 
@@ -49,9 +50,9 @@ Print the plan instead of running the hook
 
 Run only specific step(s)
 
-### `-W --why <STEP>`
+### `-W --why [STEP]`
 
-Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan
+Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.
 
 ### `--fail-fast`
 
@@ -127,4 +128,5 @@ End reference for checking files (requires --from-ref)
 
 ### `--unstaged`
 
-Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed
+Run on unstaged and untracked files only (excludes staged files),
+without stashing. Useful for linting files an agent just changed.

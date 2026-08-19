@@ -27,4 +27,5 @@ Output path for hk.pkl
 
 ### `--hk-pkl-root <HK_PKL_ROOT>`
 
-Root path for hk pkl files (e.g., "pkl" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl
+Root path for hk pkl files (e.g., "pkl" for local, or package URL prefix)
+If specified, will use {root}/Config.pkl and {root}/Builtins.pkl

@@ -20,7 +20,9 @@ Number of jobs to run in parallel
 
 ### `-p --profile… <PROFILE>`
 
-Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast
+Profiles to enable/disable
+prefix with ! to disable
+e.g. --profile slow --profile !fast
 
 ### `-s --slow`
 

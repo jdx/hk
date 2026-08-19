@@ -19,7 +19,7 @@ license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
 resolver = "3"
-rust-version = "1.88.0"
+rust-version = "1.95.0"
 version = "1.56.0"
 
 [[bin]]

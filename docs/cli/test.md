@@ -12,10 +12,10 @@ Run step-defined tests
 
 List tests without running
 
-### `--name… <NAME>`
+### `--name <NAME>…`
 
 Filter by test name (repeatable)
 
-### `--step… <STEP>`
+### `--step <STEP>…`
 
 Filter by step name (repeatable)
