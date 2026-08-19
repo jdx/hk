@@ -13,6 +13,7 @@ mod prepare_commit_msg;
 
 /// Run a hook
 #[derive(usage_rs::Args)]
+#[command(arg_required_else_help)]
 pub struct Run {
     #[usage(subcommand)]
     command: Option<Commands>,
@@ -62,21 +63,19 @@ impl Run {
             self.hook.tctx.insert("hook_args", "");
             return self.hook.run(hook).await;
         }
-        if let Some(cmd) = self.command {
-            return match cmd {
-                Commands::CommitMsg(cmd) => cmd.run().await,
-                Commands::PostCheckout(cmd) => cmd.run().await,
-                Commands::PostCommit(cmd) => cmd.run().await,
-                Commands::PostMerge(cmd) => cmd.run().await,
-                Commands::PostRewrite(cmd) => cmd.run().await,
-                Commands::PreCommit(cmd) => cmd.run().await,
-                Commands::PrePush(cmd) => cmd.run().await,
-                Commands::PreRebase(cmd) => cmd.run().await,
-                Commands::PrepareCommitMsg(cmd) => cmd.run().await,
-            };
+        let cmd = self
+            .command
+            .expect("arg_required_else_help rejects a run command without a hook");
+        match cmd {
+            Commands::CommitMsg(cmd) => cmd.run().await,
+            Commands::PostCheckout(cmd) => cmd.run().await,
+            Commands::PostCommit(cmd) => cmd.run().await,
+            Commands::PostMerge(cmd) => cmd.run().await,
+            Commands::PostRewrite(cmd) => cmd.run().await,
+            Commands::PreCommit(cmd) => cmd.run().await,
+            Commands::PrePush(cmd) => cmd.run().await,
+            Commands::PreRebase(cmd) => cmd.run().await,
+            Commands::PrepareCommitMsg(cmd) => cmd.run().await,
         }
-        Err(eyre::eyre!(
-            "a hook name is required; run `hk run --help` for usage"
-        ))
     }
 }
