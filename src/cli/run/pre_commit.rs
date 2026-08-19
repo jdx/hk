@@ -1,6 +1,6 @@
 use crate::{Result, hook_options::HookOptions};
 
-/// Sets up git hooks to run hk
+/// Run the pre-commit hook
 #[derive(usage_derive::Args)]
 pub struct PreCommit {
     #[usage(flatten)]

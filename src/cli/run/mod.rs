@@ -75,6 +75,8 @@ impl Run {
                 Commands::PrepareCommitMsg(cmd) => cmd.run().await,
             };
         }
-        Ok(())
+        Err(eyre::eyre!(
+            "a hook name is required; run `hk run --help` for usage"
+        ))
     }
 }

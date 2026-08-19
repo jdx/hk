@@ -10,11 +10,11 @@ pub struct Test {
     list: bool,
 
     /// Filter by test name (repeatable)
-    #[usage(long, value_name = "NAME")]
+    #[usage(long, value_name = "NAME", variadic, var_min = 1)]
     name: Vec<String>,
 
     /// Filter by step name (repeatable)
-    #[usage(long, value_name = "STEP")]
+    #[usage(long, value_name = "STEP", variadic, var_min = 1)]
     step: Vec<String>,
 }
 
