@@ -29,10 +29,6 @@ path = "bin/generate_docs.rs"
 [dependencies]
 arc-swap           = "1"
 chrono             = "0.4"
-usage-argv         = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188", features = ["diagnostics", "spec"] }
-usage-derive       = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
-usage-lib          = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
-usage-validation   = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
 clx                = "3"
 console            = "0.16"
 dashmap            = "6"
@@ -78,6 +74,10 @@ tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 url                = "2"
+usage-argv         = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188", features = ["diagnostics", "spec"] }
+usage-derive       = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
+usage-lib          = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
+usage-validation   = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
 xx                 = { version = "2", features = ["hash"] }
 
 [build-dependencies]
