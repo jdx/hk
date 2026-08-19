@@ -86,7 +86,6 @@ serde_json = "1"
 toml       = "1"
 
 [dev-dependencies]
-clap-sort = "1"
 
 [profile.serious]
 inherits = "release"
