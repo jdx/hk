@@ -74,7 +74,7 @@ tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 url                = "2"
-usage-rs           = { git = "https://github.com/jdx/usage", rev = "1163c4c49a283e45faff5cc273a7c2e77d2c3421", features = ["diagnostics", "completions"] }
+usage-rs           = { git = "https://github.com/jdx/usage", rev = "06f479255a87d97bb08bcc4a5a0ed498c1307c09", features = ["diagnostics", "completions"] }
 xx                 = { version = "2", features = ["hash"] }
 
 [build-dependencies]
