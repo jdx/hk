@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.56.0](https://github.com/jdx/hk/compare/v1.55.0..v1.56.0) - 2026-08-19
+
+### 🚀 Features
+
+- **(builtins)** support pinact v3 and v4 by [@risu729](https://github.com/risu729) in [#1195](https://github.com/jdx/hk/pull/1195)
+- **(pkl)** persist packages for offline evaluation by [@jdx](https://github.com/jdx) in [#1199](https://github.com/jdx/hk/pull/1199)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** preserve file argument boundaries by [@jdx](https://github.com/jdx) in [#1194](https://github.com/jdx/hk/pull/1194)
+- **(config)** allow steps to include binary files by [@jdx](https://github.com/jdx) in [#1190](https://github.com/jdx/hk/pull/1190)
+- **(hook)** preserve worktree root for scoped steps by [@jdx](https://github.com/jdx) in [#1200](https://github.com/jdx/hk/pull/1200)
+- **(pre-push)** peel annotated tags before diffing by [@jdx](https://github.com/jdx) in [#1197](https://github.com/jdx/hk/pull/1197)
+- **(step)** preserve condition compatibility with expr v2 by [@jdx](https://github.com/jdx) in [#1212](https://github.com/jdx/hk/pull/1212)
+
+### 🔍 Other Changes
+
+- **(pkl)** upgrade formatter to 0.32.1 by [@jdx](https://github.com/jdx) in [#1203](https://github.com/jdx/hk/pull/1203)
+- Add `HK_OUTPUT_FILE` env var to control the output file location by [@signadou](https://github.com/signadou) in [#1204](https://github.com/jdx/hk/pull/1204)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action action to v1.0.185 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1191](https://github.com/jdx/hk/pull/1191)
+- update dependency vitest to v4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1186](https://github.com/jdx/hk/pull/1186)
+- update dependency vite to v8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1185](https://github.com/jdx/hk/pull/1185)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1202](https://github.com/jdx/hk/pull/1202)
+- update anthropics/claude-code-action action to v1.0.190 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1205](https://github.com/jdx/hk/pull/1205)
+- update dependency @testing-library/jest-dom to v7.0.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1206](https://github.com/jdx/hk/pull/1206)
+- update rust crate shell-quote to 0.8 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1207](https://github.com/jdx/hk/pull/1207)
+- update jdx/renovate-config digest to 75abd12 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1208](https://github.com/jdx/hk/pull/1208)
+- update anthropics/claude-code-action action to v1.0.191 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1209](https://github.com/jdx/hk/pull/1209)
+
+### New Contributors
+
+- @signadou made their first contribution in [#1204](https://github.com/jdx/hk/pull/1204)
+
 ## [1.55.0](https://github.com/jdx/hk/compare/v1.54.1..v1.55.0) - 2026-08-11
 
 ### 🚀 Features
