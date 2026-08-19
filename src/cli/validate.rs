@@ -5,7 +5,7 @@ use crate::{Result, config::Config};
 /// Validate the config file
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
-pub struct Validate {}
+pub struct Validate;
 
 impl Validate {
     pub async fn run(&self) -> Result<()> {

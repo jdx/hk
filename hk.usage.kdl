@@ -9,7 +9,7 @@ unknown_flags "error"
 flag "--cd" help="Run as if hk was started in this directory" global=#true {
     arg "<DIRECTORY>"
 }
-flag "--format" help="Select human or machine-readable execution output" required=#true default="human" {
+flag "--format" help="Select human or machine-readable execution output" default="human" {
     arg "<FORMAT>" {
         choices "human" "json" "jsonl"
     }
@@ -140,7 +140,6 @@ cmd "check" help="Checks code" {
     complete "exclude" type="path"
     complete "glob" type="path"
     complete "path" type="path"
-    complete "path" type="path"
 }
 cmd "completion" help="Generates shell completion scripts" effect="read" {
     arg "<SHELL>" help="The shell to generate completion for"
@@ -150,7 +149,7 @@ cmd "config" help="Configuration introspection and management" effect="read" {
     long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources.\nConfiguration is merged from multiple sources in precedence order:\nCLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >\nGit config (global) > Project config (hk.pkl) > Built-in defaults."
     cmd "dump" help="Print effective runtime settings (JSON format)" effect="read" {
         long_help "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags,\nenvironment variables, git config, user config, and project config."
-        flag "--format" help="Output format (json or toml)" required=#true default="json" {
+        flag "--format" help="Output format (json or toml)" default="json" {
             arg "<FORMAT>" {
                 choices "json" "toml"
             }
@@ -243,7 +242,6 @@ cmd "fix" help="Fixes code" {
     complete "exclude" type="path"
     complete "glob" type="path"
     complete "path" type="path"
-    complete "path" type="path"
 }
 cmd "init" help="Generates a new hk.pkl file for a project" effect="write" {
     alias "generate"
@@ -271,11 +269,11 @@ cmd "mcp" help="Runs an MCP server for coding agents over standard input/output.
 }
 cmd "migrate" help="Migrate from other hook managers to hk" effect="read" subcommand_required=#true {
     cmd "pre-commit" help="Migrate from pre-commit to hk" effect="write" {
-        flag "-c --config" help="Path to .pre-commit-config.yaml" required=#true default=".pre-commit-config.yaml" {
+        flag "-c --config" help="Path to .pre-commit-config.yaml" default=".pre-commit-config.yaml" {
             arg "<CONFIG>"
         }
         flag "-f --force" help="Overwrite existing hk.pkl file"
-        flag "-o --output" help="Output path for hk.pkl" required=#true default="hk.pkl" {
+        flag "-o --output" help="Output path for hk.pkl" default="hk.pkl" {
             arg "<OUTPUT>"
         }
         flag "--hk-pkl-root" help="Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl" {
@@ -358,7 +356,6 @@ cmd "run" help="Run a hook" {
     complete "exclude" type="path"
     complete "glob" type="path"
     complete "path" type="path"
-    complete "path" type="path"
     cmd "commit-msg" {
         alias "cm"
         flag "-a --all" help="Run on all files instead of just staged files" {
@@ -432,7 +429,6 @@ cmd "run" help="Run a hook" {
         complete "files" type="path"
         complete "exclude" type="path"
         complete "glob" type="path"
-        complete "path" type="path"
         complete "path" type="path"
     }
     cmd "post-checkout" {
@@ -510,7 +506,6 @@ cmd "run" help="Run a hook" {
         complete "exclude" type="path"
         complete "glob" type="path"
         complete "path" type="path"
-        complete "path" type="path"
     }
     cmd "post-commit" {
         flag "-a --all" help="Run on all files instead of just staged files" {
@@ -583,7 +578,6 @@ cmd "run" help="Run a hook" {
         complete "files" type="path"
         complete "exclude" type="path"
         complete "glob" type="path"
-        complete "path" type="path"
         complete "path" type="path"
     }
     cmd "post-merge" {
@@ -659,7 +653,6 @@ cmd "run" help="Run a hook" {
         complete "exclude" type="path"
         complete "glob" type="path"
         complete "path" type="path"
-        complete "path" type="path"
     }
     cmd "post-rewrite" {
         flag "-a --all" help="Run on all files instead of just staged files" {
@@ -734,7 +727,6 @@ cmd "run" help="Run a hook" {
         complete "exclude" type="path"
         complete "glob" type="path"
         complete "path" type="path"
-        complete "path" type="path"
     }
     cmd "pre-commit" help="Run the pre-commit hook" {
         alias "pc"
@@ -808,7 +800,6 @@ cmd "run" help="Run a hook" {
         complete "files" type="path"
         complete "exclude" type="path"
         complete "glob" type="path"
-        complete "path" type="path"
         complete "path" type="path"
     }
     cmd "pre-push" {
@@ -886,7 +877,6 @@ cmd "run" help="Run a hook" {
         complete "exclude" type="path"
         complete "glob" type="path"
         complete "path" type="path"
-        complete "path" type="path"
     }
     cmd "pre-rebase" {
         flag "-a --all" help="Run on all files instead of just staged files" {
@@ -961,7 +951,6 @@ cmd "run" help="Run a hook" {
         complete "files" type="path"
         complete "exclude" type="path"
         complete "glob" type="path"
-        complete "path" type="path"
         complete "path" type="path"
     }
     cmd "prepare-commit-msg" {
@@ -1040,7 +1029,6 @@ cmd "run" help="Run a hook" {
         complete "exclude" type="path"
         complete "glob" type="path"
         complete "path" type="path"
-        complete "path" type="path"
     }
 }
 cmd "sponsors" help="Show the companies sponsoring hk and the jdx.dev open source tools" effect="read" {
@@ -1062,7 +1050,7 @@ cmd "usage" help="Generates a usage spec for the CLI" hide=#true effect="read" {
 }
 cmd "util" help="Utility commands for file operations" effect="read" subcommand_required=#true {
     cmd "check-added-large-files" help="Check for large files being added to repository" effect="read" {
-        flag "--maxkb" help="Maximum file size in kilobytes (default: 500)" required=#true default="500" {
+        flag "--maxkb" help="Maximum file size in kilobytes (default: 500)" default="500" {
             arg "<MAXKB>"
         }
         arg "<FILES>..." help="Files to check"

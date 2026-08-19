@@ -2,7 +2,7 @@ use crate::{Result, env};
 
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
-pub struct Clear {}
+pub struct Clear;
 
 impl Clear {
     pub async fn run(&self) -> Result<()> {

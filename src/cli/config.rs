@@ -80,7 +80,7 @@ struct ConfigExplain {
 
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
-struct ConfigSources {}
+struct ConfigSources;
 
 impl Config {
     pub async fn run(&self) -> Result<()> {

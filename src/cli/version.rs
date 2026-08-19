@@ -4,7 +4,7 @@ use crate::version;
 /// Print the version of hk
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
-pub struct Version {}
+pub struct Version;
 
 impl Version {
     pub async fn run(&self) -> Result<()> {

@@ -4,7 +4,7 @@ use crate::builtins::BUILTINS;
 /// Lists all available builtin linters
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
-pub struct Builtins {}
+pub struct Builtins;
 
 impl Builtins {
     pub async fn run(&self) -> Result<()> {

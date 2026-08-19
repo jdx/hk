@@ -6,7 +6,7 @@ use crate::cli::Cli;
 /// https://usage.jdx.dev
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
-pub struct Usage {}
+pub struct Usage;
 
 impl Usage {
     pub async fn run(&self) -> Result<()> {
