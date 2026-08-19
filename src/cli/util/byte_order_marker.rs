@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct CheckByteOrderMarker {
     /// Output a diff of the change.
     #[usage(short, long)]
@@ -39,6 +40,7 @@ impl CheckByteOrderMarker {
 }
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "write")]
 pub struct FixByteOrderMarker {
     /// Files to remove BOM from
     #[usage(arg, required)]

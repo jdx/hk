@@ -1,6 +1,7 @@
 use crate::{Result, env};
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "write")]
 pub struct Clear {}
 
 impl Clear {

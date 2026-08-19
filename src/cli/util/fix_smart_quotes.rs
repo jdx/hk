@@ -21,6 +21,7 @@ const UTF8_SINGLE_QUOTE_CODEPOINTS: &[char] = &[
 ];
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "write")]
 pub struct FixSmartQuotes {
     /// Check for smart quotes without fixing them
     #[usage(long)]

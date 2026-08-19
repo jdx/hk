@@ -4,6 +4,7 @@ mod clear;
 
 /// Manage hk internal cache
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct Cache {
     #[usage(subcommand)]
     command: Commands,

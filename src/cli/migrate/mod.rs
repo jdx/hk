@@ -5,6 +5,7 @@ pub mod pre_commit;
 
 /// Migrate from other hook managers to hk
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct Migrate {
     #[usage(subcommand)]
     command: MigrateCommands,

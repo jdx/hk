@@ -16,8 +16,6 @@
 //! absence of a value as "ask", so leaving a command out is the conservative
 //! choice and mislabeling one `read` is the dangerous one.
 
-use std::collections::HashMap;
-
 use usage::SpecCommandEffect::{self, Destructive, Read, Write};
 
 /// Commands whose effect is fixed, keyed by their full path under `hk`.
@@ -103,27 +101,6 @@ pub const UNCLASSIFIED: &[(&str, &str)] = &[
     ),
 ];
 
-/// Annotate every command in the spec that has a declared effect.
-pub fn apply(spec: &mut usage::Spec) {
-    let effects: HashMap<&str, SpecCommandEffect> = EFFECTS.iter().copied().collect();
-    annotate(&mut spec.cmd, &mut vec![], &effects);
-}
-
-fn annotate(
-    cmd: &mut usage::SpecCommand,
-    path: &mut Vec<String>,
-    effects: &HashMap<&str, SpecCommandEffect>,
-) {
-    for (name, sub) in cmd.subcommands.iter_mut() {
-        path.push(name.clone());
-        if let Some(effect) = effects.get(path.join(" ").as_str()) {
-            sub.effect = Some(*effect);
-        }
-        annotate(sub, path, effects);
-        path.pop();
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -156,31 +133,25 @@ mod tests {
             .collect()
     }
 
-    /// The tables are only worth having if they reach the spec. Everything
-    /// else here checks the tables against the CLI; this checks that `apply`
-    /// actually transfers them.
+    /// Effects are part of the derived metadata, so generating `hk usage` does
+    /// not need to parse and rewrite its own KDL at runtime.
     #[test]
-    fn apply_annotates_the_spec() {
-        let mut spec: usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
-        apply(&mut spec);
+    fn derived_spec_carries_effects() {
+        let spec: usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
 
-        let cmd = |name: &str| {
-            spec.cmd
-                .subcommands
-                .get(name)
-                .unwrap_or_else(|| panic!("no `hk {name}`"))
-        };
-        assert_eq!(cmd("uninstall").effect, Some(Destructive));
-        assert_eq!(cmd("builtins").effect, Some(Read));
-        assert_eq!(cmd("install").effect, Some(Write));
-        // Nested commands are reached too.
-        assert_eq!(
-            cmd("util").subcommands["trailing-whitespace"].effect,
-            Some(Write)
-        );
+        for &(path, effect) in EFFECTS {
+            let mut cmd = &spec.cmd;
+            for segment in path.split(' ') {
+                cmd = cmd
+                    .subcommands
+                    .get(segment)
+                    .unwrap_or_else(|| panic!("no `hk {path}`"));
+            }
+            assert_eq!(cmd.effect, Some(effect), "wrong effect for `hk {path}`");
+        }
         // Anything in UNCLASSIFIED must be left unset, not defaulted.
-        assert_eq!(cmd("check").effect, None);
-        assert_eq!(cmd("fix").effect, None);
+        assert_eq!(spec.cmd.subcommands["check"].effect, None);
+        assert_eq!(spec.cmd.subcommands["fix"].effect, None);
     }
 
     /// Adding a command without deciding what it does to the world is the

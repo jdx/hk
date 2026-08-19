@@ -5,6 +5,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct CheckExecutablesHaveShebangs {
     /// Files to check
     #[usage(arg, required)]

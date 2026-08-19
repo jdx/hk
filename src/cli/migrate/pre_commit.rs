@@ -11,6 +11,7 @@ use super::{HkConfig, HkHook, HkStep};
 
 /// Migrate from pre-commit to hk
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "write")]
 pub struct PreCommit {
     /// Path to .pre-commit-config.yaml
     #[usage(short, long, default = ".pre-commit-config.yaml")]

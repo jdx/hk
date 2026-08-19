@@ -34,6 +34,7 @@ use crate::Result;
 
 /// Utility commands for file operations
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct Util {
     #[usage(subcommand)]
     command: UtilCommands,

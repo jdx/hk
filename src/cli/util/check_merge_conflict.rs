@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 /// Check for merge conflict markers in files
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct CheckMergeConflict {
     /// Files to check
     #[usage(arg, required)]

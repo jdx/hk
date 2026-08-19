@@ -2,6 +2,7 @@ use crate::Result;
 
 /// Generate integration snippets for coding agents
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct Agent {
     #[usage(subcommand)]
     command: Command,
@@ -10,16 +11,19 @@ pub struct Agent {
 #[derive(Debug, usage_derive::Subcommands)]
 enum Command {
     /// Print a hook configuration for an agent or editor
+    #[usage(effect = "read")]
     Hooks {
         #[usage(long, value_enum)]
         target: HookTarget,
     },
     /// Print project instructions for a coding agent
+    #[usage(effect = "read")]
     Instructions {
         #[usage(long, value_enum)]
         target: InstructionTarget,
     },
     /// Print an MCP server configuration
+    #[usage(effect = "read")]
     Mcp {
         #[usage(long, value_enum)]
         target: McpTarget,

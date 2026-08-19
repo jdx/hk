@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct CheckCaseConflict {
     /// Files to check for case conflicts
     #[usage(arg, required)]

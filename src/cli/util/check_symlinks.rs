@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct CheckSymlinks {
     /// Files to check
     #[usage(arg, required)]

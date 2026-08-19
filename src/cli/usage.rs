@@ -5,13 +5,12 @@ use crate::cli::Cli;
 ///
 /// https://usage.jdx.dev
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct Usage {}
 
 impl Usage {
     pub async fn run(&self) -> Result<()> {
-        let mut spec: usage::Spec = Cli::to_kdl().parse().expect("derived hk spec should parse");
-        // Declare what each command does to the world; parser metadata cannot express it yet.
-        super::command_effects::apply(&mut spec);
+        let spec = Cli::to_kdl();
         // 4.0 added flag-level `effect=`; older `usage` CLIs reject the spec with
         // "unsupported cmd prop effect".
         let usage =

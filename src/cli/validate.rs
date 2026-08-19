@@ -4,6 +4,7 @@ use crate::{Result, config::Config};
 
 /// Validate the config file
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct Validate {}
 
 impl Validate {

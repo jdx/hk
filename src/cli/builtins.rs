@@ -3,6 +3,7 @@ use crate::builtins::BUILTINS;
 
 /// Lists all available builtin linters
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct Builtins {}
 
 impl Builtins {

@@ -5,6 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "write")]
 pub struct MixedLineEnding {
     /// Output a diff of the change. Cannot use with `fix`.
     #[usage(short, long, conflicts = "--fix")]

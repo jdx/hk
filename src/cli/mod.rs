@@ -11,6 +11,7 @@ mod agent;
 mod builtins;
 mod cache;
 mod check;
+#[cfg(test)]
 mod command_effects;
 mod completion;
 mod config;

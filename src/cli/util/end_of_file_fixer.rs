@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 /// Check for and optionally fix files to end with exactly one newline
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "write")]
 pub struct EndOfFileFixer {
     /// Output a diff of the change. Cannot use with `fix`.
     #[usage(short, long, conflicts = "--fix")]

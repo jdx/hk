@@ -3,6 +3,7 @@ use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, usage_derive::Args)]
+#[usage(effect = "read")]
 pub struct NoCommitToBranch {
     /// Branch names to protect (default: main, master)
     #[usage(long, delimiter = ',')]
