@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(usage_derive::Args)]
 pub(crate) struct HookOptions {
     /// Run on specific files
-    #[usage(arg, conflicts("--all", "--fix", "--check"), value_hint = ValueHint::FilePath)]
+    #[usage(arg, value_hint = ValueHint::FilePath)]
     pub files: Option<Vec<PathBuf>>,
     /// Run on all files instead of just staged files
     #[usage(short, long, conflicts("--staged", "--unstaged"))]
@@ -32,7 +32,7 @@ pub(crate) struct HookOptions {
     #[usage(short = 'S', long)]
     pub step: Vec<String>,
     /// Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.
-    #[usage(short = 'W', long, value_name = "STEP", num_args = 0..=1, default_missing = "")]
+    #[usage(short = 'W', long, value_name = "STEP", default_missing = "")]
     pub why: Option<String>,
     /// Abort on first failure
     #[usage(long, overrides = "--no-fail-fast")]
@@ -42,7 +42,7 @@ pub(crate) struct HookOptions {
         long,
         value_name = "PATH",
         value_hint = ValueHint::FilePath,
-        conflicts("--files", "--all", "--from-ref", "--glob", "--pr", "--staged", "--to-ref", "--unstaged")
+        conflicts("--all", "--from-ref", "--glob", "--pr", "--staged", "--to-ref", "--unstaged")
     )]
     pub files0_from: Option<PathBuf>,
     /// Select human or machine-readable execution output
@@ -62,10 +62,7 @@ pub(crate) struct HookOptions {
     #[usage(long, overrides = "--stage")]
     pub no_stage: bool,
     /// Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
-    #[usage(
-        long,
-        conflicts("--files", "--all", "--from-ref", "--glob", "--to-ref")
-    )]
+    #[usage(long, conflicts("--all", "--from-ref", "--glob", "--to-ref"))]
     pub pr: bool,
     /// Reject commands with unknown or destructive effects before execution
     #[usage(long)]
@@ -83,7 +80,6 @@ pub(crate) struct HookOptions {
     #[usage(
         long,
         conflicts(
-            "--files",
             "--all",
             "--from-ref",
             "--glob",
@@ -95,7 +91,7 @@ pub(crate) struct HookOptions {
     )]
     pub staged: bool,
     /// Stash method to use for git hooks
-    #[usage(long, value_parser = ["git", "patch-file", "none"])]
+    #[usage(long, choices("git", "patch-file", "none"))]
     pub stash: Option<String>,
     /// Display statistics about files matching each step
     #[usage(long)]
@@ -108,7 +104,6 @@ pub(crate) struct HookOptions {
     #[usage(
         long,
         conflicts(
-            "--files",
             "--all",
             "--from-ref",
             "--glob",
@@ -126,6 +121,22 @@ pub(crate) struct HookOptions {
 
 impl HookOptions {
     fn validate(&self) -> Result<()> {
+        if self.files.is_some()
+            && (self.all
+                || self.fix
+                || self.check
+                || self.files0_from.is_some()
+                || self.from_ref.is_some()
+                || self.glob.is_some()
+                || self.pr
+                || self.staged
+                || self.to_ref.is_some()
+                || self.unstaged)
+        {
+            return Err(eyre::eyre!(
+                "positional files cannot be combined with another file-selection mode"
+            ));
+        }
         if self.staged && self.stash.is_some() {
             return Err(eyre::eyre!(
                 "argument '--staged' cannot be used with '--stash <STASH>'"

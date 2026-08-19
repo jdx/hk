@@ -29,8 +29,10 @@ path = "bin/generate_docs.rs"
 [dependencies]
 arc-swap           = "1"
 chrono             = "0.4"
-usage-argv         = { git = "https://github.com/jdx/usage", rev = "cc60dcb7fd01c8b61d7665fc7dc7c8210551601a", features = ["diagnostics", "spec"] }
-usage-derive       = { git = "https://github.com/jdx/usage", rev = "cc60dcb7fd01c8b61d7665fc7dc7c8210551601a" }
+usage-argv         = { git = "https://github.com/jdx/usage", rev = "64e87fcff095a7e8ddd84e22d44151eb010adfbe", features = ["diagnostics", "spec"] }
+usage-derive       = { git = "https://github.com/jdx/usage", rev = "64e87fcff095a7e8ddd84e22d44151eb010adfbe" }
+usage-lib          = { git = "https://github.com/jdx/usage", rev = "64e87fcff095a7e8ddd84e22d44151eb010adfbe" }
+usage-validation   = { git = "https://github.com/jdx/usage", rev = "64e87fcff095a7e8ddd84e22d44151eb010adfbe" }
 clx                = "3"
 console            = "0.16"
 dashmap            = "6"

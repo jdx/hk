@@ -19,10 +19,13 @@ use std::{
     Eq,
     PartialEq,
     usage_derive::ValueEnum,
+    strum::EnumString,
+    strum::Display,
     serde::Serialize,
     serde::Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum OutputFormat {
     #[default]
     Human,

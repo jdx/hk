@@ -26,21 +26,24 @@ enum Command {
     },
 }
 
-#[derive(Clone, Copy, Debug, usage_derive::ValueEnum)]
+#[derive(Clone, Copy, Debug, usage_derive::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
 enum InstructionTarget {
     Codex,
     ClaudeCode,
     Generic,
 }
 
-#[derive(Clone, Copy, Debug, usage_derive::ValueEnum)]
+#[derive(Clone, Copy, Debug, usage_derive::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
 enum HookTarget {
     Codex,
     ClaudeCode,
     Vscode,
 }
 
-#[derive(Clone, Copy, Debug, usage_derive::ValueEnum)]
+#[derive(Clone, Copy, Debug, usage_derive::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
 enum McpTarget {
     Codex,
     ClaudeDesktop,

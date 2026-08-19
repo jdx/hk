@@ -11,7 +11,6 @@ pub(crate) const DEFAULT_HOOKS: &[&str] = &["pre-commit", "check", "fix"];
 
 /// Generates a new hk.pkl file for a project
 #[derive(Debug, usage_derive::Args)]
-#[usage(arg, alias = "generate")]
 pub struct Init {
     /// Overwrite existing hk.pkl file
     #[usage(short, long)]

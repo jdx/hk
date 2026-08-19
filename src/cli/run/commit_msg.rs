@@ -5,7 +5,6 @@ use crate::git_util;
 use crate::hook_options::HookOptions;
 
 #[derive(usage_derive::Args)]
-#[usage(arg, alias = "cm")]
 pub struct CommitMsg {
     /// The path to the file that contains the commit message
     commit_msg_file: PathBuf,

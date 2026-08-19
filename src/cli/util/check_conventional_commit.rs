@@ -9,10 +9,14 @@ use crate::Result;
 #[derive(Debug, usage_derive::Args)]
 pub struct CheckConventionalCommit {
     /// Commit message file to check
-    #[usage(arg, required)]
+    #[usage(arg)]
     pub commit_msg_file: PathBuf,
 
-    #[usage(long, default = default_allowed_types(), delimiter = ',')]
+    #[usage(
+        long,
+        default = "build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test",
+        delimiter = ','
+    )]
     pub allowed_types: Vec<String>,
 }
 
@@ -108,14 +112,6 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
 
 fn check_commit_type(commit_type: &str, allowed_types: &[String]) -> bool {
     allowed_types.contains(&commit_type.to_string())
-}
-
-fn default_allowed_types() -> String {
-    [
-        "build", "chore", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "style",
-        "test",
-    ]
-    .join(",")
 }
 
 #[cfg(test)]

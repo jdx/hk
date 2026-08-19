@@ -29,13 +29,18 @@ mod validate;
 mod version;
 
 #[derive(usage_derive::Cli)]
-#[usage(arg, name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
+#[usage(name = "hk", version = version_lib::version(), version_spec = "1.55.0")]
 struct Cli {
     /// Run as if hk was started in this directory
     #[usage(long, global, value_name = "DIRECTORY", value_hint = ValueHint::DirPath)]
     cd: Option<PathBuf>,
     /// Select human or machine-readable execution output
-    #[usage(long, value_enum, default_value_t)]
+    #[usage(
+        long,
+        value_enum,
+        default_value_t = crate::structured_output::OutputFormat::default(),
+        default = "human"
+    )]
     format: crate::structured_output::OutputFormat,
     /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
     #[usage(long, global, value_name = "PATH", hide)]
@@ -120,19 +125,27 @@ fn reexec_for_cd(cd: &Path) -> Result<std::process::ExitStatus> {
 enum Commands {
     Agent(Box<agent::Agent>),
     Builtins(Box<builtins::Builtins>),
+    #[usage(hide)]
     Cache(Box<cache::Cache>),
+    #[usage(alias = "c")]
     Check(Box<check::Check>),
     Completion(Box<completion::Completion>),
+    #[usage(alias = "cfg")]
     Config(Box<config::Config>),
+    #[usage(alias = "f")]
     Fix(Box<fix::Fix>),
+    #[usage(alias = "generate")]
     Init(Box<init::Init>),
+    #[usage(alias = "i")]
     Install(Box<install::Install>),
     Mcp(Box<mcp::Mcp>),
     Migrate(Box<migrate::Migrate>),
+    #[usage(alias = "r")]
     Run(Box<run::Run>),
     Sponsors(Box<sponsors::Sponsors>),
     Test(Box<test::Test>),
     Uninstall(Box<uninstall::Uninstall>),
+    #[usage(hide)]
     Usage(Box<usage::Usage>),
     Util(Box<util::Util>),
     Validate(Box<validate::Validate>),
@@ -277,14 +290,23 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::CommandFactory;
 
     #[test]
     fn test_subcommands_are_sorted() {
-        let cmd = Cli::command();
-        // Check all subcommands for alphabetical ordering
-        for subcmd in cmd.get_subcommands() {
-            clap_sort::assert_sorted(subcmd);
+        fn assert_sorted(cmd: &::usage::SpecCommand) {
+            let names: Vec<_> = cmd.subcommands.keys().collect();
+            let mut sorted = names.clone();
+            sorted.sort();
+            assert_eq!(
+                names, sorted,
+                "subcommands below {} are not sorted",
+                cmd.name
+            );
+            for subcmd in cmd.subcommands.values() {
+                assert_sorted(subcmd);
+            }
         }
+        let spec: ::usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
+        assert_sorted(&spec.cmd);
     }
 }

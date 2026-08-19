@@ -23,7 +23,6 @@ fn unknown_config_key_error(key: &str) -> eyre::Report {
 /// CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >
 /// Git config (global) > Project config (hk.pkl) > Built-in defaults.
 #[derive(Debug, usage_derive::Args)]
-#[usage(arg, alias = "cfg")]
 pub struct Config {
     #[usage(subcommand)]
     command: Option<ConfigCommand>,
@@ -56,7 +55,7 @@ enum ConfigCommand {
 #[derive(Debug, usage_derive::Args)]
 struct ConfigDump {
     /// Output format (json or toml)
-    #[usage(long, value_parser = ["json", "toml"], default = "json")]
+    #[usage(long, choices("json", "toml"), default = "json")]
     format: String,
 }
 

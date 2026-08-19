@@ -8,7 +8,6 @@ use crate::{
 };
 
 #[derive(usage_derive::Args)]
-#[usage(arg, alias = "pp")]
 pub struct PrePush {
     /// Remote name
     remote: Option<String>,

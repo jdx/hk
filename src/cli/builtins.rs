@@ -3,7 +3,7 @@ use crate::builtins::BUILTINS;
 
 /// Lists all available builtin linters
 #[derive(Debug, usage_derive::Args)]
-pub struct Builtins;
+pub struct Builtins {}
 
 impl Builtins {
     pub async fn run(&self) -> Result<()> {

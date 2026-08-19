@@ -13,7 +13,6 @@ mod prepare_commit_msg;
 
 /// Run a hook
 #[derive(usage_derive::Args)]
-#[usage(arg, arg_required_else_help = true, alias = "r", verbatim_doc_comment)]
 pub struct Run {
     #[usage(subcommand)]
     command: Option<Commands>,
@@ -25,14 +24,18 @@ pub struct Run {
 
 #[derive(usage_derive::Subcommands)]
 enum Commands {
+    #[usage(alias = "cm")]
     CommitMsg(commit_msg::CommitMsg),
     PostCheckout(post_checkout::PostCheckout),
     PostCommit(post_commit::PostCommit),
     PostMerge(post_merge::PostMerge),
     PostRewrite(post_rewrite::PostRewrite),
+    #[usage(alias = "pc")]
     PreCommit(pre_commit::PreCommit),
+    #[usage(alias = "pp")]
     PrePush(pre_push::PrePush),
     PreRebase(pre_rebase::PreRebase),
+    #[usage(alias = "pcm")]
     PrepareCommitMsg(prepare_commit_msg::PrepareCommitMsg),
 }
 

@@ -1,6 +1,6 @@
 //! What each hk command does to the world.
 //!
-//! hk's usage spec is derived from clap, and clap has no way to express this,
+//! hk's usage spec is derived from Rust metadata, which has no way to express this,
 //! so the classification lives here and is applied in [`crate::cli::usage`].
 //!
 //! The three values are defined by the usage spec:
@@ -18,8 +18,7 @@
 
 use std::collections::HashMap;
 
-use clap_usage::usage;
-use clap_usage::usage::SpecCommandEffect::{self, Destructive, Read, Write};
+use usage::SpecCommandEffect::{self, Destructive, Read, Write};
 
 /// Commands whose effect is fixed, keyed by their full path under `hk`.
 pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
@@ -129,13 +128,12 @@ fn annotate(
 mod tests {
     use super::*;
     use crate::cli::Cli;
-    use clap::CommandFactory;
     use std::collections::HashSet;
 
     /// Every command in the tree, hidden ones included: a hidden command is
     /// still runnable.
     fn all_commands() -> Vec<String> {
-        let spec: usage::Spec = Cli::command().into();
+        let spec: usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
         let mut out = vec![];
         collect(&spec.cmd, &mut vec![], &mut out);
         out
@@ -163,7 +161,7 @@ mod tests {
     /// actually transfers them.
     #[test]
     fn apply_annotates_the_spec() {
-        let mut spec: usage::Spec = Cli::command().into();
+        let mut spec: usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
         apply(&mut spec);
 
         let cmd = |name: &str| {
