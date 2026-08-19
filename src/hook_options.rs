@@ -4,7 +4,7 @@ use std::path::PathBuf;
 #[derive(usage_derive::Args)]
 pub(crate) struct HookOptions {
     /// Run on specific files
-    #[usage(arg, conflicts("--all", "--fix", "--check"), value_hint = clap::ValueHint::FilePath)]
+    #[usage(arg, conflicts("--all", "--fix", "--check"), value_hint = ValueHint::FilePath)]
     pub files: Option<Vec<PathBuf>>,
     /// Run on all files instead of just staged files
     #[usage(short, long, conflicts("--staged", "--unstaged"))]
@@ -13,14 +13,14 @@ pub(crate) struct HookOptions {
     #[usage(short, long, overrides = "--fix")]
     pub check: bool,
     /// Exclude files that otherwise would have been selected
-    #[usage(short, long, value_hint = clap::ValueHint::FilePath)]
+    #[usage(short, long, value_hint = ValueHint::FilePath)]
     pub exclude: Option<Vec<String>>,
     /// Run fix command instead of check command
     /// (this is the default behavior unless HK_FIX=0)
     #[usage(short, long, overrides = "--check")]
     pub fix: bool,
     /// Run on files that match these glob patterns
-    #[usage(short, long, value_hint = clap::ValueHint::FilePath)]
+    #[usage(short, long, value_hint = ValueHint::FilePath)]
     pub glob: Option<Vec<String>>,
     /// Output the plan as JSON when combined with --plan or --why
     #[usage(short = 'J', long)]
@@ -41,7 +41,7 @@ pub(crate) struct HookOptions {
     #[usage(
         long,
         value_name = "PATH",
-        value_hint = clap::ValueHint::FilePath,
+        value_hint = ValueHint::FilePath,
         conflicts("--files", "--all", "--from-ref", "--glob", "--pr", "--staged", "--to-ref", "--unstaged")
     )]
     pub files0_from: Option<PathBuf>,
@@ -71,7 +71,7 @@ pub(crate) struct HookOptions {
     #[usage(long)]
     pub safe: bool,
     /// Write normalized diagnostics as SARIF
-    #[usage(long, value_name = "PATH", value_hint = clap::ValueHint::FilePath)]
+    #[usage(long, value_name = "PATH", value_hint = ValueHint::FilePath)]
     pub sarif: Option<PathBuf>,
     /// Skip specific step(s)
     #[usage(long, value_name = "STEP")]

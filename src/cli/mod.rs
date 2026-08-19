@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::{Result, env, logger, settings::Settings};
-use clap::Parser;
 use clx::progress::ProgressOutput;
 use eyre::WrapErr;
 
@@ -33,7 +32,7 @@ mod version;
 #[usage(arg, name = "hk", version = env!("CARGO_PKG_VERSION"), about = env!("CARGO_PKG_DESCRIPTION"), version = version_lib::version())]
 struct Cli {
     /// Run as if hk was started in this directory
-    #[usage(long, global, value_name = "DIRECTORY", value_hint = clap::ValueHint::DirPath)]
+    #[usage(long, global, value_name = "DIRECTORY", value_hint = ValueHint::DirPath)]
     cd: Option<PathBuf>,
     /// Select human or machine-readable execution output
     #[usage(long, value_enum, default_value_t)]
