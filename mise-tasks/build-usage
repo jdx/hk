@@ -6,6 +6,6 @@ set -eu
 
 cargo install --locked \
   --git https://github.com/jdx/usage \
-  --rev 92a1911779ab81edc4b1f64eb7b32715f93b0331 \
+  --rev 6ed0bc51bb8a8188ff9b61e076d3561823bd83b5 \
   --root target/usage-cli \
   usage-cli
