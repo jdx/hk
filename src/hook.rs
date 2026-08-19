@@ -29,7 +29,7 @@ use crate::{
     hook_options::HookOptions,
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
-    step::{CommandEffect, EXPR_CTX, EXPR_ENV, OutputSummary, RunType, Script, Step},
+    step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
     timings::TimingRecorder,
@@ -755,7 +755,7 @@ impl Hook {
         // Bool(false) causes a skip — any other value (including non-bool
         // results from exec()) is truthy.
         if let Some(condition) = &step.step_condition {
-            match EXPR_ENV.eval(condition, expr_ctx) {
+            match eval_condition(condition, expr_ctx) {
                 Ok(expr::Value::Bool(false)) => {
                     reasons.push(Reason {
                         kind: ReasonKind::ConditionFalse,
@@ -817,7 +817,7 @@ impl Hook {
         // literal Bool(false) skips the step. Truthy values (including strings)
         // pass through.
         if let Some(condition) = &step.job_condition {
-            match EXPR_ENV.eval(condition, expr_ctx) {
+            match eval_condition(condition, expr_ctx) {
                 Ok(expr::Value::Bool(false)) => {
                     reasons.push(Reason {
                         kind: ReasonKind::ConditionFalse,

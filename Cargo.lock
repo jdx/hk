@@ -257,6 +257,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono-tz"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6139a8597ed92cf816dfb33f5dd6cf0bb93a6adc938f11039f371bc5bcd26c3"
+dependencies = [
+ "chrono",
+ "phf",
+ "serde",
+]
+
+[[package]]
 name = "clap"
 version = "4.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -325,7 +336,7 @@ dependencies = [
  "nix 0.31.3",
  "serde",
  "serde_json",
- "strum 0.28.0",
+ "strum",
  "tera",
  "thiserror",
  "unicode-width 0.2.2",
@@ -703,10 +714,14 @@ dependencies = [
 
 [[package]]
 name = "expr-lang"
-version = "1.1.1"
+version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e6e6e9a6990c24970375077a97a392146b5be2155a957d9a4e5337ca0bde0c26"
+checksum = "86283664be0dc99b1247e957cf8234bb0e98fe76096bd36767d8f87ac98f00b7"
 dependencies = [
+ "base64 0.23.1",
+ "chrono",
+ "chrono-tz",
+ "iana-time-zone",
  "indexmap 2.14.0",
  "log",
  "once_cell",
@@ -715,7 +730,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
- "strum 0.27.2",
+ "strum",
  "thiserror",
 ]
 
@@ -1004,7 +1019,7 @@ dependencies = [
  "shell-words",
  "similar",
  "siphasher",
- "strum 0.28.0",
+ "strum",
  "tempfile",
  "tera",
  "thiserror",
@@ -1873,6 +1888,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "phf"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
+dependencies = [
+ "phf_shared",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
+dependencies = [
+ "siphasher",
+]
+
+[[package]]
 name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2684,32 +2717,11 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 
 [[package]]
 name = "strum"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
-dependencies = [
- "strum_macros 0.27.2",
-]
-
-[[package]]
-name = "strum"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
 dependencies = [
- "strum_macros 0.28.0",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
+ "strum_macros",
 ]
 
 [[package]]
@@ -3205,7 +3217,7 @@ dependencies = [
  "roff",
  "serde",
  "shell-words",
- "strum 0.28.0",
+ "strum",
  "tera",
  "thiserror",
  "versions",

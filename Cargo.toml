@@ -37,7 +37,7 @@ dashmap            = "6"
 demand             = "2"
 dirs               = "6"
 ensembler          = "1"
-expr-lang          = { version = "1", features = ["serde"] }
+expr-lang          = { version = "2", features = ["serde"] }
 eyre               = "0.6"
 git2               = { version = "0.21", features = ["vendored-libgit2"] }
 globset            = "0.4"
