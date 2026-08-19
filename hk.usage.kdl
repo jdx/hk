@@ -2,16 +2,18 @@
 min_usage_version "4.0"
 name "hk"
 bin "hk"
-version "1.56.0"
-about "A tool for managing git hooks"
-usage "Usage: hk [OPTIONS] <COMMAND>"
+version "1.55.0"
 unknown_flags "error"
 flag "--cd" help="Run as if hk was started in this directory" global=#true {
     arg "<DIRECTORY>"
 }
 flag "--format" help="Select human or machine-readable execution output" default="human" {
     arg "<FORMAT>" {
-        choices "human" "json" "jsonl"
+        choices {
+            choice "human"
+            choice "json"
+            choice "jsonl"
+        }
     }
 }
 flag "--hkrc" help="Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)" global=#true hide=#true {
@@ -42,21 +44,34 @@ cmd "agent" help="Generate integration snippets for coding agents" effect="read"
     cmd "hooks" help="Print a hook configuration for an agent or editor" effect="read" {
         flag "--target" required=#true {
             arg "<TARGET>" {
-                choices "codex" "claude-code" "vscode"
+                choices {
+                    choice "codex"
+                    choice "claude-code"
+                    choice "vscode"
+                }
             }
         }
     }
     cmd "instructions" help="Print project instructions for a coding agent" effect="read" {
         flag "--target" required=#true {
             arg "<TARGET>" {
-                choices "codex" "claude-code" "generic"
+                choices {
+                    choice "codex"
+                    choice "claude-code"
+                    choice "generic"
+                }
             }
         }
     }
     cmd "mcp" help="Print an MCP server configuration" effect="read" {
         flag "--target" required=#true {
             arg "<TARGET>" {
-                choices "codex" "claude-desktop" "claude-code" "vscode"
+                choices {
+                    choice "codex"
+                    choice "claude-desktop"
+                    choice "claude-code"
+                    choice "vscode"
+                }
             }
         }
     }
@@ -97,7 +112,11 @@ cmd "check" help="Checks code" {
     }
     flag "--format" help="Select human or machine-readable execution output" {
         arg "<FORMAT>" {
-            choices "human" "json" "jsonl"
+            choices {
+                choice "human"
+                choice "json"
+                choice "jsonl"
+            }
         }
     }
     flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -199,7 +218,11 @@ cmd "fix" help="Fixes code" {
     }
     flag "--format" help="Select human or machine-readable execution output" {
         arg "<FORMAT>" {
-            choices "human" "json" "jsonl"
+            choices {
+                choice "human"
+                choice "json"
+                choice "jsonl"
+            }
         }
     }
     flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -312,7 +335,11 @@ cmd "run" help="Run a hook" {
     }
     flag "--format" help="Select human or machine-readable execution output" {
         arg "<FORMAT>" {
-            choices "human" "json" "jsonl"
+            choices {
+                choice "human"
+                choice "json"
+                choice "jsonl"
+            }
         }
     }
     flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -386,7 +413,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -460,7 +491,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -536,7 +571,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -609,7 +648,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -683,7 +726,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -758,7 +805,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -832,7 +883,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -907,7 +962,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
@@ -983,7 +1042,11 @@ cmd "run" help="Run a hook" {
         }
         flag "--format" help="Select human or machine-readable execution output" {
             arg "<FORMAT>" {
-                choices "human" "json" "jsonl"
+                choices {
+                    choice "human"
+                    choice "json"
+                    choice "jsonl"
+                }
             }
         }
         flag "--from-hook" help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
