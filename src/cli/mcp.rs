@@ -194,7 +194,10 @@ impl McpState {
     }
 
     fn cleanup(&mut self) {
-        let now = Instant::now();
+        self.cleanup_at(Instant::now());
+    }
+
+    fn cleanup_at(&mut self, now: Instant) {
         self.runs.retain(|run| {
             run.completed_at
                 .is_none_or(|completed| now.duration_since(completed) <= COMPLETED_RUN_TTL)
@@ -1470,12 +1473,13 @@ mod tests {
     fn cleanup_expires_old_completed_runs_but_not_active_runs() {
         let mut state = McpState::default();
         let mut expired = test_run("expired", "succeeded", Vec::new());
-        expired.completed_at = Some(Instant::now() - COMPLETED_RUN_TTL - Duration::from_secs(1));
+        let completed_at = Instant::now();
+        expired.completed_at = Some(completed_at);
         state.runs.push_back(expired);
         state
             .runs
             .push_back(test_run("active", "running", Vec::new()));
-        state.cleanup();
+        state.cleanup_at(completed_at + COMPLETED_RUN_TTL + Duration::from_secs(1));
         assert_eq!(state.runs.len(), 1);
         assert_eq!(state.runs[0].id, "active");
     }
