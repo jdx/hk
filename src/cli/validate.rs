@@ -3,7 +3,7 @@ use eyre::bail;
 use crate::{Result, config::Config};
 
 /// Validate the config file
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Validate {}
 

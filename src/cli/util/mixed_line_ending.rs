@@ -4,7 +4,7 @@ use crate::Result;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct MixedLineEnding {
     /// Output a diff of the change. Cannot use with `fix`.

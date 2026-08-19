@@ -2,7 +2,7 @@ use crate::Result;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct PythonCheckAst {
     /// Files to check

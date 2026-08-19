@@ -12,7 +12,7 @@ mod pre_rebase;
 mod prepare_commit_msg;
 
 /// Run a hook
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub struct Run {
     #[usage(subcommand)]
     command: Option<Commands>,
@@ -22,7 +22,7 @@ pub struct Run {
     hook: HookOptions,
 }
 
-#[derive(usage_derive::Subcommands)]
+#[derive(usage_rs::Subcommands)]
 enum Commands {
     #[usage(alias = "cm")]
     CommitMsg(commit_msg::CommitMsg),

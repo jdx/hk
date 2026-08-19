@@ -16,7 +16,7 @@
 //! absence of a value as "ask", so leaving a command out is the conservative
 //! choice and mislabeling one `read` is the dangerous one.
 
-use usage::SpecCommandEffect::{self, Destructive, Read, Write};
+use usage_rs::spec::Effect::{self as SpecCommandEffect, Destructive, Read, Write};
 
 /// Commands whose effect is fixed, keyed by their full path under `hk`.
 pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
@@ -110,15 +110,18 @@ mod tests {
     /// Every command in the tree, hidden ones included: a hidden command is
     /// still runnable.
     fn all_commands() -> Vec<String> {
-        let spec: usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
         let mut out = vec![];
-        collect(&spec.cmd, &mut vec![], &mut out);
+        collect(Cli::spec().root, &mut vec![], &mut out);
         out
     }
 
-    fn collect(cmd: &usage::SpecCommand, path: &mut Vec<String>, out: &mut Vec<String>) {
-        for (name, sub) in &cmd.subcommands {
-            path.push(name.clone());
+    fn collect(
+        cmd: &usage_rs::spec::CommandMeta<'_>,
+        path: &mut Vec<String>,
+        out: &mut Vec<String>,
+    ) {
+        for sub in cmd.subcommands {
+            path.push(sub.cmd.name.to_string());
             out.push(path.join(" "));
             collect(sub, path, out);
             path.pop();
@@ -137,21 +140,36 @@ mod tests {
     /// not need to parse and rewrite its own KDL at runtime.
     #[test]
     fn derived_spec_carries_effects() {
-        let spec: usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
-
         for &(path, effect) in EFFECTS {
-            let mut cmd = &spec.cmd;
+            let mut cmd = Cli::spec().root;
             for segment in path.split(' ') {
                 cmd = cmd
                     .subcommands
-                    .get(segment)
+                    .iter()
+                    .copied()
+                    .find(|command| command.cmd.name == segment)
                     .unwrap_or_else(|| panic!("no `hk {path}`"));
             }
             assert_eq!(cmd.effect, Some(effect), "wrong effect for `hk {path}`");
         }
         // Anything in UNCLASSIFIED must be left unset, not defaulted.
-        assert_eq!(spec.cmd.subcommands["check"].effect, None);
-        assert_eq!(spec.cmd.subcommands["fix"].effect, None);
+        let root = Cli::spec().root;
+        assert_eq!(
+            root.subcommands
+                .iter()
+                .find(|command| command.cmd.name == "check")
+                .expect("check")
+                .effect,
+            None
+        );
+        assert_eq!(
+            root.subcommands
+                .iter()
+                .find(|command| command.cmd.name == "fix")
+                .expect("fix")
+                .effect,
+            None
+        );
     }
 
     /// Adding a command without deciding what it does to the world is the

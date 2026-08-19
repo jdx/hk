@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 const DEFAULT_MAX_SIZE_KB: u64 = 500;
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct CheckAddedLargeFiles {
     /// Maximum file size in kilobytes (default: 500)

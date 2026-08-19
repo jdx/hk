@@ -2,7 +2,7 @@ use crate::Result;
 use crate::version;
 
 /// Print the version of hk
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Version {}
 

@@ -74,8 +74,7 @@ tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 url                = "2"
-usage-argv         = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188", features = ["diagnostics", "spec"] }
-usage-derive       = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
+usage-rs           = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188", features = ["diagnostics", "completions"] }
 usage-validation   = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
 xx                 = { version = "2", features = ["hash"] }
 
@@ -85,9 +84,6 @@ indexmap   = { version = "2", features = ["serde"] }
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml       = "1"
-
-[dev-dependencies]
-usage-lib = { git = "https://github.com/jdx/usage", rev = "88786493a5df2b90ad49314f68267c39c7497188" }
 
 [profile.serious]
 inherits = "release"

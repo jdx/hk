@@ -3,7 +3,7 @@ use indexmap::IndexSet;
 use tokio::sync::Semaphore;
 
 /// Run step-defined tests
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub struct Test {
     /// List tests without running
     #[usage(long)]

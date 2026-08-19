@@ -1,7 +1,7 @@
 use crate::{Result, config::Config, git::Git, settings::Settings, tera::Context};
 use std::path::PathBuf;
 
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub(crate) struct HookOptions {
     /// Run on specific files
     #[usage(arg, value_hint = ValueHint::FilePath)]

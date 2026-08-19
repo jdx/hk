@@ -2,7 +2,7 @@ use crate::Result;
 use std::path::Path;
 use std::process::Command;
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct NoCommitToBranch {
     /// Branch names to protect (default: main, master)

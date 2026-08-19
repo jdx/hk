@@ -4,7 +4,7 @@ use std::io::Read;
 use crate::Result;
 use crate::hook_options::HookOptions;
 
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub struct PostRewrite {
     /// The command that triggered the rewrite ("amend" or "rebase")
     command: String,

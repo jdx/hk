@@ -1,7 +1,7 @@
 use crate::Result;
 use crate::hook_options::HookOptions;
 
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub struct PreRebase {
     /// The upstream from which the series was forked
     upstream: String,

@@ -50,7 +50,7 @@ fn dashboard_tool_meta() -> MetaObject {
 }
 
 /// Runs an MCP server for coding agents over standard input/output.
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub struct Mcp {
     /// Restrict hk tools to this project root (defaults to the current directory)
     #[usage(long, value_name = "PATH", value_hint = ValueHint::DirPath)]

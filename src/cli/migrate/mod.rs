@@ -4,14 +4,14 @@ use indexmap::IndexMap;
 pub mod pre_commit;
 
 /// Migrate from other hook managers to hk
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Migrate {
     #[usage(subcommand)]
     command: MigrateCommands,
 }
 
-#[derive(Debug, usage_derive::Subcommands)]
+#[derive(Debug, usage_rs::Subcommands)]
 enum MigrateCommands {
     /// Migrate from pre-commit to hk
     PreCommit(pre_commit::PreCommit),

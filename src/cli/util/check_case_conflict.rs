@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Command;
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct CheckCaseConflict {
     /// Files to check for case conflicts

@@ -1,7 +1,7 @@
 use crate::{Result, hook_options::HookOptions};
 
 /// Run the pre-commit hook
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub struct PreCommit {
     #[usage(flatten)]
     pub(super) hook: HookOptions,

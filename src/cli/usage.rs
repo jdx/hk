@@ -4,7 +4,7 @@ use crate::cli::Cli;
 /// Generates a usage spec for the CLI
 ///
 /// https://usage.jdx.dev
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Usage {}
 

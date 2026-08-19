@@ -33,14 +33,14 @@ pub use trailing_whitespace::TrailingWhitespace;
 use crate::Result;
 
 /// Utility commands for file operations
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Util {
     #[usage(subcommand)]
     command: UtilCommands,
 }
 
-#[derive(Debug, usage_derive::Subcommands)]
+#[derive(Debug, usage_rs::Subcommands)]
 enum UtilCommands {
     /// Check for large files being added to repository
     CheckAddedLargeFiles(CheckAddedLargeFiles),

@@ -27,7 +27,7 @@ const CORE_GLOBAL_EVENTS: &[&str] = &["commit-msg", "pre-commit", "pre-push", "p
 /// local hooks are cleaned up — so the global install remains the
 /// single source of truth and hk doesn't fire twice per event. Pass
 /// `--force-local` to install local hooks anyway.
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct Install {
     /// Install local hooks even when hk is already configured globally

@@ -7,7 +7,7 @@ use crate::{
     git::{Git, is_zero_sha},
 };
 
-#[derive(usage_derive::Args)]
+#[derive(usage_rs::Args)]
 pub struct PrePush {
     /// Remote name
     remote: Option<String>,

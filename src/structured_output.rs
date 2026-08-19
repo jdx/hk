@@ -18,7 +18,7 @@ use std::{
     Default,
     Eq,
     PartialEq,
-    usage_derive::ValueEnum,
+    usage_rs::ValueEnum,
     strum::EnumString,
     strum::Display,
     serde::Serialize,

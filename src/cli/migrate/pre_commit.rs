@@ -10,7 +10,7 @@ use shell_quote::Quote;
 use super::{HkConfig, HkHook, HkStep};
 
 /// Migrate from pre-commit to hk
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct PreCommit {
     /// Path to .pre-commit-config.yaml

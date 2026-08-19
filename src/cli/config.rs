@@ -22,14 +22,14 @@ fn unknown_config_key_error(key: &str) -> eyre::Report {
 /// Configuration is merged from multiple sources in precedence order:
 /// CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >
 /// Git config (global) > Project config (hk.pkl) > Built-in defaults.
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Config {
     #[usage(subcommand)]
     command: Option<ConfigCommand>,
 }
 
-#[derive(Debug, usage_derive::Subcommands)]
+#[derive(Debug, usage_rs::Subcommands)]
 enum ConfigCommand {
     /// Print effective runtime settings (JSON format)
     ///
@@ -53,7 +53,7 @@ enum ConfigCommand {
     Sources(ConfigSources),
 }
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 struct ConfigDump {
     /// Output format (json or toml)
@@ -61,7 +61,7 @@ struct ConfigDump {
     format: String,
 }
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 struct ConfigGet {
     /// Configuration key to retrieve
@@ -71,14 +71,14 @@ struct ConfigGet {
     key: String,
 }
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 struct ConfigExplain {
     /// Configuration key to explain
     key: String,
 }
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 struct ConfigSources {}
 

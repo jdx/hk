@@ -20,7 +20,7 @@ const UTF8_SINGLE_QUOTE_CODEPOINTS: &[char] = &[
     '\u{201B}', // SINGLE HIGH-REVERSED-9 QUOTATION MARK
 ];
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct FixSmartQuotes {
     /// Check for smart quotes without fixing them

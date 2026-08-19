@@ -29,12 +29,13 @@ mod util;
 mod validate;
 mod version;
 
-#[derive(usage_derive::Cli)]
+#[derive(usage_rs::Cli)]
 #[usage(
     name = "hk",
     version = version_lib::version(),
     version_spec = "1.55.0",
-    unknown_flags = "error"
+    unknown_flags = "error",
+    completion
 )]
 struct Cli {
     /// Run as if hk was started in this directory
@@ -127,7 +128,7 @@ fn reexec_for_cd(cd: &Path) -> Result<std::process::ExitStatus> {
     Ok(status)
 }
 
-#[derive(usage_derive::Subcommands)]
+#[derive(usage_rs::Subcommands)]
 enum Commands {
     Agent(Box<agent::Agent>),
     Builtins(Box<builtins::Builtins>),
@@ -299,20 +300,23 @@ mod tests {
 
     #[test]
     fn test_subcommands_are_sorted() {
-        fn assert_sorted(cmd: &::usage::SpecCommand) {
-            let names: Vec<_> = cmd.subcommands.keys().collect();
+        fn assert_sorted(cmd: &usage_rs::spec::CommandMeta<'_>) {
+            let names: Vec<_> = cmd
+                .subcommands
+                .iter()
+                .map(|subcommand| subcommand.cmd.name)
+                .collect();
             let mut sorted = names.clone();
             sorted.sort();
             assert_eq!(
                 names, sorted,
                 "subcommands below {} are not sorted",
-                cmd.name
+                cmd.cmd.name
             );
-            for subcmd in cmd.subcommands.values() {
+            for subcmd in cmd.subcommands {
                 assert_sorted(subcmd);
             }
         }
-        let spec: ::usage::Spec = Cli::to_kdl().parse().expect("derived spec should parse");
-        assert_sorted(&spec.cmd);
+        assert_sorted(Cli::spec().root);
     }
 }

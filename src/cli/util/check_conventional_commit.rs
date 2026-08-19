@@ -6,7 +6,7 @@ use std::string::ToString;
 
 use crate::Result;
 
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct CheckConventionalCommit {
     /// Commit message file to check

@@ -1,14 +1,14 @@
 use crate::Result;
 
 /// Generate integration snippets for coding agents
-#[derive(Debug, usage_derive::Args)]
+#[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Agent {
     #[usage(subcommand)]
     command: Command,
 }
 
-#[derive(Debug, usage_derive::Subcommands)]
+#[derive(Debug, usage_rs::Subcommands)]
 enum Command {
     /// Print a hook configuration for an agent or editor
     #[usage(effect = "read")]
@@ -30,7 +30,7 @@ enum Command {
     },
 }
 
-#[derive(Clone, Copy, Debug, usage_derive::ValueEnum, strum::EnumString)]
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
 #[strum(serialize_all = "kebab-case")]
 enum InstructionTarget {
     Codex,
@@ -38,7 +38,7 @@ enum InstructionTarget {
     Generic,
 }
 
-#[derive(Clone, Copy, Debug, usage_derive::ValueEnum, strum::EnumString)]
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
 #[strum(serialize_all = "kebab-case")]
 enum HookTarget {
     Codex,
@@ -46,7 +46,7 @@ enum HookTarget {
     Vscode,
 }
 
-#[derive(Clone, Copy, Debug, usage_derive::ValueEnum, strum::EnumString)]
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
 #[strum(serialize_all = "kebab-case")]
 enum McpTarget {
     Codex,
