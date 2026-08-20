@@ -40,6 +40,10 @@ enum Commands {
     PrepareCommitMsg(prepare_commit_msg::PrepareCommitMsg),
 }
 
+fn require_hook(command: Option<Commands>) -> Result<Commands> {
+    command.ok_or_else(|| eyre::eyre!("a hook is required; run `hk run --help` to list hooks"))
+}
+
 impl Run {
     pub(crate) fn output_format(&self) -> Option<crate::structured_output::OutputFormat> {
         let command_format = self.command.as_ref().and_then(|command| match command {
@@ -63,9 +67,7 @@ impl Run {
             self.hook.tctx.insert("hook_args", "");
             return self.hook.run(hook).await;
         }
-        let cmd = self
-            .command
-            .expect("arg_required_else_help rejects a run command without a hook");
+        let cmd = require_hook(self.command)?;
         match cmd {
             Commands::CommitMsg(cmd) => cmd.run().await,
             Commands::PostCheckout(cmd) => cmd.run().await,
@@ -77,5 +79,27 @@ impl Run {
             Commands::PreRebase(cmd) => cmd.run().await,
             Commands::PrepareCommitMsg(cmd) => cmd.run().await,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+
+    use super::require_hook;
+    use crate::cli::{Cli, Commands as RootCommands};
+
+    #[test]
+    fn a_flag_without_a_hook_returns_a_diagnostic_instead_of_panicking() {
+        let parsed =
+            Cli::parse_from(&[OsStr::new("run"), OsStr::new("--all")]).expect("--all should parse");
+        let RootCommands::Run(parsed) = parsed.command else {
+            panic!("run should select the run command");
+        };
+        assert!(parsed.other.is_none());
+        let Err(error) = require_hook(parsed.command) else {
+            panic!("a hook should still be required");
+        };
+        assert!(error.to_string().contains("a hook is required"));
     }
 }
