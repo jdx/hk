@@ -4,6 +4,7 @@ name hk
 bin hk
 version "1.55.0"
 unknown_flags error
+subcommand_required #true
 flag --cd help="Run as if hk was started in this directory" global=#true {
     arg <DIRECTORY>
 }
