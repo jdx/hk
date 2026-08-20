@@ -6021,6 +6021,7 @@
         "mounts": [],
         "unknown_flags": null,
         "hide": false,
+        "arg_required_else_help": true,
         "help": "Run a hook",
         "name": "run",
         "aliases": ["r"],
