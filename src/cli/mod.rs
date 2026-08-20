@@ -33,7 +33,7 @@ mod version;
 #[usage(
     name = "hk",
     version = version_lib::version(),
-    version_spec = "1.55.0",
+    version_spec = "1.56.0",
     unknown_flags = "error",
     completion
 )]
