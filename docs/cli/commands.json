@@ -50,6 +50,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print a hook configuration for an agent or editor",
             "name": "hooks",
             "aliases": [],
@@ -97,6 +98,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print project instructions for a coding agent",
             "name": "instructions",
             "aliases": [],
@@ -152,6 +154,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print an MCP server configuration",
             "name": "mcp",
             "aliases": [],
@@ -166,6 +169,7 @@
         "unknown_flags": null,
         "hide": false,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Generate integration snippets for coding agents",
         "name": "agent",
         "aliases": [],
@@ -182,6 +186,7 @@
         "effect": "read",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Lists all available builtin linters",
         "name": "builtins",
         "aliases": [],
@@ -202,6 +207,7 @@
             "effect": "write",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Clear the cache directory",
             "name": "clear",
             "aliases": [],
@@ -216,6 +222,7 @@
         "unknown_flags": null,
         "hide": true,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Manage hk internal cache",
         "name": "cache",
         "aliases": [],
@@ -363,6 +370,7 @@
               "double_dash": "Optional",
               "hide": false
             },
+            "value_optional": true,
             "default_missing": ""
           },
           {
@@ -640,6 +648,7 @@
         "mounts": [],
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Checks code",
         "name": "check",
         "aliases": ["c"],
@@ -684,6 +693,7 @@
         "effect": "read",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Generates shell completion scripts",
         "name": "completion",
         "aliases": [],
@@ -726,6 +736,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print effective runtime settings (JSON format)",
             "help_long": "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags,\nenvironment variables, git config, user config, and project config.",
             "name": "dump",
@@ -753,6 +764,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Explain where a configuration value comes from",
             "help_long": "Explain where a configuration value comes from\n\nShows the resolved value, its source (env/git/cli/default), and\nthe full precedence chain showing all layers that could affect it.",
             "name": "explain",
@@ -781,6 +793,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Get a specific configuration value",
             "help_long": "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast,\ndisplay_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage",
             "name": "get",
@@ -798,6 +811,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Show the configuration source precedence order",
             "help_long": "Show the configuration source precedence order\n\nLists all configuration sources in order of precedence to help\nunderstand where configuration values come from.",
             "name": "sources",
@@ -812,6 +826,7 @@
         "effect": "read",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Configuration introspection and management",
         "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources.\nConfiguration is merged from multiple sources in precedence order:\nCLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >\nGit config (global) > Project config (hk.pkl) > Built-in defaults.",
         "name": "config",
@@ -960,6 +975,7 @@
               "double_dash": "Optional",
               "hide": false
             },
+            "value_optional": true,
             "default_missing": ""
           },
           {
@@ -1237,6 +1253,7 @@
         "mounts": [],
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Fixes code",
         "name": "fix",
         "aliases": ["f"],
@@ -1303,6 +1320,7 @@
         "effect": "write",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Generates a new hk.pkl file for a project",
         "name": "init",
         "aliases": ["generate"],
@@ -1363,6 +1381,7 @@
         "effect": "write",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Sets up git hooks to run hk.",
         "help_long": "Sets up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks\nonce into the user's `~/.gitconfig` so every repository on the machine\npicks them up automatically. In a project without an `hk.pkl`, the\ninstalled hook exits silently — no-op — so it's safe to enable\neverywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only.\nOn Git 2.54+ this uses config-based hooks (`hook.<name>.command`),\nwhich keeps `.git/hooks/` untouched and composes cleanly with other\nhook managers. On older Git it falls back to writing script shims.\n\nIf hk is already configured globally (any `hook.hk-*` entry in\n`~/.gitconfig`), the per-repo install is skipped — and any stale\nlocal hooks are cleaned up — so the global install remains the\nsingle source of truth and hk doesn't fire twice per event. Pass\n`--force-local` to install local hooks anyway.",
         "name": "install",
@@ -1397,6 +1416,7 @@
         "mounts": [],
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Runs an MCP server for coding agents over standard input/output.",
         "name": "mcp",
         "aliases": [],
@@ -1488,6 +1508,7 @@
             "effect": "write",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Migrate from pre-commit to hk",
             "name": "pre-commit",
             "aliases": [],
@@ -1502,6 +1523,7 @@
         "unknown_flags": null,
         "hide": false,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Migrate from other hook managers to hk",
         "name": "migrate",
         "aliases": [],
@@ -1662,6 +1684,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -1939,6 +1962,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "commit-msg",
             "aliases": ["cm"],
             "hidden_aliases": [],
@@ -2130,6 +2154,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -2407,6 +2432,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-checkout",
             "aliases": [],
             "hidden_aliases": [],
@@ -2571,6 +2597,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -2848,6 +2875,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-commit",
             "aliases": [],
             "hidden_aliases": [],
@@ -3021,6 +3049,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -3298,6 +3327,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-merge",
             "aliases": [],
             "hidden_aliases": [],
@@ -3471,6 +3501,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -3748,6 +3779,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-rewrite",
             "aliases": [],
             "hidden_aliases": [],
@@ -3912,6 +3944,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -4189,6 +4222,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Run the pre-commit hook",
             "name": "pre-commit",
             "aliases": ["pc"],
@@ -4372,6 +4406,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -4649,6 +4684,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "pre-push",
             "aliases": ["pp"],
             "hidden_aliases": [],
@@ -4831,6 +4867,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -5108,6 +5145,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "pre-rebase",
             "aliases": [],
             "hidden_aliases": [],
@@ -5299,6 +5337,7 @@
                   "double_dash": "Optional",
                   "hide": false
                 },
+                "value_optional": true,
                 "default_missing": ""
               },
               {
@@ -5576,6 +5615,7 @@
             "mounts": [],
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "prepare-commit-msg",
             "aliases": ["pcm"],
             "hidden_aliases": [],
@@ -5744,6 +5784,7 @@
               "double_dash": "Optional",
               "hide": false
             },
+            "value_optional": true,
             "default_missing": ""
           },
           {
@@ -6022,6 +6063,7 @@
         "unknown_flags": null,
         "hide": false,
         "arg_required_else_help": true,
+        "args_override_self": true,
         "help": "Run a hook",
         "name": "run",
         "aliases": ["r"],
@@ -6056,6 +6098,7 @@
         "effect": "read",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Show the companies sponsoring hk and the jdx.dev open source tools",
         "name": "sponsors",
         "aliases": [],
@@ -6085,7 +6128,6 @@
             "help_first_line": "Filter by test name (repeatable)",
             "short": [],
             "long": ["name"],
-            "var_min": 1,
             "hide": false,
             "global": false,
             "arg": {
@@ -6094,6 +6136,7 @@
               "required": true,
               "double_dash": "Optional",
               "var": true,
+              "var_min": 1,
               "hide": false
             }
           },
@@ -6104,7 +6147,6 @@
             "help_first_line": "Filter by step name (repeatable)",
             "short": [],
             "long": ["step"],
-            "var_min": 1,
             "hide": false,
             "global": false,
             "arg": {
@@ -6113,6 +6155,7 @@
               "required": true,
               "double_dash": "Optional",
               "var": true,
+              "var_min": 1,
               "hide": false
             }
           }
@@ -6120,6 +6163,7 @@
         "mounts": [],
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Run step-defined tests",
         "name": "test",
         "aliases": [],
@@ -6147,6 +6191,7 @@
         "effect": "destructive",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Removes hk hooks from the current git repository",
         "name": "uninstall",
         "aliases": [],
@@ -6163,6 +6208,7 @@
         "effect": "read",
         "unknown_flags": null,
         "hide": true,
+        "args_override_self": true,
         "help": "Generates a usage spec for the CLI",
         "help_long": "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev",
         "name": "usage",
@@ -6214,6 +6260,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for large files being added to repository",
             "name": "check-added-large-files",
             "aliases": [],
@@ -6252,6 +6299,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for UTF-8 byte order marker (BOM)",
             "name": "check-byte-order-marker",
             "aliases": [],
@@ -6279,6 +6327,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for case-insensitive filename conflicts",
             "name": "check-case-conflict",
             "aliases": [],
@@ -6326,6 +6375,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for conventional commit message",
             "help_long": "Check for conventional commit message\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits\ncreated for `git rebase --autosquash`) skip validation.",
             "name": "check-conventional-commit",
@@ -6354,6 +6404,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check that executable files have shebangs",
             "name": "check-executables-have-shebangs",
             "aliases": [],
@@ -6392,6 +6443,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for merge conflict markers",
             "name": "check-merge-conflict",
             "aliases": [],
@@ -6419,6 +6471,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for broken symlinks",
             "name": "check-symlinks",
             "aliases": [],
@@ -6446,6 +6499,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Detect private keys in files",
             "name": "detect-private-key",
             "aliases": [],
@@ -6495,6 +6549,7 @@
             "effect": "write",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for and optionally fix missing final newlines",
             "name": "end-of-file-fixer",
             "aliases": [],
@@ -6522,6 +6577,7 @@
             "effect": "write",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Remove UTF-8 byte order marker (BOM)",
             "name": "fix-byte-order-marker",
             "aliases": [],
@@ -6570,6 +6626,7 @@
             "effect": "write",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Replace UTF-8 smart quotes",
             "name": "fix-smart-quotes",
             "aliases": [],
@@ -6619,6 +6676,7 @@
             "effect": "write",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Detect and fix mixed line endings",
             "name": "mixed-line-ending",
             "aliases": [],
@@ -6655,6 +6713,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Prevent commits to specific branches",
             "name": "no-commit-to-branch",
             "aliases": [],
@@ -6682,6 +6741,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check Python files for valid syntax",
             "name": "python-check-ast",
             "aliases": [],
@@ -6709,6 +6769,7 @@
             "effect": "read",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Detect Python debug statements",
             "name": "python-debug-statements",
             "aliases": [],
@@ -6758,6 +6819,7 @@
             "effect": "write",
             "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for and optionally fix trailing whitespace",
             "name": "trailing-whitespace",
             "aliases": [],
@@ -6772,6 +6834,7 @@
         "unknown_flags": null,
         "hide": false,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Utility commands for file operations",
         "name": "util",
         "aliases": [],
@@ -6788,6 +6851,7 @@
         "effect": "read",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Validate the config file",
         "name": "validate",
         "aliases": [],
@@ -6804,6 +6868,7 @@
         "effect": "read",
         "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Print the version of hk",
         "name": "version",
         "aliases": [],
@@ -6994,6 +7059,7 @@
     "mounts": [],
     "unknown_flags": null,
     "hide": false,
+    "args_override_self": true,
     "name": "hk",
     "aliases": [],
     "hidden_aliases": [],

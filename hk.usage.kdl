@@ -102,7 +102,7 @@ cmd check help="Checks code" {
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
-    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
         arg "[STEP]" required=#false
     }
     flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -208,7 +208,7 @@ cmd fix help="Fixes code" {
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
-    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
         arg "[STEP]" required=#false
     }
     flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -325,7 +325,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
     flag "-S --step" help="Run only specific step(s)" var=#true {
         arg <STEP>
     }
-    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+    flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
         arg "[STEP]" required=#false
     }
     flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -403,7 +403,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -481,7 +481,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -561,7 +561,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -638,7 +638,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -716,7 +716,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -795,7 +795,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -873,7 +873,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -952,7 +952,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -1032,7 +1032,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         flag "-S --step" help="Run only specific step(s)" var=#true {
             arg <STEP>
         }
-        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." default_missing="" {
+        flag "-W --why" help="Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan." value_optional=#true default_missing="" {
             arg "[STEP]" required=#false
         }
         flag --fail-fast help="Abort on first failure" overrides=--no-fail-fast
@@ -1098,11 +1098,11 @@ cmd sponsors help="Show the companies sponsoring hk and the jdx.dev open source 
 }
 cmd test help="Run step-defined tests" {
     flag --list help="List tests without running"
-    flag --name help="Filter by test name (repeatable)" var_min=1 {
-        arg <NAME>...
+    flag --name help="Filter by test name (repeatable)" {
+        arg <NAME>... var_min=1
     }
-    flag --step help="Filter by step name (repeatable)" var_min=1 {
-        arg <STEP>...
+    flag --step help="Filter by step name (repeatable)" {
+        arg <STEP>... var_min=1
     }
 }
 cmd uninstall help="Removes hk hooks from the current git repository" effect=destructive {
