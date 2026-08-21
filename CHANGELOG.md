@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.56.1](https://github.com/jdx/hk/compare/v1.56.0..v1.56.1) - 2026-08-21
+
+### 📚 Documentation
+
+- fix mobile banner and homepage overflow by [@jdx](https://github.com/jdx) in [#1213](https://github.com/jdx/hk/pull/1213)
+
+### 📦️ Dependency Updates
+
+- update rust crate expr-lang to v2.1.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1217](https://github.com/jdx/hk/pull/1217)
+
 ## [1.56.0](https://github.com/jdx/hk/compare/v1.55.0..v1.56.0) - 2026-08-19
 
 ### 🚀 Features
