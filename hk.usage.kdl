@@ -162,6 +162,10 @@ cmd check help="Checks code" {
     complete path type=path
 }
 cmd completion help="Generates shell completion scripts" effect=read {
+    flag --install help="Install the script where this shell looks for it, instead of printing it" effect=write {
+        long_help "Install the script where this shell looks for it, instead of printing it\n\nWrites the script file and nothing else: no shell rc file and no PowerShell profile is\nedited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's\ndot-source — it is printed for you to add."
+    }
+    flag --force help="Replace a file at the target path that hk did not write" effect=write requires=--install
     arg <SHELL> help="The shell to generate completion for"
 }
 cmd config help="Configuration introspection and management" effect=read {

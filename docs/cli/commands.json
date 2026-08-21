@@ -675,7 +675,7 @@
       },
       "completion": {
         "full_cmd": ["completion"],
-        "usage": "completion <SHELL>",
+        "usage": "completion [--install] [--force] <SHELL>",
         "subcommands": {},
         "args": [
           {
@@ -688,7 +688,32 @@
             "hide": false
           }
         ],
-        "flags": [],
+        "flags": [
+          {
+            "name": "install",
+            "usage": "--install",
+            "help": "Install the script where this shell looks for it, instead of printing it",
+            "help_long": "Install the script where this shell looks for it, instead of printing it\n\nWrites the script file and nothing else: no shell rc file and no PowerShell profile is\nedited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's\ndot-source — it is printed for you to add.",
+            "help_first_line": "Install the script where this shell looks for it, instead of printing it",
+            "short": [],
+            "long": ["install"],
+            "hide": false,
+            "global": false,
+            "effect": "write"
+          },
+          {
+            "name": "force",
+            "usage": "--force",
+            "help": "Replace a file at the target path that hk did not write",
+            "help_first_line": "Replace a file at the target path that hk did not write",
+            "short": [],
+            "long": ["force"],
+            "hide": false,
+            "global": false,
+            "requires": ["--install"],
+            "effect": "write"
+          }
+        ],
         "mounts": [],
         "effect": "read",
         "unknown_flags": null,

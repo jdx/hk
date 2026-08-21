@@ -206,6 +206,32 @@ mod tests {
         );
     }
 
+    /// A flag can raise what its command does; this table cannot say so, since it is keyed by
+    /// command. `hk completion` only reads, and `--install` writes a file — the composition rule
+    /// the effect vocabulary has, and the one place hk declares an effect on something that is not
+    /// a command. Asserted here so a later edit cannot quietly leave `--install` reading as safe.
+    #[test]
+    fn installing_a_completion_script_is_a_write() {
+        let completion = Cli::spec()
+            .root
+            .subcommands
+            .iter()
+            .find(|command| command.cmd.name == "completion")
+            .expect("completion");
+        assert_eq!(completion.effect, Some(Read));
+        let flag = |name: &str| {
+            completion
+                .flags
+                .iter()
+                .find(|f| f.flag.name == name)
+                .unwrap_or_else(|| panic!("`hk completion` has no --{name}"))
+        };
+        assert_eq!(flag("install").effect, Some(Write));
+        // `--force` only widens which file an install may replace, so it writes for that reason
+        // rather than one of its own.
+        assert_eq!(flag("force").effect, Some(Write));
+    }
+
     #[test]
     fn classifications_are_not_duplicated() {
         let mut seen = HashSet::new();
