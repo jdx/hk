@@ -1,7 +1,7 @@
 use crate::{Result, config::Config, git::Git, settings::Settings, tera::Context};
 use std::path::PathBuf;
 
-#[derive(usage_rs::Args)]
+#[derive(Default, usage_rs::Args)]
 pub(crate) struct HookOptions {
     /// Run on specific files
     #[usage(arg, value_hint = ValueHint::FilePath)]
@@ -122,7 +122,14 @@ pub(crate) struct HookOptions {
 impl HookOptions {
     fn validate(&self) -> Result<()> {
         if self.files.is_some()
-            && (self.all || self.files0_from.is_some() || self.pr || self.staged || self.unstaged)
+            && (self.all
+                || self.files0_from.is_some()
+                || self.glob.is_some()
+                || self.from_ref.is_some()
+                || self.pr
+                || self.staged
+                || self.to_ref.is_some()
+                || self.unstaged)
         {
             return Err(eyre::eyre!(
                 "positional files cannot be combined with another file-selection mode"
@@ -271,6 +278,43 @@ impl HookOptions {
                 };
                 Err(eyre::eyre!("{}", msg))
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn positional_files_conflict_with_every_other_selection_mode() {
+        let file = PathBuf::from("src/lib.rs");
+        let cases = [
+            HookOptions {
+                files: Some(vec![file.clone()]),
+                glob: Some(vec!["*.rs".to_string()]),
+                ..Default::default()
+            },
+            HookOptions {
+                files: Some(vec![file.clone()]),
+                from_ref: Some("main".to_string()),
+                ..Default::default()
+            },
+            HookOptions {
+                files: Some(vec![file]),
+                to_ref: Some("HEAD".to_string()),
+                ..Default::default()
+            },
+        ];
+
+        for options in cases {
+            let error = options.validate().expect_err("selection modes conflict");
+            assert!(
+                error
+                    .to_string()
+                    .contains("positional files cannot be combined"),
+                "{error}"
+            );
         }
     }
 }
