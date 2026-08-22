@@ -7,8 +7,7 @@
 
 Explain where a configuration value comes from
 
-Shows the resolved value, its source (env/git/cli/default), and
-the full precedence chain showing all layers that could affect it.
+Shows the resolved value, its source (env/git/cli/default), and the full precedence chain showing all layers that could affect it.
 
 ## Arguments
 

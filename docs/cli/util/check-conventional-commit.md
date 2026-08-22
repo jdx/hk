@@ -7,8 +7,7 @@
 
 Check for conventional commit message
 
-Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits
-created for `git rebase --autosquash`) skip validation.
+Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.
 
 ## Arguments
 

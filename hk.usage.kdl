@@ -13,9 +13,7 @@ flagset hook-options {
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)" overrides=--check {
-        long_help "Run fix command instead of check command\n(this is the default behavior unless HK_FIX=0)"
-    }
+    flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)" overrides=--check
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -41,9 +39,7 @@ flagset hook-options {
             }
         }
     }
-    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true {
-        long_help "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is\npresent or the event isn't defined. Set automatically by `hk install`."
-    }
+    flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true
     flag --from-ref help="Start reference for checking files (requires --to-ref)" {
         arg <FROM_REF>
     }
@@ -73,7 +69,6 @@ flagset hook-options {
         arg <TO_REF>
     }
     flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed." {
-        long_help "Run on unstaged and untracked files only (excludes staged files),\nwithout stashing. Useful for linting files an agent just changed."
         conflicts --all --from-ref --glob --pr --stash --to-ref --staged
     }
 }
@@ -96,7 +91,6 @@ flag "-j --jobs" help="Number of jobs to run in parallel" global=#true {
     arg <JOBS>
 }
 flag "-p --profile" help="Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast" global=#true var=#true {
-    long_help "Profiles to enable/disable\nprefix with ! to disable\ne.g. --profile slow --profile !fast"
     arg <PROFILE>
 }
 flag "-s --slow" help="Shorthand for --profile=slow" global=#true
@@ -166,16 +160,28 @@ cmd check help="Checks code" {
 }
 cmd completion help="Generates shell completion scripts" effect=read {
     flag --install help="Install the script where this shell looks for it, instead of printing it" effect=write {
-        long_help "Install the script where this shell looks for it, instead of printing it\n\nWrites the script file and nothing else: no shell rc file and no PowerShell profile is\nedited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's\ndot-source — it is printed for you to add."
+        long_help #"""
+Install the script where this shell looks for it, instead of printing it
+
+Writes the script file and nothing else: no shell rc file and no PowerShell profile is edited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's dot-source — it is printed for you to add.
+"""#
     }
     flag --force help="Replace a file at the target path that hk did not write" effect=write requires=--install
     arg <SHELL> help="The shell to generate completion for"
 }
 cmd config help="Configuration introspection and management" effect=read {
     alias cfg
-    long_help "Configuration introspection and management\n\nView and inspect hk's configuration from all sources.\nConfiguration is merged from multiple sources in precedence order:\nCLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >\nGit config (global) > Project config (hk.pkl) > Built-in defaults."
+    long_help #"""
+Configuration introspection and management
+
+View and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.
+"""#
     cmd dump help="Print effective runtime settings (JSON format)" effect=read {
-        long_help "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags,\nenvironment variables, git config, user config, and project config."
+        long_help #"""
+Print effective runtime settings (JSON format)
+
+Shows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config.
+"""#
         flag --format help="Output format (json or toml)" default=json {
             arg <FORMAT> {
                 choices json toml
@@ -183,17 +189,33 @@ cmd config help="Configuration introspection and management" effect=read {
         }
     }
     cmd explain help="Explain where a configuration value comes from" effect=read {
-        long_help "Explain where a configuration value comes from\n\nShows the resolved value, its source (env/git/cli/default), and\nthe full precedence chain showing all layers that could affect it."
+        long_help #"""
+Explain where a configuration value comes from
+
+Shows the resolved value, its source (env/git/cli/default), and the full precedence chain showing all layers that could affect it.
+"""#
         arg <KEY> help="Configuration key to explain"
     }
     cmd get help="Get a specific configuration value" effect=read {
-        long_help "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast,\ndisplay_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage"
+        long_help #"""
+Get a specific configuration value
+
+Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
+"""#
         arg <KEY> help="Configuration key to retrieve" {
-            long_help "Configuration key to retrieve\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast,\ndisplay_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage"
+            long_help #"""
+Configuration key to retrieve
+
+Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
+"""#
         }
     }
     cmd sources help="Show the configuration source precedence order" effect=read {
-        long_help "Show the configuration source precedence order\n\nLists all configuration sources in order of precedence to help\nunderstand where configuration values come from."
+        long_help #"""
+Show the configuration source precedence order
+
+Lists all configuration sources in order of precedence to help understand where configuration values come from.
+"""#
     }
 }
 cmd fix help="Fixes code" {
@@ -210,17 +232,51 @@ cmd init help="Generates a new hk.pkl file for a project" effect=write {
     flag "-f --force" help="Overwrite existing hk.pkl file"
     flag "-i --interactive" help="Interactive mode: select linters and hooks manually"
     flag --mise help="Generate a mise.toml file with hk configured" {
-        long_help "Generate a mise.toml file with hk configured\n\nSet HK_MISE=1 to make this default behavior."
+        long_help #"""
+Generate a mise.toml file with hk configured
+
+Set HK_MISE=1 to make this default behavior.
+"""#
     }
 }
 cmd install help="Sets up git hooks to run hk." effect=write {
     alias i
-    long_help "Sets up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks\nonce into the user's `~/.gitconfig` so every repository on the machine\npicks them up automatically. In a project without an `hk.pkl`, the\ninstalled hook exits silently — no-op — so it's safe to enable\neverywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only.\nOn Git 2.54+ this uses config-based hooks (`hook.<name>.command`),\nwhich keeps `.git/hooks/` untouched and composes cleanly with other\nhook managers. On older Git it falls back to writing script shims.\n\nIf hk is already configured globally (any `hook.hk-*` entry in\n`~/.gitconfig`), the per-repo install is skipped — and any stale\nlocal hooks are cleaned up — so the global install remains the\nsingle source of truth and hk doesn't fire twice per event. Pass\n`--force-local` to install local hooks anyway."
-    flag --force-local help="Install local hooks even when hk is already configured globally\n(any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo\ninstall is skipped in that case to avoid hk firing twice per\nevent. Not compatible with `--global`." conflicts=--global
-    flag --global help="Recommended. Install at user level (~/.gitconfig) so every repo\non this machine gets hk hooks. Requires Git 2.54 or newer. In\nrepos without an `hk.pkl`, the installed hook is a silent no-op."
-    flag --legacy help="Force using the legacy `.git/hooks/` script shims instead of Git\n2.54+ config-based hooks. Not compatible with `--global`." conflicts=--global
-    flag --mise help="Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools." {
-        long_help "Use `mise x` to execute hooks. With this, it won't\nbe necessary to activate mise in order to run hooks\nwith mise tools.\n\nSet HK_MISE=1 to make this default behavior."
+    long_help #"""
+Sets up git hooks to run hk.
+
+The recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.
+
+Without `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.
+
+If hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.
+"""#
+    flag --force-local help=#"""
+Install local hooks even when hk is already configured globally
+(any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
+install is skipped in that case to avoid hk firing twice per
+event. Not compatible with `--global`.
+"""# conflicts=--global
+    flag --global help=#"""
+Recommended. Install at user level (~/.gitconfig) so every repo
+on this machine gets hk hooks. Requires Git 2.54 or newer. In
+repos without an `hk.pkl`, the installed hook is a silent no-op.
+"""#
+    flag --legacy help=#"""
+Force using the legacy `.git/hooks/` script shims instead of Git
+2.54+ config-based hooks. Not compatible with `--global`.
+"""# conflicts=--global
+    flag --mise help=#"""
+Use `mise x` to execute hooks. With this, it won't
+be necessary to activate mise in order to run hooks
+with mise tools.
+"""# {
+        long_help #"""
+Use `mise x` to execute hooks. With this, it won't
+be necessary to activate mise in order to run hooks
+with mise tools.
+
+Set HK_MISE=1 to make this default behavior.
+"""#
     }
 }
 cmd mcp help="Runs an MCP server for coding agents over standard input/output." {
@@ -239,7 +295,6 @@ cmd migrate help="Migrate from other hook managers to hk" effect=read subcommand
             arg <OUTPUT>
         }
         flag --hk-pkl-root help="Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl" {
-            long_help "Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix)\nIf specified, will use {root}/Config.pkl and {root}/Builtins.pkl"
             arg <HK_PKL_ROOT>
         }
     }
@@ -358,7 +413,11 @@ cmd uninstall help="Removes hk hooks from the current git repository" effect=des
     flag --global help="Remove hk hooks from the user's global git config (`~/.gitconfig`)."
 }
 cmd usage help="Generates a usage spec for the CLI" hide=#true effect=read {
-    long_help "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev"
+    long_help #"""
+Generates a usage spec for the CLI
+
+https://usage.jdx.dev
+"""#
 }
 cmd util help="Utility commands for file operations" effect=read subcommand_required=#true {
     cmd check-added-large-files help="Check for large files being added to repository" effect=read {
@@ -375,7 +434,11 @@ cmd util help="Utility commands for file operations" effect=read subcommand_requ
         arg <FILES>... help="Files to check for case conflicts"
     }
     cmd check-conventional-commit help="Check for conventional commit message" effect=read {
-        long_help "Check for conventional commit message\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits\ncreated for `git rebase --autosquash`) skip validation."
+        long_help #"""
+Check for conventional commit message
+
+Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.
+"""#
         flag --allowed-types var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test delimiter=, {
             arg <ALLOWED_TYPES>
         }

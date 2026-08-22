@@ -21,9 +21,7 @@ The shell to generate completion for
 
 Install the script where this shell looks for it, instead of printing it
 
-Writes the script file and nothing else: no shell rc file and no PowerShell profile is
-edited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's
-dot-source — it is printed for you to add.
+Writes the script file and nothing else: no shell rc file and no PowerShell profile is edited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's dot-source — it is printed for you to add.
 
 ### `--force`
 

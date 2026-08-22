@@ -34,8 +34,7 @@ Exclude files that otherwise would have been selected
 
 ### `-f --fix`
 
-Run fix command instead of check command
-(this is the default behavior unless HK_FIX=0)
+Run fix command instead of check command (this is the default behavior unless HK_FIX=0)
 
 ### `-g --glob… <GLOB>`
 
@@ -131,5 +130,4 @@ End reference for checking files (requires --from-ref)
 
 ### `--unstaged`
 
-Run on unstaged and untracked files only (excludes staged files),
-without stashing. Useful for linting files an agent just changed.
+Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.
