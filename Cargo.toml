@@ -19,7 +19,7 @@ license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
 resolver = "3"
-rust-version = "1.95.0"
+rust-version = "1.91.0"
 version = "1.56.0"
 
 [[bin]]
@@ -74,7 +74,7 @@ tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 url                = "2"
-usage-rs           = { git = "https://github.com/jdx/usage", rev = "600c2287b7cd23a4841ad789a7dcb6dd7d8dd31a", features = ["diagnostics", "completions"] }
+usage-rs           = { git = "https://github.com/jdx/usage", rev = "e23e61a3df28cd381884fd121120ccd336f09481", features = ["diagnostics", "completions"] }
 xx                 = { version = "2", features = ["hash"] }
 
 [build-dependencies]

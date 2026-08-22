@@ -106,4 +106,28 @@ mod tests {
         assert!(parsed.command.is_none());
         assert!(parsed.hook.all);
     }
+
+    #[test]
+    fn positional_files_conflict_during_parsing() {
+        let argv = [
+            OsStr::new("check"),
+            OsStr::new("src/lib.rs"),
+            OsStr::new("--all"),
+        ];
+        assert!(matches!(
+            Cli::parse_from(&argv),
+            Err(usage_rs::Error::ConflictingFlags { .. })
+        ));
+    }
+
+    #[test]
+    fn positional_files_still_combine_with_globs() {
+        let argv = [
+            OsStr::new("check"),
+            OsStr::new("src/lib.rs"),
+            OsStr::new("--glob"),
+            OsStr::new("*.rs"),
+        ];
+        Cli::parse_from(&argv).expect("explicit files and globs are documented to combine");
+    }
 }

@@ -242,7 +242,14 @@
             "required": false,
             "double_dash": "Optional",
             "var": true,
-            "hide": false
+            "hide": false,
+            "conflicts": [
+              "--all",
+              "--files0-from",
+              "--pr",
+              "--staged",
+              "--unstaged"
+            ]
           }
         ],
         "flags": [
@@ -869,7 +876,14 @@
             "required": false,
             "double_dash": "Optional",
             "var": true,
-            "hide": false
+            "hide": false,
+            "conflicts": [
+              "--all",
+              "--files0-from",
+              "--pr",
+              "--staged",
+              "--unstaged"
+            ]
           }
         ],
         "flags": [
@@ -1574,7 +1588,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -2041,7 +2062,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -2481,7 +2509,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -2930,7 +2965,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -3379,7 +3421,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -3819,7 +3868,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -4278,7 +4334,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -4736,7 +4799,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -5203,7 +5273,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -5647,7 +5724,14 @@
             "required": false,
             "double_dash": "Optional",
             "var": true,
-            "hide": false
+            "hide": false,
+            "conflicts": [
+              "--all",
+              "--files0-from",
+              "--pr",
+              "--staged",
+              "--unstaged"
+            ]
           }
         ],
         "flags": [

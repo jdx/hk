@@ -4,7 +4,11 @@ use std::path::PathBuf;
 #[derive(usage_rs::Args)]
 pub(crate) struct HookOptions {
     /// Run on specific files
-    #[usage(arg, value_hint = ValueHint::FilePath)]
+    #[usage(
+        arg,
+        value_hint = ValueHint::FilePath,
+        conflicts("--all", "--files0-from", "--pr", "--staged", "--unstaged")
+    )]
     pub files: Option<Vec<PathBuf>>,
     /// Run on all files instead of just staged files
     #[usage(short, long, conflicts("--staged", "--unstaged"))]
@@ -121,13 +125,6 @@ pub(crate) struct HookOptions {
 
 impl HookOptions {
     fn validate(&self) -> Result<()> {
-        if self.files.is_some()
-            && (self.all || self.files0_from.is_some() || self.pr || self.staged || self.unstaged)
-        {
-            return Err(eyre::eyre!(
-                "positional files cannot be combined with another file-selection mode"
-            ));
-        }
         if self.staged && self.stash.is_some() {
             return Err(eyre::eyre!(
                 "argument '--staged' cannot be used with '--stash <STASH>'"

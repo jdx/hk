@@ -152,7 +152,9 @@ cmd cache help="Manage hk internal cache" hide=#true effect=read subcommand_requ
 cmd check help="Checks code" {
     alias c
     use hook-options
-    arg "[FILES]..." help="Run on specific files"
+    arg "[FILES]..." help="Run on specific files" {
+        conflicts --all --files0-from --pr --staged --unstaged
+    }
     complete files type=path
     complete exclude type=path
     complete glob type=path
@@ -221,7 +223,9 @@ Lists all configuration sources in order of precedence to help understand where 
 cmd fix help="Fixes code" {
     alias f
     use hook-options
-    arg "[FILES]..." help="Run on specific files"
+    arg "[FILES]..." help="Run on specific files" {
+        conflicts --all --files0-from --pr --staged --unstaged
+    }
     complete files type=path
     complete exclude type=path
     complete glob type=path
@@ -303,7 +307,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
     alias r
     use hook-options
     arg "[OTHER]" hide=#true
-    arg "[FILES]..." help="Run on specific files"
+    arg "[FILES]..." help="Run on specific files" {
+        conflicts --all --files0-from --pr --staged --unstaged
+    }
     complete files type=path
     complete exclude type=path
     complete glob type=path
@@ -312,7 +318,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         alias cm
         use hook-options
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message"
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -323,7 +331,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         arg <PREV_HEAD> help="SHA of the HEAD before the checkout"
         arg <NEW_HEAD> help="SHA of the new HEAD"
         arg <IS_BRANCH_CHECKOUT> help="Flag indicating whether the checkout was a branch checkout (1) or file checkout (0)"
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -331,7 +341,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
     }
     cmd post-commit {
         use hook-options
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -340,7 +352,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
     cmd post-merge {
         use hook-options
         arg <IS_SQUASH> help="Flag indicating whether the merge was a squash merge (1) or not (0)"
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -349,7 +363,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
     cmd post-rewrite {
         use hook-options
         arg <COMMAND> help="The command that triggered the rewrite (\"amend\" or \"rebase\")"
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -358,7 +374,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
     cmd pre-commit help="Run the pre-commit hook" {
         alias pc
         use hook-options
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -369,7 +387,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         use hook-options
         arg "[REMOTE]" help="Remote name"
         arg "[URL]" help="Remote URL"
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -379,7 +399,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         use hook-options
         arg <UPSTREAM> help="The upstream from which the series was forked"
         arg "[BRANCH]" help="The branch being rebased (unset when rebasing the current branch)"
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
@@ -391,7 +413,9 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         arg <COMMIT_MSG_FILE> help="The path to the file that contains the commit message so far"
         arg "[SOURCE]" help="The source of the commit message (e.g., \"message\", \"template\", \"merge\")"
         arg "[SHA]" help="The SHA of the commit being amended (if applicable)"
-        arg "[FILES]..." help="Run on specific files"
+        arg "[FILES]..." help="Run on specific files" {
+            conflicts --all --files0-from --pr --staged --unstaged
+        }
         complete files type=path
         complete exclude type=path
         complete glob type=path
