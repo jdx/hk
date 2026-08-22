@@ -13,7 +13,7 @@ mod prepare_commit_msg;
 
 /// Run a hook
 #[derive(usage_rs::Args)]
-#[command(arg_required_else_help)]
+#[usage(arg_required_else_help)]
 pub struct Run {
     #[usage(subcommand)]
     command: Option<Commands>,
