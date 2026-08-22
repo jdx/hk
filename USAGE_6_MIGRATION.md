@@ -2,9 +2,9 @@
 
 This branch converts hk's real typed CLI from clap to usage-rs and removes clap
 from the runtime dependencies. `cargo check` succeeds and all 254 binary tests
-pass after generating the repository's expected Pkl artifacts. It is not
-intended to merge before usage 6.x because it deliberately pins a stacked git
-revision.
+pass after generating the repository's expected Pkl artifacts. The crates.io
+pin is `usage-rs` 6 / `usage-cli` 6.0.0; render installs that CLI so generated
+KDL (`flagset`) matches the parser.
 
 The working port still records the compatibility gaps it had to handle locally:
 
