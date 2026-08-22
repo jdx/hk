@@ -114,6 +114,9 @@ pub static HK_PKL_CACHE_DIR: LazyLock<PathBuf> = LazyLock::new(|| {
 
 pub static HK_PKL_OFFLINE: LazyLock<bool> = LazyLock::new(|| var_true("HK_PKL_OFFLINE"));
 
+/// Seed the pkl cache with the package embedded in this binary.
+pub static HK_PKL_EMBEDDED: LazyLock<bool> = LazyLock::new(|| !var_false("HK_PKL_EMBEDDED"));
+
 /// Set to "pkl" to use the pkl CLI instead of the built-in pklr evaluator.
 pub static HK_PKL_BACKEND: LazyLock<String> =
     LazyLock::new(|| var("HK_PKL_BACKEND").unwrap_or_else(|_| "pklr".to_string()));

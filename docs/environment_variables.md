@@ -217,6 +217,17 @@ The directory used by the built-in pklr evaluator to persist downloaded Pkl pack
 
 This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
+## `HK_PKL_EMBEDDED`
+
+Type: `bool`
+Default: `true`
+
+hk embeds the Pkl package for its own version and seeds `HK_PKL_CACHE_DIR` with it before evaluating `hk.pkl`. A config pinning the running hk version therefore evaluates without a network request, even on a cold cache. A config pinning any other version is downloaded as usual.
+
+Set to `0` to disable seeding and always resolve the package through the cache and network.
+
+This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
+
 ## `HK_PKL_HTTP_REWRITE`
 
 Type: `string`
@@ -230,7 +241,7 @@ This variable is read directly from the environment before pkl is invoked, so it
 Type: `bool`
 Default: `false`
 
-Disables network access in the built-in pklr evaluator. Package imports already present in `HK_PKL_CACHE_DIR` remain available; a missing package fails immediately with its URL and cache location.
+Disables network access in the built-in pklr evaluator. Package imports already present in `HK_PKL_CACHE_DIR`, along with the package embedded for the running version (see `HK_PKL_EMBEDDED`), remain available; a missing package fails immediately with its URL and cache location.
 
 This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
