@@ -40,10 +40,6 @@ enum Commands {
     PrepareCommitMsg(prepare_commit_msg::PrepareCommitMsg),
 }
 
-fn require_hook(command: Option<Commands>) -> Result<Commands> {
-    command.ok_or_else(|| eyre::eyre!("a hook is required; run `hk run --help` to list hooks"))
-}
-
 impl Run {
     pub(crate) fn output_format(&self) -> Option<crate::structured_output::OutputFormat> {
         let command_format = self.command.as_ref().and_then(|command| match command {
@@ -67,18 +63,20 @@ impl Run {
             self.hook.tctx.insert("hook_args", "");
             return self.hook.run(hook).await;
         }
-        let cmd = require_hook(self.command)?;
-        match cmd {
-            Commands::CommitMsg(cmd) => cmd.run().await,
-            Commands::PostCheckout(cmd) => cmd.run().await,
-            Commands::PostCommit(cmd) => cmd.run().await,
-            Commands::PostMerge(cmd) => cmd.run().await,
-            Commands::PostRewrite(cmd) => cmd.run().await,
-            Commands::PreCommit(cmd) => cmd.run().await,
-            Commands::PrePush(cmd) => cmd.run().await,
-            Commands::PreRebase(cmd) => cmd.run().await,
-            Commands::PrepareCommitMsg(cmd) => cmd.run().await,
+        if let Some(cmd) = self.command {
+            return match cmd {
+                Commands::CommitMsg(cmd) => cmd.run().await,
+                Commands::PostCheckout(cmd) => cmd.run().await,
+                Commands::PostCommit(cmd) => cmd.run().await,
+                Commands::PostMerge(cmd) => cmd.run().await,
+                Commands::PostRewrite(cmd) => cmd.run().await,
+                Commands::PreCommit(cmd) => cmd.run().await,
+                Commands::PrePush(cmd) => cmd.run().await,
+                Commands::PreRebase(cmd) => cmd.run().await,
+                Commands::PrepareCommitMsg(cmd) => cmd.run().await,
+            };
         }
+        Ok(())
     }
 }
 
@@ -86,20 +84,27 @@ impl Run {
 mod tests {
     use std::ffi::OsStr;
 
-    use super::require_hook;
     use crate::cli::{Cli, Commands as RootCommands};
 
     #[test]
-    fn a_flag_without_a_hook_returns_a_diagnostic_instead_of_panicking() {
+    fn a_bare_run_asks_for_short_help() {
+        let Err(usage_rs::Error::MissingArgsHelp { cmd }) =
+            Cli::parse_from(&[OsStr::new("run")])
+        else {
+            panic!("hk run with no hook should request short help");
+        };
+        assert_eq!(cmd.name, "run");
+    }
+
+    #[test]
+    fn a_flag_without_a_hook_parses_because_argv_was_supplied() {
         let parsed =
             Cli::parse_from(&[OsStr::new("run"), OsStr::new("--all")]).expect("--all should parse");
         let RootCommands::Run(parsed) = parsed.command else {
             panic!("run should select the run command");
         };
         assert!(parsed.other.is_none());
-        let Err(error) = require_hook(parsed.command) else {
-            panic!("a hook should still be required");
-        };
-        assert!(error.to_string().contains("a hook is required"));
+        assert!(parsed.command.is_none());
+        assert!(parsed.hook.all);
     }
 }

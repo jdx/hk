@@ -10,8 +10,6 @@ The working port still records the compatibility gaps it had to handle locally:
 
 - positional-file relationships are enforced after binding because the spec
   cannot attach conflicts to a positional argument;
-- `run` retains clap's `arg_required_else_help` behavior with an explicit
-  no-hook error until usage supports that command policy;
 - command effects require parsing and mutating the derived KDL through
   usage-lib, whose MSRV is newer than hk's declared Rust version;
 - clap-only attribute spellings such as `num_args` and array value parsers need
