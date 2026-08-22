@@ -27,25 +27,25 @@ const CORE_GLOBAL_EVENTS: &[&str] = &["commit-msg", "pre-commit", "pre-push", "p
 /// local hooks are cleaned up — so the global install remains the
 /// single source of truth and hk doesn't fire twice per event. Pass
 /// `--force-local` to install local hooks anyway.
-#[derive(Debug, clap::Args)]
-#[clap(visible_alias = "i")]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "write")]
 pub struct Install {
     /// Install local hooks even when hk is already configured globally
     /// (any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
     /// install is skipped in that case to avoid hk firing twice per
     /// event. Not compatible with `--global`.
-    #[clap(long, verbatim_doc_comment, conflicts_with = "global")]
+    #[usage(long, verbatim_doc_comment, conflicts = "--global")]
     force_local: bool,
 
     /// Recommended. Install at user level (~/.gitconfig) so every repo
     /// on this machine gets hk hooks. Requires Git 2.54 or newer. In
     /// repos without an `hk.pkl`, the installed hook is a silent no-op.
-    #[clap(long, verbatim_doc_comment)]
+    #[usage(long, verbatim_doc_comment)]
     global: bool,
 
     /// Force using the legacy `.git/hooks/` script shims instead of Git
     /// 2.54+ config-based hooks. Not compatible with `--global`.
-    #[clap(long, verbatim_doc_comment, conflicts_with = "global")]
+    #[usage(long, verbatim_doc_comment, conflicts = "--global")]
     legacy: bool,
 
     /// Use `mise x` to execute hooks. With this, it won't
@@ -53,7 +53,7 @@ pub struct Install {
     /// with mise tools.
     ///
     /// Set HK_MISE=1 to make this default behavior.
-    #[clap(long, verbatim_doc_comment)]
+    #[usage(long, verbatim_doc_comment)]
     mise: bool,
 }
 

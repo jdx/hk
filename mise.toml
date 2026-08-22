@@ -19,7 +19,6 @@ node             = "latest"
 pkl              = "latest"
 ripgrep          = "latest"
 taplo            = "latest"
-usage            = "latest"
 uv               = "latest"
 vhs              = "latest"
 

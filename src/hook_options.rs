@@ -1,105 +1,125 @@
 use crate::{Result, config::Config, git::Git, settings::Settings, tera::Context};
 use std::path::PathBuf;
 
-#[derive(clap::Args)]
+#[derive(usage_rs::Args)]
 pub(crate) struct HookOptions {
     /// Run on specific files
-    #[clap(conflicts_with_all = &["all", "fix", "check"], value_hint = clap::ValueHint::FilePath)]
+    #[usage(
+        arg,
+        value_hint = ValueHint::FilePath,
+        conflicts("--all", "--files0-from", "--pr", "--staged", "--unstaged")
+    )]
     pub files: Option<Vec<PathBuf>>,
     /// Run on all files instead of just staged files
-    #[clap(short, long, conflicts_with_all = &["staged", "unstaged"])]
+    #[usage(short, long, conflicts("--staged", "--unstaged"))]
     pub all: bool,
     /// Run check command instead of fix command
-    #[clap(short, long, overrides_with = "fix")]
+    #[usage(short, long, overrides = "--fix")]
     pub check: bool,
     /// Exclude files that otherwise would have been selected
-    #[clap(short, long, value_hint = clap::ValueHint::FilePath)]
+    #[usage(short, long, value_hint = ValueHint::FilePath)]
     pub exclude: Option<Vec<String>>,
     /// Run fix command instead of check command
     /// (this is the default behavior unless HK_FIX=0)
-    #[clap(short, long, overrides_with = "check")]
+    #[usage(short, long, overrides = "--check")]
     pub fix: bool,
     /// Run on files that match these glob patterns
-    #[clap(short, long, value_hint = clap::ValueHint::FilePath)]
+    #[usage(short, long, value_hint = ValueHint::FilePath)]
     pub glob: Option<Vec<String>>,
     /// Output the plan as JSON when combined with --plan or --why
-    #[clap(short = 'J', long)]
+    #[usage(short = 'J', long)]
     pub json: bool,
     /// Print the plan instead of running the hook
-    #[clap(short = 'P', long)]
+    #[usage(short = 'P', long)]
     pub plan: bool,
     /// Run only specific step(s)
-    #[clap(short = 'S', long)]
+    #[usage(short = 'S', long)]
     pub step: Vec<String>,
     /// Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.
-    #[clap(short = 'W', long, value_name = "STEP", num_args = 0..=1, default_missing_value = "")]
+    #[usage(short = 'W', long, value_name = "STEP", default_missing = "")]
     pub why: Option<String>,
     /// Abort on first failure
-    #[clap(long, overrides_with = "no_fail_fast")]
+    #[usage(long, overrides = "--no-fail-fast")]
     pub fail_fast: bool,
     /// Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
-    #[clap(
+    #[usage(
         long,
         value_name = "PATH",
-        value_hint = clap::ValueHint::FilePath,
-        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "staged", "to_ref", "unstaged"]
+        value_hint = ValueHint::FilePath,
+        conflicts("--all", "--from-ref", "--glob", "--pr", "--staged", "--to-ref", "--unstaged")
     )]
     pub files0_from: Option<PathBuf>,
     /// Select human or machine-readable execution output
-    #[clap(long, value_enum)]
+    #[usage(long, value_enum)]
     pub format: Option<crate::structured_output::OutputFormat>,
     /// Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is
     /// present or the event isn't defined. Set automatically by `hk install`.
-    #[clap(long, hide = true)]
+    #[usage(long, hide)]
     pub from_hook: bool,
     /// Start reference for checking files (requires --to-ref)
-    #[clap(long)]
+    #[usage(long)]
     pub from_ref: Option<String>,
     /// Continue on failures (opposite of --fail-fast)
-    #[clap(long, overrides_with = "fail_fast")]
+    #[usage(long, overrides = "--fail-fast")]
     pub no_fail_fast: bool,
     /// Disable auto-staging of fixed files
-    #[clap(long, overrides_with = "stage")]
+    #[usage(long, overrides = "--stage")]
     pub no_stage: bool,
     /// Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
-    #[clap(long, conflicts_with_all = &["files", "all", "from_ref", "glob", "to_ref"])]
+    #[usage(long, conflicts("--all", "--from-ref", "--glob", "--to-ref"))]
     pub pr: bool,
     /// Reject commands with unknown or destructive effects before execution
-    #[clap(long)]
+    #[usage(long)]
     pub safe: bool,
     /// Write normalized diagnostics as SARIF
-    #[clap(long, value_name = "PATH", value_hint = clap::ValueHint::FilePath)]
+    #[usage(long, value_name = "PATH", value_hint = ValueHint::FilePath)]
     pub sarif: Option<PathBuf>,
     /// Skip specific step(s)
-    #[clap(long, value_name = "STEP")]
+    #[usage(long, value_name = "STEP")]
     pub skip_step: Vec<String>,
     /// Enable auto-staging of fixed files
-    #[clap(long, overrides_with = "no_stage")]
+    #[usage(long, overrides = "--no-stage")]
     pub stage: bool,
     /// Run on staged files only without stashing unstaged changes
-    #[clap(
+    #[usage(
         long,
-        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "stash", "to_ref", "unstaged"]
+        conflicts(
+            "--all",
+            "--from-ref",
+            "--glob",
+            "--pr",
+            "--stash",
+            "--to-ref",
+            "--unstaged"
+        )
     )]
     pub staged: bool,
     /// Stash method to use for git hooks
-    #[clap(long, value_parser = ["git", "patch-file", "none"])]
+    #[usage(long, choices("git", "patch-file", "none"))]
     pub stash: Option<String>,
     /// Display statistics about files matching each step
-    #[clap(long)]
+    #[usage(long)]
     pub stats: bool,
     /// End reference for checking files (requires --from-ref)
-    #[clap(long)]
+    #[usage(long)]
     pub to_ref: Option<String>,
     /// Run on unstaged and untracked files only (excludes staged files),
     /// without stashing. Useful for linting files an agent just changed.
-    #[clap(
+    #[usage(
         long,
-        conflicts_with_all = &["files", "all", "from_ref", "glob", "pr", "stash", "to_ref", "staged"]
+        conflicts(
+            "--all",
+            "--from-ref",
+            "--glob",
+            "--pr",
+            "--stash",
+            "--to-ref",
+            "--staged"
+        )
     )]
     pub unstaged: bool,
     /// Prefilled tera context
-    #[clap(skip)]
+    #[usage(skip)]
     pub tctx: Context,
 }
 

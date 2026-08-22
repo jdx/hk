@@ -19,7 +19,7 @@ license = "MIT"
 name = "hk"
 repository = "https://github.com/jdx/hk"
 resolver = "3"
-rust-version = "1.88.0"
+rust-version = "1.91.0"
 version = "1.56.0"
 
 [[bin]]
@@ -29,8 +29,6 @@ path = "bin/generate_docs.rs"
 [dependencies]
 arc-swap           = "1"
 chrono             = "0.4"
-clap               = { version = "4", features = ["derive"] }
-clap_usage         = "5"
 clx                = "3"
 console            = "0.16"
 dashmap            = "6"
@@ -76,6 +74,7 @@ tracing-log        = "0.2"
 tracing-serde      = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 url                = "2"
+usage-rs           = { git = "https://github.com/jdx/usage", rev = "e23e61a3df28cd381884fd121120ccd336f09481", features = ["diagnostics", "completions"] }
 xx                 = { version = "2", features = ["hash"] }
 
 [build-dependencies]
@@ -84,9 +83,6 @@ indexmap   = { version = "2", features = ["serde"] }
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml       = "1"
-
-[dev-dependencies]
-clap-sort = "1"
 
 [profile.serious]
 inherits = "release"

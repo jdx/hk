@@ -2,8 +2,9 @@ use crate::Result;
 use crate::version;
 
 /// Print the version of hk
-#[derive(Debug, clap::Args)]
-pub struct Version {}
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
+pub struct Version;
 
 impl Version {
     pub async fn run(&self) -> Result<()> {

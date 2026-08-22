@@ -4,11 +4,11 @@ use std::io::Read;
 use crate::Result;
 use crate::hook_options::HookOptions;
 
-#[derive(clap::Args)]
+#[derive(usage_rs::Args)]
 pub struct PostRewrite {
     /// The command that triggered the rewrite ("amend" or "rebase")
     command: String,
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

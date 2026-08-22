@@ -17,7 +17,7 @@ Files to check/fix
 
 ### `-d --diff`
 
-Output a diff of the change. Cannot use with `fix`
+Output a diff of the change. Cannot use with `fix`.
 
 ### `-f --fix`
 

@@ -1,46 +1,53 @@
 use crate::Result;
 
 /// Generate integration snippets for coding agents
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
 pub struct Agent {
-    #[clap(subcommand)]
+    #[usage(subcommand)]
     command: Command,
 }
 
-#[derive(Debug, clap::Subcommand)]
+#[derive(Debug, usage_rs::Subcommands)]
 enum Command {
     /// Print a hook configuration for an agent or editor
+    #[usage(effect = "read")]
     Hooks {
-        #[clap(long, value_enum)]
+        #[usage(long, value_enum)]
         target: HookTarget,
     },
     /// Print project instructions for a coding agent
+    #[usage(effect = "read")]
     Instructions {
-        #[clap(long, value_enum)]
+        #[usage(long, value_enum)]
         target: InstructionTarget,
     },
     /// Print an MCP server configuration
+    #[usage(effect = "read")]
     Mcp {
-        #[clap(long, value_enum)]
+        #[usage(long, value_enum)]
         target: McpTarget,
     },
 }
 
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
 enum InstructionTarget {
     Codex,
     ClaudeCode,
     Generic,
 }
 
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
 enum HookTarget {
     Codex,
     ClaudeCode,
     Vscode,
 }
 
-#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, usage_rs::ValueEnum, strum::EnumString)]
+#[strum(serialize_all = "kebab-case")]
 enum McpTarget {
     Codex,
     ClaudeDesktop,

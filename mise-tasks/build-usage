@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE sources=["Cargo.lock"]
+#MISE outputs=["target/usage-cli/bin/usage"]
+
+set -eu
+
+cargo install --locked \
+  --root target/usage-cli \
+  --git https://github.com/jdx/usage --rev e23e61a3df28cd381884fd121120ccd336f09481 usage-cli

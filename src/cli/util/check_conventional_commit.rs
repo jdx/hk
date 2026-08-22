@@ -6,13 +6,18 @@ use std::string::ToString;
 
 use crate::Result;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
 pub struct CheckConventionalCommit {
     /// Commit message file to check
-    #[clap(required = true)]
+    #[usage(arg)]
     pub commit_msg_file: PathBuf,
 
-    #[clap(long, default_value = default_allowed_types(), value_delimiter = ',')]
+    #[usage(
+        long,
+        default = "build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test",
+        delimiter = ','
+    )]
     pub allowed_types: Vec<String>,
 }
 
@@ -108,14 +113,6 @@ fn parse_commit_title(title: &str, allowed_types: &[String]) -> Result<bool> {
 
 fn check_commit_type(commit_type: &str, allowed_types: &[String]) -> bool {
     allowed_types.contains(&commit_type.to_string())
-}
-
-fn default_allowed_types() -> String {
-    [
-        "build", "chore", "ci", "docs", "feat", "fix", "perf", "refactor", "revert", "style",
-        "test",
-    ]
-    .join(",")
 }
 
 #[cfg(test)]

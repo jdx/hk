@@ -2,10 +2,11 @@ use crate::Result;
 use std::path::Path;
 use std::process::Command;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
 pub struct NoCommitToBranch {
     /// Branch names to protect (default: main, master)
-    #[clap(long, value_delimiter = ',')]
+    #[usage(long, delimiter = ',')]
     pub branch: Option<Vec<String>>,
 }
 

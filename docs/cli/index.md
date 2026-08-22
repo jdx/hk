@@ -73,7 +73,7 @@ Select human or machine-readable execution output
 - [`hk builtins`](/cli/builtins.md)
 - [`hk cache clear`](/cli/cache/clear.md)
 - [`hk check [FLAGS] [FILES]…`](/cli/check.md)
-- [`hk completion <SHELL>`](/cli/completion.md)
+- [`hk completion [--install] [--force] <SHELL>`](/cli/completion.md)
 - [`hk config <SUBCOMMAND>`](/cli/config.md)
 - [`hk config dump [--format <FORMAT>]`](/cli/config/dump.md)
 - [`hk config explain <KEY>`](/cli/config/explain.md)

@@ -579,6 +579,9 @@ impl Hook {
     }
 
     fn run_type(&self, opts: &HookOptions) -> RunType {
+        if opts.check {
+            return RunType::Check;
+        }
         let fix = self.fix.unwrap_or(self.name == "fix");
         if (*env::HK_FIX && fix) || opts.fix {
             RunType::Fix
