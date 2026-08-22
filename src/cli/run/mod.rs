@@ -88,8 +88,7 @@ mod tests {
 
     #[test]
     fn a_bare_run_asks_for_short_help() {
-        let Err(usage_rs::Error::MissingArgsHelp { cmd }) =
-            Cli::parse_from(&[OsStr::new("run")])
+        let Err(usage_rs::Error::MissingArgsHelp { cmd }) = Cli::parse_from(&[OsStr::new("run")])
         else {
             panic!("hk run with no hook should request short help");
         };
