@@ -8,8 +8,9 @@ import "../Config.pkl"
 go_vet = new Config.Step {
   glob = "**/*.go"
   workspace_indicator = "go.mod"
+  dir = "{{workspace}}"
   check = new Config.CommandSpec {
-    command = "cd {{workspace}} && go vet ./..."
+    command = "go vet ./..."
     effect = "write"
   }
   tests {

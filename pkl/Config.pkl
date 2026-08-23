@@ -625,6 +625,29 @@ class Step {
   ///     }
   /// }
   /// ```
+  ///
+  /// `dir` is a template, so with `workspace_indicator` set it can follow each
+  /// job's workspace instead of the command opening with a `cd`:
+  ///
+  /// ```pkl
+  /// local linters = new Mapping<String, Step> {
+  ///     ["go-vet"] {
+  ///         glob = "**/*.go"
+  ///         workspace_indicator = "go.mod"
+  ///         dir = "{{workspace}}"
+  ///         check = "go vet ./..."
+  ///     }
+  /// }
+  /// ```
+  ///
+  /// `{{files}}` is relative to the rendered directory, as it already is for a
+  /// literal `dir`.
+  ///
+  /// Note that file selection — `glob` matching, `exclude`, and `stage`
+  /// pathspecs — happens before hk knows which workspace a job will run in, so
+  /// it can only use the literal part of `dir` that precedes the first template
+  /// expression. `dir = "{{workspace}}"` therefore scopes nothing, and file
+  /// selection is left to `glob` and `workspace_indicator`.
   dir: String?
 
   /// Profiles are a way to enable/disable linters based on the current profile.

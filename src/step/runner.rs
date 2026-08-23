@@ -330,14 +330,27 @@ impl Step {
                 cmd = cmd.env("GIT_WORK_TREE", root);
             }
         }
-        if let Some(dir) = &self.dir {
-            cmd = cmd.current_dir(dir);
+        // `dir` is a template: it may resolve to this job's workspace.
+        if let Some(dir) = self
+            .render_dir(&tctx)
+            .wrap_err_with(|| format!("{self}: failed to render dir template"))?
+        {
+            // A bad `dir` fails at spawn with a bare "No such file or directory";
+            // name the step, the path, and which of the two went wrong.
+            let dir_path = Path::new(&dir);
+            if !dir_path.exists() {
+                eyre::bail!("{self}: working directory does not exist: {dir}");
+            }
+            if !dir_path.is_dir() {
+                eyre::bail!("{self}: working directory is not a directory: {dir}");
+            }
+            cmd = cmd.current_dir(&dir);
             // With HK_MISE enabled, resolve the mise environment for the step's
             // directory so tools/env from that directory's mise config (e.g. a
             // subproject's mise.toml) are available even when hk was started
             // from the repo root. Explicit step env still wins below.
             if *env::HK_MISE {
-                let mise_env = crate::mise_env::mise_env_for_dir(Path::new(dir)).await;
+                let mise_env = crate::mise_env::mise_env_for_dir(Path::new(&dir)).await;
                 for (key, value) in mise_env.iter() {
                     cmd = cmd.env(key, value);
                 }
