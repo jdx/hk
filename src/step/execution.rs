@@ -397,6 +397,14 @@ impl Step {
                 .collect::<Result<Vec<_>>>()?
         };
 
+        // A fully templated `dir` has no literal prefix, so stage patterns stay
+        // rooted at the repo root rather than following each workspace.
+        if !rendered_patterns.is_empty() && self.dir.is_some() && self.dir_prefix().is_none() {
+            warn!(
+                "{self}: `stage` patterns are relative to the repo root: `dir` is templated, so hk cannot scope them to a workspace"
+            );
+        }
+
         let mut stage_globs: Vec<String> = Vec::new();
         for pat in rendered_patterns {
             // Always include the base pattern (with dir prefix if present)

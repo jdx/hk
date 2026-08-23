@@ -166,6 +166,8 @@ File selection happens before hk knows which workspace a job will run in, so `gl
 
 Literal `dir` values contain no template expression, so they behave exactly as before.
 
+Two limitations follow from that. `stage` patterns cannot follow a per-job workspace either — staging runs once per step, after every job — so hk warns when `stage` is combined with a fully templated `dir`. And `{{workspace}}` is always relative to the repo root, never to a subproject, so a subproject config that sets a templated `dir` resolves to the wrong path; use a literal `dir` there for now.
+
 ### Focus checks on failing files
 
 For tools whose detailed `check` output cannot identify failing files in a machine-readable form, set `check_failed_files = true` and provide either `check_list_files` or `check_diff`:

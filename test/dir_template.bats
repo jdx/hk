@@ -180,3 +180,66 @@ EOF
     # "." is the repo root, so it narrows nothing and paths stay as they are.
     assert_output --partial "root sub/a.txt"
 }
+
+@test "a dir that renders to a missing directory names the step and the path" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["missing"] {
+                glob = List("**/*.txt")
+                dir = "nope/{{step}}"
+                check = "true"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p nope
+    echo "a" > nope/a.txt
+    git add nope
+
+    run hk check -v
+    assert_failure
+    # Without this the spawn fails with a bare "No such file or directory".
+    assert_output --partial "missing: working directory does not exist: nope/missing"
+}
+
+@test "stage patterns warn when dir is fully templated" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["gen"] {
+                glob = List("**/*.txt")
+                workspace_indicator = "marker"
+                dir = "{{workspace}}"
+                stage = List("generated/**")
+                fix = "mkdir -p generated && echo out > generated/o.txt"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p pkgs/a
+    touch pkgs/a/marker
+    echo "x" > pkgs/a/in.txt
+    git add pkgs
+    git commit -m "add workspace"
+    echo "y" >> pkgs/a/in.txt
+    git add pkgs/a/in.txt
+
+    run hk fix
+    assert_success
+    # Staging runs once per step, so it cannot follow a per-job workspace.
+    assert_output --partial "\`stage\` patterns are relative to the repo root"
+}
