@@ -209,7 +209,7 @@ EOF
     assert_output --partial "missing: working directory does not exist: nope/missing"
 }
 
-@test "stage patterns warn when dir is fully templated" {
+@test "stage patterns are scoped to each workspace when dir is templated" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -230,16 +230,51 @@ EOF
     git add hk.pkl
     git commit -m "initial commit"
 
-    mkdir -p pkgs/a
-    touch pkgs/a/marker
+    mkdir -p pkgs/a pkgs/b generated
+    touch pkgs/a/marker pkgs/b/marker
     echo "x" > pkgs/a/in.txt
+    echo "x" > pkgs/b/in.txt
+    echo "unrelated" > generated/root.txt
     git add pkgs
-    git commit -m "add workspace"
+    git commit -m "add workspaces"
     echo "y" >> pkgs/a/in.txt
-    git add pkgs/a/in.txt
+    echo "y" >> pkgs/b/in.txt
+    git add pkgs/a/in.txt pkgs/b/in.txt
 
     run hk fix
     assert_success
-    # Staging runs once per step, so it cannot follow a per-job workspace.
-    assert_output --partial "\`stage\` patterns are relative to the repo root"
+
+    run git diff --cached --name-only
+    # The pattern is resolved once per workspace, so both generated files are
+    # staged and the same-named path at the repo root is left alone.
+    assert_line "pkgs/a/generated/o.txt"
+    assert_line "pkgs/b/generated/o.txt"
+    refute_line "generated/root.txt"
+}
+
+@test "a dir that renders to a file says so instead of reporting it missing" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["notadir"] {
+                glob = List("**/*.txt")
+                dir = "{{step}}"
+                check = "true"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    echo "i am a file" > notadir
+    echo "a" > a.txt
+    git add notadir a.txt
+
+    run hk check -v
+    assert_failure
+    assert_output --partial "notadir: working directory is not a directory: notadir"
 }

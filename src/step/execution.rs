@@ -367,9 +367,7 @@ impl Step {
         all_job_files: &IndexSet<PathBuf>,
         actual_job_files: &IndexSet<PathBuf>,
     ) -> Result<()> {
-        // Build stage pathspecs; if `dir` is set, stage entries are relative to it
-        // (its literal prefix when templated: staging runs once per step, after
-        // every job, so there is no single workspace to render with).
+        // Build stage pathspecs; if `dir` is set, stage entries are relative to it.
         // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
         // Determine effective stage: explicit setting wins, otherwise default to <JOB_FILES>
         // for steps with fix commands when staging is enabled.
@@ -397,33 +395,27 @@ impl Step {
                 .collect::<Result<Vec<_>>>()?
         };
 
-        // A fully templated `dir` has no literal prefix, so stage patterns stay
-        // rooted at the repo root rather than following each workspace.
-        if !rendered_patterns.is_empty() && self.dir.is_some() && self.dir_prefix().is_none() {
+        // One root per directory the step's jobs ran in: a templated `dir` needs
+        // a pattern per workspace, or `generated/**` would resolve at the repo
+        // root and both miss the per-workspace files and match unrelated ones.
+        let stage_roots = self.resolved_dirs(&ctx.hook_ctx.tctx, all_job_files)?;
+        if !rendered_patterns.is_empty() && self.dir.is_some() && stage_roots.is_empty() {
             warn!(
-                "{self}: `stage` patterns are relative to the repo root: `dir` is templated, so hk cannot scope them to a workspace"
+                "{self}: `stage` patterns are relative to the repo root: `dir` is templated and no workspace matched, so hk cannot scope them"
             );
         }
 
         let mut stage_globs: Vec<String> = Vec::new();
         for pat in rendered_patterns {
-            // Always include the base pattern (with dir prefix if present)
-            if let Some(dir) = self.dir_prefix() {
-                stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), pat));
-            } else {
-                stage_globs.push(pat.clone());
-            }
+            // Always include the base pattern (under each dir if present)
+            push_stage_globs(&mut stage_globs, &stage_roots, &pat);
 
             // If the original (un-prefixed) pattern starts with "**/", also include a root-level variant
             // without that prefix. When `dir` is set, make the root variant relative to `dir`.
             if let Some(rest) = pat.strip_prefix("**/")
                 && !rest.is_empty()
             {
-                if let Some(dir) = self.dir_prefix() {
-                    stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), rest));
-                } else {
-                    stage_globs.push(rest.to_string());
-                }
+                push_stage_globs(&mut stage_globs, &stage_roots, rest);
             }
         }
         // Guard against empty pathspecs (e.g., when pattern is exactly "**/")
@@ -538,5 +530,21 @@ impl Step {
             }
         }
         Ok(())
+    }
+}
+
+/// Push `pat` once per stage root, or bare when there are none (the repo root).
+fn push_stage_globs(globs: &mut Vec<String>, roots: &[String], pat: &str) {
+    if roots.is_empty() {
+        globs.push(pat.to_string());
+        return;
+    }
+    for root in roots {
+        let root = root.trim_end_matches('/');
+        if root.is_empty() || root == "." {
+            globs.push(pat.to_string());
+        } else {
+            globs.push(format!("{root}/{pat}"));
+        }
     }
 }

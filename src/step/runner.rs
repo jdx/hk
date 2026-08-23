@@ -335,10 +335,14 @@ impl Step {
             .render_dir(&tctx)
             .wrap_err_with(|| format!("{self}: failed to render dir template"))?
         {
-            // A rendered `dir` that does not exist fails at spawn with a bare
-            // "No such file or directory"; name the step and the path instead.
-            if !Path::new(&dir).is_dir() {
+            // A bad `dir` fails at spawn with a bare "No such file or directory";
+            // name the step, the path, and which of the two went wrong.
+            let dir_path = Path::new(&dir);
+            if !dir_path.exists() {
                 eyre::bail!("{self}: working directory does not exist: {dir}");
+            }
+            if !dir_path.is_dir() {
+                eyre::bail!("{self}: working directory is not a directory: {dir}");
             }
             cmd = cmd.current_dir(&dir);
             // With HK_MISE enabled, resolve the mise environment for the step's

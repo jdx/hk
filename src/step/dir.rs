@@ -11,6 +11,9 @@
 //!   literal prefix of `dir`
 
 use crate::{Result, tera};
+use indexmap::IndexSet;
+use itertools::Itertools;
+use std::path::PathBuf;
 
 use super::Step;
 
@@ -41,22 +44,79 @@ impl Step {
         let rendered = tera::render(dir, tctx)?;
         Ok(Some(strip_cur_dir(&rendered).to_string()))
     }
+
+    /// Every directory `dir` resolved to across a step's jobs.
+    ///
+    /// Staging runs once per step rather than per job, so a templated `dir`
+    /// has to be resolved again here: rendering it against each workspace the
+    /// jobs were built from recovers the directories they ran in. Falls back
+    /// to [`Step::dir_prefix`] when there are no workspaces to render with.
+    ///
+    /// # Returns
+    ///
+    /// An empty vector when `dir` is unset, meaning the repo root.
+    pub fn resolved_dirs(
+        &self,
+        base: &tera::Context,
+        files: &IndexSet<PathBuf>,
+    ) -> Result<Vec<String>> {
+        let Some(dir) = self.dir.as_deref() else {
+            return Ok(Vec::new());
+        };
+        if template_start(dir).is_none() {
+            return Ok(vec![strip_cur_dir(dir).to_string()]);
+        }
+        let workspaces = self
+            .workspaces_for_files(&files.iter().cloned().collect_vec())?
+            .unwrap_or_default();
+        if workspaces.is_empty() {
+            return Ok(self
+                .dir_prefix()
+                .map(ToString::to_string)
+                .into_iter()
+                .collect());
+        }
+        render_per_workspace(self, base, &workspaces)
+    }
+}
+
+/// Render `dir` once per workspace, as each job did.
+fn render_per_workspace(
+    step: &Step,
+    base: &tera::Context,
+    workspaces: &IndexSet<PathBuf>,
+) -> Result<Vec<String>> {
+    let mut dirs = Vec::new();
+    for workspace_indicator in workspaces {
+        let mut tctx = base.clone();
+        tctx.insert("step", &step.name);
+        tctx.with_workspace_indicator(workspace_indicator);
+        let dir = step.render_dir(&tctx)?.unwrap_or_default();
+        if !dir.is_empty() && !dirs.contains(&dir) {
+            dirs.push(dir);
+        }
+    }
+    Ok(dirs)
 }
 
 /// The literal path prefix of `dir`: everything before the separator preceding
 /// the first template expression.
 fn dir_prefix(dir: &str) -> Option<&str> {
     let dir = strip_cur_dir(dir);
-    let Some(template_start) = TEMPLATE_OPENERS
-        .iter()
-        .filter_map(|opener| dir.find(opener))
-        .min()
-    else {
+    let Some(start) = template_start(dir) else {
         return subdir_prefix(dir);
     };
     // Only whole segments count: "pkg-" in `pkg-{{workspace}}` is not a directory.
-    let (prefix, _) = dir[..template_start].rsplit_once(['/', '\\'])?;
+    let (prefix, _) = dir[..start].rsplit_once(['/', '\\'])?;
     subdir_prefix(prefix.trim_end_matches(['/', '\\']))
+}
+
+/// Byte offset of the first template expression, or `None` for a literal `dir`.
+fn template_start(dir: &str) -> Option<usize> {
+    TEMPLATE_OPENERS
+        .iter()
+        .filter_map(|opener| dir.find(opener))
+        .min()
 }
 
 /// Discard a prefix that names the repo root rather than a subdirectory, which
