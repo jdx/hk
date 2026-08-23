@@ -7,14 +7,13 @@ use crate::{
     git::{Git, is_zero_sha},
 };
 
-#[derive(clap::Args)]
-#[clap(visible_alias = "pp")]
+#[derive(usage_rs::Args)]
 pub struct PrePush {
     /// Remote name
     remote: Option<String>,
     /// Remote URL
     url: Option<String>,
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

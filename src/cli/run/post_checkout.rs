@@ -1,7 +1,7 @@
 use crate::Result;
 use crate::hook_options::HookOptions;
 
-#[derive(clap::Args)]
+#[derive(usage_rs::Args)]
 pub struct PostCheckout {
     /// SHA of the HEAD before the checkout
     prev_head: String,
@@ -9,7 +9,7 @@ pub struct PostCheckout {
     new_head: String,
     /// Flag indicating whether the checkout was a branch checkout (1) or file checkout (0)
     is_branch_checkout: String,
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

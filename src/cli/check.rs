@@ -1,9 +1,8 @@
 use crate::hook_options::HookOptions;
 
 /// Checks code
-#[derive(clap::Args)]
-#[clap(visible_alias = "c")]
+#[derive(usage_rs::Args)]
 pub struct Check {
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(crate) hook: HookOptions,
 }

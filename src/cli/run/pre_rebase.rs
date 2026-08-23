@@ -1,13 +1,13 @@
 use crate::Result;
 use crate::hook_options::HookOptions;
 
-#[derive(clap::Args)]
+#[derive(usage_rs::Args)]
 pub struct PreRebase {
     /// The upstream from which the series was forked
     upstream: String,
     /// The branch being rebased (unset when rebasing the current branch)
     branch: Option<String>,
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

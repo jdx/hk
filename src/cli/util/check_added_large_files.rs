@@ -4,14 +4,15 @@ use std::path::PathBuf;
 
 const DEFAULT_MAX_SIZE_KB: u64 = 500;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
 pub struct CheckAddedLargeFiles {
     /// Maximum file size in kilobytes (default: 500)
-    #[clap(long, default_value_t = DEFAULT_MAX_SIZE_KB)]
+    #[usage(long, default_value_t = DEFAULT_MAX_SIZE_KB, default = "500")]
     pub maxkb: u64,
 
     /// Files to check
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 

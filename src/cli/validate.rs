@@ -3,8 +3,9 @@ use eyre::bail;
 use crate::{Result, config::Config};
 
 /// Validate the config file
-#[derive(Debug, clap::Args)]
-pub struct Validate {}
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
+pub struct Validate;
 
 impl Validate {
     pub async fn run(&self) -> Result<()> {

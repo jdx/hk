@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE sources=["Cargo.lock"]
+#MISE outputs=["target/usage-cli/bin/usage"]
+
+set -eu
+
+cargo install --locked \
+  --root target/usage-cli \
+  --version 6.1.0 usage-cli

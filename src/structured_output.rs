@@ -18,11 +18,14 @@ use std::{
     Default,
     Eq,
     PartialEq,
-    clap::ValueEnum,
+    usage_rs::ValueEnum,
+    strum::EnumString,
+    strum::Display,
     serde::Serialize,
     serde::Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum OutputFormat {
     #[default]
     Human,

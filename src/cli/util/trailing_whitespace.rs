@@ -4,18 +4,19 @@ use std::io::Read;
 use std::path::PathBuf;
 
 /// Check for and optionally fix trailing whitespace in files
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "write")]
 pub struct TrailingWhitespace {
     /// Output a diff of the change. Cannot use with `fix`.
-    #[clap(short, long, conflicts_with = "fix")]
+    #[usage(short, long, conflicts = "--fix")]
     pub diff: bool,
 
     /// Fix trailing whitespace by removing it
-    #[clap(short, long)]
+    #[usage(short, long)]
     pub fix: bool,
 
     /// Files to check/fix
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 
