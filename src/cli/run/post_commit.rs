@@ -1,9 +1,9 @@
 use crate::Result;
 use crate::hook_options::HookOptions;
 
-#[derive(clap::Args)]
+#[derive(usage_rs::Args)]
 pub struct PostCommit {
-    #[clap(flatten)]
+    #[usage(flatten)]
     pub(super) hook: HookOptions,
 }
 

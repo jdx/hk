@@ -30,14 +30,27 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["codex", "claude-code", "vscode"]
+                    "choices": ["codex", "claude-code", "vscode"],
+                    "details": [
+                      {
+                        "value": "codex"
+                      },
+                      {
+                        "value": "claude-code"
+                      },
+                      {
+                        "value": "vscode"
+                      }
+                    ]
                   }
                 }
               }
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print a hook configuration for an agent or editor",
             "name": "hooks",
             "aliases": [],
@@ -65,14 +78,27 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["codex", "claude-code", "generic"]
+                    "choices": ["codex", "claude-code", "generic"],
+                    "details": [
+                      {
+                        "value": "codex"
+                      },
+                      {
+                        "value": "claude-code"
+                      },
+                      {
+                        "value": "generic"
+                      }
+                    ]
                   }
                 }
               }
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print project instructions for a coding agent",
             "name": "instructions",
             "aliases": [],
@@ -105,6 +131,20 @@
                       "claude-desktop",
                       "claude-code",
                       "vscode"
+                    ],
+                    "details": [
+                      {
+                        "value": "codex"
+                      },
+                      {
+                        "value": "claude-desktop"
+                      },
+                      {
+                        "value": "claude-code"
+                      },
+                      {
+                        "value": "vscode"
+                      }
                     ]
                   }
                 }
@@ -112,7 +152,9 @@
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print an MCP server configuration",
             "name": "mcp",
             "aliases": [],
@@ -124,8 +166,10 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Generate integration snippets for coding agents",
         "name": "agent",
         "aliases": [],
@@ -140,7 +184,9 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Lists all available builtin linters",
         "name": "builtins",
         "aliases": [],
@@ -159,7 +205,9 @@
             "flags": [],
             "mounts": [],
             "effect": "write",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Clear the cache directory",
             "name": "clear",
             "aliases": [],
@@ -171,8 +219,10 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": true,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Manage hk internal cache",
         "name": "cache",
         "aliases": [],
@@ -192,7 +242,14 @@
             "required": false,
             "double_dash": "Optional",
             "var": true,
-            "hide": false
+            "hide": false,
+            "conflicts": [
+              "--all",
+              "--files0-from",
+              "--pr",
+              "--staged",
+              "--unstaged"
+            ]
           }
         ],
         "flags": [
@@ -204,7 +261,8 @@
             "short": ["a"],
             "long": ["all"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--staged", "--unstaged"]
           },
           {
             "name": "check",
@@ -214,7 +272,8 @@
             "short": ["c"],
             "long": ["check"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--fix"]
           },
           {
             "name": "exclude",
@@ -242,7 +301,8 @@
             "short": ["f"],
             "long": ["fix"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--check"]
           },
           {
             "name": "glob",
@@ -302,20 +362,22 @@
           },
           {
             "name": "why",
-            "usage": "-W --why <STEP>",
-            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "usage": "-W --why [STEP]",
+            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
             "short": ["W"],
             "long": ["why"],
             "hide": false,
             "global": false,
             "arg": {
               "name": "STEP",
-              "usage": "<STEP>",
-              "required": true,
+              "usage": "[STEP]",
+              "required": false,
               "double_dash": "Optional",
               "hide": false
-            }
+            },
+            "value_optional": true,
+            "default_missing": ""
           },
           {
             "name": "fail-fast",
@@ -325,7 +387,8 @@
             "short": [],
             "long": ["fail-fast"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--no-fail-fast"]
           },
           {
             "name": "files0-from",
@@ -342,7 +405,16 @@
               "required": true,
               "double_dash": "Optional",
               "hide": false
-            }
+            },
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--staged",
+              "--to-ref",
+              "--unstaged"
+            ]
           },
           {
             "name": "format",
@@ -360,15 +432,26 @@
               "double_dash": "Optional",
               "hide": false,
               "choices": {
-                "choices": ["human", "json", "jsonl"]
+                "choices": ["human", "json", "jsonl"],
+                "details": [
+                  {
+                    "value": "human"
+                  },
+                  {
+                    "value": "json"
+                  },
+                  {
+                    "value": "jsonl"
+                  }
+                ]
               }
             }
           },
           {
             "name": "from-hook",
             "usage": "--from-hook",
-            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
             "short": [],
             "long": ["from-hook"],
             "hide": true,
@@ -399,7 +482,8 @@
             "short": [],
             "long": ["no-fail-fast"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--fail-fast"]
           },
           {
             "name": "no-stage",
@@ -409,7 +493,8 @@
             "short": [],
             "long": ["no-stage"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--stage"]
           },
           {
             "name": "pr",
@@ -419,7 +504,8 @@
             "short": [],
             "long": ["pr"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
           },
           {
             "name": "safe",
@@ -474,7 +560,8 @@
             "short": [],
             "long": ["stage"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--no-stage"]
           },
           {
             "name": "staged",
@@ -484,7 +571,16 @@
             "short": [],
             "long": ["staged"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--stash",
+              "--to-ref",
+              "--unstaged"
+            ]
           },
           {
             "name": "stash",
@@ -536,25 +632,54 @@
           {
             "name": "unstaged",
             "usage": "--unstaged",
-            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
             "short": [],
             "long": ["unstaged"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--stash",
+              "--to-ref",
+              "--staged"
+            ]
           }
         ],
         "mounts": [],
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Checks code",
         "name": "check",
         "aliases": ["c"],
         "hidden_aliases": [],
-        "examples": []
+        "examples": [],
+        "complete": {
+          "files": {
+            "name": "files",
+            "type_": "path"
+          },
+          "exclude": {
+            "name": "exclude",
+            "type_": "path"
+          },
+          "glob": {
+            "name": "glob",
+            "type_": "path"
+          },
+          "path": {
+            "name": "path",
+            "type_": "path"
+          }
+        }
       },
       "completion": {
         "full_cmd": ["completion"],
-        "usage": "completion <SHELL>",
+        "usage": "completion [--install] [--force] <SHELL>",
         "subcommands": {},
         "args": [
           {
@@ -567,10 +692,37 @@
             "hide": false
           }
         ],
-        "flags": [],
+        "flags": [
+          {
+            "name": "install",
+            "usage": "--install",
+            "help": "Install the script where this shell looks for it, instead of printing it",
+            "help_long": "Install the script where this shell looks for it, instead of printing it\n\nWrites the script file and nothing else: no shell rc file and no PowerShell profile is edited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's dot-source — it is printed for you to add.",
+            "help_first_line": "Install the script where this shell looks for it, instead of printing it",
+            "short": [],
+            "long": ["install"],
+            "hide": false,
+            "global": false,
+            "effect": "write"
+          },
+          {
+            "name": "force",
+            "usage": "--force",
+            "help": "Replace a file at the target path that hk did not write",
+            "help_first_line": "Replace a file at the target path that hk did not write",
+            "short": [],
+            "long": ["force"],
+            "hide": false,
+            "global": false,
+            "requires": ["--install"],
+            "effect": "write"
+          }
+        ],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Generates shell completion scripts",
         "name": "completion",
         "aliases": [],
@@ -611,7 +763,9 @@
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Print effective runtime settings (JSON format)",
             "help_long": "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config.",
             "name": "dump",
@@ -637,7 +791,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Explain where a configuration value comes from",
             "help_long": "Explain where a configuration value comes from\n\nShows the resolved value, its source (env/git/cli/default), and the full precedence chain showing all layers that could affect it.",
             "name": "explain",
@@ -664,7 +820,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Get a specific configuration value",
             "help_long": "Get a specific configuration value\n\nAvailable keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage",
             "name": "get",
@@ -680,7 +838,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Show the configuration source precedence order",
             "help_long": "Show the configuration source precedence order\n\nLists all configuration sources in order of precedence to help understand where configuration values come from.",
             "name": "sources",
@@ -693,7 +853,9 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Configuration introspection and management",
         "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.",
         "name": "config",
@@ -714,7 +876,14 @@
             "required": false,
             "double_dash": "Optional",
             "var": true,
-            "hide": false
+            "hide": false,
+            "conflicts": [
+              "--all",
+              "--files0-from",
+              "--pr",
+              "--staged",
+              "--unstaged"
+            ]
           }
         ],
         "flags": [
@@ -726,7 +895,8 @@
             "short": ["a"],
             "long": ["all"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--staged", "--unstaged"]
           },
           {
             "name": "check",
@@ -736,7 +906,8 @@
             "short": ["c"],
             "long": ["check"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--fix"]
           },
           {
             "name": "exclude",
@@ -764,7 +935,8 @@
             "short": ["f"],
             "long": ["fix"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--check"]
           },
           {
             "name": "glob",
@@ -824,20 +996,22 @@
           },
           {
             "name": "why",
-            "usage": "-W --why <STEP>",
-            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "usage": "-W --why [STEP]",
+            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
             "short": ["W"],
             "long": ["why"],
             "hide": false,
             "global": false,
             "arg": {
               "name": "STEP",
-              "usage": "<STEP>",
-              "required": true,
+              "usage": "[STEP]",
+              "required": false,
               "double_dash": "Optional",
               "hide": false
-            }
+            },
+            "value_optional": true,
+            "default_missing": ""
           },
           {
             "name": "fail-fast",
@@ -847,7 +1021,8 @@
             "short": [],
             "long": ["fail-fast"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--no-fail-fast"]
           },
           {
             "name": "files0-from",
@@ -864,7 +1039,16 @@
               "required": true,
               "double_dash": "Optional",
               "hide": false
-            }
+            },
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--staged",
+              "--to-ref",
+              "--unstaged"
+            ]
           },
           {
             "name": "format",
@@ -882,15 +1066,26 @@
               "double_dash": "Optional",
               "hide": false,
               "choices": {
-                "choices": ["human", "json", "jsonl"]
+                "choices": ["human", "json", "jsonl"],
+                "details": [
+                  {
+                    "value": "human"
+                  },
+                  {
+                    "value": "json"
+                  },
+                  {
+                    "value": "jsonl"
+                  }
+                ]
               }
             }
           },
           {
             "name": "from-hook",
             "usage": "--from-hook",
-            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
             "short": [],
             "long": ["from-hook"],
             "hide": true,
@@ -921,7 +1116,8 @@
             "short": [],
             "long": ["no-fail-fast"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--fail-fast"]
           },
           {
             "name": "no-stage",
@@ -931,7 +1127,8 @@
             "short": [],
             "long": ["no-stage"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--stage"]
           },
           {
             "name": "pr",
@@ -941,7 +1138,8 @@
             "short": [],
             "long": ["pr"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
           },
           {
             "name": "safe",
@@ -996,7 +1194,8 @@
             "short": [],
             "long": ["stage"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--no-stage"]
           },
           {
             "name": "staged",
@@ -1006,7 +1205,16 @@
             "short": [],
             "long": ["staged"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--stash",
+              "--to-ref",
+              "--unstaged"
+            ]
           },
           {
             "name": "stash",
@@ -1058,21 +1266,50 @@
           {
             "name": "unstaged",
             "usage": "--unstaged",
-            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
             "short": [],
             "long": ["unstaged"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--stash",
+              "--to-ref",
+              "--staged"
+            ]
           }
         ],
         "mounts": [],
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Fixes code",
         "name": "fix",
         "aliases": ["f"],
         "hidden_aliases": [],
-        "examples": []
+        "examples": [],
+        "complete": {
+          "files": {
+            "name": "files",
+            "type_": "path"
+          },
+          "exclude": {
+            "name": "exclude",
+            "type_": "path"
+          },
+          "glob": {
+            "name": "glob",
+            "type_": "path"
+          },
+          "path": {
+            "name": "path",
+            "type_": "path"
+          }
+        }
       },
       "init": {
         "full_cmd": ["init"],
@@ -1114,11 +1351,13 @@
         ],
         "mounts": [],
         "effect": "write",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Generates a new hk.pkl file for a project",
         "name": "init",
-        "aliases": [],
-        "hidden_aliases": ["generate"],
+        "aliases": ["generate"],
+        "hidden_aliases": [],
         "examples": []
       },
       "install": {
@@ -1135,7 +1374,8 @@
             "short": [],
             "long": ["force-local"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--global"]
           },
           {
             "name": "global",
@@ -1155,7 +1395,8 @@
             "short": [],
             "long": ["legacy"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--global"]
           },
           {
             "name": "mise",
@@ -1171,8 +1412,10 @@
         ],
         "mounts": [],
         "effect": "write",
+        "unknown_flags": null,
         "hide": false,
-        "help": "Sets up git hooks to run hk",
+        "args_override_self": true,
+        "help": "Sets up git hooks to run hk.",
         "help_long": "Sets up git hooks to run hk.\n\nThe recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.\n\nWithout `--global`, hooks are installed into the current repo only. On Git 2.54+ this uses config-based hooks (`hook.<name>.command`), which keeps `.git/hooks/` untouched and composes cleanly with other hook managers. On older Git it falls back to writing script shims.\n\nIf hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), the per-repo install is skipped — and any stale local hooks are cleaned up — so the global install remains the single source of truth and hk doesn't fire twice per event. Pass `--force-local` to install local hooks anyway.",
         "name": "install",
         "aliases": ["i"],
@@ -1204,12 +1447,20 @@
           }
         ],
         "mounts": [],
+        "unknown_flags": null,
         "hide": false,
-        "help": "Runs an MCP server for coding agents over standard input/output",
+        "args_override_self": true,
+        "help": "Runs an MCP server for coding agents over standard input/output.",
         "name": "mcp",
         "aliases": [],
         "hidden_aliases": [],
-        "examples": []
+        "examples": [],
+        "complete": {
+          "path": {
+            "name": "path",
+            "type_": "dir"
+          }
+        }
       },
       "migrate": {
         "full_cmd": ["migrate"],
@@ -1287,7 +1538,9 @@
             ],
             "mounts": [],
             "effect": "write",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Migrate from pre-commit to hk",
             "name": "pre-commit",
             "aliases": [],
@@ -1299,8 +1552,10 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Migrate from other hook managers to hk",
         "name": "migrate",
         "aliases": [],
@@ -1333,7 +1588,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -1345,7 +1607,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -1355,7 +1618,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -1383,7 +1647,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -1443,20 +1708,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -1466,7 +1733,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -1483,7 +1751,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -1501,15 +1778,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -1540,7 +1828,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -1550,7 +1839,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -1560,7 +1850,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -1615,7 +1906,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -1625,7 +1917,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -1677,20 +1978,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "commit-msg",
             "aliases": ["cm"],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "post-checkout": {
             "full_cmd": ["run", "post-checkout"],
@@ -1732,7 +2062,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -1744,7 +2081,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -1754,7 +2092,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -1782,7 +2121,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -1842,20 +2182,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -1865,7 +2207,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -1882,7 +2225,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -1900,15 +2252,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -1939,7 +2302,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -1949,7 +2313,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -1959,7 +2324,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -2014,7 +2380,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -2024,7 +2391,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -2076,20 +2452,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-checkout",
             "aliases": [],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "post-commit": {
             "full_cmd": ["run", "post-commit"],
@@ -2104,7 +2509,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -2116,7 +2528,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -2126,7 +2539,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -2154,7 +2568,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -2214,20 +2629,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -2237,7 +2654,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -2254,7 +2672,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -2272,15 +2699,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -2311,7 +2749,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -2321,7 +2760,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -2331,7 +2771,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -2386,7 +2827,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -2396,7 +2838,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -2448,20 +2899,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-commit",
             "aliases": [],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "post-merge": {
             "full_cmd": ["run", "post-merge"],
@@ -2485,7 +2965,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -2497,7 +2984,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -2507,7 +2995,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -2535,7 +3024,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -2595,20 +3085,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -2618,7 +3110,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -2635,7 +3128,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -2653,15 +3155,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -2692,7 +3205,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -2702,7 +3216,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -2712,7 +3227,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -2767,7 +3283,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -2777,7 +3294,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -2829,20 +3355,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-merge",
             "aliases": [],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "post-rewrite": {
             "full_cmd": ["run", "post-rewrite"],
@@ -2866,7 +3421,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -2878,7 +3440,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -2888,7 +3451,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -2916,7 +3480,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -2976,20 +3541,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -2999,7 +3566,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -3016,7 +3584,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -3034,15 +3611,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -3073,7 +3661,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -3083,7 +3672,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -3093,7 +3683,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -3148,7 +3739,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -3158,7 +3750,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -3210,20 +3811,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "post-rewrite",
             "aliases": [],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "pre-commit": {
             "full_cmd": ["run", "pre-commit"],
@@ -3238,7 +3868,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -3250,7 +3887,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -3260,7 +3898,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -3288,7 +3927,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -3348,20 +3988,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -3371,7 +4013,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -3388,7 +4031,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -3406,15 +4058,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -3445,7 +4108,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -3455,7 +4119,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -3465,7 +4130,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -3520,7 +4186,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -3530,7 +4197,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -3582,21 +4258,50 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
-            "help": "Sets up git hooks to run hk",
+            "args_override_self": true,
+            "help": "Run the pre-commit hook",
             "name": "pre-commit",
             "aliases": ["pc"],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "pre-push": {
             "full_cmd": ["run", "pre-push"],
@@ -3629,7 +4334,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -3641,7 +4353,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -3651,7 +4364,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -3679,7 +4393,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -3739,20 +4454,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -3762,7 +4479,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -3779,7 +4497,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -3797,15 +4524,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -3836,7 +4574,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -3846,7 +4585,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -3856,7 +4596,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -3911,7 +4652,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -3921,7 +4663,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -3973,20 +4724,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "pre-push",
             "aliases": ["pp"],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "pre-rebase": {
             "full_cmd": ["run", "pre-rebase"],
@@ -4019,7 +4799,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -4031,7 +4818,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -4041,7 +4829,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -4069,7 +4858,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -4129,20 +4919,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -4152,7 +4944,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -4169,7 +4962,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -4187,15 +4989,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -4226,7 +5039,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -4236,7 +5050,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -4246,7 +5061,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -4301,7 +5117,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -4311,7 +5128,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -4363,20 +5189,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "pre-rebase",
             "aliases": [],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           },
           "prepare-commit-msg": {
             "full_cmd": ["run", "prepare-commit-msg"],
@@ -4418,7 +5273,14 @@
                 "required": false,
                 "double_dash": "Optional",
                 "var": true,
-                "hide": false
+                "hide": false,
+                "conflicts": [
+                  "--all",
+                  "--files0-from",
+                  "--pr",
+                  "--staged",
+                  "--unstaged"
+                ]
               }
             ],
             "flags": [
@@ -4430,7 +5292,8 @@
                 "short": ["a"],
                 "long": ["all"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--staged", "--unstaged"]
               },
               {
                 "name": "check",
@@ -4440,7 +5303,8 @@
                 "short": ["c"],
                 "long": ["check"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fix"]
               },
               {
                 "name": "exclude",
@@ -4468,7 +5332,8 @@
                 "short": ["f"],
                 "long": ["fix"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--check"]
               },
               {
                 "name": "glob",
@@ -4528,20 +5393,22 @@
               },
               {
                 "name": "why",
-                "usage": "-W --why <STEP>",
-                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+                "usage": "-W --why [STEP]",
+                "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+                "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
                 "short": ["W"],
                 "long": ["why"],
                 "hide": false,
                 "global": false,
                 "arg": {
                   "name": "STEP",
-                  "usage": "<STEP>",
-                  "required": true,
+                  "usage": "[STEP]",
+                  "required": false,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "value_optional": true,
+                "default_missing": ""
               },
               {
                 "name": "fail-fast",
@@ -4551,7 +5418,8 @@
                 "short": [],
                 "long": ["fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-fail-fast"]
               },
               {
                 "name": "files0-from",
@@ -4568,7 +5436,16 @@
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
-                }
+                },
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--staged",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "format",
@@ -4586,15 +5463,26 @@
                   "double_dash": "Optional",
                   "hide": false,
                   "choices": {
-                    "choices": ["human", "json", "jsonl"]
+                    "choices": ["human", "json", "jsonl"],
+                    "details": [
+                      {
+                        "value": "human"
+                      },
+                      {
+                        "value": "json"
+                      },
+                      {
+                        "value": "jsonl"
+                      }
+                    ]
                   }
                 }
               },
               {
                 "name": "from-hook",
                 "usage": "--from-hook",
-                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+                "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+                "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
                 "short": [],
                 "long": ["from-hook"],
                 "hide": true,
@@ -4625,7 +5513,8 @@
                 "short": [],
                 "long": ["no-fail-fast"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--fail-fast"]
               },
               {
                 "name": "no-stage",
@@ -4635,7 +5524,8 @@
                 "short": [],
                 "long": ["no-stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--stage"]
               },
               {
                 "name": "pr",
@@ -4645,7 +5535,8 @@
                 "short": [],
                 "long": ["pr"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
               },
               {
                 "name": "safe",
@@ -4700,7 +5591,8 @@
                 "short": [],
                 "long": ["stage"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "overrides": ["--no-stage"]
               },
               {
                 "name": "staged",
@@ -4710,7 +5602,16 @@
                 "short": [],
                 "long": ["staged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--unstaged"
+                ]
               },
               {
                 "name": "stash",
@@ -4762,20 +5663,49 @@
               {
                 "name": "unstaged",
                 "usage": "--unstaged",
-                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+                "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+                "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
                 "short": [],
                 "long": ["unstaged"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": [
+                  "--all",
+                  "--from-ref",
+                  "--glob",
+                  "--pr",
+                  "--stash",
+                  "--to-ref",
+                  "--staged"
+                ]
               }
             ],
             "mounts": [],
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "name": "prepare-commit-msg",
             "aliases": ["pcm"],
             "hidden_aliases": [],
-            "examples": []
+            "examples": [],
+            "complete": {
+              "files": {
+                "name": "files",
+                "type_": "path"
+              },
+              "exclude": {
+                "name": "exclude",
+                "type_": "path"
+              },
+              "glob": {
+                "name": "glob",
+                "type_": "path"
+              },
+              "path": {
+                "name": "path",
+                "type_": "path"
+              }
+            }
           }
         },
         "args": [
@@ -4794,7 +5724,14 @@
             "required": false,
             "double_dash": "Optional",
             "var": true,
-            "hide": false
+            "hide": false,
+            "conflicts": [
+              "--all",
+              "--files0-from",
+              "--pr",
+              "--staged",
+              "--unstaged"
+            ]
           }
         ],
         "flags": [
@@ -4806,7 +5743,8 @@
             "short": ["a"],
             "long": ["all"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--staged", "--unstaged"]
           },
           {
             "name": "check",
@@ -4816,7 +5754,8 @@
             "short": ["c"],
             "long": ["check"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--fix"]
           },
           {
             "name": "exclude",
@@ -4844,7 +5783,8 @@
             "short": ["f"],
             "long": ["fix"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--check"]
           },
           {
             "name": "glob",
@@ -4904,20 +5844,22 @@
           },
           {
             "name": "why",
-            "usage": "-W --why <STEP>",
-            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
-            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan",
+            "usage": "-W --why [STEP]",
+            "help": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
+            "help_first_line": "Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.",
             "short": ["W"],
             "long": ["why"],
             "hide": false,
             "global": false,
             "arg": {
               "name": "STEP",
-              "usage": "<STEP>",
-              "required": true,
+              "usage": "[STEP]",
+              "required": false,
               "double_dash": "Optional",
               "hide": false
-            }
+            },
+            "value_optional": true,
+            "default_missing": ""
           },
           {
             "name": "fail-fast",
@@ -4927,7 +5869,8 @@
             "short": [],
             "long": ["fail-fast"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--no-fail-fast"]
           },
           {
             "name": "files0-from",
@@ -4944,7 +5887,16 @@
               "required": true,
               "double_dash": "Optional",
               "hide": false
-            }
+            },
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--staged",
+              "--to-ref",
+              "--unstaged"
+            ]
           },
           {
             "name": "format",
@@ -4962,15 +5914,26 @@
               "double_dash": "Optional",
               "hide": false,
               "choices": {
-                "choices": ["human", "json", "jsonl"]
+                "choices": ["human", "json", "jsonl"],
+                "details": [
+                  {
+                    "value": "human"
+                  },
+                  {
+                    "value": "json"
+                  },
+                  {
+                    "value": "jsonl"
+                  }
+                ]
               }
             }
           },
           {
             "name": "from-hook",
             "usage": "--from-hook",
-            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
-            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`",
+            "help": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
+            "help_first_line": "Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`.",
             "short": [],
             "long": ["from-hook"],
             "hide": true,
@@ -5001,7 +5964,8 @@
             "short": [],
             "long": ["no-fail-fast"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--fail-fast"]
           },
           {
             "name": "no-stage",
@@ -5011,7 +5975,8 @@
             "short": [],
             "long": ["no-stage"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--stage"]
           },
           {
             "name": "pr",
@@ -5021,7 +5986,8 @@
             "short": [],
             "long": ["pr"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": ["--all", "--from-ref", "--glob", "--to-ref"]
           },
           {
             "name": "safe",
@@ -5076,7 +6042,8 @@
             "short": [],
             "long": ["stage"],
             "hide": false,
-            "global": false
+            "global": false,
+            "overrides": ["--no-stage"]
           },
           {
             "name": "staged",
@@ -5086,7 +6053,16 @@
             "short": [],
             "long": ["staged"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--stash",
+              "--to-ref",
+              "--unstaged"
+            ]
           },
           {
             "name": "stash",
@@ -5138,21 +6114,51 @@
           {
             "name": "unstaged",
             "usage": "--unstaged",
-            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
-            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed",
+            "help": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
+            "help_first_line": "Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.",
             "short": [],
             "long": ["unstaged"],
             "hide": false,
-            "global": false
+            "global": false,
+            "conflicts": [
+              "--all",
+              "--from-ref",
+              "--glob",
+              "--pr",
+              "--stash",
+              "--to-ref",
+              "--staged"
+            ]
           }
         ],
         "mounts": [],
+        "unknown_flags": null,
         "hide": false,
+        "arg_required_else_help": true,
+        "args_override_self": true,
         "help": "Run a hook",
         "name": "run",
         "aliases": ["r"],
         "hidden_aliases": [],
-        "examples": []
+        "examples": [],
+        "complete": {
+          "files": {
+            "name": "files",
+            "type_": "path"
+          },
+          "exclude": {
+            "name": "exclude",
+            "type_": "path"
+          },
+          "glob": {
+            "name": "glob",
+            "type_": "path"
+          },
+          "path": {
+            "name": "path",
+            "type_": "path"
+          }
+        }
       },
       "sponsors": {
         "full_cmd": ["sponsors"],
@@ -5162,7 +6168,9 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Show the companies sponsoring hk and the jdx.dev open source tools",
         "name": "sponsors",
         "aliases": [],
@@ -5187,43 +6195,47 @@
           },
           {
             "name": "name",
-            "usage": "--name… <NAME>",
+            "usage": "--name <NAME>…",
             "help": "Filter by test name (repeatable)",
             "help_first_line": "Filter by test name (repeatable)",
             "short": [],
             "long": ["name"],
-            "var": true,
             "hide": false,
             "global": false,
             "arg": {
               "name": "NAME",
-              "usage": "<NAME>",
+              "usage": "<NAME>…",
               "required": true,
               "double_dash": "Optional",
+              "var": true,
+              "var_min": 1,
               "hide": false
             }
           },
           {
             "name": "step",
-            "usage": "--step… <STEP>",
+            "usage": "--step <STEP>…",
             "help": "Filter by step name (repeatable)",
             "help_first_line": "Filter by step name (repeatable)",
             "short": [],
             "long": ["step"],
-            "var": true,
             "hide": false,
             "global": false,
             "arg": {
               "name": "STEP",
-              "usage": "<STEP>",
+              "usage": "<STEP>…",
               "required": true,
               "double_dash": "Optional",
+              "var": true,
+              "var_min": 1,
               "hide": false
             }
           }
         ],
         "mounts": [],
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Run step-defined tests",
         "name": "test",
         "aliases": [],
@@ -5249,7 +6261,9 @@
         ],
         "mounts": [],
         "effect": "destructive",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Removes hk hooks from the current git repository",
         "name": "uninstall",
         "aliases": [],
@@ -5264,7 +6278,9 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": true,
+        "args_override_self": true,
         "help": "Generates a usage spec for the CLI",
         "help_long": "Generates a usage spec for the CLI\n\nhttps://usage.jdx.dev",
         "name": "usage",
@@ -5314,7 +6330,9 @@
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for large files being added to repository",
             "name": "check-added-large-files",
             "aliases": [],
@@ -5341,8 +6359,8 @@
               {
                 "name": "diff",
                 "usage": "-d --diff",
-                "help": "Output a diff of the change",
-                "help_first_line": "Output a diff of the change",
+                "help": "Output a diff of the change.",
+                "help_first_line": "Output a diff of the change.",
                 "short": ["d"],
                 "long": ["diff"],
                 "hide": false,
@@ -5351,7 +6369,9 @@
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for UTF-8 byte order marker (BOM)",
             "name": "check-byte-order-marker",
             "aliases": [],
@@ -5377,7 +6397,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for case-insensitive filename conflicts",
             "name": "check-case-conflict",
             "aliases": [],
@@ -5413,6 +6435,7 @@
                   "usage": "<ALLOWED_TYPES>",
                   "required": true,
                   "double_dash": "Optional",
+                  "delimiter": ",",
                   "hide": false
                 },
                 "default": [
@@ -5422,7 +6445,9 @@
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for conventional commit message",
             "help_long": "Check for conventional commit message\n\nTitles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.",
             "name": "check-conventional-commit",
@@ -5449,7 +6474,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check that executable files have shebangs",
             "name": "check-executables-have-shebangs",
             "aliases": [],
@@ -5486,7 +6513,9 @@
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for merge conflict markers",
             "name": "check-merge-conflict",
             "aliases": [],
@@ -5512,7 +6541,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for broken symlinks",
             "name": "check-symlinks",
             "aliases": [],
@@ -5538,7 +6569,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Detect private keys in files",
             "name": "detect-private-key",
             "aliases": [],
@@ -5565,12 +6598,13 @@
               {
                 "name": "diff",
                 "usage": "-d --diff",
-                "help": "Output a diff of the change. Cannot use with `fix`",
-                "help_first_line": "Output a diff of the change. Cannot use with `fix`",
+                "help": "Output a diff of the change. Cannot use with `fix`.",
+                "help_first_line": "Output a diff of the change. Cannot use with `fix`.",
                 "short": ["d"],
                 "long": ["diff"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--fix"]
               },
               {
                 "name": "fix",
@@ -5585,7 +6619,9 @@
             ],
             "mounts": [],
             "effect": "write",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for and optionally fix missing final newlines",
             "name": "end-of-file-fixer",
             "aliases": [],
@@ -5611,7 +6647,9 @@
             "flags": [],
             "mounts": [],
             "effect": "write",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Remove UTF-8 byte order marker (BOM)",
             "name": "fix-byte-order-marker",
             "aliases": [],
@@ -5658,7 +6696,9 @@
             ],
             "mounts": [],
             "effect": "write",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Replace UTF-8 smart quotes",
             "name": "fix-smart-quotes",
             "aliases": [],
@@ -5685,12 +6725,13 @@
               {
                 "name": "diff",
                 "usage": "-d --diff",
-                "help": "Output a diff of the change. Cannot use with `fix`",
-                "help_first_line": "Output a diff of the change. Cannot use with `fix`",
+                "help": "Output a diff of the change. Cannot use with `fix`.",
+                "help_first_line": "Output a diff of the change. Cannot use with `fix`.",
                 "short": ["d"],
                 "long": ["diff"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--fix"]
               },
               {
                 "name": "fix",
@@ -5705,7 +6746,9 @@
             ],
             "mounts": [],
             "effect": "write",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Detect and fix mixed line endings",
             "name": "mixed-line-ending",
             "aliases": [],
@@ -5733,13 +6776,16 @@
                   "usage": "<BRANCH>",
                   "required": true,
                   "double_dash": "Optional",
+                  "delimiter": ",",
                   "hide": false
                 }
               }
             ],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Prevent commits to specific branches",
             "name": "no-commit-to-branch",
             "aliases": [],
@@ -5765,7 +6811,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check Python files for valid syntax",
             "name": "python-check-ast",
             "aliases": [],
@@ -5791,7 +6839,9 @@
             "flags": [],
             "mounts": [],
             "effect": "read",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Detect Python debug statements",
             "name": "python-debug-statements",
             "aliases": [],
@@ -5818,12 +6868,13 @@
               {
                 "name": "diff",
                 "usage": "-d --diff",
-                "help": "Output a diff of the change. Cannot use with `fix`",
-                "help_first_line": "Output a diff of the change. Cannot use with `fix`",
+                "help": "Output a diff of the change. Cannot use with `fix`.",
+                "help_first_line": "Output a diff of the change. Cannot use with `fix`.",
                 "short": ["d"],
                 "long": ["diff"],
                 "hide": false,
-                "global": false
+                "global": false,
+                "conflicts": ["--fix"]
               },
               {
                 "name": "fix",
@@ -5838,7 +6889,9 @@
             ],
             "mounts": [],
             "effect": "write",
+            "unknown_flags": null,
             "hide": false,
+            "args_override_self": true,
             "help": "Check for and optionally fix trailing whitespace",
             "name": "trailing-whitespace",
             "aliases": [],
@@ -5850,8 +6903,10 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
         "subcommand_required": true,
+        "args_override_self": true,
         "help": "Utility commands for file operations",
         "name": "util",
         "aliases": [],
@@ -5866,7 +6921,9 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Validate the config file",
         "name": "validate",
         "aliases": [],
@@ -5881,7 +6938,9 @@
         "flags": [],
         "mounts": [],
         "effect": "read",
+        "unknown_flags": null,
         "hide": false,
+        "args_override_self": true,
         "help": "Print the version of hk",
         "name": "version",
         "aliases": [],
@@ -5924,7 +6983,18 @@
           "double_dash": "Optional",
           "hide": false,
           "choices": {
-            "choices": ["human", "json", "jsonl"]
+            "choices": ["human", "json", "jsonl"],
+            "details": [
+              {
+                "value": "human"
+              },
+              {
+                "value": "json"
+              },
+              {
+                "value": "jsonl"
+              }
+            ]
           }
         },
         "default": ["human"]
@@ -6001,7 +7071,8 @@
         "var": true,
         "hide": false,
         "global": true,
-        "count": true
+        "count": true,
+        "overrides": ["--quiet", "--silent"]
       },
       {
         "name": "no-progress",
@@ -6021,7 +7092,8 @@
         "short": ["q"],
         "long": ["quiet"],
         "hide": false,
-        "global": true
+        "global": true,
+        "overrides": ["--verbose", "--silent"]
       },
       {
         "name": "silent",
@@ -6031,7 +7103,8 @@
         "short": [],
         "long": ["silent"],
         "hide": false,
-        "global": true
+        "global": true,
+        "overrides": ["--quiet", "--verbose"]
       },
       {
         "name": "trace",
@@ -6055,18 +7128,28 @@
       }
     ],
     "mounts": [],
+    "unknown_flags": null,
     "hide": false,
+    "subcommand_required": true,
+    "args_override_self": true,
     "name": "hk",
     "aliases": [],
     "hidden_aliases": [],
     "examples": []
   },
   "config": {
-    "props": {}
+    "props": {},
+    "sources": {},
+    "files": []
   },
   "version": "1.56.0",
-  "usage": "Usage: hk [OPTIONS] <COMMAND>",
-  "complete": {},
-  "about": "A tool for managing git hooks",
-  "min_usage_version": "4.0"
+  "usage": "",
+  "complete": {
+    "directory": {
+      "name": "directory",
+      "type_": "dir"
+    }
+  },
+  "min_usage_version": "4.0",
+  "unknown_flags": "error"
 }

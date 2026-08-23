@@ -20,18 +20,19 @@ const UTF8_SINGLE_QUOTE_CODEPOINTS: &[char] = &[
     '\u{201B}', // SINGLE HIGH-REVERSED-9 QUOTATION MARK
 ];
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "write")]
 pub struct FixSmartQuotes {
     /// Check for smart quotes without fixing them
-    #[clap(long)]
+    #[usage(long)]
     pub check: bool,
 
     /// Output a diff of the change (implies `--check`)
-    #[clap(short, long)]
+    #[usage(short, long)]
     pub diff: bool,
 
     /// Files to check/fix
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 

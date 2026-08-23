@@ -2,10 +2,11 @@ use crate::Result;
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, clap::Args)]
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
 pub struct DetectPrivateKey {
     /// Files to check
-    #[clap(required = true)]
+    #[usage(arg, required)]
     pub files: Vec<PathBuf>,
 }
 

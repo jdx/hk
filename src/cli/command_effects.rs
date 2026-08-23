@@ -1,6 +1,6 @@
 //! What each hk command does to the world.
 //!
-//! hk's usage spec is derived from clap, and clap has no way to express this,
+//! hk's usage spec is derived from Rust metadata, which has no way to express this,
 //! so the classification lives here and is applied in [`crate::cli::usage`].
 //!
 //! The three values are defined by the usage spec:
@@ -16,10 +16,7 @@
 //! absence of a value as "ask", so leaving a command out is the conservative
 //! choice and mislabeling one `read` is the dangerous one.
 
-use std::collections::HashMap;
-
-use clap_usage::usage;
-use clap_usage::usage::SpecCommandEffect::{self, Destructive, Read, Write};
+use usage_rs::spec::Effect::{self as SpecCommandEffect, Destructive, Read, Write};
 
 /// Commands whose effect is fixed, keyed by their full path under `hk`.
 pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
@@ -104,46 +101,27 @@ pub const UNCLASSIFIED: &[(&str, &str)] = &[
     ),
 ];
 
-/// Annotate every command in the spec that has a declared effect.
-pub fn apply(spec: &mut usage::Spec) {
-    let effects: HashMap<&str, SpecCommandEffect> = EFFECTS.iter().copied().collect();
-    annotate(&mut spec.cmd, &mut vec![], &effects);
-}
-
-fn annotate(
-    cmd: &mut usage::SpecCommand,
-    path: &mut Vec<String>,
-    effects: &HashMap<&str, SpecCommandEffect>,
-) {
-    for (name, sub) in cmd.subcommands.iter_mut() {
-        path.push(name.clone());
-        if let Some(effect) = effects.get(path.join(" ").as_str()) {
-            sub.effect = Some(*effect);
-        }
-        annotate(sub, path, effects);
-        path.pop();
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::cli::Cli;
-    use clap::CommandFactory;
     use std::collections::HashSet;
 
     /// Every command in the tree, hidden ones included: a hidden command is
     /// still runnable.
     fn all_commands() -> Vec<String> {
-        let spec: usage::Spec = Cli::command().into();
         let mut out = vec![];
-        collect(&spec.cmd, &mut vec![], &mut out);
+        collect(Cli::spec().root, &mut vec![], &mut out);
         out
     }
 
-    fn collect(cmd: &usage::SpecCommand, path: &mut Vec<String>, out: &mut Vec<String>) {
-        for (name, sub) in &cmd.subcommands {
-            path.push(name.clone());
+    fn collect(
+        cmd: &usage_rs::spec::CommandMeta<'_>,
+        path: &mut Vec<String>,
+        out: &mut Vec<String>,
+    ) {
+        for sub in cmd.subcommands {
+            path.push(sub.cmd.name.to_string());
             out.push(path.join(" "));
             collect(sub, path, out);
             path.pop();
@@ -158,31 +136,40 @@ mod tests {
             .collect()
     }
 
-    /// The tables are only worth having if they reach the spec. Everything
-    /// else here checks the tables against the CLI; this checks that `apply`
-    /// actually transfers them.
+    /// Effects are part of the derived metadata, so generating `hk usage` does
+    /// not need to parse and rewrite its own KDL at runtime.
     #[test]
-    fn apply_annotates_the_spec() {
-        let mut spec: usage::Spec = Cli::command().into();
-        apply(&mut spec);
-
-        let cmd = |name: &str| {
-            spec.cmd
-                .subcommands
-                .get(name)
-                .unwrap_or_else(|| panic!("no `hk {name}`"))
-        };
-        assert_eq!(cmd("uninstall").effect, Some(Destructive));
-        assert_eq!(cmd("builtins").effect, Some(Read));
-        assert_eq!(cmd("install").effect, Some(Write));
-        // Nested commands are reached too.
-        assert_eq!(
-            cmd("util").subcommands["trailing-whitespace"].effect,
-            Some(Write)
-        );
+    fn derived_spec_carries_effects() {
+        for &(path, effect) in EFFECTS {
+            let mut cmd = Cli::spec().root;
+            for segment in path.split(' ') {
+                cmd = cmd
+                    .subcommands
+                    .iter()
+                    .copied()
+                    .find(|command| command.cmd.name == segment)
+                    .unwrap_or_else(|| panic!("no `hk {path}`"));
+            }
+            assert_eq!(cmd.effect, Some(effect), "wrong effect for `hk {path}`");
+        }
         // Anything in UNCLASSIFIED must be left unset, not defaulted.
-        assert_eq!(cmd("check").effect, None);
-        assert_eq!(cmd("fix").effect, None);
+        let root = Cli::spec().root;
+        assert_eq!(
+            root.subcommands
+                .iter()
+                .find(|command| command.cmd.name == "check")
+                .expect("check")
+                .effect,
+            None
+        );
+        assert_eq!(
+            root.subcommands
+                .iter()
+                .find(|command| command.cmd.name == "fix")
+                .expect("fix")
+                .effect,
+            None
+        );
     }
 
     /// Adding a command without deciding what it does to the world is the
@@ -217,6 +204,32 @@ mod tests {
             "these entries no longer match a command:\n  {}",
             stale.join("\n  ")
         );
+    }
+
+    /// A flag can raise what its command does; this table cannot say so, since it is keyed by
+    /// command. `hk completion` only reads, and `--install` writes a file — the composition rule
+    /// the effect vocabulary has, and the one place hk declares an effect on something that is not
+    /// a command. Asserted here so a later edit cannot quietly leave `--install` reading as safe.
+    #[test]
+    fn installing_a_completion_script_is_a_write() {
+        let completion = Cli::spec()
+            .root
+            .subcommands
+            .iter()
+            .find(|command| command.cmd.name == "completion")
+            .expect("completion");
+        assert_eq!(completion.effect, Some(Read));
+        let flag = |name: &str| {
+            completion
+                .flags
+                .iter()
+                .find(|f| f.flag.name == name)
+                .unwrap_or_else(|| panic!("`hk completion` has no --{name}"))
+        };
+        assert_eq!(flag("install").effect, Some(Write));
+        // `--force` only widens which file an install may replace, so it writes for that reason
+        // rather than one of its own.
+        assert_eq!(flag("force").effect, Some(Write));
     }
 
     #[test]

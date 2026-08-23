@@ -4,7 +4,7 @@
 
 - **Usage**: `hk mcp [--root <PATH>]`
 
-Runs an MCP server for coding agents over standard input/output
+Runs an MCP server for coding agents over standard input/output.
 
 ## Flags
 

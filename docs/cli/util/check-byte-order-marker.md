@@ -17,4 +17,4 @@ Files to check
 
 ### `-d --diff`
 
-Output a diff of the change
+Output a diff of the change.
