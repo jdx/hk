@@ -38,14 +38,20 @@ PKL
 
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
 
-    # check must report the untidy module rather than failing to find it
+    # check must report the untidy module rather than failing to find it.
+    # `go mod tidy -diff` labels its output current/go.mod and tidy/go.mod, so
+    # the module path is what proves the diff came from svc/ and not the root.
     run hk check --all --step gomod_tidy
     assert_failure
     refute_output --partial "go.mod file not found"
+    assert_output --partial "module example.com/svc"
+    assert_output --partial "-require example.com/unused v1.0.0"
 
     run hk fix --all --step gomod_tidy
     assert_success
 
     run cat svc/go.mod
+    assert_success
+    assert_output --partial "module example.com/svc"
     refute_output --partial "example.com/unused"
 }
