@@ -4,9 +4,18 @@ import "../Config.pkl"
 @Builtins.meta {
   category = "Go"
   description = "Go module maintenance"
+  project_indicators {
+    new { file = "go.mod" }
+  }
 }
 gomod_tidy = new Config.Step {
   glob = "**/go.mod"
+  // NB: `go mod tidy` resolves the module rooted at the working directory, so
+  // it has to run in the directory holding the go.mod rather than the repo
+  // root. Without this it fails outright on any module outside the root and
+  // never reaches nested modules.
+  workspace_indicator = "go.mod"
+  dir = "{{workspace}}"
   check_diff = new Config.CommandSpec {
     command = "go mod tidy -diff"
     effect = "read"
@@ -14,5 +23,40 @@ gomod_tidy = new Config.Step {
   fix = new Config.CommandSpec {
     command = "go mod tidy"
     effect = "write"
+  }
+  tests {
+    ["check tidy module"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["go.mod"] = "module example.com/test\n\ngo 1.21\n"
+        ["main.go"] = "package main\n\nfunc main() {}\n"
+      }
+      expect { code = 0 }
+    }
+    ["check untidy module"] {
+      run = "check"
+      tmpdir = true
+      write {
+        // Nothing imports this module, so tidy drops the require.
+        ["go.mod"] = "module example.com/test\n\ngo 1.21\n\nrequire example.com/unused v1.0.0\n"
+        ["main.go"] = "package main\n\nfunc main() {}\n"
+      }
+      expect { code = 1 }
+    }
+    ["fix untidy module"] {
+      run = "fix"
+      tmpdir = true
+      write {
+        ["go.mod"] = "module example.com/test\n\ngo 1.21\n\nrequire example.com/unused v1.0.0\n"
+        ["main.go"] = "package main\n\nfunc main() {}\n"
+      }
+      expect {
+        code = 0
+        files {
+          ["go.mod"] = "module example.com/test\n\ngo 1.21\n"
+        }
+      }
+    }
   }
 }
