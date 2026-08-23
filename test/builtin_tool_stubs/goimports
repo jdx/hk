@@ -1,0 +1,5 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.49"
+tool = "go:golang.org/x/tools/cmd/goimports"
+bin = "goimports"
