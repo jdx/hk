@@ -70,9 +70,18 @@ fn collect_dir(
         };
         // Archive paths always use forward slashes, on every platform.
         let name = format!("{prefix}{file_name}");
-        if entry.file_type()?.is_dir() {
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
             collect_dir(&entry.path(), &format!("{name}/"), entries)?;
-        } else if !EXCLUDED.contains(&name.as_str()) {
+        } else if file_type.is_symlink() {
+            // Reading through a link would embed whatever it points at on the
+            // build machine. Fail rather than skip: a silently omitted module
+            // would ship a partial package and break the imports that need it.
+            return Err(std::io::Error::other(format!(
+                "refusing to embed symbolic link: {}",
+                entry.path().display()
+            )));
+        } else if file_type.is_file() && !EXCLUDED.contains(&name.as_str()) {
             entries.push((name, entry.path()));
         }
     }

@@ -224,7 +224,7 @@ Default: `true`
 
 hk embeds the Pkl package for its own version and seeds `HK_PKL_CACHE_DIR` with it before evaluating `hk.pkl`. A config pinning the running hk version therefore evaluates without a network request, even on a cold cache. A config pinning any other version is downloaded as usual.
 
-Set to `0` to disable seeding and always resolve the package through the cache and network.
+Set to `0` to disable seeding. The package is then resolved from `HK_PKL_CACHE_DIR`, falling back to the network unless `HK_PKL_OFFLINE` is set, in which case a package missing from the cache fails.
 
 This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
