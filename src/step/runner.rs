@@ -330,8 +330,7 @@ impl Step {
                 cmd = cmd.env("GIT_WORK_TREE", root);
             }
         }
-        // `dir` is a template so a step can follow the job's workspace with
-        // `dir = "{{workspace}}"` instead of opening its command with a `cd`.
+        // `dir` is a template: it may resolve to this job's workspace.
         if let Some(dir) = self
             .render_dir(&tctx)
             .wrap_err_with(|| format!("{self}: failed to render dir template"))?

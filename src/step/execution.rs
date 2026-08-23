@@ -191,9 +191,7 @@ impl Step {
                                 if matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
                                     && prev_run_type == RunType::Fix
                                 {
-                                    // `dir` is rendered against this job's
-                                    // context so `git apply` runs where the
-                                    // check_diff command ran.
+                                    // Apply where the check_diff command ran.
                                     let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
                                     match step.apply_diff_output(stdout, dir.as_deref()) {
                                         Ok(true) => {
@@ -369,9 +367,9 @@ impl Step {
         all_job_files: &IndexSet<PathBuf>,
         actual_job_files: &IndexSet<PathBuf>,
     ) -> Result<()> {
-        // Build stage pathspecs; if `dir` is set, stage entries are relative to
-        // it — to its literal prefix when `dir` is templated, since staging runs
-        // once per step, after every job, with no single workspace to render with.
+        // Build stage pathspecs; if `dir` is set, stage entries are relative to it
+        // (its literal prefix when templated: staging runs once per step, after
+        // every job, so there is no single workspace to render with).
         // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
         // Determine effective stage: explicit setting wins, otherwise default to <JOB_FILES>
         // for steps with fix commands when staging is enabled.

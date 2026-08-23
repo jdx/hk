@@ -181,7 +181,7 @@ impl Step {
     ///
     /// Applies the following filters in order:
     /// 1. Directory filter (`dir`) - only files under this directory
-    ///    (its literal prefix when `dir` is templated, see [`Step::dir_prefix`])
+    ///    (its literal prefix when templated, see [`Step::dir_prefix`])
     /// 2. Positive selectors (`glob` + `types`, or `match_any` clauses)
     /// 3. Exclusion pattern (`exclude`) - must not match
     /// 4. Binary filter (`allow_binary`) - skip binary files unless allowed

@@ -69,9 +69,8 @@ impl StepJob {
 
         tctx.insert("step", &self.step.name);
 
-        // Workspace variables first: `dir` is a template that may reference
-        // them (`dir = "{{workspace}}"`), and `{{files}}` is relative to the
-        // directory the command runs in, so it needs the rendered `dir`.
+        // Workspace variables first: `dir` may reference them, and the files
+        // below are made relative to the rendered `dir`.
         if let Some(workspace_indicator) = &self.workspace_indicator {
             tctx.with_workspace_indicator(workspace_indicator);
             let workspace_dir = workspace_indicator
@@ -82,9 +81,9 @@ impl StepJob {
         }
 
         // Handle directory stripping for command execution context. A `dir`
-        // that fails to render strips nothing here; the runner renders it
-        // again and reports the error before the command runs.
-        let dir = self.step.render_dir(&tctx).unwrap_or_default();
+        // that fails to render strips nothing; the runner renders it again and
+        // reports the error before the command runs.
+        let dir = self.step.render_dir(&tctx).ok().flatten();
         let command_files = if let Some(dir) = &dir {
             self.files
                 .iter()

@@ -26,8 +26,7 @@ impl Step {
     /// # Arguments
     ///
     /// * `stdout` - The unified diff output from the check_diff command
-    /// * `dir` - The job's working directory (`dir` already rendered), or
-    ///   `None` to apply from the repo root
+    /// * `dir` - The job's rendered working directory, or `None` for the repo root
     ///
     /// # Returns
     ///
