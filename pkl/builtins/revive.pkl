@@ -9,8 +9,52 @@ revive = new Config.Step {
   glob = "**/*.go"
   workspace_indicator = "go.mod"
   dir = "{{workspace}}"
+  // revive exits 0 even when it reports findings unless -set_exit_status is
+  // passed.
   check = new Config.CommandSpec {
-    command = "revive ./..."
-    effect = "read"
+    command = "revive -set_exit_status ./..."
+    effect = "write"
+  }
+  tests {
+    ["check good file"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["go.mod"] =
+          """
+            module example.com/test
+
+            go 1.21
+          """
+        ["main.go"] =
+          """
+            // Package main is a test package.
+            package main
+
+            func main() {}
+          """
+      }
+      expect { code = 0 }
+    }
+    ["check bad file"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["go.mod"] =
+          """
+            module example.com/test
+
+            go 1.21
+          """
+        // Missing the package comment revive requires.
+        ["main.go"] =
+          """
+            package main
+
+            func main() {}
+          """
+      }
+      expect { code = 1 }
+    }
   }
 }

@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Go"
@@ -7,11 +8,36 @@ import "../Config.pkl"
 }
 go_fumpt = new Config.Step {
   glob = "**/*.go"
-  // check = "gofumpt -l {{ files }}" // broken, gofumpt always exits with 0
-  // check_list_files = "gofumpt -l {{ files }}" // broken, gofumpt always exits with 0
-  // check_diff = "gofumpt -d {{ files }}" // won't work until #640 is merged
+  // `gofumpt -l` exits 0 even when it lists files, so the exit code has to
+  // come from the shell. `gofumpt -d` already exits non-zero on a non-empty
+  // diff and needs no wrapper.
+  check_list_files = new Config.CommandSpec {
+    command =
+      """
+      FILES=$(gofumpt -l {{files}})
+      if [ -n "$FILES" ]; then
+      echo "$FILES"
+      exit 1
+      fi
+      """
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command { argv = List("gofumpt", "-d", "{{files}}") }
+    effect = "read"
+  }
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("gofumpt", "-w", "{{files}}") }
     effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.go" }
+    // gofumpt collapses the redundant newline that gofmt leaves alone.
+    local const before = "package name\n\nfunc a() {\n\n\tprintln(1)\n}\n"
+    local const after = "package name\n\nfunc a() {\n\tprintln(1)\n}\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
   }
 }
