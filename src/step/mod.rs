@@ -14,6 +14,7 @@
 //! - [`runner`] - Single job execution
 //! - [`check_parsing`] - Parsing check_list_files and check_diff output
 //! - [`diff`] - Applying unified diffs directly
+//! - [`dir`] - Resolving a step's working directory
 //! - [`output`] - Output capture and fix suggestions
 //! - [`progress`] - Progress bar management
 //! - [`expr_env`] - Expression evaluation for conditions
@@ -34,6 +35,7 @@
 mod batching;
 mod check_parsing;
 mod diff;
+mod dir;
 mod execution;
 mod expr_env;
 mod filtering;

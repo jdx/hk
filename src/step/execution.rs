@@ -191,7 +191,11 @@ impl Step {
                                 if matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
                                     && prev_run_type == RunType::Fix
                                 {
-                                    match step.apply_diff_output(stdout) {
+                                    // `dir` is rendered against this job's
+                                    // context so `git apply` runs where the
+                                    // check_diff command ran.
+                                    let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
+                                    match step.apply_diff_output(stdout, dir.as_deref()) {
                                         Ok(true) => {
                                             // Diff applied successfully - no need to run fixer
                                             debug!("{step}: diff applied successfully, skipping fixer");
@@ -365,7 +369,9 @@ impl Step {
         all_job_files: &IndexSet<PathBuf>,
         actual_job_files: &IndexSet<PathBuf>,
     ) -> Result<()> {
-        // Build stage pathspecs; if `dir` is set, stage entries are relative to it
+        // Build stage pathspecs; if `dir` is set, stage entries are relative to
+        // it — to its literal prefix when `dir` is templated, since staging runs
+        // once per step, after every job, with no single workspace to render with.
         // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
         // Determine effective stage: explicit setting wins, otherwise default to <JOB_FILES>
         // for steps with fix commands when staging is enabled.
@@ -396,7 +402,7 @@ impl Step {
         let mut stage_globs: Vec<String> = Vec::new();
         for pat in rendered_patterns {
             // Always include the base pattern (with dir prefix if present)
-            if let Some(dir) = &self.dir {
+            if let Some(dir) = self.dir_prefix() {
                 stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), pat));
             } else {
                 stage_globs.push(pat.clone());
@@ -407,7 +413,7 @@ impl Step {
             if let Some(rest) = pat.strip_prefix("**/")
                 && !rest.is_empty()
             {
-                if let Some(dir) = &self.dir {
+                if let Some(dir) = self.dir_prefix() {
                     stage_globs.push(format!("{}/{}", dir.trim_end_matches('/'), rest));
                 } else {
                     stage_globs.push(rest.to_string());

@@ -330,14 +330,19 @@ impl Step {
                 cmd = cmd.env("GIT_WORK_TREE", root);
             }
         }
-        if let Some(dir) = &self.dir {
-            cmd = cmd.current_dir(dir);
+        // `dir` is a template so a step can follow the job's workspace with
+        // `dir = "{{workspace}}"` instead of opening its command with a `cd`.
+        if let Some(dir) = self
+            .render_dir(&tctx)
+            .wrap_err_with(|| format!("{self}: failed to render dir template"))?
+        {
+            cmd = cmd.current_dir(&dir);
             // With HK_MISE enabled, resolve the mise environment for the step's
             // directory so tools/env from that directory's mise config (e.g. a
             // subproject's mise.toml) are available even when hk was started
             // from the repo root. Explicit step env still wins below.
             if *env::HK_MISE {
-                let mise_env = crate::mise_env::mise_env_for_dir(Path::new(dir)).await;
+                let mise_env = crate::mise_env::mise_env_for_dir(Path::new(&dir)).await;
                 for (key, value) in mise_env.iter() {
                     cmd = cmd.env(key, value);
                 }

@@ -26,13 +26,15 @@ impl Step {
     /// # Arguments
     ///
     /// * `stdout` - The unified diff output from the check_diff command
+    /// * `dir` - The job's working directory (`dir` already rendered), or
+    ///   `None` to apply from the repo root
     ///
     /// # Returns
     ///
     /// * `Ok(true)` - Diff was applied successfully
     /// * `Ok(false)` - Diff application failed (caller should fall back to fixer)
     /// * `Err(_)` - Unexpected error
-    pub(crate) fn apply_diff_output(&self, stdout: &str) -> Result<bool> {
+    pub(crate) fn apply_diff_output(&self, stdout: &str, dir: Option<&str>) -> Result<bool> {
         if stdout.trim().is_empty() {
             debug!("{}: no diff content to apply", self.name);
             return Ok(false);
@@ -67,7 +69,7 @@ impl Step {
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
 
-        if let Some(dir) = &self.dir {
+        if let Some(dir) = dir {
             cmd.current_dir(dir);
         }
 

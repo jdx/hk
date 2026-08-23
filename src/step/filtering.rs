@@ -106,7 +106,7 @@ impl Step {
     ) -> Result<Vec<PathBuf>> {
         let mut files = files.to_vec();
         if let Some(pattern) = pattern {
-            files = glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?;
+            files = glob::get_pattern_matches(pattern, &files, self.dir_prefix())?;
         }
         if let Some(types) = types {
             files.retain(|f| crate::file_type::matches_types(f, types));
@@ -181,6 +181,7 @@ impl Step {
     ///
     /// Applies the following filters in order:
     /// 1. Directory filter (`dir`) - only files under this directory
+    ///    (its literal prefix when `dir` is templated, see [`Step::dir_prefix`])
     /// 2. Positive selectors (`glob` + `types`, or `match_any` clauses)
     /// 3. Exclusion pattern (`exclude`) - must not match
     /// 4. Binary filter (`allow_binary`) - skip binary files unless allowed
@@ -195,7 +196,7 @@ impl Step {
     /// The filtered list of files that match all criteria
     pub fn filter_files(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
         let mut files = files.to_vec();
-        if let Some(dir) = &self.dir {
+        if let Some(dir) = self.dir_prefix() {
             files.retain(|f| f.starts_with(dir));
             if files.is_empty() {
                 debug!("{self}: no files in {dir}");
@@ -218,7 +219,7 @@ impl Step {
         if let Some(pattern) = self.exclude.as_ref().filter(|pattern| !pattern.is_empty()) {
             // Use get_pattern_matches consistently for excludes too
             let excluded: HashSet<_> =
-                glob::get_pattern_matches(pattern, &files, self.dir.as_deref())?
+                glob::get_pattern_matches(pattern, &files, self.dir_prefix())?
                     .into_iter()
                     .collect();
             files.retain(|f| !excluded.contains(f));
