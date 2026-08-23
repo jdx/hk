@@ -1,5 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
+import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Go"
@@ -7,12 +8,36 @@ import "../Config.pkl"
 }
 go_lines = new Config.Step {
   glob = "**/*.go"
-  check = new Config.CommandSpec {
-    command = new Config.Command { argv = List("golines", "--dry-run", "{{files}}") }
+  // NB: `golines -l` exits 0 even when it lists files, so the exit code has to
+  // come from the shell. `--dry-run` is deliberately not used as a `check_diff`:
+  // it omits blank lines while still counting them in the hunk header, so the
+  // patch it prints is not applicable.
+  check_list_files = new Config.CommandSpec {
+    command =
+      """
+      FILES=$(golines -l {{files}})
+      if [ -n "$FILES" ]; then
+      echo "$FILES"
+      exit 1
+      fi
+      """
     effect = "read"
   }
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("golines", "-w", "{{files}}") }
     effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.go" }
+    // NB: escapes are written literally inside `"""` blocks here, so these
+    // fixtures use single-line strings to get real tabs.
+    local const before =
+      "package name\n\nfunc a(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb int, cccccccccccccccccccccccccccccc int) int {\n\treturn aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n}\n"
+    local const after =
+      "package name\n\nfunc a(\n\taaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int,\n\tbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb int,\n\tcccccccccccccccccccccccccccccc int,\n) int {\n\treturn aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n}\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
   }
 }
