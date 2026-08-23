@@ -323,7 +323,7 @@ impl Step {
         // cmd.exe delivers tools arguments with literal `"` characters embedded.
         let mut cmd = match &rendered_command {
             RenderedCommand::Argv(argv) => {
-                argv_runner(argv, &command_dir, child_env("PATH"), child_env("PATHEXT"))
+                argv_runner(argv, &command_dir, child_env("PATH"), child_env("PATHEXT"))?
             }
             RenderedCommand::Shell(run) => {
                 let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);

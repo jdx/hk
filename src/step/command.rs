@@ -1,19 +1,21 @@
 use ensembler::CmdLineRunner;
 use std::path::Path;
 
+use crate::Result;
+
 pub(crate) fn argv_runner(
     argv: &[String],
     cwd: &Path,
     path: Option<&str>,
     pathext: Option<&str>,
-) -> CmdLineRunner {
+) -> Result<CmdLineRunner> {
     #[cfg(windows)]
     if let Some(program) = resolve_batch_file(&argv[0], cwd, path, pathext) {
         return batch_runner(&program, &argv[1..]);
     }
 
     let _ = (cwd, path, pathext);
-    CmdLineRunner::new_direct(&argv[0]).args(&argv[1..])
+    Ok(CmdLineRunner::new_direct(&argv[0]).args(&argv[1..]))
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -96,7 +98,8 @@ fn is_batch_file(path: &Path) -> bool {
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
-fn batch_runner(program: &Path, args: &[String]) -> CmdLineRunner {
+fn batch_runner(program: &Path, args: &[String]) -> Result<CmdLineRunner> {
+    reject_batch_newlines(program, args)?;
     let program = program.to_string_lossy().replace('/', "\\");
     let normalized = program.to_ascii_lowercase();
     // npm shims forward `%*` through a second cmd.exe parse, so metacharacters
@@ -107,9 +110,26 @@ fn batch_runner(program: &Path, args: &[String]) -> CmdLineRunner {
         command.push(' ');
         command.push_str(&escape_cmd_arg(arg, double_escape));
     }
-    CmdLineRunner::new_direct(std::env::var_os("COMSPEC").unwrap_or_else(|| "cmd.exe".into()))
-        .args(["/d", "/s", "/c"])
-        .raw_arg(format!("\"{command}\""))
+    Ok(
+        CmdLineRunner::new_direct(std::env::var_os("COMSPEC").unwrap_or_else(|| "cmd.exe".into()))
+            .args(["/d", "/s", "/c"])
+            .raw_arg(format!("\"{command}\"")),
+    )
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn reject_batch_newlines(program: &Path, args: &[String]) -> Result<()> {
+    let contains_newline = |value: &str| value.contains('\r') || value.contains('\n');
+    if contains_newline(&program.to_string_lossy()) {
+        eyre::bail!("Windows batch command path contains a newline");
+    }
+    if let Some(index) = args.iter().position(|arg| contains_newline(arg)) {
+        eyre::bail!(
+            "Windows batch command argument {} contains a newline",
+            index + 1
+        );
+    }
+    Ok(())
 }
 
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -165,6 +185,26 @@ mod tests {
         assert_eq!(
             escape_cmd_arg("amp&percent%caret^", true),
             "^^^\"amp^^^&percent^^^%caret^^^^^^^\""
+        );
+    }
+
+    #[test]
+    fn rejects_newlines_in_batch_commands() {
+        let args = vec!["safe".to_string(), "unsafe\ncommand".to_string()];
+        let error = reject_batch_newlines(Path::new("tool.cmd"), &args)
+            .err()
+            .expect("newline should be rejected");
+        assert_eq!(
+            error.to_string(),
+            "Windows batch command argument 2 contains a newline"
+        );
+
+        let error = reject_batch_newlines(Path::new("unsafe\rtool.cmd"), &[])
+            .err()
+            .expect("newline should be rejected");
+        assert_eq!(
+            error.to_string(),
+            "Windows batch command path contains a newline"
         );
     }
 }

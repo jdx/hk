@@ -51,7 +51,7 @@ async fn execute_cmd(
     };
     let mut runner = match command {
         RenderedCommand::Argv(argv) => {
-            argv_runner(argv, base_dir, env_value("PATH"), env_value("PATHEXT"))
+            argv_runner(argv, base_dir, env_value("PATH"), env_value("PATHEXT"))?
         }
         RenderedCommand::Shell(cmd_str) => {
             let runner = if let Some(shell) = &step.shell {
