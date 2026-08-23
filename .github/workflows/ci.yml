@@ -290,6 +290,8 @@ jobs:
           ./e2e-win/run.ps1 -TestName "*help*"
           # Regression test for discussion #823 (cmd.exe {{files}} quoting)
           ./e2e-win/run.ps1 -TestName "*{{files}} template*"
+          # Regression test for discussion #1220 (structured argv npm shims)
+          ./e2e-win/run.ps1 -TestName "*structured argv resolves*"
   final:
     permissions: {}
     needs:

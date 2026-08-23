@@ -130,4 +130,64 @@ hooks {
             Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
+
+    It 'structured argv resolves node_modules cmd shims' {
+        $testDir = Join-Path $TestDrive ([System.Guid]::NewGuid().ToString())
+        New-Item -ItemType Directory -Path $testDir | Out-Null
+        Set-Location $testDir
+        $originalPath = $env:PATH
+
+        try {
+            git init | Out-Null
+            git config user.email "test@test.com"
+            git config user.name "Test"
+
+            $binDir = New-Item -ItemType Directory -Force -Path "subdir/node_modules/.bin"
+            $capture = @"
+import json
+import sys
+with open('argv.json', 'w') as f:
+    json.dump(sys.argv[1:], f)
+"@
+            Set-Content -Path "subdir/node_modules/capture.py" -Value $capture -Encoding ascii
+            $shim = @'
+@ECHO off
+python "%~dp0\..\capture.py" %*
+'@
+            Set-Content -Path "$binDir/argv-capture.cmd" -Value $shim -Encoding ascii
+            # A relative PATH entry must be resolved from the step's relative dir.
+            $env:PATH = "node_modules/.bin;$originalPath"
+            $env:HK_ARG_EXPAND = "expanded"
+
+            $pklPath = (Resolve-Path $env:PKL_PATH).Path -replace '\\', '/'
+            $pklUri = "file:///$pklPath/Config.pkl"
+            $config = @"
+amends "$pklUri"
+
+hooks {
+    ["check"] {
+        steps {
+            ["capture"] {
+                dir = "subdir"
+                check = new Command {
+                    argv = List("argv-capture", "space value", "amp&ersand", "percent%HK_ARG_EXPAND%", "star*", "caret^value")
+                }
+            }
+        }
+    }
+}
+"@
+            Set-Content -Path "hk.pkl" -Value $config -Encoding ascii
+
+            $output = hk check --all 2>&1 | Out-String
+            $LASTEXITCODE | Should -Be 0 -Because "hk check --all should succeed; output:`n$output"
+            $actual = Get-Content "subdir/argv.json" -Raw | ConvertFrom-Json | ConvertTo-Json -Compress
+            $actual | Should -Be '["space value","amp&ersand","percent%HK_ARG_EXPAND%","star*","caret^value"]'
+        } finally {
+            $env:PATH = $originalPath
+            Remove-Item Env:HK_ARG_EXPAND -ErrorAction SilentlyContinue
+            Set-Location $script:originalPath
+            Remove-Item -Path $testDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
