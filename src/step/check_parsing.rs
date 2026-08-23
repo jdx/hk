@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use xx::file::display_path;
 
-use super::strip_orig_suffix;
+use super::normalize_diff_paths;
 use super::types::Step;
 
 /// Attempt to canonicalize a path, falling back to the original if it fails.
@@ -90,7 +90,7 @@ impl Step {
         original_files: &[PathBuf],
         stdout: &str,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
-        let stdout = strip_orig_suffix(stdout);
+        let stdout = normalize_diff_paths(stdout);
 
         // Parse unified diff format to extract file names from --- and +++ lines
         let mut listed: HashSet<PathBuf> = HashSet::new();
