@@ -136,3 +136,47 @@ EOF
     refute_output --partial "found other/b.txt"
     refute_output --partial "found root.txt"
 }
+
+@test "a leading ./ in dir does not break file selection or {{files}}" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["dot-slash-literal"] {
+                dir = "./sub"
+                glob = List("**/*.txt")
+                check = "echo 'literal {{files}}' && test -f {{files}}"
+            }
+            ["dot-slash-template"] {
+                dir = "./sub/{{step}}"
+                glob = List("**/*.md")
+                check = "echo 'templated {{files}}' && test -f {{files}}"
+            }
+            ["repo-root"] {
+                dir = "."
+                glob = List("**/*.txt")
+                check = "echo 'root {{files}}' && test -f {{files}}"
+            }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "initial commit"
+
+    mkdir -p "sub/dot-slash-template"
+    echo "a" > sub/a.txt
+    echo "b" > sub/dot-slash-template/b.md
+    git add sub
+
+    run hk check -v
+    assert_success
+
+    # "./sub" must behave exactly like "sub": the file is selected and the path
+    # is made relative to it, not left repo-root-relative and doubled.
+    assert_output --partial "literal a.txt"
+    assert_output --partial "templated b.md"
+    # "." is the repo root, so it narrows nothing and paths stay as they are.
+    assert_output --partial "root sub/a.txt"
+}
