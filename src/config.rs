@@ -736,17 +736,34 @@ fn get_http_proxy() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// The pkl package for this version, staged by `build/embed_pkl_package.rs`.
+/// Empty when the pkl sources were not generated.
+static EMBEDDED_PKL_PACKAGE: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/hk_pkl_package.zip"));
+
+/// The release archive URL `hk init` writes into `hk.pkl` for this version.
+fn embedded_pkl_package_url() -> String {
+    let version = version::version();
+    format!("https://github.com/jdx/hk/releases/download/v{version}/hk@{version}.zip")
+}
+
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
     let client = build_pklr_http_client()?;
     let http_rewrites = env::HK_PKL_HTTP_REWRITE
         .as_deref()
         .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
         .unwrap_or_default();
-    let evaluator = pklr::EvaluatorBuilder::new()
+    let mut evaluator = pklr::EvaluatorBuilder::new()
         .http_client(client)
         .http_rewrites(http_rewrites)
         .package_cache_dir(env::HK_PKL_CACHE_DIR.clone())
         .offline(*env::HK_PKL_OFFLINE);
+    // A config pinning this version then needs no network on a cold cache; any
+    // other version keys a different URL and is fetched as usual.
+    if *env::HK_PKL_EMBEDDED && !EMBEDDED_PKL_PACKAGE.is_empty() {
+        evaluator =
+            evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
+    }
     let rt = tokio::runtime::Handle::try_current();
     let json = match rt {
         Ok(handle) => tokio::task::block_in_place(|| handle.block_on(evaluator.eval_to_json(path))),

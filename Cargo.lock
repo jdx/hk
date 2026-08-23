@@ -913,6 +913,7 @@ dependencies = [
  "url",
  "usage-rs",
  "xx",
+ "zip",
 ]
 
 [[package]]

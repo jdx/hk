@@ -1,3 +1,4 @@
+pub mod embed_pkl_package;
 pub mod generate_builtins;
 pub mod generate_settings;
 pub mod settings_toml;
@@ -10,12 +11,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Rerun if source data changes
     println!("cargo:rerun-if-changed=build/");
+    println!("cargo:rerun-if-changed=pkl");
     println!("cargo:rerun-if-changed=pkl/builtins");
     println!("cargo:rerun-if-changed=pkl/builtins_meta.json");
     println!("cargo:rerun-if-changed=settings.toml");
 
     generate_builtins::generate(&out_dir)?;
     generate_settings::generate(&out_dir)?;
+    embed_pkl_package::generate(&out_dir)?;
 
     Ok(())
 }
