@@ -494,7 +494,7 @@ impl Step {
     pub(crate) fn has_filters(&self) -> bool {
         self.glob.is_some()
             || self.match_any.is_some()
-            || self.dir.is_some()
+            || self.dir_prefix().is_some()
             || self
                 .exclude
                 .as_ref()

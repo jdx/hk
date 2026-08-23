@@ -8,8 +8,9 @@ import "../Config.pkl"
 staticcheck = new Config.Step {
   glob = "**/*.go"
   workspace_indicator = "go.mod"
+  dir = "{{workspace}}"
   check = new Config.CommandSpec {
-    command = "cd {{workspace}} && staticcheck ./..."
+    command = "staticcheck ./..."
     effect = "write"
   }
 }

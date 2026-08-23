@@ -69,8 +69,22 @@ impl StepJob {
 
         tctx.insert("step", &self.step.name);
 
-        // Handle directory stripping for command execution context
-        let command_files = if let Some(dir) = &self.step.dir {
+        // Workspace variables first: `dir` may reference them, and the files
+        // below are made relative to the rendered `dir`.
+        if let Some(workspace_indicator) = &self.workspace_indicator {
+            tctx.with_workspace_indicator(workspace_indicator);
+            let workspace_dir = workspace_indicator
+                .parent()
+                .filter(|p| !p.as_os_str().is_empty())
+                .unwrap_or(std::path::Path::new("."));
+            tctx.with_workspace_files(self.step.shell_type(), workspace_dir, &self.files);
+        }
+
+        // Handle directory stripping for command execution context. A `dir`
+        // that fails to render strips nothing; the runner renders it again and
+        // reports the error before the command runs.
+        let dir = self.step.render_dir(&tctx).ok().flatten();
+        let command_files = if let Some(dir) = &dir {
             self.files
                 .iter()
                 .map(|f| f.strip_prefix(dir).unwrap_or(f).to_path_buf())
@@ -80,14 +94,6 @@ impl StepJob {
         };
 
         tctx.with_files(self.step.shell_type(), &command_files);
-        if let Some(workspace_indicator) = &self.workspace_indicator {
-            tctx.with_workspace_indicator(workspace_indicator);
-            let workspace_dir = workspace_indicator
-                .parent()
-                .filter(|p| !p.as_os_str().is_empty())
-                .unwrap_or(std::path::Path::new("."));
-            tctx.with_workspace_files(self.step.shell_type(), workspace_dir, &self.files);
-        }
         tctx
     }
 

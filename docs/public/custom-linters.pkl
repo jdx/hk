@@ -33,10 +33,12 @@ local custom_linters = new Mapping<String, Step> {
   // Custom workspace-based build tool
   ["custom_build"] {
     workspace_indicator = "build.toml"
-    check = "cd {{workspace}} && custom-build check"
-    fix = "cd {{workspace}} && custom-build fix"
+    // `dir` is templated, so commands run in each matched workspace
+    dir = "{{workspace}}"
+    check = "custom-build check"
+    fix = "custom-build fix"
     // Use check_diff for efficient patching
-    check_diff = "cd {{workspace}} && custom-build diff"
+    check_diff = "custom-build diff"
   }
 
   // Interactive migration tool

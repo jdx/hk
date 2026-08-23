@@ -11,12 +11,13 @@ import "../Config.pkl"
 golangci_lint = new Config.Step {
   glob = "**/*.go"
   workspace_indicator = "go.mod"
+  dir = "{{workspace}}"
   check = new Config.CommandSpec {
-    command = "cd {{workspace}} && golangci-lint run --fix=false ./..."
+    command = "golangci-lint run --fix=false ./..."
     effect = "write"
   }
   fix = new Config.CommandSpec {
-    command = "cd {{workspace}} && golangci-lint run --fix ./..."
+    command = "golangci-lint run --fix ./..."
     effect = "write"
   }
 }
