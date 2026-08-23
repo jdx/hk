@@ -6,9 +6,40 @@
 
 use crate::Result;
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
-use super::strip_orig_suffix;
+use super::normalize_diff_paths;
 use super::types::Step;
+
+/// Rewrite absolute paths in diff headers to be relative to `base`.
+///
+/// `git apply` rejects absolute paths outright -- `--unsafe-paths` does not
+/// change that, and `-p<n>` would need a strip depth that varies per checkout --
+/// so a tool reporting absolute paths cannot be applied without this. `go fix
+/// -diff` is one such tool.
+///
+/// Paths outside `base` are left as they are; `git apply` will reject them and
+/// the caller falls back to running the fixer.
+fn relativize_diff_paths(diff: &str, base: &Path) -> String {
+    let mut out: Vec<String> = Vec::new();
+    for line in diff.lines() {
+        let rewritten = ["--- ", "+++ "].into_iter().find_map(|prefix| {
+            let rest = line.strip_prefix(prefix)?;
+            // Keep any tab-separated timestamp attached to the path.
+            let (path, tail) = match rest.split_once('\t') {
+                Some((p, t)) => (p, Some(t)),
+                None => (rest, None),
+            };
+            let rel = Path::new(path).strip_prefix(base).ok()?.to_str()?;
+            Some(match tail {
+                Some(t) => format!("{prefix}{rel}\t{t}"),
+                None => format!("{prefix}{rel}"),
+            })
+        });
+        out.push(rewritten.unwrap_or_else(|| line.to_string()));
+    }
+    out.join("\n") + "\n"
+}
 
 impl Step {
     /// Apply a unified diff directly to files using `git apply`.
@@ -38,7 +69,13 @@ impl Step {
             debug!("{}: no diff content to apply", self.name);
             return Ok(false);
         }
-        let diff_content = strip_orig_suffix(stdout);
+        let diff_content = normalize_diff_paths(stdout);
+
+        // Resolve against wherever `git apply` will run, so absolute paths
+        // reported by the check command become paths git will accept.
+        let base = PathBuf::from(dir.unwrap_or("."));
+        let base = base.canonicalize().unwrap_or(base);
+        let diff_content = relativize_diff_paths(&diff_content, &base);
 
         // Detect if this diff uses a/ and b/ prefixes (git-style)
         // Use -p1 to strip prefixes if present, -p0 otherwise
@@ -106,5 +143,50 @@ impl Step {
             debug!("{}: git apply failed: {}", self.name, stderr_output);
             Ok(false)
         }
+    }
+}
+
+#[cfg(test)]
+mod relativize_diff_paths_tests {
+    use super::relativize_diff_paths;
+    use std::path::Path;
+
+    #[test]
+    fn rewrites_absolute_paths_under_base() {
+        let diff = "--- /w/svc/main.go\n+++ /w/svc/main.go\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            relativize_diff_paths(diff, Path::new("/w/svc")),
+            "--- main.go\n+++ main.go\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+    }
+
+    #[test]
+    fn leaves_paths_outside_base_alone() {
+        let diff = "--- /elsewhere/main.go\n+++ /elsewhere/main.go\n";
+        assert_eq!(relativize_diff_paths(diff, Path::new("/w/svc")), diff);
+    }
+
+    #[test]
+    fn leaves_relative_paths_alone() {
+        let diff = "--- main.go\n+++ main.go\n";
+        assert_eq!(relativize_diff_paths(diff, Path::new("/w/svc")), diff);
+    }
+
+    #[test]
+    fn preserves_a_tab_separated_timestamp() {
+        let diff = "--- /w/svc/main.go\t2025-01-01 12:00:00\n+++ /w/svc/main.go\n";
+        assert_eq!(
+            relativize_diff_paths(diff, Path::new("/w/svc")),
+            "--- main.go\t2025-01-01 12:00:00\n+++ main.go\n"
+        );
+    }
+
+    #[test]
+    fn does_not_touch_diff_body_lines() {
+        let diff = "--- /w/svc/a.go\n+++ /w/svc/a.go\n@@ -1 +1 @@\n---- not a header\n";
+        assert_eq!(
+            relativize_diff_paths(diff, Path::new("/w/svc")),
+            "--- a.go\n+++ a.go\n@@ -1 +1 @@\n---- not a header\n"
+        );
     }
 }

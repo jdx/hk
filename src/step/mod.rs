@@ -63,29 +63,85 @@ pub use types::{
 #[allow(unused_imports)]
 pub use filtering::{is_binary_file, is_symlink_file};
 
-/// Strip ".orig" suffix from "---" lines when the next "+++" line doesn't have it.
-/// Go tools like gofmt add ".orig" only to the "---" line.
-pub(crate) fn strip_orig_suffix(diff: &str) -> String {
+/// Normalize tool-specific quirks in unified diff headers so a diff can be
+/// attributed to files and handed to `git apply`.
+///
+/// Two Go toolchain conventions need this:
+/// - gofmt writes `--- file.go.orig` against a plain `+++ file.go`.
+/// - `go fix -diff` labels both sides: `--- file.go (old)` / `+++ file.go (new)`.
+///
+/// The `(old)`/`(new)` form is only rewritten when both sides carry their label,
+/// so a file genuinely named `foo (old)` is left alone.
+pub(crate) fn normalize_diff_paths(diff: &str) -> String {
     let mut result: Vec<String> = Vec::new();
     let mut lines = diff.lines().peekable();
     while let Some(line) = lines.next() {
         if let Some(after_prefix) = line.strip_prefix("--- ")
             && let Some(next) = lines.peek()
             && next.starts_with("+++ ")
-            && !next.contains(".orig")
         {
-            // Extract path portion (before any tab-separated timestamp)
-            let (path, rest) = after_prefix.split_once('\t').unwrap_or((after_prefix, ""));
-            if let Some(stripped) = path.strip_suffix(".orig") {
-                if rest.is_empty() {
-                    result.push(format!("--- {stripped}"));
-                } else {
-                    result.push(format!("--- {stripped}\t{rest}"));
-                }
+            // `go fix -diff`: both sides labelled.
+            if let Some(old_path) = after_prefix.strip_suffix(" (old)")
+                && let Some(new_path) = next
+                    .strip_prefix("+++ ")
+                    .and_then(|p| p.strip_suffix(" (new)"))
+            {
+                result.push(format!("--- {old_path}"));
+                result.push(format!("+++ {new_path}"));
+                lines.next();
                 continue;
+            }
+            // gofmt: ".orig" on the "---" line only.
+            if !next.contains(".orig") {
+                // Extract path portion (before any tab-separated timestamp)
+                let (path, rest) = after_prefix.split_once('\t').unwrap_or((after_prefix, ""));
+                if let Some(stripped) = path.strip_suffix(".orig") {
+                    if rest.is_empty() {
+                        result.push(format!("--- {stripped}"));
+                    } else {
+                        result.push(format!("--- {stripped}\t{rest}"));
+                    }
+                    continue;
+                }
             }
         }
         result.push(line.to_string());
     }
     result.join("\n") + "\n"
+}
+
+#[cfg(test)]
+mod normalize_diff_paths_tests {
+    use super::normalize_diff_paths;
+
+    #[test]
+    fn strips_go_fix_old_new_labels() {
+        let diff = "--- /w/main.go (old)\n+++ /w/main.go (new)\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- /w/main.go\n+++ /w/main.go\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+    }
+
+    #[test]
+    fn strips_gofmt_orig_suffix() {
+        let diff = "--- main.go.orig\n+++ main.go\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- main.go\n+++ main.go\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+    }
+
+    #[test]
+    fn leaves_plain_headers_alone() {
+        let diff = "--- a/main.go\n+++ b/main.go\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+    }
+
+    #[test]
+    fn keeps_a_file_actually_named_old_when_the_pair_is_unlabelled() {
+        // Only the "---" side carries "(old)", so this is a real filename.
+        let diff = "--- notes (old)\n+++ notes (old)\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+    }
 }
