@@ -1,0 +1,35 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Go"
+  description = "Go modernizer (requires Go 1.26+)"
+}
+go_fix = new Config.Step {
+  glob = "**/*.go"
+  workspace_indicator = "go.mod"
+  dir = "{{workspace}}"
+  check_diff = new Config.CommandSpec {
+    command = "go fix -diff ./..."
+    effect = "write"
+  }
+  fix = new Config.CommandSpec {
+    command = "go fix ./..."
+    effect = "write"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "main.go"
+      extra_files = new Mapping<String, String> {
+        ["go.mod"] = "module example.com/test\n\ngo 1.21\n"
+      }
+    }
+    local const before = "package main\n\nvar x interface{}\n\nfunc main() { _ = x }\n"
+    local const after = "package main\n\nvar x any\n\nfunc main() { _ = x }\n"
+    ["check bad file"] = testMaker.checkFail(before, 1)
+    ["check good file"] = testMaker.checkPass(after)
+    ["fix bad file"] = testMaker.fixPass(before, after)
+    ["fix good file"] = testMaker.fixPass(after, after)
+  }
+}
