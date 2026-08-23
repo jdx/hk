@@ -34,6 +34,7 @@
 
 mod batching;
 mod check_parsing;
+mod command;
 mod diff;
 mod dir;
 mod execution;
@@ -47,6 +48,7 @@ mod shell;
 mod types;
 
 // Re-export public API
+pub(crate) use command::argv_runner;
 pub use expr_env::{EXPR_CTX, eval_condition};
 pub use shell::ShellType;
 pub(crate) use types::RenderedCommand;

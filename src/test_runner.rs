@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use crate::{
     Result, git_util,
-    step::{RenderedCommand, RunType, Step},
+    step::{RenderedCommand, RunType, Step, argv_runner},
     step_test::{RunKind, StepTest},
     tera,
 };
@@ -30,8 +30,29 @@ async fn execute_cmd(
     command: &RenderedCommand,
     stdin: &Option<String>,
 ) -> Result<(String, String, i32)> {
+    let rendered_step_env = step
+        .env
+        .iter()
+        .map(|(key, value)| Ok((key.clone(), tera::render(value, tctx)?)))
+        .collect::<Result<Vec<_>>>()?;
+    let env_value = |name: &str| {
+        test.env
+            .iter()
+            .rev()
+            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+            .map(|(_, value)| value.as_str())
+            .or_else(|| {
+                rendered_step_env
+                    .iter()
+                    .rev()
+                    .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                    .map(|(_, value)| value.as_str())
+            })
+    };
     let mut runner = match command {
-        RenderedCommand::Argv(argv) => CmdLineRunner::new_direct(&argv[0]).args(&argv[1..]),
+        RenderedCommand::Argv(argv) => {
+            argv_runner(argv, base_dir, env_value("PATH"), env_value("PATHEXT"))?
+        }
         RenderedCommand::Shell(cmd_str) => {
             let runner = if let Some(shell) = &step.shell {
                 let shell = shell.to_string();
@@ -49,8 +70,7 @@ async fn execute_cmd(
         runner = runner.stdin_string(rendered_stdin);
     }
     runner = runner.current_dir(base_dir);
-    for (k, v) in &step.env {
-        let v = tera::render(v, tctx)?;
+    for (k, v) in rendered_step_env {
         runner = runner.env(k, v);
     }
     for (k, v) in &test.env {

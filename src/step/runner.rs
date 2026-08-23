@@ -19,9 +19,10 @@ use clx::progress::ProgressStatus;
 use ensembler::CmdLineRunner;
 use eyre::WrapErr;
 use itertools::Itertools;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Stdio;
 
+use super::command::argv_runner;
 use super::expr_env::eval_condition;
 use super::shell::ShellType;
 use super::types::{
@@ -226,6 +227,54 @@ impl Step {
             .render(&tctx, self.prefix.as_ref())
             .wrap_err_with(|| format!("{self}: failed to render command template"))?;
         let run = rendered_command.display(self.shell_type());
+        let rendered_dir = self
+            .render_dir(&tctx)
+            .wrap_err_with(|| format!("{self}: failed to render dir template"))?;
+        let current_dir = std::env::current_dir()?;
+        let command_dir = rendered_dir
+            .as_deref()
+            .map(PathBuf::from)
+            .map(|dir| {
+                if dir.is_absolute() {
+                    dir
+                } else {
+                    current_dir.join(dir)
+                }
+            })
+            .unwrap_or(current_dir);
+        if let Some(dir) = &rendered_dir {
+            if !command_dir.exists() {
+                eyre::bail!("{self}: working directory does not exist: {dir}");
+            }
+            if !command_dir.is_dir() {
+                eyre::bail!("{self}: working directory is not a directory: {dir}");
+            }
+        }
+        let mise_env = if rendered_dir.is_some() && *env::HK_MISE {
+            Some(crate::mise_env::mise_env_for_dir(&command_dir).await)
+        } else {
+            None
+        };
+        let rendered_env = self
+            .env
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), tera::render(value, &tctx)?)))
+            .collect::<Result<Vec<_>>>()?;
+        let child_env = |name: &str| {
+            rendered_env
+                .iter()
+                .rev()
+                .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                .map(|(_, value)| value.as_str())
+                .or_else(|| {
+                    mise_env.as_ref().and_then(|env| {
+                        env.iter()
+                            .rev()
+                            .find(|(key, _)| key.eq_ignore_ascii_case(name))
+                            .map(|(_, value)| value.as_str())
+                    })
+                })
+        };
         let display_pattern = |pattern: &Pattern| match pattern {
             Pattern::Globs(globs) => globs.join(" "),
             Pattern::Regex { pattern, .. } => format!("regex: {pattern}"),
@@ -273,7 +322,9 @@ impl Step {
         // `raw_arg` — otherwise Rust re-escapes the already-quoted payload and
         // cmd.exe delivers tools arguments with literal `"` characters embedded.
         let mut cmd = match &rendered_command {
-            RenderedCommand::Argv(argv) => CmdLineRunner::new_direct(&argv[0]).args(&argv[1..]),
+            RenderedCommand::Argv(argv) => {
+                argv_runner(argv, &command_dir, child_env("PATH"), child_env("PATHEXT"))?
+            }
             RenderedCommand::Shell(run) => {
                 let use_raw_cmd = cfg!(windows) && matches!(self.shell_type(), ShellType::Cmd);
                 if let Some(shell) = &self.shell {
@@ -330,34 +381,19 @@ impl Step {
                 cmd = cmd.env("GIT_WORK_TREE", root);
             }
         }
-        // `dir` is a template: it may resolve to this job's workspace.
-        if let Some(dir) = self
-            .render_dir(&tctx)
-            .wrap_err_with(|| format!("{self}: failed to render dir template"))?
-        {
-            // A bad `dir` fails at spawn with a bare "No such file or directory";
-            // name the step, the path, and which of the two went wrong.
-            let dir_path = Path::new(&dir);
-            if !dir_path.exists() {
-                eyre::bail!("{self}: working directory does not exist: {dir}");
-            }
-            if !dir_path.is_dir() {
-                eyre::bail!("{self}: working directory is not a directory: {dir}");
-            }
-            cmd = cmd.current_dir(&dir);
+        if rendered_dir.is_some() {
+            cmd = cmd.current_dir(&command_dir);
             // With HK_MISE enabled, resolve the mise environment for the step's
             // directory so tools/env from that directory's mise config (e.g. a
             // subproject's mise.toml) are available even when hk was started
             // from the repo root. Explicit step env still wins below.
-            if *env::HK_MISE {
-                let mise_env = crate::mise_env::mise_env_for_dir(Path::new(&dir)).await;
+            if let Some(mise_env) = &mise_env {
                 for (key, value) in mise_env.iter() {
                     cmd = cmd.env(key, value);
                 }
             }
         }
-        for (key, value) in &self.env {
-            let value = tera::render(value, &tctx)?;
+        for (key, value) in rendered_env {
             cmd = cmd.env(key, value);
         }
         let timing_guard = StepTimingGuard::new(ctx.hook_ctx.timing.clone(), self);
