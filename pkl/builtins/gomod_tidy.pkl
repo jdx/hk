@@ -18,7 +18,7 @@ gomod_tidy = new Config.Step {
   dir = "{{workspace}}"
   check_diff = new Config.CommandSpec {
     command = "go mod tidy -diff"
-    effect = "read"
+    effect = "write"
   }
   fix = new Config.CommandSpec {
     command = "go mod tidy"

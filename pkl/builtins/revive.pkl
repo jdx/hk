@@ -13,7 +13,7 @@ revive = new Config.Step {
   // passed.
   check = new Config.CommandSpec {
     command = "revive -set_exit_status ./..."
-    effect = "read"
+    effect = "write"
   }
   tests {
     ["check good file"] {
