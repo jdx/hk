@@ -61,8 +61,19 @@ fn collect_dir(
     prefix: &str,
     entries: &mut Vec<(String, PathBuf)>,
 ) -> Result<(), std::io::Error> {
-    if !dir.exists() {
-        return Ok(());
+    // read_dir follows links, so the root of the walk needs the same check its
+    // entries get below. A missing directory is the "sources not generated"
+    // case and stays a silent skip.
+    match fs::symlink_metadata(dir) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(std::io::Error::other(format!(
+                "refusing to embed symbolic link: {}",
+                dir.display()
+            )));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
     }
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
