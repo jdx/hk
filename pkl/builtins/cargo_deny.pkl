@@ -25,8 +25,9 @@ cargo_deny = new Config.Step {
       "**/.deny.exceptions.toml",
     )
   workspace_indicator = "Cargo.toml"
+  dir = "{{workspace}}"
   check = new Config.CommandSpec {
-    command = "cd {{workspace}} && cargo-deny --locked --workspace check"
+    command = "cargo-deny --locked --workspace check"
     effect = "write"
   }
   tests {
