@@ -8,7 +8,7 @@ import "./test/helpers.pkl"
 }
 go_fumpt = new Config.Step {
   glob = "**/*.go"
-  // NB: `gofumpt -l` exits 0 even when it lists files, so the exit code has to
+  // `gofumpt -l` exits 0 even when it lists files, so the exit code has to
   // come from the shell. `gofumpt -d` already exits non-zero on a non-empty
   // diff and needs no wrapper.
   check_list_files = new Config.CommandSpec {

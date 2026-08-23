@@ -9,7 +9,7 @@ revive = new Config.Step {
   glob = "**/*.go"
   workspace_indicator = "go.mod"
   dir = "{{workspace}}"
-  // NB: revive exits 0 even when it reports findings unless -set_exit_status is
+  // revive exits 0 even when it reports findings unless -set_exit_status is
   // passed.
   check = new Config.CommandSpec {
     command = "revive -set_exit_status ./..."

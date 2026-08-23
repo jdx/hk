@@ -8,7 +8,7 @@ import "./test/helpers.pkl"
 }
 go_imports = new Config.Step {
   glob = "**/*.go"
-  // NB: `goimports` exits 0 for both `-l` and `-d` even when it reports work to
+  // `goimports` exits 0 for both `-l` and `-d` even when it reports work to
   // do, so the exit code has to come from the shell.
   check_list_files = new Config.CommandSpec {
     command =
