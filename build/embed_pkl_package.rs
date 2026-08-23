@@ -54,6 +54,8 @@ fn collect_entries(pkl_dir: &Path) -> Result<Vec<(String, PathBuf)>, std::io::Er
     Ok(entries)
 }
 
+/// Add the regular files under `dir` to `entries`, recursing into
+/// subdirectories and prefixing each name with its path inside the archive.
 fn collect_dir(
     dir: &Path,
     prefix: &str,
