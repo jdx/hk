@@ -1,5 +1,5 @@
 #!/usr/bin/env -S mise tool-stub
 
-version = "1.25"
+version = "1.27"
 tool = "go"
 bin = "go"
