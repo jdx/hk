@@ -25,7 +25,7 @@ pub fn generate(out_dir: &Path) -> Result<(), std::io::Error> {
         .iter()
         .all(|module| entries.iter().any(|(name, _)| name == module));
     if !complete {
-        fs::write(&dest_path, [])?;
+        fs::write(&dest_path, b"")?;
         return Ok(());
     }
 
@@ -78,8 +78,13 @@ fn collect_dir(
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
         let file_name = entry.file_name();
+        // Skipping an unrepresentable name would ship a partial package, the
+        // same reason links are rejected below.
         let Some(file_name) = file_name.to_str() else {
-            continue;
+            return Err(std::io::Error::other(format!(
+                "pkl source name is not valid UTF-8: {}",
+                entry.path().display()
+            )));
         };
         // Archive paths always use forward slashes, on every platform.
         let name = format!("{prefix}{file_name}");
