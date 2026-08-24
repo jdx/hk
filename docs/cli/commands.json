@@ -372,7 +372,7 @@
           },
           {
             "name": "exclude",
-            "usage": "-e --exclude… <EXCLUDE>",
+            "usage": "-e --exclude <EXCLUDE>",
             "help": "Exclude files that otherwise would have been selected",
             "help_first_line": "Exclude files that otherwise would have been selected",
             "short": ["e"],
@@ -401,7 +401,7 @@
           },
           {
             "name": "glob",
-            "usage": "-g --glob… <GLOB>",
+            "usage": "-g --glob <GLOB>",
             "help": "Run on files that match these glob patterns",
             "help_first_line": "Run on files that match these glob patterns",
             "short": ["g"],
@@ -439,7 +439,7 @@
           },
           {
             "name": "step",
-            "usage": "-S --step… <STEP>",
+            "usage": "-S --step <STEP>",
             "help": "Run only specific step(s)",
             "help_first_line": "Run only specific step(s)",
             "short": ["S"],
@@ -631,7 +631,7 @@
           },
           {
             "name": "skip-step",
-            "usage": "--skip-step… <STEP>",
+            "usage": "--skip-step <STEP>",
             "help": "Skip specific step(s)",
             "help_first_line": "Skip specific step(s)",
             "short": [],
@@ -1101,7 +1101,7 @@
           },
           {
             "name": "exclude",
-            "usage": "-e --exclude… <EXCLUDE>",
+            "usage": "-e --exclude <EXCLUDE>",
             "help": "Exclude files that otherwise would have been selected",
             "help_first_line": "Exclude files that otherwise would have been selected",
             "short": ["e"],
@@ -1130,7 +1130,7 @@
           },
           {
             "name": "glob",
-            "usage": "-g --glob… <GLOB>",
+            "usage": "-g --glob <GLOB>",
             "help": "Run on files that match these glob patterns",
             "help_first_line": "Run on files that match these glob patterns",
             "short": ["g"],
@@ -1168,7 +1168,7 @@
           },
           {
             "name": "step",
-            "usage": "-S --step… <STEP>",
+            "usage": "-S --step <STEP>",
             "help": "Run only specific step(s)",
             "help_first_line": "Run only specific step(s)",
             "short": ["S"],
@@ -1360,7 +1360,7 @@
           },
           {
             "name": "skip-step",
-            "usage": "--skip-step… <STEP>",
+            "usage": "--skip-step <STEP>",
             "help": "Skip specific step(s)",
             "help_first_line": "Skip specific step(s)",
             "short": [],
@@ -1892,7 +1892,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -1921,7 +1921,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -1959,7 +1959,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -2151,7 +2151,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -2379,7 +2379,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -2408,7 +2408,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -2446,7 +2446,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -2638,7 +2638,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -2839,7 +2839,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -2868,7 +2868,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -2906,7 +2906,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -3098,7 +3098,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -3308,7 +3308,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -3337,7 +3337,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -3375,7 +3375,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -3567,7 +3567,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -3777,7 +3777,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -3806,7 +3806,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -3844,7 +3844,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -4036,7 +4036,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -4237,7 +4237,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -4266,7 +4266,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -4304,7 +4304,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -4496,7 +4496,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -4716,7 +4716,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -4745,7 +4745,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -4783,7 +4783,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -4975,7 +4975,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -5194,7 +5194,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -5223,7 +5223,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -5261,7 +5261,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -5453,7 +5453,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -5681,7 +5681,7 @@
               },
               {
                 "name": "exclude",
-                "usage": "-e --exclude… <EXCLUDE>",
+                "usage": "-e --exclude <EXCLUDE>",
                 "help": "Exclude files that otherwise would have been selected",
                 "help_first_line": "Exclude files that otherwise would have been selected",
                 "short": ["e"],
@@ -5710,7 +5710,7 @@
               },
               {
                 "name": "glob",
-                "usage": "-g --glob… <GLOB>",
+                "usage": "-g --glob <GLOB>",
                 "help": "Run on files that match these glob patterns",
                 "help_first_line": "Run on files that match these glob patterns",
                 "short": ["g"],
@@ -5748,7 +5748,7 @@
               },
               {
                 "name": "step",
-                "usage": "-S --step… <STEP>",
+                "usage": "-S --step <STEP>",
                 "help": "Run only specific step(s)",
                 "help_first_line": "Run only specific step(s)",
                 "short": ["S"],
@@ -5940,7 +5940,7 @@
               },
               {
                 "name": "skip-step",
-                "usage": "--skip-step… <STEP>",
+                "usage": "--skip-step <STEP>",
                 "help": "Skip specific step(s)",
                 "help_first_line": "Skip specific step(s)",
                 "short": [],
@@ -6145,7 +6145,7 @@
           },
           {
             "name": "exclude",
-            "usage": "-e --exclude… <EXCLUDE>",
+            "usage": "-e --exclude <EXCLUDE>",
             "help": "Exclude files that otherwise would have been selected",
             "help_first_line": "Exclude files that otherwise would have been selected",
             "short": ["e"],
@@ -6174,7 +6174,7 @@
           },
           {
             "name": "glob",
-            "usage": "-g --glob… <GLOB>",
+            "usage": "-g --glob <GLOB>",
             "help": "Run on files that match these glob patterns",
             "help_first_line": "Run on files that match these glob patterns",
             "short": ["g"],
@@ -6212,7 +6212,7 @@
           },
           {
             "name": "step",
-            "usage": "-S --step… <STEP>",
+            "usage": "-S --step <STEP>",
             "help": "Run only specific step(s)",
             "help_first_line": "Run only specific step(s)",
             "short": ["S"],
@@ -6404,7 +6404,7 @@
           },
           {
             "name": "skip-step",
-            "usage": "--skip-step… <STEP>",
+            "usage": "--skip-step <STEP>",
             "help": "Skip specific step(s)",
             "help_first_line": "Skip specific step(s)",
             "short": [],
@@ -6901,7 +6901,7 @@
           },
           "check-conventional-commit": {
             "full_cmd": ["util", "check-conventional-commit"],
-            "usage": "util check-conventional-commit [--allowed-types… <ALLOWED_TYPES>] <COMMIT_MSG_FILE>",
+            "usage": "util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>",
             "subcommands": {},
             "args": [
               {
@@ -6917,7 +6917,7 @@
             "flags": [
               {
                 "name": "allowed-types",
-                "usage": "--allowed-types… <ALLOWED_TYPES>",
+                "usage": "--allowed-types <ALLOWED_TYPES>",
                 "short": [],
                 "long": ["allowed-types"],
                 "var": true,
@@ -7371,13 +7371,13 @@
           },
           "no-commit-to-branch": {
             "full_cmd": ["util", "no-commit-to-branch"],
-            "usage": "util no-commit-to-branch [--branch… <BRANCH>]",
+            "usage": "util no-commit-to-branch [--branch <BRANCH>]",
             "subcommands": {},
             "args": [],
             "flags": [
               {
                 "name": "branch",
-                "usage": "--branch… <BRANCH>",
+                "usage": "--branch <BRANCH>",
                 "help": "Branch names to protect (default: main, master)",
                 "help_first_line": "Branch names to protect (default: main, master)",
                 "short": [],
@@ -7745,7 +7745,7 @@
       },
       {
         "name": "profile",
-        "usage": "-p --profile… <PROFILE>",
+        "usage": "-p --profile <PROFILE>",
         "help": "Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast",
         "help_first_line": "Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast",
         "short": ["p"],
@@ -7773,7 +7773,7 @@
       },
       {
         "name": "verbose",
-        "usage": "-v --verbose…",
+        "usage": "-v --verbose",
         "help": "Enables verbose output",
         "help_first_line": "Enables verbose output",
         "short": ["v"],

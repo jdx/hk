@@ -12,9 +12,9 @@
 
 - **`--cd <DIRECTORY>`** — Run as if hk was started in this directory
 - **`-j --jobs <JOBS>`** — Number of jobs to run in parallel
-- **`-p --profile… <PROFILE>`** — Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast
+- **`-p --profile <PROFILE>`** — Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast
 - **`-s --slow`** — Shorthand for --profile=slow
-- **`-v --verbose…`** — Enables verbose output
+- **`-v --verbose`** — Enables verbose output
 - **`-n --no-progress`** — Disables progress output
 - **`-q --quiet`** — Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
 - **`--silent`** — Suppresses all output including warnings. Only errors are shown
@@ -70,7 +70,7 @@
 - [`hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`](/cli/util/check-added-large-files.md)
 - [`hk util check-byte-order-marker [-d --diff] <FILES>…`](/cli/util/check-byte-order-marker.md)
 - [`hk util check-case-conflict <FILES>…`](/cli/util/check-case-conflict.md)
-- [`hk util check-conventional-commit [--allowed-types… <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`](/cli/util/check-conventional-commit.md)
+- [`hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`](/cli/util/check-conventional-commit.md)
 - [`hk util check-executables-have-shebangs <FILES>…`](/cli/util/check-executables-have-shebangs.md)
 - [`hk util check-merge-conflict [--assume-in-merge] <FILES>…`](/cli/util/check-merge-conflict.md)
 - [`hk util check-symlinks <FILES>…`](/cli/util/check-symlinks.md)
@@ -79,7 +79,7 @@
 - [`hk util fix-byte-order-marker <FILES>…`](/cli/util/fix-byte-order-marker.md)
 - [`hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`](/cli/util/fix-smart-quotes.md)
 - [`hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`](/cli/util/mixed-line-ending.md)
-- [`hk util no-commit-to-branch [--branch… <BRANCH>]`](/cli/util/no-commit-to-branch.md)
+- [`hk util no-commit-to-branch [--branch <BRANCH>]`](/cli/util/no-commit-to-branch.md)
 - [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)
 - [`hk util python-debug-statements <FILES>…`](/cli/util/python-debug-statements.md)
 - [`hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`](/cli/util/trailing-whitespace.md)

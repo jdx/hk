@@ -15,12 +15,12 @@
 
 - **`-a --all`** — Run on all files instead of just staged files
 - **`-c --check`** — Run check command instead of fix command
-- **`-e --exclude… <EXCLUDE>`** — Exclude files that otherwise would have been selected
+- **`-e --exclude <EXCLUDE>`** — Exclude files that otherwise would have been selected
 - **`-f --fix`** — Run fix command instead of check command (this is the default behavior unless HK_FIX=0)
-- **`-g --glob… <GLOB>`** — Run on files that match these glob patterns
+- **`-g --glob <GLOB>`** — Run on files that match these glob patterns
 - **`-J --json`** — Output the plan as JSON when combined with --plan or --why
 - **`-P --plan`** — Print the plan instead of running the hook
-- **`-S --step… <STEP>`** — Run only specific step(s)
+- **`-S --step <STEP>`** — Run only specific step(s)
 - **`-W --why [STEP]`** — Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.
 - **`--fail-fast`** — Abort on first failure
 - **`--files0-from <PATH>`** — Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
@@ -34,7 +34,7 @@
 - **`--pr`** — Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
 - **`--safe`** — Reject commands with unknown or destructive effects before execution
 - **`--sarif <PATH>`** — Write normalized diagnostics as SARIF
-- **`--skip-step… <STEP>`** — Skip specific step(s)
+- **`--skip-step <STEP>`** — Skip specific step(s)
 - **`--stage`** — Enable auto-staging of fixed files
 - **`--staged`** — Run on staged files only without stashing unstaged changes
 - **`--stash <STASH>`** — Stash method to use for git hooks

@@ -2,7 +2,7 @@
 
 # `hk util check-conventional-commit`
 
-- **Usage:** `hk util check-conventional-commit [--allowed-types… <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`
+- **Usage:** `hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`
 - **Effect:** read-only
 
 Check for conventional commit message
@@ -15,7 +15,7 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
 
 ## Flags
 
-- **`--allowed-types… <ALLOWED_TYPES>`**
+- **`--allowed-types <ALLOWED_TYPES>`**
 
   **Default:** `build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test`
 
