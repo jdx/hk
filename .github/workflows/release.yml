@@ -278,6 +278,7 @@ jobs:
 
   publish-release:
     needs: [publish-crate, enhance-release]
+    if: ${{ !cancelled() && needs.enhance-release.result == 'success' && (needs.publish-crate.result == 'success' || needs.publish-crate.result == 'skipped') }}
     runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: write
