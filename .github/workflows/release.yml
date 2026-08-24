@@ -206,6 +206,7 @@ jobs:
           gh release create "$TAG_NAME" \
             --title "$TAG_NAME" \
             --notes-file release-notes.md \
+            --draft \
             release-assets/*
 
   publish-crate:
@@ -274,3 +275,22 @@ jobs:
           EOF
 
           gh release edit "$TAG_NAME" --notes-file /tmp/release-notes.md
+
+  publish-release:
+    needs: [publish-crate, enhance-release]
+    runs-on: namespace-profile-endev-linux-amd64
+    permissions:
+      contents: write
+    steps:
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUTS_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ -n "${INPUTS_VERSION}" ]]; then
+            TAG_NAME="v${INPUTS_VERSION}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+          gh release edit "$TAG_NAME" --draft=false
