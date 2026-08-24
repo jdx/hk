@@ -2,29 +2,25 @@
 
 # `hk completion`
 
-- **Usage**: `hk completion [--install] [--force] <SHELL>`
-- **Effect**: read-only
+- **Usage:** `hk completion [--install] [--force] <SHELL>`
+- **Effect:** read-only
 
 Generates shell completion scripts
 
 ## Arguments
 
-### `<SHELL>`
-
-The shell to generate completion for
+- **`<SHELL>`** — The shell to generate completion for
 
 ## Flags
 
-### `--install`
+- **`--install`** — Install the script where this shell looks for it, instead of printing it
 
-**Effect**: modifies state
+  Writes the script file and nothing else: no shell rc file and no PowerShell profile is edited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's dot-source — it is printed for you to add.
 
-Install the script where this shell looks for it, instead of printing it
+  **Effect:** modifies state
 
-Writes the script file and nothing else: no shell rc file and no PowerShell profile is edited. Where a shell needs a one-time line of its own — zsh's `fpath+=`, PowerShell's dot-source — it is printed for you to add.
+- **`--force`** — Replace a file at the target path that hk did not write
 
-### `--force`
+  **Effect:** modifies state
 
-**Effect**: modifies state
-
-Replace a file at the target path that hk did not write
+- **`-h --help`** — Print help

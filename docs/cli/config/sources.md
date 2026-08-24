@@ -2,9 +2,13 @@
 
 # `hk config sources`
 
-- **Usage**: `hk config sources`
-- **Effect**: read-only
+- **Usage:** `hk config sources`
+- **Effect:** read-only
 
 Show the configuration source precedence order
 
 Lists all configuration sources in order of precedence to help understand where configuration values come from.
+
+## Flags
+
+- **`-h --help`** — Print help

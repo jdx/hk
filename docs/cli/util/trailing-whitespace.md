@@ -2,23 +2,17 @@
 
 # `hk util trailing-whitespace`
 
-- **Usage**: `hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`
-- **Effect**: modifies state
+- **Usage:** `hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`
+- **Effect:** modifies state
 
 Check for and optionally fix trailing whitespace
 
 ## Arguments
 
-### `<FILES>…`
-
-Files to check/fix
+- **`<FILES>…`** — Files to check/fix
 
 ## Flags
 
-### `-d --diff`
-
-Output a diff of the change. Cannot use with `fix`.
-
-### `-f --fix`
-
-Fix trailing whitespace by removing it
+- **`-d --diff`** — Output a diff of the change. Cannot use with `fix`.
+- **`-f --fix`** — Fix trailing whitespace by removing it
+- **`-h --help`** — Print help

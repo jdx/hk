@@ -2,8 +2,8 @@
 
 # `hk config get`
 
-- **Usage**: `hk config get <KEY>`
-- **Effect**: read-only
+- **Usage:** `hk config get <KEY>`
+- **Effect:** read-only
 
 Get a specific configuration value
 
@@ -11,8 +11,10 @@ Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_sk
 
 ## Arguments
 
-### `<KEY>`
+- **`<KEY>`** — Configuration key to retrieve
 
-Configuration key to retrieve
+  Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
 
-Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
+## Flags
+
+- **`-h --help`** — Print help

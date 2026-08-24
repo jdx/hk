@@ -2,9 +2,9 @@
 
 # `hk install`
 
-- **Usage**: `hk install [FLAGS]`
-- **Aliases**: `i`
-- **Effect**: modifies state
+- **Usage:** `hk install [FLAGS]`
+- **Aliases:** `i`
+- **Effect:** modifies state
 
 Sets up git hooks to run hk.
 
@@ -16,28 +16,19 @@ If hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), 
 
 ## Flags
 
-### `--force-local`
+- **`--force-local`** — Install local hooks even when hk is already configured globally
+  (any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
+  install is skipped in that case to avoid hk firing twice per
+  event. Not compatible with `--global`.
+- **`--global`** — Recommended. Install at user level (~/.gitconfig) so every repo
+  on this machine gets hk hooks. Requires Git 2.54 or newer. In
+  repos without an `hk.pkl`, the installed hook is a silent no-op.
+- **`--legacy`** — Force using the legacy `.git/hooks/` script shims instead of Git
+  2.54+ config-based hooks. Not compatible with `--global`.
+- **`--mise`** — Use `mise x` to execute hooks. With this, it won't
+  be necessary to activate mise in order to run hooks
+  with mise tools.
 
-Install local hooks even when hk is already configured globally
-(any `hook.hk-*` entry in `~/.gitconfig`). By default a per-repo
-install is skipped in that case to avoid hk firing twice per
-event. Not compatible with `--global`.
+  Set HK_MISE=1 to make this default behavior.
 
-### `--global`
-
-Recommended. Install at user level (~/.gitconfig) so every repo
-on this machine gets hk hooks. Requires Git 2.54 or newer. In
-repos without an `hk.pkl`, the installed hook is a silent no-op.
-
-### `--legacy`
-
-Force using the legacy `.git/hooks/` script shims instead of Git
-2.54+ config-based hooks. Not compatible with `--global`.
-
-### `--mise`
-
-Use `mise x` to execute hooks. With this, it won't
-be necessary to activate mise in order to run hooks
-with mise tools.
-
-Set HK_MISE=1 to make this default behavior.
+- **`-h --help`** — Print help

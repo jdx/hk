@@ -2,23 +2,17 @@
 
 # `hk util mixed-line-ending`
 
-- **Usage**: `hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`
-- **Effect**: modifies state
+- **Usage:** `hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`
+- **Effect:** modifies state
 
 Detect and fix mixed line endings
 
 ## Arguments
 
-### `<FILES>…`
-
-Files to check or fix
+- **`<FILES>…`** — Files to check or fix
 
 ## Flags
 
-### `-d --diff`
-
-Output a diff of the change. Cannot use with `fix`.
-
-### `-f --fix`
-
-Fix mixed line endings by normalizing to LF
+- **`-d --diff`** — Output a diff of the change. Cannot use with `fix`.
+- **`-f --fix`** — Fix mixed line endings by normalizing to LF
+- **`-h --help`** — Print help

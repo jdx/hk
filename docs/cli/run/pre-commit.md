@@ -2,127 +2,46 @@
 
 # `hk run pre-commit`
 
-- **Usage**: `hk run pre-commit [FLAGS] [FILES]…`
-- **Aliases**: `pc`
+- **Usage:** `hk run pre-commit [FLAGS] [FILES]…`
+- **Aliases:** `pc`
 
 Run the pre-commit hook
 
 ## Arguments
 
-### `[FILES]…`
-
-Run on specific files
+- **`[FILES]…`** — Run on specific files
 
 ## Flags
 
-### `-a --all`
+- **`-a --all`** — Run on all files instead of just staged files
+- **`-c --check`** — Run check command instead of fix command
+- **`-e --exclude… <EXCLUDE>`** — Exclude files that otherwise would have been selected
+- **`-f --fix`** — Run fix command instead of check command (this is the default behavior unless HK_FIX=0)
+- **`-g --glob… <GLOB>`** — Run on files that match these glob patterns
+- **`-J --json`** — Output the plan as JSON when combined with --plan or --why
+- **`-P --plan`** — Print the plan instead of running the hook
+- **`-S --step… <STEP>`** — Run only specific step(s)
+- **`-W --why [STEP]`** — Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.
+- **`--fail-fast`** — Abort on first failure
+- **`--files0-from <PATH>`** — Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
+- **`--format <FORMAT>`** — Select human or machine-readable execution output
 
-Run on all files instead of just staged files
+  **Choices:** `human`, `json`, `jsonl`
 
-### `-c --check`
+- **`--from-ref <FROM_REF>`** — Start reference for checking files (requires --to-ref)
+- **`--no-fail-fast`** — Continue on failures (opposite of --fail-fast)
+- **`--no-stage`** — Disable auto-staging of fixed files
+- **`--pr`** — Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
+- **`--safe`** — Reject commands with unknown or destructive effects before execution
+- **`--sarif <PATH>`** — Write normalized diagnostics as SARIF
+- **`--skip-step… <STEP>`** — Skip specific step(s)
+- **`--stage`** — Enable auto-staging of fixed files
+- **`--staged`** — Run on staged files only without stashing unstaged changes
+- **`--stash <STASH>`** — Stash method to use for git hooks
 
-Run check command instead of fix command
+  **Choices:** `git`, `patch-file`, `none`
 
-### `-e --exclude… <EXCLUDE>`
-
-Exclude files that otherwise would have been selected
-
-### `-f --fix`
-
-Run fix command instead of check command (this is the default behavior unless HK_FIX=0)
-
-### `-g --glob… <GLOB>`
-
-Run on files that match these glob patterns
-
-### `-J --json`
-
-Output the plan as JSON when combined with --plan or --why
-
-### `-P --plan`
-
-Print the plan instead of running the hook
-
-### `-S --step… <STEP>`
-
-Run only specific step(s)
-
-### `-W --why [STEP]`
-
-Show detailed reasons for inclusion/exclusion. Pass a step name to focus on one step, or omit the value to show reasons for all steps. Implies --plan.
-
-### `--fail-fast`
-
-Abort on first failure
-
-### `--files0-from <PATH>`
-
-Read the exact file list from a NUL-delimited file, or from stdin with `-` (except hooks that reserve stdin)
-
-### `--format <FORMAT>`
-
-Select human or machine-readable execution output
-
-**Choices:**
-
-- `human`
-- `json`
-- `jsonl`
-
-### `--from-ref <FROM_REF>`
-
-Start reference for checking files (requires --to-ref)
-
-### `--no-fail-fast`
-
-Continue on failures (opposite of --fail-fast)
-
-### `--no-stage`
-
-Disable auto-staging of fixed files
-
-### `--pr`
-
-Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)
-
-### `--safe`
-
-Reject commands with unknown or destructive effects before execution
-
-### `--sarif <PATH>`
-
-Write normalized diagnostics as SARIF
-
-### `--skip-step… <STEP>`
-
-Skip specific step(s)
-
-### `--stage`
-
-Enable auto-staging of fixed files
-
-### `--staged`
-
-Run on staged files only without stashing unstaged changes
-
-### `--stash <STASH>`
-
-Stash method to use for git hooks
-
-**Choices:**
-
-- `git`
-- `patch-file`
-- `none`
-
-### `--stats`
-
-Display statistics about files matching each step
-
-### `--to-ref <TO_REF>`
-
-End reference for checking files (requires --from-ref)
-
-### `--unstaged`
-
-Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.
+- **`--stats`** — Display statistics about files matching each step
+- **`--to-ref <TO_REF>`** — End reference for checking files (requires --from-ref)
+- **`--unstaged`** — Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed.
+- **`-h --help`** — Print help

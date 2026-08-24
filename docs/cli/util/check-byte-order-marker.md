@@ -2,19 +2,16 @@
 
 # `hk util check-byte-order-marker`
 
-- **Usage**: `hk util check-byte-order-marker [-d --diff] <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util check-byte-order-marker [-d --diff] <FILES>…`
+- **Effect:** read-only
 
 Check for UTF-8 byte order marker (BOM)
 
 ## Arguments
 
-### `<FILES>…`
-
-Files to check
+- **`<FILES>…`** — Files to check
 
 ## Flags
 
-### `-d --diff`
-
-Output a diff of the change.
+- **`-d --diff`** — Output a diff of the change.
+- **`-h --help`** — Print help

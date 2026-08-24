@@ -2,17 +2,15 @@
 
 # `hk agent hooks`
 
-- **Usage**: `hk agent hooks <--target <TARGET>>`
-- **Effect**: read-only
+- **Usage:** `hk agent hooks <--target <TARGET>>`
+- **Effect:** read-only
 
 Print a hook configuration for an agent or editor
 
 ## Flags
 
-### `--target <TARGET>`
+- **`--target <TARGET>`**
 
-**Choices:**
+  **Choices:** `codex`, `claude-code`, `vscode`
 
-- `codex`
-- `claude-code`
-- `vscode`
+- **`-h --help`** — Print help

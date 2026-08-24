@@ -2,7 +2,11 @@
 
 # `hk builtins`
 
-- **Usage**: `hk builtins`
-- **Effect**: read-only
+- **Usage:** `hk builtins`
+- **Effect:** read-only
 
 Lists all available builtin linters
+
+## Flags
+
+- **`-h --help`** — Print help

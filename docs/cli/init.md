@@ -2,24 +2,18 @@
 
 # `hk init`
 
-- **Usage**: `hk init [FLAGS]`
-- **Aliases**: `generate`
-- **Effect**: modifies state
+- **Usage:** `hk init [FLAGS]`
+- **Aliases:** `generate`
+- **Effect:** modifies state
 
 Generates a new hk.pkl file for a project
 
 ## Flags
 
-### `-f --force`
+- **`-f --force`** — Overwrite existing hk.pkl file
+- **`-i --interactive`** — Interactive mode: select linters and hooks manually
+- **`--mise`** — Generate a mise.toml file with hk configured
 
-Overwrite existing hk.pkl file
+  Set HK_MISE=1 to make this default behavior.
 
-### `-i --interactive`
-
-Interactive mode: select linters and hooks manually
-
-### `--mise`
-
-Generate a mise.toml file with hk configured
-
-Set HK_MISE=1 to make this default behavior.
+- **`-h --help`** — Print help

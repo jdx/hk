@@ -2,29 +2,21 @@
 
 # `hk migrate pre-commit`
 
-- **Usage**: `hk migrate pre-commit [FLAGS]`
-- **Effect**: modifies state
+- **Usage:** `hk migrate pre-commit [FLAGS]`
+- **Effect:** modifies state
 
 Migrate from pre-commit to hk
 
 ## Flags
 
-### `-c --config <CONFIG>`
+- **`-c --config <CONFIG>`** — Path to .pre-commit-config.yaml
 
-Path to .pre-commit-config.yaml
+  **Default:** `.pre-commit-config.yaml`
 
-**Default:** `.pre-commit-config.yaml`
+- **`-f --force`** — Overwrite existing hk.pkl file
+- **`-o --output <OUTPUT>`** — Output path for hk.pkl
 
-### `-f --force`
+  **Default:** `hk.pkl`
 
-Overwrite existing hk.pkl file
-
-### `-o --output <OUTPUT>`
-
-Output path for hk.pkl
-
-**Default:** `hk.pkl`
-
-### `--hk-pkl-root <HK_PKL_ROOT>`
-
-Root path for hk pkl files (e.g., "pkl" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl
+- **`--hk-pkl-root <HK_PKL_ROOT>`** — Root path for hk pkl files (e.g., "pkl" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl
+- **`-h --help`** — Print help

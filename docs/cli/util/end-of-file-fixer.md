@@ -2,23 +2,17 @@
 
 # `hk util end-of-file-fixer`
 
-- **Usage**: `hk util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…`
-- **Effect**: modifies state
+- **Usage:** `hk util end-of-file-fixer [-d --diff] [-f --fix] <FILES>…`
+- **Effect:** modifies state
 
 Check for and optionally fix missing final newlines
 
 ## Arguments
 
-### `<FILES>…`
-
-Files to check/fix
+- **`<FILES>…`** — Files to check/fix
 
 ## Flags
 
-### `-d --diff`
-
-Output a diff of the change. Cannot use with `fix`.
-
-### `-f --fix`
-
-Fix files to end with exactly one newline
+- **`-d --diff`** — Output a diff of the change. Cannot use with `fix`.
+- **`-f --fix`** — Fix files to end with exactly one newline
+- **`-h --help`** — Print help

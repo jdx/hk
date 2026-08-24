@@ -2,19 +2,16 @@
 
 # `hk util check-merge-conflict`
 
-- **Usage**: `hk util check-merge-conflict [--assume-in-merge] <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util check-merge-conflict [--assume-in-merge] <FILES>…`
+- **Effect:** read-only
 
 Check for merge conflict markers
 
 ## Arguments
 
-### `<FILES>…`
-
-Files to check
+- **`<FILES>…`** — Files to check
 
 ## Flags
 
-### `--assume-in-merge`
-
-Run the check even when not in a merge
+- **`--assume-in-merge`** — Run the check even when not in a merge
+- **`-h --help`** — Print help

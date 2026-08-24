@@ -2,10 +2,14 @@
 
 # `hk migrate`
 
-- **Usage**: `hk migrate <SUBCOMMAND>`
-- **Effect**: read-only
+- **Usage:** `hk migrate <SUBCOMMAND>`
+- **Effect:** read-only
 
 Migrate from other hook managers to hk
+
+## Flags
+
+- **`-h --help`** — Print help
 
 ## Subcommands
 

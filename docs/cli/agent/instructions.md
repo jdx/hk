@@ -2,17 +2,15 @@
 
 # `hk agent instructions`
 
-- **Usage**: `hk agent instructions <--target <TARGET>>`
-- **Effect**: read-only
+- **Usage:** `hk agent instructions <--target <TARGET>>`
+- **Effect:** read-only
 
 Print project instructions for a coding agent
 
 ## Flags
 
-### `--target <TARGET>`
+- **`--target <TARGET>`**
 
-**Choices:**
+  **Choices:** `codex`, `claude-code`, `generic`
 
-- `codex`
-- `claude-code`
-- `generic`
+- **`-h --help`** — Print help

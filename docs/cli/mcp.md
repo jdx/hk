@@ -2,12 +2,11 @@
 
 # `hk mcp`
 
-- **Usage**: `hk mcp [--root <PATH>]`
+- **Usage:** `hk mcp [--root <PATH>]`
 
 Runs an MCP server for coding agents over standard input/output.
 
 ## Flags
 
-### `--root <PATH>`
-
-Restrict hk tools to this project root (defaults to the current directory)
+- **`--root <PATH>`** — Restrict hk tools to this project root (defaults to the current directory)
+- **`-h --help`** — Print help

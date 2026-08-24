@@ -2,13 +2,15 @@
 
 # `hk util python-debug-statements`
 
-- **Usage**: `hk util python-debug-statements <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util python-debug-statements <FILES>…`
+- **Effect:** read-only
 
 Detect Python debug statements
 
 ## Arguments
 
-### `<FILES>…`
+- **`<FILES>…`** — Files to check
 
-Files to check
+## Flags
+
+- **`-h --help`** — Print help

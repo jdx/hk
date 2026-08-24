@@ -2,13 +2,15 @@
 
 # `hk util check-case-conflict`
 
-- **Usage**: `hk util check-case-conflict <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util check-case-conflict <FILES>…`
+- **Effect:** read-only
 
 Check for case-insensitive filename conflicts
 
 ## Arguments
 
-### `<FILES>…`
+- **`<FILES>…`** — Files to check for case conflicts
 
-Files to check for case conflicts
+## Flags
+
+- **`-h --help`** — Print help

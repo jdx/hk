@@ -2,8 +2,8 @@
 
 # `hk config explain`
 
-- **Usage**: `hk config explain <KEY>`
-- **Effect**: read-only
+- **Usage:** `hk config explain <KEY>`
+- **Effect:** read-only
 
 Explain where a configuration value comes from
 
@@ -11,6 +11,8 @@ Shows the resolved value, its source (env/git/cli/default), and the full precede
 
 ## Arguments
 
-### `<KEY>`
+- **`<KEY>`** — Configuration key to explain
 
-Configuration key to explain
+## Flags
+
+- **`-h --help`** — Print help
