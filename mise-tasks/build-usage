@@ -6,4 +6,4 @@ set -eu
 
 cargo install --locked \
   --root target/usage-cli \
-  --version 6.1.0 usage-cli
+  --version 6.2.0 usage-cli

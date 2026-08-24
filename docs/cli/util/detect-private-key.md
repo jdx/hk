@@ -2,13 +2,15 @@
 
 # `hk util detect-private-key`
 
-- **Usage**: `hk util detect-private-key <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util detect-private-key <FILES>…`
+- **Effect:** read-only
 
 Detect private keys in files
 
 ## Arguments
 
-### `<FILES>…`
+- **`<FILES>…`** — Files to check
 
-Files to check
+## Flags
+
+- **`-h --help`** — Print help

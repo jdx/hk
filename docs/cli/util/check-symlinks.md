@@ -2,13 +2,15 @@
 
 # `hk util check-symlinks`
 
-- **Usage**: `hk util check-symlinks <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util check-symlinks <FILES>…`
+- **Effect:** read-only
 
 Check for broken symlinks
 
 ## Arguments
 
-### `<FILES>…`
+- **`<FILES>…`** — Files to check
 
-Files to check
+## Flags
+
+- **`-h --help`** — Print help

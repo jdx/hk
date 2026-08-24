@@ -2,13 +2,12 @@
 
 # `hk util no-commit-to-branch`
 
-- **Usage**: `hk util no-commit-to-branch [--branch… <BRANCH>]`
-- **Effect**: read-only
+- **Usage:** `hk util no-commit-to-branch [--branch… <BRANCH>]`
+- **Effect:** read-only
 
 Prevent commits to specific branches
 
 ## Flags
 
-### `--branch… <BRANCH>`
-
-Branch names to protect (default: main, master)
+- **`--branch… <BRANCH>`** — Branch names to protect (default: main, master)
+- **`-h --help`** — Print help

@@ -2,7 +2,11 @@
 
 # `hk validate`
 
-- **Usage**: `hk validate`
-- **Effect**: read-only
+- **Usage:** `hk validate`
+- **Effect:** read-only
 
 Validate the config file
+
+## Flags
+
+- **`-h --help`** — Print help

@@ -2,13 +2,15 @@
 
 # `hk util python-check-ast`
 
-- **Usage**: `hk util python-check-ast <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util python-check-ast <FILES>…`
+- **Effect:** read-only
 
 Check Python files for valid syntax
 
 ## Arguments
 
-### `<FILES>…`
+- **`<FILES>…`** — Files to check
 
-Files to check
+## Flags
+
+- **`-h --help`** — Print help

@@ -2,18 +2,15 @@
 
 # `hk agent mcp`
 
-- **Usage**: `hk agent mcp <--target <TARGET>>`
-- **Effect**: read-only
+- **Usage:** `hk agent mcp <--target <TARGET>>`
+- **Effect:** read-only
 
 Print an MCP server configuration
 
 ## Flags
 
-### `--target <TARGET>`
+- **`--target <TARGET>`**
 
-**Choices:**
+  **Choices:** `codex`, `claude-desktop`, `claude-code`, `vscode`
 
-- `codex`
-- `claude-desktop`
-- `claude-code`
-- `vscode`
+- **`-h --help`** — Print help

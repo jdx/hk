@@ -2,21 +2,19 @@
 
 # `hk util check-added-large-files`
 
-- **Usage**: `hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util check-added-large-files [--maxkb <MAXKB>] <FILES>…`
+- **Effect:** read-only
 
 Check for large files being added to repository
 
 ## Arguments
 
-### `<FILES>…`
-
-Files to check
+- **`<FILES>…`** — Files to check
 
 ## Flags
 
-### `--maxkb <MAXKB>`
+- **`--maxkb <MAXKB>`** — Maximum file size in kilobytes (default: 500)
 
-Maximum file size in kilobytes (default: 500)
+  **Default:** `500`
 
-**Default:** `500`
+- **`-h --help`** — Print help

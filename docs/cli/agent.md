@@ -2,10 +2,14 @@
 
 # `hk agent`
 
-- **Usage**: `hk agent <SUBCOMMAND>`
-- **Effect**: read-only
+- **Usage:** `hk agent <SUBCOMMAND>`
+- **Effect:** read-only
 
 Generate integration snippets for coding agents
+
+## Flags
+
+- **`-h --help`** — Print help
 
 ## Subcommands
 

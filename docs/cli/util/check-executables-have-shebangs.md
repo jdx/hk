@@ -2,13 +2,15 @@
 
 # `hk util check-executables-have-shebangs`
 
-- **Usage**: `hk util check-executables-have-shebangs <FILES>…`
-- **Effect**: read-only
+- **Usage:** `hk util check-executables-have-shebangs <FILES>…`
+- **Effect:** read-only
 
 Check that executable files have shebangs
 
 ## Arguments
 
-### `<FILES>…`
+- **`<FILES>…`** — Files to check
 
-Files to check
+## Flags
+
+- **`-h --help`** — Print help

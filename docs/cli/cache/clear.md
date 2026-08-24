@@ -2,7 +2,11 @@
 
 # `hk cache clear`
 
-- **Usage**: `hk cache clear`
-- **Effect**: modifies state
+- **Usage:** `hk cache clear`
+- **Effect:** modifies state
 
 Clear the cache directory
+
+## Flags
+
+- **`-h --help`** — Print help

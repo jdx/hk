@@ -2,13 +2,17 @@
 
 # `hk config`
 
-- **Usage**: `hk config <SUBCOMMAND>`
-- **Aliases**: `cfg`
-- **Effect**: read-only
+- **Usage:** `hk config <SUBCOMMAND>`
+- **Aliases:** `cfg`
+- **Effect:** read-only
 
 Configuration introspection and management
 
 View and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.
+
+## Flags
+
+- **`-h --help`** — Print help
 
 ## Subcommands
 

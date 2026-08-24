@@ -2,8 +2,8 @@
 
 # `hk config dump`
 
-- **Usage**: `hk config dump [--format <FORMAT>]`
-- **Effect**: read-only
+- **Usage:** `hk config dump [--format <FORMAT>]`
+- **Effect:** read-only
 
 Print effective runtime settings (JSON format)
 
@@ -11,13 +11,10 @@ Shows the merged configuration from all sources including CLI flags, environment
 
 ## Flags
 
-### `--format <FORMAT>`
+- **`--format <FORMAT>`** — Output format (json or toml)
 
-Output format (json or toml)
+  **Choices:** `json`, `toml`
 
-**Choices:**
+  **Default:** `json`
 
-- `json`
-- `toml`
-
-**Default:** `json`
+- **`-h --help`** — Print help
