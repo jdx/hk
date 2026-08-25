@@ -226,6 +226,8 @@ In check mode, hk first runs `check_diff` or `check_list_files` over the complet
 
 This behavior is opt-in because it adds another process invocation and requires `check` to accept file arguments. Enabling it requires `check` and at least one of `check_diff` or `check_list_files`. Paths not present in the original job are ignored, focused commands retain automatic argument-limit batching, and a failure from the file-reporting command remains authoritative if the focused check unexpectedly succeeds.
 
+For partial fixers, set `check_after_diff = true` alongside `check` and `check_diff`. After applying a nonempty diff in fix mode, hk reruns `check` on the original batch so non-fixable findings are not hidden by a successfully applied patch. Complete formatters can leave this disabled to retain the single-command fast path.
+
 ### `<GROUP>`
 
 A group is a collection of steps that are executed in parallel, waiting for previous steps/groups to finish and blocking other steps/groups from starting until it finishes. This is a naive way to ensure the order of execution. It's better to make use of read/write locks and depends.

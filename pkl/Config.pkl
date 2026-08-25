@@ -502,6 +502,15 @@ class Step {
 
   /// Default: `false`
   ///
+  /// If true, rerun `check` on the original file batch after successfully
+  /// applying `check_diff` output. Use this for partial fixers whose diff can
+  /// leave non-fixable findings behind.
+  ///
+  /// Requires both `check` and `check_diff`.
+  check_after_diff: Boolean = false
+
+  /// Default: `false`
+  ///
   /// If true, check mode first runs `check_diff` or `check_list_files` to
   /// identify failing files, then runs `check` only on those files. This keeps
   /// detailed diagnostics while avoiding commands and suggestions containing

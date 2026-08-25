@@ -17,6 +17,9 @@ pub struct StepJob {
     pub step: Arc<Step>,
     pub files: Vec<PathBuf>,
     pub run_type: RunType,
+    /// The mode requested by the user, retained while check-first temporarily
+    /// changes `run_type` to select a read-only command.
+    requested_run_type: RunType,
     pub check_first: bool,
     pub skip_reason: Option<SkipReason>,
     pub progress: Option<Arc<ProgressJob>>,
@@ -39,10 +42,11 @@ impl StepJob {
         Self {
             files,
             run_type,
+            requested_run_type: run_type,
             workspace_indicator: None,
             check_first: *env::HK_CHECK_FIRST
                 && step.check_first
-                && step.fix.is_some()
+                && (step.fix.is_some() || step.check_diff.is_some())
                 && (step.check.is_some()
                     || step.check_diff.is_some()
                     || step.check_list_files.is_some())
@@ -185,7 +189,7 @@ impl StepJob {
     async fn flocks(&self, ctx: &StepContext) -> Flocks {
         if self.step.stomp {
             Default::default()
-        } else if self.run_type == RunType::Fix {
+        } else if self.requested_run_type == RunType::Fix {
             ctx.hook_ctx.file_locks.write_locks(&self.files).await
         } else {
             ctx.hook_ctx.file_locks.read_locks(&self.files).await
@@ -199,6 +203,7 @@ impl Clone for StepJob {
             step: self.step.clone(),
             files: self.files.clone(),
             run_type: self.run_type,
+            requested_run_type: self.requested_run_type,
             check_first: self.check_first,
             skip_reason: self.skip_reason.clone(),
             workspace_indicator: self.workspace_indicator.clone(),
