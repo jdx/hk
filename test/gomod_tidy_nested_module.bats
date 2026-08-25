@@ -55,3 +55,39 @@ PKL
     assert_output --partial "module example.com/svc"
     refute_output --partial "example.com/unused"
 }
+
+@test "gomod_tidy runs on Go changes and stages updated manifests" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    steps {
+      ["gomod_tidy"] = Builtins.gomod_tidy
+    }
+  }
+}
+PKL
+
+    mkdir -p svc
+    printf 'module example.com/svc\n\ngo 1.21\n\nrequire example.com/unused v1.0.0\n' > svc/go.mod
+    printf 'package main\n\nfunc main() {}\n' > svc/main.go
+    git add -A
+    git commit -m "init" --quiet
+
+    printf 'package main\n\nfunc main() { println("changed") }\n' > svc/main.go
+    git add svc/main.go
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk fix --step gomod_tidy
+    assert_success
+
+    run git diff --cached --name-only
+    assert_success
+    assert_line "svc/main.go"
+    assert_line "svc/go.mod"
+
+    run git diff -- svc/go.mod
+    assert_success
+    refute_output
+}

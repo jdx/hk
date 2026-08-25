@@ -106,6 +106,7 @@ impl Step {
             let step = job.step.clone();
             let mut job = job;
             set.spawn(async move {
+                let original_job_files = job.files.clone();
                 let mut focused_check_failed = false;
                 let mut focused_check_output: Option<(String, String, String)> = None;
                 if let Some(reason) = &job.skip_reason {
@@ -195,11 +196,22 @@ impl Step {
                                     let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
                                     match step.apply_diff_output(stdout, dir.as_deref()) {
                                         Ok(true) => {
-                                            // Diff applied successfully - no need to run fixer
-                                            debug!("{step}: diff applied successfully, skipping fixer");
-                                            job.run_type = prev_run_type;
+                                            let applied_files = job.files.clone();
+                                            if step.check_after_diff {
+                                                debug!(
+                                                    "{step}: diff applied successfully, rerunning check on original files"
+                                                );
+                                                job.files = original_job_files.clone();
+                                                job.run_type = RunType::Check;
+                                                job.check_first = false;
+                                                step.run(&ctx, &mut job).await?;
+                                            } else {
+                                                debug!(
+                                                    "{step}: diff applied successfully, skipping fixer"
+                                                );
+                                            }
                                             ctx.hook_ctx.inc_completed_jobs(1);
-                                            return Ok(job.files.clone());
+                                            return Ok(applied_files);
                                         }
                                         Ok(false) => {
                                             // Diff application failed - fall through to run fixer
@@ -370,10 +382,10 @@ impl Step {
         // Build stage pathspecs; if `dir` is set, stage entries are relative to it.
         // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
         // Determine effective stage: explicit setting wins, otherwise default to <JOB_FILES>
-        // for steps with fix commands when staging is enabled.
+        // for steps that can modify files when staging is enabled.
         let effective_stage: Option<&Vec<String>> = if self.stage.is_some() {
             self.stage.as_ref()
-        } else if ctx.hook_ctx.should_stage && self.fix.is_some() {
+        } else if ctx.hook_ctx.should_stage && (self.fix.is_some() || self.check_diff.is_some()) {
             Some(&DEFAULT_STAGE)
         } else {
             None

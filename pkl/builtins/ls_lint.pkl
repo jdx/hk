@@ -1,0 +1,49 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Directory and filename naming linter"
+  // https://ls-lint.org/2.0/getting-started/installation.html
+  project_indicators {
+    new { file = ".ls-lint.yml" }
+    new { file = ".ls-lint.yaml" }
+  }
+}
+ls_lint = new Config.Step {
+  // ls-lint validates the whole tree against .ls-lint.yml itself and defaults
+  // to ".", so it takes no file arguments and runs once per invocation. The
+  // glob only gates whether the step runs at all when files change; naming
+  // violations can be introduced by adding a file of any type.
+  glob = "**/*"
+  // ls-lint only reads names, never contents, so the default filters would
+  // wrongly skip the step when a changeset holds only a binary file or symlink
+  // whose name breaks the rules.
+  allow_binary = true
+  allow_symlinks = true
+  batch = false
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ls-lint") }
+    effect = "read"
+  }
+  // No fix: ls-lint reports naming violations but will not rename files.
+  tests {
+    // ls-lint checks filenames rather than contents, so the tests vary the
+    // filename and ship a config that requires snake_case for .go files.
+    local const config = "ls:\n  .go: snake_case\n"
+    local const extraFiles = new Mapping<String, String> {
+      [".ls-lint.yml"] = config
+    }
+    local const badMaker = new helpers.TestMaker {
+      filename = "BadName.go"
+      extra_files = extraFiles
+    }
+    local const goodMaker = new helpers.TestMaker {
+      filename = "good_name.go"
+      extra_files = extraFiles
+    }
+    ["check bad filename"] = badMaker.checkFail("package x\n", 1)
+    ["check good filename"] = goodMaker.checkPass("package x\n")
+  }
+}
