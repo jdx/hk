@@ -20,6 +20,8 @@ gomod_tidy = new Config.Step {
   // never reaches nested modules.
   workspace_indicator = "go.mod"
   dir = "{{workspace}}"
+  // Tidy can update either manifest when a Go source file triggered the job.
+  stage = List("go.mod", "go.sum")
   check_diff = new Config.CommandSpec {
     command = "go mod tidy -diff"
     effect = "write"
