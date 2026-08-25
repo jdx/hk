@@ -53,8 +53,8 @@ locally by aube, prefix its builtin with `aube exec`:
 Use an argv list for builtins backed by structured commands. A string prefix such
 as `"aube exec"` or `"mise x --"` cannot be combined with those commands.
 
-The generated list below summarizes each builtin. Its complete command and defaults
-are the corresponding Pkl file in
+The generated list below summarizes each builtin. The complete command and defaults
+for each builtin are defined in the corresponding Pkl file in
 [`pkl/builtins`](https://github.com/jdx/hk/tree/main/pkl/builtins).
 
 ## Available Builtins
