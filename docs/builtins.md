@@ -18,8 +18,8 @@ import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtin
 hooks {
   ["check"] {
     steps {
-      ["prettier"] = Builtins.prettier
-      ["eslint"] = Builtins.eslint
+      ["prettier"] = Builtins.prettier()
+      ["eslint"] = Builtins.eslint()
     }
   }
 }
@@ -72,7 +72,7 @@ subproject's `mise.toml` are available without a prefix. For a Node tool install
 locally by aube, prefix its builtin with `aube exec`:
 
 ```pkl
-["eslint"] = (Builtins.eslint) {
+["eslint"] = (Builtins.eslint()) {
   prefix = List("aube", "exec")
 }
 ```

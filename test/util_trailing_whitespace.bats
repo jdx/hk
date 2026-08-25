@@ -106,12 +106,12 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["trailing-ws"] = Builtins.trailing_whitespace
+            ["trailing-ws"] = Builtins.trailing_whitespace()
         }
     }
     ["fix"] {
         steps {
-            ["trailing-ws"] = Builtins.trailing_whitespace
+            ["trailing-ws"] = Builtins.trailing_whitespace()
         }
     }
 }

@@ -59,11 +59,11 @@ local infrastructure = new Group {
 
 // Shared linters (apply to all components)
 local shared = new Mapping<String, Step> {
-  ["markdown"] = (Builtins.markdown_lint) {
+  ["markdown"] = (Builtins.markdown_lint()) {
     glob = List("**/*.md")
     exclude = List("**/node_modules/**", "**/target/**")
   }
-  ["yaml"] = (Builtins.yamllint) {
+  ["yaml"] = (Builtins.yamllint()) {
     glob = List("**/*.yaml", "**/*.yml")
     exclude = List("**/node_modules/**")
   }

@@ -9,14 +9,14 @@ hooks = new {
   ["pre-commit"] {
     stash = "patch-file"
     steps {
-      ["actionlint"] = Builtins.actionlint
-      ["cargo-fmt"] = Builtins.cargo_fmt
+      ["actionlint"] = Builtins.actionlint()
+      ["cargo-fmt"] = Builtins.cargo_fmt()
       ["dbg"] {
         // ensure no dbg! macros are used
         glob = "**/*.rs"
         check = "! rg -e 'dbg!' {{files}}"
       }
-      ["prettier"] = (Builtins.prettier) {
+      ["prettier"] = (Builtins.prettier()) {
         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
       }
     }

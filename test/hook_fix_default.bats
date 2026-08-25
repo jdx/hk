@@ -16,7 +16,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace
+            ["trailing-whitespace"] = Builtins.trailing_whitespace()
         }
     }
 }
@@ -41,7 +41,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace
+            ["trailing-whitespace"] = Builtins.trailing_whitespace()
         }
     }
 }
@@ -66,7 +66,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace
+            ["trailing-whitespace"] = Builtins.trailing_whitespace()
         }
     }
 }

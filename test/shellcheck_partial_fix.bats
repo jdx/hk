@@ -19,7 +19,7 @@ hooks {
     ["fix"] {
         fix = true
         steps {
-            ["shellcheck"] = Builtins.shellcheck
+            ["shellcheck"] = Builtins.shellcheck()
         }
     }
 }
