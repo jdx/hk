@@ -157,6 +157,38 @@ EOF
     assert_file_not_exists fix-ran
 }
 
+@test "safe mode validates checks configured after diff application" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["partial"] {
+                check_diff = new CommandSpec {
+                    command = "false"
+                    effect = "read"
+                }
+                check = new CommandSpec {
+                    command = "touch check-ran"
+                    effect = "destructive"
+                }
+                check_after_diff = true
+            }
+        }
+    }
+}
+EOF
+    touch input.txt
+    git add .
+    git commit -m init
+
+    run hk fix --all --safe
+    assert_failure
+    assert_output --partial "partial.check: effect is destructive"
+    assert_file_not_exists check-ran
+}
+
 @test "safe mode ignores check-first commands that no job will use" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

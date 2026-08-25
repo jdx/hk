@@ -201,6 +201,10 @@ pub struct Step {
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub check_diff: Option<Command>,
 
+    /// Run the regular check after applying check_diff output
+    #[serde(default)]
+    pub check_after_diff: bool,
+
     /// Run a file-listing check first, then check only the failing files
     #[serde(default)]
     pub check_failed_files: bool,

@@ -424,3 +424,185 @@ EOF
     run cat test.orig
     assert_output "diffed"
 }
+
+@test "check_after_diff rechecks the original batch after applying a partial fix" {
+    cat <<'SCRIPT' > partial-linter.sh
+#!/bin/bash
+mode="$1"
+shift
+failed=0
+for file in "$@"; do
+    content=$(cat "$file")
+    if [[ "$mode" == "--diff" && "$content" == "fixable" ]]; then
+        echo "--- a/$file"
+        echo "+++ b/$file"
+        echo "@@ -1 +1 @@"
+        echo "-fixable"
+        echo "+fixed"
+        failed=1
+    elif [[ "$content" == "unfixable" ]]; then
+        echo "unfixable finding in $file"
+        failed=1
+    fi
+done
+exit "$failed"
+SCRIPT
+    chmod +x partial-linter.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["partial"] {
+                glob = List("*.txt")
+                check = "./partial-linter.sh --check {{files}}"
+                check_diff = "./partial-linter.sh --diff {{files}}"
+                check_after_diff = true
+            }
+        }
+    }
+}
+EOF
+
+    echo "fixable" > fixable.txt
+    echo "unfixable" > unfixable.txt
+
+    run hk fix --all
+    assert_failure
+    assert_output --partial "unfixable finding in unfixable.txt"
+
+    run cat fixable.txt
+    assert_output "fixed"
+
+    rm unfixable.txt
+    echo "fixable" > fixable.txt
+
+    run hk fix --all
+    assert_success
+
+    run cat fixable.txt
+    assert_output "fixed"
+}
+
+@test "check_after_diff validates required commands" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["partial"] {
+                glob = List("*.txt")
+                check_diff = "./partial-linter.sh --diff {{files}}"
+                check_after_diff = true
+            }
+        }
+    }
+}
+EOF
+    touch test.txt
+
+    run hk validate
+    assert_failure
+    assert_output --partial \
+        "check_after_diff = true\` requires both \`check\` and \`check_diff"
+}
+
+@test "check_diff fix mode serializes writers for the same file" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+content=$(cat "$file")
+if [[ "$content" == "old" ]]; then
+    sleep 1
+    echo "--- a/$file"
+    echo "+++ b/$file"
+    echo "@@ -1 +1 @@"
+    echo "-old"
+    echo "+new"
+    exit 1
+fi
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["first"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+            ["second"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "old" > test.txt
+
+    run hk fix test.txt
+    assert_success
+
+    run cat test.txt
+    assert_output "new"
+}
+
+@test "check_diff-only step stages an applied patch" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+if [[ "$(cat "$file")" == "old" ]]; then
+    echo "--- a/$file"
+    echo "+++ b/$file"
+    echo "@@ -1 +1 @@"
+    echo "-old"
+    echo "+new"
+    exit 1
+fi
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "none"
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "base" > test.txt
+    git add .
+    git commit -m base
+    echo "old" > test.txt
+    git add test.txt
+
+    run hk run pre-commit
+    assert_success
+
+    run git show :test.txt
+    assert_output "new"
+}
