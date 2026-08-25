@@ -151,3 +151,36 @@ EOF
     run git commit -m "should pass"
     assert_success
 }
+
+@test "subprojects make workspace templates relative to the scoped directory" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+subprojects = List("ui")
+hooks {
+    ["check"] {}
+}
+EOF
+    mkdir -p ui/src
+    cat <<EOF > ui/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["tsc-paths"] {
+                glob = List("**/*.ts")
+                workspace_indicator = "tsconfig.json"
+                check = "echo workspace={{workspace}} indicator={{workspace_indicator}}; test -f {{workspace_indicator}}; test '{{workspace}}' = '.'"
+            }
+        }
+    }
+}
+EOF
+    echo '{"compilerOptions":{"strict":true}}' > ui/tsconfig.json
+    echo 'const value: number = 1;' > ui/src/main.ts
+    git add .
+    git commit -m "initial commit"
+
+    run hk check --all -v
+    assert_success
+    assert_output --partial "workspace=. indicator=tsconfig.json"
+}

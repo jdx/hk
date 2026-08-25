@@ -21,6 +21,13 @@ use super::Step;
 const TEMPLATE_OPENERS: [&str; 2] = ["{{", "{%"];
 
 impl Step {
+    /// Whether `dir` contains a template expression.
+    pub(crate) fn dir_is_templated(&self) -> bool {
+        self.dir
+            .as_deref()
+            .is_some_and(|dir| template_start(dir).is_some())
+    }
+
     /// The literal directory prefix of `dir`, for selecting files before jobs
     /// (and therefore workspaces) exist.
     ///

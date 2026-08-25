@@ -193,11 +193,18 @@ hk creates one job per matched workspace, so this runs `go vet ./...` in `packag
 
 File selection happens before hk knows which workspace a job will run in, so `glob` matching, `exclude`, and `stage` pathspecs use only the literal part of `dir` that precedes the first template expression — `sub/{{workspace}}` scopes them to `sub`, and `{{workspace}}` scopes them to nothing. Use `glob` and `workspace_indicator` to select files for a step with a fully templated `dir`.
 
-Literal `dir` values contain no template expression, so they behave exactly as before.
+For commands run with a literal `dir`, `{{workspace}}` and
+`{{workspace_indicator}}` are relative to that directory, just like `{{files}}`.
+For example, a command running in `packages/api` sees `.` and `go.mod` rather
+than `packages/api` and `packages/api/go.mod`.
 
 `stage` patterns are handled separately. Staging runs once per step, after every job, so hk re-resolves a templated `dir` against each matched workspace: `stage = List("generated/**")` stages `packages/a/generated/...` and `packages/b/generated/...`, and leaves a same-named path at the repo root alone. If no workspace matches, the patterns fall back to the repo root and hk warns.
 
-One caveat: `{{workspace}}` is always relative to the repo root, never to a subproject, so a subproject config that sets a templated `dir` resolves to the wrong path. hk reports it as a missing working directory rather than failing obscurely; use a literal `dir` in subprojects for now.
+One caveat: while rendering `dir` itself, `{{workspace}}` is relative to the repo
+root, never to a subproject. A subproject config that sets a templated `dir`
+therefore resolves to the wrong path. hk reports it as a missing working
+directory rather than failing obscurely; use a literal `dir` in subprojects for
+now.
 
 ### Focus checks on failing files
 
