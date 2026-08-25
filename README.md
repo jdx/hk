@@ -68,6 +68,10 @@ hooks {
   ["check"] {
     steps = linters
   }
+  ["fix"] {
+    fix = true
+    steps = linters
+  }
 }
 ```
 
