@@ -65,10 +65,10 @@ import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtin
 
 local linters = new Mapping<String, Step> {
   // aube resolves these executables from frontend/node_modules/.bin
-  ["eslint"] = (Builtins.eslint) {
+  ["eslint"] = (Builtins.eslint()) {
     prefix = List("aube", "exec")
   }
-  ["prettier"] = (Builtins.prettier) {
+  ["prettier"] = (Builtins.prettier()) {
     prefix = List("aube", "exec")
   }
 }
@@ -90,8 +90,8 @@ amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-  ["cargo-fmt"] = Builtins.cargo_fmt
-  ["cargo-clippy"] = Builtins.cargo_clippy
+  ["cargo-fmt"] = Builtins.cargo_fmt()
+  ["cargo-clippy"] = Builtins.cargo_clippy()
 }
 
 hooks {

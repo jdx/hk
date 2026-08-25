@@ -15,10 +15,10 @@ amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
-    // Include all Builtins.* steps except versioned builtins that require a
+    // Include all builtin steps except versioned builtins that require a
     // different tool stub. Those are exercised separately below.
     steps =
-      Builtins
+      Builtins.all
         .toMap()
         .filter((name, _) -> name != "pinact_v3")
         .toMapping()
@@ -35,6 +35,27 @@ PKL
     assert_output --partial "ok - newlines :: fix bad file"
 }
 
+@test "gitleaks staged option tests run" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["gitleaks"] = (Builtins.gitleaks()) {
+        staged = true
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step gitleaks
+    assert_success
+    assert_output --partial "ok - gitleaks :: check bad staged file"
+}
+
 @test "pinact v3 builtin tests run with pinact v3" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -42,7 +63,7 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["pinact_v3"] = Builtins.pinact_v3
+      ["pinact_v3"] = Builtins.pinact_v3()
     }
   }
 }
@@ -61,10 +82,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["shellcheck"] = (Builtins.shellcheck) {
+      ["shellcheck"] = (Builtins.shellcheck()) {
         check = "echo shellcheck {{ files }}"
       }
-      ["shfmt"] = (Builtins.shfmt) {
+      ["shfmt"] = (Builtins.shfmt()) {
         check = "echo shfmt {{ files }}"
       }
     }
@@ -95,10 +116,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["ruff"] = (Builtins.ruff) {
+      ["ruff"] = (Builtins.ruff()) {
         check = "for f in {{ files }}; do echo ruff:\$f; done"
       }
-      ["ruff_format"] = (Builtins.ruff_format) {
+      ["ruff_format"] = (Builtins.ruff_format()) {
         check = "for f in {{ files }}; do echo ruff_format:\$f; done"
       }
     }

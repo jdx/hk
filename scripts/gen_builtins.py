@@ -46,20 +46,20 @@ class meta extends Annotation {
 # Deprecated aliases. These point at a canonical builtin so loading
 # Builtins.pkl never reads a deprecated property — under pklr's lazy
 # @Deprecated handling (>= 0.4.2) the warning then fires only when a
-# user references e.g. `Builtins.check_byte_order_marker`.
+# user references e.g. `Builtins.check_byte_order_marker()`.
 # (alias_name, canonical_name, since, message)
 DEPRECATED_ALIASES = [
     (
         "check_byte_order_marker",
         "byte_order_marker",
         "1.30.0",
-        "Use `Builtins.byte_order_marker`",
+        "Use `Builtins.byte_order_marker()`",
     ),
     (
         "fix_byte_order_marker",
         "byte_order_marker",
         "1.30.0",
-        "Use `Builtins.byte_order_marker`",
+        "Use `Builtins.byte_order_marker()`",
     ),
 ]
 
@@ -71,7 +71,7 @@ def validate_effect_coverage():
         text=True,
         check=True,
     )
-    builtins = json.loads(result.stdout)
+    builtins = json.loads(result.stdout)["all"]
     missing = []
     for name, step in builtins.items():
         if not isinstance(step, dict):
@@ -100,7 +100,19 @@ def main():
             identifier = filename.replace("-", "_")
             if identifier in skip:
                 continue
-            f.write(f'{identifier} = Builtins["builtins/{filename}.pkl"].{identifier}\n')
+            f.write(
+                f'function {identifier}() = '
+                f'Builtins["builtins/{filename}.pkl"].{identifier}\n'
+            )
+
+        f.write("\nall = new Mapping<String, Config.Step> {\n")
+        for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
+            filename = os.path.splitext(os.path.basename(filepath))[0]
+            identifier = filename.replace("-", "_")
+            if identifier in skip:
+                continue
+            f.write(f'  ["{identifier}"] = {identifier}()\n')
+        f.write("}\n")
 
         for alias, canonical, since, message in DEPRECATED_ALIASES:
             f.write("\n")
@@ -108,7 +120,7 @@ def main():
             f.write(f'  since = "{since}"\n')
             f.write(f'  message = "{message}"\n')
             f.write("}\n")
-            f.write(f"{alias} = {canonical}\n")
+            f.write(f"function {alias}() = {canonical}()\n")
 
     # pkl format (exits 11 after formatting, ignore that)
     subprocess.run(["pkl", "format", "--write", "pkl/Builtins.pkl"])

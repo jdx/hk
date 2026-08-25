@@ -12,14 +12,14 @@ local linters = new Mapping<String, Step | Group> {
   //     check = "pkl eval {{files}} >/dev/null"
   // }
   // predefined formatters+linters
-  ["cargo-clippy"] = (Builtins.cargo_clippy) {
+  ["cargo-clippy"] = (Builtins.cargo_clippy()) {
     profiles = List("slow")
     check = new CommandSpec {
       command = "cargo clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
       effect = "write"
     }
   }
-  ["cargo-check"] = (Builtins.cargo_check) {
+  ["cargo-check"] = (Builtins.cargo_check()) {
     profiles = List("!slow")
     check = new CommandSpec {
       command = "cargo check --quiet"
@@ -31,20 +31,20 @@ local linters = new Mapping<String, Step | Group> {
     glob = "**/*.rs"
     check = "! rg -e 'dbg!' {{files}}"
   }
-  ["eslint"] = (Builtins.eslint) {
+  ["eslint"] = (Builtins.eslint()) {
     dir = "docs"
     prefix = List("aube", "run")
   }
-  ["newlines"] = Builtins.newlines
-  ["trailing-whitespace"] = Builtins.trailing_whitespace
-  ["prettier"] = (Builtins.prettier) {
+  ["newlines"] = Builtins.newlines()
+  ["trailing-whitespace"] = Builtins.trailing_whitespace()
+  ["prettier"] = (Builtins.prettier()) {
     glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
   }
-  ["pkl-format"] = Builtins.pkl_format
-  ["taplo"] = (Builtins.taplo) {
+  ["pkl-format"] = Builtins.pkl_format()
+  ["taplo"] = (Builtins.taplo()) {
     glob = "settings.toml"
   }
-  ["taplo-format"] = Builtins.taplo_format
+  ["taplo-format"] = Builtins.taplo_format()
   ["docs"] = new Step {
     glob = "docs/**"
     check = "mise run docs:build"
