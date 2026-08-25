@@ -6,4 +6,4 @@
 
 set -eu
 
-cargo build
+mbx build build
