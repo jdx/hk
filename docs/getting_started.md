@@ -117,10 +117,10 @@ Apply available fixes:
 hk fix --all
 ```
 
-To test exactly what the git hook will run without creating a commit:
+To run the pre-commit steps manually while honoring their configured stashing behavior:
 
 ```sh
-hk run pre-commit --staged
+hk run pre-commit
 ```
 
 By default, `hk check` and `hk fix` only operate on modified files. Use `--all` in CI or when you
