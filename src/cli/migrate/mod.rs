@@ -46,7 +46,7 @@ pub struct HkConfig {
 /// Represents a single step in hk configuration
 #[derive(Debug, Clone)]
 pub struct HkStep {
-    /// The builtin to use, if any (e.g., "Builtins.yamllint")
+    /// The builtin to use, if any (e.g., "Builtins.yamllint()")
     pub builtin: Option<String>,
     /// Comment lines before the step
     pub comments: Vec<String>,

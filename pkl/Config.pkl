@@ -317,7 +317,7 @@ class FileSelector {
   types: List<String>?
 }
 
-class Step {
+open class Step {
   /// List of environment variables that must be set for this step to run.
   /// A variable is considered satisfied if it is present in the process environment,
   /// the global `env` block in hk.pkl, or the step's own `env` block.
@@ -629,7 +629,7 @@ class Step {
   ///
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
-  ///     ["eslint"] = (Builtins.eslint) {
+  ///     ["eslint"] = (Builtins.eslint()) {
   ///         dir = "frontend"
   ///     }
   /// }
@@ -664,7 +664,7 @@ class Step {
   ///
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
-  ///     ["prettier"] = (Builtins.prettier) {
+  ///     ["prettier"] = (Builtins.prettier()) {
   ///         profiles = List("slow")
   ///     }
   /// }
@@ -674,7 +674,7 @@ class Step {
   ///
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
-  ///     ["prettier"] = (Builtins.prettier) {
+  ///     ["prettier"] = (Builtins.prettier()) {
   ///         profiles = List("!slow")
   ///     }
   /// }

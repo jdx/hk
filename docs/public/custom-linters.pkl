@@ -87,8 +87,8 @@ local custom_linters = new Mapping<String, Step> {
 // Import some builtins and mix with custom
 local all_linters = new Mapping<String, Step> {
   ...custom_linters
-  ["prettier"] = Builtins.prettier
-  ["shellcheck"] = Builtins.shellcheck
+  ["prettier"] = Builtins.prettier()
+  ["shellcheck"] = Builtins.shellcheck()
 }
 
 hooks {

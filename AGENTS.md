@@ -129,7 +129,7 @@ The project is a Cargo workspace with these crates:
 **Built-in Linters (pkl/builtins/):**
 - Extensive library of pre-configured linters and formatters
 - Each builtin is a Pkl file defining step configuration
-- Used via `Builtins.linter_name` in hk.pkl
+- Used via `Builtins.linter_name()` in hk.pkl
 
 **CLI Interface (src/cli/):**
 - Subcommands: init, install, uninstall, check, fix, run, validate, config

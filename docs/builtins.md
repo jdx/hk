@@ -17,8 +17,8 @@ import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtin
 hooks {
   ["pre-commit"] {
     steps {
-      ["prettier"] = Builtins.prettier
-      ["eslint"] = Builtins.eslint
+      ["prettier"] = Builtins.prettier()
+      ["eslint"] = Builtins.eslint()
     }
   }
 }
@@ -27,9 +27,19 @@ hooks {
 You can also customize builtins:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["prettier"] = (Builtins.prettier()) {
   batch = false  // Override the default batch setting
   glob = List("*.js", "*.ts")  // Override file patterns
+}
+```
+
+Builtins are factory functions. Builtin-specific options use the same amendment
+syntax as step overrides. For example, gitleaks scans the working tree by default;
+set `staged` to scan the Git index instead:
+
+```pkl
+["gitleaks"] = (Builtins.gitleaks()) {
+  staged = true
 }
 ```
 
@@ -45,7 +55,7 @@ subproject's `mise.toml` are available without a prefix. For a Node tool install
 locally by aube, prefix its builtin with `aube exec`:
 
 ```pkl
-["eslint"] = (Builtins.eslint) {
+["eslint"] = (Builtins.eslint()) {
   prefix = List("aube", "exec")
 }
 ```
@@ -66,7 +76,7 @@ for each builtin are defined in the corresponding Pkl file in
 ### Override Properties
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
+["prettier"] = (Builtins.prettier()) {
   // Override glob patterns
   glob = List("src/**/*.js", "src/**/*.ts")
 
@@ -83,7 +93,7 @@ for each builtin are defined in the corresponding Pkl file in
 ### Add Dependencies
 
 ```pkl
-["eslint"] = (Builtins.eslint) {
+["eslint"] = (Builtins.eslint()) {
   // Run after prettier
   depends = "prettier"
 }
@@ -92,7 +102,7 @@ for each builtin are defined in the corresponding Pkl file in
 ### Workspace-Specific Configuration
 
 ```pkl
-["cargo_clippy"] = (Builtins.cargo_clippy) {
+["cargo_clippy"] = (Builtins.cargo_clippy()) {
   // Only run in directories with Cargo.toml
   workspace_indicator = "Cargo.toml"
 
@@ -104,7 +114,7 @@ for each builtin are defined in the corresponding Pkl file in
 ### Profile-Based Configuration
 
 ```pkl
-["mypy"] = (Builtins.mypy) {
+["mypy"] = (Builtins.mypy()) {
   // Only run with "python" profile
   profiles = List("python")
 }

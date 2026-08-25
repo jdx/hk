@@ -10,15 +10,15 @@ import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtin
 // Frontend linters (JavaScript/TypeScript)
 local frontend = new Group {
   steps {
-    ["prettier"] = (Builtins.prettier) {
+    ["prettier"] = (Builtins.prettier()) {
       dir = "frontend"
       batch = true
     }
-    ["eslint"] = (Builtins.eslint) {
+    ["eslint"] = (Builtins.eslint()) {
       dir = "frontend"
       batch = true
     }
-    ["stylelint"] = (Builtins.stylelint) {
+    ["stylelint"] = (Builtins.stylelint()) {
       glob = List("frontend/**/*.css", "frontend/**/*.scss")
     }
   }
@@ -27,15 +27,15 @@ local frontend = new Group {
 // Backend linters (Rust)
 local backend = new Group {
   steps {
-    ["cargo_fmt"] = (Builtins.cargo_fmt) {
+    ["cargo_fmt"] = (Builtins.cargo_fmt()) {
       workspace_indicator = "Cargo.toml"
       dir = "backend"
     }
-    ["cargo_clippy"] = (Builtins.cargo_clippy) {
+    ["cargo_clippy"] = (Builtins.cargo_clippy()) {
       workspace_indicator = "Cargo.toml"
       dir = "backend"
     }
-    ["cargo_check"] = (Builtins.cargo_check) {
+    ["cargo_check"] = (Builtins.cargo_check()) {
       dir = "backend"
       // Only run in CI or with "full" profile
       profiles = List("ci", "full")
@@ -46,10 +46,10 @@ local backend = new Group {
 // Infrastructure linters (Terraform)
 local infrastructure = new Group {
   steps {
-    ["terraform"] = (Builtins.terraform) {
+    ["terraform"] = (Builtins.terraform()) {
       glob = List("infrastructure/**/*.tf")
     }
-    ["tflint"] = (Builtins.tf_lint) {
+    ["tflint"] = (Builtins.tf_lint()) {
       glob = List("infrastructure/**/*.tf")
     }
   }
@@ -57,11 +57,11 @@ local infrastructure = new Group {
 
 // Shared linters (apply to all components)
 local shared = new Mapping<String, Step> {
-  ["markdown"] = (Builtins.markdown_lint) {
+  ["markdown"] = (Builtins.markdown_lint()) {
     glob = List("**/*.md")
     exclude = List("**/node_modules/**", "**/target/**")
   }
-  ["yaml"] = (Builtins.yamllint) {
+  ["yaml"] = (Builtins.yamllint()) {
     glob = List("**/*.yaml", "**/*.yml")
     exclude = List("**/node_modules/**")
   }

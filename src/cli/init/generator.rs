@@ -17,7 +17,7 @@ import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/B
     output.push_str("local linters = new Mapping<String, Step> {\n");
     for meta in builtins {
         output.push_str(&format!(
-            "    [\"{}\"] = Builtins.{}\n",
+            "    [\"{}\"] = Builtins.{}()\n",
             meta.name, meta.name
         ));
     }
@@ -81,9 +81,9 @@ import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/B
 
 local linters = new Mapping<String, Step> {{
     // Add linters here. Examples:
-    // ["prettier"] = Builtins.prettier
-    // ["eslint"] = Builtins.eslint
-    // ["ruff"] = Builtins.ruff
+    // ["prettier"] = Builtins.prettier()
+    // ["eslint"] = Builtins.eslint()
+    // ["ruff"] = Builtins.ruff()
 
     // Or define custom steps:
     // ["custom"] {{
@@ -130,7 +130,7 @@ mod tests {
         let hooks = vec!["pre-commit".to_string(), "check".to_string()];
         let pkl = generate_pkl(&builtins, &hooks, "1.34.0");
 
-        assert!(pkl.contains("Builtins.prettier"));
+        assert!(pkl.contains("Builtins.prettier()"));
         assert!(pkl.contains("[\"pre-commit\"]"));
         assert!(pkl.contains("[\"check\"]"));
     }

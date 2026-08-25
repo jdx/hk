@@ -13,7 +13,7 @@ teardown() {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
+hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier() } } }
 EOF
     hk install --legacy
     assert_file_exists ".git/hooks/pre-commit"

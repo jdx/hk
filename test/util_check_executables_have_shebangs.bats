@@ -74,7 +74,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["executable-shebangs"] = Builtins.check_executables_have_shebangs
+            ["executable-shebangs"] = Builtins.check_executables_have_shebangs()
         }
     }
 }

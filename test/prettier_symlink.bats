@@ -27,7 +27,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
   ["check"] {
     steps {
-      ["prettier"] = Builtins.prettier
+      ["prettier"] = Builtins.prettier()
     }
   }
 }
@@ -67,7 +67,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
   ["check"] {
     steps {
-      ["prettier"] = Builtins.prettier
+      ["prettier"] = Builtins.prettier()
     }
   }
 }
@@ -112,7 +112,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
   ["check"] {
     steps {
-      ["prettier"] = Builtins.prettier
+      ["prettier"] = Builtins.prettier()
     }
   }
 }

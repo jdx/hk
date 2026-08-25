@@ -62,7 +62,7 @@ local linters = new Mapping<String, Step> {
         // stage = List("*.js", "*.ts")
     }
     // steps can also be pulled from the Builtins pkl library
-    ["prettier"] = Builtins.prettier
+    ["prettier"] = Builtins.prettier()
 }
 
 hooks {
@@ -282,10 +282,10 @@ local frontend = new Group {
     dir = "packages/frontend"
     prefix = "mise x --"
     steps {
-        ["prettier"] = (Builtins.prettier) {
+        ["prettier"] = (Builtins.prettier()) {
             batch = true
         }
-        ["eslint"] = (Builtins.eslint) {
+        ["eslint"] = (Builtins.eslint()) {
             dir = "different/path"
             batch = true
         }
@@ -299,7 +299,7 @@ String prefixes are shell syntax and can only be used with string commands. For 
 structured command, use a list so each prefix argument retains its boundary:
 
 ```pkl
-["ruff"] = (Builtins.ruff) {
+["ruff"] = (Builtins.ruff()) {
     prefix = List("mise", "x", "--")
 }
 ```
@@ -368,7 +368,7 @@ amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
 local linters {
-    ["prettier"] = Builtins.prettier
+    ["prettier"] = Builtins.prettier()
     ["eslint"] {
         glob = List("*.js", "*.ts")
         check = "eslint {{files}}"

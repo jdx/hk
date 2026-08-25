@@ -13,7 +13,7 @@ teardown() {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
+hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier() } } }
 EOF
 
     # Set global core.hooksPath
@@ -38,7 +38,7 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
+hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier() } } }
 EOF
 
     # Set local core.hooksPath
@@ -63,7 +63,7 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
+hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier() } } }
 EOF
 
     # Set both global and local core.hooksPath
@@ -92,7 +92,7 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier } } }
+hooks { ["pre-commit"] { steps { ["prettier"] = Builtins.prettier() } } }
 EOF
 
     # Make sure core.hooksPath is not set

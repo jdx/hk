@@ -18,8 +18,8 @@ hooks {
         fix = true
         stash = "patch-file"
         steps {
-            ["prettier"] = Builtins.prettier
-            ["newlines"] = Builtins.newlines
+            ["prettier"] = Builtins.prettier()
+            ["newlines"] = Builtins.newlines()
         }
     }
 }
