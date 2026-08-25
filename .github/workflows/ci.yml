@@ -51,7 +51,7 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && matrix.os || matrix.runner }}
+    runs-on: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') && matrix.os || matrix.runner }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -95,7 +95,7 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && matrix.os || matrix.runner }}
+    runs-on: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -135,7 +135,7 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && matrix.os || matrix.runner }}
+    runs-on: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -216,7 +216,7 @@ jobs:
             runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && matrix.os || matrix.runner }}
+    runs-on: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -244,7 +244,7 @@ jobs:
       - name: mise run lint
         run: mise run lint
   msrv:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
+    runs-on: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
     timeout-minutes: 10
     permissions:
       contents: read
@@ -303,7 +303,7 @@ jobs:
       - ci-windows
       - mcp-ui
       - msrv
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
+    runs-on: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]') && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
     timeout-minutes: 1
     # Run on success or upstream failure but skip when the workflow is cancelled
     # — `always()` would override `cancel-in-progress` and waste a runner.
