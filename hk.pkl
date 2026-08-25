@@ -15,11 +15,11 @@ local linters = new Mapping<String, Step | Group> {
   // predefined formatters+linters
   ["cargo-clippy"] = (Builtins.cargo_clippy) {
     profiles = List("slow")
-    check = "mbx build clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
+    check = "mbx clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
   }
   ["cargo-check"] = (Builtins.cargo_check) {
     profiles = List("!slow")
-    check = "mbx build +nightly check -Zwarnings --quiet"
+    check = "mbx +nightly check -Zwarnings --quiet"
   }
   ["dbg"] = new Step {
     // ensure no dbg! macros are used

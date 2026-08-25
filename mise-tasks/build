@@ -6,4 +6,4 @@
 
 set -eu
 
-mbx build build
+mbx build

@@ -4,4 +4,4 @@
 
 set -eu
 
-mbx build test --all --all-features
+mbx test --all --all-features

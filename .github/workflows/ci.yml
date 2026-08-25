@@ -78,7 +78,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
       - name: Build
-        run: mbx build build --features git2/vendored-libgit2,git2/vendored-openssl
+        run: mbx build --features git2/vendored-libgit2,git2/vendored-openssl
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hk-windows-latest
@@ -280,7 +280,7 @@ jobs:
       - name: Generate builtins metadata
         run: mise run pkl:gen
       - name: Run cargo tests
-        run: mbx build test --features git2/vendored-libgit2,git2/vendored-openssl -- --skip settings::tests::test_settings
+        run: mbx test --features git2/vendored-libgit2,git2/vendored-openssl -- --skip settings::tests::test_settings
       - name: Run Pester e2e tests
         run: |
           $env:PKL_PATH = "${{ github.workspace }}/pkl"
