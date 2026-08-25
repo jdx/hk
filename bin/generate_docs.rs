@@ -155,10 +155,11 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
 }
 
 fn shell_quote(arg: &str) -> String {
-    if !arg.is_empty()
-        && arg
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"_@%+=:,./-{}".contains(&byte))
+    if arg == "{{files}}"
+        || (!arg.is_empty()
+            && arg
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(&byte)))
     {
         arg.to_string()
     } else {
@@ -403,6 +404,18 @@ mod tests {
         assert_eq!(
             command_text(&command).as_deref(),
             Some(r#"tool 'a"b' '$(printf expanded)' 'it'\''s'"#)
+        );
+    }
+
+    #[test]
+    fn command_text_quotes_brace_expansion() {
+        let command = json!({
+            "argv": ["tool", "{a,b}", "{{files}}"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("tool '{a,b}' {{files}}")
         );
     }
 
