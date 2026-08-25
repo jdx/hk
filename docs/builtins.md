@@ -4,7 +4,7 @@ outline: "deep"
 
 # Built-in Linters Reference
 
-hk provides 140+ pre-configured linters and formatters through the `Builtins` module. These are production-ready configurations that work out of the box.
+hk provides 140+ pre-configured linters and formatters through the `Builtins` module. They provide the command, file matching, batching, and other hk behavior, while the corresponding tool must be available in the step's environment.
 
 ## Usage
 
@@ -32,6 +32,30 @@ You can also customize builtins:
   glob = List("*.js", "*.ts")  // Override file patterns
 }
 ```
+
+### Tool availability
+
+Builtins configure how hk invokes a tool; they do not install that tool. The
+executable used by the builtin must be on `PATH`, or the step must use a `prefix`
+that resolves it.
+
+With [`HK_MISE=1`](/mise_integration#per-directory-environments-monorepos), hk
+resolves the mise environment for the step's directory, so tools declared in a
+subproject's `mise.toml` are available without a prefix. For a Node tool installed
+locally by aube, prefix its builtin with `aube exec`:
+
+```pkl
+["eslint"] = (Builtins.eslint) {
+  prefix = List("aube", "exec")
+}
+```
+
+Use an argv list for builtins backed by structured commands. A string prefix such
+as `"aube exec"` or `"mise x --"` cannot be combined with those commands.
+
+The generated list below summarizes each builtin. Its complete command and defaults
+are the corresponding Pkl file in
+[`pkl/builtins`](https://github.com/jdx/hk/tree/main/pkl/builtins).
 
 ## Available Builtins
 
