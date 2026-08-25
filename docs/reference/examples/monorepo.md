@@ -120,7 +120,10 @@ subprojects = List("frontend", "backend", "packages/*")
 
 hooks {
   ["check"] {}
-  ["pre-commit"] { fix = true }
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+  }
 }
 ```
 
@@ -129,14 +132,75 @@ hooks {
 amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-hooks {
-  ["check"] {
-    steps {
-      ["eslint"] = (Builtins.eslint) { batch = true }
-      ["prettier"] = (Builtins.prettier) { batch = true }
-    }
+local linters = new Mapping<String, Step> {
+  // aube resolves these executables from frontend/node_modules/.bin
+  ["eslint"] = (Builtins.eslint) {
+    prefix = List("aube", "exec")
+  }
+  ["prettier"] = (Builtins.prettier) {
+    prefix = List("aube", "exec")
   }
 }
+
+hooks {
+  ["check"] {
+    steps = linters
+  }
+  // Hooks compose by name, so list the steps again for pre-commit.
+  ["pre-commit"] {
+    steps = linters
+  }
+}
+```
+
+```pkl
+// backend/hk.pkl
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
+
+local linters = new Mapping<String, Step> {
+  ["cargo-fmt"] = Builtins.cargo_fmt
+  ["cargo-clippy"] = Builtins.cargo_clippy
+}
+
+hooks {
+  ["check"] { steps = linters }
+  ["pre-commit"] { steps = linters }
+}
+```
+
+The matching mise configuration makes hk, aube, and each component's tools
+available in the directory where its steps run:
+
+```toml
+# mise.toml (repo root)
+monorepo_root = true
+
+[monorepo]
+config_roots = [".", "frontend", "backend"]
+
+[tools]
+aube = "latest"
+hk = "latest"
+pkl = "latest"
+
+[env]
+HK_MISE = 1
+
+[hooks]
+postinstall = "hk install --mise"
+```
+
+```toml
+# frontend/mise.toml
+[tools]
+node = "lts"
+```
+
+```toml
+# backend/mise.toml
+[tools]
+rust = "stable"
 ```
 
 When hk runs from the repo root, each subproject's hooks are merged in, scoped to
@@ -149,6 +213,15 @@ its directory:
 - A subproject's `env` applies to its own steps only.
 - Glob entries like `packages/*` match any directory containing an hk config file;
   directories without one are skipped.
+- Hooks compose by name. Steps declared only under `check` do not automatically run
+  under `pre-commit` or `fix`.
+- Define hook-wide settings such as `fix`, `stash`, `stage`, and `report` in the root
+  config so every subproject uses the same behavior.
+- Only one level of subprojects is supported.
 
 This maps directly onto [mise monorepo config roots](https://mise.jdx.dev/tasks/monorepo.html):
 the same directories that own a `mise.toml` can own their `hk.pkl`.
+
+Use `hk check --all --plan` to inspect the resolved jobs without executing them.
+For this example, the plan includes `frontend:eslint`, `frontend:prettier`,
+`backend:cargo-fmt`, and `backend:cargo-clippy`.

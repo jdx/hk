@@ -89,6 +89,35 @@ hooks {
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
+### Subprojects
+
+In a monorepo, the root config can load an `hk.pkl` owned by each component:
+
+```pkl
+subprojects = List("frontend", "backend", "packages/*")
+```
+
+Subproject paths are relative to the root config and may be literal directories or
+glob patterns. hk merges a subproject's steps into the root hook with the same name,
+then scopes their working directories and file matching to that subproject. A step
+named `eslint` in `frontend/hk.pkl` is exposed as `frontend:eslint` for `--step` and
+`skip_steps`.
+
+Keep these composition rules in mind:
+
+- Hooks are not copied between events. A subproject step under `check` does not also
+  run in `pre-commit` or `fix`; add it to every event where it should run.
+- Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
+  the root config. Subprojects contribute steps and their local environment.
+- Subprojects are loaded one level deep. A `subprojects` declaration inside a
+  subproject config is ignored with a warning.
+- A subproject's literal `dir` is relative to that subproject. Templated workspace
+  directories have an additional caveat described under
+  [Step working directory](#step-working-directory).
+
+See the complete [monorepo example](/reference/examples/monorepo#nested-configs-with-subprojects),
+including per-directory mise environments and locally installed Node tools.
+
 ### `hk.local.pkl`
 
 If `hk.local.pkl` exists, it will be used instead of `hk.pkl`. It is intended to be used for local config, and should
