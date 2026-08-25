@@ -5,12 +5,8 @@ import "./test/helpers.pkl"
 @Builtins.meta {
   category = "Secrets"
   description = "Secret scanner for staged Git changes"
-  project_indicators {
-    new { file = ".gitleaks.toml" }
-  }
 }
 gitleaks_staged = new Config.Step {
-  types = List("text")
   // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/.pre-commit-hooks.yaml#L1-L5
   check = new Config.CommandSpec {
     command = new Config.Command {
