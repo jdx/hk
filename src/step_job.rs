@@ -84,6 +84,20 @@ impl StepJob {
         // that fails to render strips nothing; the runner renders it again and
         // reports the error before the command runs.
         let dir = self.step.render_dir(&tctx).ok().flatten();
+        // Workspace discovery returns repository-relative paths, but commands
+        // with a literal `dir` run from that directory. Keep workspace template
+        // paths in the same coordinate system as `files`; subproject merging
+        // gives every ordinary step a literal directory, so this also avoids
+        // paths such as `ui/ui/tsconfig.json` from a command run in `ui`.
+        //
+        // A templated `dir` must retain the repository-relative workspace
+        // context because the runner renders it again from this same context.
+        if !self.step.dir_is_templated()
+            && let (Some(workspace_indicator), Some(dir)) = (&self.workspace_indicator, &dir)
+            && let Ok(relative_indicator) = workspace_indicator.strip_prefix(dir)
+        {
+            tctx.with_workspace_indicator(&relative_indicator);
+        }
         let command_files = if let Some(dir) = &dir {
             self.files
                 .iter()
@@ -192,5 +206,54 @@ impl Clone for StepJob {
             progress: self.progress.clone(),
             semaphore: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn workspace_templates_are_relative_to_literal_dir() {
+        let step = Arc::new(Step {
+            name: "tsc".to_string(),
+            dir: Some("ui".to_string()),
+            ..Default::default()
+        });
+        let expected_files = step.shell_type().quote("src/main.ts");
+        let job = StepJob::new(step, vec![PathBuf::from("ui/src/main.ts")], RunType::Check)
+            .with_workspace_indicator(PathBuf::from("ui/tsconfig.json"));
+
+        let tctx = job.tctx(&tera::Context::default());
+
+        assert_eq!(tera::render("{{workspace}}", &tctx).unwrap(), ".");
+        assert_eq!(
+            tera::render("{{workspace_indicator}}", &tctx).unwrap(),
+            "tsconfig.json"
+        );
+        assert_eq!(tera::render("{{files}}", &tctx).unwrap(), expected_files);
+    }
+
+    #[test]
+    fn templated_dir_keeps_repository_relative_workspace_context() {
+        let step = Arc::new(Step {
+            name: "go-vet".to_string(),
+            dir: Some("{{workspace}}".to_string()),
+            ..Default::default()
+        });
+        let job = StepJob::new(
+            step,
+            vec![PathBuf::from("pkgs/api/main.go")],
+            RunType::Check,
+        )
+        .with_workspace_indicator(PathBuf::from("pkgs/api/go.mod"));
+
+        let tctx = job.tctx(&tera::Context::default());
+
+        assert_eq!(tera::render("{{workspace}}", &tctx).unwrap(), "pkgs/api");
+        assert_eq!(
+            tera::render("{{workspace_indicator}}", &tctx).unwrap(),
+            "pkgs/api/go.mod"
+        );
     }
 }
