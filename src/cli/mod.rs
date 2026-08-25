@@ -1,4 +1,3 @@
-use crate::version as version_lib;
 use std::num::NonZero;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -30,13 +29,7 @@ mod validate;
 mod version;
 
 #[derive(usage_rs::Cli)]
-#[usage(
-    name = "hk",
-    version = version_lib::version(),
-    version_spec = "1.56.0",
-    unknown_flags = "error",
-    completion
-)]
+#[usage(name = "hk", version, unknown_flags = "error", completion)]
 struct Cli {
     /// Run as if hk was started in this directory
     #[usage(long, global, value_name = "DIRECTORY", value_hint = ValueHint::DirPath)]
