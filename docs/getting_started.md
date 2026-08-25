@@ -34,15 +34,8 @@ hk install --global
 The global hooks are a silent no-op in repositories without an `hk.pkl`, so enabling them does not
 require every repository to use hk.
 
-On older Git versions, or when you only want hk in one repository, run this from the project root:
-
-```sh
-hk install
-```
-
-Per-repository installation uses Git's config-based hooks on Git 2.54 or newer and `.git/hooks/`
-scripts on older versions. See [`hk install`](/cli/install) for all installation modes, including
-`--legacy` and `--mise`.
+On older Git versions, or when you only want hk in one repository, skip this step for now. You will
+install the repository hooks after creating `hk.pkl` in the next step.
 
 ::: warning Avoid duplicate hooks
 Do not combine `hk install --global` with a per-repository install unless you intentionally want both.
@@ -67,6 +60,16 @@ hk init --interactive
 Builtins define how hk invokes a tool; they do not install the tool itself. Each selected linter or
 formatter must be available on `PATH`. If you use mise, the [mise integration](/mise_integration)
 can manage those tool versions with the project.
+
+If you skipped the global installation, install the hooks defined by the new configuration now:
+
+```sh
+hk install
+```
+
+Per-repository installation uses Git's config-based hooks on Git 2.54 or newer and `.git/hooks/`
+scripts on older versions. See [`hk install`](/cli/install) for all installation modes, including
+`--legacy` and `--mise`.
 
 ## 4. Review `hk.pkl`
 

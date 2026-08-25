@@ -144,19 +144,25 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
                     .collect::<Option<Vec<_>>>()
                     .map(|argv| {
                         argv.into_iter()
-                            .map(|arg| {
-                                if arg.is_empty() || arg.chars().any(char::is_whitespace) {
-                                    serde_json::to_string(arg).unwrap()
-                                } else {
-                                    arg.to_string()
-                                }
-                            })
+                            .map(shell_quote)
                             .collect::<Vec<_>>()
                             .join(" ")
                     })
             })
         }
         _ => None,
+    }
+}
+
+fn shell_quote(arg: &str) -> String {
+    if !arg.is_empty()
+        && arg
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"_@%+=:,./-{}".contains(&byte))
+    {
+        arg.to_string()
+    } else {
+        format!("'{}'", arg.replace('\'', "'\\''"))
     }
 }
 
@@ -384,7 +390,19 @@ mod tests {
 
         assert_eq!(
             command_text(&command).as_deref(),
-            Some(r#"tool --message "hello world""#)
+            Some("tool --message 'hello world'")
+        );
+    }
+
+    #[test]
+    fn command_text_quotes_shell_metacharacters() {
+        let command = json!({
+            "argv": ["tool", "a\"b", "$(printf expanded)", "it's"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some(r#"tool 'a"b' '$(printf expanded)' 'it'\''s'"#)
         );
     }
 
