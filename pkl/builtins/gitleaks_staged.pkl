@@ -1,0 +1,63 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Secrets"
+  description = "Secret scanner for staged Git changes"
+  project_indicators {
+    new { file = ".gitleaks.toml" }
+  }
+}
+gitleaks_staged = new Config.Step {
+  types = List("text")
+  // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/.pre-commit-hooks.yaml#L1-L5
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List(
+          "gitleaks",
+          "git",
+          "--pre-commit",
+          "--redact",
+          "--staged",
+          "--verbose",
+          "--no-banner",
+        )
+    }
+    effect = "read"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker {
+      filename = "foo.txt"
+      before = "git init --quiet && git add foo.txt"
+    }
+    // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/testdata/repos/nogit/api.go#L20
+    ["check bad staged file"] = testMaker.checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
+    ["check good staged file"] = testMaker.checkPass("message = foobar")
+    ["ignore unstaged files"] =
+      (
+        new helpers.TestMaker {
+          filename = "foo.txt"
+          before = "git init --quiet && git add foo.txt"
+          extra_files {
+            ["unstaged.txt"] = "awsToken = AKIALALEMEL33243OLIA"
+          }
+        }
+      ).checkPass("message = foobar")
+    ["check staged content instead of worktree"] = new Config.StepTest {
+      files = List("foo.txt")
+      tmpdir = true
+      write {
+        ["foo.txt"] = "awsToken = AKIALALEMEL33243OLIA"
+      }
+      before = "git init --quiet && git add foo.txt && printf 'message = foobar' > foo.txt"
+      expect = new Config.StepTestExpect {
+        code = 1
+        files {
+          ["foo.txt"] = "message = foobar"
+        }
+      }
+    }
+  }
+}
