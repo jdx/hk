@@ -118,14 +118,15 @@ Apply available fixes:
 hk fix --all
 ```
 
-To run the pre-commit steps manually while honoring their configured stashing behavior:
+To test the pre-commit configuration independently of its Git installation:
 
 ```sh
 hk run pre-commit
 ```
 
 `pre-commit` selects staged files by default. Running it without `--staged` also preserves the
-hook's configured stashing behavior for partially staged files.
+hook's configured stashing behavior for partially staged files. This validates the configured
+steps; make a test commit when you need to verify the installed Git hook end to end.
 
 By default, `hk check` and `hk fix` only operate on modified files. Use `--all` in CI or when you
 want to verify the entire repository, and `--from-ref main` to check files changed since a branch or
