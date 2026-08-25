@@ -181,7 +181,7 @@ hooks {
 EOF
     touch input.txt
     git add .
-    git commit -m init
+    git commit -m "test: initialize fixture"
 
     run hk fix --all --safe
     assert_failure

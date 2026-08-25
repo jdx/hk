@@ -596,7 +596,7 @@ EOF
 
     echo "base" > test.txt
     git add .
-    git commit -m base
+    git commit -m "test: create base fixture"
     echo "old" > test.txt
     git add test.txt
 
