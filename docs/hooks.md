@@ -29,8 +29,9 @@ Runs when `git commit` is run before `git commit` creates the commit.
 
 ```pkl
 hooks {
-    fix = true
     ["pre-commit"] {
+        fix = true
+        stash = "git"
         steps {
             ["cargo-fmt"] {
                 glob = "*.rs"

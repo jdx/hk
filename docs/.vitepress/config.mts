@@ -50,27 +50,38 @@ export default defineConfig({
       { text: `v${latestVersion}`, link: 'https://github.com/jdx/hk/releases' },
     ],
     sidebar: [
-      { text: 'About', link: '/about' },
-      { text: 'Benchmarks', link: '/benchmarks' },
-      { text: 'Why hk?', link: '/why-hk' },
-      { text: 'Sea Shanty', link: '/shanty' },
       { text: 'Getting Started', link: '/getting_started' },
-      { text: 'Coding Agents', link: '/agents' },
       { text: 'Configuration', link: '/configuration' },
       {
-        text: 'Reference',
+        text: 'Guides',
         items: [
           { text: 'Built-in Linters', link: '/builtins' },
           { text: 'Configuration Examples', link: '/reference/examples/' },
+          { text: 'Git Hooks', link: '/hooks' },
+          { text: 'mise Integration', link: '/mise_integration' },
+          { text: 'Coding Agents', link: '/agents' },
+        ]
+      },
+      { text: 'CLI Reference', link: '/cli', items: commands.map(cmd => ({ text: cmd.join(' '), link: `/cli/${cmd.join('/')}` })) },
+      {
+        text: 'Reference',
+        items: [
+          { text: 'Environment Variables', link: '/environment_variables' },
+          { text: 'Pkl Introduction', link: '/pkl_introduction' },
+          { text: 'Logging and Debugging', link: '/logging' },
           { text: 'Glossary', link: '/glossary' },
         ]
       },
-      { text: 'Environment Variables', link: '/environment_variables' },
-      { text: 'Hooks', link: '/hooks' },
-      { text: 'Logging and Debugging', link: '/logging' },
-      { text: 'Introduction to pkl', link: '/pkl_introduction' },
-      { text: 'mise-en-place Integration', link: '/mise_integration' },
-      { text: 'CLI Reference', link: '/cli', items: commands.map(cmd => ({ text: cmd.join(' '), link: `/cli/${cmd.join('/')}` })) },
+      {
+        text: 'Project',
+        items: [
+          { text: 'Why hk?', link: '/why-hk' },
+          { text: 'Benchmarks', link: '/benchmarks' },
+          { text: 'Contributing', link: '/contributing' },
+          { text: 'About', link: '/about' },
+          { text: 'Sea Shanty', link: '/shanty' },
+        ]
+      },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/jdx/hk' },
