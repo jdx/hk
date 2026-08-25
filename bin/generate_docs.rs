@@ -129,6 +129,61 @@ struct BuiltinInfo {
     step: serde_json::Value,
 }
 
+fn command_text(value: &serde_json::Value) -> Option<String> {
+    match value {
+        serde_json::Value::String(command) if !command.is_empty() => Some(command.clone()),
+        serde_json::Value::Object(command) => {
+            if let Some(value) = command.get("command") {
+                return command_text(value);
+            }
+
+            command.get("argv").and_then(|argv| {
+                argv.as_array()?
+                    .iter()
+                    .map(|arg| arg.as_str())
+                    .collect::<Option<Vec<_>>>()
+                    .map(|argv| {
+                        argv.into_iter()
+                            .map(|arg| {
+                                if arg.is_empty() || arg.chars().any(char::is_whitespace) {
+                                    serde_json::to_string(arg).unwrap()
+                                } else {
+                                    arg.to_string()
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+            })
+        }
+        _ => None,
+    }
+}
+
+fn inline_code(value: &str) -> String {
+    if value.contains('`') {
+        format!("``{value}``")
+    } else {
+        format!("`{value}`")
+    }
+}
+
+fn push_command_doc(md: &mut String, step: &serde_json::Value, field: &str, label: &str) {
+    if let Some(command) = step.get(field).and_then(command_text) {
+        if command.contains('\n') {
+            md.push_str(&format!("- **{label}:**\n\n  ```sh\n"));
+            for line in command.lines() {
+                md.push_str("  ");
+                md.push_str(line);
+                md.push('\n');
+            }
+            md.push_str("  ```\n");
+        } else {
+            md.push_str(&format!("- **{label}:** {}\n", inline_code(&command)));
+        }
+    }
+}
+
 fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
     let cwd = std::env::current_dir()?;
     let reflect_script = cwd.join("scripts/reflect.pkl");
@@ -267,28 +322,15 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
-            // Show check command if present (check, check_diff, or check_list_files)
-            if let Some(check) = info.step.get("check").and_then(|v| v.as_str()) {
-                if !check.is_empty() {
-                    md.push_str(&format!("- **Check:** `{}`\n", check));
-                }
-            } else if let Some(check_diff) = info.step.get("check_diff").and_then(|v| v.as_str()) {
-                if !check_diff.is_empty() {
-                    md.push_str(&format!("- **Check (diff):** `{}`\n", check_diff));
-                }
-            } else if let Some(check_list) =
-                info.step.get("check_list_files").and_then(|v| v.as_str())
-                && !check_list.is_empty()
-            {
-                md.push_str(&format!("- **Check (list-files):** `{}`\n", check_list));
-            }
-
-            // Show fix command if present
-            if let Some(fix) = info.step.get("fix").and_then(|v| v.as_str())
-                && !fix.is_empty()
-            {
-                md.push_str(&format!("- **Fix:** `{}`\n", fix));
-            }
+            push_command_doc(&mut md, &info.step, "check", "Check");
+            push_command_doc(&mut md, &info.step, "check_diff", "Check (diff)");
+            push_command_doc(
+                &mut md,
+                &info.step,
+                "check_list_files",
+                "Check (list files)",
+            );
+            push_command_doc(&mut md, &info.step, "fix", "Fix");
 
             md.push('\n');
         }
@@ -299,6 +341,76 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
 
     fs::write("docs/gen/builtins.md", md)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn command_text_unwraps_shell_command_specs() {
+        let command = json!({
+            "command": "cargo fmt --check --manifest-path {{workspace_indicator}}",
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("cargo fmt --check --manifest-path {{workspace_indicator}}")
+        );
+    }
+
+    #[test]
+    fn command_text_formats_structured_argv() {
+        let command = json!({
+            "command": {
+                "argv": ["prettier", "--check", "{{files}}"]
+            },
+            "effect": "read"
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some("prettier --check {{files}}")
+        );
+    }
+
+    #[test]
+    fn command_text_preserves_argv_boundaries() {
+        let command = json!({
+            "argv": ["tool", "--message", "hello world"]
+        });
+
+        assert_eq!(
+            command_text(&command).as_deref(),
+            Some(r#"tool --message "hello world""#)
+        );
+    }
+
+    #[test]
+    fn command_docs_use_fences_for_multiline_scripts() {
+        let step = json!({
+            "check": {
+                "command": "first line\nsecond line",
+                "effect": "read"
+            }
+        });
+        let mut md = String::new();
+
+        push_command_doc(&mut md, &step, "check", "Check");
+
+        assert_eq!(
+            md,
+            "- **Check:**\n\n  ```sh\n  first line\n  second line\n  ```\n"
+        );
+    }
+
+    #[test]
+    fn command_text_ignores_missing_commands() {
+        assert_eq!(command_text(&serde_json::Value::Null), None);
+        assert_eq!(command_text(&json!({"effect": "read"})), None);
+    }
 }
 
 fn format_property_doc(name: &str, value: &serde_json::Value, heading_level: &str) -> String {
