@@ -9,7 +9,11 @@ import "../Config.pkl"
   }
 }
 gomod_tidy = new Config.Step {
-  glob = "**/go.mod"
+  // `go mod tidy` derives requirements from the imports in `.go` files, so the
+  // common drift -- adding or removing an import leaves go.mod/go.sum untidy --
+  // never touches go.mod itself. Matching `.go` and go.sum too means the step
+  // actually runs when that happens.
+  glob = List("**/*.go", "**/go.mod", "**/go.sum")
   // `go mod tidy` resolves the module rooted at the working directory, so
   // it has to run in the directory holding the go.mod rather than the repo
   // root. Without this it fails outright on any module outside the root and
