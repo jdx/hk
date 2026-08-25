@@ -9,12 +9,19 @@ import "./test/helpers.pkl"
 }
 const pinact_v3 = (pinact.pinact) {
   // pinact v3 calls this flag `verify`; v4 renamed it to `verify-comment`.
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("pinact", "run", "--verify", "--check", "{{files}}")
+    }
+    effect = "read"
+  }
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("pinact", "run", "--verify", "--check", "{{files}}")
     }
     effect = "read"
   }
+  check_after_diff = true
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("pinact", "run", "--verify", "{{files}}") }
     effect = "write"

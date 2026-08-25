@@ -18,10 +18,15 @@ zizmor = new Config.Step {
       "**/action.yml",
       "**/action.yaml",
     )
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("zizmor", "--no-progress", "{{files}}") }
+    effect = "read"
+  }
   check_diff = new Config.CommandSpec {
     command = new Config.Command { argv = List("zizmor", "--no-progress", "{{files}}") }
     effect = "read"
   }
+  check_after_diff = true
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("zizmor", "--no-progress", "--fix", "{{files}}") }
     effect = "write"
