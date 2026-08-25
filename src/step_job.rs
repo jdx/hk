@@ -220,6 +220,7 @@ mod tests {
             dir: Some("ui".to_string()),
             ..Default::default()
         });
+        let expected_files = step.shell_type().quote("src/main.ts");
         let job = StepJob::new(step, vec![PathBuf::from("ui/src/main.ts")], RunType::Check)
             .with_workspace_indicator(PathBuf::from("ui/tsconfig.json"));
 
@@ -230,7 +231,7 @@ mod tests {
             tera::render("{{workspace_indicator}}", &tctx).unwrap(),
             "tsconfig.json"
         );
-        assert_eq!(tera::render("{{files}}", &tctx).unwrap(), "src/main.ts");
+        assert_eq!(tera::render("{{files}}", &tctx).unwrap(), expected_files);
     }
 
     #[test]
