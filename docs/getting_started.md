@@ -5,9 +5,10 @@ in a few minutes.
 
 ## 1. Install hk
 
-The recommended installation method is [mise](https://mise.jdx.dev/):
+From the project you want to configure, install hk with [mise](https://mise.jdx.dev/):
 
 ```sh
+cd my-project
 mise use hk
 hk --version
 ```
@@ -122,6 +123,9 @@ To run the pre-commit steps manually while honoring their configured stashing be
 ```sh
 hk run pre-commit
 ```
+
+`pre-commit` selects staged files by default. Running it without `--staged` also preserves the
+hook's configured stashing behavior for partially staged files.
 
 By default, `hk check` and `hk fix` only operate on modified files. Use `--all` in CI or when you
 want to verify the entire repository, and `--from-ref main` to check files changed since a branch or

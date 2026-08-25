@@ -15,9 +15,10 @@ one another's changes.
 
 ## Quick start
 
-Install hk with mise:
+From the project you want to configure, install hk with mise:
 
 ```sh
+cd my-project
 mise use hk
 hk --version
 ```
@@ -31,12 +32,12 @@ hk install --global
 Then enable hk in a project:
 
 ```sh
-cd my-project
 hk init
 ```
 
-`hk init` creates an `hk.pkl` configuration. Choose the linters you want, then commit as usual;
-hk runs the configured `pre-commit` hook automatically. Repositories without an `hk.pkl` are left
+`hk init` detects relevant linters and creates an `hk.pkl` configuration. Review the detected
+linters, or use `hk init --interactive` to select them yourself. You can then commit as usual; hk
+runs the configured `pre-commit` hook automatically. Repositories without an `hk.pkl` are left
 untouched by the global hooks.
 
 On older Git versions, run `hk install` in each project instead. See the
