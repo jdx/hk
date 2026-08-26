@@ -155,6 +155,14 @@ pub struct Step {
     #[serde(default)]
     pub name: String,
 
+    /// Gitleaks factory input consumed while Pkl constructs the command.
+    ///
+    /// Pkl includes `hidden` properties in evaluated output, so hk must accept
+    /// this field even though execution does not read it.
+    #[doc(hidden)]
+    #[serde(default, skip_serializing)]
+    pub staged: bool,
+
     /// Profiles that enable/disable this step (prefix with `!` to disable)
     pub profiles: Option<Vec<String>>,
 
