@@ -23,8 +23,8 @@ impl Config {
     fn load() -> Result<Self> {
         let mut config = Self::load_project_config()?;
         config.load_subprojects()?;
-        config.apply_hkrc()?;
         config.materialize_default_hooks()?;
+        config.apply_hkrc()?;
         config.validate()?;
         Ok(config)
     }
@@ -433,6 +433,7 @@ impl Config {
                 let mut hkrc_config: Config = serde_json::from_value(json_value)
                     .wrap_err("failed to parse hkrc as Config")?;
                 hkrc_config.init(&path, true)?;
+                hkrc_config.materialize_default_hooks()?;
                 self.merge_from_hkrc(hkrc_config);
             }
         }
@@ -1318,9 +1319,19 @@ mod tests {
             "user-only".to_string(),
             StepOrGroup::Step(Box::new(step("user-only"))),
         );
+        let mut user_check = hook("check");
+        user_check.steps.insert(
+            "shared".to_string(),
+            StepOrGroup::Step(Box::new(Step {
+                env: IndexMap::from([("SOURCE".to_string(), "user-hook".to_string())]),
+                ..Default::default()
+            })),
+        );
+        user.hooks.insert("check".to_string(), user_check);
 
-        project.merge_from_hkrc(user);
         project.materialize_default_hooks().unwrap();
+        user.materialize_default_hooks().unwrap();
+        project.merge_from_hkrc(user);
 
         let StepOrGroup::Step(shared) = &project.hooks["check"].steps["shared"] else {
             panic!("expected step");
