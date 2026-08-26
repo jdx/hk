@@ -276,15 +276,6 @@ impl Config {
     }
 
     fn apply_hkrc(&mut self) -> Result<()> {
-        let explicit_path = crate::settings::Settings::cli_user_config_path();
-
-        if explicit_path.is_some() {
-            bail!(
-                "--hkrc was removed in hk v2; use {}/config.pkl for global config or hk.local.pkl for project overrides",
-                env::HK_CONFIG_DIR.display()
-            );
-        }
-
         let cwd_path = PathBuf::from(".hkrc.pkl");
         if cwd_path.exists() {
             bail!(

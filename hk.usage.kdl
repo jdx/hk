@@ -84,9 +84,6 @@ flag --format help="Select human or machine-readable execution output" default=h
         }
     }
 }
-flag --hkrc help="Removed in hk v2; use ~/.config/hk/config.pkl or hk.local.pkl" global=#true hide=#true {
-    arg <PATH>
-}
 flag "-j --jobs" help="Number of jobs to run in parallel" global=#true {
     arg <JOBS>
 }
@@ -247,18 +244,6 @@ cmd fix help="Fixes code" {
     complete exclude type=path
     complete glob type=path
     complete path type=path
-}
-cmd generate help="Generates a new hk.pkl file for a project" hide=#true effect=write {
-    flag "-f --force" help="Overwrite existing hk.pkl file"
-    flag "-i --interactive" help="Interactive mode: select linters and hooks manually"
-    flag --mise help="Generate a mise.toml file with hk configured" {
-        long_help #"""
-Generate a mise.toml file with hk configured
-
-Set HK_MISE=1 to make this default behavior.
-"""#
-    }
-    flag "-h --help" help="Print help" action=help builtin=#true
 }
 cmd init help="Generates a new hk.pkl file for a project" effect=write {
     flag "-f --force" help="Overwrite existing hk.pkl file"
