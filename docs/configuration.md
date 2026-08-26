@@ -150,7 +150,7 @@ check = "kubeconform -schema-location 'https://example.com/{% raw %}{{.ResourceK
 `dir` sets the directory a step's commands run in. It is rendered as a template, so a step with `workspace_indicator` can follow each job's workspace rather than opening every command with a `cd`:
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     ["go-vet"] {
         glob = "**/*.go"
         workspace_indicator = "go.mod"
@@ -184,7 +184,7 @@ now.
 For tools whose detailed `check` output cannot identify failing files in a machine-readable form, set `check_failed_files = true` and provide either `check_list_files` or `check_diff`:
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     ["my-linter"] {
         glob = List("**/*.py")
         check_list_files = "my-linter --list-failing-files {{files}}"

@@ -153,7 +153,7 @@ It depends on separately published crates for shared functionality:
 
 - Extensive library of pre-configured linters and formatters
 - Each builtin is a Pkl file defining step configuration
-- Used via `Builtins.linter_name()` in hk.pkl
+- Used via `Builtins.linter_name` in hk.pkl
 
 **CLI Interface (src/cli/):**
 

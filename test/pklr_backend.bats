@@ -67,6 +67,34 @@ EOF
     assert_file_exists group-ran.txt
 }
 
+@test "builtin factories support stable values, options, nested step overrides, and all" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["prettier"] = Builtins.prettier
+            ["gitleaks"] = (Builtins.gitleaks) {
+                staged = true
+                step { batch = false }
+            }
+            ["all"] = new Group {
+                steps = Builtins.all
+            }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_success
+
+    run env HK_PKL_BACKEND=pkl hk validate
+    assert_success
+}
+
 @test "pkl CLI backend can still be selected" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

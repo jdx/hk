@@ -24,7 +24,7 @@ hooks {
     fix = true
     stash = "$method"
     steps {
-      ["prettier"] = Builtins.prettier()
+      ["prettier"] = Builtins.prettier
     }
   }
 }
