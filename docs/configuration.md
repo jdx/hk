@@ -47,7 +47,7 @@ Here's a basic `hk.pkl` file:
 amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping {
+steps {
     // steps can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
@@ -64,30 +64,16 @@ local linters = new Mapping {
     // steps can also be pulled from the Builtins pkl library
     ["prettier"] = Builtins.prettier
 }
-
-hooks {
-    ["pre-commit"] {
-        fix = true       // runs the fix step to make modifications
-        stash = "git"    // stashes unstaged changes before running fix steps
-        steps = linters
-    }
-    ["pre-push"] {
-        steps = linters
-    }
-    // "fix" and "check" are special steps for `hk fix` and `hk check` commands
-    ["fix"] {
-        fix = true
-        steps = linters
-    }
-    ["check"] {
-        steps = linters
-        // optional: run a report after the hook finishes; HK_REPORT_JSON contains timing JSON
-        report = #"node scripts/upload-timings.js <<<"$HK_REPORT_JSON""#
-    }
-}
 ```
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
+
+Top-level `steps` are inherited by three implicit hooks: `check` runs checks,
+`fix` applies fixes without staging, and `pre-commit` applies fixes to staged
+files, stages the results, and protects unstaged changes with a Git stash.
+Explicit hooks inherit the shared steps and may override a step by name. Set
+`enabled = false` on an explicit `check`, `fix`, or `pre-commit` hook to disable
+that implicit hook and prevent it from being installed.
 
 ### Subprojects
 
@@ -105,8 +91,9 @@ named `eslint` in `frontend/hk.pkl` is exposed as `frontend:eslint` for `--step`
 
 Keep these composition rules in mind:
 
-- Hooks are not copied between events. A subproject step under `check` does not also
-  run in `pre-commit` or `fix`; add it to every event where it should run.
+- Top-level subproject steps are inherited by its implicit `check`, `fix`, and
+  `pre-commit` hooks before being scoped into the root project.
+- Steps declared under an explicit subproject hook remain specific to that event.
 - Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
   the root config. Subprojects contribute steps and their local environment.
 - Subprojects are loaded one level deep. A `subprojects` declaration inside a

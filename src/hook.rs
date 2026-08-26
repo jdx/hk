@@ -96,7 +96,7 @@ impl SkipReason {
 }
 
 #[serde_as]
-#[derive(Debug, Clone, Default, Deserialize, Serialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct Hook {
@@ -104,6 +104,8 @@ pub struct Hook {
     pub name: String,
     #[serde(default)]
     pub steps: IndexMap<String, StepOrGroup>,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
     pub fix: Option<bool>,
     pub stash: Option<StashSetting>,
     pub stage: Option<bool>,
@@ -113,6 +115,26 @@ pub struct Hook {
     pub env: IndexMap<String, String>,
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub report: Option<Script>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for Hook {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            steps: IndexMap::new(),
+            enabled: true,
+            fix: None,
+            stash: None,
+            stage: None,
+            fail_on_fix: false,
+            env: IndexMap::new(),
+            report: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq)]
