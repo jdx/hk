@@ -39,6 +39,8 @@ pub struct HkConfig {
     pub header_comments: Vec<String>,
     /// Named step collections (e.g., "linters", "local_hooks", "custom_steps")
     pub step_collections: IndexMap<String, IndexMap<String, HkStep>>,
+    /// Steps shared by the implicit check, fix, and pre-commit hooks.
+    pub steps: IndexMap<String, HkStep>,
     /// Hook configurations
     pub hooks: IndexMap<String, HkHook>,
 }
@@ -150,6 +152,14 @@ impl HkConfig {
 
             output.push_str(&format!("local {} = new Mapping {{\n", name));
             for (id, step) in steps {
+                output.push_str(&self.format_step(id, step, 1));
+            }
+            output.push_str("}\n\n");
+        }
+
+        if !self.steps.is_empty() {
+            output.push_str("steps {\n");
+            for (id, step) in &self.steps {
                 output.push_str(&self.format_step(id, step, 1));
             }
             output.push_str("}\n\n");
