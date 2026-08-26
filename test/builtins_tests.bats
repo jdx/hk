@@ -26,11 +26,13 @@ hooks {
 }
 PKL
 
+    # ktlint requires a JVM, which is not preinstalled on macOS runners.
+    mise install java@21
+    JAVA_HOME="$(mise where java@21)"
     # Prepend so stub-pinned tools take precedence over any ambient tools
     # preinstalled on the runner (e.g. ubuntu-latest ships a global tsc).
-    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
-    # ktlint requires a JVM, which is not preinstalled on macOS runners.
-    MISE_JAVA_VERSION=21 run hk test
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$JAVA_HOME/bin:$PATH"
+    run hk test
     assert_success
     # At least the newlines builtin has a test
     assert_output --partial "ok - newlines :: fix bad file"
