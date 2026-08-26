@@ -37,6 +37,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.95.0"
       - uses: ./.github/actions/mbx
         with:
           backend: github
@@ -44,9 +48,10 @@ jobs:
         id: build
         shell: bash
         run: |
-          SECONDS=0
+          started=$(python3 -c 'import time; print(time.monotonic_ns())')
           mbx build
-          elapsed=$SECONDS
+          ended=$(python3 -c 'import time; print(time.monotonic_ns())')
+          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
           echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
           mbx cache stats
 
@@ -60,6 +65,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.95.0"
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
         with:
@@ -69,9 +78,10 @@ jobs:
         id: build
         shell: bash
         run: |
-          SECONDS=0
+          started=$(python3 -c 'import time; print(time.monotonic_ns())')
           cargo build
-          elapsed=$SECONDS
+          ended=$(python3 -c 'import time; print(time.monotonic_ns())')
+          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
           echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
 
   comparison_macos:
@@ -111,17 +121,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.95.0"
       - uses: ./.github/actions/mbx
         with:
           backend: github
       - name: Build
         id: build
-        shell: bash
+        shell: pwsh
         run: |
-          SECONDS=0
+          $timer = [System.Diagnostics.Stopwatch]::StartNew()
           mbx build
-          elapsed=$SECONDS
-          echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $timer.Stop()
+          $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          "seconds=$elapsed" >> $env:GITHUB_OUTPUT
           mbx cache stats
 
   rust_cache_windows:
@@ -134,6 +150,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: "1.95.0"
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
         with:
@@ -141,12 +161,14 @@ jobs:
           save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Build
         id: build
-        shell: bash
+        shell: pwsh
         run: |
-          SECONDS=0
+          $timer = [System.Diagnostics.Stopwatch]::StartNew()
           cargo build
-          elapsed=$SECONDS
-          echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $timer.Stop()
+          $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          "seconds=$elapsed" >> $env:GITHUB_OUTPUT
 
   comparison_windows:
     name: comparison (Windows)
