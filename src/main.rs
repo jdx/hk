@@ -3,7 +3,7 @@ extern crate log;
 #[macro_use]
 mod output;
 
-use std::{panic, thread, time::Duration};
+use std::{ffi::OsString, panic, thread, time::Duration};
 
 pub use eyre::Result;
 
@@ -49,6 +49,12 @@ use tokio::signal;
 use tokio::signal::unix::SignalKind;
 
 fn main() -> Result<()> {
+    if is_bare_builtins_invocation(std::env::args_os().skip(1)) {
+        for builtin in builtins::BUILTINS {
+            println!("{builtin}");
+        }
+        return Ok(());
+    }
     let worker_threads = runtime_worker_threads(
         thread::available_parallelism()
             .map(|n| n.get())
@@ -59,6 +65,10 @@ fn main() -> Result<()> {
         .worker_threads(worker_threads)
         .build()?
         .block_on(async_main())
+}
+
+fn is_bare_builtins_invocation(mut args: impl Iterator<Item = OsString>) -> bool {
+    args.next().is_some_and(|arg| arg == "builtins") && args.next().is_none()
 }
 
 async fn async_main() -> Result<()> {
@@ -132,7 +142,18 @@ fn handle_panic() {
 
 #[cfg(test)]
 mod tests {
-    use super::runtime_worker_threads;
+    use super::{is_bare_builtins_invocation, runtime_worker_threads};
+    use std::ffi::OsString;
+
+    #[test]
+    fn bare_builtins_can_skip_runtime_and_command_tree_setup() {
+        assert!(is_bare_builtins_invocation(
+            ["builtins"].into_iter().map(OsString::from)
+        ));
+        assert!(!is_bare_builtins_invocation(
+            ["builtins", "--quiet"].into_iter().map(OsString::from)
+        ));
+    }
 
     #[test]
     fn runtime_workers_are_bounded() {
