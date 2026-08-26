@@ -317,7 +317,9 @@ impl Config {
             }
             let mut hkrc_config: Config = serde_json::from_value(json_value)
                 .wrap_err("failed to parse global config as Config")?;
-            hkrc_config.init(&path, true)?;
+            // The project config has already exported its environment. Do not
+            // overwrite it before the project-wins merge below.
+            hkrc_config.init(&path, false)?;
             hkrc_config.materialize_default_hooks()?;
             self.merge_from_hkrc(hkrc_config);
         }
