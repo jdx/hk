@@ -241,7 +241,7 @@ EOF
     echo "y" >> pkgs/b/in.txt
     git add pkgs/a/in.txt pkgs/b/in.txt
 
-    run hk fix
+    run hk fix --stage
     assert_success
 
     run git diff --cached --name-only

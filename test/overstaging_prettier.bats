@@ -38,10 +38,10 @@ PKL
   printf 'two\n' > src/unrelated.ts
   printf 'one\nmore\n' > src/changed.ts
 
-  run hk fix -v
+  run hk fix --stage -v
   assert_success
 
-  # Both files match **/*.ts so both should be staged (explicit stage glob opts into staging untracked)
+  # Both files match **/*.ts, so the step filter stages both when staging is enabled.
   run git status --porcelain
   assert_success
   assert_line --regexp '^[MA]  src/changed\.ts$'
@@ -82,7 +82,7 @@ PKL
   # Now modify the job file
   printf 'one\nmore\n' > src/changed.ts
 
-  run hk fix -v
+  run hk fix --stage -v
   assert_success
 
   # changed.ts should be staged (matches glob), but .md files should not
@@ -126,7 +126,7 @@ PKL
 
   printf 'one\nmore\n' > src/changed.ts
 
-  run hk fix -v
+  run hk fix --stage -v
   assert_success
 
   # Both changed.ts AND created_by_step.ts should be staged
@@ -166,7 +166,7 @@ PKL
   printf 'one\nmore\n' > src/changed.ts
   printf 'two\nmore\n' > src/other.ts
 
-  run hk fix -v
+  run hk fix --stage -v
   assert_success
 
   # Both files match **/*.ts so both should be staged
