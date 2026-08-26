@@ -17,7 +17,7 @@ go_vet = new Config.Step {
     ["check good file"] {
       run = "check"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         ["go.mod"] =
           """
             module example.com/test
@@ -36,7 +36,7 @@ go_vet = new Config.Step {
     ["check bad file"] {
       run = "check"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         ["go.mod"] =
           """
             module example.com/test
@@ -57,7 +57,7 @@ go_vet = new Config.Step {
     ["check multi-package"] {
       run = "check"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         ["go.mod"] =
           """
             module example.com/test

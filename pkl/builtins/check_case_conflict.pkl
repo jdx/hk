@@ -14,7 +14,7 @@ check_case_conflict = new Config.Step {
   tests {
     ["detects case conflicts"] {
       run = "check"
-      write {
+      write = new Mapping<String, String> {
         ["{{tmp}}/README.md"] = "# First\n"
         ["{{tmp}}/readme.md"] = "# Second\n"
       }
@@ -22,7 +22,7 @@ check_case_conflict = new Config.Step {
     }
     ["passes when no conflicts"] {
       run = "check"
-      write {
+      write = new Mapping<String, String> {
         ["{{tmp}}/file1.txt"] = "content\n"
         ["{{tmp}}/file2.txt"] = "content\n"
       }

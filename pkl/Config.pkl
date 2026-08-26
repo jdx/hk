@@ -48,8 +48,8 @@ typealias StepDefinition = Step | BuiltinFactory
 /// A command paired with its declared effect on user or project state.
 /// Commands that do not use CommandSpec remain valid and have an unknown effect.
 class CommandSpec {
-  command: String | Script | Command
-  effect: CommandEffect
+  abstract command: String | Script | Command
+  abstract effect: CommandEffect
 }
 
 /// Default: auto-detected
