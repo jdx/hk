@@ -5,15 +5,8 @@ it and work with it for hk configuration.
 
 ## Dependencies
 
-hk uses a built-in pkl evaluator ([pklr](https://github.com/jdx/pklr)) by default. This removes the need to install the pkl CLI entirely.
-
-pklr may not support every pkl feature yet. If you run into issues with pklr, you can switch back to the pkl CLI with `HK_PKL_BACKEND=pkl`.
-
-To use the pkl CLI backend, install pkl with mise:
-
-```sh
-mise use -g pkl
-```
+hk uses the built-in [pklr](https://github.com/jdx/pklr) evaluator. You do not
+need to install the pkl CLI to use hk.
 
 ## Why pkl?
 
@@ -43,7 +36,7 @@ at least what I see as problems.
 
 ## Testing pkl config
 
-While I strongly encourage setting up your editor with a pkl extension to view errors inside the editor, you can also use the pkl cli to evaluate pkl files which is a great way to see what pkl is outputting without needing to run it through hk:
+While I strongly encourage setting up your editor with a pkl extension to view errors inside the editor, you can optionally install the standalone pkl CLI and use it to inspect what a pkl file outputs without running it through hk:
 
 ```sh
 $ pkl eval hk.pkl

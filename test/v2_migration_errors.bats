@@ -42,6 +42,13 @@ assert_raw_config_removed() {
     assert_output --partial '`hk init`'
 }
 
+@test "HK_PKL_BACKEND is rejected with migration guidance" {
+    run env HK_PKL_BACKEND=pkl hk validate
+    assert_failure
+    assert_output --partial "HK_PKL_BACKEND was removed in hk v2"
+    assert_output --partial "always uses the built-in pklr evaluator"
+}
+
 @test "removed byte-order-marker aliases have migration guidance" {
     cat > hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"

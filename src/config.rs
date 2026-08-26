@@ -21,6 +21,11 @@ impl Config {
 
     #[tracing::instrument(level = "info", name = "config.load")]
     fn load() -> Result<Self> {
+        if std::env::var_os("HK_PKL_BACKEND").is_some() {
+            bail!(
+                "HK_PKL_BACKEND was removed in hk v2; hk now always uses the built-in pklr evaluator. Remove this environment variable"
+            );
+        }
         let mut config = Self::load_project_config()?;
         config.load_subprojects()?;
         config.materialize_default_hooks()?;
@@ -33,13 +38,7 @@ impl Config {
     fn read(path: &Path, apply_env: bool) -> Result<Self> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
         let mut config: Config = match ext {
-            "pkl" => {
-                if env::use_pklr_backend() {
-                    run_pklr(path)?
-                } else {
-                    run_pkl(&["eval"], path)?
-                }
-            }
+            "pkl" => run_pklr(path)?,
             "toml" | "yaml" | "yml" | "json" => bail!(
                 "{} configuration was removed in hk v2; convert {} to hk.pkl and amend Config.pkl",
                 ext.to_uppercase(),
@@ -55,30 +54,10 @@ impl Config {
     /// Returns local file paths that the config depends on and whether the
     /// module graph contains imports whose bytes hk cannot hash.
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
-        if env::use_pklr_backend() {
-            let local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
-                .map(|v| v.into_iter().collect())
-                .map_err(|e| eyre::eyre!("{e}"))?;
-            let has_untracked_imports =
-                Self::has_untracked_imports_in_pkl_sources(path, &local_paths)?;
-            return Ok(ImportAnalysis {
-                local_paths,
-                has_untracked_imports,
-            });
-        }
-        let imports: PklImports =
-            run_pkl(&["analyze", "imports"], path).wrap_err("failed to analyze pkl")?;
-
-        // Extract all local file paths from the imports map keys
-        let mut local_paths = IndexSet::new();
-        let mut has_untracked_imports = false;
-        for uri in imports.resolvedImports.keys() {
-            if let Some(file_path) = uri.strip_prefix("file://") {
-                local_paths.insert(PathBuf::from(file_path));
-            } else if Self::is_untracked_import_uri(uri) {
-                has_untracked_imports = true;
-            }
-        }
+        let local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
+            .map(|v| v.into_iter().collect())
+            .map_err(|e| eyre::eyre!("{e}"))?;
+        let has_untracked_imports = Self::has_untracked_imports_in_pkl_sources(path, &local_paths)?;
 
         Ok(ImportAnalysis {
             local_paths,
@@ -113,10 +92,6 @@ impl Config {
                     .iter()
                     .any(|scheme| line.contains(scheme))
         })
-    }
-
-    fn is_untracked_import_uri(uri: &str) -> bool {
-        uri.starts_with("http://") || uri.starts_with("https://") || uri.starts_with("package://")
     }
 
     fn init(&mut self, path: &Path, apply_env: bool) -> Result<()> {
@@ -235,12 +210,9 @@ impl Config {
             let has_untracked_imports = import_analysis.has_untracked_imports
                 || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
 
-            // Always include the main config file. The pklr backend's
-            // analyze_imports does not include the source file in its
-            // output, so without this edits to hk.pkl wouldn't invalidate
-            // the cache when using pklr. Using IndexSet avoids
-            // double-listing the path on the pkl CLI backend, whose
-            // resolvedImports already contains it.
+            // Always include the main config file. pklr's analyze_imports does
+            // not include the source file in its output, so without this edits
+            // to hk.pkl would not invalidate the cache.
             let mut files: IndexSet<PathBuf> = import_analysis.local_paths;
             files.insert(path.clone());
             (files.into_iter().collect(), has_untracked_imports)
@@ -254,8 +226,7 @@ impl Config {
         } else {
             cache_dir.join("resolved-config.json")
         };
-        let config_cache_builder = CacheManagerBuilder::new(config_cache_path)
-            .with_cache_key(format!("pkl-backend:{}", env::HK_PKL_BACKEND.as_str()));
+        let config_cache_builder = CacheManagerBuilder::new(config_cache_path);
         let config_cache_mgr = if has_untracked_imports {
             config_cache_builder.with_fresh_files(fresh_files)
         } else {
@@ -295,11 +266,7 @@ impl Config {
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
-            let json_value: serde_json::Value = if env::use_pklr_backend() {
-                run_pklr(&path)?
-            } else {
-                run_pkl(&["eval"], &path)?
-            };
+            let json_value: serde_json::Value = run_pklr(&path)?;
 
             if json_value.get("environment").is_some() {
                 bail!(
@@ -702,118 +669,20 @@ fn get_no_proxy() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn run_pkl<T: DeserializeOwned>(subcommand: &[&str], path: &Path) -> Result<T> {
-    use std::process::{Command, Stdio};
-
-    let try_run = |bin: &str| -> Result<T> {
-        // Parse bin as shell words (e.g., "mise x -- pkl" -> ["mise", "x", "--", "pkl"])
-        let bin_parts = shell_words::split(bin).wrap_err("failed to parse pkl command")?;
-        let (cmd, bin_args) = bin_parts
-            .split_first()
-            .ok_or_else(|| eyre::eyre!("empty pkl command"))?;
-
-        // Build pkl command args - flags must come before the positional path argument
-        let mut args: Vec<String> = bin_args.to_vec();
-        args.extend(subcommand.iter().map(|s| s.to_string()));
-        args.extend(["-f".to_string(), "json".to_string()]);
-
-        // Add --http-proxy if proxy env vars are set
-        // Note: pkl only supports http:// proxies, not https:// proxy addresses
-        if let Some(proxy) = get_http_proxy() {
-            // pkl requires http:// scheme and doesn't support authentication
-            if !proxy.starts_with("http://") {
-                debug!("Ignoring proxy {proxy}: pkl only supports http:// proxies");
-            } else if proxy.contains('@') {
-                debug!("Ignoring proxy {proxy}: pkl does not support proxy authentication");
-            } else {
-                args.push("--http-proxy".to_string());
-                args.push(proxy);
-            }
-        }
-
-        // Add --http-no-proxy if no_proxy env var is set
-        if let Some(no_proxy) = get_no_proxy() {
-            args.push("--http-no-proxy".to_string());
-            args.push(no_proxy);
-        }
-
-        if let Some(http_rewrite) = env::HK_PKL_HTTP_REWRITE.as_ref() {
-            args.push("--http-rewrite".to_string());
-            args.push(http_rewrite.to_string());
-        }
-
-        if let Some(ca_certificates) = env::HK_PKL_CA_CERTIFICATES.as_ref() {
-            args.push("--ca-certificates".to_string());
-            args.push(ca_certificates.display().to_string());
-        }
-
-        // Add the path last (positional argument must come after flags)
-        args.push(path.display().to_string());
-
-        // Run pkl directly without shell - safer and simpler
-        let output = Command::new(cmd)
-            .args(&args)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-            .wrap_err("failed to execute pkl command")?;
-
-        if !output.status.success() {
-            handle_pkl_error(&output, path)?;
-        }
-
-        let json = String::from_utf8_lossy(&output.stdout);
-        serde_json::from_str(&json).wrap_err("failed to parse pkl output")
-    };
-
-    match try_run("pkl") {
-        Ok(result) => Ok(result),
-        Err(err) => {
-            // if pkl bin is not installed, try via mise
-            if xx::file::which("pkl").is_none() {
-                if let Ok(result) = try_run("mise x -- pkl") {
-                    return Ok(result);
-                }
-                bail!("install pkl cli to use pkl config files https://pkl-lang.org/");
-            }
-            Err(err).wrap_err("failed to run pkl")
-        }
-    }
-}
-
-fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    // Check for common Pkl errors and provide helpful messages
-    if stderr.contains("Cannot find type `Hook`") || stderr.contains("Cannot find type `Step`") {
-        return Err(missing_amends_error(path));
-    } else if stderr.contains("Module URI") && stderr.contains("has invalid syntax") {
-        return Err(invalid_module_uri_error(path));
-    }
-
-    // Return the full error if it's not a known pattern
-    let code = output
-        .status
-        .code()
-        .map_or("unknown".to_string(), |c| c.to_string());
-    Err(failed_pkl_config_error(path, Some(&code), &stderr))
-}
-
 fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
     if error.contains("unsupported package URI")
         || (error.contains("Module URI") && error.contains("has invalid syntax"))
     {
         return invalid_module_uri_error(path);
     }
-    failed_pkl_config_error(path, None, error)
+    failed_pkl_config_error(path, error)
 }
 
 fn handle_pklr_deserialize_error(error: &str, path: &Path) -> eyre::Report {
     if !pkl_file_has_amends(path) && error.contains("unknown field") {
         return missing_amends_error(path);
     }
-    failed_pkl_config_error(path, None, error)
+    failed_pkl_config_error(path, error)
 }
 
 fn pkl_file_has_amends(path: &Path) -> bool {
@@ -847,7 +716,7 @@ fn invalid_module_uri_error(path: &Path) -> eyre::Report {
     )
 }
 
-fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyre::Report {
+fn failed_pkl_config_error(path: &Path, stderr: &str) -> eyre::Report {
     let source = std::fs::read_to_string(path).unwrap_or_default();
     let mut hints = Vec::new();
     let combined = format!("{source}\n{stderr}");
@@ -880,21 +749,12 @@ fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyr
     } else {
         format!("\n\nMigration:\n- {}", hints.join("\n- "))
     };
-    match code {
-        Some(code) => eyre::eyre!(
-            "Failed to evaluate Pkl config at {}\n\nExit code: {}\n\nError output:\n{}{}",
-            path.display(),
-            code,
-            stderr,
-            hint
-        ),
-        None => eyre::eyre!(
-            "Failed to evaluate Pkl config at {}\n\nError output:\n{}{}",
-            path.display(),
-            stderr,
-            hint
-        ),
-    }
+    eyre::eyre!(
+        "Failed to evaluate Pkl config at {}\n\nError output:\n{}{}",
+        path.display(),
+        stderr,
+        hint
+    )
 }
 
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
@@ -1067,13 +927,6 @@ impl IntoIterator for StringOrList {
             StringOrList::List(list) => list.into_iter(),
         }
     }
-}
-
-/// Output of `pkl analyze imports -f json`
-#[derive(Debug, Deserialize)]
-#[allow(non_snake_case)]
-struct PklImports {
-    resolvedImports: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

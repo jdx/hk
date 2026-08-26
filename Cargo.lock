@@ -895,7 +895,6 @@ dependencies = [
  "serde_with",
  "serde_yaml",
  "shell-quote",
- "shell-words",
  "similar",
  "siphasher",
  "strum",
@@ -2363,12 +2362,6 @@ checksum = "6250294ab161cc8ed5d110114cec70d4cec4e0135edc58e7362d094244edf54a"
 dependencies = [
  "bstr",
 ]
-
-[[package]]
-name = "shell-words"
-version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77"
 
 [[package]]
 name = "shlex"
