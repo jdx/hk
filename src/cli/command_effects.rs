@@ -34,6 +34,8 @@ pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
     ("config explain", Read),
     ("config get", Read),
     ("config sources", Read),
+    // Kept as a hidden tombstone so v1 invocations receive migration guidance.
+    ("generate", Write),
     ("init", Write),
     ("install", Write),
     ("migrate", Read),
