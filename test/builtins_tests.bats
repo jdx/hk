@@ -28,7 +28,7 @@ PKL
 
     # ktlint requires a JVM, which is not preinstalled on macOS runners.
     mise install java@21
-    JAVA_HOME="$(mise where java@21)"
+    export JAVA_HOME="$(mise where java@21)"
     # Prepend so stub-pinned tools take precedence over any ambient tools
     # preinstalled on the runner (e.g. ubuntu-latest ships a global tsc).
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$JAVA_HOME/bin:$PATH"
