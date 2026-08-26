@@ -20,6 +20,16 @@ shellcheck = new Config.Step {
     command = new Config.Command { argv = List("shellcheck", "{{files}}") }
     effect = "read"
   }
+  // shellcheck has no in-place write mode; `--format=diff` is its only autofix
+  // path, and only some findings are fixable. `check_after_diff` reruns
+  // `check` once hk has applied the patch, so a file with both a fixable and a
+  // non-fixable finding is fixed and still fails on what is left, rather than
+  // being masked by the clean apply.
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command { argv = List("shellcheck", "--format=diff", "{{files}}") }
+    effect = "read"
+  }
+  check_after_diff = true
   tests {
     local const testMaker = new helpers.TestMaker {
       filename = "test.sh"
@@ -32,5 +42,12 @@ shellcheck = new Config.Step {
     }
     ["check extensionless shell script"] =
       extensionlessTestMaker.checkFail("#!/bin/sh\necho 'oops I'm escaped'", 1)
+    // With no `fix` command, `hk test` runs `check` for fix-mode tests, so the
+    // apply path itself is covered in test/shellcheck_partial_fix.bats.
+    local const fixTestMaker = new helpers.TestMaker { filename = "test.sh" }
+    local const backtickGood = "#!/bin/sh\nx=$(date)\necho \"$x\"\n"
+    ["fix good file"] = fixTestMaker.fixPass(backtickGood, backtickGood)
+    local const unfixable = "#!/usr/bin/bash\necho 'oops I'm escaped'"
+    ["fix file with no autofixable findings"] = fixTestMaker.fixFail(unfixable, unfixable, 1)
   }
 }

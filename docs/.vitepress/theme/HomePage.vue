@@ -15,7 +15,7 @@
             </h1>
 
             <p class="hero-description">
-              Fast, powerful, and flexible hook management for modern development workflows
+              Run linters concurrently without letting overlapping fixes race
             </p>
 
             <div class="hero-actions">
@@ -60,7 +60,7 @@
             </svg>
           </div>
           <h3>Shipshape</h3>
-          <p>Clean, efficient, and built to perform</p>
+          <p>Rust-native startup and parallel execution keep every hook fast</p>
         </div>
 
         <div class="feature-card">
@@ -96,7 +96,7 @@
             </svg>
           </div>
           <h3>Captain's Log</h3>
-          <p>Type-safe, readable configuration that charts your course</p>
+          <p>Type-safe Pkl configuration catches mistakes before hooks run</p>
         </div>
 
         <div class="feature-card">
@@ -108,7 +108,7 @@
             </svg>
           </div>
           <h3>First Mate</h3>
-          <p>Your trusted crew member handling tool provisioning</p>
+          <p>mise integration keeps project tools and tasks reproducible</p>
         </div>
 
         <div class="feature-card">

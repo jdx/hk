@@ -89,6 +89,35 @@ hooks {
 
 The first line (`amends`) is critical because that imports the base configuration pkl for extending.
 
+### Subprojects
+
+In a monorepo, the root config can load an `hk.pkl` owned by each component:
+
+```pkl
+subprojects = List("frontend", "backend", "packages/*")
+```
+
+Subproject paths are relative to the root config and may be literal directories or
+glob patterns. hk merges a subproject's steps into the root hook with the same name,
+then scopes their working directories and file matching to that subproject. A step
+named `eslint` in `frontend/hk.pkl` is exposed as `frontend:eslint` for `--step` and
+`skip_steps`.
+
+Keep these composition rules in mind:
+
+- Hooks are not copied between events. A subproject step under `check` does not also
+  run in `pre-commit` or `fix`; add it to every event where it should run.
+- Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
+  the root config. Subprojects contribute steps and their local environment.
+- Subprojects are loaded one level deep. A `subprojects` declaration inside a
+  subproject config is ignored with a warning.
+- A subproject's literal `dir` is relative to that subproject. Templated workspace
+  directories have an additional caveat described under
+  [Step working directory](#step-working-directory).
+
+See the complete [monorepo example](/reference/examples/monorepo#nested-configs-with-subprojects),
+including per-directory mise environments and locally installed Node tools.
+
 ### `hk.local.pkl`
 
 If `hk.local.pkl` exists, it will be used instead of `hk.pkl`. It is intended to be used for local config, and should
@@ -164,11 +193,18 @@ hk creates one job per matched workspace, so this runs `go vet ./...` in `packag
 
 File selection happens before hk knows which workspace a job will run in, so `glob` matching, `exclude`, and `stage` pathspecs use only the literal part of `dir` that precedes the first template expression — `sub/{{workspace}}` scopes them to `sub`, and `{{workspace}}` scopes them to nothing. Use `glob` and `workspace_indicator` to select files for a step with a fully templated `dir`.
 
-Literal `dir` values contain no template expression, so they behave exactly as before.
+For commands run with a literal `dir`, `{{workspace}}` and
+`{{workspace_indicator}}` are relative to that directory, just like `{{files}}`.
+For example, a command running in `packages/api` sees `.` and `go.mod` rather
+than `packages/api` and `packages/api/go.mod`.
 
 `stage` patterns are handled separately. Staging runs once per step, after every job, so hk re-resolves a templated `dir` against each matched workspace: `stage = List("generated/**")` stages `packages/a/generated/...` and `packages/b/generated/...`, and leaves a same-named path at the repo root alone. If no workspace matches, the patterns fall back to the repo root and hk warns.
 
-One caveat: `{{workspace}}` is always relative to the repo root, never to a subproject, so a subproject config that sets a templated `dir` resolves to the wrong path. hk reports it as a missing working directory rather than failing obscurely; use a literal `dir` in subprojects for now.
+One caveat: while rendering `dir` itself, `{{workspace}}` is relative to the repo
+root, never to a subproject. A subproject config that sets a templated `dir`
+therefore resolves to the wrong path. hk reports it as a missing working
+directory rather than failing obscurely; use a literal `dir` in subprojects for
+now.
 
 ### Focus checks on failing files
 
@@ -189,6 +225,8 @@ local linters = new Mapping<String, Step> {
 In check mode, hk first runs `check_diff` or `check_list_files` over the complete job. If that command reports a failure, hk extracts and deduplicates the affected paths, then runs `check` only on those files so its full diagnostics remain available without rendering every input path again. If both file-reporting commands are configured, `check_diff` takes precedence.
 
 This behavior is opt-in because it adds another process invocation and requires `check` to accept file arguments. Enabling it requires `check` and at least one of `check_diff` or `check_list_files`. Paths not present in the original job are ignored, focused commands retain automatic argument-limit batching, and a failure from the file-reporting command remains authoritative if the focused check unexpectedly succeeds.
+
+For partial fixers, set `check_after_diff = true` alongside `check` and `check_diff`. After applying a nonempty diff in fix mode, hk reruns `check` on the original batch so non-fixable findings are not hidden by a successfully applied patch. Complete formatters can leave this disabled to retain the single-command fast path.
 
 ### `<GROUP>`
 

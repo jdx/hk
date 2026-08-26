@@ -7,345 +7,44 @@ on:
     tags: ["*"]
     branches: ["main"]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  MISE_EXPERIMENTAL: true
-  MISE_HTTP_TIMEOUT: 120
-  CARGO_HTTP_MULTIPLEXING: false
-  CARGO_HTTP_TIMEOUT: 120
-  CARGO_NET_RETRY: 10
-  CARGO_TERM_COLOR: always
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 permissions: {}
 
 jobs:
-  mcp-ui:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  trusted:
+    if: ${{ github.actor == 'jdx' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'jdx')) }}
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - run: mise x -- aube ci
-      - run: ./mcp-ui/node_modules/.bin/vitest run --root mcp-ui
-      - run: ./scripts/check_mcp_ui_fresh
+      id-token: write
+    uses: ./.github/workflows/ci-impl.yml
+    with:
+      trusted: true
+      mbx-backend: server
 
-  build:
+  untrusted:
+    if: ${{ github.actor != 'jdx' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != 'jdx')) }}
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
-          - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
-        with:
-          cache: rust
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - run: mise run build
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: hk-${{ matrix.os }}
-          path: target/debug/hk
-  build-windows:
-    runs-on: windows-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # zizmor: ignore[cache-poisoning] v2
-      - name: Build
-        run: cargo build --features git2/vendored-libgit2,git2/vendored-openssl
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: hk-windows-latest
-          path: target/debug/hk.exe
-  ci-libgit2:
-    needs: build
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
-          - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    steps:
-      - run: brew install parallel
-        if: ${{ matrix.os == 'macos-latest' }}
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-        with:
-          toolchain: nightly
-          override: false
-          cache: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: hk-${{ matrix.os }}
-          path: target/debug
-      - run: chmod +x target/debug/hk
-      - run: mise x -- aube install
-      - name: mise run test:bats:libgit2
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: mise run test:bats:libgit2
-  ci-nolibgit2:
-    needs: build
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
-          - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    steps:
-      - run: brew install parallel
-        if: ${{ matrix.os == 'macos-latest' }}
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-        with:
-          toolchain: nightly
-          override: false
-          cache: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: hk-${{ matrix.os }}
-          path: target/debug
-      - run: chmod +x target/debug/hk
-      - run: mise x -- aube install
-      - name: mise run test:bats:nolibgit2
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: mise run test:bats:nolibgit2
-  ci-nogit:
-    needs: build
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-    # Pinned to github-hosted runners: builtins_tests.bats installs ~50
-    # tools via mise under 16-way parallelism, which surfaces a
-    # mise + namespace-runner incompatibility (many backends report
-    # "does not have an executable named X" on fresh installs, and
-    # asdf:swiftlint binaries SIGILL on namespace's linux image).
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    steps:
-      - run: brew install parallel
-        if: ${{ matrix.os == 'macos-latest' }}
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
-        with:
-          toolchain: nightly
-          override: false
-          cache: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: hk-${{ matrix.os }}
-          path: target/debug
-      - run: chmod +x target/debug/hk
-      - run: mise x -- aube install
-      - name: mise run test:bats:nogit
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
-        with:
-          timeout_minutes: 10
-          max_attempts: 3
-          command: mise run test:bats:nogit
-  ci-other:
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
-          - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
-    steps:
-      - run: brew install parallel
-        if: ${{ matrix.os == 'macos-latest' }}
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
-        with:
-          cache: rust
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - run: mise x -- aube install
-      - name: mise run test:cargo
-        run: mise run test:cargo
-      - name: mise run render
-        run: mise run render
-      - name: assert render produces no diff
-        run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "::error::'mise run render' produced changes. Run it locally and commit."
-            git status
-            git diff HEAD
-            exit 1
-          fi
-      - name: mise run lint
-        run: mise run lint
-  msrv:
-    runs-on: namespace-profile-endev-linux-amd64
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
-        with:
-          cache: rust
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - run: mise run msrv
-  ci-windows:
-    needs: build-windows
-    runs-on: windows-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # zizmor: ignore[cache-poisoning] v2
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-        with:
-          cache: false
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: hk-windows-latest
-          path: target/debug
-      - name: Generate builtins metadata
-        run: mise run pkl:gen
-      - name: Run cargo tests
-        run: cargo test --features git2/vendored-libgit2,git2/vendored-openssl -- --skip settings::tests::test_settings
-      - name: Run Pester e2e tests
-        run: |
-          $env:PKL_PATH = "${{ github.workspace }}/pkl"
-          # Run only basic tests that don't require pkl to avoid hangs
-          ./e2e-win/run.ps1 -TestName "*version*"
-          ./e2e-win/run.ps1 -TestName "*help*"
-          # Regression test for discussion #823 (cmd.exe {{files}} quoting)
-          ./e2e-win/run.ps1 -TestName "*{{files}} template*"
-          # Regression test for discussion #1220 (structured argv npm shims)
-          ./e2e-win/run.ps1 -TestName "*structured argv resolves*"
+    uses: ./.github/workflows/ci-impl.yml
+    with:
+      trusted: false
+      mbx-backend: github
+
   final:
+    name: final
+    if: ${{ always() && !cancelled() && needs.trusted.result != 'cancelled' && needs.untrusted.result != 'cancelled' }}
     permissions: {}
-    needs:
-      - build
-      - build-windows
-      - ci-libgit2
-      - ci-nolibgit2
-      - ci-nogit
-      - ci-other
-      - ci-windows
-      - mcp-ui
-      - msrv
-    runs-on: namespace-profile-endev-linux-amd64
+    needs: [trusted, untrusted]
+    runs-on: ubuntu-latest
     timeout-minutes: 1
-    # Run on success or upstream failure but skip when the workflow is cancelled
-    # — `always()` would override `cancel-in-progress` and waste a runner.
-    if: ${{ !cancelled() }}
     steps:
-      - name: Check CI job results
+      - name: Check selected workflow result
+        env:
+          TRUSTED_RESULT: ${{ needs.trusted.result }}
+          UNTRUSTED_RESULT: ${{ needs.untrusted.result }}
         run: |
-          if [ "${{ needs.build.result }}" != "success" ]; then
-            echo "build failed or was skipped"
-            exit 1
+          if [[ "$TRUSTED_RESULT" == success && "$UNTRUSTED_RESULT" == skipped ]] ||
+             [[ "$TRUSTED_RESULT" == skipped && "$UNTRUSTED_RESULT" == success ]]; then
+            exit 0
           fi
-          if [ "${{ needs.build-windows.result }}" != "success" ]; then
-            echo "build-windows failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.ci-libgit2.result }}" != "success" ]; then
-            echo "ci-libgit2 failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.ci-nolibgit2.result }}" != "success" ]; then
-            echo "ci-nolibgit2 failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.ci-nogit.result }}" != "success" ]; then
-            echo "ci-nogit failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.ci-other.result }}" != "success" ]; then
-            echo "ci-other failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.ci-windows.result }}" != "success" ]; then
-            echo "ci-windows failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.mcp-ui.result }}" != "success" ]; then
-            echo "mcp-ui failed or was skipped"
-            exit 1
-          fi
-          if [ "${{ needs.msrv.result }}" != "success" ]; then
-            echo "msrv failed or was skipped"
-            exit 1
-          fi
-          echo "All CI jobs completed successfully"
+          echo "trusted=$TRUSTED_RESULT untrusted=$UNTRUSTED_RESULT"
+          exit 1

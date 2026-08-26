@@ -63,11 +63,15 @@ impl Step {
             };
 
             // A failed check-first command falls through to the command for the
-            // requested run type. Include both possible commands in plans and
-            // safe-mode preflight even though a successful check-first command
-            // can make the fallback unnecessary at runtime.
+            // requested run type. Include every possible command in plans and
+            // safe-mode preflight even though only one fallback or recheck may
+            // be needed at runtime.
             let fallback = job.check_first.then(|| self.run_cmd(run_type)).flatten();
-            for command in [first, fallback]
+            let recheck =
+                (job.check_first && matches!(run_type, RunType::Fix) && self.check_after_diff)
+                    .then_some(self.check.as_ref())
+                    .flatten();
+            for command in [first, fallback, recheck]
                 .into_iter()
                 .flatten()
                 .filter(|command| !command.is_empty())
@@ -529,6 +533,11 @@ impl Step {
             eyre::bail!(
                 "Step '{name}' with `check_failed_files = true` requires `check` and at least one \
                  of `check_diff` or `check_list_files`."
+            );
+        }
+        if self.check_after_diff && (self.check.is_none() || self.check_diff.is_none()) {
+            eyre::bail!(
+                "Step '{name}' with `check_after_diff = true` requires both `check` and `check_diff`."
             );
         }
         let commands = [
