@@ -42,11 +42,11 @@ EOF
     assert_output ' M file.txt'
 }
 
-@test "hook stage=false prevents staging even with default step stage" {
+@test "hook stage=false disables the pre-commit staging default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
-    ["fix"] {
+    ["pre-commit"] {
         fix = true
         stage = false
         steps {
@@ -64,19 +64,20 @@ EOF
 
     # Modify file to create unstaged changes
     echo "modified" > file.txt
+    git add file.txt
 
-    hk run fix
+    hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
-@test "HK_STAGE=0 prevents staging even with default step stage" {
+@test "HK_STAGE=0 disables the pre-commit staging default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
-    ["fix"] {
+    ["pre-commit"] {
         fix = true
         steps {
             ["add-newline"] {
@@ -93,12 +94,13 @@ EOF
 
     # Modify file to create unstaged changes
     echo "modified" > file.txt
+    git add file.txt
 
-    HK_STAGE=0 hk run fix
+    HK_STAGE=0 hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
 @test "explicit step stage filters paths when hook staging is enabled" {
@@ -195,11 +197,11 @@ EOF
     assert_output ' M file.txt'
 }
 
-@test "--no-stage CLI flag prevents staging with default step stage" {
+@test "--no-stage disables the pre-commit staging default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
-    ["fix"] {
+    ["pre-commit"] {
         fix = true
         steps {
             ["add-newline"] {
@@ -216,10 +218,11 @@ EOF
 
     # Modify file to create unstaged changes
     echo "modified" > file.txt
+    git add file.txt
 
-    hk run fix --no-stage
+    hk run pre-commit --no-stage
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
