@@ -19,8 +19,8 @@ hooks {
         fix = true
         stash = "git"
         steps {
-            ["prettier"] = Builtins.prettier()
-            ["newlines"] = Builtins.newlines()
+            ["prettier"] = Builtins.prettier
+            ["newlines"] = Builtins.newlines
         }
     }
 }

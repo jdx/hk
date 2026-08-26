@@ -13,8 +13,11 @@ COMMAND_FIELDS = ("check", "check_list_files", "check_diff", "fix")
 HEADER = """\
 // THIS FILE IS GENERATED: Run 'mise run pkl:gen' to generate.
 
-import* "builtins/*.pkl" as Builtins
 import "Config.pkl" as Config
+
+"""
+
+FACTORY_HEADER = """\
 
 /// Indicator for detecting if a builtin is relevant to a project
 class ProjectIndicator {
@@ -42,24 +45,54 @@ class meta extends Annotation {
 
 """
 
+INTERNAL_VARIANTS = {"knip_strict", "pinact_v3", "pinact_update_v3"}
+
+OPTION_FACTORIES = {
+    "gitleaks": (
+        "  staged: Boolean = false\n",
+        "if (staged) ({raw}.gitleaks) {{ staged = true }} else {raw}.gitleaks",
+    ),
+    "knip": (
+        "  strict: Boolean = false\n",
+        "if (strict) {knip_strict}.knip_strict else {raw}.knip",
+    ),
+    "pinact": (
+        '  version: "3" | "4" = "4"\n',
+        'if (version == "3") {pinact_v3}.pinact_v3 else {raw}.pinact',
+    ),
+    "pinact_update": (
+        '  version: "3" | "4" = "4"\n',
+        'if (version == "3") {pinact_update_v3}.pinact_update_v3 '
+        'else {raw}.pinact_update',
+    ),
+}
+
+
+def class_name(identifier):
+    return "".join(part.capitalize() for part in identifier.split("_"))
+
+
+def raw_alias(identifier):
+    return f"Raw{class_name(identifier)}"
+
 
 # Deprecated aliases. These point at a canonical builtin so loading
 # Builtins.pkl never reads a deprecated property — under pklr's lazy
 # @Deprecated handling (>= 0.4.2) the warning then fires only when a
-# user references e.g. `Builtins.check_byte_order_marker()`.
+# user references e.g. `Builtins.check_byte_order_marker`.
 # (alias_name, canonical_name, since, message)
 DEPRECATED_ALIASES = [
     (
         "check_byte_order_marker",
         "byte_order_marker",
         "1.30.0",
-        "Use `Builtins.byte_order_marker()`",
+        "Use `Builtins.byte_order_marker`",
     ),
     (
         "fix_byte_order_marker",
         "byte_order_marker",
         "1.30.0",
-        "Use `Builtins.byte_order_marker()`",
+        "Use `Builtins.byte_order_marker`",
     ),
 ]
 
@@ -76,6 +109,7 @@ def validate_effect_coverage():
     for name, step in builtins.items():
         if not isinstance(step, dict):
             continue
+        step = step.get("step", step)
         for field in COMMAND_FIELDS:
             command = step.get(field)
             if command is not None and (
@@ -90,7 +124,7 @@ def validate_effect_coverage():
 
 
 def main():
-    skip = {alias for alias, _, _, _ in DEPRECATED_ALIASES}
+    skip = {alias for alias, _, _, _ in DEPRECATED_ALIASES} | INTERNAL_VARIANTS
 
     # Generate pkl/Builtins.pkl
     with open("pkl/Builtins.pkl", "w", newline="\n") as f:
@@ -98,20 +132,37 @@ def main():
         for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             identifier = filename.replace("-", "_")
-            if identifier in skip:
-                continue
-            f.write(
-                f'function {identifier}() = '
-                f'Builtins["builtins/{filename}.pkl"].{identifier}\n'
-            )
-
-        f.write("\nall = new Mapping<String, Config.Step> {\n")
+            f.write(f'import "builtins/{filename}.pkl" as {raw_alias(identifier)}\n')
+        f.write(FACTORY_HEADER)
         for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             identifier = filename.replace("-", "_")
             if identifier in skip:
                 continue
-            f.write(f'  ["{identifier}"] = {identifier}()\n')
+            factory_class = class_name(identifier)
+            properties, expression = OPTION_FACTORIES.get(
+                identifier,
+                ("", f"{{raw}}.{identifier}"),
+            )
+            expression = expression.format(
+                raw=raw_alias(identifier),
+                knip_strict=raw_alias("knip_strict"),
+                pinact_v3=raw_alias("pinact_v3"),
+                pinact_update_v3=raw_alias("pinact_update_v3"),
+            )
+            f.write(f"class {factory_class} extends Config.BuiltinFactory {{\n")
+            f.write(properties)
+            f.write(f"  step = {expression}\n")
+            f.write("}\n")
+            f.write(f"{identifier} = new {factory_class} {{}}\n")
+
+        f.write("\nall = new Mapping<String, Config.BuiltinFactory> {\n")
+        for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
+            filename = os.path.splitext(os.path.basename(filepath))[0]
+            identifier = filename.replace("-", "_")
+            if identifier in skip:
+                continue
+            f.write(f'  ["{identifier}"] = {identifier}\n')
         f.write("}\n")
 
         for alias, canonical, since, message in DEPRECATED_ALIASES:
@@ -120,7 +171,7 @@ def main():
             f.write(f'  since = "{since}"\n')
             f.write(f'  message = "{message}"\n')
             f.write("}\n")
-            f.write(f"function {alias}() = {canonical}()\n")
+            f.write(f"{alias} = {canonical}\n")
 
     # pkl format (exits 11 after formatting, ignore that)
     subprocess.run(["pkl", "format", "--write", "pkl/Builtins.pkl"])
@@ -136,6 +187,9 @@ def main():
     entries = []
     for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
         filename = os.path.splitext(os.path.basename(filepath))[0]
+        identifier = filename.replace("-", "_")
+        if identifier in skip:
+            continue
 
         # Use pkl reflection to extract metadata
         try:

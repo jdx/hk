@@ -420,7 +420,7 @@ impl PreCommit {
 
         if let Some(builtin_name) = builtin_map.get(hook.id.as_str()) {
             let mut step = HkStep {
-                builtin: Some(format!("Builtins.{}()", builtin_name)),
+                builtin: Some(format!("Builtins.{}", builtin_name)),
                 comments: Vec::new(),
                 glob: None,
                 exclude: Self::add_default_exclude(hook.exclude.clone()),

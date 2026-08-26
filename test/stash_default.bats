@@ -17,7 +17,7 @@ hooks {
     ["pre-commit"] {
         fix = true
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace()
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
 }
@@ -44,7 +44,7 @@ hooks {
     ["fix"] {
         fix = true
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace()
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
 }

@@ -71,7 +71,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["symlinks"] = Builtins.check_symlinks()
+            ["symlinks"] = Builtins.check_symlinks
         }
     }
 }

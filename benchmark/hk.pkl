@@ -3,20 +3,20 @@ amends "../pkl/Config.pkl"
 import "../pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
-local linters = new Mapping<String, Step> {}
+local linters = new Mapping {}
 
 hooks = new {
   ["pre-commit"] {
     stash = "patch-file"
     steps {
-      ["actionlint"] = Builtins.actionlint()
-      ["cargo-fmt"] = Builtins.cargo_fmt()
+      ["actionlint"] = Builtins.actionlint
+      ["cargo-fmt"] = Builtins.cargo_fmt
       ["dbg"] {
         // ensure no dbg! macros are used
         glob = "**/*.rs"
         check = "! rg -e 'dbg!' {{files}}"
       }
-      ["prettier"] = (Builtins.prettier()) {
+      ["prettier"] = (Builtins.prettier.step) {
         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
       }
     }

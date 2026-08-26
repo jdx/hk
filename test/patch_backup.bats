@@ -22,7 +22,7 @@ hooks {
         fix = true
         stash = "git"
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace()
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
 }
@@ -158,7 +158,7 @@ hooks {
         fix = true
         stash = "git"
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace()
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
 }

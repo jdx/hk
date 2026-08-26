@@ -27,10 +27,14 @@ PRECOMMIT
 
     # Verify it contains expected content
     run cat hk.pkl
-    assert_output --partial "Builtins.prettier()"
-    assert_output --partial "Builtins.eslint()"
+    assert_output --partial "Builtins.prettier"
+    assert_output --partial "Builtins.eslint"
+    assert_output --partial 'step {'
     assert_output --partial 'hooks {'
     assert_output --partial '["pre-commit"]'
+
+    run hk validate
+    assert_success
 }
 
 @test "migrate precommit - with exclude" {
@@ -226,7 +230,7 @@ PRECOMMIT
     # Verify meta hooks are not included
     run cat hk.pkl
     refute_output --partial "check-hooks-apply"
-    assert_output --partial "Builtins.prettier()"
+    assert_output --partial "Builtins.prettier"
 }
 
 @test "migrate precommit - unknown hook" {
@@ -270,7 +274,7 @@ PRECOMMIT
     assert_success
 
     run cat hk.pkl
-    assert_output --partial "Builtins.black()"
+    assert_output --partial "Builtins.black"
 }
 
 @test "migrate precommit - custom config path" {
@@ -289,7 +293,7 @@ PRECOMMIT
     [ -f custom-hk.pkl ]
 
     run cat custom-hk.pkl
-    assert_output --partial "Builtins.shellcheck()"
+    assert_output --partial "Builtins.shellcheck"
 }
 
 @test "migrate precommit - missing config file" {
@@ -320,8 +324,8 @@ PRECOMMIT
 
     run cat hk.pkl
     # Verify known hooks
-    assert_output --partial "Builtins.black()"
-    assert_output --partial "Builtins.flake8()"
+    assert_output --partial "Builtins.black"
+    assert_output --partial "Builtins.flake8"
     # Verify unknown hooks
     assert_output --partial "custom_steps"
     assert_output --partial "my-custom-linter"
@@ -496,7 +500,7 @@ PRECOMMIT
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl"'
     assert_output --partial "remove-crlf"
-    assert_output --partial "Builtins.prettier()"
+    assert_output --partial "Builtins.prettier"
 
     # Verify vendored PKL file was created
     [ -f .hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl ]
@@ -559,7 +563,7 @@ PRECOMMIT
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/thlorenz-doctoc/hooks.pkl"'
     assert_output --partial "doctoc"
-    assert_output --partial "Builtins.prettier()"
+    assert_output --partial "Builtins.prettier"
 
     # Verify vendored PKL file was created
     [ -f .hk/vendors/thlorenz-doctoc/hooks.pkl ]
@@ -645,7 +649,7 @@ PRECOMMIT
     assert_output --partial 'import ".hk/vendors/bufbuild-buf/hooks.pkl"'
     assert_output --partial "buf-format"
     assert_output --partial "buf-lint"
-    assert_output --partial "Builtins.prettier()"
+    assert_output --partial "Builtins.prettier"
 
     # Verify vendored PKL file was created
     [ -f .hk/vendors/bufbuild-buf/hooks.pkl ]
@@ -705,7 +709,7 @@ PRECOMMIT
     run cat hk.pkl
     assert_output --partial 'import ".hk/vendors/swiftlang-swift-format/hooks.pkl"'
     assert_output --partial "swift-format"
-    assert_output --partial "Builtins.prettier()"
+    assert_output --partial "Builtins.prettier"
 
     # Verify vendored PKL file was created
     [ -f .hk/vendors/swiftlang-swift-format/hooks.pkl ]

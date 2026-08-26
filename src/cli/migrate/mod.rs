@@ -46,7 +46,7 @@ pub struct HkConfig {
 /// Represents a single step in hk configuration
 #[derive(Debug, Clone)]
 pub struct HkStep {
-    /// The builtin to use, if any (e.g., "Builtins.yamllint()")
+    /// The builtin to use, if any (e.g., "Builtins.yamllint")
     pub builtin: Option<String>,
     /// Comment lines before the step
     pub comments: Vec<String>,
@@ -148,7 +148,7 @@ impl HkConfig {
                 continue;
             }
 
-            output.push_str(&format!("local {} = new Mapping<String, Step> {{\n", name));
+            output.push_str(&format!("local {} = new Mapping {{\n", name));
             for (id, step) in steps {
                 output.push_str(&self.format_step(id, step, 1));
             }
@@ -186,7 +186,7 @@ impl HkConfig {
         output.push_str(&format!("{}[\"{}\"]", indent, id));
 
         // If it's just a builtin with no customization, use simple format
-        if let Some(ref builtin) = step.builtin {
+        let nested_step = if let Some(ref builtin) = step.builtin {
             if step.glob.is_none()
                 && step.exclude.is_none()
                 && step.check.is_none()
@@ -200,12 +200,15 @@ impl HkConfig {
 
             // Builtin with customization
             output.push_str(&format!(" = ({}) {{\n", builtin));
+            output.push_str(&format!("{}step {{\n", "    ".repeat(indent_level + 1)));
+            true
         } else {
             // Custom step
             output.push_str(" {\n");
-        }
+            false
+        };
 
-        let inner_indent = "    ".repeat(indent_level + 1);
+        let inner_indent = "    ".repeat(indent_level + if nested_step { 2 } else { 1 });
 
         // Properties
         if let Some(ref glob) = step.glob {
@@ -270,6 +273,9 @@ impl HkConfig {
             }
         }
 
+        if nested_step {
+            output.push_str(&format!("{}}}\n", "    ".repeat(indent_level + 1)));
+        }
         output.push_str(&format!("{}}}\n", indent));
         output
     }

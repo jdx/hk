@@ -23,7 +23,7 @@ hooks {
     fix = true
     stash = "git"
     steps {
-      ["prettier"] = Builtins.prettier()
+      ["prettier"] = Builtins.prettier
     }
   }
 }

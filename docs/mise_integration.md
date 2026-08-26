@@ -125,9 +125,11 @@ repo root:
 hooks {
     ["check"] {
         steps {
-            ["oxlint"] = (Builtins.ox_lint()) {
-                // with HK_MISE=1, tools from subproject/mise.toml are on PATH
-                dir = "subproject"
+            ["oxlint"] = (Builtins.ox_lint) {
+                step {
+                    // with HK_MISE=1, tools from subproject/mise.toml are on PATH
+                    dir = "subproject"
+                }
             }
         }
     }

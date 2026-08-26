@@ -15,13 +15,8 @@ amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
-    // Include all builtin steps except versioned builtins that require a
-    // different tool stub. Those are exercised separately below.
-    steps =
-      Builtins.all
-        .toMap()
-        .filter((name, _) -> name != "pinact_v3")
-        .toMapping()
+    // Versioned and strict variants are exercised separately below.
+    steps = Builtins.all
   }
 }
 PKL
@@ -45,7 +40,7 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["gitleaks"] = (Builtins.gitleaks()) {
+      ["gitleaks"] = (Builtins.gitleaks) {
         staged = true
       }
     }
@@ -66,7 +61,9 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["pinact_v3"] = Builtins.pinact_v3()
+      ["pinact_v3"] = (Builtins.pinact) {
+        version = "3"
+      }
     }
   }
 }
@@ -78,6 +75,28 @@ PKL
     assert_output --partial "ok - pinact_v3 :: fix bad file and mismatched version comment"
 }
 
+@test "knip strict option tests run" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["knip_strict"] = (Builtins.knip) {
+        strict = true
+      }
+    }
+  }
+}
+PKL
+
+    mise install node@latest
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$(mise where node@latest)/bin:$PATH"
+    run hk test --step knip_strict
+    assert_success
+    assert_output --partial "ok - knip_strict :: check bad file"
+}
+
 @test "shell builtins select extensionless sh scripts but not fish" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -85,10 +104,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["shellcheck"] = (Builtins.shellcheck()) {
+      ["shellcheck"] = (Builtins.shellcheck.step) {
         check = "echo shellcheck {{ files }}"
       }
-      ["shfmt"] = (Builtins.shfmt()) {
+      ["shfmt"] = (Builtins.shfmt.step) {
         check = "echo shfmt {{ files }}"
       }
     }
@@ -119,10 +138,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["ruff"] = (Builtins.ruff()) {
+      ["ruff"] = (Builtins.ruff.step) {
         check = "for f in {{ files }}; do echo ruff:\$f; done"
       }
-      ["ruff_format"] = (Builtins.ruff_format()) {
+      ["ruff_format"] = (Builtins.ruff_format.step) {
         check = "for f in {{ files }}; do echo ruff_format:\$f; done"
       }
     }
