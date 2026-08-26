@@ -15,24 +15,43 @@ amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
-    // Include all Builtins.* steps except versioned builtins that require a
-    // different tool stub. Those are exercised separately below.
-    steps =
-      Builtins
-        .toMap()
-        .filter((name, _) -> name != "pinact_v3")
-        .toMapping()
+    // Versioned and strict variants are exercised separately below.
+    steps = Builtins.all
   }
 }
 PKL
 
+    # ktlint requires a JVM, which is not preinstalled on macOS runners.
+    mise install java@21
+    export JAVA_HOME="$(mise where java@21)"
     # Prepend so stub-pinned tools take precedence over any ambient tools
     # preinstalled on the runner (e.g. ubuntu-latest ships a global tsc).
-    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$JAVA_HOME/bin:$PATH"
     run hk test
     assert_success
     # At least the newlines builtin has a test
     assert_output --partial "ok - newlines :: fix bad file"
+}
+
+@test "gitleaks staged option tests run" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["gitleaks"] = (Builtins.gitleaks) {
+        staged = true
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step gitleaks
+    assert_success
+    assert_output --partial "ok - gitleaks :: check bad staged file"
 }
 
 @test "pinact v3 builtin tests run with pinact v3" {
@@ -42,7 +61,9 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["pinact_v3"] = Builtins.pinact_v3
+      ["pinact_v3"] = (Builtins.pinact) {
+        version = "3"
+      }
     }
   }
 }
@@ -54,6 +75,28 @@ PKL
     assert_output --partial "ok - pinact_v3 :: fix bad file and mismatched version comment"
 }
 
+@test "knip strict option tests run" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["knip_strict"] = (Builtins.knip) {
+        strict = true
+      }
+    }
+  }
+}
+PKL
+
+    mise install node@latest
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$(mise where node@latest)/bin:$PATH"
+    run hk test --step knip_strict
+    assert_success
+    assert_output --partial "ok - knip_strict :: check bad file"
+}
+
 @test "shell builtins select extensionless sh scripts but not fish" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -61,10 +104,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["shellcheck"] = (Builtins.shellcheck) {
+      ["shellcheck"] = (Builtins.shellcheck.step) {
         check = "echo shellcheck {{ files }}"
       }
-      ["shfmt"] = (Builtins.shfmt) {
+      ["shfmt"] = (Builtins.shfmt.step) {
         check = "echo shfmt {{ files }}"
       }
     }
@@ -95,10 +138,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["ruff"] = (Builtins.ruff) {
+      ["ruff"] = (Builtins.ruff.step) {
         check = "for f in {{ files }}; do echo ruff:\$f; done"
       }
-      ["ruff_format"] = (Builtins.ruff_format) {
+      ["ruff_format"] = (Builtins.ruff_format.step) {
         check = "for f in {{ files }}; do echo ruff_format:\$f; done"
       }
     }

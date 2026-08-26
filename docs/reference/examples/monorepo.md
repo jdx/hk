@@ -22,15 +22,17 @@ local frontend = new Group {
   dir = "frontend"
   steps {
     ["prettier"] = (Builtins.prettier) {
-      batch = true
+      step { batch = true }
     }
     ["eslint"] = (Builtins.eslint) {
-      batch = true
+      step { batch = true }
     }
     ["stylelint"] = (Builtins.stylelint) {
-      // Override the group dir for a step that scans files from the repo root.
-      dir = "."
-      glob = List("frontend/**/*.css", "frontend/**/*.scss", "packages/design-system/**/*.scss")
+      step {
+        // Override the group dir for a step that scans files from the repo root.
+        dir = "."
+        glob = List("frontend/**/*.css", "frontend/**/*.scss", "packages/design-system/**/*.scss")
+      }
     }
   }
 }
@@ -44,8 +46,10 @@ local backend = new Group {
     ["cargo_fmt"] = Builtins.cargo_fmt
     ["cargo_clippy"] = Builtins.cargo_clippy
     ["cargo_check"] = (Builtins.cargo_check) {
-      // Only run in CI or with "full" profile.
-      profiles = List("ci", "full")
+      step {
+        // Only run in CI or with "full" profile.
+        profiles = List("ci", "full")
+      }
     }
   }
 }
@@ -56,25 +60,31 @@ local infrastructure = new Group {
   exclude = List("**/.terraform/**")
   steps {
     ["terraform"] = (Builtins.terraform) {
-      glob = "**/*.tf"
+      step { glob = "**/*.tf" }
     }
     ["tflint"] = (Builtins.tf_lint) {
-      glob = "**/*.tf"
-      // Child exclude replaces the group exclude, so repeat common exclusions.
-      exclude = List("**/.terraform/**", "modules/vendor/**")
+      step {
+        glob = "**/*.tf"
+        // Child exclude replaces the group exclude, so repeat common exclusions.
+        exclude = List("**/.terraform/**", "modules/vendor/**")
+      }
     }
   }
 }
 
 // Shared linters (apply to all components)
-local shared = new Mapping<String, Step> {
+local shared = new Mapping {
   ["markdown"] = (Builtins.markdown_lint) {
-    glob = List("**/*.md")
-    exclude = List("**/node_modules/**", "**/target/**")
+    step {
+      glob = List("**/*.md")
+      exclude = List("**/node_modules/**", "**/target/**")
+    }
   }
   ["yaml"] = (Builtins.yamllint) {
-    glob = List("**/*.yaml", "**/*.yml")
-    exclude = List("**/node_modules/**")
+    step {
+      glob = List("**/*.yaml", "**/*.yml")
+      exclude = List("**/node_modules/**")
+    }
   }
 }
 
@@ -132,13 +142,13 @@ hooks {
 amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   // aube resolves these executables from frontend/node_modules/.bin
   ["eslint"] = (Builtins.eslint) {
-    prefix = List("aube", "exec")
+    step { prefix = List("aube", "exec") }
   }
   ["prettier"] = (Builtins.prettier) {
-    prefix = List("aube", "exec")
+    step { prefix = List("aube", "exec") }
   }
 }
 
@@ -158,7 +168,7 @@ hooks {
 amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   ["cargo-fmt"] = Builtins.cargo_fmt
   ["cargo-clippy"] = Builtins.cargo_clippy
 }

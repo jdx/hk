@@ -3,7 +3,7 @@ amends "../pkl/Config.pkl"
 import "../pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
-local linters = new Mapping<String, Step> {}
+local linters = new Mapping {}
 
 hooks = new {
   ["pre-commit"] {
@@ -16,7 +16,7 @@ hooks = new {
         glob = "**/*.rs"
         check = "! rg -e 'dbg!' {{files}}"
       }
-      ["prettier"] = (Builtins.prettier) {
+      ["prettier"] = (Builtins.prettier.step) {
         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
       }
     }

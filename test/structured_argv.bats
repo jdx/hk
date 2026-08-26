@@ -90,10 +90,10 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["ruff"] = (Builtins.ruff) {
+            ["ruff"] = (Builtins.ruff.step) {
                 prefix = List("mise", "x", "--")
             }
-            ["ruff_format"] = (Builtins.ruff_format) {
+            ["ruff_format"] = (Builtins.ruff_format.step) {
                 prefix = List("mise", "x", "--")
             }
         }

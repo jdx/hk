@@ -47,7 +47,7 @@ Here's a basic `hk.pkl` file:
 amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     // steps can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
@@ -177,7 +177,7 @@ structured command should run through a launcher. Other step behavior, including
 `dir` sets the directory a step's commands run in. It is rendered as a template, so a step with `workspace_indicator` can follow each job's workspace rather than opening every command with a `cd`:
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     ["go-vet"] {
         glob = "**/*.go"
         workspace_indicator = "go.mod"
@@ -211,7 +211,7 @@ now.
 For tools whose detailed `check` output cannot identify failing files in a machine-readable form, set `check_failed_files = true` and provide either `check_list_files` or `check_diff`:
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     ["my-linter"] {
         glob = List("**/*.py")
         check_list_files = "my-linter --list-failing-files {{files}}"
@@ -239,7 +239,7 @@ hooks {
     ["pre-commit"] {
         steps {
             ["build"] = new Group {
-                steps = new Mapping<String, Step> {
+                steps = new Mapping {
                     ["ts"] = new Step {
                         fix = "tsc -b"
                     }
@@ -250,7 +250,7 @@ hooks {
             }
             // these steps will run in parallel after the build group finishes
             ["lint"] = new Group {
-                steps = new Mapping<String, Step> {
+                steps = new Mapping {
                     ["prettier"] = new Step {
                         check = "prettier --check {{files}}"
                     }
@@ -283,11 +283,13 @@ local frontend = new Group {
     prefix = "mise x --"
     steps {
         ["prettier"] = (Builtins.prettier) {
-            batch = true
+            step { batch = true }
         }
         ["eslint"] = (Builtins.eslint) {
-            dir = "different/path"
-            batch = true
+            step {
+                dir = "different/path"
+                batch = true
+            }
         }
     }
 }
@@ -300,7 +302,7 @@ structured command, use a list so each prefix argument retains its boundary:
 
 ```pkl
 ["ruff"] = (Builtins.ruff) {
-    prefix = List("mise", "x", "--")
+    step { prefix = List("mise", "x", "--") }
 }
 ```
 

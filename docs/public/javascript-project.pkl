@@ -13,19 +13,23 @@ env {
 }
 
 // Define linters to use across hooks
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   ["prettier"] = (Builtins.prettier) {
-    // Enable batch processing for performance
-    batch = true
-    // Run prettier after other formatters
-    depends = List("eslint")
+    step {
+      // Enable batch processing for performance
+      batch = true
+      // Run prettier after other formatters
+      depends = List("eslint")
+    }
   }
   ["eslint"] = (Builtins.eslint) {
-    batch = true
+    step { batch = true }
   }
   ["tsc"] = (Builtins.tsc) {
-    // Type checking doesn't need file locking
-    stomp = true
+    step {
+      // Type checking doesn't need file locking
+      stomp = true
+    }
   }
 }
 

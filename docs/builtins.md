@@ -28,8 +28,42 @@ You can also customize builtins:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  batch = false  // Override the default batch setting
-  glob = List("*.js", "*.ts")  // Override file patterns
+  step {
+    batch = false  // Override the default batch setting
+    glob = List("*.js", "*.ts")  // Override file patterns
+  }
+}
+```
+
+Builtins use Pkl's class-as-a-function pattern. Each exported value is a factory
+instance with a `step` output, and hk transparently renders that output when
+the factory is used as a step. For example, gitleaks scans the working tree by
+default; amend its `staged` input to scan the Git index instead:
+
+```pkl
+["gitleaks"] = (Builtins.gitleaks) {
+  staged = true
+}
+```
+
+The same pattern replaces separate strict and versioned builtin names:
+
+```pkl
+["knip"] = (Builtins.knip) {
+  strict = true
+}
+["pinact"] = (Builtins.pinact) {
+  version = "3"
+}
+```
+
+Amend the factory's `step` output for generic `Step` overrides:
+
+```pkl
+["prettier"] = (Builtins.prettier) {
+  step {
+    batch = false
+  }
 }
 ```
 
@@ -46,7 +80,9 @@ locally by aube, prefix its builtin with `aube exec`:
 
 ```pkl
 ["eslint"] = (Builtins.eslint) {
-  prefix = List("aube", "exec")
+  step {
+    prefix = List("aube", "exec")
+  }
 }
 ```
 
@@ -67,15 +103,17 @@ for each builtin are defined in the corresponding Pkl file in
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  // Override glob patterns
-  glob = List("src/**/*.js", "src/**/*.ts")
+  step {
+    // Override glob patterns
+    glob = List("src/**/*.js", "src/**/*.ts")
 
-  // Disable batch processing
-  batch = false
+    // Disable batch processing
+    batch = false
 
-  // Add environment variables
-  env {
-    ["PRETTIER_CONFIG"] = ".prettierrc.json"
+    // Add environment variables
+    env {
+      ["PRETTIER_CONFIG"] = ".prettierrc.json"
+    }
   }
 }
 ```
@@ -84,8 +122,10 @@ for each builtin are defined in the corresponding Pkl file in
 
 ```pkl
 ["eslint"] = (Builtins.eslint) {
-  // Run after prettier
-  depends = "prettier"
+  step {
+    // Run after prettier
+    depends = "prettier"
+  }
 }
 ```
 
@@ -93,11 +133,13 @@ for each builtin are defined in the corresponding Pkl file in
 
 ```pkl
 ["cargo_clippy"] = (Builtins.cargo_clippy) {
-  // Only run in directories with Cargo.toml
-  workspace_indicator = "Cargo.toml"
+  step {
+    // Only run in directories with Cargo.toml
+    workspace_indicator = "Cargo.toml"
 
-  // Custom command using workspace
-  check = "cargo clippy --manifest-path {{workspace}}/Cargo.toml"
+    // Custom command using workspace
+    check = "cargo clippy --manifest-path {{workspace}}/Cargo.toml"
+  }
 }
 ```
 
@@ -105,8 +147,10 @@ for each builtin are defined in the corresponding Pkl file in
 
 ```pkl
 ["mypy"] = (Builtins.mypy) {
-  // Only run with "python" profile
-  profiles = List("python")
+  step {
+    // Only run with "python" profile
+    profiles = List("python")
+  }
 }
 ```
 

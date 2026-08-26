@@ -2,6 +2,7 @@ use indexmap::IndexMap;
 use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::future::Future;
 use std::path::{Path, PathBuf};
 
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
@@ -63,7 +64,7 @@ impl Config {
     /// module graph contains imports whose bytes hk cannot hash.
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
         if env::use_pklr_backend() {
-            let local_paths: IndexSet<PathBuf> = pklr::analyze_imports(path)
+            let local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
                 .map(|v| v.into_iter().collect())
                 .map_err(|e| eyre::eyre!("{e}"))?;
             let has_untracked_imports =
@@ -753,7 +754,7 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
         .as_deref()
         .map(|s| s.split(',').map(String::from).collect::<Vec<_>>())
         .unwrap_or_default();
-    let mut evaluator = pklr::EvaluatorBuilder::new()
+    let mut evaluator = pklr::AsyncEvaluatorBuilder::new()
         .http_client(client)
         .http_rewrites(http_rewrites)
         .package_cache_dir(env::HK_PKL_CACHE_DIR.clone())
@@ -764,16 +765,18 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let rt = tokio::runtime::Handle::try_current();
-    let json = match rt {
-        Ok(handle) => tokio::task::block_in_place(|| handle.block_on(evaluator.eval_to_json(path))),
-        Err(_) => {
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(evaluator.eval_to_json(path))
-        }
-    }
-    .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
+    let json = block_on_pklr(evaluator.eval_to_json(path))?
+        .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
     serde_json::from_value(json).map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))
+}
+
+fn block_on_pklr<T>(future: impl Future<Output = pklr::Result<T>>) -> Result<pklr::Result<T>> {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => Ok(tokio::task::block_in_place(|| handle.block_on(future))),
+        Err(_) => tokio::runtime::Runtime::new()
+            .map(|runtime| runtime.block_on(future))
+            .map_err(Into::into),
+    }
 }
 
 /// Build a reqwest::Client with proxy and CA certificate settings

@@ -70,7 +70,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["overridden"] = (Builtins.trailing_whitespace) {
+            ["overridden"] = (Builtins.trailing_whitespace.step) {
                 check_diff = "touch should-not-run"
             }
         }

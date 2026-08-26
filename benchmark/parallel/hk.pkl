@@ -2,7 +2,7 @@ amends "../../pkl/Config.pkl"
 
 import "../../pkl/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   // Python: black and ruff_format both have check_diff and touch **/*.py
   // ruff check is read-only so it can run concurrently with both
   ["black"] = Builtins.black
@@ -12,10 +12,10 @@ local linters = new Mapping<String, Step> {
   // JS/TS: prettier uses check_list_files to narrow down files
   // eslint has no diff mode so it needs a write lock
   // Both touch the same **/*.js **/*.ts files — hk coordinates with locks
-  ["prettier"] = (Builtins.prettier) {
+  ["prettier"] = (Builtins.prettier.step) {
     glob = List("**/*.js", "**/*.ts", "**/*.css", "**/*.md")
   }
-  ["eslint"] = (Builtins.eslint) {
+  ["eslint"] = (Builtins.eslint.step) {
     glob = List("**/*.js", "**/*.ts")
   }
 

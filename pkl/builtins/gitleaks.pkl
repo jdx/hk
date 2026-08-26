@@ -2,6 +2,83 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+class GitleaksStep extends Config.Step {
+  // Scan staged Git content instead of the repository working tree.
+  hidden staged: Boolean = false
+  // gitleaks dir accepts exactly one path. Passing multiple files makes it silently scan ".".
+  // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/cmd/directory.go#L22-L30
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        if (staged)
+          List(
+            "gitleaks",
+            "git",
+            "--pre-commit",
+            "--redact",
+            "--staged",
+            "--verbose",
+            "--no-banner",
+          )
+        else
+          List("gitleaks", "dir", "--redact", "--verbose", "--no-banner", ".")
+    }
+    effect = "read"
+  }
+  tests =
+    if (staged)
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker {
+          filename = "foo.txt"
+          before = "git init --quiet && git add foo.txt"
+        }
+        // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/testdata/repos/nogit/api.go#L20
+        ["check bad staged file"] = testMaker.checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
+        ["check good staged file"] = testMaker.checkPass("message = foobar")
+        ["ignore unstaged files"] =
+          (
+            new helpers.TestMaker {
+              filename = "foo.txt"
+              before = "git init --quiet && git add foo.txt"
+              extra_files {
+                ["unstaged.txt"] = "awsToken = AKIALALEMEL33243OLIA"
+              }
+            }
+          ).checkPass("message = foobar")
+        ["check staged content instead of worktree"] = new Config.StepTest {
+          files = List("foo.txt")
+          tmpdir = true
+          write = new Mapping<String, String> {
+            ["foo.txt"] = "awsToken = AKIALALEMEL33243OLIA"
+          }
+          before = "git init --quiet && git add foo.txt && printf 'message = foobar' > foo.txt"
+          expect = new Config.StepTestExpect {
+            code = 1
+            files = new Mapping<String, String> {
+              ["foo.txt"] = "message = foobar"
+            }
+          }
+        }
+      }
+    else
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
+        // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/testdata/repos/nogit/api.go#L20
+        ["check bad file"] = testMaker.checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
+        ["check good file"] = testMaker.checkPass("message = foobar")
+        ["check whole tree beyond selected files"] =
+          (
+            new helpers.TestMaker {
+              filename = "unselected.txt"
+              files = List("selected.txt")
+              extra_files {
+                ["selected.txt"] = "message = foobar"
+              }
+            }
+          ).checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
+      }
+}
+
 @Builtins.meta {
   category = "Secrets"
   description = "Secret scanner for repository working trees"
@@ -9,29 +86,4 @@ import "./test/helpers.pkl"
     new { file = ".gitleaks.toml" }
   }
 }
-gitleaks = new Config.Step {
-  // gitleaks dir accepts exactly one path. Passing multiple files makes it silently scan ".".
-  // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/cmd/directory.go#L22-L30
-  check = new Config.CommandSpec {
-    command = new Config.Command {
-      argv = List("gitleaks", "dir", "--redact", "--verbose", "--no-banner", ".")
-    }
-    effect = "read"
-  }
-  tests {
-    local const testMaker = new helpers.TestMaker { filename = "foo.txt" }
-    // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/testdata/repos/nogit/api.go#L20
-    ["check bad file"] = testMaker.checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
-    ["check good file"] = testMaker.checkPass("message = foobar")
-    ["check whole tree beyond selected files"] =
-      (
-        new helpers.TestMaker {
-          filename = "unselected.txt"
-          files = List("selected.txt")
-          extra_files {
-            ["selected.txt"] = "message = foobar"
-          }
-        }
-      ).checkFail("awsToken = AKIALALEMEL33243OLIA", 1)
-  }
-}
+gitleaks = new GitleaksStep {}

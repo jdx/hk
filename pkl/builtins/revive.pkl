@@ -19,7 +19,7 @@ revive = new Config.Step {
     ["check good file"] {
       run = "check"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         ["go.mod"] =
           """
             module example.com/test
@@ -39,7 +39,7 @@ revive = new Config.Step {
     ["check bad file"] {
       run = "check"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         ["go.mod"] =
           """
             module example.com/test
