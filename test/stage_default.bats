@@ -13,7 +13,7 @@ teardown() {
     _common_teardown
 }
 
-@test "step with fix but no stage auto-stages fixed files" {
+@test "manual fix hook does not stage by default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -39,7 +39,7 @@ EOF
 
     run git status --porcelain
     assert_success
-    assert_output 'M  file.txt'
+    assert_output ' M file.txt'
 }
 
 @test "hook stage=false prevents staging even with default step stage" {
@@ -101,7 +101,40 @@ EOF
     assert_output ' M file.txt'
 }
 
-@test "explicit step stage overrides default" {
+@test "explicit step stage filters paths when hook staging is enabled" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = true
+        steps {
+            ["add-newline"] {
+                glob = "*.txt"
+                fix = #"for f in {{ files }}; do echo >> \$f; done"#
+                stage = List("*.log")
+            }
+        }
+    }
+}
+EOF
+    echo -n "no newline" > file.txt
+    echo "log content" > file.log
+    git add hk.pkl file.txt file.log
+    git commit -m "initial commit"
+
+    echo "modified" > file.txt
+    echo "modified log" > file.log
+
+    hk run fix
+
+    run git status --porcelain
+    assert_success
+    assert_output --partial 'M  file.log'
+    assert_output --partial ' M file.txt'
+}
+
+@test "explicit step stage does not enable hook staging" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -122,17 +155,14 @@ EOF
     git add hk.pkl file.txt file.log
     git commit -m "initial commit"
 
-    # Modify both files
     echo "modified" > file.txt
     echo "modified log" > file.log
 
     hk run fix
 
-    # Only .txt was fixed, but stage is set to *.log
-    # So .txt should remain unstaged, .log should be staged
     run git status --porcelain
     assert_success
-    assert_output --partial 'M  file.log'
+    assert_output --partial ' M file.log'
     assert_output --partial ' M file.txt'
 }
 

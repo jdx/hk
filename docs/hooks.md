@@ -18,10 +18,16 @@ hk hooks perform the following assuming `fix = true`:
   * if a `check_list_files` command is available on the linter, hk will use the output of that command to filter the list of files to get write locks for and call "fix" on.
   * if `check_first = false` on the linter, hk will run the "fix" command after fetching write locks, blocking other linters from running. You
     should avoid this configuration for performance reasons.
-  * if any of the files have been modified and match the `stage` globs, they will be added to the git index (defaults to the step's `glob` for steps with a `fix` command)
+  * in `pre-commit`, modified files are added to the index; a step's `stage` globs can narrow or redirect which files are added, but do not enable staging on other hooks
 * untracked/unstaged changes are unstashed
 
 If `fix = false`, hk will just run the `check` steps and won't need to deal with read/write locks as nothing should be making modifications. Steps with [`check_failed_files = true`](/configuration#focus-checks-on-failing-files) first use `check_diff` or `check_list_files` to identify affected paths, then run the detailed `check` command only on that focused set.
+
+Staging precedence is `--stage`/`--no-stage`, then the configured `stage`
+setting (environment, Git, or top-level config), then the hook's `stage`, then
+the contextual default. The contextual default is enabled only for
+`pre-commit`. `fail_on_fix = true` always suppresses staging so fixes can be
+reviewed.
 
 ## `pre-commit`
 

@@ -381,11 +381,14 @@ impl Step {
     ) -> Result<()> {
         // Build stage pathspecs; if `dir` is set, stage entries are relative to it.
         // Compute "root" variants for patterns that start with "**/" BEFORE prefixing with `dir`.
-        // Determine effective stage: explicit setting wins, otherwise default to <JOB_FILES>
-        // for steps that can modify files when staging is enabled.
-        let effective_stage: Option<&Vec<String>> = if self.stage.is_some() {
+        // A step-level stage setting filters paths; it never enables staging.
+        // When staging is enabled, explicit patterns win and fixers otherwise
+        // default to the files processed by this job.
+        let effective_stage: Option<&Vec<String>> = if !ctx.hook_ctx.should_stage {
+            None
+        } else if self.stage.is_some() {
             self.stage.as_ref()
-        } else if ctx.hook_ctx.should_stage && (self.fix.is_some() || self.check_diff.is_some()) {
+        } else if self.fix.is_some() || self.check_diff.is_some() {
             Some(&DEFAULT_STAGE)
         } else {
             None
@@ -525,7 +528,7 @@ impl Step {
             if !filtered.is_empty() {
                 // Snapshot pre-staging untracked set for classification
                 let pre_untracked: BTreeSet<PathBuf> = status.untracked_files.clone();
-                // Only stage matched files if stage setting is enabled (default: true)
+                // Only stage matched files when staging is enabled for this hook.
                 // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
                 if ctx.hook_ctx.should_stage {
                     ctx.hook_ctx.git.lock().await.add(&filtered)?;

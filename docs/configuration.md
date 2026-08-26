@@ -58,7 +58,7 @@ steps {
         // the command to run that fixes the files (used by default)
         fix = "eslint --fix {{files}}"
         // optional: files matching these globs will be staged after fix modifies them
-        // defaults to the step's glob when staging is enabled, so usually not needed
+        // defaults to the files processed by the step when staging is enabled
         // stage = List("*.js", "*.ts")
     }
     // steps can also be pulled from the Builtins pkl library
