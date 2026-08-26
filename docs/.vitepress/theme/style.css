@@ -18,6 +18,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
+/* Preserve command syntax exactly instead of rendering operators as ligatures. */
+code,
+kbd,
+pre,
+samp {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
 /* Custom properties - Dark mode only */
 :root {
   /* Brand colors - Electric Blue */
