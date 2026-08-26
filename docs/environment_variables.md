@@ -290,7 +290,7 @@ All skip configurations from different sources are unioned together.
 
 Type: `bool`
 
-When set, overrides the [hook's `stage` key](/configuration#hooks-hook-stage-boolean), which controls whether hk automatically stages files modified by fix commands.
+When set, overrides the [hook's `stage` key](/configuration#hooks-hook-stage-boolean), which controls whether hk automatically stages files modified by fix commands. Staging defaults on only for `pre-commit`; all other hooks, including `fix`, default off.
 
 This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
 

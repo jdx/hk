@@ -15,6 +15,14 @@ hooks {
             ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
+    ["pre-commit"] {
+        fix = true
+        stage = read?("env:PRE_COMMIT_STAGE")?.toBoolean() ?? null
+        stash = "none"
+        steps {
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
+        }
+    }
 }
 EOF
     touch file.txt
@@ -26,10 +34,21 @@ teardown() {
     _common_teardown
 }
 
-@test "stages by default" {
+@test "non-pre-commit hooks do not stage by default" {
     echo "content  " > file.txt
 
     hk run fix
+
+    run git status --porcelain
+    assert_success
+    assert_output ' M file.txt'
+}
+
+@test "pre-commit stages by default" {
+    echo "content  " > file.txt
+    git add file.txt
+
+    hk run pre-commit
 
     run git status --porcelain
     assert_success
@@ -38,12 +57,13 @@ teardown() {
 
 @test "disabled in hook config" {
     echo "content  " > file.txt
+    git add file.txt
 
-    FIX_STAGE=false hk run fix
+    PRE_COMMIT_STAGE=false hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
 @test "disabled in config" {
@@ -51,12 +71,13 @@ teardown() {
     git commit -am "disabling stage in config"
 
     echo "content  " > file.txt
+    git add file.txt
 
-    hk run fix
+    hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
 @test "disabled in user config" {
@@ -68,43 +89,47 @@ EOF
     echo ".hkrc.pkl" > .git/info/exclude
 
     echo "content  " > file.txt
+    git add file.txt
 
-    hk run fix
+    hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
 @test "disabled in git config" {
     git config hk.stage false
     echo "content  " > file.txt
+    git add file.txt
 
-    hk run fix
+    hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
 @test "disabled in envvar" {
     echo "content  " > file.txt
+    git add file.txt
 
-    HK_STAGE=0 hk run fix
+    HK_STAGE=0 hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
 @test "disabled on CLI" {
     echo "content  " > file.txt
+    git add file.txt
 
-    hk run -v fix --no-stage
+    hk run -v pre-commit --no-stage
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
 @test "CLI enable overrides env disable" {

@@ -240,12 +240,12 @@ class Hook {
   /// If true, hk will run the fix command for each step (if it exists) to make modifications.
   fix: Boolean?
 
-  /// Default: `true`
+  /// Default: `true` for `pre-commit`; `false` for every other hook.
   ///
   /// If true, hk will automatically stage fixed files after `fix` commands run.
   ///
-  /// This can be overridden via the `stage` [configuration setting](https://hk.jdx.dev/configuration.html#stage).
-  /// Note that this means the value of `stage` in your `hk.pkl` takes precendence.
+  /// This can be overridden via the `stage` [configuration setting](https://hk.jdx.dev/configuration.html#stage),
+  /// which takes precedence over this hook-level value.
   stage: Boolean?
 
   /// Default: `"none"`
@@ -723,8 +723,9 @@ open class Step {
 
   /// A list of globs of files to add to the git index after running a fix step.
   ///
-  /// When staging is enabled and the step has a `fix` command, this defaults to the step's
-  /// glob. Set explicitly if your fix modifies different files than those it reads.
+  /// This filters what hk stages; it does not enable staging by itself. When
+  /// staging is enabled and this is unset, hk stages the files processed by
+  /// the step. Set it when a fix modifies different files than those it reads.
   ///
   /// ```pkl
   /// hooks {

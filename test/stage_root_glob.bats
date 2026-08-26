@@ -37,7 +37,7 @@ EOF
     [[ "$output" == '?? maintainers.yml' ]]
 
     # run fix using hk in PATH (added by test helper)
-    hk fix -v
+    hk fix --stage -v
 
     # file should be staged after hk fix
     run git status --porcelain -- maintainers.yml
@@ -72,7 +72,7 @@ EOF
     assert_success
     [[ "$output" == '?? pkg/maintainers.yml' ]]
 
-    hk fix -v
+    hk fix --stage -v
 
     run git status --porcelain -- pkg/maintainers.yml
     assert_success
@@ -105,7 +105,7 @@ EOF
     assert_success
     [[ "$output" == $'?? a.txt\n?? b.txt' ]]
 
-    hk fix -v
+    hk fix --stage -v
 
     run git status --porcelain -- a.txt b.txt
     assert_success

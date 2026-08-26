@@ -436,6 +436,9 @@ sources.pkl = ["stage"]
 docs = """
 When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration.html#hooks-hook-stage-boolean).
 
+Without an override, staging is enabled only for `pre-commit`. Manual `hk fix`
+and every other hook leave changes unstaged.
+
 This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
 """
 

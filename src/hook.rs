@@ -1131,7 +1131,7 @@ impl Hook {
             .should_stage()
             .or(settings.stage)
             .or(self.stage)
-            .unwrap_or(true);
+            .unwrap_or_else(|| self.name == "pre-commit");
 
         if settings.skip_hooks.contains(&self.name) {
             warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);

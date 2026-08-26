@@ -13,7 +13,7 @@ teardown() {
     _common_teardown
 }
 
-@test "step with fix but no stage auto-stages fixed files" {
+@test "manual fix hook does not stage by default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -39,14 +39,14 @@ EOF
 
     run git status --porcelain
     assert_success
-    assert_output 'M  file.txt'
+    assert_output ' M file.txt'
 }
 
-@test "hook stage=false prevents staging even with default step stage" {
+@test "hook stage=false disables the pre-commit staging default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
-    ["fix"] {
+    ["pre-commit"] {
         fix = true
         stage = false
         steps {
@@ -64,19 +64,20 @@ EOF
 
     # Modify file to create unstaged changes
     echo "modified" > file.txt
+    git add file.txt
 
-    hk run fix
+    hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
-@test "HK_STAGE=0 prevents staging even with default step stage" {
+@test "HK_STAGE=0 disables the pre-commit staging default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
-    ["fix"] {
+    ["pre-commit"] {
         fix = true
         steps {
             ["add-newline"] {
@@ -93,15 +94,49 @@ EOF
 
     # Modify file to create unstaged changes
     echo "modified" > file.txt
+    git add file.txt
 
-    HK_STAGE=0 hk run fix
+    HK_STAGE=0 hk run pre-commit
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
 
-@test "explicit step stage overrides default" {
+@test "explicit step stage filters paths when hook staging is enabled" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        stage = true
+        steps {
+            ["add-newline"] {
+                glob = "*.txt"
+                fix = #"for f in {{ files }}; do echo >> \$f; done"#
+                stage = List("*.log")
+            }
+        }
+    }
+}
+EOF
+    echo -n "no newline" > file.txt
+    echo "log content" > file.log
+    git add hk.pkl file.txt file.log
+    git commit -m "initial commit"
+
+    echo "modified" > file.txt
+    echo "modified log" > file.log
+
+    hk run fix
+
+    run git status --porcelain
+    assert_success
+    assert_output --partial 'M  file.log'
+    assert_output --partial ' M file.txt'
+}
+
+@test "explicit step stage does not enable hook staging" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -122,17 +157,14 @@ EOF
     git add hk.pkl file.txt file.log
     git commit -m "initial commit"
 
-    # Modify both files
     echo "modified" > file.txt
     echo "modified log" > file.log
 
     hk run fix
 
-    # Only .txt was fixed, but stage is set to *.log
-    # So .txt should remain unstaged, .log should be staged
     run git status --porcelain
     assert_success
-    assert_output --partial 'M  file.log'
+    assert_output --partial ' M file.log'
     assert_output --partial ' M file.txt'
 }
 
@@ -165,11 +197,11 @@ EOF
     assert_output ' M file.txt'
 }
 
-@test "--no-stage CLI flag prevents staging with default step stage" {
+@test "--no-stage disables the pre-commit staging default" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
-    ["fix"] {
+    ["pre-commit"] {
         fix = true
         steps {
             ["add-newline"] {
@@ -186,10 +218,11 @@ EOF
 
     # Modify file to create unstaged changes
     echo "modified" > file.txt
+    git add file.txt
 
-    hk run fix --no-stage
+    hk run pre-commit --no-stage
 
     run git status --porcelain
     assert_success
-    assert_output ' M file.txt'
+    assert_output 'MM file.txt'
 }
