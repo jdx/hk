@@ -11,6 +11,7 @@ teardown() {
 write_project_config() {
     cat > hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
+env { ["HK_TEST_PRECEDENCE"] = "project" }
 steps {
     ["project"] { check = "echo project" }
     ["shared"] { check = "echo project-wins" }
@@ -18,6 +19,21 @@ steps {
 EOF
     git add hk.pkl
     git commit -m "project config"
+}
+
+@test "project environment wins an XDG name collision" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
+env { ["HK_TEST_PRECEDENCE"] = "global" }
+steps { ["env-source"] { check = "echo env-\$HK_TEST_PRECEDENCE" } }
+EOF
+
+    run hk check --all
+    assert_success
+    assert_output --partial "env-project"
+    refute_output --partial "env-global"
 }
 
 @test "XDG Config.pkl adds global steps and environment" {
