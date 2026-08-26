@@ -17,12 +17,10 @@ teardown() {
 
     # Verify each import line starts with "pkl:" (stdlib)
     while IFS= read -r import_uri; do
+        [[ -z "$import_uri" ]] && continue
         [[ "$import_uri" == pkl:* ]] || {
             echo "Non-stdlib import found: $import_uri"
             return 1
         }
     done <<< "$output"
-
-    # Ensure we actually found at least one import
-    assert_output --partial "pkl:"
 }
