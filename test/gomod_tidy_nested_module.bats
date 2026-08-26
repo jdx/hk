@@ -79,7 +79,7 @@ PKL
     git add svc/main.go
 
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
-    run hk fix --step gomod_tidy
+    run hk fix --stage --step gomod_tidy
     assert_success
 
     run git diff --cached --name-only
