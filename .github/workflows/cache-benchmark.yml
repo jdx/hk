@@ -133,7 +133,7 @@ jobs:
         shell: pwsh
         run: |
           $timer = [System.Diagnostics.Stopwatch]::StartNew()
-          mbx build
+          mbx build --features git2/vendored-libgit2,git2/vendored-openssl
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $timer.Stop()
           $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
@@ -164,7 +164,7 @@ jobs:
         shell: pwsh
         run: |
           $timer = [System.Diagnostics.Stopwatch]::StartNew()
-          cargo build
+          cargo build --features git2/vendored-libgit2,git2/vendored-openssl
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $timer.Stop()
           $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
