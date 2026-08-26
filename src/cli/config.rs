@@ -20,7 +20,7 @@ fn unknown_config_key_error(key: &str) -> eyre::Report {
 ///
 /// View and inspect hk's configuration from all sources.
 /// Configuration is merged from multiple sources in precedence order:
-/// CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >
+/// CLI flags > Environment variables > Git config (local) > XDG config >
 /// Git config (global) > Project config (hk.pkl) > Built-in defaults.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
@@ -34,7 +34,7 @@ enum ConfigCommand {
     /// Print effective runtime settings (JSON format)
     ///
     /// Shows the merged configuration from all sources including CLI flags,
-    /// environment variables, git config, user config, and project config.
+    /// environment variables, git config, global config, and project config.
     Dump(ConfigDump),
     /// Explain where a configuration value comes from
     ///
@@ -206,9 +206,9 @@ impl ConfigSources {
         println!("1. CLI flags");
         println!("2. Environment variables (HK_*)");
         println!("3. Git config (local repo)");
-        println!("4. Git config (global/system)");
-        println!("5. User rc (.hkrc.pkl)");
-        println!("6. Project config (hk.pkl)");
+        println!("4. XDG config (~/.config/hk/config.pkl)");
+        println!("5. Git config (global/system)");
+        println!("6. Project config (hk.pkl or hk.local.pkl)");
         println!("7. Built-in defaults");
         println!();
         println!("Note: Use 'hk config dump' to see current effective values");

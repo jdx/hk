@@ -46,6 +46,7 @@ export default defineConfig({
       { text: 'Getting Started', link: '/getting_started' },
       { text: 'Contributing', link: '/contributing' },
       { text: 'Configuration', link: '/configuration' },
+      { text: 'Migrating to v2', link: '/migration-v2' },
       { text: 'CLI Reference', link: '/cli/' },
       { text: `v${latestVersion}`, link: 'https://github.com/jdx/hk/releases' },
     ],

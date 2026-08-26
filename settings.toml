@@ -168,21 +168,6 @@ When enabled, successful runs will clear their output to reduce visual clutter.
 Failed runs will always show their output regardless of this setting.
 """
 
-[hkrc]
-type = "path"
-default = ".hkrc.pkl"
-sources.cli = ["--hkrc"]
-docs = """
-**Deprecated:** Use `~/.config/hk/config.pkl` for global config or `hk.local.pkl` for per-project overrides.
-
-Path to the user configuration file.
-
-Default: `.hkrc.pkl` in the current directory or parent directories.
-
-This file can override project-level settings and is useful for personal preferences.
-This setting and the `--hkrc` flag will be removed in hk v2.
-"""
-
 [pkl_http_rewrite]
 type = "string"
 env_only = true

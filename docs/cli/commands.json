@@ -900,7 +900,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Print effective runtime settings (JSON format)",
-            "help_long": "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config.",
+            "help_long": "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, global config, and project config.",
             "name": "dump",
             "aliases": [],
             "hidden_aliases": [],
@@ -1046,7 +1046,7 @@
         "hide": false,
         "args_override_self": true,
         "help": "Configuration introspection and management",
-        "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.",
+        "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > XDG config > Git config (global) > Project config (hk.pkl) > Built-in defaults.",
         "name": "config",
         "aliases": ["cfg"],
         "hidden_aliases": [],
@@ -1571,7 +1571,7 @@
         "args_override_self": true,
         "help": "Generates a new hk.pkl file for a project",
         "name": "init",
-        "aliases": ["generate"],
+        "aliases": [],
         "hidden_aliases": [],
         "examples": [],
         "headings": []
@@ -7708,23 +7708,6 @@
           }
         },
         "default": ["human"]
-      },
-      {
-        "name": "hkrc",
-        "usage": "--hkrc <PATH>",
-        "help": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
-        "help_first_line": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
-        "short": [],
-        "long": ["hkrc"],
-        "hide": true,
-        "global": true,
-        "arg": {
-          "name": "PATH",
-          "usage": "<PATH>",
-          "required": true,
-          "double_dash": "Optional",
-          "hide": false
-        }
       },
       {
         "name": "jobs",

@@ -80,13 +80,12 @@ teardown() {
     assert_output 'MM file.txt'
 }
 
-@test "disabled in user config" {
-    cat <<EOF > .hkrc.pkl
-amends "$PKL_PATH/UserConfig.pkl"
-
+@test "disabled in XDG config" {
+    mkdir -p "$HOME/.config/hk"
+    cat <<EOF > "$HOME/.config/hk/config.pkl"
+amends "$PKL_PATH/Config.pkl"
 stage = false
 EOF
-    echo ".hkrc.pkl" > .git/info/exclude
 
     echo "content  " > file.txt
     git add file.txt

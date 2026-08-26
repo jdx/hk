@@ -332,23 +332,10 @@ These lists contain repository-relative paths for files currently in each state.
 
 ## `hkrc`
 
-> [!WARNING]
-> `.hkrc.pkl` and `--hkrc` are deprecated and will be removed in hk v2.
->
-> - **Per-project overrides:** use `hk.local.pkl` in the project root (see [`hk.local.pkl`](#hk-local-pkl))
-> - **Global user config:** use `~/.config/hk/config.pkl`
-
-The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. hk discovers it in this order (first match wins):
-
-| Precedence | Path                      | Purpose                                 |
-| ---------- | ------------------------- | --------------------------------------- |
-| 1          | `.hkrc.pkl` (CWD)         | Per-directory override **(deprecated)** |
-| 2          | `~/.hkrc.pkl`             | Home directory **(deprecated)**         |
-| 3          | `~/.config/hk/config.pkl` | XDG config directory **(recommended)**  |
-
-~~Use the `--hkrc` flag to override discovery and use a specific path.~~ The `--hkrc` flag is deprecated.
-
-The hkrc file follows the same format as `hk.pkl` and can be used to define global hooks and linters that will be applied to all projects. This is useful for setting up consistent linting rules across multiple repositories.
+The XDG config at `~/.config/hk/config.pkl` customizes hk across all projects.
+It follows the same `Config.pkl` schema as a project config. Use
+[`hk.local.pkl`](#hk-local-pkl) for per-project overrides. The old CWD/HOME
+`.hkrc.pkl` paths and `--hkrc` were removed in hk v2.
 
 Example hkrc file:
 
@@ -356,19 +343,12 @@ Example hkrc file:
 amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters {
+steps {
     ["prettier"] = Builtins.prettier
     ["eslint"] {
         glob = List("*.js", "*.ts")
         check = "eslint {{files}}"
         fix = "eslint --fix {{files}}"
-    }
-}
-
-hooks {
-    ["pre-commit"] {
-        fix = true
-        steps = linters
     }
 }
 ```
@@ -488,9 +468,6 @@ exclude = List("node_modules", "dist", "build")
 skip_steps = List("slow-test")
 skip_hooks = List("pre-push")
 ```
-
-> [!NOTE]
-> Legacy hkrc files that amend `UserConfig.pkl` are still supported.
 
 ### Configuration Introspection
 

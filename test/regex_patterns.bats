@@ -463,7 +463,7 @@ EOF
     refute_output --partial 'files=.*lib'
 }
 
-@test "Config.Regex works" {
+@test "Config.Regex fails with v2 migration guidance" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Config.pkl"
@@ -478,13 +478,13 @@ hooks {
     }
 }
 EOF
-    touch test.yaml
-    run hk check test.yaml
-    assert_success
-    assert_output --partial 'echo echo echo'
+    run hk validate
+    assert_failure
+    assert_output --partial "Config.Regex was removed in hk v2"
+    assert_output --partial "built-in"
 }
 
-@test "Types.Regex works" {
+@test "Types.Regex fails with v2 migration guidance" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Types.pkl"
@@ -499,10 +499,10 @@ hooks {
     }
 }
 EOF
-    touch test.yaml
-    run hk check test.yaml
-    assert_success
-    assert_output --partial 'echo echo echo'
+    run hk validate
+    assert_failure
+    assert_output --partial "Types.pkl was removed in hk v2"
+    assert_output --partial "built-in"
 }
 
 @test "regex glob pattern cache roundtrip" {
@@ -531,8 +531,3 @@ EOF
     assert_success
     refute_output --partial 'failed to parse cache file'
 }
-
-# Note: User config tests with .hkrc.pkl would require a separate Pkl schema for UserConfig
-# which doesn't currently exist. The Rust changes to support Pattern in UserStepConfig
-# are tested implicitly through the API, but end-to-end .hkrc.pkl tests would need
-# additional schema work.

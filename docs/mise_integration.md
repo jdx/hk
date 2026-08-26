@@ -11,7 +11,7 @@ Setting `HK_MISE=1` will wrap your Git hooks with `mise x`. This ensures that mi
 
 ## `hk init --mise`
 
-Use the `--mise` flag on generate to have hk create a new `mise.toml`
+Use the `--mise` flag on `hk init` to have hk create a new `mise.toml`
 file in the root of the repository that installs hk and defines a `pre-commit` task so users can run `mise run pre-commit` as a "shortcut" for `hk run pre-commit`. Of course, that's actually longer, but the advantage here is that tasks can be used consistently for all the project actions, not just git hooks.
 
 ## `hk install --mise`

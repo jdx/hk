@@ -33,18 +33,6 @@ impl Config {
     fn read(path: &Path, apply_env: bool) -> Result<Self> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
         let mut config: Config = match ext {
-            "toml" => {
-                let raw = xx::file::read_to_string(path)?;
-                toml::from_str(&raw)?
-            }
-            "yaml" | "yml" => {
-                let raw = xx::file::read_to_string(path)?;
-                serde_yaml::from_str(&raw)?
-            }
-            "json" => {
-                let raw = xx::file::read_to_string(path)?;
-                serde_json::from_str(&raw)?
-            }
             "pkl" => {
                 if env::use_pklr_backend() {
                     run_pklr(path)?
@@ -52,9 +40,12 @@ impl Config {
                     run_pkl(&["eval"], path)?
                 }
             }
-            _ => {
-                bail!("Unsupported file extension: {}", ext);
-            }
+            "toml" | "yaml" | "yml" | "json" => bail!(
+                "{} configuration was removed in hk v2; convert {} to hk.pkl and amend Config.pkl",
+                ext.to_uppercase(),
+                path.display()
+            ),
+            _ => bail!("Unsupported config extension: {ext}; hk v2 requires a Pkl config"),
         };
         config.init(path, apply_env)?;
         Ok(config)
@@ -284,136 +275,23 @@ impl Config {
         Ok(config)
     }
 
-    fn apply_user_config(&mut self, user_config: &Option<UserConfig>) -> Result<()> {
-        if let Some(user_config) = user_config {
-            // Top-level user settings that map to Settings should be copied so pkl map sees them
-            if user_config.display_skip_reasons.is_some() {
-                self.display_skip_reasons = user_config.display_skip_reasons.clone();
-            }
-            if user_config.hide_warnings.is_some() {
-                self.hide_warnings = user_config.hide_warnings.clone();
-            }
-            if user_config.warnings.is_some() {
-                self.warnings = user_config.warnings.clone();
-            }
-            if user_config.stage.is_some() {
-                self.stage = user_config.stage
-            }
-
-            for (key, value) in &user_config.environment {
-                // User config takes precedence over project config
-                self.env.insert(key.clone(), value.clone());
-                unsafe { std::env::set_var(key, value) };
-            }
-
-            // No imperative settings mutations here; Settings reads these during build
-
-            for (hook_name, user_hook_config) in &user_config.hooks {
-                if let Some(hook) = self.hooks.get_mut(hook_name) {
-                    for (step_or_group_name, step_or_group) in hook.steps.iter_mut() {
-                        match step_or_group {
-                            crate::hook::StepOrGroup::Step(step) => {
-                                let step_config = user_hook_config.steps.get(step_or_group_name);
-                                Self::apply_user_config_to_step(
-                                    step,
-                                    user_hook_config,
-                                    step_config,
-                                )?;
-                            }
-                            crate::hook::StepOrGroup::Group(group) => {
-                                for (step_name, step) in group.steps.iter_mut() {
-                                    let step_config = user_hook_config.steps.get(step_name);
-                                    Self::apply_user_config_to_step(
-                                        step,
-                                        user_hook_config,
-                                        step_config,
-                                    )?;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn apply_user_config_to_step(
-        step: &mut crate::step::Step,
-        hook_config: &UserHookConfig,
-        step_config: Option<&UserStepConfig>,
-    ) -> Result<()> {
-        for (key, value) in &hook_config.environment {
-            step.env.entry(key.clone()).or_insert_with(|| value.clone());
-        }
-
-        if let Some(step_config) = step_config {
-            for (key, value) in &step_config.environment {
-                step.env.entry(key.clone()).or_insert_with(|| value.clone());
-            }
-
-            if let Some(glob) = &step_config.glob {
-                step.match_any = None;
-                step.glob = Some(glob.clone());
-            }
-
-            if let Some(exclude) = &step_config.exclude {
-                step.exclude = Some(exclude.clone());
-            }
-
-            if let Some(profiles) = &step_config.profiles {
-                step.profiles = Some(profiles.clone());
-            }
-        }
-
-        Ok(())
-    }
-
     fn apply_hkrc(&mut self) -> Result<()> {
-        let explicit_path = crate::settings::Settings::cli_user_config_path();
-
-        let hkrc_path: Option<PathBuf> = if let Some(path) = explicit_path {
-            // --hkrc was explicitly set: must exist
-            if !path.exists() {
-                bail!("Config file not found: {}", path.display());
-            }
-            deprecated_at!(
-                "1.37.0",
-                "2.0.0",
-                "hkrc-flag",
-                "--hkrc is deprecated. Use {}/config.pkl for global config \
-                 or hk.local.pkl for per-project overrides.",
+        let cwd_path = PathBuf::from(".hkrc.pkl");
+        if cwd_path.exists() {
+            bail!(
+                ".hkrc.pkl was removed in hk v2; rename it to hk.local.pkl for project overrides"
+            );
+        }
+        let home_path = env::HOME_DIR.join(".hkrc.pkl");
+        if home_path.exists() {
+            bail!(
+                "~/.hkrc.pkl was removed in hk v2; move it to {}/config.pkl",
                 env::HK_CONFIG_DIR.display()
             );
-            Some(path)
-        } else {
-            // Default discovery: CWD, then $HOME, then XDG config dir
-            let cwd_path = PathBuf::from(".hkrc.pkl");
-            let home_path = env::HOME_DIR.join(".hkrc.pkl");
-            let xdg_path = env::HK_CONFIG_DIR.join("config.pkl");
-            if cwd_path.exists() {
-                deprecated_at!(
-                    "1.37.0",
-                    "2.0.0",
-                    "hkrc-cwd",
-                    ".hkrc.pkl is deprecated. Use hk.local.pkl in the project root instead."
-                );
-                Some(cwd_path)
-            } else if home_path.exists() {
-                deprecated_at!(
-                    "1.37.0",
-                    "2.0.0",
-                    "hkrc-home",
-                    "~/.hkrc.pkl is deprecated. Use {}/config.pkl instead.",
-                    env::HK_CONFIG_DIR.display()
-                );
-                Some(home_path)
-            } else if xdg_path.exists() {
-                Some(xdg_path) // blessed path — no warning
-            } else {
-                None
-            }
-        };
+        }
+
+        let xdg_path = env::HK_CONFIG_DIR.join("config.pkl");
+        let hkrc_path = xdg_path.exists().then_some(xdg_path);
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
@@ -423,19 +301,18 @@ impl Config {
                 run_pkl(&["eval"], &path)?
             };
 
-            // Backward compat: legacy hkrc files amend UserConfig.pkl (has "environment" key),
-            // new-style hkrc files amend Config.pkl (has "env" key).
             if json_value.get("environment").is_some() {
-                let user_config: UserConfig = serde_json::from_value(json_value)
-                    .wrap_err("failed to parse hkrc as UserConfig")?;
-                self.apply_user_config(&Some(user_config))?;
-            } else {
-                let mut hkrc_config: Config = serde_json::from_value(json_value)
-                    .wrap_err("failed to parse hkrc as Config")?;
-                hkrc_config.init(&path, true)?;
-                hkrc_config.materialize_default_hooks()?;
-                self.merge_from_hkrc(hkrc_config);
+                bail!(
+                    "UserConfig.pkl and its `environment` field were removed in hk v2; amend Config.pkl and rename `environment` to `env`"
+                );
             }
+            let mut hkrc_config: Config = serde_json::from_value(json_value)
+                .wrap_err("failed to parse global config as Config")?;
+            // The project config has already exported its environment. Do not
+            // overwrite it before the project-wins merge below.
+            hkrc_config.init(&path, false)?;
+            hkrc_config.materialize_default_hooks()?;
+            self.merge_from_hkrc(hkrc_config);
         }
         Ok(())
     }
@@ -920,12 +797,7 @@ fn handle_pkl_error(output: &std::process::Output, path: &Path) -> Result<()> {
         .status
         .code()
         .map_or("unknown".to_string(), |c| c.to_string());
-    bail!(
-        "Failed to evaluate Pkl config at {}\n\nExit code: {}\n\nError output:\n{}",
-        path.display(),
-        code,
-        stderr
-    );
+    Err(failed_pkl_config_error(path, Some(&code), &stderr))
 }
 
 fn handle_pklr_eval_error(error: &str, path: &Path) -> eyre::Report {
@@ -941,7 +813,7 @@ fn handle_pklr_deserialize_error(error: &str, path: &Path) -> eyre::Report {
     if !pkl_file_has_amends(path) && error.contains("unknown field") {
         return missing_amends_error(path);
     }
-    eyre::eyre!("failed to deserialize pklr output\n\nCaused by:\n    {error}")
+    failed_pkl_config_error(path, None, error)
 }
 
 fn pkl_file_has_amends(path: &Path) -> bool {
@@ -976,17 +848,51 @@ fn invalid_module_uri_error(path: &Path) -> eyre::Report {
 }
 
 fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyre::Report {
+    let source = std::fs::read_to_string(path).unwrap_or_default();
+    let mut hints = Vec::new();
+    let combined = format!("{source}\n{stderr}");
+    let uses_legacy_environment = source.contains("environment {")
+        || source.contains("environment=")
+        || source.contains("environment =");
+    if combined.contains("UserConfig.pkl") || uses_legacy_environment {
+        hints.push(
+            "UserConfig.pkl was removed in hk v2; amend Config.pkl and rename `environment` to `env`.",
+        );
+    }
+    if combined.contains("Types.pkl") || combined.contains("Types.Regex") {
+        hints.push("Types.pkl was removed in hk v2; use Pkl's built-in `Regex` type directly.");
+    }
+    if combined.contains("Config.Regex") {
+        hints.push("Config.Regex was removed in hk v2; use Pkl's built-in `Regex` directly.");
+    }
+    if combined.contains("check_byte_order_marker") {
+        hints.push(
+            "Builtins.check_byte_order_marker was removed in hk v2; use Builtins.byte_order_marker.",
+        );
+    }
+    if combined.contains("fix_byte_order_marker") {
+        hints.push(
+            "Builtins.fix_byte_order_marker was removed in hk v2; use Builtins.byte_order_marker.",
+        );
+    }
+    let hint = if hints.is_empty() {
+        String::new()
+    } else {
+        format!("\n\nMigration:\n- {}", hints.join("\n- "))
+    };
     match code {
         Some(code) => eyre::eyre!(
-            "Failed to evaluate Pkl config at {}\n\nExit code: {}\n\nError output:\n{}",
+            "Failed to evaluate Pkl config at {}\n\nExit code: {}\n\nError output:\n{}{}",
             path.display(),
             code,
-            stderr
+            stderr,
+            hint
         ),
         None => eyre::eyre!(
-            "Failed to evaluate Pkl config at {}\n\nError output:\n{}",
+            "Failed to evaluate Pkl config at {}\n\nError output:\n{}{}",
             path.display(),
-            stderr
+            stderr,
+            hint
         ),
     }
 }
@@ -1142,67 +1048,6 @@ fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> R
     }
 
     Ok(())
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct UserConfig {
-    #[serde(default)]
-    pub environment: IndexMap<String, String>,
-    #[serde(default)]
-    pub defaults: UserDefaults,
-    #[serde(default)]
-    pub hooks: IndexMap<String, UserHookConfig>,
-    #[serde(rename = "display_skip_reasons")]
-    pub display_skip_reasons: Option<Vec<String>>,
-    #[serde(rename = "hide_warnings")]
-    pub hide_warnings: Option<Vec<String>>,
-    #[serde(rename = "warnings")]
-    pub warnings: Option<Vec<String>>,
-    pub stage: Option<bool>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct UserDefaults {
-    pub jobs: Option<u16>,
-    pub fail_fast: Option<bool>,
-    pub profiles: Option<Vec<String>>,
-    pub all: Option<bool>,
-    pub fix: Option<bool>,
-    pub check: Option<bool>,
-    pub exclude: Option<StringOrList>,
-    pub skip_steps: Option<StringOrList>,
-    pub skip_hooks: Option<StringOrList>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct UserHookConfig {
-    #[serde(default)]
-    pub environment: IndexMap<String, String>,
-    pub jobs: Option<u16>,
-    pub fail_fast: Option<bool>,
-    pub profiles: Option<Vec<String>>,
-    pub all: Option<bool>,
-    pub fix: Option<bool>,
-    pub check: Option<bool>,
-    #[serde(default)]
-    pub steps: IndexMap<String, UserStepConfig>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub struct UserStepConfig {
-    #[serde(default)]
-    pub environment: IndexMap<String, String>,
-    pub fail_fast: Option<bool>,
-    pub profiles: Option<Vec<String>>,
-    pub all: Option<bool>,
-    pub fix: Option<bool>,
-    pub check: Option<bool>,
-    pub glob: Option<crate::step::Pattern>,
-    pub exclude: Option<crate::step::Pattern>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
