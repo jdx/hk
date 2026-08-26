@@ -8,7 +8,6 @@ description: "Generate a configuration, then validate it. Install selected tools
 # `hk init`
 
 - **Usage:** `hk init [FLAGS]`
-- **Aliases:** `generate`
 - **Effect:** modifies state
 
 Generate a new hk.pkl file for a project

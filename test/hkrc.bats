@@ -4,107 +4,73 @@ setup() {
     load 'test_helper/common_setup'
     _common_setup
 }
-
 teardown() {
     _common_teardown
 }
 
-@test "hkrc: loads default .hkrc.pkl from project directory" {
-    # Create a basic project config
-    cat <<EOF > hk.pkl
+write_project_config() {
+    cat > hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Builtins.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["echo"] { check = "echo 'project config'" }
-        }
-    }
+steps {
+    ["project"] { check = "echo project" }
+    ["shared"] { check = "echo project-wins" }
 }
 EOF
-
-    cat <<EOF > .hkrc.pkl
-amends "$PKL_PATH/UserConfig.pkl"
-
-environment {
-    ["HK_TEST_VAR"] = "from_hkrc"
-}
-
-hooks {
-    ["pre-commit"] {
-        environment {
-            ["HOOK_VAR"] = "hook_value"
-        }
-        steps {
-            ["echo"] {
-                environment {
-                    ["STEP_VAR"] = "step_value"
-                }
-            }
-        }
-    }
-}
-EOF
-
-    git add hk.pkl .hkrc.pkl
-    git commit -m "initial commit"
-
-    # Run the hook and verify environment variables are set
-    run hk run pre-commit --all
-    assert_success
-}
-
-@test "hkrc: custom path with --hkrc flag" {
-    # Create a basic project config
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Builtins.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["env_test"] {
-                check = "env | grep CUSTOM_VAR || echo 'CUSTOM_VAR not found'"
-            }
-        }
-    }
-}
-EOF
-
-    # Create a custom user config
-    cat <<EOF > custom.hkrc.pkl
-amends "$PKL_PATH/UserConfig.pkl"
-
-environment {
-    ["CUSTOM_VAR"] = "custom_value"
-}
-EOF
-
     git add hk.pkl
-    git commit -m "initial commit"
-
-    # Run with custom config
-    run hk --hkrc custom.hkrc.pkl run pre-commit --all
-    assert_success
+    git commit -m "project config"
 }
 
-@test "hkrc: fails when custom config file doesn't exist" {
-    cat <<EOF > hk.pkl
+@test "XDG Config.pkl adds global steps and environment" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
 amends "$PKL_PATH/Config.pkl"
-import "$PKL_PATH/Builtins.pkl"
+env { ["HK_TEST_GLOBAL"] = "loaded" }
+steps { ["global"] { check = "echo global-\$HK_TEST_GLOBAL" } }
+EOF
+
+    run hk check --all
+    assert_success
+    assert_output --partial "project"
+    assert_output --partial "global-loaded"
+}
+
+@test "project top-level step wins an XDG name collision" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
+steps { ["shared"] { check = "echo global-loses" } }
+EOF
+
+    run hk check --all
+    assert_success
+    assert_output --partial "project-wins"
+    refute_output --partial "global-loses"
+}
+
+@test "XDG Config.pkl can add an explicit hook" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
 hooks {
-    ["pre-commit"] {
-        steps {
-            ["echo"] { check = "echo test" }
-        }
+    ["custom"] {
+        steps { ["global-hook"] { check = "echo global-hook" } }
     }
 }
 EOF
 
-    git add hk.pkl
-    git commit -m "initial commit"
+    run hk run custom --all
+    assert_success
+    assert_output --partial "global-hook"
+}
 
-    # Try to use non-existent config
-    run hk --hkrc nonexistent.pkl run pre-commit --all
+@test "CWD .hkrc.pkl fails with project-local migration guidance" {
+    write_project_config
+    echo "amends \"$PKL_PATH/Config.pkl\"" > .hkrc.pkl
+
+    run hk check --all
     assert_failure
     assert_output --partial "Config file not found"
 }
@@ -704,101 +670,35 @@ EOF
     assert_output --partial "hk.local.pkl"
 }
 
-@test "hkrc: HOME ~/.hkrc.pkl shows deprecation warning" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["echo"] { check = "echo 'project step'" }
-        }
-    }
+@test "HOME .hkrc.pkl fails with XDG migration guidance" {
+    write_project_config
+    echo "amends \"$PKL_PATH/Config.pkl\"" > "$HOME/.hkrc.pkl"
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "~/.hkrc.pkl was removed in hk v2"
+    assert_output --partial ".config/hk/config.pkl"
 }
+
+@test "--hkrc fails with migration guidance" {
+    write_project_config
+
+    run hk --hkrc custom.pkl check --all
+    assert_failure
+    assert_output --partial "--hkrc was removed in hk v2"
+    assert_output --partial "hk.local.pkl"
+}
+
+@test "UserConfig schema fails with migration guidance" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
+environment = new Mapping<String, String> { ["OLD"] = "1" }
 EOF
 
-    cat <<EOF > "$HOME/.hkrc.pkl"
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["home-step"] { check = "echo 'from home'" }
-        }
-    }
-}
-EOF
-
-    git add hk.pkl
-    git commit -m "initial commit"
-
-    run hk run pre-commit --all -v
-    assert_success
-    assert_output --partial "deprecated"
-    assert_output --partial "~/.hkrc.pkl is deprecated"
-    assert_output --partial "config.pkl"
-}
-
-@test "hkrc: --hkrc flag shows deprecation warning" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["echo"] { check = "echo 'project step'" }
-        }
-    }
-}
-EOF
-
-    cat <<EOF > custom.hkrc.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["custom"] { check = "echo 'custom'" }
-        }
-    }
-}
-EOF
-
-    git add hk.pkl
-    git commit -m "initial commit"
-
-    run hk --hkrc custom.hkrc.pkl run pre-commit --all -v
-    assert_success
-    assert_output --partial "deprecated"
-    assert_output --partial "--hkrc is deprecated"
-}
-
-@test "hkrc: XDG config.pkl does NOT show deprecation warning" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["echo"] { check = "echo 'project step'" }
-        }
-    }
-}
-EOF
-
-    export HK_CONFIG_DIR="$TEST_TEMP_DIR/.config/hk"
-    mkdir -p "$HK_CONFIG_DIR"
-    cat <<EOF > "$HK_CONFIG_DIR/config.pkl"
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["xdg-step"] { check = "echo 'from xdg'" }
-        }
-    }
-}
-EOF
-
-    git add hk.pkl
-    git commit -m "initial commit"
-
-    run hk run pre-commit --all -v
-    assert_success
-    assert_output --partial "from xdg"
-    refute_output --partial "deprecated"
+    run hk check --all
+    assert_failure
+    assert_output --partial "UserConfig.pkl"
+    assert_output --partial 'rename `environment` to `env`'
 }
