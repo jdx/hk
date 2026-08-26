@@ -71,6 +71,25 @@ EOF
     assert_failure
 }
 
+@test "hk install --global does not restore explicitly disabled project hooks" {
+    require_git_2_54
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        enabled = false
+    }
+}
+EOF
+
+    run hk install --global
+    assert_success
+
+    run git config --global --get hook.hk-pre-commit.command
+    assert_failure
+}
+
 @test "hk install --global --mise writes home-relative mise with explicit hk tool" {
     require_git_2_54
 
