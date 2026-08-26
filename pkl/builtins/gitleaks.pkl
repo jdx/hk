@@ -48,13 +48,13 @@ class GitleaksStep extends Config.Step {
         ["check staged content instead of worktree"] = new Config.StepTest {
           files = List("foo.txt")
           tmpdir = true
-          write {
+          write = new Mapping<String, String> {
             ["foo.txt"] = "awsToken = AKIALALEMEL33243OLIA"
           }
           before = "git init --quiet && git add foo.txt && printf 'message = foobar' > foo.txt"
           expect = new Config.StepTestExpect {
             code = 1
-            files {
+            files = new Mapping<String, String> {
               ["foo.txt"] = "message = foobar"
             }
           }

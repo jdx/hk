@@ -22,7 +22,7 @@ check_added_large_files = new Config.Step {
     }
     ["passes small file"] {
       run = "check"
-      write {
+      write = new Mapping<String, String> {
         ["{{tmp}}/small.txt"] = "small content"
       }
       expect { code = 0 }
