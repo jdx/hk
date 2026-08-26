@@ -168,10 +168,7 @@ fn global_hook_command(use_mise: bool) -> Result<OsString> {
 
 fn global_hook_events() -> Result<Vec<String>> {
     if Config::project_config_exists() {
-        let events = hook_events(&Config::get()?);
-        if !events.is_empty() {
-            return Ok(events);
-        }
+        return Ok(hook_events(&Config::get()?));
     }
     Ok(CORE_GLOBAL_EVENTS
         .iter()
