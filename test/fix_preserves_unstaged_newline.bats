@@ -142,7 +142,7 @@ PKL
     # Worktree adds extra line at end
     printf 'line1\n\nline2\nline3\n' > double.txt
 
-    run hk fix -v
+    run hk fix --stage -v
     assert_success
 
     # Check exact bytes
@@ -178,7 +178,7 @@ PY'
     create_fix_config_with_stash git
     prepare_sample_file
 
-    run hk fix -v
+    run hk fix --stage -v
     assert_success
 
     assert_preserves_newline
@@ -193,7 +193,7 @@ PY'
     create_fix_config_with_stash patch-file
     prepare_sample_file
 
-    run hk fix -v
+    run hk fix --stage -v
     assert_success
 
     assert_preserves_newline
@@ -244,7 +244,7 @@ PKL
     # So it reads "content\n" instead of "content\n\n"
     # This causes incorrect tail detection: thinks "\nExtra\n" is the tail
     # Result: worktree gets corrupted with wrong merge
-    run hk fix -v
+    run hk fix --stage -v
     assert_success
 
     # Use exact newline preservation check

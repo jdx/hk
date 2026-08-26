@@ -125,7 +125,7 @@ EOF
 
     echo "dirty" > packages/frontend/dist/assets/output.txt
 
-    run hk run fix
+    run hk run fix --stage
     assert_success
 
     run git diff --name-only --cached
