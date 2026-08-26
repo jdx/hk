@@ -155,11 +155,6 @@ pub struct Step {
     #[serde(default)]
     pub name: String,
 
-    /// Builtin factory option consumed by Pkl before the step reaches hk.
-    #[doc(hidden)]
-    #[serde(default, skip_serializing)]
-    pub staged: bool,
-
     /// Profiles that enable/disable this step (prefix with `!` to disable)
     pub profiles: Option<Vec<String>>,
 
