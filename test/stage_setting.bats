@@ -15,6 +15,13 @@ hooks {
             ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
+    ["pre-commit"] {
+        fix = true
+        stash = "none"
+        steps {
+            ["trailing-whitespace"] = Builtins.trailing_whitespace()
+        }
+    }
 }
 EOF
     touch file.txt
@@ -26,10 +33,21 @@ teardown() {
     _common_teardown
 }
 
-@test "stages by default" {
+@test "non-pre-commit hooks do not stage by default" {
     echo "content  " > file.txt
 
     hk run fix
+
+    run git status --porcelain
+    assert_success
+    assert_output ' M file.txt'
+}
+
+@test "pre-commit stages by default" {
+    echo "content  " > file.txt
+    git add file.txt
+
+    hk run pre-commit
 
     run git status --porcelain
     assert_success
