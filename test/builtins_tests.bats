@@ -29,7 +29,8 @@ PKL
     # Prepend so stub-pinned tools take precedence over any ambient tools
     # preinstalled on the runner (e.g. ubuntu-latest ships a global tsc).
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
-    run hk test
+    # ktlint requires a JVM, which is not preinstalled on macOS runners.
+    MISE_JAVA_VERSION=21 run hk test
     assert_success
     # At least the newlines builtin has a test
     assert_output --partial "ok - newlines :: fix bad file"
