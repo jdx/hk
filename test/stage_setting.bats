@@ -20,7 +20,7 @@ hooks {
         stage = read?("env:PRE_COMMIT_STAGE")?.toBoolean() ?? null
         stash = "none"
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace()
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
 }
