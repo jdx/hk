@@ -741,6 +741,9 @@ impl Config {
         };
         let sub_env = std::mem::take(&mut sub.env);
         for (hook_name, sub_hook) in std::mem::take(&mut sub.hooks) {
+            if !sub_hook.enabled {
+                continue;
+            }
             let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| Hook {
                 name: hook_name.clone(),
                 fix: sub_hook.fix,
@@ -1563,6 +1566,23 @@ mod tests {
 
         let err = root.merge_subproject("sub", None, sub).unwrap_err();
         assert!(err.to_string().contains("duplicate step name 'sub:lint'"));
+    }
+
+    #[test]
+    fn merge_subproject_ignores_disabled_hooks() {
+        let mut root = Config::default();
+        let mut sub = Config::default();
+        let mut disabled = hook("pre-commit");
+        disabled.enabled = false;
+        disabled.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("pre-commit".to_string(), disabled);
+
+        root.merge_subproject("sub", sub).unwrap();
+
+        assert!(!root.hooks.contains_key("pre-commit"));
     }
 
     #[test]
