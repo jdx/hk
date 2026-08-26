@@ -11,7 +11,7 @@ teardown() {
 
 @test "hk init creates hk.pkl" {
     hk init
-    assert_file_contains hk.pkl "linters ="
+    assert_file_contains hk.pkl "steps {"
 }
 
 @test "hk init detects package.json" {
@@ -83,7 +83,7 @@ teardown() {
     # Check that old content is gone and new content is present
     run grep "old content" hk.pkl
     assert_failure
-    assert_file_contains hk.pkl "hooks"
+    assert_file_contains hk.pkl "steps {"
 }
 
 @test "hk init warns if hk.pkl exists without --force" {
