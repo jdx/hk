@@ -876,12 +876,12 @@ fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyr
     }
     if combined.contains("check_byte_order_marker") {
         hints.push(
-            "Builtins.check_byte_order_marker() was removed in hk v2; use Builtins.byte_order_marker().",
+            "Builtins.check_byte_order_marker was removed in hk v2; use Builtins.byte_order_marker.",
         );
     }
     if combined.contains("fix_byte_order_marker") {
         hints.push(
-            "Builtins.fix_byte_order_marker() was removed in hk v2; use Builtins.byte_order_marker().",
+            "Builtins.fix_byte_order_marker was removed in hk v2; use Builtins.byte_order_marker.",
         );
     }
     let hint = if hints.is_empty() {

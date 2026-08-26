@@ -6,24 +6,54 @@ targeted replacement when it detects a removed input.
 
 ## Builtins
 
-Every builtin is now a factory function:
+Every builtin is now a class-as-a-function factory value. Default references
+stay concise and do not need to change:
 
 ```pkl
-// v1
 ["prettier"] = Builtins.prettier
-
-// v2
-["prettier"] = Builtins.prettier()
 ```
 
-Replace `Builtins.gitleaks_staged` with:
+If a local mapping contains builtin factories, let Pkl infer its value type (or
+use `StepDefinition`) instead of declaring `Mapping<String, Step>`:
 
 ```pkl
-["gitleaks"] = (Builtins.gitleaks()) { staged = true }
+local linters = new Mapping {
+  ["prettier"] = Builtins.prettier
+}
 ```
 
-Replace `Builtins.check_byte_order_marker()` and
-`Builtins.fix_byte_order_marker()` with `Builtins.byte_order_marker()`.
+Replace the removed staged, strict, and versioned names as follows:
+
+```pkl
+["gitleaks"] = (Builtins.gitleaks) {
+  staged = true
+}
+["knip"] = (Builtins.knip) {
+  strict = true
+}
+["pinact"] = (Builtins.pinact) {
+  version = "3"
+}
+["pinact_update"] = (Builtins.pinact_update) {
+  version = "3"
+}
+```
+
+These replace `gitleaks_staged`, `knip_strict`, `pinact_v3`, and
+`pinact_update_v3`, respectively. Put generic step customization under the
+factory's nested `step` output. This syntax remains stable if a builtin gains
+its own options later:
+
+```pkl
+["prettier"] = (Builtins.prettier) {
+  step {
+    batch = false
+  }
+}
+```
+
+Replace `Builtins.check_byte_order_marker` and
+`Builtins.fix_byte_order_marker` with `Builtins.byte_order_marker`.
 
 ## Shared steps and staging
 
@@ -31,7 +61,7 @@ Move steps repeated across `check`, `fix`, and `pre-commit` to the top level:
 
 ```pkl
 steps {
-  ["prettier"] = Builtins.prettier()
+  ["prettier"] = Builtins.prettier
 }
 ```
 
