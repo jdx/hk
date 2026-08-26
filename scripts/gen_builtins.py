@@ -76,27 +76,6 @@ def raw_alias(identifier):
     return f"Raw{class_name(identifier)}"
 
 
-# Deprecated aliases. These point at a canonical builtin so loading
-# Builtins.pkl never reads a deprecated property — under pklr's lazy
-# @Deprecated handling (>= 0.4.2) the warning then fires only when a
-# user references e.g. `Builtins.check_byte_order_marker`.
-# (alias_name, canonical_name, since, message)
-DEPRECATED_ALIASES = [
-    (
-        "check_byte_order_marker",
-        "byte_order_marker",
-        "1.30.0",
-        "Use `Builtins.byte_order_marker`",
-    ),
-    (
-        "fix_byte_order_marker",
-        "byte_order_marker",
-        "1.30.0",
-        "Use `Builtins.byte_order_marker`",
-    ),
-]
-
-
 def validate_effect_coverage():
     result = subprocess.run(
         ["pkl", "eval", "pkl/Builtins.pkl", "--format", "json"],
@@ -124,7 +103,7 @@ def validate_effect_coverage():
 
 
 def main():
-    skip = {alias for alias, _, _, _ in DEPRECATED_ALIASES} | INTERNAL_VARIANTS
+    skip = INTERNAL_VARIANTS
 
     # Generate pkl/Builtins.pkl
     with open("pkl/Builtins.pkl", "w", newline="\n") as f:
@@ -164,14 +143,6 @@ def main():
                 continue
             f.write(f'  ["{identifier}"] = {identifier}\n')
         f.write("}\n")
-
-        for alias, canonical, since, message in DEPRECATED_ALIASES:
-            f.write("\n")
-            f.write("@Deprecated {\n")
-            f.write(f'  since = "{since}"\n')
-            f.write(f'  message = "{message}"\n')
-            f.write("}\n")
-            f.write(f"{alias} = {canonical}\n")
 
     # pkl format (exits 11 after formatting, ignore that)
     subprocess.run(["pkl", "format", "--write", "pkl/Builtins.pkl"])

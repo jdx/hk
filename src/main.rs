@@ -1,8 +1,5 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-mod output;
-
 use std::{ffi::OsString, panic, thread, time::Duration};
 
 pub use eyre::Result;

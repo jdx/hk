@@ -42,7 +42,7 @@ struct Cli {
         default = "human"
     )]
     format: crate::structured_output::OutputFormat,
-    /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
+    /// Removed in hk v2; use ~/.config/hk/config.pkl or hk.local.pkl
     #[usage(long, global, value_name = "PATH", hide)]
     hkrc: Option<PathBuf>,
     /// Number of jobs to run in parallel
@@ -134,7 +134,8 @@ enum Commands {
     Config(Box<config::Config>),
     #[usage(alias = "f")]
     Fix(Box<fix::Fix>),
-    #[usage(alias = "generate")]
+    #[usage(hide)]
+    Generate(Box<init::Init>),
     Init(Box<init::Init>),
     #[usage(alias = "i")]
     Install(Box<install::Install>),
@@ -245,6 +246,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         args.command,
         Commands::Agent(_)
             | Commands::Builtins(_)
+            | Commands::Generate(_)
             | Commands::Init(_)
             | Commands::Mcp(_)
             | Commands::Migrate(_)
@@ -271,6 +273,11 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         Commands::Completion(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
         Commands::Fix(cmd) => cmd.hook.run("fix").await,
+        Commands::Generate(_) => {
+            return Err(eyre::eyre!(
+                "`hk generate` was removed in hk v2; use `hk init`"
+            ));
+        }
         Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
         Commands::Mcp(cmd) => cmd.run().await,

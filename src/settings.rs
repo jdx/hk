@@ -527,9 +527,6 @@ impl Settings {
     fn collect_cli_map() -> SourceMap {
         let mut map: SourceMap = SourceMap::new();
         if let Some(snapshot) = CLI_SNAPSHOT.lock().unwrap().clone() {
-            if let Some(p) = snapshot.hkrc {
-                map.insert("hkrc", SettingValue::Path(p));
-            }
             if let Some(j) = snapshot.jobs {
                 map.insert("jobs", SettingValue::Usize(j));
             }

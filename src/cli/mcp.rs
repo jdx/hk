@@ -1359,7 +1359,7 @@ mod tests {
     }
 
     #[test]
-    fn project_config_detection_matches_nested_and_legacy_discovery() {
+    fn project_config_detection_includes_removed_formats_for_guidance() {
         let directory = tempfile::tempdir().unwrap();
         let child = directory.path().join("nested");
         std::fs::create_dir_all(&child).unwrap();

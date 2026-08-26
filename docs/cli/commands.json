@@ -900,7 +900,7 @@
             "hide": false,
             "args_override_self": true,
             "help": "Print effective runtime settings (JSON format)",
-            "help_long": "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config.",
+            "help_long": "Print effective runtime settings (JSON format)\n\nShows the merged configuration from all sources including CLI flags, environment variables, git config, global config, and project config.",
             "name": "dump",
             "aliases": [],
             "hidden_aliases": [],
@@ -1046,7 +1046,7 @@
         "hide": false,
         "args_override_self": true,
         "help": "Configuration introspection and management",
-        "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.",
+        "help_long": "Configuration introspection and management\n\nView and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > XDG config > Git config (global) > Project config (hk.pkl) > Built-in defaults.",
         "name": "config",
         "aliases": ["cfg"],
         "hidden_aliases": [],
@@ -1514,6 +1514,68 @@
           }
         }
       },
+      "generate": {
+        "full_cmd": ["generate"],
+        "usage": "generate [FLAGS]",
+        "subcommands": {},
+        "args": [],
+        "flags": [
+          {
+            "name": "force",
+            "usage": "-f --force",
+            "help": "Overwrite existing hk.pkl file",
+            "help_first_line": "Overwrite existing hk.pkl file",
+            "short": ["f"],
+            "long": ["force"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "interactive",
+            "usage": "-i --interactive",
+            "help": "Interactive mode: select linters and hooks manually",
+            "help_first_line": "Interactive mode: select linters and hooks manually",
+            "short": ["i"],
+            "long": ["interactive"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "mise",
+            "usage": "--mise",
+            "help": "Generate a mise.toml file with hk configured",
+            "help_long": "Generate a mise.toml file with hk configured\n\nSet HK_MISE=1 to make this default behavior.",
+            "help_first_line": "Generate a mise.toml file with hk configured",
+            "short": [],
+            "long": ["mise"],
+            "hide": false,
+            "global": false
+          },
+          {
+            "name": "help",
+            "usage": "-h --help",
+            "help": "Print help",
+            "help_first_line": "Print help",
+            "short": ["h"],
+            "long": ["help"],
+            "hide": false,
+            "global": false,
+            "action": "help",
+            "builtin": true
+          }
+        ],
+        "mounts": [],
+        "effect": "write",
+        "unknown_flags": null,
+        "hide": true,
+        "args_override_self": true,
+        "help": "Generates a new hk.pkl file for a project",
+        "name": "generate",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": [],
+        "headings": []
+      },
       "init": {
         "full_cmd": ["init"],
         "usage": "init [FLAGS]",
@@ -1571,7 +1633,7 @@
         "args_override_self": true,
         "help": "Generates a new hk.pkl file for a project",
         "name": "init",
-        "aliases": ["generate"],
+        "aliases": [],
         "hidden_aliases": [],
         "examples": [],
         "headings": []
@@ -7712,8 +7774,8 @@
       {
         "name": "hkrc",
         "usage": "--hkrc <PATH>",
-        "help": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
-        "help_first_line": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
+        "help": "Removed in hk v2; use ~/.config/hk/config.pkl or hk.local.pkl",
+        "help_first_line": "Removed in hk v2; use ~/.config/hk/config.pkl or hk.local.pkl",
         "short": [],
         "long": ["hkrc"],
         "hide": true,

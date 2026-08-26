@@ -42,7 +42,7 @@ EOF
     refute_output --partial "skipped due to missing profiles"
 }
 
-@test "hide warnings: .hkrc.pkl hide_warnings suppresses profile skip warning" {
+@test "hide warnings: XDG config hide_warnings suppresses profile skip warning" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 warnings = List("missing-profiles")
@@ -60,8 +60,9 @@ hooks {
     }
 }
 EOF
-    cat <<EOF > .hkrc.pkl
-amends "$PKL_PATH/UserConfig.pkl"
+    mkdir -p "$HOME/.config/hk"
+    cat <<EOF > "$HOME/.config/hk/config.pkl"
+amends "$PKL_PATH/Config.pkl"
 
 display_skip_reasons = List("profile-not-enabled")
 hide_warnings = List("missing-profiles")
