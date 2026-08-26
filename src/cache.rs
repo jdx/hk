@@ -62,11 +62,6 @@ impl CacheManagerBuilder {
         self
     }
 
-    pub fn with_cache_key(mut self, key: String) -> Self {
-        self.cache_keys.push(key);
-        self
-    }
-
     fn cache_key(&self) -> String {
         hash_to_str(&self.cache_keys).chars().take(5).collect()
     }

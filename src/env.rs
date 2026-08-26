@@ -117,25 +117,6 @@ pub static HK_PKL_OFFLINE: LazyLock<bool> = LazyLock::new(|| var_true("HK_PKL_OF
 /// Seed the pkl cache with the package embedded in this binary.
 pub static HK_PKL_EMBEDDED: LazyLock<bool> = LazyLock::new(|| !var_false("HK_PKL_EMBEDDED"));
 
-/// Set to "pkl" to use the pkl CLI instead of the built-in pklr evaluator.
-pub static HK_PKL_BACKEND: LazyLock<String> =
-    LazyLock::new(|| var("HK_PKL_BACKEND").unwrap_or_else(|_| "pklr".to_string()));
-
-static USE_PKL_R_BACKEND: LazyLock<bool> = LazyLock::new(|| match HK_PKL_BACKEND.as_str() {
-    "pkl" => false,
-    "pklr" => true,
-    other => {
-        warn!(
-            "unrecognized HK_PKL_BACKEND value {other:?}; expected \"pkl\" or \"pklr\", defaulting to pklr"
-        );
-        true
-    }
-});
-
-pub fn use_pklr_backend() -> bool {
-    *USE_PKL_R_BACKEND
-}
-
 /// System's ARG_MAX value, memoized for performance
 pub static ARG_MAX: LazyLock<usize> = LazyLock::new(|| {
     #[cfg(unix)]

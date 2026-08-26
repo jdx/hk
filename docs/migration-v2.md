@@ -85,6 +85,11 @@ changes unstaged unless `stage = true` or `--stage` is supplied. A step's
 | `environment { ... }` | `env { ... }` |
 | `Types.Regex(...)` or `Config.Regex(...)` | Pkl's built-in `Regex(...)` |
 | `hk generate` | `hk init` |
+| `HK_PKL_BACKEND` | remove the variable; hk always uses its built-in pklr evaluator |
 
 Project, local, and XDG configuration files must all be Pkl. Global and project
 steps remain additive, with project definitions winning collisions.
+
+The hk runtime no longer invokes the pkl CLI, directly or through mise. The
+standalone pkl CLI remains useful for inspecting a Pkl module, but it is not an
+hk runtime dependency or fallback evaluator.

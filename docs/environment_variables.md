@@ -191,22 +191,15 @@ If set to `true`:
 - When generating files with `hk init`, hk will create a `mise.toml` file with hk configured
 - When running steps with a `dir`, hk resolves the mise environment for that directory (`mise env`, cached per directory) so tools and env vars from the directory's mise config are available — see [mise integration](/mise_integration#per-directory-environments-monorepos)
 
-## `HK_PKL_BACKEND`
-
-Type: `pkl` | `pklr`
-Default: `pklr`
-
-Selects the evaluator used to read `hk.pkl`. Set to `pkl` to use the pkl CLI instead of the built-in pklr evaluator.
-
 ## `HK_PKL_CA_CERTIFICATES`
 
 Type: `path`
 
-A path to a CA certificates file to provide `pkl`'s `--ca-certificates` flag when invoking `pkl`.
+A path to a PEM bundle containing CA certificates trusted by the built-in pklr evaluator.
 
-This is useful in corporate environments with SSL-intercepting proxies where pkl needs to trust custom CA certificates to download packages.
+This is useful in corporate environments with SSL-intercepting proxies where pklr needs to trust custom CA certificates to download packages.
 
-This variable is read directly from the environment before pkl is invoked, so it cannot be configured in `hk.pkl`.
+This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
 ## `HK_PKL_CACHE_DIR`
 
@@ -232,9 +225,9 @@ This variable is read directly from the environment before `hk.pkl` is evaluated
 
 Type: `string`
 
-A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`, in the form `http(s)://<FROM>/=http(s)://<TO>/`.
+A URL rewrite used by the built-in pklr evaluator, in the form `http(s)://<FROM>/=http(s)://<TO>/`.
 
-This variable is read directly from the environment before pkl is invoked, so it cannot be configured in `hk.pkl`.
+This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
 ## `HK_PKL_OFFLINE`
 

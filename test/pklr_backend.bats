@@ -90,46 +90,4 @@ EOF
 
     run hk validate
     assert_success
-
-    run env HK_PKL_BACKEND=pkl hk validate
-    assert_success
-}
-
-@test "pkl CLI backend can still be selected" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["echo"] {
-                check = "echo ok > ran.txt"
-            }
-        }
-    }
-}
-EOF
-
-    run env HK_PKL_BACKEND=pkl hk check --all
-    assert_success
-    assert_file_exists ran.txt
-}
-
-@test "unknown pkl backend warns and uses pklr" {
-    cat <<EOF > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["echo"] {
-                check = "echo ok > ran.txt"
-            }
-        }
-    }
-}
-EOF
-
-    run env HK_PKL_BACKEND=pkrl hk check --all
-    assert_success
-    assert_output --partial 'unrecognized HK_PKL_BACKEND value "pkrl"'
-    assert_file_exists ran.txt
 }
