@@ -46,24 +46,24 @@ assert_raw_config_removed() {
     cat > hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-steps { ["bom"] = Builtins.check_byte_order_marker() }
+steps { ["bom"] = Builtins.check_byte_order_marker }
 EOF
 
     run hk validate
     assert_failure
-    assert_output --partial "Builtins.check_byte_order_marker() was removed in hk v2"
-    assert_output --partial "Builtins.byte_order_marker()"
+    assert_output --partial "Builtins.check_byte_order_marker was removed in hk v2"
+    assert_output --partial "Builtins.byte_order_marker"
 }
 
 @test "removed fix byte-order-marker alias has migration guidance" {
     cat > hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-steps { ["bom"] = Builtins.fix_byte_order_marker() }
+steps { ["bom"] = Builtins.fix_byte_order_marker }
 EOF
 
     run hk validate
     assert_failure
-    assert_output --partial "Builtins.fix_byte_order_marker() was removed in hk v2"
-    assert_output --partial "Builtins.byte_order_marker()"
+    assert_output --partial "Builtins.fix_byte_order_marker was removed in hk v2"
+    assert_output --partial "Builtins.byte_order_marker"
 }
