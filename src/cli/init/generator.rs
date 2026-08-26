@@ -46,16 +46,13 @@ import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/B
         ));
     }
     for hook in explicit_hooks {
-        match hook.as_str() {
-            "pre-push" => {
-                output.push_str(
-                    r#"    ["pre-push"] {
+        if hook == "pre-push" {
+            output.push_str(
+                r#"    ["pre-push"] {
         steps = linters
     }
 "#,
-                );
-            }
-            _ => {}
+            );
         }
     }
 
