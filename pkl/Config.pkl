@@ -43,6 +43,7 @@ class Command {
 
 typealias CommandEffect = "read" | "write" | "destructive"
 typealias DiagnosticFormat = "sarif" | "cargo-json" | "eslint-json" | "gcc"
+typealias StepDefinition = Step | BuiltinFactory
 
 /// A command paired with its declared effect on user or project state.
 /// Commands that do not use CommandSpec remain valid and have an unknown effect.
@@ -304,7 +305,7 @@ class Hook {
   /// Steps are the individual linters that make up a hook.
   /// They are executed in the order they are defined in parallel up to
   /// [`HK_JOBS`](https://hk.jdx.dev//configuration#hk-jobs) at a time.
-  steps: Mapping<String, Step | Group> = new Mapping<String, Step> {}
+  steps: Mapping<String, StepDefinition | Group> = new Mapping<String, Step> {}
 }
 
 /// A positive file-selection clause used by `Step.match_any`.
@@ -524,7 +525,7 @@ open class Step {
   /// Templates variables are the same as for `check`.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["prettier"] {
   ///         fix = "prettier --write {{files}}"
   ///     }
@@ -544,7 +545,7 @@ open class Step {
   /// This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["eslint"] {
   ///         batch = true
   ///     }
@@ -563,7 +564,7 @@ open class Step {
   /// This is useful for tools that need to be run from a specific directory, like a project root.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["cargo-clippy"] {
   ///         glob = "*.rs"
   ///         workspace_indicator = "Cargo.toml"
@@ -602,7 +603,7 @@ open class Step {
   /// For example, in a monorepo with Node packages:
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///   ["npm-lint"] {
   ///     glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
   ///     workspace_indicator = "package.json"
@@ -617,7 +618,7 @@ open class Step {
   /// a list of explicit arguments for structured commands.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["eslint"] {
   ///         prefix = "npm run"
   ///     }
@@ -628,9 +629,9 @@ open class Step {
   /// If set, run the linter scripts in this directory.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
-  ///     ["eslint"] = (Builtins.eslint()) {
-  ///         dir = "frontend"
+  /// local linters = new Mapping {
+  ///     ["eslint"] = (Builtins.eslint) {
+  ///         step { dir = "frontend" }
   ///     }
   /// }
   /// ```
@@ -639,7 +640,7 @@ open class Step {
   /// job's workspace instead of the command opening with a `cd`:
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["go-vet"] {
   ///         glob = "**/*.go"
   ///         workspace_indicator = "go.mod"
@@ -663,9 +664,9 @@ open class Step {
   /// The linter will only run if its profile is in [`HK_PROFILE`](https://hk.jdx.dev/configuration#hk-profile).
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
-  ///     ["prettier"] = (Builtins.prettier()) {
-  ///         profiles = List("slow")
+  /// local linters = new Mapping {
+  ///     ["prettier"] = (Builtins.prettier) {
+  ///         step { profiles = List("slow") }
   ///     }
   /// }
   /// ```
@@ -673,9 +674,9 @@ open class Step {
   /// Profiles can be prefixed with `!` to disable them.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
-  ///     ["prettier"] = (Builtins.prettier()) {
-  ///         profiles = List("!slow")
+  /// local linters = new Mapping {
+  ///     ["prettier"] = (Builtins.prettier) {
+  ///         step { profiles = List("!slow") }
   ///     }
   /// }
   /// ```
@@ -793,7 +794,7 @@ open class Step {
   /// This implies `exclusive = true`.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["show-warning"] {
   ///         interactive = true
   ///         check = "echo warning && read -p 'Press Enter to continue'"
@@ -808,7 +809,7 @@ open class Step {
   /// This is useful for tools which allow passing filenames via stdin (like xargs), to avoid hk's automatic batching.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["hungry-command"] {
   ///         stdin = " {{ files_list | join(sep='\n') }}"
   ///         check = "xargs my-command"
@@ -822,7 +823,7 @@ open class Step {
   /// Evaluated with [`expr`](https://github.com/jdx/expr-rs).
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["prettier"] {
   ///         condition = "exec('test -f check.js')"
   ///     }
@@ -835,7 +836,7 @@ open class Step {
   /// Evaluated with [`expr`](https://github.com/jdx/expr-rs).
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["prettier"] {
   ///         condition = "exec('test -f check.js')"
   ///     }
@@ -848,7 +849,7 @@ open class Step {
   /// If true, the step will be hidden from output.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["prettier"] {
   ///         hide = true
   ///     }
@@ -901,7 +902,7 @@ open class Step {
   /// These are merged with the global environment variables.
   ///
   /// ```pkl
-  /// local linters = new Mapping<String, Step> {
+  /// local linters = new Mapping {
   ///     ["prettier"] {
   ///         env {
   ///             ["NODE_ENV"] = "production"
@@ -987,6 +988,15 @@ open class Step {
   tests: Mapping<String, StepTest> = new Mapping<String, StepTest> {}
 }
 
+/// A configurable builtin using Pkl's class-as-a-function pattern.
+///
+/// Instances are accepted wherever a Step is accepted and render as their
+/// `step` output. Amend the factory for builtin-specific options, or amend its
+/// nested `step` property for generic Step overrides.
+abstract class BuiltinFactory {
+  step: Step
+}
+
 class StepTest {
   /// What to run: "check", "fix", or "command"
   run: "check" | "fix" = "check"
@@ -1066,10 +1076,35 @@ class Group {
   exclude: (String | List<String> | Regex)?
 
   /// Child steps in this group.
-  steps: Mapping<String, Step> = new Mapping<String, Step> {}
+  steps: Mapping<String, StepDefinition> = new Mapping<String, Step> {}
 }
 
 output {
+  local function renderStep(step) = new Dynamic {
+    _type = "step"
+    ...step
+      .toMap()
+      .mapValues((key, value) ->
+        if ((key == "depends" || key == "stage") && value is String)
+          List(value) // permits "s" instead of List("s")
+        else if (key == "stash" && value is Boolean)
+          if (value) "git" else "none"
+        else
+          value
+      )
+      .toDynamic()
+  }
+
+  // pklr preserves the nested factory output when a StepDefinition is amended
+  // through a Mapping whose default value type is Step. Unwrap that shape so
+  // shorthand custom steps and builtin factories can share the same mapping.
+  local function unwrapStep(step) =
+    let (properties = step.toMap())
+      if (properties.containsKey("step") && properties["step"] is Step)
+        properties["step"]
+      else
+        step
+
   renderer {
     converters {
       [Regex] = (r) -> new Mapping {
@@ -1087,20 +1122,8 @@ output {
               v
           )
       }
-      [Step] = (s) -> new Dynamic {
-        _type = "step"
-        ...s
-          .toMap()
-          .mapValues((k, v) ->
-            if ((k == "depends" || k == "stage") && v is String)
-              List(v) // permits "s" instead of List("s")
-            else if (k == "stash" && v is Boolean)
-              if (v) "git" else "none"
-            else
-              v
-          )
-          .toDynamic()
-      }
+      [BuiltinFactory] = (factory) -> renderStep(factory.step)
+      [Step] = (step) -> renderStep(unwrapStep(step))
     }
   }
 }

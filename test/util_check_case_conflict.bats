@@ -121,7 +121,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["case-conflict"] = Builtins.check_case_conflict()
+            ["case-conflict"] = Builtins.check_case_conflict
         }
     }
 }
@@ -148,7 +148,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["pre-commit"] {
         steps {
-            ["case-conflict"] = Builtins.check_case_conflict()
+            ["case-conflict"] = Builtins.check_case_conflict
         }
     }
 }

@@ -31,8 +31,8 @@ Example:
 steps {
   ["frontend"] = new Group {
     steps {
-      ["prettier"] = Builtins.prettier()
-      ["eslint"] = Builtins.eslint()
+      ["prettier"] = Builtins.prettier
+      ["eslint"] = Builtins.eslint
     }
   }
 }

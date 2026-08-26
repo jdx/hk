@@ -13,24 +13,26 @@ Groups can set common step attributes such as `dir`, `workspace_indicator`, `pre
 /// * Infrastructure: Terraform
 /// * Uses groups to organize steps by component
 
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
 // Frontend linters (JavaScript/TypeScript)
 local frontend = new Group {
   // Inherited by frontend steps unless a child overrides `dir`.
   dir = "frontend"
   steps {
-    ["prettier"] = (Builtins.prettier()) {
-      batch = true
+    ["prettier"] = (Builtins.prettier) {
+      step { batch = true }
     }
-    ["eslint"] = (Builtins.eslint()) {
-      batch = true
+    ["eslint"] = (Builtins.eslint) {
+      step { batch = true }
     }
-    ["stylelint"] = (Builtins.stylelint()) {
-      // Override the group dir for a step that scans files from the repo root.
-      dir = "."
-      glob = List("frontend/**/*.css", "frontend/**/*.scss", "packages/design-system/**/*.scss")
+    ["stylelint"] = (Builtins.stylelint) {
+      step {
+        // Override the group dir for a step that scans files from the repo root.
+        dir = "."
+        glob = List("frontend/**/*.css", "frontend/**/*.scss", "packages/design-system/**/*.scss")
+      }
     }
   }
 }
@@ -41,11 +43,13 @@ local backend = new Group {
   dir = "backend"
   workspace_indicator = "Cargo.toml"
   steps {
-    ["cargo_fmt"] = Builtins.cargo_fmt()
-    ["cargo_clippy"] = Builtins.cargo_clippy()
-    ["cargo_check"] = (Builtins.cargo_check()) {
-      // Only run in CI or with "full" profile.
-      profiles = List("ci", "full")
+    ["cargo_fmt"] = Builtins.cargo_fmt
+    ["cargo_clippy"] = Builtins.cargo_clippy
+    ["cargo_check"] = (Builtins.cargo_check) {
+      step {
+        // Only run in CI or with "full" profile.
+        profiles = List("ci", "full")
+      }
     }
   }
 }
@@ -55,26 +59,32 @@ local infrastructure = new Group {
   dir = "infrastructure"
   exclude = List("**/.terraform/**")
   steps {
-    ["terraform"] = (Builtins.terraform()) {
-      glob = "**/*.tf"
+    ["terraform"] = (Builtins.terraform) {
+      step { glob = "**/*.tf" }
     }
-    ["tflint"] = (Builtins.tf_lint()) {
-      glob = "**/*.tf"
-      // Child exclude replaces the group exclude, so repeat common exclusions.
-      exclude = List("**/.terraform/**", "modules/vendor/**")
+    ["tflint"] = (Builtins.tf_lint) {
+      step {
+        glob = "**/*.tf"
+        // Child exclude replaces the group exclude, so repeat common exclusions.
+        exclude = List("**/.terraform/**", "modules/vendor/**")
+      }
     }
   }
 }
 
 // Shared linters (apply to all components)
-local shared = new Mapping<String, Step> {
-  ["markdown"] = (Builtins.markdown_lint()) {
-    glob = List("**/*.md")
-    exclude = List("**/node_modules/**", "**/target/**")
+local shared = new Mapping {
+  ["markdown"] = (Builtins.markdown_lint) {
+    step {
+      glob = List("**/*.md")
+      exclude = List("**/node_modules/**", "**/target/**")
+    }
   }
-  ["yaml"] = (Builtins.yamllint()) {
-    glob = List("**/*.yaml", "**/*.yml")
-    exclude = List("**/node_modules/**")
+  ["yaml"] = (Builtins.yamllint) {
+    step {
+      glob = List("**/*.yaml", "**/*.yml")
+      exclude = List("**/node_modules/**")
+    }
   }
 }
 
@@ -114,7 +124,7 @@ its own `hk.pkl` next to its code. The root config lists the subproject director
 
 ```pkl
 // hk.pkl (repo root)
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 
 subprojects = List("frontend", "backend", "packages/*")
 
@@ -129,16 +139,16 @@ hooks {
 
 ```pkl
 // frontend/hk.pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   // aube resolves these executables from frontend/node_modules/.bin
-  ["eslint"] = (Builtins.eslint()) {
-    prefix = List("aube", "exec")
+  ["eslint"] = (Builtins.eslint) {
+    step { prefix = List("aube", "exec") }
   }
-  ["prettier"] = (Builtins.prettier()) {
-    prefix = List("aube", "exec")
+  ["prettier"] = (Builtins.prettier) {
+    step { prefix = List("aube", "exec") }
   }
 }
 
@@ -155,12 +165,12 @@ hooks {
 
 ```pkl
 // backend/hk.pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
-  ["cargo-fmt"] = Builtins.cargo_fmt()
-  ["cargo-clippy"] = Builtins.cargo_clippy()
+local linters = new Mapping {
+  ["cargo-fmt"] = Builtins.cargo_fmt
+  ["cargo-clippy"] = Builtins.cargo_clippy
 }
 
 hooks {

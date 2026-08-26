@@ -6,8 +6,8 @@
 /// * Uses eslint for linting
 /// * Runs type checking with tsc
 /// * Enables automatic fixes in pre-commit
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
 // Configure environment for all tools
 env {
@@ -15,19 +15,23 @@ env {
 }
 
 // Define linters to use across hooks
-local linters = new Mapping<String, Step> {
-  ["prettier"] = (Builtins.prettier()) {
-    // Enable batch processing for performance
-    batch = true
-    // Run prettier after other formatters
-    depends = List("eslint")
+local linters = new Mapping {
+  ["prettier"] = (Builtins.prettier) {
+    step {
+      // Enable batch processing for performance
+      batch = true
+      // Run prettier after other formatters
+      depends = List("eslint")
+    }
   }
-  ["eslint"] = (Builtins.eslint()) {
-    batch = true
+  ["eslint"] = (Builtins.eslint) {
+    step { batch = true }
   }
-  ["tsc"] = (Builtins.tsc()) {
-    // Type checking doesn't need file locking
-    stomp = true
+  ["tsc"] = (Builtins.tsc) {
+    step {
+      // Type checking doesn't need file locking
+      stomp = true
+    }
   }
 }
 

@@ -53,9 +53,9 @@ needs different behavior:
 amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   ["eslint"] = Builtins.eslint
-  ["prettier"] = (Builtins.prettier) {
+  ["prettier"] = (Builtins.prettier.step) {
     glob = List("*.js", "*.ts", "*.json", "*.md")
   }
 }

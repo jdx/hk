@@ -6,8 +6,8 @@
 /// * Demonstrates platform-specific commands
 /// * Uses conditions and workspace indicators
 /// * Shows test configuration
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
 local custom_linters = new Mapping<String, Step> {
   // Custom SQL formatter
@@ -87,10 +87,10 @@ local custom_linters = new Mapping<String, Step> {
 }
 
 // Import some builtins and mix with custom
-local all_linters = new Mapping<String, Step> {
+local all_linters = new Mapping {
   ...custom_linters
-  ["prettier"] = Builtins.prettier()
-  ["shellcheck"] = Builtins.shellcheck()
+  ["prettier"] = Builtins.prettier
+  ["shellcheck"] = Builtins.shellcheck
 }
 
 hooks {

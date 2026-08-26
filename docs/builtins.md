@@ -11,14 +11,14 @@ hk provides 140+ pre-configured linters and formatters through the `Builtins` mo
 Import and use builtins in your `hk.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
 hooks {
   ["pre-commit"] {
     steps {
-      ["prettier"] = Builtins.prettier()
-      ["eslint"] = Builtins.eslint()
+      ["prettier"] = Builtins.prettier
+      ["eslint"] = Builtins.eslint
     }
   }
 }
@@ -27,19 +27,43 @@ hooks {
 You can also customize builtins:
 
 ```pkl
-["prettier"] = (Builtins.prettier()) {
-  batch = false  // Override the default batch setting
-  glob = List("*.js", "*.ts")  // Override file patterns
+["prettier"] = (Builtins.prettier) {
+  step {
+    batch = false  // Override the default batch setting
+    glob = List("*.js", "*.ts")  // Override file patterns
+  }
 }
 ```
 
-Builtins are factory functions. Builtin-specific options use the same amendment
-syntax as step overrides. For example, gitleaks scans the working tree by default;
-set `staged` to scan the Git index instead:
+Builtins use Pkl's class-as-a-function pattern. Each exported value is a factory
+instance with a `step` output, and hk transparently renders that output when
+the factory is used as a step. For example, gitleaks scans the working tree by
+default; amend its `staged` input to scan the Git index instead:
 
 ```pkl
-["gitleaks"] = (Builtins.gitleaks()) {
+["gitleaks"] = (Builtins.gitleaks) {
   staged = true
+}
+```
+
+The same pattern replaces separate strict and versioned builtin names:
+
+```pkl
+["knip"] = (Builtins.knip) {
+  strict = true
+}
+["pinact"] = (Builtins.pinact) {
+  version = "3"
+}
+```
+
+Amend the factory's `step` output for generic `Step` overrides:
+
+```pkl
+["prettier"] = (Builtins.prettier) {
+  step {
+    batch = false
+  }
 }
 ```
 
@@ -55,8 +79,10 @@ subproject's `mise.toml` are available without a prefix. For a Node tool install
 locally by aube, prefix its builtin with `aube exec`:
 
 ```pkl
-["eslint"] = (Builtins.eslint()) {
-  prefix = List("aube", "exec")
+["eslint"] = (Builtins.eslint) {
+  step {
+    prefix = List("aube", "exec")
+  }
 }
 ```
 
@@ -76,16 +102,18 @@ for each builtin are defined in the corresponding Pkl file in
 ### Override Properties
 
 ```pkl
-["prettier"] = (Builtins.prettier()) {
-  // Override glob patterns
-  glob = List("src/**/*.js", "src/**/*.ts")
+["prettier"] = (Builtins.prettier) {
+  step {
+    // Override glob patterns
+    glob = List("src/**/*.js", "src/**/*.ts")
 
-  // Disable batch processing
-  batch = false
+    // Disable batch processing
+    batch = false
 
-  // Add environment variables
-  env {
-    ["PRETTIER_CONFIG"] = ".prettierrc.json"
+    // Add environment variables
+    env {
+      ["PRETTIER_CONFIG"] = ".prettierrc.json"
+    }
   }
 }
 ```
@@ -93,30 +121,36 @@ for each builtin are defined in the corresponding Pkl file in
 ### Add Dependencies
 
 ```pkl
-["eslint"] = (Builtins.eslint()) {
-  // Run after prettier
-  depends = "prettier"
+["eslint"] = (Builtins.eslint) {
+  step {
+    // Run after prettier
+    depends = "prettier"
+  }
 }
 ```
 
 ### Workspace-Specific Configuration
 
 ```pkl
-["cargo_clippy"] = (Builtins.cargo_clippy()) {
-  // Only run in directories with Cargo.toml
-  workspace_indicator = "Cargo.toml"
+["cargo_clippy"] = (Builtins.cargo_clippy) {
+  step {
+    // Only run in directories with Cargo.toml
+    workspace_indicator = "Cargo.toml"
 
-  // Custom command using workspace
-  check = "cargo clippy --manifest-path {{workspace}}/Cargo.toml"
+    // Custom command using workspace
+    check = "cargo clippy --manifest-path {{workspace}}/Cargo.toml"
+  }
 }
 ```
 
 ### Profile-Based Configuration
 
 ```pkl
-["mypy"] = (Builtins.mypy()) {
-  // Only run with "python" profile
-  profiles = List("python")
+["mypy"] = (Builtins.mypy) {
+  step {
+    // Only run with "python" profile
+    profiles = List("python")
+  }
 }
 ```
 

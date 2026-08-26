@@ -7,7 +7,7 @@ amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.
 
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local custom_linters = new Mapping<String, Step> {
+local custom_linters = new Mapping {
   // Custom SQL formatter
   ["sql_formatter"] {
     glob = List("**/*.sql")
@@ -85,10 +85,10 @@ local custom_linters = new Mapping<String, Step> {
 }
 
 // Import some builtins and mix with custom
-local all_linters = new Mapping<String, Step> {
+local all_linters = new Mapping {
   ...custom_linters
-  ["prettier"] = Builtins.prettier()
-  ["shellcheck"] = Builtins.shellcheck()
+  ["prettier"] = Builtins.prettier
+  ["shellcheck"] = Builtins.shellcheck
 }
 
 hooks {

@@ -4,23 +4,23 @@ amends "pkl/Config.pkl"
 import "pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
-local linters = new Mapping<String, Step | Group> {
-  ["actionlint"] = Builtins.actionlint()
-  ["cargo-fmt"] = Builtins.cargo_fmt()
+local linters = new Mapping<String, StepDefinition | Group> {
+  ["actionlint"] = Builtins.actionlint
+  ["cargo-fmt"] = Builtins.cargo_fmt
   // TODO: fails on releases with hk-example.pkl
   // ["pkl"] {
   //     glob = new { "*.pkl" }
   //     check = "pkl eval {{files}} >/dev/null"
   // }
   // predefined formatters+linters
-  ["cargo-clippy"] = (Builtins.cargo_clippy()) {
+  ["cargo-clippy"] = (Builtins.cargo_clippy.step) {
     profiles = List("slow")
     check = new CommandSpec {
       command = "mbx clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
       effect = "write"
     }
   }
-  ["cargo-check"] = (Builtins.cargo_check()) {
+  ["cargo-check"] = (Builtins.cargo_check.step) {
     profiles = List("!slow")
     check = new CommandSpec {
       command = "mbx +nightly check -Zwarnings --quiet"
@@ -32,20 +32,20 @@ local linters = new Mapping<String, Step | Group> {
     glob = "**/*.rs"
     check = "! rg -e 'dbg!' {{files}}"
   }
-  ["eslint"] = (Builtins.eslint()) {
+  ["eslint"] = (Builtins.eslint.step) {
     dir = "docs"
     prefix = List("aube", "run")
   }
-  ["newlines"] = Builtins.newlines()
-  ["trailing-whitespace"] = Builtins.trailing_whitespace()
-  ["prettier"] = (Builtins.prettier()) {
+  ["newlines"] = Builtins.newlines
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["prettier"] = (Builtins.prettier.step) {
     glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
   }
-  ["pkl-format"] = Builtins.pkl_format()
-  ["taplo"] = (Builtins.taplo()) {
+  ["pkl-format"] = Builtins.pkl_format
+  ["taplo"] = (Builtins.taplo.step) {
     glob = "settings.toml"
   }
-  ["taplo-format"] = Builtins.taplo_format()
+  ["taplo-format"] = Builtins.taplo_format
   ["docs"] = new Step {
     glob = "docs/**"
     check = "mise run docs:build"

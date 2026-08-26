@@ -18,12 +18,12 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["gomod_tidy"] = Builtins.gomod_tidy()
+      ["gomod_tidy"] = Builtins.gomod_tidy
     }
   }
   ["fix"] {
     steps {
-      ["gomod_tidy"] = Builtins.gomod_tidy()
+      ["gomod_tidy"] = Builtins.gomod_tidy
     }
   }
 }
@@ -63,7 +63,7 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["fix"] {
     steps {
-      ["gomod_tidy"] = Builtins.gomod_tidy()
+      ["gomod_tidy"] = Builtins.gomod_tidy
     }
   }
 }

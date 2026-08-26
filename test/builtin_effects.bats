@@ -16,8 +16,8 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["trailing_whitespace"] = Builtins.trailing_whitespace()
-            ["vale"] = Builtins.vale()
+            ["trailing_whitespace"] = Builtins.trailing_whitespace
+            ["vale"] = Builtins.vale
         }
     }
 }
@@ -50,7 +50,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["trailing_whitespace"] = Builtins.trailing_whitespace()
+            ["trailing_whitespace"] = Builtins.trailing_whitespace
         }
     }
 }
@@ -70,7 +70,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["overridden"] = (Builtins.trailing_whitespace()) {
+            ["overridden"] = (Builtins.trailing_whitespace.step) {
                 check_diff = "touch should-not-run"
             }
         }

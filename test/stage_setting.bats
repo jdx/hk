@@ -12,7 +12,7 @@ hooks {
         fix = true
         stage = read?("env:FIX_STAGE")?.toBoolean() ?? null
         steps {
-            ["trailing-whitespace"] = Builtins.trailing_whitespace()
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
         }
     }
 }

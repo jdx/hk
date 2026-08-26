@@ -44,10 +44,10 @@ Set [`HK_FILE`](/environment_variables#hk-file) to override the search and use a
 Here's a basic `hk.pkl` file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     // steps can be manually defined
     ["eslint"] {
         // the files to run the linter on, if no files are matched, the linter will be skipped
@@ -62,7 +62,7 @@ local linters = new Mapping<String, Step> {
         // stage = List("*.js", "*.ts")
     }
     // steps can also be pulled from the Builtins pkl library
-    ["prettier"] = Builtins.prettier()
+    ["prettier"] = Builtins.prettier
 }
 
 hooks {
@@ -177,7 +177,7 @@ structured command should run through a launcher. Other step behavior, including
 `dir` sets the directory a step's commands run in. It is rendered as a template, so a step with `workspace_indicator` can follow each job's workspace rather than opening every command with a `cd`:
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     ["go-vet"] {
         glob = "**/*.go"
         workspace_indicator = "go.mod"
@@ -211,7 +211,7 @@ now.
 For tools whose detailed `check` output cannot identify failing files in a machine-readable form, set `check_failed_files = true` and provide either `check_list_files` or `check_diff`:
 
 ```pkl
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
     ["my-linter"] {
         glob = List("**/*.py")
         check_list_files = "my-linter --list-failing-files {{files}}"
@@ -239,7 +239,7 @@ hooks {
     ["pre-commit"] {
         steps {
             ["build"] = new Group {
-                steps = new Mapping<String, Step> {
+                steps = new Mapping {
                     ["ts"] = new Step {
                         fix = "tsc -b"
                     }
@@ -250,7 +250,7 @@ hooks {
             }
             // these steps will run in parallel after the build group finishes
             ["lint"] = new Group {
-                steps = new Mapping<String, Step> {
+                steps = new Mapping {
                     ["prettier"] = new Step {
                         check = "prettier --check {{files}}"
                     }
@@ -282,12 +282,14 @@ local frontend = new Group {
     dir = "packages/frontend"
     prefix = "mise x --"
     steps {
-        ["prettier"] = (Builtins.prettier()) {
-            batch = true
+        ["prettier"] = (Builtins.prettier) {
+            step { batch = true }
         }
-        ["eslint"] = (Builtins.eslint()) {
-            dir = "different/path"
-            batch = true
+        ["eslint"] = (Builtins.eslint) {
+            step {
+                dir = "different/path"
+                batch = true
+            }
         }
     }
 }
@@ -299,8 +301,8 @@ String prefixes are shell syntax and can only be used with string commands. For 
 structured command, use a list so each prefix argument retains its boundary:
 
 ```pkl
-["ruff"] = (Builtins.ruff()) {
-    prefix = List("mise", "x", "--")
+["ruff"] = (Builtins.ruff) {
+    step { prefix = List("mise", "x", "--") }
 }
 ```
 
@@ -364,11 +366,11 @@ The hkrc file follows the same format as `hk.pkl` and can be used to define glob
 Example hkrc file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
 local linters {
-    ["prettier"] = Builtins.prettier()
+    ["prettier"] = Builtins.prettier
     ["eslint"] {
         glob = List("*.js", "*.ts")
         check = "eslint {{files}}"
@@ -398,7 +400,7 @@ Add steps to your hkrc. hk merges them into every project's hooks — steps with
 
 ```pkl
 // ~/.config/hk/config.pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 
 hooks {
     ["pre-commit"] {
@@ -491,7 +493,7 @@ Git config supports both multivar entries (multiple values with the same key) an
 User-specific defaults can be set in `~/.config/hk/config.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 
 jobs = 4
 fail_fast = false

@@ -1696,9 +1696,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pklr"
-version = "1.5.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99ab94255766d794e87b3b5b23af9978f582d6a7409e080f014c4aba6c3c6f10"
+checksum = "f5f96b14b6cd53c50c498a2841ded869a0fd3e2d5515cf585cf9d2cf0dd7fbde"
 dependencies = [
  "async-recursion",
  "indexmap 2.14.0",

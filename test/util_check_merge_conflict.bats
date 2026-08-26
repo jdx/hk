@@ -150,7 +150,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["merge-conflict"] = Builtins.check_merge_conflict()
+            ["merge-conflict"] = Builtins.check_merge_conflict
         }
     }
 }

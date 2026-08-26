@@ -93,7 +93,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["check"] {
         steps {
-            ["mixed-endings"] = Builtins.mixed_line_ending()
+            ["mixed-endings"] = Builtins.mixed_line_ending
         }
     }
 }
@@ -114,7 +114,7 @@ import "$PKL_PATH/Builtins.pkl"
 hooks {
     ["fix"] {
         steps {
-            ["mixed-endings"] = Builtins.mixed_line_ending()
+            ["mixed-endings"] = Builtins.mixed_line_ending
         }
     }
 }

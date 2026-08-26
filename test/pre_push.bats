@@ -34,7 +34,7 @@ require_git_2_54() {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier() } } }
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     git add hk.pkl
     git commit -m "install hk"
@@ -89,7 +89,7 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier() } } }
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     git add hk.pkl
     git commit -m "install hk"
@@ -113,7 +113,7 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier() } } }
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     git add hk.pkl
     git commit -m "install hk"
@@ -141,7 +141,7 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier() } } }
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     git add hk.pkl
     git commit -m "install hk"
@@ -166,7 +166,7 @@ EOF
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
-hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier() } } }
+hooks { ["pre-push"] { steps { ["prettier"] = Builtins.prettier } } }
 EOF
     git add hk.pkl
     git commit -m "install hk"

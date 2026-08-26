@@ -19,7 +19,7 @@ teardown() {
     run hk init
     assert_success
     assert_output --partial "Detected: prettier (package.json)"
-    assert_file_contains hk.pkl "Builtins.prettier()"
+    assert_file_contains hk.pkl "Builtins.prettier"
 }
 
 @test "hk init detects Cargo.toml" {
@@ -28,8 +28,8 @@ teardown() {
     run hk init
     assert_success
     assert_output --partial "Detected: cargo_clippy (Cargo.toml)"
-    assert_file_contains hk.pkl "Builtins.cargo_clippy()"
-    assert_file_contains hk.pkl "Builtins.cargo_fmt()"
+    assert_file_contains hk.pkl "Builtins.cargo_clippy"
+    assert_file_contains hk.pkl "Builtins.cargo_fmt"
 }
 
 @test "hk init detects pyproject.toml" {
@@ -38,7 +38,7 @@ teardown() {
     run hk init
     assert_success
     assert_output --partial "Detected: ruff (pyproject.toml)"
-    assert_file_contains hk.pkl "Builtins.ruff()"
+    assert_file_contains hk.pkl "Builtins.ruff"
 }
 
 @test "hk init detects go.mod" {
@@ -47,8 +47,8 @@ teardown() {
     assert_success
     assert_output --partial "go_fmt (go.mod)"
     assert_output --partial "golangci_lint (go.mod)"
-    assert_file_contains hk.pkl "Builtins.golangci_lint()"
-    assert_file_contains hk.pkl "Builtins.go_fmt()"
+    assert_file_contains hk.pkl "Builtins.golangci_lint"
+    assert_file_contains hk.pkl "Builtins.go_fmt"
 }
 
 @test "hk init detects GitHub workflows" {
@@ -57,8 +57,8 @@ teardown() {
     run hk init
     assert_success
     assert_output --partial "Detected: actionlint (.github/workflows)"
-    assert_file_contains hk.pkl "Builtins.actionlint()"
-    assert_file_contains hk.pkl "Builtins.zizmor()"
+    assert_file_contains hk.pkl "Builtins.actionlint"
+    assert_file_contains hk.pkl "Builtins.zizmor"
 }
 
 @test "hk init detects Dockerfile" {
@@ -66,7 +66,7 @@ teardown() {
     run hk init
     assert_success
     assert_output --partial "Detected: hadolint (Dockerfile)"
-    assert_file_contains hk.pkl "Builtins.hadolint()"
+    assert_file_contains hk.pkl "Builtins.hadolint"
 }
 
 @test "hk init generates default template when nothing detected" {
@@ -111,6 +111,6 @@ teardown() {
     # Should detect both
     assert_output --partial "prettier"
     assert_output --partial "cargo_clippy"
-    assert_file_contains hk.pkl "Builtins.prettier()"
-    assert_file_contains hk.pkl "Builtins.cargo_clippy()"
+    assert_file_contains hk.pkl "Builtins.prettier"
+    assert_file_contains hk.pkl "Builtins.cargo_clippy"
 }

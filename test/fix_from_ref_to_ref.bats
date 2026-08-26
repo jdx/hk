@@ -46,7 +46,7 @@ hooks {
         fix = true
         stash = "patch-file"
         steps {
-            ["prettier"] = Builtins.prettier()
+            ["prettier"] = Builtins.prettier
         }
     }
 }

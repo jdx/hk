@@ -43,7 +43,7 @@ parsing, parallel execution, and more.
 Just run mise in `hk.pkl` like any other command:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
 
 hooks {
     ["pre-commit"] {
@@ -82,9 +82,11 @@ repo root:
 hooks {
     ["check"] {
         steps {
-            ["oxlint"] = (Builtins.ox_lint()) {
-                // with HK_MISE=1, tools from subproject/mise.toml are on PATH
-                dir = "subproject"
+            ["oxlint"] = (Builtins.ox_lint) {
+                step {
+                    // with HK_MISE=1, tools from subproject/mise.toml are on PATH
+                    dir = "subproject"
+                }
             }
         }
     }

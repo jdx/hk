@@ -20,14 +20,14 @@ hooks {
   ["pre-commit"] {
     fix = true
     stash = "git"
-    steps = new Mapping<String, Step> {
+    steps = new Mapping {
       ["guard-lockfile-stashed"] {
         glob = "*"
         // Fail if pnpm-lock.yaml currently differs from index/worktree baseline.
         // If stashed correctly, diff should be empty.
         check = "bash -lc 'git diff --name-only -- pnpm-lock.yaml | grep -q pnpm-lock.yaml && { echo not stashed; exit 1; } || exit 0'"
       }
-      ["prettier"] = Builtins.prettier()
+      ["prettier"] = Builtins.prettier
     }
   }
 }

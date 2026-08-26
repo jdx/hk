@@ -2,9 +2,9 @@ amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.
 
 import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   // some linters are built into hk
-  ["actionlint"] = Builtins.actionlint()
+  ["actionlint"] = Builtins.actionlint
   // linters can be manually defined
   ["eslint"] {
     // the files to run the hook on, if no files are matched, the hook will be skipped
@@ -26,7 +26,7 @@ local linters = new Mapping<String, Step> {
     batch = true
   }
   // linters can start from a builtin linter and be customized
-  ["prettier"] = (Builtins.prettier()) {
+  ["prettier"] = (Builtins.prettier.step) {
     // providing a "check_list_files" command will be used to help the "check_first" method work more efficiently
     // rather than running fix against all the files that were checked, it only runs fix against the files returned by this command
     check_list_files = "prettier --list-different {{files}}"

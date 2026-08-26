@@ -10,16 +10,20 @@ import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtin
 // Frontend linters (JavaScript/TypeScript)
 local frontend = new Group {
   steps {
-    ["prettier"] = (Builtins.prettier()) {
-      dir = "frontend"
-      batch = true
+    ["prettier"] = (Builtins.prettier) {
+      step {
+        dir = "frontend"
+        batch = true
+      }
     }
-    ["eslint"] = (Builtins.eslint()) {
-      dir = "frontend"
-      batch = true
+    ["eslint"] = (Builtins.eslint) {
+      step {
+        dir = "frontend"
+        batch = true
+      }
     }
-    ["stylelint"] = (Builtins.stylelint()) {
-      glob = List("frontend/**/*.css", "frontend/**/*.scss")
+    ["stylelint"] = (Builtins.stylelint) {
+      step { glob = List("frontend/**/*.css", "frontend/**/*.scss") }
     }
   }
 }
@@ -27,18 +31,24 @@ local frontend = new Group {
 // Backend linters (Rust)
 local backend = new Group {
   steps {
-    ["cargo_fmt"] = (Builtins.cargo_fmt()) {
-      workspace_indicator = "Cargo.toml"
-      dir = "backend"
+    ["cargo_fmt"] = (Builtins.cargo_fmt) {
+      step {
+        workspace_indicator = "Cargo.toml"
+        dir = "backend"
+      }
     }
-    ["cargo_clippy"] = (Builtins.cargo_clippy()) {
-      workspace_indicator = "Cargo.toml"
-      dir = "backend"
+    ["cargo_clippy"] = (Builtins.cargo_clippy) {
+      step {
+        workspace_indicator = "Cargo.toml"
+        dir = "backend"
+      }
     }
-    ["cargo_check"] = (Builtins.cargo_check()) {
-      dir = "backend"
-      // Only run in CI or with "full" profile
-      profiles = List("ci", "full")
+    ["cargo_check"] = (Builtins.cargo_check) {
+      step {
+        dir = "backend"
+        // Only run in CI or with "full" profile
+        profiles = List("ci", "full")
+      }
     }
   }
 }
@@ -46,24 +56,28 @@ local backend = new Group {
 // Infrastructure linters (Terraform)
 local infrastructure = new Group {
   steps {
-    ["terraform"] = (Builtins.terraform()) {
-      glob = List("infrastructure/**/*.tf")
+    ["terraform"] = (Builtins.terraform) {
+      step { glob = List("infrastructure/**/*.tf") }
     }
-    ["tflint"] = (Builtins.tf_lint()) {
-      glob = List("infrastructure/**/*.tf")
+    ["tflint"] = (Builtins.tf_lint) {
+      step { glob = List("infrastructure/**/*.tf") }
     }
   }
 }
 
 // Shared linters (apply to all components)
-local shared = new Mapping<String, Step> {
-  ["markdown"] = (Builtins.markdown_lint()) {
-    glob = List("**/*.md")
-    exclude = List("**/node_modules/**", "**/target/**")
+local shared = new Mapping {
+  ["markdown"] = (Builtins.markdown_lint) {
+    step {
+      glob = List("**/*.md")
+      exclude = List("**/node_modules/**", "**/target/**")
+    }
   }
-  ["yaml"] = (Builtins.yamllint()) {
-    glob = List("**/*.yaml", "**/*.yml")
-    exclude = List("**/node_modules/**")
+  ["yaml"] = (Builtins.yamllint) {
+    step {
+      glob = List("**/*.yaml", "**/*.yml")
+      exclude = List("**/node_modules/**")
+    }
   }
 }
 
