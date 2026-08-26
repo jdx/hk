@@ -336,14 +336,30 @@ impl PreCommit {
                 .insert("manual_steps".to_string(), manual_steps);
         }
 
+        // Pre-commit steps are the shared v2 defaults. The implicit check and
+        // fix hooks inherit them, while their explicit definitions below add
+        // any manual or non-pre-commit steps.
+        if let Some(pre_commit_steps) = steps_by_stage.get("pre-commit") {
+            for (id, collection) in pre_commit_steps {
+                if let Some(step) = hk_config
+                    .step_collections
+                    .get(collection)
+                    .and_then(|steps| steps.get(id))
+                {
+                    hk_config.steps.insert(id.clone(), step.clone());
+                }
+            }
+        }
+
         // Generate hooks
         let has_steps = !hk_config.step_collections.is_empty();
 
         // Create hooks for each stage (except manual, which goes to check/fix)
         let mut stages_used = HashSet::new();
         for stage in steps_by_stage.keys() {
-            // Skip manual stage - those steps will be added to check/fix hooks
-            if stage == "manual" {
+            // Manual steps are added to check/fix, and pre-commit is implicit
+            // from the shared top-level steps.
+            if stage == "manual" || stage == "pre-commit" {
                 continue;
             }
 

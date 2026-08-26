@@ -23,47 +23,36 @@ import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/B
     }
     output.push_str("}\n\n");
 
-    // Generate hooks section
-    output.push_str("hooks {\n");
+    output.push_str("steps = linters\n");
 
-    for hook in hooks {
-        match hook.as_str() {
-            "pre-commit" => {
-                output.push_str(
-                    r#"    ["pre-commit"] {
-        fix = true
-        stash = "git"
+    let implicit_hooks = ["pre-commit", "check", "fix"];
+    let disabled_hooks = implicit_hooks
+        .iter()
+        .filter(|name| !hooks.iter().any(|hook| hook == **name))
+        .collect::<Vec<_>>();
+    let explicit_hooks = hooks
+        .iter()
+        .filter(|hook| !implicit_hooks.contains(&hook.as_str()))
+        .collect::<Vec<_>>();
+
+    if disabled_hooks.is_empty() && explicit_hooks.is_empty() {
+        return output;
+    }
+
+    output.push_str("\nhooks {\n");
+    for hook in disabled_hooks {
+        output.push_str(&format!(
+            "    [\"{hook}\"] {{\n        enabled = false\n    }}\n"
+        ));
+    }
+    for hook in explicit_hooks {
+        if hook == "pre-push" {
+            output.push_str(
+                r#"    ["pre-push"] {
         steps = linters
     }
 "#,
-                );
-            }
-            "pre-push" => {
-                output.push_str(
-                    r#"    ["pre-push"] {
-        steps = linters
-    }
-"#,
-                );
-            }
-            "fix" => {
-                output.push_str(
-                    r#"    ["fix"] {
-        fix = true
-        steps = linters
-    }
-"#,
-                );
-            }
-            "check" => {
-                output.push_str(
-                    r#"    ["check"] {
-        steps = linters
-    }
-"#,
-                );
-            }
-            _ => {}
+            );
         }
     }
 
@@ -79,7 +68,7 @@ pub fn generate_default_template(version: &str) -> String {
 import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl"
 // Using a coding agent? See https://hk.jdx.dev/agents
 
-local linters = new Mapping {{
+steps {{
     // Add linters here. Examples:
     // ["prettier"] = Builtins.prettier
     // ["eslint"] = Builtins.eslint
@@ -90,21 +79,6 @@ local linters = new Mapping {{
     //     glob = "**/*.py"
     //     check = "mypy {{{{ files }}}}"
     // }}
-}}
-
-hooks {{
-    ["pre-commit"] {{
-        fix = true
-        stash = "git"
-        steps = linters
-    }}
-    ["fix"] {{
-        fix = true
-        steps = linters
-    }}
-    ["check"] {{
-        steps = linters
-    }}
 }}
 "#
     )
@@ -121,18 +95,24 @@ mod tests {
         let pkl = generate_pkl(&[], &hooks, "1.34.0");
         assert!(pkl.contains("amends"));
         assert!(pkl.contains("hooks"));
+        assert!(pkl.contains("[\"pre-commit\"]"));
+        assert!(pkl.contains("enabled = false"));
     }
 
     #[test]
     fn test_generate_pkl_with_builtins() {
         let prettier = BUILTINS_META.iter().find(|b| b.name == "prettier").unwrap();
         let builtins = vec![prettier];
-        let hooks = vec!["pre-commit".to_string(), "check".to_string()];
+        let hooks = vec![
+            "pre-commit".to_string(),
+            "check".to_string(),
+            "fix".to_string(),
+        ];
         let pkl = generate_pkl(&builtins, &hooks, "1.34.0");
 
         assert!(pkl.contains("Builtins.prettier"));
-        assert!(pkl.contains("[\"pre-commit\"]"));
-        assert!(pkl.contains("[\"check\"]"));
+        assert!(pkl.contains("steps = linters"));
+        assert!(!pkl.contains("hooks {"));
     }
 
     #[test]

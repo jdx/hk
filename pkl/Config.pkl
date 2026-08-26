@@ -222,10 +222,19 @@ terminal_progress: Boolean?
 /// Default: true
 walk_ignore: Boolean?
 
+/// Steps declared here are shared by the implicit `check`, `fix`, and `pre-commit`
+/// hooks. Explicit hook steps with the same name override these definitions.
+steps: Mapping<String, Step | Group> = new Mapping<String, Step> {}
+
 /// Hooks define when and how linters are run. See [hooks](https://hk.jdx.dev/hooks) for more information.
 hooks: Mapping<String, Hook> = new Mapping<String, Hook> {}
 
 class Hook {
+  /// Whether this hook should run and be installed.
+  ///
+  /// Set this to false to disable an implicit hook created by top-level `steps`.
+  enabled: Boolean = true
+
   /// Default: `false` (`true` for `fix` hook)
   ///
   /// If true, hk will run the fix command for each step (if it exists) to make modifications.

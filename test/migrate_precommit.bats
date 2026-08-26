@@ -30,8 +30,8 @@ PRECOMMIT
     assert_output --partial "Builtins.prettier"
     assert_output --partial "Builtins.eslint"
     assert_output --partial 'step {'
-    assert_output --partial 'hooks {'
-    assert_output --partial '["pre-commit"]'
+    assert_output --partial 'steps {'
+    refute_output --partial '["pre-commit"]'
 
     run hk validate
     assert_success
@@ -130,10 +130,11 @@ PRECOMMIT
     run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
     assert_success
 
-    # Verify both stages are created
+    # Pre-commit is implicit from top-level steps; other stages stay explicit.
     run cat hk.pkl
     assert_output --partial '["pre-push"]'
-    assert_output --partial '["pre-commit"]'
+    assert_output --partial 'steps {'
+    refute_output --partial '["pre-commit"]'
 }
 
 @test "migrate precommit - local repo" {
@@ -393,8 +394,9 @@ PRECOMMIT
     assert_success
 
     run cat hk.pkl
-    # Should have pre-commit, check, and fix hooks
-    assert_output --partial '["pre-commit"]'
+    # Pre-commit is implicit from top-level steps; check and fix add the full set.
+    assert_output --partial 'steps {'
+    refute_output --partial '["pre-commit"]'
     assert_output --partial '["check"]'
     assert_output --partial '["fix"]'
 }
@@ -430,8 +432,9 @@ PRECOMMIT
     # rather than specific hooks
     assert_output --regexp 'Builtins\.(yamllint|check_merge_conflict|mixed_line_ending|trailing_whitespace|detect_private_key|newlines|python_debug_statements|check_executables_have_shebangs)'
 
-    # Verify it has both pre-commit and pre-push stages (Airflow uses default_stages)
-    assert_output --partial '["pre-commit"]'
+    # Pre-commit is implicit from top-level steps; pre-push remains explicit.
+    assert_output --partial 'steps {'
+    refute_output --partial '["pre-commit"]'
     assert_output --partial '["pre-push"]'
 
     # Verify it has local hooks section

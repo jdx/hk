@@ -168,10 +168,7 @@ fn global_hook_command(use_mise: bool) -> Result<OsString> {
 
 fn global_hook_events() -> Result<Vec<String>> {
     if Config::project_config_exists() {
-        let events = hook_events(&Config::get()?);
-        if !events.is_empty() {
-            return Ok(events);
-        }
+        return Ok(hook_events(&Config::get()?));
     }
     Ok(CORE_GLOBAL_EVENTS
         .iter()
@@ -182,9 +179,9 @@ fn global_hook_events() -> Result<Vec<String>> {
 fn hook_events(config: &Config) -> Vec<String> {
     config
         .hooks
-        .keys()
-        .filter(|h| h.as_str() != "check" && h.as_str() != "fix")
-        .cloned()
+        .iter()
+        .filter(|(name, hook)| hook.enabled && name.as_str() != "check" && name.as_str() != "fix")
+        .map(|(name, _)| name.clone())
         .collect()
 }
 
@@ -616,6 +613,23 @@ mod tests {
             hook_run_args("pre-commit", false),
             OsString::from(r#" run pre-commit --from-hook"#)
         );
+    }
+
+    #[test]
+    fn disabled_hooks_are_not_installable_events() {
+        let mut config = Config::default();
+        config.hooks.insert(
+            "pre-commit".to_string(),
+            crate::hook::Hook {
+                enabled: false,
+                ..Default::default()
+            },
+        );
+        config
+            .hooks
+            .insert("pre-push".to_string(), crate::hook::Hook::default());
+
+        assert_eq!(hook_events(&config), vec!["pre-push"]);
     }
 
     #[cfg(unix)]
