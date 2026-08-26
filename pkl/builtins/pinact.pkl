@@ -7,7 +7,7 @@ import "./test/helpers.pkl"
   description = "Pin GitHub Actions to commit SHA for security"
 }
 const pinact = new Config.Step {
-  glob = List(".github/workflows/*", "*/action.*")
+  glob = List(".github/workflows/*", "**/action.*")
   types = List("yaml")
   // `verify-comment` verifies pairs of commit SHA and version comments are correct
   check_diff = new Config.CommandSpec {
