@@ -2,13 +2,6 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
-@Builtins.meta {
-  category = "Secrets"
-  description = "Secret scanner for repository working trees"
-  project_indicators {
-    new { file = ".gitleaks.toml" }
-  }
-}
 class GitleaksStep extends Config.Step {
   // Scan staged Git content instead of the repository working tree.
   hidden staged: Boolean = false
@@ -86,4 +79,11 @@ class GitleaksStep extends Config.Step {
       }
 }
 
+@Builtins.meta {
+  category = "Secrets"
+  description = "Secret scanner for repository working trees"
+  project_indicators {
+    new { file = ".gitleaks.toml" }
+  }
+}
 gitleaks = new GitleaksStep {}
