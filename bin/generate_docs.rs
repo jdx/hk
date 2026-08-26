@@ -155,7 +155,7 @@ fn command_text(value: &serde_json::Value) -> Option<String> {
 }
 
 fn shell_quote(arg: &str) -> String {
-    if arg == "{{files}}"
+    if matches!(arg, "{{files}}" | "{{workspace_files}}")
         || (!arg.is_empty()
             && arg
                 .bytes()
@@ -410,12 +410,12 @@ mod tests {
     #[test]
     fn command_text_quotes_brace_expansion() {
         let command = json!({
-            "argv": ["tool", "{a,b}", "{{files}}"]
+            "argv": ["tool", "{a,b}", "{{files}}", "{{workspace_files}}"]
         });
 
         assert_eq!(
             command_text(&command).as_deref(),
-            Some("tool '{a,b}' {{files}}")
+            Some("tool '{a,b}' {{files}} {{workspace_files}}")
         );
     }
 
