@@ -84,9 +84,6 @@ flag --format help="Select human or machine-readable execution output" default=h
         }
     }
 }
-flag --hkrc help="Removed in hk v2; use ~/.config/hk/config.pkl or hk.local.pkl" global=#true hide=#true {
-    arg <PATH>
-}
 flag "-j --jobs" help="Number of jobs to run in parallel" global=#true {
     arg <JOBS>
 }
