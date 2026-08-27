@@ -1112,7 +1112,7 @@ impl Hook {
             .unwrap_or(true);
 
         if settings.skip_hooks.contains(&self.name) {
-            warn!("{}: skipping hook due to HK_SKIP_HOOK", &self.name);
+            warn!("{}: skipping hook due to HK_SKIP_HOOK", self.name);
             crate::structured_output::emit_noop_run(
                 output_format,
                 &self.name,
@@ -1740,7 +1740,7 @@ impl Hook {
             // Process excludes - handle both directory patterns and glob patterns
             debug!(
                 "files.exclude: patterns from settings/CLI: {:?}",
-                &all_excludes
+                all_excludes
             );
             let files_before = files.len();
             let mut expanded_excludes = Vec::new();
@@ -1752,7 +1752,7 @@ impl Hook {
                     expanded_excludes.push(format!("{}/**", exclude));
                 }
             }
-            debug!("files.exclude: expanded patterns: {:?}", &expanded_excludes);
+            debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
 
             let f = files.iter().collect::<Vec<_>>();
             let exclude_files = glob::get_matches(&expanded_excludes, &f)?

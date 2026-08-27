@@ -153,7 +153,7 @@ impl Step {
                 rendered.contains('\n') || rendered.chars().count() > MAX_INLINE_FIX_COMMAND_CHARS;
             if should_use_hk_fix {
                 // Multi-line or overly long commands are clearer through hk.
-                let step_flag = format!("-S {}", &self.name);
+                let step_flag = format!("-S {}", self.name);
                 let cmd = format!(
                     "To fix, run: {}",
                     style::edim(format!("hk fix {}", step_flag))

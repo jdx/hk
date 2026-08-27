@@ -330,11 +330,8 @@ fn parse_as_path_list(pattern: &str) -> Option<Vec<String>> {
     for part in parts {
         let part = part.trim();
 
-        if let Some(glob) = convert_regex_to_glob(part) {
-            globs.push(glob);
-        } else {
-            return None; // Can't convert this part
-        }
+        // A part that can't be converted fails the whole conversion
+        globs.push(convert_regex_to_glob(part)?);
     }
 
     Some(globs)
