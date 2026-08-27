@@ -1,0 +1,88 @@
+# hk
+
+> Run linters concurrently without letting overlapping fixes race
+
+## Getting Started
+
+- [Getting Started](https://hk.jdx.dev/getting_started.html): This guide takes you from installing hk to running your first checks. Most projects can be set up in a few minutes.
+
+## Configuration
+
+- [Configuration](https://hk.jdx.dev/configuration.html): hk builds its effective configuration by layering sources from lowest to highest precedence.
+
+## Guides
+
+- [Built-in Linters](https://hk.jdx.dev/builtins.html): hk provides 140+ pre-configured linters and formatters through the Builtins module. They provide the command, file matching, batching, and other hk behavior, while the corresponding tool must be…
+- [Configuration Examples](https://hk.jdx.dev/reference/examples/): This directory contains runnable examples extracted from the public Pkl configurations.
+- [Git Hooks](https://hk.jdx.dev/hooks.html): The following describes the behavior of git hooks that hk supports. Each step provides a "check" and a "fix" command. "check" commands are read-only and can be run in parallel.
+- [mise Integration](https://hk.jdx.dev/mise_integration.html): Most git-hook managers provide features that hk's sister project, mise-en-place, already provides. For this reason, you will want to use mise and hk together if you'd like to use any of the features…
+- [Coding Agents](https://hk.jdx.dev/agents.html): hk gives coding agents a narrow, inspectable way to run project checks and fixes. Agents can use structured CLI output everywhere, or the MCP server for persistent runs, cancellation, paged logs,…
+
+## CLI Reference
+
+- [CLI Reference](https://hk.jdx.dev/cli/): Usage: hk [FLAGS] <SUBCOMMAND>
+- [agent](https://hk.jdx.dev/cli/agent.html): Generate integration snippets for coding agents
+- [agent hooks](https://hk.jdx.dev/cli/agent/hooks.html): Print a hook configuration for an agent or editor
+- [agent instructions](https://hk.jdx.dev/cli/agent/instructions.html): Print project instructions for a coding agent
+- [agent mcp](https://hk.jdx.dev/cli/agent/mcp.html): Print an MCP server configuration
+- [builtins](https://hk.jdx.dev/cli/builtins.html): Lists all available builtin linters
+- [check](https://hk.jdx.dev/cli/check.html): Checks code
+- [completion](https://hk.jdx.dev/cli/completion.html): Generates shell completion scripts
+- [config](https://hk.jdx.dev/cli/config.html): Configuration introspection and management
+- [config dump](https://hk.jdx.dev/cli/config/dump.html): Print effective runtime settings (JSON format)
+- [config explain](https://hk.jdx.dev/cli/config/explain.html): Explain where a configuration value comes from
+- [config get](https://hk.jdx.dev/cli/config/get.html): Get a specific configuration value
+- [config sources](https://hk.jdx.dev/cli/config/sources.html): Show the configuration source precedence order
+- [fix](https://hk.jdx.dev/cli/fix.html): Fixes code
+- [init](https://hk.jdx.dev/cli/init.html): Generates a new hk.pkl file for a project
+- [install](https://hk.jdx.dev/cli/install.html): Sets up git hooks to run hk.
+- [mcp](https://hk.jdx.dev/cli/mcp.html): Runs an MCP server for coding agents over standard input/output.
+- [migrate](https://hk.jdx.dev/cli/migrate.html): Migrate from other hook managers to hk
+- [migrate pre-commit](https://hk.jdx.dev/cli/migrate/pre-commit.html): Migrate from pre-commit to hk
+- [run](https://hk.jdx.dev/cli/run.html): Run a hook
+- [run commit-msg](https://hk.jdx.dev/cli/run/commit-msg.html)
+- [run post-checkout](https://hk.jdx.dev/cli/run/post-checkout.html)
+- [run post-commit](https://hk.jdx.dev/cli/run/post-commit.html)
+- [run post-merge](https://hk.jdx.dev/cli/run/post-merge.html)
+- [run post-rewrite](https://hk.jdx.dev/cli/run/post-rewrite.html)
+- [run pre-commit](https://hk.jdx.dev/cli/run/pre-commit.html): Run the pre-commit hook
+- [run pre-push](https://hk.jdx.dev/cli/run/pre-push.html)
+- [run pre-rebase](https://hk.jdx.dev/cli/run/pre-rebase.html)
+- [run prepare-commit-msg](https://hk.jdx.dev/cli/run/prepare-commit-msg.html)
+- [sponsors](https://hk.jdx.dev/cli/sponsors.html): Show the companies sponsoring hk and the jdx.dev open source tools
+- [test](https://hk.jdx.dev/cli/test.html): Run step-defined tests
+- [uninstall](https://hk.jdx.dev/cli/uninstall.html): Removes hk hooks from the current git repository
+- [util](https://hk.jdx.dev/cli/util.html): Utility commands for file operations
+- [util check-added-large-files](https://hk.jdx.dev/cli/util/check-added-large-files.html): Check for large files being added to repository
+- [util check-byte-order-marker](https://hk.jdx.dev/cli/util/check-byte-order-marker.html): Check for UTF-8 byte order marker (BOM)
+- [util check-case-conflict](https://hk.jdx.dev/cli/util/check-case-conflict.html): Check for case-insensitive filename conflicts
+- [util check-conventional-commit](https://hk.jdx.dev/cli/util/check-conventional-commit.html): Check for conventional commit message
+- [util check-executables-have-shebangs](https://hk.jdx.dev/cli/util/check-executables-have-shebangs.html): Check that executable files have shebangs
+- [util check-merge-conflict](https://hk.jdx.dev/cli/util/check-merge-conflict.html): Check for merge conflict markers
+- [util check-symlinks](https://hk.jdx.dev/cli/util/check-symlinks.html): Check for broken symlinks
+- [util detect-private-key](https://hk.jdx.dev/cli/util/detect-private-key.html): Detect private keys in files
+- [util end-of-file-fixer](https://hk.jdx.dev/cli/util/end-of-file-fixer.html): Check for and optionally fix missing final newlines
+- [util fix-byte-order-marker](https://hk.jdx.dev/cli/util/fix-byte-order-marker.html): Remove UTF-8 byte order marker (BOM)
+- [util fix-smart-quotes](https://hk.jdx.dev/cli/util/fix-smart-quotes.html): Replace UTF-8 smart quotes
+- [util mixed-line-ending](https://hk.jdx.dev/cli/util/mixed-line-ending.html): Detect and fix mixed line endings
+- [util no-commit-to-branch](https://hk.jdx.dev/cli/util/no-commit-to-branch.html): Prevent commits to specific branches
+- [util python-check-ast](https://hk.jdx.dev/cli/util/python-check-ast.html): Check Python files for valid syntax
+- [util python-debug-statements](https://hk.jdx.dev/cli/util/python-debug-statements.html): Detect Python debug statements
+- [util trailing-whitespace](https://hk.jdx.dev/cli/util/trailing-whitespace.html): Check for and optionally fix trailing whitespace
+- [validate](https://hk.jdx.dev/cli/validate.html): Validate the config file
+- [version](https://hk.jdx.dev/cli/version.html): Print the version of hk
+
+## Reference
+
+- [Environment Variables](https://hk.jdx.dev/environment_variables.html): Environment variables can be used to configure hk.
+- [Pkl Introduction](https://hk.jdx.dev/pkl_introduction.html): hk uses pkl for configuration. As this is a new configuration language, this doc gives an overview of how to write it and work with it for hk configuration.
+- [Logging and Debugging](https://hk.jdx.dev/logging.html): hk provides several ways to control logging output for debugging issues and understanding what's happening during execution.
+- [Glossary](https://hk.jdx.dev/glossary.html): This glossary defines key terms used throughout hk documentation and configuration.
+
+## Project
+
+- [Why hk?](https://hk.jdx.dev/why-hk.html): Tools like pre-commit, prek, and lefthook simply shell out to run linters. That means they can't safely run linters in parallel—if two linters try to modify the same file at the same time, there will…
+- [Benchmarks](https://hk.jdx.dev/benchmarks.html): These benchmarks compare hk, lefthook, pre-commit, and prek running 10 linters on a synthetic project.
+- [Contributing](https://hk.jdx.dev/contributing.html): Thank you for your interest in contributing to hk! This guide will help you get started.
+- [About](https://hk.jdx.dev/about.html): hk is built by @jdx.
+- [Sea Shanty](https://hk.jdx.dev/shanty.html): A sea shanty celebrating the hk git hook manager

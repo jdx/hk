@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Generate docs/public/llms.txt for coding agents"
+#MISE depends=["render:usage"]
+#MISE sources=["docs/**/*.md", "docs/.vitepress/llms.ts", "docs/.vitepress/sidebar.ts", "docs/cli/commands.json"]
+#MISE outputs=["docs/public/llms.txt"]
+
+set -eu
+
+node docs/.vitepress/llms.ts
