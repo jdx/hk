@@ -14,7 +14,7 @@ git-cliff                       = "latest"
 # Pinned rather than "latest" because tak is the measuring instrument: an
 # upgrade that changes how it samples would land in the series as a step change
 # in hk's numbers, indistinguishable from a real regression. Bump deliberately.
-"github:jdx/tak" = "v0.0.5"
+"github:jdx/tak" = "v0.0.8"
 node             = "latest"
 "npm:prettier"   = "latest"
 pkl              = "latest"
