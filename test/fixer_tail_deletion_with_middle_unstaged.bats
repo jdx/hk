@@ -72,7 +72,11 @@ deps:
 
 EOF
 
-    run bash -lc 'git -c commit.gpgsign=false commit -m "redis"'
+    # Not `bash -lc`: a login shell runs macOS path_helper, which reorders PATH
+    # so the commit can resolve a pre-2.54 system git that silently ignores the
+    # config-based hooks (`hook.hk-pre-commit.command`) installed by `hk install`,
+    # skipping the fixer entirely.
+    run git -c commit.gpgsign=false commit -m "redis"
     echo "$output"
     assert_success
 
