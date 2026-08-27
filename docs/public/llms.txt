@@ -20,7 +20,7 @@
 
 ## CLI Reference
 
-- [CLI Reference](https://hk.jdx.dev/cli/): Usage: hk [FLAGS]
+- [CLI Reference](https://hk.jdx.dev/cli/): Usage: hk [FLAGS] <SUBCOMMAND>
 - [agent](https://hk.jdx.dev/cli/agent.html): Generate integration snippets for coding agents
 - [agent hooks](https://hk.jdx.dev/cli/agent/hooks.html): Print a hook configuration for an agent or editor
 - [agent instructions](https://hk.jdx.dev/cli/agent/instructions.html): Print project instructions for a coding agent

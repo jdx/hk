@@ -14,6 +14,7 @@ const outFile = resolve(docsDir, 'public/llms.txt')
 const siteUrl = 'https://hk.jdx.dev'
 const maxDescription = 200
 
+/** Map a VitePress link to its Markdown source file. */
 function sourceFile(link: string): string {
   const relative = link.replace(/^\//, '')
   return resolve(
@@ -22,23 +23,28 @@ function sourceFile(link: string): string {
   )
 }
 
+/** Convert a VitePress link to its canonical published URL. */
 function pageUrl(link: string): string {
   return link.endsWith('/')
     ? `${siteUrl}${link}`
     : `${siteUrl}${link}.html`
 }
 
+/** Remove Markdown and HTML markup while preserving readable text. */
 function plain(markdown: string): string {
   return markdown
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/\[((?:[^[\]]|\[[^[\]]*\])*)\]\([^)]*\)/g, '$1')
     .replace(/`([^`]*)`/g, '$1')
     .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1')
-    .replace(/<[^>]+>/g, '')
+    // HTML tag names are lowercase in the docs. Uppercase angle-bracketed
+    // values such as <SUBCOMMAND> are CLI placeholders and must remain.
+    .replace(/<\/?[a-z][^>]*>|<!--[\s\S]*?-->/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
+/** Extract and shorten the first prose paragraph after a page's H1. */
 function description(file: string): string | undefined {
   let markdown: string
   try {
@@ -101,6 +107,7 @@ interface Entry {
   link: string
 }
 
+/** Flatten linked sidebar entries while retaining their displayed names. */
 function flatten(items: SidebarItem[], entries: Entry[] = []): Entry[] {
   for (const item of items) {
     if (item.link?.startsWith('/')) {

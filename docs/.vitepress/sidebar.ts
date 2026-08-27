@@ -10,6 +10,7 @@ export interface SidebarItem {
   items?: SidebarItem[]
 }
 
+/** Return every visible command path in depth-first CLI order. */
 function getCommands(cmd: Command): string[][] {
   const commands: string[][] = []
   for (const sub of Object.values(cmd.subcommands)) {
