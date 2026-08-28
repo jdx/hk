@@ -39,7 +39,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
-          backend: github
+          backend: ${{ github.event_name == 'workflow_dispatch' && 'server' || 'github' }}
       - name: Build
         id: build
         shell: bash
@@ -115,7 +115,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
-          backend: github
+          backend: ${{ github.event_name == 'workflow_dispatch' && 'server' || 'github' }}
       - name: Build
         id: build
         shell: bash
@@ -191,7 +191,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
-          backend: github
+          backend: ${{ github.event_name == 'workflow_dispatch' && 'server' || 'github' }}
       - name: Build
         id: build
         shell: pwsh
