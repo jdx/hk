@@ -876,6 +876,37 @@ impl Git {
                 return Ok(None);
             }
         }
+        // A path-limited stash decides what to reset from the HEAD-to-worktree diff,
+        // even though the paths above were selected from the index-to-worktree diff.
+        // If the former is empty (for example after `git update-index --chmod`), Git
+        // creates a stash entry and resets the index before failing to reverse-apply
+        // an empty patch. Avoid invoking Git in that destructive case.
+        if let Some(ref ts) = tracked_subset
+            && !ts.is_empty()
+            && (!*env::HK_STASH_UNTRACKED || status.untracked_files.is_empty())
+        {
+            let diff_status = Command::new("git")
+                .args([
+                    "diff",
+                    "--quiet",
+                    "--no-ext-diff",
+                    "--ignore-submodules",
+                    "HEAD",
+                    "--",
+                ])
+                .args(ts)
+                .status()
+                .wrap_err("failed to check whether stash pathspec has changes")?;
+            match diff_status.code() {
+                Some(0) => return Ok(None),
+                Some(1) => {}
+                code => {
+                    return Err(eyre!(
+                        "git diff failed while checking stash pathspec with exit code {code:?}"
+                    ));
+                }
+            }
+        }
         if let Some(repo) = &mut self.repo {
             let sig = repo.signature()?;
             let mut flags = git2::StashFlags::default();
