@@ -74,7 +74,7 @@ jobs:
           path: target/debug/hk
   build-windows:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -220,7 +220,7 @@ jobs:
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
