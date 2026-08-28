@@ -883,7 +883,6 @@ impl Git {
         // an empty patch. Avoid invoking Git in that destructive case.
         if let Some(ref ts) = tracked_subset
             && !ts.is_empty()
-            && (!*env::HK_STASH_UNTRACKED || status.untracked_files.is_empty())
         {
             let diff_status = Command::new("git")
                 .args([

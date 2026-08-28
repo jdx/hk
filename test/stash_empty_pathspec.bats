@@ -68,3 +68,25 @@ PKL
     assert_success
     assert_output ""
 }
+
+@test "untracked files do not bypass the empty stash guard" {
+    create_precommit
+
+    git update-index --chmod=+x a.sh
+    printf 'untracked\n' > unrelated.txt
+
+    run git -c commit.gpgsign=false commit -m "make a.sh executable"
+    assert_success
+
+    run git ls-tree HEAD -- a.sh
+    assert_success
+    assert_output --partial "100755"
+
+    run cat unrelated.txt
+    assert_success
+    assert_output "untracked"
+
+    run git stash list
+    assert_success
+    assert_output ""
+}
