@@ -37,9 +37,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
-        with:
-          toolchain: 1.95.0
       - uses: ./.github/actions/mbx
         with:
           backend: server
@@ -67,6 +64,7 @@ jobs:
 
   rust_cache:
     name: Swatinem rust-cache (${{ matrix.label }})
+    if: github.actor == 'jdx' && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -86,9 +84,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
-        with:
-          toolchain: 1.95.0
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
