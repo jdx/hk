@@ -116,6 +116,9 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: github
+          # mbx 0.7.0 makes macOS debug links portable, so the benchmark
+          # exercises them the way the Linux job already does.
+          cache-links: "true"
       - name: Build
         id: build
         shell: bash
