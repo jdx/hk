@@ -27,10 +27,13 @@ jobs:
         include:
           - os: ubuntu-latest
             label: Linux
+            cache-links: auto
           - os: macos-14
             label: macOS
+            cache-links: "true"
           - os: windows-latest
             label: Windows
+            cache-links: auto
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -40,6 +43,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: server
+          cache-links: ${{ matrix.cache-links }}
       - name: Build
         if: runner.os != 'Windows'
         shell: bash
