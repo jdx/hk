@@ -38,6 +38,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/mbx
+        with:
+          backend: github
       - name: Build
         id: build
         shell: bash
@@ -113,6 +115,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
+          backend: github
           # mbx 0.7.0 makes macOS debug links portable, so the benchmark
           # exercises them the way the Linux job already does.
           cache-links: "true"
@@ -190,6 +193,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/mbx
+        with:
+          backend: github
       - name: Build
         id: build
         shell: pwsh
