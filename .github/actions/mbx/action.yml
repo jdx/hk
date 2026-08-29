@@ -22,14 +22,14 @@ runs:
       if: inputs.mirror-github-cache == 'true' && github.actor == 'jdx' && github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: jdx/mr-boxington-action@9a406893b83a977c45324a34aed553e3c43f414d
       with:
-        version: 1.0.0
+        version: 1.0.1
         backend: github
         cache-generation: v2
         cache-links: ${{ inputs.cache-links }}
         toolchain: ${{ inputs.toolchain }}
     - uses: jdx/mr-boxington-action@9a406893b83a977c45324a34aed553e3c43f414d
       with:
-        version: 1.0.0
+        version: 1.0.1
         cache-generation: v2
         save-on-workflow-dispatch: ${{ github.actor == 'jdx' && github.triggering_actor == 'jdx' }}
         cache-links: ${{ inputs.cache-links }}
