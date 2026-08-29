@@ -149,12 +149,61 @@ impl Config {
     fn load_project_config() -> Result<Self> {
         let paths = Self::project_config_search_paths();
         if let Some(path) = Self::find_project_config(&paths) {
-            return Self::load_config_cached(path);
+            let mut config = Self::load_config_cached(path)?;
+            config.apply_implicit_root_dir();
+            return Ok(config);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
         config.init(Path::new(&paths[0]), true)?;
         Ok(config)
+    }
+
+    /// `Git::new` always cds into the work tree root so shell-git and libgit2
+    /// resolve relative paths correctly, regardless of where this config was
+    /// found. That means a config discovered by walking up from a
+    /// subdirectory (not merged in via a parent's `subprojects` — see
+    /// `merge_subproject`, which already scopes itself independently) still
+    /// has every step run from, and glob-match against, the whole repo
+    /// rather than its own directory. Give every step already present in
+    /// this config (before `load_subprojects` merges anything else in) a
+    /// default `dir` for the offset from the work tree root to this config's
+    /// own directory, the same way a subproject's steps get scoped to it.
+    fn apply_implicit_root_dir(&mut self) {
+        let Some(subdir) = Self::implicit_root_dir(&self.path) else {
+            return;
+        };
+        for hook in self.hooks.values_mut() {
+            for step_or_group in hook.steps.values_mut() {
+                match step_or_group {
+                    crate::hook::StepOrGroup::Step(step) => {
+                        step.dir = Some(Self::join_subdir(&subdir, step.dir.as_deref()));
+                    }
+                    crate::hook::StepOrGroup::Group(group) => {
+                        group.dir = Some(Self::join_subdir(&subdir, group.dir.as_deref()));
+                        for step in group.steps.values_mut() {
+                            step.dir = Some(Self::join_subdir(&subdir, step.dir.as_deref()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The path from the git work tree root to the directory containing
+    /// `config_path`, or `None` if that config lives at the root itself (or
+    /// no work tree can be found, e.g. outside of a git repo).
+    fn implicit_root_dir(config_path: &Path) -> Option<String> {
+        let config_dir = Self::project_root_of(config_path);
+        let git_root = xx::file::find_up(&config_dir, &[".git"])?
+            .parent()?
+            .to_path_buf();
+        let rel = config_dir.strip_prefix(&git_root).ok()?;
+        if rel.as_os_str().is_empty() {
+            None
+        } else {
+            Some(rel.to_string_lossy().into_owned())
+        }
     }
 
     fn project_config_search_paths() -> Vec<String> {
@@ -723,7 +772,7 @@ impl Config {
 
     fn join_subdir(subdir: &str, dir: Option<&str>) -> String {
         match dir {
-            Some(dir) if !dir.is_empty() => format!("{subdir}/{dir}"),
+            Some(dir) if !dir.is_empty() && dir != "." => format!("{subdir}/{dir}"),
             _ => subdir.to_string(),
         }
     }
@@ -1336,6 +1385,7 @@ mod tests {
     fn join_subdir_handles_nested_and_empty() {
         assert_eq!(Config::join_subdir("sub", None), "sub");
         assert_eq!(Config::join_subdir("sub", Some("")), "sub");
+        assert_eq!(Config::join_subdir("sub", Some(".")), "sub");
         assert_eq!(Config::join_subdir("sub", Some("ui")), "sub/ui");
     }
 
