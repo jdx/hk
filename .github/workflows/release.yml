@@ -336,6 +336,7 @@ jobs:
       - name: Append jdx.dev sponsor blurb
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           INPUTS_VERSION: ${{ inputs.version }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
@@ -368,6 +369,7 @@ jobs:
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           INPUTS_VERSION: ${{ inputs.version }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
