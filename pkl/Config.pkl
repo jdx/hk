@@ -696,6 +696,23 @@ class Step {
   /// ```
   depends: (String | List<String>) = List()
 
+  /// Default: `false`
+  ///
+  /// If true, a non-zero exit from this step's command is reported but does not
+  /// cause the hook to fail. The step still runs, its output is preserved, and
+  /// dependent steps may continue. Errors produced by hk itself remain fatal.
+  ///
+  /// A string value is evaluated as an expression when the command fails. The
+  /// expression can use `env(name)` to read an environment variable:
+  ///
+  /// ```pkl
+  /// ["cargo-check"] {
+  ///     check = "cargo check"
+  ///     allow_failure = "env('KNOWN_BROKEN') == 'true'"
+  /// }
+  /// ```
+  allow_failure: (Boolean | String) = false
+
   /// If set, use this shell instead of the default `sh -o errexit -c`.
   ///
   /// ```pkl

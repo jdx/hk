@@ -332,6 +332,8 @@ pub struct HookContext {
     /// `step_contexts` are shift_remove'd as soon as each step finishes, so
     /// status info is not available to the end-of-run summary.
     pub failed_steps: std::sync::Mutex<HashSet<String>>,
+    /// Failed steps whose command failure was explicitly allowed.
+    pub allowed_failure_steps: std::sync::Mutex<HashSet<String>>,
     /// Steps that reached a terminal successful state. Timing alone is not a
     /// completion signal because an in-flight command can be aborted.
     pub finished_steps: std::sync::Mutex<HashSet<String>>,
@@ -393,6 +395,7 @@ impl HookContext {
             diagnostic_output_by_step: StdMutex::new(IndexMap::new()),
             command_effects_by_step: StdMutex::new(IndexMap::new()),
             failed_steps: StdMutex::new(HashSet::new()),
+            allowed_failure_steps: StdMutex::new(HashSet::new()),
             finished_steps: StdMutex::new(HashSet::new()),
             cancelled_steps: StdMutex::new(HashSet::new()),
             fix_suggestions: StdMutex::new(Vec::new()),
@@ -515,6 +518,13 @@ impl HookContext {
 
     pub fn mark_step_failed(&self, step_name: &str) {
         self.failed_steps
+            .lock()
+            .unwrap()
+            .insert(step_name.to_string());
+    }
+
+    pub fn mark_step_failure_allowed(&self, step_name: &str) {
+        self.allowed_failure_steps
             .lock()
             .unwrap()
             .insert(step_name.to_string());

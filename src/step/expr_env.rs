@@ -13,6 +13,7 @@ pub static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::defa
 ///
 /// Currently provides:
 /// - `exec(command)` - Execute a shell command and return its stdout
+/// - `env(name)` - Return an environment variable, or an empty string when unset
 pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::new();
 
@@ -20,6 +21,18 @@ pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
         let out = xx::process::sh(c.args[0].as_string().unwrap())
             .map_err(|e| expr::Error::ExprError(e.to_string()))?;
         Ok(expr::Value::String(out))
+    });
+
+    env.add_function("env", |c| {
+        if c.args.len() != 1 {
+            return Err(expr::Error::ExprError(
+                "env() expects exactly one string argument".to_string(),
+            ));
+        }
+        let name = c.args[0].as_string().ok_or_else(|| {
+            expr::Error::ExprError("env() expects exactly one string argument".to_string())
+        })?;
+        Ok(expr::Value::String(std::env::var(name).unwrap_or_default()))
     });
 
     env
@@ -143,5 +156,18 @@ mod tests {
             eval_condition("'ITWORKS\n' == 'ITWORKS\\n'", &EXPR_CTX).unwrap(),
             expr::Value::Bool(true)
         );
+    }
+
+    #[test]
+    fn env_rejects_missing_and_non_string_arguments() {
+        for expression in ["env()", "env(123)", "env('ONE', 'TWO')"] {
+            let error = eval_condition(expression, &EXPR_CTX).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("env() expects exactly one string argument"),
+                "unexpected error for {expression}: {error}"
+            );
+        }
     }
 }
