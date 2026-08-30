@@ -13,6 +13,7 @@ pub static EXPR_CTX: LazyLock<expr::Context> = LazyLock::new(expr::Context::defa
 ///
 /// Currently provides:
 /// - `exec(command)` - Execute a shell command and return its stdout
+/// - `env(name)` - Return an environment variable, or an empty string when unset
 pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
     let mut env = expr::Environment::new();
 
@@ -20,6 +21,11 @@ pub static EXPR_ENV: LazyLock<expr::Environment> = LazyLock::new(|| {
         let out = xx::process::sh(c.args[0].as_string().unwrap())
             .map_err(|e| expr::Error::ExprError(e.to_string()))?;
         Ok(expr::Value::String(out))
+    });
+
+    env.add_function("env", |c| {
+        let name = c.args[0].as_string().unwrap();
+        Ok(expr::Value::String(std::env::var(name).unwrap_or_default()))
     });
 
     env

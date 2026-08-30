@@ -52,6 +52,8 @@ struct RunResult {
 struct StepResult {
     name: String,
     status: &'static str,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    failure_allowed: bool,
     duration_ms: u128,
     effects: Vec<ExecutedEffect>,
     diagnostics: Vec<Diagnostic>,
@@ -168,6 +170,7 @@ pub fn emit_run(
     sarif_path: Option<&Path>,
 ) -> Result<()> {
     let failed = ctx.failed_steps.lock().unwrap();
+    let allowed_failures = ctx.allowed_failure_steps.lock().unwrap();
     let finished = ctx.finished_steps.lock().unwrap();
     let cancelled = ctx.cancelled_steps.lock().unwrap();
     let run_was_cancelled = !cancelled.is_empty();
@@ -227,6 +230,7 @@ pub fn emit_run(
             steps.push(StepResult {
                 name: name.clone(),
                 status,
+                failure_allowed: allowed_failures.contains(name),
                 duration_ms: timings.get(name).copied().unwrap_or(0),
                 effects: executed_effects
                     .get(name)
@@ -250,6 +254,7 @@ pub fn emit_run(
     drop(cancelled);
     drop(finished);
     drop(failed);
+    drop(allowed_failures);
 
     let result = RunResult {
         schema_version: 1,
@@ -301,6 +306,7 @@ pub fn emit_noop_run(
             .map(|(name, skip_reason)| StepResult {
                 name,
                 status: "skipped",
+                failure_allowed: false,
                 duration_ms: 0,
                 effects: vec![],
                 diagnostics: vec![],

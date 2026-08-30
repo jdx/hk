@@ -23,6 +23,27 @@ hk hooks perform the following assuming `fix = true`:
 
 If `fix = false`, hk will just run the `check` steps and won't need to deal with read/write locks as nothing should be making modifications. Steps with [`check_failed_files = true`](/configuration#focus-checks-on-failing-files) first use `check_diff` or `check_list_files` to identify affected paths, then run the detailed `check` command only on that focused set.
 
+### Allowing a step to fail
+
+Set `allow_failure = true` on a step to run it and report a non-zero command
+exit without failing the hook. This is narrower than bypassing the hook or
+skipping the step: all other steps retain their normal blocking behavior, and
+errors from hk itself are still fatal.
+
+The setting can be an expression using `env(name)` when the policy should be
+conditional on an environment variable:
+
+```pkl
+["cargo-check"] {
+    check = "cargo check"
+    allow_failure = "env('KNOWN_BROKEN') == 'true'"
+}
+```
+
+`KNOWN_BROKEN=true git commit` will therefore show a failed `cargo-check` but
+allow the commit, while an ordinary `git commit` remains blocked by the same
+failure.
+
 ## `pre-commit`
 
 Runs when `git commit` is run before `git commit` creates the commit.

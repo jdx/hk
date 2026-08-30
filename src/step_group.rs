@@ -186,10 +186,30 @@ impl StepGroup {
                 let hook_ctx = ctx.hook_ctx.clone();
                 async move {
                     let result = step.clone().run_all_jobs(step_ctx.clone(), semaphore).await;
+                    let failure_allowed = match match &result {
+                        Err(err) if crate::error::is_command_failure(err) => {
+                            step.failure_is_allowed(&hook_ctx.expr_ctx())
+                        }
+                        _ => Ok(false),
+                    } {
+                        Ok(failure_allowed) => failure_allowed,
+                        Err(err) => {
+                            step_ctx.status_errored(&err.to_string());
+                            hook_ctx
+                                .step_contexts
+                                .lock()
+                                .unwrap()
+                                .shift_remove(&step.name);
+                            return Err(err);
+                        }
+                    };
+                    if failure_allowed {
+                        hook_ctx.mark_step_failure_allowed(&step.name);
+                    }
                     if let Err(err) = &result {
                         step_ctx.status_errored(&err.to_string());
                     }
-                    if !fail_fast && result.is_err() {
+                    if (!fail_fast || failure_allowed) && result.is_err() {
                         step_ctx.depends.mark_done(&step.name)?;
                     }
                     hook_ctx
@@ -197,7 +217,7 @@ impl StepGroup {
                         .lock()
                         .unwrap()
                         .shift_remove(&step.name);
-                    result
+                    if failure_allowed { Ok(()) } else { result }
                 }
             });
         }
