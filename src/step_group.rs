@@ -195,6 +195,9 @@ impl StepGroup {
                         Ok(failure_allowed) => failure_allowed,
                         Err(err) => {
                             step_ctx.status_errored(&err.to_string());
+                            if !fail_fast {
+                                step_ctx.depends.mark_done(&step.name)?;
+                            }
                             hook_ctx
                                 .step_contexts
                                 .lock()

@@ -98,6 +98,48 @@ EOF
     assert_output --partial "failed to render command template"
 }
 
+@test "invalid allow_failure expression releases dependents" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+fail_fast = false
+hooks {
+    ["check"] {
+        steps {
+            ["invalid-policy"] {
+                check = "exit 1"
+                allow_failure = "env('KNOWN_BROKEN')"
+            }
+            ["dependent"] {
+                depends = List("invalid-policy")
+                check = "echo DEPENDENT_RAN"
+            }
+        }
+    }
+}
+EOF
+
+    run bash -c '
+        hk check --all &
+        hk_pid=$!
+        (
+            for _ in {1..100}; do
+                kill -0 "$hk_pid" 2>/dev/null || exit 0
+                sleep 0.1
+            done
+            kill "$hk_pid" 2>/dev/null
+        ) &
+        watchdog_pid=$!
+        wait "$hk_pid"
+        exit_code=$?
+        kill "$watchdog_pid" 2>/dev/null
+        wait "$watchdog_pid" 2>/dev/null
+        exit "$exit_code"
+    '
+    assert_failure
+    assert_output --partial "allow_failure expression must evaluate to a boolean"
+    assert_output --partial "DEPENDENT_RAN"
+}
+
 @test "structured output identifies an allowed failing step" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
