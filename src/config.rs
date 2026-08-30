@@ -548,15 +548,23 @@ impl Config {
             }
         }
         let root = Self::project_root_of(&self.path);
+        // This config can come from a subdirectory search (see
+        // `apply_implicit_root_dir`). In that case its own steps already use
+        // that subdirectory as the base path. But a subproject's directory is
+        // relative to `root` only. Get the offset one time. Then
+        // `merge_subproject` can use the work tree root as the base path, not
+        // this config's own directory.
+        let implicit_root = Self::implicit_root_dir(&self.path);
         for (dir, config_path) in Self::discover_subprojects(&root, &patterns)? {
             debug!("loading subproject config: {}", config_path.display());
             let sub = Self::load_config_cached_with(config_path.clone(), false)?;
-            self.merge_subproject(&dir, sub).wrap_err_with(|| {
-                format!(
-                    "failed to merge subproject config: {}",
-                    config_path.display()
-                )
-            })?;
+            self.merge_subproject(&dir, implicit_root.as_deref(), sub)
+                .wrap_err_with(|| {
+                    format!(
+                        "failed to merge subproject config: {}",
+                        config_path.display()
+                    )
+                })?;
         }
         Ok(())
     }
@@ -695,17 +703,34 @@ impl Config {
         .find(|p| p.exists())
     }
 
-    /// Merge a subproject config into this one. Each hook's steps are scoped to
-    /// `subdir`: working directories are joined onto the subdirectory (which also
-    /// scopes glob matching), step/group names are prefixed with "{subdir}:", and
-    /// the subproject's `env` is applied to its own steps only.
-    fn merge_subproject(&mut self, subdir: &str, mut sub: Config) -> Result<()> {
+    /// Merge a subproject config into this one.
+    ///
+    /// Add prefix `{subdir}:` to each step name and group name. Apply the
+    /// subproject's `env` to its own steps only.
+    ///
+    /// Set each working directory to `root_offset` + `subdir` + the step's own
+    /// directory. This also sets the base path for glob matching.
+    /// `subdir` alone is correct only when it is relative to this config's own
+    /// directory. When this config comes from a subdirectory search (see
+    /// `apply_implicit_root_dir`), directories must be relative to the work
+    /// tree root instead. In that case, add `root_offset` (this config's own
+    /// implicit root) to the front of the path first.
+    fn merge_subproject(
+        &mut self,
+        subdir: &str,
+        root_offset: Option<&str>,
+        mut sub: Config,
+    ) -> Result<()> {
         if sub.subprojects.as_ref().is_some_and(|s| !s.is_empty()) {
             warn!(
                 "subprojects: nested `subprojects` in {} is ignored (only one level is supported)",
                 sub.path.display()
             );
         }
+        let dir_scope = match root_offset {
+            Some(root_offset) => Self::join_subdir(root_offset, Some(subdir)),
+            None => subdir.to_string(),
+        };
         let sub_env = std::mem::take(&mut sub.env);
         for (hook_name, sub_hook) in std::mem::take(&mut sub.hooks) {
             let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| Hook {
@@ -727,7 +752,7 @@ impl Config {
                 }
                 let step_or_group = match step_or_group {
                     crate::hook::StepOrGroup::Step(mut step) => {
-                        Self::scope_subproject_step(&mut step, subdir, &sub_hook.env, &sub_env);
+                        Self::scope_subproject_step(&mut step, &dir_scope, &sub_hook.env, &sub_env);
                         step.name = scoped_name.clone();
                         step.depends = step
                             .depends
@@ -744,9 +769,9 @@ impl Config {
                     }
                     crate::hook::StepOrGroup::Group(mut group) => {
                         group.name = Some(scoped_name.clone());
-                        group.dir = Some(Self::join_subdir(subdir, group.dir.as_deref()));
+                        group.dir = Some(Self::join_subdir(&dir_scope, group.dir.as_deref()));
                         for step in group.steps.values_mut() {
-                            Self::scope_subproject_step(step, subdir, &sub_hook.env, &sub_env);
+                            Self::scope_subproject_step(step, &dir_scope, &sub_hook.env, &sub_env);
                         }
                         crate::hook::StepOrGroup::Group(group)
                     }
@@ -1291,7 +1316,7 @@ mod tests {
             .insert("fmt".to_string(), StepOrGroup::Step(Box::new(fmt)));
         sub.hooks.insert("check".to_string(), hook);
 
-        root.merge_subproject("packages/web", sub).unwrap();
+        root.merge_subproject("packages/web", None, sub).unwrap();
 
         let hook = root.hooks.get("check").unwrap();
         let StepOrGroup::Step(lint) = hook.steps.get("packages/web:lint").unwrap() else {
@@ -1312,6 +1337,36 @@ mod tests {
         assert_eq!(fmt.dir.as_deref(), Some("packages/web/nested"));
         // step env wins over subproject config env
         assert_eq!(fmt.env.get("FOO").map(String::as_str), Some("from-step"));
+    }
+
+    #[test]
+    fn merge_subproject_scopes_dirs_under_root_offset_but_not_names() {
+        // This test copies a case where a config comes from a subdirectory
+        // search (e.g. found by walking up from `packages/web/`), and this
+        // config also has `subprojects = ["api"]`.
+        // The merged step's directory must be relative to the work tree root
+        // (`packages/web/api`).
+        // The merged step's name must stay relative to the subproject config
+        // that declared it (`api:lint`). The name must not use the full
+        // nested path.
+        let mut root = Config::default();
+        let mut sub = Config::default();
+        let mut hook = hook("check");
+        hook.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("check".to_string(), hook);
+
+        root.merge_subproject("api", Some("packages/web"), sub)
+            .unwrap();
+
+        let hook = root.hooks.get("check").unwrap();
+        let StepOrGroup::Step(lint) = hook.steps.get("api:lint").unwrap() else {
+            panic!("expected step");
+        };
+        assert_eq!(lint.name, "api:lint");
+        assert_eq!(lint.dir.as_deref(), Some("packages/web/api"));
     }
 
     #[test]
@@ -1341,7 +1396,7 @@ mod tests {
             .insert("build".to_string(), StepOrGroup::Group(Box::new(group)));
         sub.hooks.insert("check".to_string(), sub_hook);
 
-        root.merge_subproject("sub", sub).unwrap();
+        root.merge_subproject("sub", None, sub).unwrap();
 
         let hook = root.hooks.get("check").unwrap();
         let StepOrGroup::Group(group) = hook.steps.get("sub:build").unwrap() else {
@@ -1377,7 +1432,7 @@ mod tests {
         );
         sub.hooks.insert("check".to_string(), sub_hook);
 
-        let err = root.merge_subproject("sub", sub).unwrap_err();
+        let err = root.merge_subproject("sub", None, sub).unwrap_err();
         assert!(err.to_string().contains("duplicate step name 'sub:lint'"));
     }
 

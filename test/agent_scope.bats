@@ -91,7 +91,7 @@ hooks {
     ["check"] {
         steps {
             ["nested"] {
-                check = "hk --cd second check --all"
+                check = "hk --cd ../second check --all"
             }
         }
     }
@@ -115,8 +115,10 @@ EOF
 
     run hk --cd first check --all
     assert_success
-    # Step commands run at the repository root unless `dir` overrides it.
-    assert_file_exists nested-ran
+    # A standalone config found by walking up from a subdirectory is scoped to
+    # its own directory, so `first`'s step runs from `first` and `second`'s
+    # step runs from `second`.
+    assert_file_exists second/nested-ran
 }
 
 @test "--files0-from reads exact paths including spaces" {
