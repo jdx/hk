@@ -23,12 +23,25 @@ use std::sync::{Arc, LazyLock};
 use tokio::sync::OwnedSemaphorePermit;
 
 use super::expr_env::eval_condition;
-use super::types::{CheckFirstCmd, RunType, Step};
+use super::types::{AllowFailure, CheckFirstCmd, RunType, Step};
 
 /// Default stage pattern for steps with fix commands when staging is enabled.
 static DEFAULT_STAGE: LazyLock<Vec<String>> = LazyLock::new(|| vec!["<JOB_FILES>".to_string()]);
 
 impl Step {
+    pub(crate) fn failure_is_allowed(&self, ctx: &expr::Context) -> Result<bool> {
+        match &self.allow_failure {
+            AllowFailure::Bool(allow) => Ok(*allow),
+            AllowFailure::Expression(expression) => {
+                let value = eval_condition(expression, ctx)?;
+                match value {
+                    expr::Value::Bool(allow) => Ok(allow),
+                    _ => eyre::bail!("{self}: allow_failure expression must evaluate to a boolean"),
+                }
+            }
+        }
+    }
+
     /// Execute all jobs for this step.
     ///
     /// This is the main orchestration function that:
@@ -297,13 +310,13 @@ impl Step {
                     {
                         step.save_output_summary(&ctx, job, stdout, stderr, combined, true);
                     }
-                    let err = eyre::eyre!(
-                        "{step}: file-listing check failed but focused check succeeded"
-                    );
+                    let err = Error::FocusedCheckMismatch {
+                        step: step.to_string(),
+                    };
                     if let Some(job) = &mut last_job {
                         job.status_errored(&ctx, format!("{err}")).await?;
                     }
-                    return Err(err);
+                    return Err(err.into());
                 }
                 Ok(files_to_return.into_iter().collect())
             });

@@ -1,5 +1,79 @@
 # Changelog
 
+## [1.57.0](https://github.com/jdx/hk/compare/v1.56.1..v1.57.0) - 2026-08-30
+
+### 🚀 Features
+
+- **(builtins)** add go_fix linter by [@sahidvelji](https://github.com/sahidvelji) in [#1224](https://github.com/jdx/hk/pull/1224)
+- **(builtins)** add ls_lint linter by [@sahidvelji](https://github.com/sahidvelji) in [#1238](https://github.com/jdx/hk/pull/1238)
+- **(builtins)** add golangci_lint_fmt formatter by [@sahidvelji](https://github.com/sahidvelji) in [#1244](https://github.com/jdx/hk/pull/1244)
+- **(builtins)** add shellcheck fix via check_diff by [@sahidvelji](https://github.com/sahidvelji) in [#1237](https://github.com/jdx/hk/pull/1237)
+- **(pkl)** embed the matching-version pkl package by [@sahidvelji](https://github.com/sahidvelji) in [#1218](https://github.com/jdx/hk/pull/1218)
+- **(step)** render `dir` through tera by [@sahidvelji](https://github.com/sahidvelji) in [#1219](https://github.com/jdx/hk/pull/1219)
+- **(step)** recheck applied diffs by [@jdx](https://github.com/jdx) in [#1243](https://github.com/jdx/hk/pull/1243)
+- **(step)** allow configured command failures by [@jdx](https://github.com/jdx) in [#1291](https://github.com/jdx/hk/pull/1291)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** repair Go linters that report success on bad code by [@sahidvelji](https://github.com/sahidvelji) in [#1225](https://github.com/jdx/hk/pull/1225)
+- **(builtins)** broaden gomod_tidy glob to run tidy on .go changes by [@sahidvelji](https://github.com/sahidvelji) in [#1236](https://github.com/jdx/hk/pull/1236)
+- **(builtins)** stage gomod_tidy manifest updates by [@jdx](https://github.com/jdx) in [#1240](https://github.com/jdx/hk/pull/1240)
+- **(builtins)** recheck partial diff fixes by [@jdx](https://github.com/jdx) in [#1245](https://github.com/jdx/hk/pull/1245)
+- **(builtins)** correct gitleaks scan modes by [@jdx](https://github.com/jdx) in [#1248](https://github.com/jdx/hk/pull/1248)
+- **(stash)** skip empty pathspec stashes by [@jdx](https://github.com/jdx) in [#1283](https://github.com/jdx/hk/pull/1283)
+- **(step)** resolve Windows command shims by [@jdx](https://github.com/jdx) in [#1221](https://github.com/jdx/hk/pull/1221)
+- **(step)** relativize workspace paths to step directory by [@jdx](https://github.com/jdx) in [#1242](https://github.com/jdx/hk/pull/1242)
+
+### 📚 Documentation
+
+- clarify subproject monorepo setup by [@jdx](https://github.com/jdx) in [#1239](https://github.com/jdx/hk/pull/1239)
+- improve onboarding and navigation by [@jdx](https://github.com/jdx) in [#1247](https://github.com/jdx/hk/pull/1247)
+- disable code ligatures by [@jdx](https://github.com/jdx) in [#1264](https://github.com/jdx/hk/pull/1264)
+- publish llms.txt index by [@jdx](https://github.com/jdx) in [#1272](https://github.com/jdx/hk/pull/1272)
+
+### 🛡️ Security
+
+- add sponsor logos to readme by [@jdx](https://github.com/jdx) in [#1250](https://github.com/jdx/hk/pull/1250)
+
+### 🔍 Other Changes
+
+- **(ci)** adopt mbx for Rust builds by [@jdx](https://github.com/jdx) in [#1229](https://github.com/jdx/hk/pull/1229)
+- **(ci)** restrict trusted mbx runs to jdx by [@jdx](https://github.com/jdx) in [#1254](https://github.com/jdx/hk/pull/1254)
+- **(ci)** isolate mbx OIDC permissions by [@jdx](https://github.com/jdx) in [#1258](https://github.com/jdx/hk/pull/1258)
+- **(ci)** compare mbx with rust-cache by [@jdx](https://github.com/jdx) in [#1267](https://github.com/jdx/hk/pull/1267)
+- **(ci)** adopt mbx 0.5.4 by [@jdx](https://github.com/jdx) in [#1279](https://github.com/jdx/hk/pull/1279)
+- **(ci)** pin mr-boxington-action v1.0.1 by [@jdx](https://github.com/jdx) in [#1280](https://github.com/jdx/hk/pull/1280)
+- **(ci)** use default Rust for cache benchmark by [@jdx](https://github.com/jdx) in [#1284](https://github.com/jdx/hk/pull/1284)
+- **(ci)** bump mr-boxington action by [@jdx](https://github.com/jdx) in [#1282](https://github.com/jdx/hk/pull/1282)
+- **(ci)** use server cache for dispatched benchmarks by [@jdx](https://github.com/jdx) in [#1285](https://github.com/jdx/hk/pull/1285)
+- **(ci)** adopt mbx 0.7.0 by [@jdx](https://github.com/jdx) in [#1286](https://github.com/jdx/hk/pull/1286)
+- **(sponsors)** replace 37signals with omacom foundation by [@jdx](https://github.com/jdx) in [#1249](https://github.com/jdx/hk/pull/1249)
+- generate release notes before publishing by [@jdx](https://github.com/jdx) in [#1227](https://github.com/jdx/hk/pull/1227)
+- automate generated cli versions by [@jdx](https://github.com/jdx) in [#1252](https://github.com/jdx/hk/pull/1252)
+- seed mbx cache for fork PRs by [@jdx](https://github.com/jdx) in [#1262](https://github.com/jdx/hk/pull/1262)
+- notarize the macOS release binary by [@jdx](https://github.com/jdx) in [#1266](https://github.com/jdx/hk/pull/1266)
+- benchmark mbx against rust-cache on Linux by [@jdx](https://github.com/jdx) in [#1275](https://github.com/jdx/hk/pull/1275)
+- remove pinned rust toolchain by [@jdx](https://github.com/jdx) in [#1235](https://github.com/jdx/hk/pull/1235)
+- back mbx with the GitHub Actions cache alone by [@jdx](https://github.com/jdx) in [#1287](https://github.com/jdx/hk/pull/1287)
+
+### 📦️ Dependency Updates
+
+- update rust crate pklr to v1.5.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1222](https://github.com/jdx/hk/pull/1222)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1226](https://github.com/jdx/hk/pull/1226)
+- bump usage to 6.4.0 by [@jdx](https://github.com/jdx) in [#1228](https://github.com/jdx/hk/pull/1228)
+- update anthropics/claude-code-action action to v1.0.194 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1230](https://github.com/jdx/hk/pull/1230)
+- update jdx/mise-action action to v4.2.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1231](https://github.com/jdx/hk/pull/1231)
+- update rust crate demand to v2.1.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1241](https://github.com/jdx/hk/pull/1241)
+- update anthropics/claude-code-action action to v1.0.195 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1251](https://github.com/jdx/hk/pull/1251)
+- update rust crate pklr to v1.5.1 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1260](https://github.com/jdx/hk/pull/1260)
+- bump usage to 6.4.1 by [@jdx](https://github.com/jdx) in [#1273](https://github.com/jdx/hk/pull/1273)
+- bump tak and mbx by [@jdx](https://github.com/jdx) in [#1274](https://github.com/jdx/hk/pull/1274)
+- remove rust toolchain pins by [@jdx](https://github.com/jdx) in [#1276](https://github.com/jdx/hk/pull/1276)
+
+### New Contributors
+
+- @sahidvelji made their first contribution in [#1237](https://github.com/jdx/hk/pull/1237)
+
 ## [1.56.1](https://github.com/jdx/hk/compare/v1.56.0..v1.56.1) - 2026-08-23
 
 ### 🚜 Refactor

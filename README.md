@@ -50,8 +50,8 @@ The generated `hk.pkl` uses hk's built-in linter definitions, which you can exte
 needs different behavior:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.56.1/hk@1.56.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
   ["eslint"] = Builtins.eslint

@@ -185,6 +185,10 @@ pub struct Step {
     #[serde(default)]
     pub depends: Vec<String>,
 
+    /// Report command failures without failing the hook, optionally based on an expression
+    #[serde(default)]
+    pub allow_failure: AllowFailure,
+
     /// Custom shell to use (default: `sh -o errexit -c`)
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub shell: Option<Script>,
@@ -283,6 +287,19 @@ pub struct Step {
 
     /// Tool name included in normalized diagnostics (defaults to step name).
     pub diagnostic_tool: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(untagged)]
+pub enum AllowFailure {
+    Bool(bool),
+    Expression(String),
+}
+
+impl Default for AllowFailure {
+    fn default() -> Self {
+        Self::Bool(false)
+    }
 }
 
 impl fmt::Display for Step {
