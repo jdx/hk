@@ -28,7 +28,7 @@ hk solves this properly. Before running any fixers, hk stashes your unstaged cha
 
 This works even with partially staged hunks in a single file. If you `git add -p` to stage just one function, hk will lint that function, apply fixes to it, and leave your other unstaged changes in the file untouched.
 
-Other tools either don't stash at all (lefthook), or do basic stashing that can lose changes when fixers and unstaged edits touch the same file (pre-commit, prek).
+Other tools provide more limited stash handling. Lefthook [hides tracked, partially staged changes](https://github.com/evilmartians/lefthook/pull/402) for pre-commit hooks, but [does not hide untracked files](https://github.com/evilmartians/lefthook/issues/833). Pre-commit and prek use basic stashing that can lose changes when fixers and unstaged edits touch the same file.
 
 ## Built-in utilities
 
@@ -91,7 +91,7 @@ hk solves this with read/write file locks. Multiple linters can safely run in pa
 
 Other differences:
 - lefthook has no builtin linter definitions—you write shell commands directly in YAML
-- lefthook does not stash unstaged changes before running fix hooks, which can cause unstaged changes to be erroneously staged
+- lefthook only stashes tracked changes in partially staged files for pre-commit hooks; it does not stash untracked files
 - lefthook uses YAML; hk uses [Pkl](https://pkl-lang.org/) for type-safe configuration
 
 ## vs husky + lint-staged
@@ -114,9 +114,11 @@ Both require Node.js. If your project isn't a JS project, you're adding a runtim
 | Plugin model | Pkl config (local) | Git repos (remote) | Shell commands | Git repos (remote) |
 | check_diff support | Yes | No | No | No |
 | check_list_files support | Yes | No | No | No |
-| Stash management | Yes | Partial | No | Partial |
+| Stash management | Yes | Partial | Partial* | Partial |
 | Dependency resolution | Yes | No | No | No |
 | Batched execution | Yes | No | No | No |
+
+\* Lefthook hides tracked, partially staged changes during pre-commit hooks, but does not hide untracked files.
 
 *prek itself is Rust but many hooks in the pre-commit ecosystem require Python environments to run.
 
