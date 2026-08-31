@@ -10,7 +10,7 @@ communique                      = "latest"
 git-cliff                       = "latest"
 "github:crate-ci/cargo-release" = "latest"
 "github:foresterre/cargo-msrv"  = "latest"
-mr-boxington                    = { version = "1.2.0", postinstall = "mbx setup --global" }
+mr-boxington                    = "1.3.0"
 # Pinned rather than "latest" because tak is the measuring instrument: an
 # upgrade that changes how it samples would land in the series as a step change
 # in hk's numbers, indistinguishable from a real regression. Bump deliberately.
@@ -22,6 +22,10 @@ ripgrep          = "latest"
 taplo            = "latest"
 uv               = "latest"
 vhs              = "latest"
+
+[wrappers.cargo]
+command = "mbx"
+env = { MBX_CARGO_SHIM_MODE = "1" }
 
 # Instruction-counted benchmarks (see tak.toml). Needs valgrind for the counts;
 # without it tak reports wall clock only and says so, so this still works on

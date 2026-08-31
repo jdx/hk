@@ -4,8 +4,8 @@ See the [contributing guide](https://hk.jdx.dev/contributing).
 
 ## mbx build cache
 
-`mise install` installs [mbx](https://mr-boxington.jdx.dev) 1.2 and activates
-its transparent Cargo shim. The normal `mise run build`, `mise run test:cargo`,
+`mise install` installs [mbx](https://mr-boxington.jdx.dev) 1.3 and activates
+its transparent Cargo wrapper. The normal `mise run build`, `mise run test:cargo`,
 and `mise run lint` workflows therefore use the cache while invoking Cargo
 normally. To bypass mbx without skipping or weakening a check, prefix the
 equivalent Cargo command with `MBX_DISABLE=1`:
@@ -17,7 +17,7 @@ MBX_DISABLE=1 cargo clippy --manifest-path Cargo.toml --quiet -- -D warnings
 MBX_DISABLE=1 cargo +nightly check -Zwarnings --quiet
 ```
 
-If bypassed Cargo succeeds where the shim fails, or mbx introduces a papercut, please start a
+If bypassed Cargo succeeds where the wrapper fails, or mbx introduces a papercut, please start a
 [mr-boxington Discussion](https://github.com/jdx/mr-boxington/discussions).
 Include the repository and commit, operating system, `mbx --version`,
 `mbx doctor`, and both commands and their output. Before posting, redact
