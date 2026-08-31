@@ -16,14 +16,14 @@ local linters = new Mapping<String, Step | Group> {
   ["cargo-clippy"] = (Builtins.cargo_clippy) {
     profiles = List("slow")
     check = new CommandSpec {
-      command = "mbx clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
+      command = "cargo clippy --manifest-path {{workspace_indicator}} --quiet -- -D warnings"
       effect = "write"
     }
   }
   ["cargo-check"] = (Builtins.cargo_check) {
     profiles = List("!slow")
     check = new CommandSpec {
-      command = "mbx +nightly check -Zwarnings --quiet"
+      command = "cargo +nightly check -Zwarnings --quiet"
       effect = "write"
     }
   }
