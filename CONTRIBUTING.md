@@ -20,4 +20,6 @@ MBX_DISABLE=1 cargo +nightly check -Zwarnings --quiet
 If bypassed Cargo succeeds where the shim fails, or mbx introduces a papercut, please start a
 [mr-boxington Discussion](https://github.com/jdx/mr-boxington/discussions).
 Include the repository and commit, operating system, `mbx --version`,
-`mbx doctor`, and both commands and their output.
+`mbx doctor`, and both commands and their output. Before posting, redact
+secrets, absolute cache paths, remote URLs, namespaces, and other sensitive or
+identifying details.
