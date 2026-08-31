@@ -31,6 +31,9 @@ jobs:
     name: mbx (Linux)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # Main pushes authenticate to the cache server; its policy keeps other events read-only.
     outputs:
       seconds: ${{ steps.build.outputs.seconds }}
     steps:
@@ -38,6 +41,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/mbx
+        with:
+          backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
       - name: Build
         id: build
         shell: bash
@@ -98,13 +103,16 @@ jobs:
             echo
             echo "mbx delta: **${delta}** (positive means mbx was faster)."
             echo
-            echo "> Treat the first main-branch run as cache seeding. Compare workflow_dispatch runs after it. Build time excludes checkout and cache setup; compare those step durations separately."
+            echo "> The main-branch push seeds both backends. Compare them with the warm cache benchmark dispatched on main. Build time excludes checkout and cache setup; compare those step durations separately."
           } >> "$GITHUB_STEP_SUMMARY"
 
   mbx:
     name: mbx (macOS)
     runs-on: macos-14
     timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # Main pushes authenticate to the cache server; its policy keeps other events read-only.
     outputs:
       seconds: ${{ steps.build.outputs.seconds }}
     steps:
@@ -113,6 +121,7 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
+          backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
           # mbx 0.7.0 makes macOS debug links portable, so the benchmark
           # exercises them the way the Linux job already does.
           cache-links: "true"
@@ -176,13 +185,16 @@ jobs:
             echo
             echo "mbx delta: **${delta}** (positive means mbx was faster)."
             echo
-            echo "> Treat the first main-branch run as cache seeding. Compare workflow_dispatch runs after it. Build time excludes checkout and cache setup; compare those step durations separately."
+            echo "> The main-branch push seeds both backends. Compare them with the warm cache benchmark dispatched on main. Build time excludes checkout and cache setup; compare those step durations separately."
           } >> "$GITHUB_STEP_SUMMARY"
 
   mbx_windows:
     name: mbx (Windows)
     runs-on: windows-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # Main pushes authenticate to the cache server; its policy keeps other events read-only.
     outputs:
       seconds: ${{ steps.build.outputs.seconds }}
     steps:
@@ -190,6 +202,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/mbx
+        with:
+          backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
       - name: Build
         id: build
         shell: pwsh
@@ -252,5 +266,5 @@ jobs:
             echo
             echo "mbx delta: **${delta}** (positive means mbx was faster)."
             echo
-            echo "> Treat the first main-branch run as cache seeding. Compare workflow_dispatch runs after it. Build time excludes checkout and cache setup; compare those step durations separately."
+            echo "> The main-branch push seeds both backends. Compare them with the warm cache benchmark dispatched on main. Build time excludes checkout and cache setup; compare those step durations separately."
           } >> "$GITHUB_STEP_SUMMARY"
