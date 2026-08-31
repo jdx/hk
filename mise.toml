@@ -10,7 +10,7 @@ communique                      = "latest"
 git-cliff                       = "latest"
 "github:crate-ci/cargo-release" = "latest"
 "github:foresterre/cargo-msrv"  = "latest"
-mr-boxington                     = { version = "1.1.0", postinstall = "mbx setup --global" }
+mr-boxington                    = { version = "1.1.0", postinstall = "mbx setup --global" }
 # Pinned rather than "latest" because tak is the measuring instrument: an
 # upgrade that changes how it samples would land in the series as a step change
 # in hk's numbers, indistinguishable from a real regression. Bump deliberately.
