@@ -15,6 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=pkl/builtins");
     println!("cargo:rerun-if-changed=pkl/builtins_meta.json");
     println!("cargo:rerun-if-changed=settings.toml");
+    println!("cargo:rerun-if-env-changed=HK_REQUIRE_EMBEDDED_PKL");
 
     generate_builtins::generate(&out_dir)?;
     generate_settings::generate(&out_dir)?;

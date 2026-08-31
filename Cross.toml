@@ -1,3 +1,8 @@
+[build.env]
+# build.rs reads this to reject a build with no generated pkl sources. Cross
+# otherwise filters it out and the guard never reaches build.rs.
+passthrough = ["HK_REQUIRE_EMBEDDED_PKL"]
+
 [target.x86_64-unknown-linux-gnu]
 # Keep the release artifact compatible with older glibc distributions while
 # still running the instrumented binary on the newer CI host for training.
@@ -7,4 +12,6 @@ image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5"
 # scripts/pgo-bolt.bash sets profile-generate/profile-use and emit-relocs
 # through RUSTFLAGS. Cross otherwise filters the variable at the container
 # boundary and silently produces an uninstrumented build.
-passthrough = ["RUSTFLAGS"]
+# HK_REQUIRE_EMBEDDED_PKL is repeated from [build.env] in case a target list
+# replaces the build one rather than extending it.
+passthrough = ["RUSTFLAGS", "HK_REQUIRE_EMBEDDED_PKL"]
