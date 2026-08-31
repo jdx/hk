@@ -4,4 +4,4 @@
 
 set -eu
 
-mbx test --all --all-features
+cargo test --all --all-features
