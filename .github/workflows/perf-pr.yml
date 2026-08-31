@@ -23,7 +23,7 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.pull_requests[0].number }}
   cancel-in-progress: true
 
 env:
@@ -256,6 +256,7 @@ jobs:
           HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          mkdir -p /tmp/tak-out
           status=$(cat /tmp/tak-out/status 2>/dev/null || echo 2)
           if [ "$status" -eq 0 ]; then
             conclusion=success
