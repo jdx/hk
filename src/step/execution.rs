@@ -447,7 +447,7 @@ impl Step {
         stage_globs.retain(|g| !g.is_empty());
         // Ignore directory-only patterns (ending with '/'); staging should target files
         stage_globs.retain(|g| !g.ends_with('/'));
-        trace!("{}: stage globs: {:?}", self, &stage_globs);
+        trace!("{}: stage globs: {:?}", self, stage_globs);
         let stage_pathspecs: Vec<OsString> =
             stage_globs.iter().cloned().map(OsString::from).collect();
         if !stage_pathspecs.is_empty() || stage_only_job_files {
@@ -533,7 +533,7 @@ impl Step {
 
             trace!(
                 "{}: files to stage after filtering/scoping: {:?}",
-                self, &filtered
+                self, filtered
             );
             if !filtered.is_empty() {
                 // Snapshot pre-staging untracked set for classification

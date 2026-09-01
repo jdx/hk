@@ -1191,14 +1191,14 @@ impl Git {
                         && git_cmd_silent([
                             "cat-file",
                             "-e",
-                            &format!("{}^3:{}", &stash_ref, path_str),
+                            &format!("{}^3:{}", stash_ref, path_str),
                         ])
                         .run()
                         .is_ok()
                         && git_cmd_silent([
                             "cat-file",
                             "-e",
-                            &format!("{}^2:{}", &stash_ref, path_str),
+                            &format!("{}^2:{}", stash_ref, path_str),
                         ])
                         .run()
                         .is_err();
@@ -1212,7 +1212,7 @@ impl Git {
                         if let Ok(contents) = git_read_bytes([
                             "cat-file",
                             "-p",
-                            &format!("{}^3:{}", &stash_ref, path_str),
+                            &format!("{}^3:{}", stash_ref, path_str),
                         ]) {
                             if let Err(err) = xx::file::write(&path, &contents) {
                                 warn!(
@@ -1248,7 +1248,7 @@ impl Git {
                     } else {
                         fixer_worktree_paths.contains(&path)
                     };
-                    let work_ref = format!("{}:{}", &stash_ref, path_str);
+                    let work_ref = format!("{}:{}", stash_ref, path_str);
                     let work_size = git_cmd_silent(["cat-file", "-s", &work_ref])
                         .read()
                         .ok()
@@ -1372,12 +1372,12 @@ impl Git {
                     .or_else(|| work_bytes.and_then(|b| String::from_utf8(b).ok()));
                     // Parent ^1 of the stash commit points to the HEAD commit at stash time
                     let base_pre =
-                        git_read_raw(["cat-file", "-p", &format!("{}^1:{}", &stash_ref, path_str)])
+                        git_read_raw(["cat-file", "-p", &format!("{}^1:{}", stash_ref, path_str)])
                             .ok();
                     // Parent ^2 is the index at stash time. Use this to detect whether the path had
                     // any unstaged changes then (worktree vs index).
                     let index_pre =
-                        git_read_raw(["cat-file", "-p", &format!("{}^2:{}", &stash_ref, path_str)])
+                        git_read_raw(["cat-file", "-p", &format!("{}^2:{}", stash_ref, path_str)])
                             .ok();
                     // Fixer content comes from the index when fixes were staged, or from the
                     // isolated post-step worktree when staging was disabled.
@@ -1626,7 +1626,7 @@ impl Git {
 
     pub fn add(&self, pathspecs: &[PathBuf]) -> Result<()> {
         let pathspecs = pathspecs.iter().collect_vec();
-        trace!("adding files: {:?}", &pathspecs);
+        trace!("adding files: {:?}", pathspecs);
         if let Some(repo) = &self.repo {
             let mut index = repo.index().wrap_err("failed to get index")?;
             index

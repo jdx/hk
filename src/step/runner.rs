@@ -472,7 +472,7 @@ impl Step {
                     }
                     self.collect_failure_hint(ctx, &e.3.combined_output);
                     if job.check_first && matches!(job.run_type, RunType::Check) {
-                        return Err(Error::CheckListFailed {
+                        Err(Error::CheckListFailed {
                             source: eyre::eyre!("{}", err),
                             stdout: e.3.stdout.clone(),
                             stderr: e.3.stderr.clone(),
