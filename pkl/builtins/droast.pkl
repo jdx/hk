@@ -7,19 +7,19 @@ import "./test/helpers.pkl"
   description = "Dockerfile linter for security, layer hygiene, and best-practice violations"
   project_indicators {
     new { file = "Dockerfile" }
-    new { glob = "**/Dockerfile*" }
-    new { glob = "**/Containerfile*" }
+    new { file = "Containerfile" }
   }
 }
 droast = new Config.Step {
-  glob = List(
-    "**/Dockerfile",
-    "**/Dockerfile.*",
-    "**/*.Dockerfile",
-    "**/*.dockerfile",
-    "**/Containerfile",
-    "**/Containerfile.*",
-  )
+  glob =
+    List(
+      "**/Dockerfile",
+      "**/Dockerfile.*",
+      "**/*.Dockerfile",
+      "**/*.dockerfile",
+      "**/Containerfile",
+      "**/Containerfile.*",
+    )
   check = new Config.CommandSpec {
     command = new Config.Command { argv = List("droast", "{{files}}") }
     effect = "read"
@@ -33,7 +33,10 @@ droast = new Config.Step {
     ["check bad file"] = testMaker.checkFail("FROM debian:bookworm\nEXPOSE 99999\n", 1)
     ["check good file"] = testMaker.checkPass("FROM debian:bookworm\n")
     ["fix bad file"] =
-      testMaker.fixPass("FROM debian:bookworm\nEXPOSE 80/TCP\n", "FROM debian:bookworm\nEXPOSE 80/tcp\n")
+      testMaker.fixPass(
+        "FROM debian:bookworm\nEXPOSE 80/TCP\n",
+        "FROM debian:bookworm\nEXPOSE 80/tcp\n",
+      )
     ["fix good file"] = testMaker.fixPass("FROM debian:bookworm\n", "FROM debian:bookworm\n")
   }
 }
