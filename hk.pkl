@@ -23,7 +23,7 @@ local linters = new Mapping<String, Step | Group> {
   ["cargo-check"] = (Builtins.cargo_check) {
     profiles = List("!slow")
     check = new CommandSpec {
-      command = "cargo +nightly check -Zwarnings --quiet"
+      command = "cargo check --quiet"
       effect = "write"
     }
   }

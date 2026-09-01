@@ -15,7 +15,7 @@ equivalent Cargo command with `MBX_DISABLE=1`:
 MBX_DISABLE=1 cargo build
 MBX_DISABLE=1 cargo test --all --all-features
 MBX_DISABLE=1 cargo clippy --manifest-path Cargo.toml --quiet -- -D warnings
-MBX_DISABLE=1 cargo +nightly check -Zwarnings --quiet
+CARGO_BUILD_WARNINGS=deny MBX_DISABLE=1 cargo check --quiet
 ```
 
 If bypassed Cargo succeeds where the wrapper fails, or mbx introduces a papercut, please start a
