@@ -511,6 +511,27 @@ EOF
     assert_output --partial "project step"
 }
 
+@test "hkrc: XDG config provides scalar pkl settings" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+EOF
+
+    export HK_CONFIG_DIR="$TEST_TEMP_DIR/.config/hk"
+    mkdir -p "$HK_CONFIG_DIR"
+    cat <<EOF > "$HK_CONFIG_DIR/config.pkl"
+amends "$PKL_PATH/Config.pkl"
+stash_backup_count = 0
+terminal_progress = false
+walk_ignore = false
+EOF
+
+    run hk config dump
+    assert_success
+    [ "$(echo "$output" | jq -r '.stash_backup_count')" = "0" ]
+    [ "$(echo "$output" | jq -r '.terminal_progress')" = "false" ]
+    [ "$(echo "$output" | jq -r '.walk_ignore')" = "false" ]
+}
+
 @test "hkrc: CWD hkrc wins over home hkrc" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
