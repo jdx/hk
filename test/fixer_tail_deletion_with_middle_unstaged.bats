@@ -72,7 +72,9 @@ deps:
 
 EOF
 
-    run bash -lc 'git -c commit.gpgsign=false commit -m "redis"'
+    # Not a login shell: macOS path_helper would put /usr/bin/git first, and an
+    # older git ignores the config-based hook hk installed, skipping the fixer.
+    run bash -c 'git -c commit.gpgsign=false commit -m "redis"'
     echo "$output"
     assert_success
 
