@@ -1,3 +1,5 @@
+min_version = "2026.8.16"
+
 [env]
 _.path = ["test/bats/bin", "{{ env.CARGO_TARGET_DIR | default(value='target') }}/debug", "node_modules/.bin"]
 
@@ -25,7 +27,7 @@ vhs              = "latest"
 
 [wrappers.cargo]
 command = "mbx"
-env = { MBX_CARGO_SHIM_MODE = "1" }
+env     = { MBX_CARGO_SHIM_MODE = "1" }
 
 # Instruction-counted benchmarks (see tak.toml). Needs valgrind for the counts;
 # without it tak reports wall clock only and says so, so this still works on
