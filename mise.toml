@@ -51,4 +51,4 @@ run     = "tak run --record"
 
 [tasks."renovate:post-update"]
 description = "Regenerate files derived from JavaScript dependencies"
-run = "./scripts/build_mcp_ui"
+run         = "./scripts/build_mcp_ui"
