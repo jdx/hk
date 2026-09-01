@@ -437,6 +437,7 @@ impl Config {
         Ok(())
     }
 
+    /// Merge Config-format user settings as fallbacks while preserving project values.
     fn merge_from_hkrc(&mut self, hkrc: Config) {
         // Environment: project wins. hkrc values are set only if not defined by project.
         // set_var is unsafe in Rust 2024 but required so child processes inherit these.
