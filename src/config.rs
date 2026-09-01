@@ -437,6 +437,7 @@ impl Config {
         Ok(())
     }
 
+    /// Merge Config-format user settings as fallbacks while preserving project values.
     fn merge_from_hkrc(&mut self, hkrc: Config) {
         // Environment: project wins. hkrc values are set only if not defined by project.
         // set_var is unsafe in Rust 2024 but required so child processes inherit these.
@@ -462,6 +463,9 @@ impl Config {
         self.skip_steps = self.skip_steps.take().or(hkrc.skip_steps);
         self.default_branch = self.default_branch.take().or(hkrc.default_branch);
         self.min_hk_version = self.min_hk_version.take().or(hkrc.min_hk_version);
+        self.stash_backup_count = self.stash_backup_count.or(hkrc.stash_backup_count);
+        self.terminal_progress = self.terminal_progress.or(hkrc.terminal_progress);
+        self.walk_ignore = self.walk_ignore.or(hkrc.walk_ignore);
 
         // Hooks: additive, project wins on same-named step collision
         for (hook_name, hkrc_hook) in hkrc.hooks {
@@ -1001,9 +1005,12 @@ pub struct Config {
     pub profiles: Option<Vec<String>>,
     pub skip_hooks: Option<Vec<String>>,
     pub skip_steps: Option<Vec<String>>,
+    pub stash_backup_count: Option<usize>,
     /// Directories (or glob patterns) containing their own hk config files.
     /// Their hooks are merged into this config, scoped to the subdirectory.
     pub subprojects: Option<Vec<String>>,
+    pub terminal_progress: Option<bool>,
+    pub walk_ignore: Option<bool>,
 }
 
 impl std::fmt::Display for Config {

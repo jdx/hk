@@ -18,6 +18,21 @@ teardown() {
     echo "$output" | grep -q '"exclude"'
 }
 
+@test "hk config dump includes scalar settings from pkl" {
+    cat > hk.pkl << EOF
+amends "$PKL_PATH/Config.pkl"
+stash_backup_count = 0
+terminal_progress = false
+walk_ignore = false
+EOF
+
+    run hk config dump
+    [ "$status" -eq 0 ]
+    [ "$(echo "$output" | jq -r '.stash_backup_count')" = "0" ]
+    [ "$(echo "$output" | jq -r '.terminal_progress')" = "false" ]
+    [ "$(echo "$output" | jq -r '.walk_ignore')" = "false" ]
+}
+
 @test "hk config get retrieves specific values" {
     run hk config get fail_fast
     [ "$status" -eq 0 ]
