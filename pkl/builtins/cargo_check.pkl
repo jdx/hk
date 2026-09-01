@@ -8,10 +8,8 @@ import "./test/helpers.pkl"
 }
 cargo_check = new Config.Step {
   glob = "**/*.rs"
-  // NB: We need nightly to enable `warnings` unstable feature: https://doc.rust-lang.org/cargo/reference/unstable.html#warnings
-  // (See the comment for `CARGO_BUILD_WARNINGS` below)
   check = new Config.CommandSpec {
-    command = "cargo +nightly check -Zwarnings --quiet"
+    command = "cargo check --quiet"
     effect = "write"
   }
   fix = new Config.CommandSpec {
@@ -20,8 +18,8 @@ cargo_check = new Config.Step {
   }
   env {
     ["CARGO_TERM_COLOR"] = "{% if color %}always{% else %}never{% endif %}"
-    // NB: This is needed to treat warnings as errors.
-    // (which, since `cargo fix` will maintain parity between `check` and `fix`)
+    // Treat warnings as errors while keeping `check` and `fix` in parity.
+    // Cargo stabilized build.warnings in 1.97.
     ["CARGO_BUILD_WARNINGS"] = "deny"
   }
   tests {
