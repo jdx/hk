@@ -163,7 +163,7 @@ cmd check help="Run the check hook" {
     long_help #"""
 Run the check hook
 
-Reports problems without modifying files. If the `check` hook sets `fix = true` in `hk.pkl`, or `--fix` is passed, hk runs fix commands instead and can modify and stage files.
+Runs each step's check command, which by convention only reports problems. If the `check` hook sets `fix = true` in `hk.pkl`, or `--fix` is passed, hk runs fix commands instead and can modify and stage files.
 """#
     use hook-options
     flag "-h --help" help="Print help" action=help builtin=#true
@@ -240,7 +240,7 @@ cmd fix help="Run the fix hook" {
     long_help #"""
 Run the fix hook
 
-Runs each step's fix command to modify files in place. Passing `--check`, or setting `HK_CHECK=1` or `HK_FIX=0`, runs the read-only check commands instead.
+Runs each step's fix command to modify files in place. Passing `--check`, or setting `HK_FIX=0`, runs each step's check command instead.
 """#
     use hook-options
     flag "-h --help" help="Print help" action=help builtin=#true

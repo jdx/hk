@@ -28,9 +28,13 @@ The cache directory to use.
 Type: `bool`
 Default: `false`
 
-Forces hk to run only check commands (read-only) instead of fix commands. This is the opposite of `HK_FIX` and is equivalent to passing `--check`.
+> [!WARNING]
+> This variable currently has no effect on which commands hk runs. It is accepted and
+> reported by `hk config dump`, but nothing reads it when selecting check or fix
+> commands. Use `HK_FIX=0` or the `--check` flag instead.
 
-Useful for CI environments where you want to verify code quality without making changes.
+Intended as the opposite of `HK_FIX`: force check commands instead of fix commands, for
+CI environments where you want to verify code quality without making changes.
 
 ## `HK_CHECK_FIRST`
 
@@ -106,7 +110,7 @@ The config file to use. Setting this skips the normal [config file search](/conf
 Type: `bool`
 Default: `true`
 
-If set to `false`, hooks run their check commands instead of their fix commands. Passing `--fix` overrides it for a single run; use [`HK_CHECK`](#hk-check) or `--check` to force check commands unconditionally.
+If set to `false`, hooks run their check commands instead of their fix commands. Passing `--fix` overrides it for a single run; `--check` forces check commands unconditionally.
 
 ## `HK_HIDE_WARNINGS`
 

@@ -7,7 +7,7 @@
 
 Run the check hook
 
-Reports problems without modifying files. If the `check` hook sets `fix = true` in `hk.pkl`, or `--fix` is passed, hk runs fix commands instead and can modify and stage files.
+Runs each step's check command, which by convention only reports problems. If the `check` hook sets `fix = true` in `hk.pkl`, or `--fix` is passed, hk runs fix commands instead and can modify and stage files.
 
 ## Arguments
 
