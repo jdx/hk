@@ -5,13 +5,13 @@
 - **Usage:** `hk config dump [--format <FORMAT>]`
 - **Effect:** read-only
 
-Print effective runtime settings (JSON format)
+Print the effective runtime settings
 
-Shows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config.
+Shows the merged configuration from all sources, including CLI flags, environment variables, git config, project config, and user config.
 
 ## Flags
 
-- **`--format <FORMAT>`** — Output format (json or toml)
+- **`--format <FORMAT>`** — Output format
 
   **Choices:** `json`, `toml`
 

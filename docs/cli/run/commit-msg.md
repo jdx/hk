@@ -5,6 +5,8 @@
 - **Usage:** `hk run commit-msg [FLAGS] <COMMIT_MSG_FILE> [FILES]…`
 - **Aliases:** `cm`
 
+Run the commit-msg hook
+
 ## Arguments
 
 - **`<COMMIT_MSG_FILE>`** — The path to the file that contains the commit message

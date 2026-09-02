@@ -589,11 +589,24 @@ impl Hook {
     }
 
     fn run_type(&self, opts: &HookOptions) -> RunType {
+        // `--check` and `--fix` are hook options rather than global flags, so
+        // they never reach the settings layer (CLI_SNAPSHOT carries only the
+        // global ones). Honor them first so a flag still outranks the env and
+        // git config sources consulted below.
         if opts.check {
             return RunType::Check;
         }
+        if opts.fix {
+            return RunType::Fix;
+        }
+        let settings = Settings::get();
+        // `check` wins over `fix` when both are set, since the safer reading of
+        // a contradictory configuration is to leave files alone.
+        if settings.check {
+            return RunType::Check;
+        }
         let fix = self.fix.unwrap_or(self.name == "fix");
-        if (*env::HK_FIX && fix) || opts.fix {
+        if settings.fix && fix {
             RunType::Fix
         } else {
             RunType::Check

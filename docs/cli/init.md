@@ -6,7 +6,7 @@
 - **Aliases:** `generate`
 - **Effect:** modifies state
 
-Generates a new hk.pkl file for a project
+Generate a new hk.pkl file for a project
 
 ## Flags
 
@@ -14,6 +14,6 @@ Generates a new hk.pkl file for a project
 - **`-i --interactive`** — Interactive mode: select linters and hooks manually
 - **`--mise`** — Generate a mise.toml file with hk configured
 
-  Set HK_MISE=1 to make this default behavior.
+  Set HK_MISE=1 to make this the default behavior.
 
 - **`-h --help`** — Print help

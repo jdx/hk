@@ -4,6 +4,8 @@
 
 - **Usage:** `hk run pre-rebase [FLAGS] <ARGS>…`
 
+Run the pre-rebase hook
+
 ## Arguments
 
 - **`<UPSTREAM>`** — The upstream from which the series was forked

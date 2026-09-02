@@ -1,7 +1,7 @@
 # mise integration
 
-Most git-hook managers provide features that hk's sister project, [mise-en-place](https://github.com/jdx/mise), already provides. For this reason, you will want to use mise and hk together if you'd like
-to use any of the features described below.
+Many git hook managers build in features that hk's sister project, [mise-en-place](https://github.com/jdx/mise), already provides. hk leaves those to mise, so use mise and hk together if you want
+any of the features described below.
 
 To default hk to enable these mise features, set [`HK_MISE=1`](/environment_variables#hk-mise).
 
@@ -11,20 +11,20 @@ Setting `HK_MISE=1` will wrap your Git hooks with `mise x`. This ensures that mi
 
 ## `hk init --mise`
 
-Use the `--mise` flag on generate to have hk create a new `mise.toml`
-file in the root of the repository that installs hk and defines a `pre-commit` task so users can run `mise run pre-commit` as a "shortcut" for `hk run pre-commit`. Of course, that's actually longer, but the advantage here is that tasks can be used consistently for all the project actions, not just git hooks.
+Use the `--mise` flag on `hk init` to have hk create a new `mise.toml`
+file in the root of the repository that installs hk and defines a `pre-commit` task, so users can run `mise run pre-commit` as a "shortcut" for `hk run pre-commit`. Of course, that's actually longer, but the advantage is that tasks can be used consistently for all project actions, not just git hooks.
 
 ## `hk install --mise`
 
-Use the `--mise` flag on install to make the hook use `mise x` to execute the hooks. This will setup the mise environment (namely, add tools to PATH) for them to be used in hk.
+Use the `--mise` flag on `hk install` to make the installed hooks run hk through `mise x`. This sets up the mise environment (namely, adding tools to `PATH`) before hk runs.
 
-By using `mise x`, other developers will not need to have mise already activated in their environment to use the hooks. It's useful for working
+With `mise x`, other developers do not need mise activated in their shell to use the hooks. It's useful for working
 with developers who don't typically use mise but want hooks on a particular project to work with the tools defined in `mise.toml`.
 
 ## Tool Management
 
-mise's tool management feature lets you define the version of all of the tools used in `hk.pkl` in a single place. To use, run `mise use` on
-all the tools you wish to use:
+mise's tool management lets you pin the versions of all the tools used in `hk.pkl` in a single place. Run `mise use` for
+each tool you want to manage:
 
 ```sh
 mise use hk
@@ -36,11 +36,10 @@ This will create a `mise.toml` file that can be committed into the project. See 
 
 ## Task Management
 
-[mise tasks](https://mise.jdx.dev/tasks/) can be used inside hk steps
-which provide a lot of functionality like dependency management, option
-parsing, parallel execution, and more.
+[mise tasks](https://mise.jdx.dev/tasks/) can be used inside hk steps.
+They provide dependency management, option parsing, parallel execution, and more.
 
-Just run mise in `hk.pkl` like any other command:
+Run `mise run` in `hk.pkl` like any other command:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
@@ -60,7 +59,7 @@ hooks {
 
 ## Environment Variables
 
-You can define an `[env]` section in `mise.toml` for defining env vars to be used in the hooks:
+You can define an `[env]` section in `mise.toml` to set environment variables for the hooks:
 
 ```toml
 [env]
@@ -102,7 +101,6 @@ By setting `HK_MISE=1` and using a `postinstall` hook, you can automate hook ins
 ```toml
 [tools]
 hk = "latest"
-pkl = "latest"
 # ... other tools like prettier, actionlint, etc.
 
 [env]

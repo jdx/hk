@@ -54,11 +54,11 @@ sources.cli = ["--check", "-c"]
 sources.env = ["HK_CHECK"]
 sources.git = ["hk.check"]
 docs = """
-Forces hk to run only check commands (read-only) instead of fix commands.
+Forces hooks to run their check commands instead of their fix commands.
 
-This is the opposite of the `fix` setting. When enabled, hk will report issues without attempting to fix them.
+This is the opposite of the `fix` setting, and wins over it when both are enabled. The `--check` and `--fix` flags outrank both.
 
-Useful for CI environments where you want to verify code quality without making changes.
+Useful for CI environments where you want a report rather than fixes. By convention a check command only reports problems, but hk does not enforce that, so this selects which command runs rather than guaranteeing an unchanged worktree.
 """
 
 [check_first]
@@ -132,12 +132,12 @@ sources.cli = ["--fix", "-f"]
 sources.env = ["HK_FIX"]
 sources.git = ["hk.fix"]
 docs = """
-Controls whether hk runs fix commands (that modify files) or check commands (read-only).
+Controls whether hk runs each step's fix command or its check command.
 
 When enabled (default), runs fix commands to automatically resolve issues.
-When disabled, only runs check commands to report issues without making changes.
+When disabled, runs check commands, which by convention only report issues.
 
-Can be toggled with `--fix` / `--check` CLI flags.
+Can be toggled with `--fix` / `--check` CLI flags, which outrank this setting. The `check` setting wins over this one when both are enabled.
 """
 
 [hide_warnings]

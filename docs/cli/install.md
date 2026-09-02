@@ -6,7 +6,7 @@
 - **Aliases:** `i`
 - **Effect:** modifies state
 
-Sets up git hooks to run hk.
+Set up git hooks to run hk.
 
 The recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.
 
@@ -25,10 +25,9 @@ If hk is already configured globally (any `hook.hk-*` entry in `~/.gitconfig`), 
   repos without an `hk.pkl`, the installed hook is a silent no-op.
 - **`--legacy`** — Force using the legacy `.git/hooks/` script shims instead of Git
   2.54+ config-based hooks. Not compatible with `--global`.
-- **`--mise`** — Use `mise x` to execute hooks. With this, it won't
-  be necessary to activate mise in order to run hooks
-  with mise tools.
+- **`--mise`** — Run hooks through `mise x` so mise-managed tools are available
+  without activating mise in the shell.
 
-  Set HK_MISE=1 to make this default behavior.
+  Set HK_MISE=1 to make this the default behavior.
 
 - **`-h --help`** — Print help

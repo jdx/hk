@@ -5,7 +5,7 @@
 - **Usage:** `hk util check-conventional-commit [--allowed-types <ALLOWED_TYPES>] <COMMIT_MSG_FILE>`
 - **Effect:** read-only
 
-Check for conventional commit message
+Check that a commit message follows the Conventional Commits format
 
 Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.
 
@@ -15,7 +15,7 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
 
 ## Flags
 
-- **`--allowed-types <ALLOWED_TYPES>`**
+- **`--allowed-types <ALLOWED_TYPES>`** — Comma-separated list of commit types to accept
 
   **Default:** `build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test`
 

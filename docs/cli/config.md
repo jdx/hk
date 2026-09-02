@@ -6,9 +6,9 @@
 - **Aliases:** `cfg`
 - **Effect:** read-only
 
-Configuration introspection and management
+Inspect hk's configuration
 
-View and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.
+View hk's effective configuration and where each value comes from. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > Git config (global) > Project config (hk.pkl) > User config (~/.config/hk/config.pkl) > Built-in defaults.
 
 ## Flags
 

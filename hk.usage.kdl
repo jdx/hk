@@ -90,18 +90,18 @@ flag --hkrc help="Path to user configuration file (deprecated: use ~/.config/hk/
 flag "-j --jobs" help="Number of jobs to run in parallel" global=#true {
     arg <JOBS>
 }
-flag "-p --profile" help="Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast" global=#true var=#true {
+flag "-p --profile" help="Profiles to enable or disable. Prefix a profile with ! to disable it, e.g. --profile slow --profile !fast" global=#true var=#true {
     arg <PROFILE>
 }
 flag "-s --slow" help="Shorthand for --profile=slow" global=#true
-flag "-v --verbose" help="Enables verbose output" global=#true count=#true var=#true {
+flag "-v --verbose" help="Enable verbose (debug) output. Pass twice for trace output" global=#true count=#true var=#true {
     overrides --quiet --silent
 }
-flag "-n --no-progress" help="Disables progress output" global=#true
-flag "-q --quiet" help="Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown" global=#true {
+flag "-n --no-progress" help="Disable progress output" global=#true
+flag "-q --quiet" help="Suppress non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown" global=#true {
     overrides --verbose --silent
 }
-flag --silent help="Suppresses all output including warnings. Only errors are shown" global=#true {
+flag --silent help="Suppress all output except errors, including warnings" global=#true {
     overrides --quiet --verbose
 }
 flag --trace help="Enable tracing spans and performance diagnostics" global=#true
@@ -112,7 +112,7 @@ complete directory type=dir
 cmd agent help="Generate integration snippets for coding agents" effect=read subcommand_required=#true {
     flag "-h --help" help="Print help" action=help builtin=#true
     cmd hooks help="Print a hook configuration for an agent or editor" effect=read {
-        flag --target required=#true {
+        flag --target help="Agent or editor to generate the hook configuration for" required=#true {
             arg <TARGET> {
                 choices {
                     choice codex
@@ -124,7 +124,7 @@ cmd agent help="Generate integration snippets for coding agents" effect=read sub
         flag "-h --help" help="Print help" action=help builtin=#true
     }
     cmd instructions help="Print project instructions for a coding agent" effect=read {
-        flag --target required=#true {
+        flag --target help="Agent to generate the instructions for" required=#true {
             arg <TARGET> {
                 choices {
                     choice codex
@@ -136,7 +136,7 @@ cmd agent help="Generate integration snippets for coding agents" effect=read sub
         flag "-h --help" help="Print help" action=help builtin=#true
     }
     cmd mcp help="Print an MCP server configuration" effect=read {
-        flag --target required=#true {
+        flag --target help="MCP host to generate the server configuration for" required=#true {
             arg <TARGET> {
                 choices {
                     choice codex
@@ -149,7 +149,7 @@ cmd agent help="Generate integration snippets for coding agents" effect=read sub
         flag "-h --help" help="Print help" action=help builtin=#true
     }
 }
-cmd builtins help="Lists all available builtin linters" effect=read {
+cmd builtins help="List all available builtin linters" effect=read {
     flag "-h --help" help="Print help" action=help builtin=#true
 }
 cmd cache help="Manage hk internal cache" hide=#true effect=read subcommand_required=#true {
@@ -158,8 +158,13 @@ cmd cache help="Manage hk internal cache" hide=#true effect=read subcommand_requ
         flag "-h --help" help="Print help" action=help builtin=#true
     }
 }
-cmd check help="Checks code" {
+cmd check help="Run the check hook" {
     alias c
+    long_help #"""
+Run the check hook
+
+Runs each step's check command, which by convention only reports problems. If the `check` hook sets `fix = true` in `hk.pkl`, or `--fix` is passed, hk runs fix commands instead and can modify and stage files.
+"""#
     use hook-options
     flag "-h --help" help="Print help" action=help builtin=#true
     arg "[FILES]..." help="Run on specific files" {
@@ -170,7 +175,7 @@ cmd check help="Checks code" {
     complete glob type=path
     complete path type=path
 }
-cmd completion help="Generates shell completion scripts" effect=read {
+cmd completion help="Generate shell completion scripts" effect=read {
     flag --install help="Install the script where this shell looks for it, instead of printing it" effect=write {
         long_help #"""
 Install the script where this shell looks for it, instead of printing it
@@ -182,21 +187,21 @@ Writes the script file and nothing else: no shell rc file and no PowerShell prof
     flag "-h --help" help="Print help" action=help builtin=#true
     arg <SHELL> help="The shell to generate completion for"
 }
-cmd config help="Configuration introspection and management" effect=read {
+cmd config help="Inspect hk's configuration" effect=read {
     alias cfg
     long_help #"""
-Configuration introspection and management
+Inspect hk's configuration
 
-View and inspect hk's configuration from all sources. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) > Git config (global) > Project config (hk.pkl) > Built-in defaults.
+View hk's effective configuration and where each value comes from. Configuration is merged from multiple sources in precedence order: CLI flags > Environment variables > Git config (local) > Git config (global) > Project config (hk.pkl) > User config (~/.config/hk/config.pkl) > Built-in defaults.
 """#
     flag "-h --help" help="Print help" action=help builtin=#true
-    cmd dump help="Print effective runtime settings (JSON format)" effect=read {
+    cmd dump help="Print the effective runtime settings" effect=read {
         long_help #"""
-Print effective runtime settings (JSON format)
+Print the effective runtime settings
 
-Shows the merged configuration from all sources including CLI flags, environment variables, git config, user config, and project config.
+Shows the merged configuration from all sources, including CLI flags, environment variables, git config, project config, and user config.
 """#
-        flag --format help="Output format (json or toml)" default=json {
+        flag --format help="Output format" default=json {
             arg <FORMAT> {
                 choices json toml
             }
@@ -207,7 +212,7 @@ Shows the merged configuration from all sources including CLI flags, environment
         long_help #"""
 Explain where a configuration value comes from
 
-Shows the resolved value, its source (env/git/cli/default), and the full precedence chain showing all layers that could affect it.
+Shows the resolved value, the source it came from (cli, env, git, pkl, or defaults), and every layer that could affect it, in precedence order.
 """#
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <KEY> help="Configuration key to explain"
@@ -216,28 +221,27 @@ Shows the resolved value, its source (env/git/cli/default), and the full precede
         long_help #"""
 Get a specific configuration value
 
-Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
+Accepts any setting name shown by `hk config dump` (for example fail_fast, exclude, or skip_steps) plus jobs, enabled_profiles, and disabled_profiles.
 """#
         flag "-h --help" help="Print help" action=help builtin=#true
-        arg <KEY> help="Configuration key to retrieve" {
-            long_help #"""
-Configuration key to retrieve
-
-Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
-"""#
-        }
+        arg <KEY> help="Configuration key to retrieve"
     }
     cmd sources help="Show the configuration source precedence order" effect=read {
         long_help #"""
 Show the configuration source precedence order
 
-Lists all configuration sources in order of precedence to help understand where configuration values come from.
+Lists every configuration source from highest to lowest precedence.
 """#
         flag "-h --help" help="Print help" action=help builtin=#true
     }
 }
-cmd fix help="Fixes code" {
+cmd fix help="Run the fix hook" {
     alias f
+    long_help #"""
+Run the fix hook
+
+Runs each step's fix command to modify files in place. Passing `--check`, or setting `HK_CHECK=1` or `HK_FIX=0`, runs each step's check command instead.
+"""#
     use hook-options
     flag "-h --help" help="Print help" action=help builtin=#true
     arg "[FILES]..." help="Run on specific files" {
@@ -248,7 +252,7 @@ cmd fix help="Fixes code" {
     complete glob type=path
     complete path type=path
 }
-cmd init help="Generates a new hk.pkl file for a project" effect=write {
+cmd init help="Generate a new hk.pkl file for a project" effect=write {
     alias generate
     flag "-f --force" help="Overwrite existing hk.pkl file"
     flag "-i --interactive" help="Interactive mode: select linters and hooks manually"
@@ -256,15 +260,15 @@ cmd init help="Generates a new hk.pkl file for a project" effect=write {
         long_help #"""
 Generate a mise.toml file with hk configured
 
-Set HK_MISE=1 to make this default behavior.
+Set HK_MISE=1 to make this the default behavior.
 """#
     }
     flag "-h --help" help="Print help" action=help builtin=#true
 }
-cmd install help="Sets up git hooks to run hk." effect=write {
+cmd install help="Set up git hooks to run hk." effect=write {
     alias i
     long_help #"""
-Sets up git hooks to run hk.
+Set up git hooks to run hk.
 
 The recommended setup is `hk install --global`, which installs hooks once into the user's `~/.gitconfig` so every repository on the machine picks them up automatically. In a project without an `hk.pkl`, the installed hook exits silently — no-op — so it's safe to enable everywhere. Requires Git 2.54+.
 
@@ -288,21 +292,19 @@ Force using the legacy `.git/hooks/` script shims instead of Git
 2.54+ config-based hooks. Not compatible with `--global`.
 """# conflicts=--global
     flag --mise help=#"""
-Use `mise x` to execute hooks. With this, it won't
-be necessary to activate mise in order to run hooks
-with mise tools.
+Run hooks through `mise x` so mise-managed tools are available
+without activating mise in the shell.
 """# {
         long_help #"""
-Use `mise x` to execute hooks. With this, it won't
-be necessary to activate mise in order to run hooks
-with mise tools.
+Run hooks through `mise x` so mise-managed tools are available
+without activating mise in the shell.
 
-Set HK_MISE=1 to make this default behavior.
+Set HK_MISE=1 to make this the default behavior.
 """#
     }
     flag "-h --help" help="Print help" action=help builtin=#true
 }
-cmd mcp help="Runs an MCP server for coding agents over standard input/output." {
+cmd mcp help="Run an MCP server for coding agents over standard input/output" {
     flag --root help="Restrict hk tools to this project root (defaults to the current directory)" {
         arg <PATH>
     }
@@ -319,7 +321,7 @@ cmd migrate help="Migrate from other hook managers to hk" effect=read subcommand
         flag "-o --output" help="Output path for hk.pkl" default=hk.pkl {
             arg <OUTPUT>
         }
-        flag --hk-pkl-root help="Root path for hk pkl files (e.g., \"pkl\" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl" {
+        flag --hk-pkl-root help="Root path for hk pkl files (e.g. \"pkl\" for a local checkout, or a package URL prefix). If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl" {
             arg <HK_PKL_ROOT>
         }
         flag "-h --help" help="Print help" action=help builtin=#true
@@ -337,7 +339,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
     complete exclude type=path
     complete glob type=path
     complete path type=path
-    cmd commit-msg {
+    cmd commit-msg help="Run the commit-msg hook" {
         alias cm
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
@@ -350,7 +352,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         complete glob type=path
         complete path type=path
     }
-    cmd post-checkout {
+    cmd post-checkout help="Run the post-checkout hook" {
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <PREV_HEAD> help="SHA of the HEAD before the checkout"
@@ -364,7 +366,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         complete glob type=path
         complete path type=path
     }
-    cmd post-commit {
+    cmd post-commit help="Run the post-commit hook" {
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
         arg "[FILES]..." help="Run on specific files" {
@@ -375,7 +377,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         complete glob type=path
         complete path type=path
     }
-    cmd post-merge {
+    cmd post-merge help="Run the post-merge hook" {
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <IS_SQUASH> help="Flag indicating whether the merge was a squash merge (1) or not (0)"
@@ -387,7 +389,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         complete glob type=path
         complete path type=path
     }
-    cmd post-rewrite {
+    cmd post-rewrite help="Run the post-rewrite hook" {
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <COMMAND> help="The command that triggered the rewrite (\"amend\" or \"rebase\")"
@@ -411,7 +413,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         complete glob type=path
         complete path type=path
     }
-    cmd pre-push {
+    cmd pre-push help="Run the pre-push hook" {
         alias pp
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
@@ -425,7 +427,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         complete glob type=path
         complete path type=path
     }
-    cmd pre-rebase {
+    cmd pre-rebase help="Run the pre-rebase hook" {
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <UPSTREAM> help="The upstream from which the series was forked"
@@ -438,7 +440,7 @@ cmd run help="Run a hook" arg_required_else_help=#true {
         complete glob type=path
         complete path type=path
     }
-    cmd prepare-commit-msg {
+    cmd prepare-commit-msg help="Run the prepare-commit-msg hook" {
         alias pcm
         use hook-options
         flag "-h --help" help="Print help" action=help builtin=#true
@@ -467,7 +469,12 @@ cmd test help="Run step-defined tests" {
     }
     flag "-h --help" help="Print help" action=help builtin=#true
 }
-cmd uninstall help="Removes hk hooks from the current git repository" effect=destructive {
+cmd uninstall help="Remove hk hooks" effect=destructive {
+    long_help #"""
+Remove hk hooks
+
+Removes hk's hooks from the current git repository, clearing both legacy `.git/hooks/` shims and config-based `hook.*` entries. Pass `--global` to remove them from the user's `~/.gitconfig` instead.
+"""#
     flag --global help="Remove hk hooks from the user's global git config (`~/.gitconfig`)."
     flag "-h --help" help="Print help" action=help builtin=#true
 }
@@ -481,15 +488,15 @@ https://usage.jdx.dev
 }
 cmd util help="Utility commands for file operations" effect=read subcommand_required=#true {
     flag "-h --help" help="Print help" action=help builtin=#true
-    cmd check-added-large-files help="Check for large files being added to repository" effect=read {
-        flag --maxkb help="Maximum file size in kilobytes (default: 500)" default="500" {
+    cmd check-added-large-files help="Check for large files being added to the repository" effect=read {
+        flag --maxkb help="Maximum file size in kilobytes" default="500" {
             arg <MAXKB>
         }
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check"
     }
     cmd check-byte-order-marker help="Check for UTF-8 byte order marker (BOM)" effect=read {
-        flag "-d --diff" help="Output a diff of the change."
+        flag "-d --diff" help="Output a diff of the BOM removal instead of the file name"
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check"
     }
@@ -497,13 +504,13 @@ cmd util help="Utility commands for file operations" effect=read subcommand_requ
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check for case conflicts"
     }
-    cmd check-conventional-commit help="Check for conventional commit message" effect=read {
+    cmd check-conventional-commit help="Check that a commit message follows the Conventional Commits format" effect=read {
         long_help #"""
-Check for conventional commit message
+Check that a commit message follows the Conventional Commits format
 
 Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits created for `git rebase --autosquash`) skip validation.
 """#
-        flag --allowed-types var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test delimiter=, {
+        flag --allowed-types help="Comma-separated list of commit types to accept" var=#true default=build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test delimiter=, {
             arg <ALLOWED_TYPES>
         }
         flag "-h --help" help="Print help" action=help builtin=#true
@@ -536,7 +543,7 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to remove BOM from"
     }
-    cmd fix-smart-quotes help="Replace UTF-8 smart quotes" effect=write {
+    cmd fix-smart-quotes help="Replace smart quotes with plain ASCII quotes" effect=write {
         flag --check help="Check for smart quotes without fixing them"
         flag "-d --diff" help="Output a diff of the change (implies `--check`)"
         flag "-h --help" help="Print help" action=help builtin=#true

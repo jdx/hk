@@ -5,7 +5,7 @@
 - **Usage:** `hk completion [--install] [--force] <SHELL>`
 - **Effect:** read-only
 
-Generates shell completion scripts
+Generate shell completion scripts
 
 ## Arguments
 

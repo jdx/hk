@@ -7,7 +7,7 @@ const UTF8_BOM: &[u8] = &[0xEF, 0xBB, 0xBF];
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct CheckByteOrderMarker {
-    /// Output a diff of the change.
+    /// Output a diff of the BOM removal instead of the file name
     #[usage(short, long)]
     pub diff: bool,
 

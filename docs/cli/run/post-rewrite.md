@@ -4,6 +4,8 @@
 
 - **Usage:** `hk run post-rewrite [FLAGS] <COMMAND> [FILES]…`
 
+Run the post-rewrite hook
+
 ## Arguments
 
 - **`<COMMAND>`** — The command that triggered the rewrite ("amend" or "rebase")

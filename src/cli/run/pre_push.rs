@@ -7,6 +7,7 @@ use crate::{
     git::{Git, is_zero_sha},
 };
 
+/// Run the pre-push hook
 #[derive(usage_rs::Args)]
 pub struct PrePush {
     /// Remote name

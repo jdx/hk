@@ -5,6 +5,8 @@
 - **Usage:** `hk run prepare-commit-msg [FLAGS] <ARGS>…`
 - **Aliases:** `pcm`
 
+Run the prepare-commit-msg hook
+
 ## Arguments
 
 - **`<COMMIT_MSG_FILE>`** — The path to the file that contains the commit message so far

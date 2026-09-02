@@ -18,5 +18,5 @@ Migrate from pre-commit to hk
 
   **Default:** `hk.pkl`
 
-- **`--hk-pkl-root <HK_PKL_ROOT>`** — Root path for hk pkl files (e.g., "pkl" for local, or package URL prefix) If specified, will use {root}/Config.pkl and {root}/Builtins.pkl
+- **`--hk-pkl-root <HK_PKL_ROOT>`** — Root path for hk pkl files (e.g. "pkl" for a local checkout, or a package URL prefix). If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl
 - **`-h --help`** — Print help

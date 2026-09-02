@@ -7,7 +7,7 @@ const DEFAULT_MAX_SIZE_KB: u64 = 500;
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct CheckAddedLargeFiles {
-    /// Maximum file size in kilobytes (default: 500)
+    /// Maximum file size in kilobytes
     #[usage(long, default_value_t = DEFAULT_MAX_SIZE_KB, default = "500")]
     pub maxkb: u64,
 

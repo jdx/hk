@@ -9,7 +9,7 @@ use std::process::Command;
 /// config is available to enumerate a more specific set.
 const CORE_GLOBAL_EVENTS: &[&str] = &["commit-msg", "pre-commit", "pre-push", "prepare-commit-msg"];
 
-/// Sets up git hooks to run hk.
+/// Set up git hooks to run hk.
 ///
 /// The recommended setup is `hk install --global`, which installs hooks
 /// once into the user's `~/.gitconfig` so every repository on the machine
@@ -48,11 +48,10 @@ pub struct Install {
     #[usage(long, verbatim_doc_comment, conflicts = "--global")]
     legacy: bool,
 
-    /// Use `mise x` to execute hooks. With this, it won't
-    /// be necessary to activate mise in order to run hooks
-    /// with mise tools.
+    /// Run hooks through `mise x` so mise-managed tools are available
+    /// without activating mise in the shell.
     ///
-    /// Set HK_MISE=1 to make this default behavior.
+    /// Set HK_MISE=1 to make this the default behavior.
     #[usage(long, verbatim_doc_comment)]
     mise: bool,
 }

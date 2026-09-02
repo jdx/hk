@@ -182,7 +182,6 @@ config_roots = [".", "frontend", "backend"]
 [tools]
 aube = "latest"
 hk = "latest"
-pkl = "latest"
 
 [env]
 HK_MISE = 1

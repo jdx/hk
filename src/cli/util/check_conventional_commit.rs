@@ -13,6 +13,7 @@ pub struct CheckConventionalCommit {
     #[usage(arg)]
     pub commit_msg_file: PathBuf,
 
+    /// Comma-separated list of commit types to accept
     #[usage(
         long,
         default = "build,chore,ci,docs,feat,fix,perf,refactor,revert,style,test",
