@@ -4,7 +4,7 @@ outline: "deep"
 
 # Logging and Debugging
 
-hk provides several ways to control logging output for debugging issues and understanding what's happening during execution.
+hk provides several ways to control logging output for debugging issues and understanding what happens during execution.
 
 ## Log Levels
 

@@ -13,18 +13,21 @@ enum Command {
     /// Print a hook configuration for an agent or editor
     #[usage(effect = "read")]
     Hooks {
+        /// Agent or editor to generate the hook configuration for
         #[usage(long, value_enum)]
         target: HookTarget,
     },
     /// Print project instructions for a coding agent
     #[usage(effect = "read")]
     Instructions {
+        /// Agent to generate the instructions for
         #[usage(long, value_enum)]
         target: InstructionTarget,
     },
     /// Print an MCP server configuration
     #[usage(effect = "read")]
     Mcp {
+        /// MCP host to generate the server configuration for
         #[usage(long, value_enum)]
         target: McpTarget,
     },

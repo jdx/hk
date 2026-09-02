@@ -1,6 +1,6 @@
 use crate::{Result, cli::install};
 
-/// Removes hk hooks from the current git repository
+/// Remove hk hooks from the current git repository
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "destructive")]
 pub struct Uninstall {

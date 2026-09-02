@@ -19,7 +19,7 @@ Higher layers override lower. For hooks and steps, layers are **additive** — h
 
 ## `hk.pkl`
 
-hk is configured via `hk.pkl` which is written in [pkl-lang](https://pkl-lang.org/) from Apple. By default, hk uses the built-in pklr evaluator, so the pkl CLI is not required. Set `HK_PKL_BACKEND=pkl` to use the pkl CLI instead.
+hk is configured via `hk.pkl`, which is written in [Pkl](https://pkl-lang.org/) from Apple. By default, hk uses the built-in pklr evaluator, so the pkl CLI is not required. Set `HK_PKL_BACKEND=pkl` to use the pkl CLI instead.
 
 ### Config File Paths
 
@@ -87,7 +87,7 @@ hooks {
 }
 ```
 
-The first line (`amends`) is critical because that imports the base configuration pkl for extending.
+The first line (`amends`) is required: it imports the base configuration schema that `hk.pkl` extends.
 
 ### Subprojects
 
@@ -120,10 +120,10 @@ including per-directory mise environments and locally installed Node tools.
 
 ### `hk.local.pkl`
 
-If `hk.local.pkl` exists, it will be used instead of `hk.pkl`. It is intended to be used for local config, and should
+If `hk.local.pkl` exists, it is used instead of `hk.pkl`. It is intended for local config and should
 not be committed to source control.
 
-It is assumed that the first line will be (`amends "./hk.pkl"`).
+Its first line is expected to be `amends "./hk.pkl"` so that it extends the project config.
 
 Example:
 
@@ -230,7 +230,7 @@ For partial fixers, set `check_after_diff = true` alongside `check` and `check_d
 
 ### `<GROUP>`
 
-A group is a collection of steps that are executed in parallel, waiting for previous steps/groups to finish and blocking other steps/groups from starting until it finishes. This is a naive way to ensure the order of execution. It's better to make use of read/write locks and depends.
+A group is a collection of steps that run in parallel with each other. The group waits for previous steps and groups to finish, and blocks later steps and groups from starting until it finishes. This is a coarse way to enforce execution order; read/write locks and `depends` are usually better.
 
 Steps should not normally run `git add` or `git update-index` themselves. Declare generated or modified files with the step's `stage` setting and let hk stage them; hk serializes its own index writes. If a legacy or third-party command stages files internally and cannot be changed, hk cannot infer that hidden write, so serialize it with `exclusive = true`, a `depends` chain, or a separate group.
 
@@ -310,7 +310,7 @@ a shell. It cannot be combined with a string command, and it cannot contain
 
 ## Git status in conditions and templates
 
-hk provides the current git status to both condition expressions and Tera templates via a `git` object. This lets you avoid shelling out in conditions (e.g., `exec('git …')`).
+hk provides the current git status to both condition expressions and Tera templates via a `git` object. This lets you avoid shelling out in conditions (e.g. `exec('git …')`).
 
 - Available fields: `git.staged_files`, `git.unstaged_files`, `git.untracked_files`, `git.modified_files`
   - Staged classifications: `git.staged_added_files`, `git.staged_modified_files`, `git.staged_deleted_files`, `git.staged_renamed_files`, `git.staged_copied_files`
@@ -349,7 +349,7 @@ These lists contain repository-relative paths for files currently in each state.
 > - **Per-project overrides:** use `hk.local.pkl` in the project root (see [`hk.local.pkl`](#hk-local-pkl))
 > - **Global user config:** use `~/.config/hk/config.pkl`
 
-The `hkrc` is a global configuration file that allows you to customize hk's behavior across all projects. hk discovers it in this order (first match wins):
+The `hkrc` is a user-level configuration file that customizes hk's behavior across all projects. hk discovers it in this order (first match wins):
 
 | Precedence | Path                      | Purpose                                 |
 | ---------- | ------------------------- | --------------------------------------- |
@@ -357,9 +357,9 @@ The `hkrc` is a global configuration file that allows you to customize hk's beha
 | 2          | `~/.hkrc.pkl`             | Home directory **(deprecated)**         |
 | 3          | `~/.config/hk/config.pkl` | XDG config directory **(recommended)**  |
 
-~~Use the `--hkrc` flag to override discovery and use a specific path.~~ The `--hkrc` flag is deprecated.
+The `--hkrc` flag, which overrides discovery with a specific path, is deprecated and hidden from `hk --help`.
 
-The hkrc file follows the same format as `hk.pkl` and can be used to define global hooks and linters that will be applied to all projects. This is useful for setting up consistent linting rules across multiple repositories.
+The hkrc file follows the same format as `hk.pkl` and can define hooks and linters that apply to all projects. This is useful for setting up consistent linting rules across multiple repositories.
 
 Example hkrc file:
 
@@ -388,13 +388,13 @@ The hkrc is merged with the project configuration using "project wins" semantics
 
 - **Settings** (jobs, fail_fast, etc.): project config overrides hkrc values
 - **Environment variables**: hkrc values are set first; project config can override them
-- **Hooks/steps**: additive — hkrc can add hooks and steps the project doesn't define, but when both define the same step, the project's definition wins
+- **Hooks/steps**: additive. hkrc can add hooks and steps the project doesn't define, but when both define the same step, the project's definition wins
 
 ### How to manage global hook preferences
 
 **Run your own linters on every project**
 
-Add steps to your hkrc. hk merges them into every project's hooks — steps with names the project doesn't define always run:
+Add steps to your hkrc. hk merges them into every project's hooks, so steps with names the project doesn't define always run:
 
 ```pkl
 // ~/.config/hk/config.pkl
@@ -411,7 +411,7 @@ hooks {
 
 **Skip steps you don't want from a project**
 
-hkrc can't remove project steps — project wins on collision. To skip a step, use git config in that repo (persists) or an environment variable (one session):
+hkrc can't remove project steps, because the project wins on collision. To skip a step, use git config in that repo (persists) or an environment variable (one run):
 
 ```bash
 # Skip a step permanently in this repo
@@ -423,7 +423,7 @@ HK_SKIP_STEPS=slow-linter hk run pre-commit
 
 **Completely replace a project's hooks locally**
 
-Create `hk.local.pkl` in the project root (don't commit it). It replaces `hk.pkl` entirely — redefine only what you want:
+Create `hk.local.pkl` in the project root (don't commit it). hk loads it instead of `hk.pkl`, so amend the project config and redefine only what you want:
 
 ```pkl
 // hk.local.pkl  (add to .gitignore)
@@ -442,7 +442,7 @@ hooks = (upstream.hooks) {
 
 ## Settings Reference
 
-This section lists the configuration settings that control how hk behaves. Settings are sourced from multiple places; higher precedence overrides lower. Some list settings (e.g., `exclude`, `skip_steps`, `skip_hooks`, `hide_warnings`) use union semantics, combining values from multiple sources.
+This section lists the configuration settings that control how hk behaves. Settings are sourced from multiple places; higher precedence overrides lower. Some list settings (e.g. `exclude`, `skip_steps`, `skip_hooks`, `hide_warnings`) use union semantics, combining values from multiple sources.
 
 | Precedence | Source                         | Example                                 |
 | ---------- | ------------------------------ | --------------------------------------- |

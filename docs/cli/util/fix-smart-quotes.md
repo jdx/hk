@@ -5,7 +5,7 @@
 - **Usage:** `hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`
 - **Effect:** modifies state
 
-Replace UTF-8 smart quotes
+Replace smart quotes with plain ASCII quotes
 
 ## Arguments
 

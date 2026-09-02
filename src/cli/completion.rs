@@ -1,7 +1,7 @@
 use crate::{Result, cli::Cli};
 use usage_rs::install::{self, OnForeign, Wrote};
 
-/// Generates shell completion scripts
+/// Generate shell completion scripts
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Completion {

@@ -6,7 +6,7 @@ outline: "deep"
 
 Environment variables can be used to configure hk.
 
-Most of these map to settings that can also be configured via CLI flags, git config, `hk.pkl`, or user config—see the
+Most of these map to settings that can also be configured via CLI flags, git config, `hk.pkl`, or user config. See the
 [Settings Reference](/configuration#settings-reference) for every setting's available sources and precedence. Variables are listed here in alphabetical order.
 
 ## `HK_CACHE`
@@ -37,12 +37,11 @@ Useful for CI environments where you want to verify code quality without making 
 Type: `bool`
 Default: `true`
 
-If true, hk will run check commands first then run fix commands if check fails iff there are multiple linters with the same file in a matching glob pattern.
+If `true`, when multiple steps match the same file, hk runs their check commands first and only runs a step's fix command if its check fails.
 
-The reason for this is to make hk able to parallelize as much as possible. We can have as many check commands running in parallel against
-the same file as we want without them interfering with each other—however we can't have 2 fix commands potentially writing to the same file. So we optimistically run the check commands in parallel, then if any fail we run their fix commands potentially in series.
+This lets hk parallelize as much as possible. Any number of check commands can run against the same file at once without interfering with each other, but two fix commands cannot safely write to the same file. So hk optimistically runs the check commands in parallel and then, for any that fail, runs the fix commands, serialized where they share files.
 
-If this is disabled hk will have simpler logic that just uses fix commands in series in this situation.
+If disabled, hk skips the check pass and runs the overlapping fix commands in series.
 
 ## `HK_CONFIG_DIR`
 
@@ -56,16 +55,21 @@ The directory hk uses for user configuration such as `~/.config/hk/config.pkl`.
 Type: `string[]` (comma-separated list)
 Default: `profile-not-enabled`
 
-Controls which skip reasons are displayed when steps are skipped.
+Controls which skip reasons are displayed when steps are skipped. A step skipped for a reason not in this list is skipped silently.
 
-Available options:
+Available reasons:
 
-- `all`: Show all skip reasons
-- `none`: Hide all skip reasons
-- `disabled-by-config`: Show when steps are skipped due to configuration
-- `profile-not-enabled`: Show when steps are skipped due to missing profiles (default)
+- `profile-not-enabled`: a profile the step requires is not enabled (default)
+- `profile-explicitly-disabled`: a profile the step requires was disabled with `!profile`
+- `disabled-by-config`: the step is listed in `skip_steps` in `hk.pkl`, user config, or git config
+- `disabled-by-env`: the step is listed in `HK_SKIP_STEPS`
+- `disabled-by-cli`: the step was skipped with `--skip-step`
+- `no-command-for-run-type`: the step has no command for the current mode (for example no `fix` command during `hk fix`)
+- `no-files-to-process`: no files matched the step's globs
+- `condition-false`: the step's `condition` evaluated to false
+- `missing-required-env`: an environment variable listed in the step's `required` setting is unset
 
-Example: `HK_DISPLAY_SKIP_REASONS=all` to see all skip reasons.
+Example: `HK_DISPLAY_SKIP_REASONS=profile-not-enabled,no-files-to-process`.
 
 ## `HK_EXCLUDE`
 
@@ -95,14 +99,14 @@ If `true`, hk will abort running steps after the first one fails.
 Type: `string`
 Default: `hk.pkl`
 
-The file to use for the configuration.
+The config file to use. Setting this skips the normal [config file search](/configuration#config-file-paths).
 
 ## `HK_FIX`
 
 Type: `bool`
 Default: `true`
 
-If set to `false`, hk will not run fix steps.
+If set to `false`, hk runs check commands instead of fix commands, the same as passing `--check`. `HK_CHECK=1` has the same effect.
 
 ## `HK_HIDE_WARNINGS`
 
@@ -149,8 +153,8 @@ Example: `hk check --json | jq '.steps[] | select(.failed)'`
 Type: `bool`
 Default: `true`
 
-If set to `false`, hk will not use libgit2 to interact with git and instead use shelling out to git commands. This may provide better performance
-in some cases such as when using `fsmonitor` to watch for changes.
+If set to `false`, hk shells out to the `git` command instead of using libgit2. This may perform better
+in some cases, such as repositories that use `fsmonitor` to watch for changes.
 
 ## `HK_LOG`
 
@@ -173,13 +177,6 @@ Default: `HK_LOG`
 
 The log level to use for the log file.
 
-## `HK_OUTPUT_FILE`
-
-Type: `path`
-Default: `~/.local/state/hk/output.log`
-
-The file where hk writes the complete output of a failed command. An empty value uses the default location.
-
 ## `HK_MISE`
 
 Type: `bool`
@@ -187,9 +184,17 @@ Default: `false`
 
 If set to `true`:
 
-- When installing hooks with `hk install`, hk will use `mise x` to execute hooks which won't require activating mise to use mise tools
-- When generating files with `hk init`, hk will create a `mise.toml` file with hk configured
-- When running steps with a `dir`, hk resolves the mise environment for that directory (`mise env`, cached per directory) so tools and env vars from the directory's mise config are available — see [mise integration](/mise_integration#per-directory-environments-monorepos)
+- `hk install` installs hooks that run hk through `mise x`, so mise-managed tools are available without activating mise in the shell
+- `hk init` also creates a `mise.toml` file with hk configured
+- Steps with a `dir` get the mise environment for that directory (`mise env`, cached per directory), so tools and env vars from the directory's mise config are available. See [mise integration](/mise_integration#per-directory-environments-monorepos)
+
+## `HK_OUTPUT_FILE`
+
+Type: `path`
+Default: `~/.local/state/hk/output.log`
+
+The file where hk writes the complete output of a failed command. An empty value uses the default location.
+
 
 ## `HK_PKL_BACKEND`
 
@@ -261,8 +266,8 @@ Example usage:
 Type: `string[]` (comma-separated list)
 Default: `(empty)`
 
-A comma-separated list of hook names to skip entirely. This allows you to disable specific git hooks from running.
-For example: `HK_SKIP_HOOK=pre-commit,pre-push` would skip running those hooks completely. `HK_SKIP_HOOKS` is accepted as an alias.
+A comma-separated list of hook names to skip entirely.
+For example: `HK_SKIP_HOOK=pre-commit,pre-push` skips those hooks completely. `HK_SKIP_HOOKS` is accepted as an alias.
 
 This is useful when you want to temporarily disable certain hooks while still keeping them configured in your `hk.pkl` file.
 Unlike `HK_SKIP_STEPS` which skips individual steps, this skips the entire hook and all its steps.
@@ -277,8 +282,8 @@ All skip configurations from different sources are unioned together.
 
 Type: `string[]` (comma-separated list)
 
-A comma-separated list of step names to skip when running pre-commit and pre-push hooks.
-For example: `HK_SKIP_STEPS=lint,test` would skip any steps named "lint" or "test". `HK_SKIP_STEP` is accepted as an alias.
+A comma-separated list of step names to skip in every hook.
+For example: `HK_SKIP_STEPS=lint,test` skips any steps named "lint" or "test". `HK_SKIP_STEP` is accepted as an alias.
 
 This setting can also be configured via:
 - Git config: `git config hk.skipSteps "step1,step2"`
@@ -312,7 +317,7 @@ In `hk.pkl`, the hook-level `stash` key also accepts booleans: `true` is an alia
 Type: `usize`
 Default: `20`
 
-Number of backup patch files to keep per repository when using git stash. Each time git stash is used, hk creates a backup patch file in `$HK_STATE_DIR/patches/`; the oldest backups beyond this count are automatically deleted.
+Number of backup patch files to keep per repository when stashing. Each time hk stashes changes, it writes a backup patch file to `$HK_STATE_DIR/patches/`; the oldest backups beyond this count are deleted automatically.
 
 Set to `0` to disable patch backup creation entirely.
 
@@ -337,7 +342,7 @@ The state directory to use.
 Type: `bool`
 Default: `false`
 
-Controls whether per-step output summaries are printed in plain text mode. In text mode, hk only emits summaries for **failed** steps by default (so CI logs always include the full diagnostic for a failure). Successful steps stream their output during execution, so a trailing summary would just duplicate it. Set this to `true` to force summaries to appear for every step in text mode.
+Controls whether per-step output summaries are printed in plain text mode. By default, text mode only prints summaries for **failed** steps, so CI logs always include the full diagnostics for a failure. Successful steps stream their output during execution, so a trailing summary would only duplicate it. Set this to `true` to print a summary for every step in text mode.
 
 Example:
 
@@ -356,7 +361,7 @@ Enables or disables reporting progress via OSC sequences to compatible terminals
 
 Type: `path`
 
-If set to a file path, hk will write a JSON timing report at the end of a run. The report includes total wall time and per-step wall time, with overlapping intervals merged so time isn’t double-counted across parallel step parts.
+If set to a file path, hk will write a JSON timing report at the end of a run. The report includes total wall time and per-step wall time, with overlapping intervals merged so time isn't double-counted across parallel step parts.
 
 The `steps` field is an object mapping step names to an object with:
 

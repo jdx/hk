@@ -1,6 +1,6 @@
 use crate::hook_options::HookOptions;
 
-/// Fixes code
+/// Run the fix hook to fix problems in place
 #[derive(usage_rs::Args)]
 pub struct Fix {
     #[usage(flatten)]

@@ -5,7 +5,7 @@
 - **Usage:** `hk check [FLAGS] [FILES]…`
 - **Aliases:** `c`
 
-Checks code
+Run the check hook to find problems without modifying files
 
 ## Arguments
 

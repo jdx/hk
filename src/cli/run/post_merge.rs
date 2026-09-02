@@ -1,6 +1,7 @@
 use crate::Result;
 use crate::hook_options::HookOptions;
 
+/// Run the post-merge hook
 #[derive(usage_rs::Args)]
 pub struct PostMerge {
     /// Flag indicating whether the merge was a squash merge (1) or not (0)

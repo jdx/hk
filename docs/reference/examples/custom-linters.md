@@ -96,7 +96,7 @@ local all_linters = new Mapping<String, Step> {
 hooks {
   ["pre-commit"] {
     fix = true
-    stash = "patch-file" // Use patch file instead of git stash
+    stash = "git" // Stash unstaged changes while fixers run
     steps = all_linters
   }
   ["check"] {

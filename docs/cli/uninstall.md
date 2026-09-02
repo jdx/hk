@@ -5,7 +5,7 @@
 - **Usage:** `hk uninstall [--global]`
 - **Effect:** destructive — may delete or irreversibly overwrite
 
-Removes hk hooks from the current git repository
+Remove hk hooks from the current git repository
 
 ## Flags
 

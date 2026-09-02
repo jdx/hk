@@ -48,24 +48,22 @@ struct Cli {
     /// Number of jobs to run in parallel
     #[usage(short, long, global)]
     jobs: Option<NonZero<usize>>,
-    /// Profiles to enable/disable
-    /// prefix with ! to disable
-    /// e.g. --profile slow --profile !fast
+    /// Profiles to enable or disable. Prefix a profile with ! to disable it, e.g. --profile slow --profile !fast
     #[usage(short, long, global)]
     profile: Vec<String>,
     /// Shorthand for --profile=slow
     #[usage(short, long, global)]
     slow: bool,
-    /// Enables verbose output
+    /// Enable verbose (debug) output. Pass twice for trace output
     #[usage(short, long, global, count, overrides("--quiet", "--silent"))]
     verbose: u8,
-    /// Disables progress output
+    /// Disable progress output
     #[usage(short, long, global)]
     no_progress: bool,
-    /// Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
+    /// Suppress non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
     #[usage(short, long, global, overrides("--verbose", "--silent"))]
     quiet: bool,
-    /// Suppresses all output including warnings. Only errors are shown
+    /// Suppress all output except errors, including warnings
     #[usage(long, global, overrides("--quiet", "--verbose"))]
     silent: bool,
     /// Enable tracing spans and performance diagnostics

@@ -5,7 +5,7 @@
 - **Usage:** `hk fix [FLAGS] [FILES]…`
 - **Aliases:** `f`
 
-Fixes code
+Run the fix hook to fix problems in place
 
 ## Arguments
 

@@ -4,6 +4,8 @@
 
 - **Usage:** `hk run post-commit [FLAGS] [FILES]…`
 
+Run the post-commit hook
+
 ## Arguments
 
 - **`[FILES]…`** — Run on specific files
