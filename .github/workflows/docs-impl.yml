@@ -52,7 +52,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     needs: build
-    runs-on: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+    runs-on: namespace-profile-endev-linux-amd64
     name: Deploy
     steps:
       - name: Deploy to GitHub Pages

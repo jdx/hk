@@ -100,9 +100,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
@@ -135,9 +135,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
     timeout-minutes: 20
     steps:
@@ -293,7 +293,7 @@ jobs:
       - ci-windows
       - mcp-ui
       - msrv
-    runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64;overrides.cache-tag=cache' }}
+    runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
     timeout-minutes: 1
     # Run on success or upstream failure but skip when the workflow is cancelled
     # — `always()` would override `cancel-in-progress` and waste a runner.
