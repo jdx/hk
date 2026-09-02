@@ -36,7 +36,12 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-      - run: mise x -- aube ci
+      - name: Install JavaScript dependencies
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          command: mise x -- aube ci
       - run: ./mcp-ui/node_modules/.bin/vitest run --root mcp-ui
       - run: ./scripts/check_mcp_ui_fresh
 
