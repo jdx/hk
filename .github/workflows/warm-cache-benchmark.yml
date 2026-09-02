@@ -40,7 +40,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: server
-          version: 1.4.0
+          version: 1.5.0
       - name: Build
         if: runner.os != 'Windows'
         shell: bash

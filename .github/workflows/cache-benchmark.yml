@@ -43,7 +43,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
-          version: 1.4.0
+          version: 1.5.0
       - name: Build
         id: build
         shell: bash
@@ -123,7 +123,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
-          version: 1.4.0
+          version: 1.5.0
       - name: Build
         id: build
         shell: bash
@@ -203,7 +203,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
-          version: 1.4.0
+          version: 1.5.0
       - name: Build
         id: build
         shell: pwsh
