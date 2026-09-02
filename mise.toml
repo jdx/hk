@@ -12,7 +12,7 @@ communique                      = "latest"
 git-cliff                       = "latest"
 "github:crate-ci/cargo-release" = "latest"
 "github:foresterre/cargo-msrv"  = "latest"
-mr-boxington                    = "1.4.0"
+mr-boxington                    = "1.4.1"
 # Pinned rather than "latest" because tak is the measuring instrument: an
 # upgrade that changes how it samples would land in the series as a step change
 # in hk's numbers, indistinguishable from a real regression. Bump deliberately.
@@ -33,8 +33,7 @@ env     = { MBX_CARGO_SHIM_MODE = "1" }
 # without it tak reports wall clock only and says so, so this still works on
 # macOS where there is no usable cachegrind.
 [tasks."perf:build"]
-env = { MBX_DISABLE = "1" }
-run = "cargo build --release"
+run = "mbx build --release"
 
 [tasks.perf]
 depends = ["perf:build"]
