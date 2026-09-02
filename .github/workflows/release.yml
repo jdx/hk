@@ -34,27 +34,27 @@ jobs:
         include:
           - target: aarch64-apple-darwin
             os: macos-latest
-            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-macos-arm64
             build-tool: cargo
             optimized: false
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
             build-tool: cross
             optimized: false
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
             build-tool: cross
             optimized: false
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
             build-tool: cross
             optimized: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
             build-tool: cross
             optimized: false
           - target: x86_64-pc-windows-msvc
@@ -221,7 +221,7 @@ jobs:
           retention-days: 1
 
   build-pkl:
-    runs-on: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+    runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: read
     steps:
@@ -258,7 +258,7 @@ jobs:
 
   create-release:
     needs: [build-binaries, build-pkl]
-    runs-on: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+    runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: write
     steps:
@@ -306,7 +306,7 @@ jobs:
   publish-crate:
     needs: [create-release]
     if: github.repository == 'jdx/hk'
-    runs-on: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+    runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: read
     steps:
@@ -322,7 +322,7 @@ jobs:
 
   enhance-release:
     needs: [create-release]
-    runs-on: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+    runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: write
     steps:
@@ -374,7 +374,7 @@ jobs:
   publish-release:
     needs: [publish-crate, enhance-release]
     if: ${{ !cancelled() && needs.enhance-release.result == 'success' && (needs.publish-crate.result == 'success' || needs.publish-crate.result == 'skipped') }}
-    runs-on: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+    runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: write
     steps:
