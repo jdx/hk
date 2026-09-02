@@ -42,8 +42,8 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
-          backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
-          version: 1.4.0
+          backend: server
+          version: 1.5.0
       - name: Build
         id: build
         shell: bash
@@ -122,8 +122,8 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
-          backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
-          version: 1.4.0
+          backend: server
+          version: 1.5.0
       - name: Build
         id: build
         shell: bash
@@ -202,8 +202,8 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/mbx
         with:
-          backend: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'server' || 'github' }}
-          version: 1.4.0
+          backend: server
+          version: 1.5.0
       - name: Build
         id: build
         shell: pwsh

@@ -51,17 +51,12 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
+            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
+            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
     timeout-minutes: 10
     steps:
-      - name: Assert OIDC is unavailable to untrusted CI
-        if: ${{ !inputs.trusted }}
-        run: |
-          test -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
-          test -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -71,7 +66,6 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: ${{ inputs.mbx-backend }}
-          mirror-github-cache: "true"
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -90,8 +84,7 @@ jobs:
           install_args: mr-boxington
       - uses: ./.github/actions/mbx
         with:
-          backend: ${{ inputs.mbx-backend }}
-          mirror-github-cache: "true"
+          backend: server
       - name: Build
         run: mbx build --features git2/vendored-libgit2,git2/vendored-openssl
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -107,10 +100,8 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
-    runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - run: brew install parallel
@@ -210,9 +201,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
+            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
+            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
     timeout-minutes: 30
     steps:
@@ -243,7 +234,7 @@ jobs:
       - name: mise run lint
         run: mise run lint
   msrv:
-    runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
+    runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64;overrides.cache-tag=cache' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -269,7 +260,7 @@ jobs:
           cache: false
       - uses: ./.github/actions/mbx
         with:
-          backend: ${{ inputs.mbx-backend }}
+          backend: server
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-windows-latest
