@@ -1496,7 +1496,7 @@
         "hide": false,
         "args_override_self": true,
         "help": "Run the fix hook",
-        "help_long": "Run the fix hook\n\nRuns each step's fix command to modify files in place. Passing `--check`, or setting `HK_FIX=0`, runs each step's check command instead.",
+        "help_long": "Run the fix hook\n\nRuns each step's fix command to modify files in place. Passing `--check`, or setting `HK_CHECK=1` or `HK_FIX=0`, runs each step's check command instead.",
         "name": "fix",
         "aliases": ["f"],
         "hidden_aliases": [],

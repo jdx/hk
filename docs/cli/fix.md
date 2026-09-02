@@ -7,7 +7,7 @@
 
 Run the fix hook
 
-Runs each step's fix command to modify files in place. Passing `--check`, or setting `HK_FIX=0`, runs each step's check command instead.
+Runs each step's fix command to modify files in place. Passing `--check`, or setting `HK_CHECK=1` or `HK_FIX=0`, runs each step's check command instead.
 
 ## Arguments
 

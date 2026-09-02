@@ -28,13 +28,16 @@ The cache directory to use.
 Type: `bool`
 Default: `false`
 
-> [!WARNING]
-> This variable currently has no effect on which commands hk runs. It is accepted and
-> reported by `hk config dump`, but nothing reads it when selecting check or fix
-> commands. Use `HK_FIX=0` or the `--check` flag instead.
+Forces hooks to run their check commands instead of their fix commands, the opposite of
+`HK_FIX`. Useful in CI, where you want a report rather than fixes.
 
-Intended as the opposite of `HK_FIX`: force check commands instead of fix commands, for
-CI environments where you want to verify code quality without making changes.
+By convention a check command only reports problems, but hk does not enforce that, so this
+variable selects which command runs rather than guaranteeing an unchanged worktree. A
+project whose check command edits files will still edit them.
+
+`--check` and `--fix` are per-invocation flags and outrank this variable, so
+`HK_CHECK=1 hk fix --fix` still runs fix commands. When both `HK_CHECK` and `HK_FIX` are
+enabled, `HK_CHECK` wins. `git config hk.check` sets the same value at a lower precedence.
 
 ## `HK_CHECK_FIRST`
 
@@ -110,7 +113,7 @@ The config file to use. Setting this skips the normal [config file search](/conf
 Type: `bool`
 Default: `true`
 
-If set to `false`, hooks run their check commands instead of their fix commands. Passing `--fix` overrides it for a single run; `--check` forces check commands unconditionally.
+If set to `false`, hooks run their check commands instead of their fix commands. Passing `--fix` overrides it for a single run, and `--check` or [`HK_CHECK`](#hk-check) forces check commands. `git config hk.fix` sets the same value at a lower precedence.
 
 ## `HK_HIDE_WARNINGS`
 
