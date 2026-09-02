@@ -384,11 +384,13 @@ hooks {
 }
 ```
 
-The hkrc is merged with the project configuration using "project wins" semantics:
+An hkrc that amends `Config.pkl` is merged with the project configuration using "project wins" semantics:
 
 - **Settings** (jobs, fail_fast, etc.): project config overrides hkrc values
 - **Environment variables**: hkrc values are set first; project config can override them
 - **Hooks/steps**: additive. hkrc can add hooks and steps the project doesn't define, but when both define the same step, the project's definition wins
+
+A legacy hkrc that amends `UserConfig.pkl` is the exception; see the note under [User Configuration](#user-configuration-config-hk-config-pkl).
 
 ### How to manage global hook preferences
 
@@ -501,7 +503,11 @@ skip_hooks = List("pre-push")
 ```
 
 > [!NOTE]
-> Legacy hkrc files that amend `UserConfig.pkl` are still supported.
+> Legacy hkrc files that amend `UserConfig.pkl` are still supported, but they do not
+> follow the "project wins" rule above. Values they set for `display_skip_reasons`,
+> `hide_warnings`, `warnings`, `stage`, and environment variables override the project
+> config instead. hk treats an hkrc as legacy when it exposes an `environment` key
+> rather than `env`. Amend `Config.pkl` to get the precedence documented above.
 
 ### Configuration Introspection
 

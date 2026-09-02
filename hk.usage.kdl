@@ -158,8 +158,13 @@ cmd cache help="Manage hk internal cache" hide=#true effect=read subcommand_requ
         flag "-h --help" help="Print help" action=help builtin=#true
     }
 }
-cmd check help="Run the check hook to find problems without modifying files" {
+cmd check help="Run the check hook" {
     alias c
+    long_help #"""
+Run the check hook
+
+Reports problems without modifying files. If the `check` hook sets `fix = true` in `hk.pkl`, or `--fix` is passed, hk runs fix commands instead and can modify and stage files.
+"""#
     use hook-options
     flag "-h --help" help="Print help" action=help builtin=#true
     arg "[FILES]..." help="Run on specific files" {
@@ -230,8 +235,13 @@ Lists every configuration source from highest to lowest precedence.
         flag "-h --help" help="Print help" action=help builtin=#true
     }
 }
-cmd fix help="Run the fix hook to fix problems in place" {
+cmd fix help="Run the fix hook" {
     alias f
+    long_help #"""
+Run the fix hook
+
+Runs each step's fix command to modify files in place. Passing `--check`, or setting `HK_CHECK=1` or `HK_FIX=0`, runs the read-only check commands instead.
+"""#
     use hook-options
     flag "-h --help" help="Print help" action=help builtin=#true
     arg "[FILES]..." help="Run on specific files" {
