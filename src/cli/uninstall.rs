@@ -1,6 +1,10 @@
 use crate::{Result, cli::install};
 
-/// Remove hk hooks from the current git repository
+/// Remove hk hooks
+///
+/// Removes hk's hooks from the current git repository, clearing both legacy
+/// `.git/hooks/` shims and config-based `hook.*` entries. Pass `--global` to
+/// remove them from the user's `~/.gitconfig` instead.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "destructive")]
 pub struct Uninstall {

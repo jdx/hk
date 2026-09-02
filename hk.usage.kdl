@@ -469,7 +469,12 @@ cmd test help="Run step-defined tests" {
     }
     flag "-h --help" help="Print help" action=help builtin=#true
 }
-cmd uninstall help="Remove hk hooks from the current git repository" effect=destructive {
+cmd uninstall help="Remove hk hooks" effect=destructive {
+    long_help #"""
+Remove hk hooks
+
+Removes hk's hooks from the current git repository, clearing both legacy `.git/hooks/` shims and config-based `hook.*` entries. Pass `--global` to remove them from the user's `~/.gitconfig` instead.
+"""#
     flag --global help="Remove hk hooks from the user's global git config (`~/.gitconfig`)."
     flag "-h --help" help="Print help" action=help builtin=#true
 }
