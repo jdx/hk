@@ -4,7 +4,7 @@ description: Use the local Namespace volume or fork-safe GitHub cache backend
 inputs:
   backend:
     description: Explicit backend for local Namespace or untrusted GitHub callers
-    default: auto
+    default: github
   mirror-github-cache:
     description: Mirror a trusted main build into the restore-only cache used by fork PRs
     default: "false"
@@ -14,6 +14,12 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Set up mise for the local mbx install
+      if: inputs.backend == 'local'
+      uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+      with:
+        install: false
+        cache: false
     - name: Mount the local mbx store on the Namespace cache volume
       if: inputs.backend == 'local'
       uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
@@ -24,7 +30,8 @@ runs:
       shell: bash
       env:
         MBX_VERSION: ${{ inputs.version }}
-      run: | # zizmor: ignore[github-env] mise where returns the trusted tool install directory
+      run:
+        | # zizmor: ignore[github-env] mise where returns the trusted tool install directory
         tool=mr-boxington
         if [[ -n "$MBX_VERSION" ]]; then
           tool="mr-boxington@$MBX_VERSION"
@@ -47,7 +54,7 @@ runs:
       with:
         version: ${{ inputs.version }}
         cache-generation: v2
-        backend: ${{ inputs.backend != 'auto' && inputs.backend || ((github.actor != 'jdx' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login != 'jdx'))) && 'github' || 'local') }}
+        backend: ${{ inputs.backend }}
         server-url: https://cache.mise.jdx.dev
         namespace: jdx/hk
         oidc-audience: https://cache.mise.jdx.dev
