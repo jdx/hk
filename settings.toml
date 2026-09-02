@@ -54,11 +54,11 @@ sources.cli = ["--check", "-c"]
 sources.env = ["HK_CHECK"]
 sources.git = ["hk.check"]
 docs = """
-Forces hk to run only check commands (read-only) instead of fix commands.
+Forces hooks to run their check commands instead of their fix commands.
 
-This is the opposite of the `fix` setting. When enabled, hk will report issues without attempting to fix them.
+This is the opposite of the `fix` setting, and wins over it when both are enabled. The `--check` and `--fix` flags outrank both.
 
-Useful for CI environments where you want to verify code quality without making changes.
+Useful for CI environments where you want to report issues without modifying files.
 """
 
 [check_first]
