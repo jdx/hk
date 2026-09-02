@@ -29,7 +29,11 @@ Type: `bool`
 Default: `false`
 
 Forces hooks to run their check commands instead of their fix commands, the opposite of
-`HK_FIX`. Useful in CI, where you want to report problems without modifying files.
+`HK_FIX`. Useful in CI, where you want a report rather than fixes.
+
+By convention a check command only reports problems, but hk does not enforce that, so this
+variable selects which command runs rather than guaranteeing an unchanged worktree. A
+project whose check command edits files will still edit them.
 
 `--check` and `--fix` are per-invocation flags and outrank this variable, so
 `HK_CHECK=1 hk fix --fix` still runs fix commands. When both `HK_CHECK` and `HK_FIX` are
