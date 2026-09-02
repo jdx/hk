@@ -65,8 +65,10 @@ teardown() {
     echo 'FROM alpine' > Dockerfile
     run hk init
     assert_success
-    assert_output --partial "Detected: hadolint (Dockerfile)"
+    assert_output --partial "hadolint (Dockerfile)"
+    assert_output --partial "droast (Dockerfile)"
     assert_file_contains hk.pkl "Builtins.hadolint"
+    assert_file_contains hk.pkl "Builtins.droast"
 }
 
 @test "hk init generates default template when nothing detected" {
