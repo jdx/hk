@@ -22,8 +22,8 @@ pub struct PreCommit {
     /// Output path for hk.pkl
     #[usage(short, long, default = "hk.pkl")]
     output: PathBuf,
-    /// Root path for hk pkl files (e.g., "pkl" for local, or package URL prefix)
-    /// If specified, will use {root}/Config.pkl and {root}/Builtins.pkl
+    /// Root path for hk pkl files (e.g. "pkl" for a local checkout, or a package URL prefix).
+    /// If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl
     #[usage(long)]
     hk_pkl_root: Option<String>,
 }

@@ -13,5 +13,5 @@ Check for UTF-8 byte order marker (BOM)
 
 ## Flags
 
-- **`-d --diff`** — Output a diff of the change.
+- **`-d --diff`** — Output a diff of the BOM removal instead of the file name
 - **`-h --help`** — Print help

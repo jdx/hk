@@ -59,7 +59,7 @@ See: [Hooks](/hooks)
 
 ## Job
 
-The number of parallel processes that hk will use to execute steps concurrently. This affects performance by controlling how many linting/formatting tasks can run simultaneously. Can be configured via the `-j/--jobs` CLI flag or `HK_JOBS` environment variable.
+One unit of parallel work. The jobs setting is the number of steps hk runs concurrently, which controls how many linting and formatting tasks can run at the same time. It can be configured via the `-j/--jobs` CLI flag or the `HK_JOBS` environment variable and defaults to the number of CPU cores.
 
 Example:
 ```bash
@@ -89,18 +89,18 @@ See: [HK_SKIP_STEPS](/environment_variables#hk-skip-steps), [HK_SKIP_HOOK](/envi
 
 ## Stash
 
-A strategy for temporarily saving unstaged changes before running hooks that might modify files. This prevents conflicts between your working directory changes and the automated fixes applied by linting tools.
+A strategy for temporarily saving unstaged changes before running hooks that might modify files. This keeps fixers from touching your unstaged work and keeps that work from being staged by accident.
 
 Stash strategies:
 - `git`: Uses `git stash`
 - `patch-file`: Currently an alias of the `git` strategy
-- `none`: No stashing (fastest, but may cause staging conflicts; the default)
+- `none`: No stashing (the default; fastest, but fixers may modify unstaged changes in partially staged files)
 
 Example:
 ```pkl
 hooks {
   ["pre-commit"] {
-    stash = "patch-file"  // Use patch-based stashing
+    stash = "git"  // Stash unstaged changes while fixers run
     steps = linters
   }
 }

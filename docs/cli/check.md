@@ -5,7 +5,9 @@
 - **Usage:** `hk check [FLAGS] [FILES]…`
 - **Aliases:** `c`
 
-Checks code
+Run the check hook
+
+Runs each step's check command, which by convention only reports problems. If the `check` hook sets `fix = true` in `hk.pkl`, or `--fix` is passed, hk runs fix commands instead and can modify and stage files.
 
 ## Arguments
 

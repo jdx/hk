@@ -4,6 +4,8 @@
 
 - **Usage:** `hk run post-merge [FLAGS] <IS_SQUASH> [FILES]…`
 
+Run the post-merge hook
+
 ## Arguments
 
 - **`<IS_SQUASH>`** — Flag indicating whether the merge was a squash merge (1) or not (0)

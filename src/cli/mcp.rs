@@ -49,7 +49,7 @@ fn dashboard_tool_meta() -> MetaObject {
     .expect("dashboard metadata is an object")
 }
 
-/// Runs an MCP server for coding agents over standard input/output.
+/// Run an MCP server for coding agents over standard input/output
 #[derive(usage_rs::Args)]
 pub struct Mcp {
     /// Restrict hk tools to this project root (defaults to the current directory)

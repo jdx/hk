@@ -4,7 +4,7 @@ outline: "deep"
 
 # Built-in Linters Reference
 
-hk provides 140+ pre-configured linters and formatters through the `Builtins` module. They provide the command, file matching, batching, and other hk behavior, while the corresponding tool must be available in the step's environment.
+hk provides 150+ pre-configured linters and formatters through the `Builtins` module. Each builtin supplies the command, file matching, batching, and other hk behavior; the corresponding tool must be available in the step's environment.
 
 ## Usage
 

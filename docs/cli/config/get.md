@@ -7,13 +7,11 @@
 
 Get a specific configuration value
 
-Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
+Accepts any setting name shown by `hk config dump` (for example fail_fast, exclude, or skip_steps) plus jobs, enabled_profiles, and disabled_profiles.
 
 ## Arguments
 
 - **`<KEY>`** — Configuration key to retrieve
-
-  Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast, display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
 
 ## Flags
 

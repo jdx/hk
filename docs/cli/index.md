@@ -12,12 +12,12 @@
 
 - **`--cd <DIRECTORY>`** — Run as if hk was started in this directory
 - **`-j --jobs <JOBS>`** — Number of jobs to run in parallel
-- **`-p --profile <PROFILE>`** — Profiles to enable/disable prefix with ! to disable e.g. --profile slow --profile !fast
+- **`-p --profile <PROFILE>`** — Profiles to enable or disable. Prefix a profile with ! to disable it, e.g. --profile slow --profile !fast
 - **`-s --slow`** — Shorthand for --profile=slow
-- **`-v --verbose`** — Enables verbose output
-- **`-n --no-progress`** — Disables progress output
-- **`-q --quiet`** — Suppresses non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
-- **`--silent`** — Suppresses all output including warnings. Only errors are shown
+- **`-v --verbose`** — Enable verbose (debug) output. Pass twice for trace output
+- **`-n --no-progress`** — Disable progress output
+- **`-q --quiet`** — Suppress non-essential output (info messages, progress indicators). Failed-step diagnostics are still shown
+- **`--silent`** — Suppress all output except errors, including warnings
 - **`--trace`** — Enable tracing spans and performance diagnostics
 - **`--json`** — Output in JSON format
 

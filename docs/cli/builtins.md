@@ -5,7 +5,7 @@
 - **Usage:** `hk builtins`
 - **Effect:** read-only
 
-Lists all available builtin linters
+List all available builtin linters
 
 ## Flags
 

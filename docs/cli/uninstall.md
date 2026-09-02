@@ -5,7 +5,9 @@
 - **Usage:** `hk uninstall [--global]`
 - **Effect:** destructive — may delete or irreversibly overwrite
 
-Removes hk hooks from the current git repository
+Remove hk hooks
+
+Removes hk's hooks from the current git repository, clearing both legacy `.git/hooks/` shims and config-based `hook.*` entries. Pass `--global` to remove them from the user's `~/.gitconfig` instead.
 
 ## Flags
 

@@ -1,27 +1,26 @@
 # Hooks
 
-The following describes the behavior of git hooks that hk supports. Each step provides a "check" and a "fix" command. "check" commands are read-only and can be run in parallel. "fix" commands can edit files and will block other "fix" or "check" commands from running at the same time. Note that hk does not enforce that "check" commands do not write to files for performance reasons however you still should try to follow this convention in order for hk to behave as expected.
+This page describes the behavior of the git hooks that hk supports. Each step provides a "check" and a "fix" command. "check" commands are read-only and can run in parallel. "fix" commands can edit files and block other "fix" or "check" commands on the same files from running at the same time. For performance reasons, hk does not enforce that "check" commands leave files untouched, so follow this convention yourself for hk to behave as expected.
 
-It's the read/write locking behavior that hk makes use of in order to run hooks as fast as possible while still being safe.
+This read/write locking is what lets hk run hooks as fast as possible while staying safe.
 
 ## Hook Behavior
 
-hk hooks perform the following assuming `fix = true`:
+With `fix = true`, an hk hook performs the following:
 
-* Stashes any untracked/unstaged changes if stashing is enabled—it is off by default, see [`HK_STASH`](/environment_variables#hk-stash)
-* Gathers list of files with staged changes (or all files if running `hk run pre-commit --all`)
+* Stashes any untracked/unstaged changes if stashing is enabled. It is off by default; see [`HK_STASH`](/environment_variables#hk-stash)
+* Gathers the list of files with staged changes (or all files if running `hk run pre-commit --all`)
 * Runs linters and hook steps in parallel up to [`HK_JOBS`](/environment_variables#hk-jobs) at a time, with caveats:
-  * `exclusive = true` hook steps will wait until all previous steps finished and block later steps from starting
-  * if any hook step has any dependencies, hk will wait for them to complete before starting
-  * hk will create read/write locks for each file (according to the linter's glob patterns) to check/fix in the linters unless `stomp = true`
-  * if `check_first = true` on the linter, hk will run the "check" command first with read locks, if that fails, it will run the "fix" command with write locks on all the files
-  * if a `check_list_files` command is available on the linter, hk will use the output of that command to filter the list of files to get write locks for and call "fix" on.
-  * if `check_first = false` on the linter, hk will run the "fix" command after fetching write locks, blocking other linters from running. You
-    should avoid this configuration for performance reasons.
-  * if any of the files have been modified and match the `stage` globs, they will be added to the git index (defaults to the step's `glob` for steps with a `fix` command)
-* untracked/unstaged changes are unstashed
+  * `exclusive = true` steps wait until all previous steps have finished and block later steps from starting
+  * if a step has dependencies, hk waits for them to complete before starting it
+  * hk takes read/write locks on each file the step matches (according to its glob patterns) unless `stomp = true`
+  * if `check_first = true` on the step, hk runs the "check" command first with read locks; if that fails, it runs the "fix" command with write locks on all the files
+  * if the step has a `check_list_files` command, hk uses its output to narrow the files it takes write locks on and passes to "fix"
+  * if `check_first = false` on the step, hk runs the "fix" command after taking write locks, blocking other steps on the same files. Avoid this configuration for performance reasons.
+  * if any files were modified and match the `stage` globs, they are added to the git index (`stage` defaults to the step's `glob` for steps with a `fix` command)
+* Restores the stashed untracked/unstaged changes
 
-If `fix = false`, hk will just run the `check` steps and won't need to deal with read/write locks as nothing should be making modifications. Steps with [`check_failed_files = true`](/configuration#focus-checks-on-failing-files) first use `check_diff` or `check_list_files` to identify affected paths, then run the detailed `check` command only on that focused set.
+If `fix = false`, hk only runs the `check` commands and does not need read/write locks, since nothing should be making modifications. Steps with [`check_failed_files = true`](/configuration#focus-checks-on-failing-files) first use `check_diff` or `check_list_files` to identify affected paths, then run the detailed `check` command only on that focused set.
 
 ### Allowing a step to fail
 
@@ -46,7 +45,7 @@ failure.
 
 ## `pre-commit`
 
-Runs when `git commit` is run before `git commit` creates the commit.
+Runs during `git commit`, before the commit is created.
 
 ```pkl
 hooks {
@@ -73,7 +72,7 @@ hooks {
 
 ## `prepare-commit-msg`
 
-Runs when `git commit` is run before the commit message is created. Useful for rendering a default commit message template.
+Runs during `git commit`, before the commit message editor opens. Useful for rendering a default commit message template.
 The `commit_msg_file`, `source`, and `sha` template variables are available in this hook. The raw git hook arguments are also available as `hook_args`.
 
 ```pkl
@@ -91,7 +90,7 @@ hooks {
 
 ## `commit-msg`
 
-Runs when `git commit` is run after the commit message is created. Useful for validating the commit message.
+Runs during `git commit`, after the commit message has been written. Useful for validating the commit message.
 The `commit_msg_file` template variable is available in this hook. The raw git hook arguments are also available as `hook_args`.
 
 ```pkl
@@ -99,7 +98,7 @@ hooks {
     ["commit-msg"] {
         steps {
             ["validate-commit-msg"] {
-                check = "grep -q '^(fix|feat|chore):' {{commit_msg_file}} || exit 1"
+                check = "grep -Eq '^(fix|feat|chore):' {{commit_msg_file}}"
             }
         }
     }

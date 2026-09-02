@@ -42,13 +42,13 @@ pub struct Util {
 
 #[derive(Debug, usage_rs::Subcommands)]
 enum UtilCommands {
-    /// Check for large files being added to repository
+    /// Check for large files being added to the repository
     CheckAddedLargeFiles(CheckAddedLargeFiles),
     /// Check for UTF-8 byte order marker (BOM)
     CheckByteOrderMarker(CheckByteOrderMarker),
     /// Check for case-insensitive filename conflicts
     CheckCaseConflict(CheckCaseConflict),
-    /// Check for conventional commit message
+    /// Check that a commit message follows the Conventional Commits format
     ///
     /// Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits
     /// created for `git rebase --autosquash`) skip validation.
@@ -65,7 +65,7 @@ enum UtilCommands {
     EndOfFileFixer(EndOfFileFixer),
     /// Remove UTF-8 byte order marker (BOM)
     FixByteOrderMarker(FixByteOrderMarker),
-    /// Replace UTF-8 smart quotes
+    /// Replace smart quotes with plain ASCII quotes
     FixSmartQuotes(FixSmartQuotes),
     /// Detect and fix mixed line endings
     MixedLineEnding(MixedLineEnding),

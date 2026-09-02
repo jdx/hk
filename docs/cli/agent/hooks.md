@@ -9,7 +9,7 @@ Print a hook configuration for an agent or editor
 
 ## Flags
 
-- **`--target <TARGET>`**
+- **`--target <TARGET>`** — Agent or editor to generate the hook configuration for
 
   **Choices:** `codex`, `claude-code`, `vscode`
 

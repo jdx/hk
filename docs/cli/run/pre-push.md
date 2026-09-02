@@ -5,6 +5,8 @@
 - **Usage:** `hk run pre-push [FLAGS] [ARGS]…`
 - **Aliases:** `pp`
 
+Run the pre-push hook
+
 ## Arguments
 
 - **`[REMOTE]`** — Remote name

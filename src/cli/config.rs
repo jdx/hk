@@ -16,12 +16,12 @@ fn unknown_config_key_error(key: &str) -> eyre::Report {
     eyre::eyre!("{}", msg)
 }
 
-/// Configuration introspection and management
+/// Inspect hk's configuration
 ///
-/// View and inspect hk's configuration from all sources.
+/// View hk's effective configuration and where each value comes from.
 /// Configuration is merged from multiple sources in precedence order:
-/// CLI flags > Environment variables > Git config (local) > User config (.hkrc.pkl) >
-/// Git config (global) > Project config (hk.pkl) > Built-in defaults.
+/// CLI flags > Environment variables > Git config (local) > Git config (global) >
+/// Project config (hk.pkl) > User config (~/.config/hk/config.pkl) > Built-in defaults.
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 pub struct Config {
@@ -31,32 +31,32 @@ pub struct Config {
 
 #[derive(Debug, usage_rs::Subcommands)]
 enum ConfigCommand {
-    /// Print effective runtime settings (JSON format)
+    /// Print the effective runtime settings
     ///
-    /// Shows the merged configuration from all sources including CLI flags,
-    /// environment variables, git config, user config, and project config.
+    /// Shows the merged configuration from all sources, including CLI flags,
+    /// environment variables, git config, project config, and user config.
     Dump(ConfigDump),
     /// Explain where a configuration value comes from
     ///
-    /// Shows the resolved value, its source (env/git/cli/default), and
-    /// the full precedence chain showing all layers that could affect it.
+    /// Shows the resolved value, the source it came from (cli, env, git, pkl,
+    /// or defaults), and every layer that could affect it, in precedence order.
     Explain(ConfigExplain),
     /// Get a specific configuration value
     ///
-    /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
-    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
+    /// Accepts any setting name shown by `hk config dump` (for example
+    /// fail_fast, exclude, or skip_steps) plus jobs, enabled_profiles, and
+    /// disabled_profiles.
     Get(ConfigGet),
     /// Show the configuration source precedence order
     ///
-    /// Lists all configuration sources in order of precedence to help
-    /// understand where configuration values come from.
+    /// Lists every configuration source from highest to lowest precedence.
     Sources(ConfigSources),
 }
 
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "read")]
 struct ConfigDump {
-    /// Output format (json or toml)
+    /// Output format
     #[usage(long, choices("json", "toml"), default = "json")]
     format: String,
 }
@@ -65,9 +65,6 @@ struct ConfigDump {
 #[usage(effect = "read")]
 struct ConfigGet {
     /// Configuration key to retrieve
-    ///
-    /// Available keys: jobs, enabled_profiles, disabled_profiles, fail_fast,
-    /// display_skip_reasons, warnings, exclude, skip_steps, skip_hooks, stage
     key: String,
 }
 
@@ -207,8 +204,8 @@ impl ConfigSources {
         println!("2. Environment variables (HK_*)");
         println!("3. Git config (local repo)");
         println!("4. Git config (global/system)");
-        println!("5. User rc (.hkrc.pkl)");
-        println!("6. Project config (hk.pkl)");
+        println!("5. Project config (hk.pkl)");
+        println!("6. User config (~/.config/hk/config.pkl)");
         println!("7. Built-in defaults");
         println!();
         println!("Note: Use 'hk config dump' to see current effective values");

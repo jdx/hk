@@ -1,6 +1,7 @@
 use crate::Result;
 use crate::hook_options::HookOptions;
 
+/// Run the post-checkout hook
 #[derive(usage_rs::Args)]
 pub struct PostCheckout {
     /// SHA of the HEAD before the checkout

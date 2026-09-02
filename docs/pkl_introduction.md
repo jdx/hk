@@ -1,11 +1,11 @@
 # Introduction to pkl
 
-hk uses [pkl](https://pkl-lang.org/) for configuration. As this is a new configuration language, this doc gives an overview of how to write
+hk uses [pkl](https://pkl-lang.org/) for configuration. As pkl is a relatively new configuration language, this doc gives an overview of how to write
 it and work with it for hk configuration.
 
 ## Dependencies
 
-hk uses a built-in pkl evaluator ([pklr](https://github.com/jdx/pklr)) by default. This removes the need to install the pkl CLI entirely.
+hk uses a built-in pkl evaluator ([pklr](https://github.com/jdx/pklr)) by default, so you do not need to install the pkl CLI.
 
 pklr may not support every pkl feature yet. If you run into issues with pklr, you can switch back to the pkl CLI with `HK_PKL_BACKEND=pkl`.
 
@@ -109,7 +109,7 @@ my_listing = new Listing<Step> {
 
 ### Local variables
 
-hk will complain if you attempt to export variables that it doesn't expect, so you'll likely need to use the `local` keyword to create local variables:
+hk rejects top-level properties it doesn't expect, so use the `local` keyword for helper variables:
 
 ```pkl
 local my_step = new Step {
@@ -129,7 +129,7 @@ local my_step = new Step {
 
 ### Amending objects
 
-If you want to use shared object but amend it with modifications, you do that with this syntax:
+If you want to reuse a shared object but amend it with modifications, use this syntax:
 
 ```pkl
 local make_lint = new Step {
@@ -172,7 +172,7 @@ This is a multi-line comment
 
 ### Amends
 
-Every `hk.pkl` should start with this line which essentially schema validates the config and provides base classes:
+Every `hk.pkl` should start with this line, which validates the config against hk's schema and provides the base classes:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
@@ -192,4 +192,4 @@ import "https://example.com/remote.pkl"
 
 ## Caching
 
-hk will cache the output of parsing each `hk.pkl` file until it is modified. For now, I would discourage using features like env vars inside of `hk.pkl` files as the cache will not be invalidated if the env vars change. Perhaps this could be fixed somehow.
+hk caches the evaluated output of each `hk.pkl` file (including its local imports) until one of those files is modified. Avoid reading environment variables inside `hk.pkl`, since the cache is not invalidated when an environment variable changes. Set `HK_CACHE=0` to bypass the cache when debugging.

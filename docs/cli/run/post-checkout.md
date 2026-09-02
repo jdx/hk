@@ -4,6 +4,8 @@
 
 - **Usage:** `hk run post-checkout [FLAGS] <ARGS>…`
 
+Run the post-checkout hook
+
 ## Arguments
 
 - **`<PREV_HEAD>`** — SHA of the HEAD before the checkout

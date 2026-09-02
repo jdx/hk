@@ -9,7 +9,7 @@ use crate::{Result, env};
 /// Default hooks to configure when none are specified
 pub(crate) const DEFAULT_HOOKS: &[&str] = &["pre-commit", "check", "fix"];
 
-/// Generates a new hk.pkl file for a project
+/// Generate a new hk.pkl file for a project
 #[derive(Debug, usage_rs::Args)]
 #[usage(effect = "write")]
 pub struct Init {
@@ -21,7 +21,7 @@ pub struct Init {
     interactive: bool,
     /// Generate a mise.toml file with hk configured
     ///
-    /// Set HK_MISE=1 to make this default behavior.
+    /// Set HK_MISE=1 to make this the default behavior.
     #[usage(long, verbatim_doc_comment)]
     mise: bool,
 }

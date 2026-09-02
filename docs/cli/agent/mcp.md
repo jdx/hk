@@ -9,7 +9,7 @@ Print an MCP server configuration
 
 ## Flags
 
-- **`--target <TARGET>`**
+- **`--target <TARGET>`** — MCP host to generate the server configuration for
 
   **Choices:** `codex`, `claude-desktop`, `claude-code`, `vscode`
 

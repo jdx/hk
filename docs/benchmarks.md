@@ -33,7 +33,7 @@ function speedup(scenario, tool) {
 
 # Benchmarks
 
-These benchmarks compare hk, lefthook, pre-commit, and prek running 10 linters on a synthetic project. Since lefthook's `parallel: true` mode has race conditions when linters touch overlapping files, we run lefthook in safe (sequential) mode—the only correct option. pre-commit and prek both run hooks sequentially.
+These benchmarks compare hk, lefthook, pre-commit, and prek running 10 linters on a synthetic project. Since lefthook's `parallel: true` mode has race conditions when linters touch overlapping files, we run lefthook in safe (sequential) mode, the only correct option. pre-commit and prek both run hooks sequentially.
 
 hk is the only tool that runs linters in parallel **and** safely.
 
@@ -60,7 +60,7 @@ Ten linters with overlapping file coverage:
 | trailing-whitespace | `*` (all files) | `check_diff` via `hk util` (built-in Rust) |
 | newlines | `*` (all files) | `check_diff` via `hk util` (built-in Rust) |
 
-The `trailing-whitespace` and `newlines` linters use `**/*` globs—they overlap with **every other linter**. pre-commit and prek always run hooks sequentially. lefthook supports `parallel: true` but has no file-level coordination, so overlapping linters cause race conditions—we run it in safe (sequential) mode. hk is the only tool that runs everything in parallel safely, using file-level read/write locks.
+The `trailing-whitespace` and `newlines` linters use `**/*` globs, so they overlap with **every other linter**. pre-commit and prek always run hooks sequentially. lefthook supports `parallel: true` but has no file-level coordination, so overlapping linters cause race conditions, and we run it in safe (sequential) mode. hk is the only tool that runs everything in parallel safely, using file-level read/write locks.
 
 ## Results
 
@@ -68,7 +68,7 @@ The `trailing-whitespace` and `newlines` linters use `**/*` globs—they overlap
 
 <div v-if="data">
 
-### All Files ({{ data.total_files || '~1750' }} files, 10 linters)
+### All Files ({{ data.total_files || '~6,000' }} files, 10 linters)
 
 | Tool | Time | |
 |------|------|-|

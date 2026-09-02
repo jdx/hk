@@ -9,7 +9,7 @@ Print project instructions for a coding agent
 
 ## Flags
 
-- **`--target <TARGET>`**
+- **`--target <TARGET>`** — Agent to generate the instructions for
 
   **Choices:** `codex`, `claude-code`, `generic`
 
