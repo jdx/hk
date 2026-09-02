@@ -23,7 +23,7 @@ jobs:
   # Build job
   build:
     if: github.repository == 'jdx/hk'
-    runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64' }}
+    runs-on: ${{ !inputs.trusted && 'ubuntu-latest' || 'namespace-profile-endev-linux-amd64;overrides.cache-tag=cache' }}
     steps:
       - name: Assert OIDC is unavailable to untrusted docs builds
         if: ${{ !inputs.trusted }}
@@ -57,7 +57,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     needs: build
-    runs-on: namespace-profile-endev-linux-amd64
+    runs-on: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
     name: Deploy
     steps:
       - name: Deploy to GitHub Pages
