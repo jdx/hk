@@ -106,7 +106,7 @@ The config file to use. Setting this skips the normal [config file search](/conf
 Type: `bool`
 Default: `true`
 
-If set to `false`, hk runs check commands instead of fix commands, the same as passing `--check`. `HK_CHECK=1` has the same effect.
+If set to `false`, hooks run their check commands instead of their fix commands. Passing `--fix` overrides it for a single run; use [`HK_CHECK`](#hk-check) or `--check` to force check commands unconditionally.
 
 ## `HK_HIDE_WARNINGS`
 
