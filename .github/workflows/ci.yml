@@ -27,7 +27,7 @@ jobs:
     uses: ./.github/workflows/ci-impl.yml
     with:
       trusted: false
-      mbx-backend: github
+      mbx-backend: server
 
   final:
     name: final
