@@ -2,6 +2,11 @@ name: warm cache benchmark
 
 on:
   workflow_dispatch:
+    inputs:
+      mbx_ref:
+        description: Optional jdx/mr-boxington Git ref to build and benchmark instead of the pinned release
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -37,6 +42,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Check out unreleased mbx
+        if: inputs.mbx_ref != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: jdx/mr-boxington
+          ref: ${{ inputs.mbx_ref }}
+          path: .mbx-candidate-source
+          persist-credentials: false
+      - name: Build unreleased mbx outside the hk cache
+        if: inputs.mbx_ref != ''
+        shell: bash
+        env:
+          CARGO_HOME: ${{ runner.temp }}/mbx-candidate-cargo-home
+          CARGO_TARGET_DIR: ${{ runner.temp }}/mbx-candidate-target
+          MBX_CACHE_DIR: ${{ runner.temp }}/mbx-candidate-disabled-cache
+          MBX_REMOTE_URL: ""
+          MBX_REMOTE_NAMESPACE: ""
+          MBX_REMOTE_TOKEN: ""
+          MBX_REMOTE_OIDC_AUDIENCE: ""
+          RUSTC_WRAPPER: ""
+          RUSTC_WORKSPACE_WRAPPER: ""
+        run: cargo build --locked --release --package mbx --manifest-path .mbx-candidate-source/Cargo.toml
       - name: Start cache timer
         if: runner.os != 'Windows'
         shell: bash
@@ -48,6 +75,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: server
+          executable-dir: ${{ inputs.mbx_ref != '' && format('{0}/mbx-candidate-target/release', runner.temp) || '' }}
           version: 1.6.0
       - name: Build
         if: runner.os != 'Windows'

@@ -8,17 +8,20 @@ inputs:
   version:
     description: Explicit mbx version for jobs that cannot install project tools first
     required: false
+  executable-dir:
+    description: Directory containing a prebuilt mbx executable; skips installation
+    required: false
 runs:
   using: composite
   steps:
     - name: Set up mise for the mbx install
-      if: runner.os != 'Windows'
+      if: inputs.executable-dir == '' && runner.os != 'Windows'
       uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       with:
         install: false
         cache: false
     - name: Set up mise for the mbx install on Windows
-      if: runner.os == 'Windows'
+      if: inputs.executable-dir == '' && runner.os == 'Windows'
       uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
       env:
         MISE_DATA_DIR: ${{ format('{0}/mise-data', runner.tool_cache) }}
@@ -37,20 +40,25 @@ runs:
       shell: bash
       env:
         MBX_BACKEND: ${{ inputs.backend }}
+        MBX_EXECUTABLE_DIR: ${{ inputs.executable-dir }}
         MBX_VERSION: ${{ inputs.version }}
       run:
         | # zizmor: ignore[github-env] mise where returns the trusted tool install directory
-        if [[ "$RUNNER_OS" == Windows ]]; then
-          export MISE_DATA_DIR="$RUNNER_TOOL_CACHE/mise-data"
-          export MISE_CACHE_DIR="$RUNNER_TOOL_CACHE/mise-cache"
+        if [[ -n "$MBX_EXECUTABLE_DIR" ]]; then
+          echo "$MBX_EXECUTABLE_DIR" >> "$GITHUB_PATH"
+        else
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            export MISE_DATA_DIR="$RUNNER_TOOL_CACHE/mise-data"
+            export MISE_CACHE_DIR="$RUNNER_TOOL_CACHE/mise-cache"
+          fi
+          tool=mr-boxington
+          if [[ -n "$MBX_VERSION" ]]; then
+            tool="mr-boxington@$MBX_VERSION"
+          fi
+          mise install "$tool"
+          mise reshim -f
+          mise where "$tool" >> "$GITHUB_PATH"
         fi
-        tool=mr-boxington
-        if [[ -n "$MBX_VERSION" ]]; then
-          tool="mr-boxington@$MBX_VERSION"
-        fi
-        mise install "$tool"
-        mise reshim -f
-        mise where "$tool" >> "$GITHUB_PATH"
         {
           if [[ "$MBX_BACKEND" == server ]]; then
             echo "MBX_REMOTE_URL=https://cache.jdx.dev"
