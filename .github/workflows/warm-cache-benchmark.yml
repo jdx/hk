@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mbx_ref:
-        description: Optional jdx/mr-boxington Git ref to build and benchmark instead of the pinned release
+        description: Optional current jdx/mr-boxington branch-head SHA to build instead of the pinned release
         required: false
         type: string
       rust_toolchain:
@@ -46,6 +46,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Validate unreleased mbx revision
+        if: inputs.mbx_ref != ''
+        shell: bash
+        env:
+          MBX_CANDIDATE_SHA: ${{ inputs.mbx_ref }}
+        run: |
+          if [[ ! "$MBX_CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "mbx_ref must be a full commit SHA" >&2
+            exit 1
+          fi
+          candidate_sha=${MBX_CANDIDATE_SHA,,}
+          if ! git ls-remote --heads https://github.com/jdx/mr-boxington.git |
+            awk -v candidate="$candidate_sha" '$1 == candidate { found = 1 } END { exit !found }'
+          then
+            echo "mbx_ref must be the current head of a branch in jdx/mr-boxington" >&2
+            exit 1
+          fi
       - name: Check out unreleased mbx
         if: inputs.mbx_ref != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
