@@ -6,7 +6,7 @@ import "../Config.pkl"
   description = "Pin GitHub Actions to update actions to latest versions"
 }
 const pinact_update = new Config.Step {
-  glob = List(".github/workflows/*", "*/action.*")
+  glob = List(".github/workflows/*", "**/action.*")
   types = List("yaml")
   // `verify-comment` verifies pairs of commit SHA and version comments are correct
   check_diff = new Config.CommandSpec {
