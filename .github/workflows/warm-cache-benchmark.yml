@@ -27,6 +27,8 @@ jobs:
   mbx:
     name: mbx (${{ matrix.label }})
     if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && (github.ref == 'refs/heads/main' || inputs.mbx_ref != '')
+    env:
+      MBX_SUMMARY: full
     permissions:
       contents: read
       id-token: write # Authenticate the main-branch dispatch to the cache server.
@@ -134,7 +136,7 @@ jobs:
 
   rust_cache:
     name: Swatinem rust-cache (${{ matrix.label }})
-    if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && github.ref == 'refs/heads/main'
+    if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && (github.ref == 'refs/heads/main' || inputs.mbx_ref != '')
     strategy:
       fail-fast: false
       matrix:
