@@ -36,11 +36,15 @@ jobs:
       contents: read
       id-token: write # Main pushes authenticate to the cache server; its policy keeps other events read-only.
     outputs:
-      seconds: ${{ steps.build.outputs.seconds }}
+      build_seconds: ${{ steps.build.outputs.build_seconds }}
+      total_seconds: ${{ steps.build.outputs.total_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Start cache timer
+        shell: bash
+        run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       - uses: ./.github/actions/mbx
         with:
           backend: server
@@ -49,11 +53,14 @@ jobs:
         id: build
         shell: bash
         run: |
-          started=$(python3 -c 'import time; print(time.monotonic_ns())')
+          build_started=$(python3 -c 'import time; print(time.monotonic_ns())')
           mbx build
           ended=$(python3 -c 'import time; print(time.monotonic_ns())')
-          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
-          echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          cache_started=$(<"$RUNNER_TEMP/cache-benchmark-start")
+          build_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$build_started" "$ended")
+          total_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$cache_started" "$ended")
+          echo "build_seconds=$build_elapsed" >> "$GITHUB_OUTPUT"
+          echo "total_seconds=$total_elapsed" >> "$GITHUB_OUTPUT"
           mbx cache stats
 
   rust_cache_linux:
@@ -61,11 +68,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
-      seconds: ${{ steps.build.outputs.seconds }}
+      build_seconds: ${{ steps.build.outputs.build_seconds }}
+      total_seconds: ${{ steps.build.outputs.total_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Start cache timer
+        shell: bash
+        run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
         with:
@@ -75,11 +86,14 @@ jobs:
         id: build
         shell: bash
         run: |
-          started=$(python3 -c 'import time; print(time.monotonic_ns())')
+          build_started=$(python3 -c 'import time; print(time.monotonic_ns())')
           cargo build
           ended=$(python3 -c 'import time; print(time.monotonic_ns())')
-          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
-          echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          cache_started=$(<"$RUNNER_TEMP/cache-benchmark-start")
+          build_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$build_started" "$ended")
+          total_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$cache_started" "$ended")
+          echo "build_seconds=$build_elapsed" >> "$GITHUB_OUTPUT"
+          echo "total_seconds=$total_elapsed" >> "$GITHUB_OUTPUT"
 
   comparison_linux:
     name: comparison (Linux)
@@ -87,25 +101,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 1
     env:
-      MBX_SECONDS: ${{ needs.mbx_linux.outputs.seconds }}
-      RUST_CACHE_SECONDS: ${{ needs.rust_cache_linux.outputs.seconds }}
+      MBX_BUILD_SECONDS: ${{ needs.mbx_linux.outputs.build_seconds }}
+      MBX_TOTAL_SECONDS: ${{ needs.mbx_linux.outputs.total_seconds }}
+      RUST_CACHE_BUILD_SECONDS: ${{ needs.rust_cache_linux.outputs.build_seconds }}
+      RUST_CACHE_TOTAL_SECONDS: ${{ needs.rust_cache_linux.outputs.total_seconds }}
     steps:
       - name: Summarize results
         shell: bash
         run: |
-          delta=$(awk -v mbx="$MBX_SECONDS" -v rust="$RUST_CACHE_SECONDS" \
+          build_delta=$(awk -v mbx="$MBX_BUILD_SECONDS" -v rust="$RUST_CACHE_BUILD_SECONDS" \
+            'BEGIN { if (rust == 0) print "n/a"; else printf "%.1f%%", ((rust - mbx) / rust) * 100 }')
+          total_delta=$(awk -v mbx="$MBX_TOTAL_SECONDS" -v rust="$RUST_CACHE_TOTAL_SECONDS" \
             'BEGIN { if (rust == 0) print "n/a"; else printf "%.1f%%", ((rust - mbx) / rust) * 100 }')
           {
             echo "## Linux cache build comparison"
             echo
-            echo "| Backend | Build time |"
-            echo "| --- | ---: |"
-            echo "| mbx | ${MBX_SECONDS}s |"
-            echo "| Swatinem/rust-cache | ${RUST_CACHE_SECONDS}s |"
+            echo "| Backend | Cache + build | Build only |"
+            echo "| --- | ---: | ---: |"
+            echo "| mbx | ${MBX_TOTAL_SECONDS}s | ${MBX_BUILD_SECONDS}s |"
+            echo "| Swatinem/rust-cache | ${RUST_CACHE_TOTAL_SECONDS}s | ${RUST_CACHE_BUILD_SECONDS}s |"
             echo
-            echo "mbx delta: **${delta}** (positive means mbx was faster)."
+            echo "mbx delta: **${total_delta}** end to end; **${build_delta}** build only (positive means mbx was faster)."
             echo
-            echo "> The main-branch push seeds both backends. Compare them with the warm cache benchmark dispatched on main. Build time excludes checkout and cache setup; compare those step durations separately."
+            echo "> Cache + build starts after checkout and includes mbx installation or rust-cache restoration. The main-branch push seeds both backends; compare it with the warm benchmark dispatched on main."
           } >> "$GITHUB_STEP_SUMMARY"
 
   mbx:
@@ -116,11 +134,15 @@ jobs:
       contents: read
       id-token: write # Main pushes authenticate to the cache server; its policy keeps other events read-only.
     outputs:
-      seconds: ${{ steps.build.outputs.seconds }}
+      build_seconds: ${{ steps.build.outputs.build_seconds }}
+      total_seconds: ${{ steps.build.outputs.total_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Start cache timer
+        shell: bash
+        run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       - uses: ./.github/actions/mbx
         with:
           backend: server
@@ -129,11 +151,14 @@ jobs:
         id: build
         shell: bash
         run: |
-          started=$(python3 -c 'import time; print(time.monotonic_ns())')
+          build_started=$(python3 -c 'import time; print(time.monotonic_ns())')
           mbx build
           ended=$(python3 -c 'import time; print(time.monotonic_ns())')
-          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
-          echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          cache_started=$(<"$RUNNER_TEMP/cache-benchmark-start")
+          build_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$build_started" "$ended")
+          total_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$cache_started" "$ended")
+          echo "build_seconds=$build_elapsed" >> "$GITHUB_OUTPUT"
+          echo "total_seconds=$total_elapsed" >> "$GITHUB_OUTPUT"
           mbx cache stats
 
   rust-cache:
@@ -141,11 +166,15 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 20
     outputs:
-      seconds: ${{ steps.build.outputs.seconds }}
+      build_seconds: ${{ steps.build.outputs.build_seconds }}
+      total_seconds: ${{ steps.build.outputs.total_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Start cache timer
+        shell: bash
+        run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
         with:
@@ -155,11 +184,14 @@ jobs:
         id: build
         shell: bash
         run: |
-          started=$(python3 -c 'import time; print(time.monotonic_ns())')
+          build_started=$(python3 -c 'import time; print(time.monotonic_ns())')
           cargo build
           ended=$(python3 -c 'import time; print(time.monotonic_ns())')
-          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
-          echo "seconds=$elapsed" >> "$GITHUB_OUTPUT"
+          cache_started=$(<"$RUNNER_TEMP/cache-benchmark-start")
+          build_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$build_started" "$ended")
+          total_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$cache_started" "$ended")
+          echo "build_seconds=$build_elapsed" >> "$GITHUB_OUTPUT"
+          echo "total_seconds=$total_elapsed" >> "$GITHUB_OUTPUT"
 
   comparison_macos:
     name: comparison (macOS)
@@ -167,25 +199,29 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 1
     env:
-      MBX_SECONDS: ${{ needs.mbx.outputs.seconds }}
-      RUST_CACHE_SECONDS: ${{ needs.rust-cache.outputs.seconds }}
+      MBX_BUILD_SECONDS: ${{ needs.mbx.outputs.build_seconds }}
+      MBX_TOTAL_SECONDS: ${{ needs.mbx.outputs.total_seconds }}
+      RUST_CACHE_BUILD_SECONDS: ${{ needs.rust-cache.outputs.build_seconds }}
+      RUST_CACHE_TOTAL_SECONDS: ${{ needs.rust-cache.outputs.total_seconds }}
     steps:
       - name: Summarize results
         shell: bash
         run: |
-          delta=$(awk -v mbx="$MBX_SECONDS" -v rust="$RUST_CACHE_SECONDS" \
+          build_delta=$(awk -v mbx="$MBX_BUILD_SECONDS" -v rust="$RUST_CACHE_BUILD_SECONDS" \
+            'BEGIN { if (rust == 0) print "n/a"; else printf "%.1f%%", ((rust - mbx) / rust) * 100 }')
+          total_delta=$(awk -v mbx="$MBX_TOTAL_SECONDS" -v rust="$RUST_CACHE_TOTAL_SECONDS" \
             'BEGIN { if (rust == 0) print "n/a"; else printf "%.1f%%", ((rust - mbx) / rust) * 100 }')
           {
             echo "## macOS cache build comparison"
             echo
-            echo "| Backend | Build time |"
-            echo "| --- | ---: |"
-            echo "| mbx | ${MBX_SECONDS}s |"
-            echo "| Swatinem/rust-cache | ${RUST_CACHE_SECONDS}s |"
+            echo "| Backend | Cache + build | Build only |"
+            echo "| --- | ---: | ---: |"
+            echo "| mbx | ${MBX_TOTAL_SECONDS}s | ${MBX_BUILD_SECONDS}s |"
+            echo "| Swatinem/rust-cache | ${RUST_CACHE_TOTAL_SECONDS}s | ${RUST_CACHE_BUILD_SECONDS}s |"
             echo
-            echo "mbx delta: **${delta}** (positive means mbx was faster)."
+            echo "mbx delta: **${total_delta}** end to end; **${build_delta}** build only (positive means mbx was faster)."
             echo
-            echo "> The main-branch push seeds both backends. Compare them with the warm cache benchmark dispatched on main. Build time excludes checkout and cache setup; compare those step durations separately."
+            echo "> Cache + build starts after checkout and includes mbx installation or rust-cache restoration. The main-branch push seeds both backends; compare it with the warm benchmark dispatched on main."
           } >> "$GITHUB_STEP_SUMMARY"
 
   mbx_windows:
@@ -196,11 +232,15 @@ jobs:
       contents: read
       id-token: write # Main pushes authenticate to the cache server; its policy keeps other events read-only.
     outputs:
-      seconds: ${{ steps.build.outputs.seconds }}
+      build_seconds: ${{ steps.build.outputs.build_seconds }}
+      total_seconds: ${{ steps.build.outputs.total_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Start cache timer
+        shell: pwsh
+        run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       - uses: ./.github/actions/mbx
         with:
           backend: server
@@ -209,12 +249,15 @@ jobs:
         id: build
         shell: pwsh
         run: |
-          $timer = [System.Diagnostics.Stopwatch]::StartNew()
+          $buildStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
           mbx build --features git2/vendored-libgit2,git2/vendored-openssl
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $timer.Stop()
-          $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
-          "seconds=$elapsed" >> $env:GITHUB_OUTPUT
+          $ended = [System.Diagnostics.Stopwatch]::GetTimestamp()
+          $cacheStarted = [long](Get-Content "$env:RUNNER_TEMP/cache-benchmark-start")
+          $buildElapsed = (($ended - $buildStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          $totalElapsed = (($ended - $cacheStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          "build_seconds=$buildElapsed" >> $env:GITHUB_OUTPUT
+          "total_seconds=$totalElapsed" >> $env:GITHUB_OUTPUT
           mbx cache stats
 
   rust_cache_windows:
@@ -222,11 +265,15 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     outputs:
-      seconds: ${{ steps.build.outputs.seconds }}
+      build_seconds: ${{ steps.build.outputs.build_seconds }}
+      total_seconds: ${{ steps.build.outputs.total_seconds }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Start cache timer
+        shell: pwsh
+        run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2 # zizmor: ignore[cache-poisoning] save-if restricts writes to main pushes
         with:
@@ -236,12 +283,15 @@ jobs:
         id: build
         shell: pwsh
         run: |
-          $timer = [System.Diagnostics.Stopwatch]::StartNew()
+          $buildStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
           cargo build --features git2/vendored-libgit2,git2/vendored-openssl
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $timer.Stop()
-          $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
-          "seconds=$elapsed" >> $env:GITHUB_OUTPUT
+          $ended = [System.Diagnostics.Stopwatch]::GetTimestamp()
+          $cacheStarted = [long](Get-Content "$env:RUNNER_TEMP/cache-benchmark-start")
+          $buildElapsed = (($ended - $buildStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          $totalElapsed = (($ended - $cacheStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          "build_seconds=$buildElapsed" >> $env:GITHUB_OUTPUT
+          "total_seconds=$totalElapsed" >> $env:GITHUB_OUTPUT
 
   comparison_windows:
     name: comparison (Windows)
@@ -249,23 +299,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 1
     env:
-      MBX_SECONDS: ${{ needs.mbx_windows.outputs.seconds }}
-      RUST_CACHE_SECONDS: ${{ needs.rust_cache_windows.outputs.seconds }}
+      MBX_BUILD_SECONDS: ${{ needs.mbx_windows.outputs.build_seconds }}
+      MBX_TOTAL_SECONDS: ${{ needs.mbx_windows.outputs.total_seconds }}
+      RUST_CACHE_BUILD_SECONDS: ${{ needs.rust_cache_windows.outputs.build_seconds }}
+      RUST_CACHE_TOTAL_SECONDS: ${{ needs.rust_cache_windows.outputs.total_seconds }}
     steps:
       - name: Summarize results
         shell: bash
         run: |
-          delta=$(awk -v mbx="$MBX_SECONDS" -v rust="$RUST_CACHE_SECONDS" \
+          build_delta=$(awk -v mbx="$MBX_BUILD_SECONDS" -v rust="$RUST_CACHE_BUILD_SECONDS" \
+            'BEGIN { if (rust == 0) print "n/a"; else printf "%.1f%%", ((rust - mbx) / rust) * 100 }')
+          total_delta=$(awk -v mbx="$MBX_TOTAL_SECONDS" -v rust="$RUST_CACHE_TOTAL_SECONDS" \
             'BEGIN { if (rust == 0) print "n/a"; else printf "%.1f%%", ((rust - mbx) / rust) * 100 }')
           {
             echo "## Windows cache build comparison"
             echo
-            echo "| Backend | Build time |"
-            echo "| --- | ---: |"
-            echo "| mbx | ${MBX_SECONDS}s |"
-            echo "| Swatinem/rust-cache | ${RUST_CACHE_SECONDS}s |"
+            echo "| Backend | Cache + build | Build only |"
+            echo "| --- | ---: | ---: |"
+            echo "| mbx | ${MBX_TOTAL_SECONDS}s | ${MBX_BUILD_SECONDS}s |"
+            echo "| Swatinem/rust-cache | ${RUST_CACHE_TOTAL_SECONDS}s | ${RUST_CACHE_BUILD_SECONDS}s |"
             echo
-            echo "mbx delta: **${delta}** (positive means mbx was faster)."
+            echo "mbx delta: **${total_delta}** end to end; **${build_delta}** build only (positive means mbx was faster)."
             echo
-            echo "> The main-branch push seeds both backends. Compare them with the warm cache benchmark dispatched on main. Build time excludes checkout and cache setup; compare those step durations separately."
+            echo "> Cache + build starts after checkout and includes mbx installation or rust-cache restoration. The main-branch push seeds both backends; compare it with the warm benchmark dispatched on main."
           } >> "$GITHUB_STEP_SUMMARY"
