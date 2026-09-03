@@ -7,6 +7,10 @@ on:
         description: Optional jdx/mr-boxington Git ref to build and benchmark instead of the pinned release
         required: false
         type: string
+      rust_toolchain:
+        description: Optional Rust toolchain for the timed hk build, useful for stale-manifest tests
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -64,6 +68,14 @@ jobs:
           RUSTC_WRAPPER: ""
           RUSTC_WORKSPACE_WRAPPER: ""
         run: cargo build --locked --release --package mbx --manifest-path .mbx-candidate-source/Cargo.toml
+      - name: Select an alternate Rust toolchain for hk
+        if: inputs.rust_toolchain != ''
+        shell: bash
+        env:
+          BENCH_RUST_TOOLCHAIN: ${{ inputs.rust_toolchain }}
+        run: |
+          rustup toolchain install "$BENCH_RUST_TOOLCHAIN" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$BENCH_RUST_TOOLCHAIN" >> "$GITHUB_ENV"
       - name: Start cache timer
         if: runner.os != 'Windows'
         shell: bash
