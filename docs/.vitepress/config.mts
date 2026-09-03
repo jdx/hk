@@ -100,8 +100,10 @@ export default defineConfig({
     // OpenGraph
     ["meta", { property: "og:site_name", content: "hk" }],
     ["meta", { property: "og:type", content: "website" }],
-    ["meta", { property: "og:image", content: "https://hk.jdx.dev/android-chrome-512x512.png" }],
-    ["meta", { name: "twitter:card", content: "summary" }],
-    ["meta", { name: "twitter:image", content: "https://hk.jdx.dev/android-chrome-512x512.png" }],
+    ["meta", { property: "og:image", content: "https://hk.jdx.dev/og.png" }],
+    ["meta", { property: "og:image:width", content: "1200" }],
+    ["meta", { property: "og:image:height", content: "630" }],
+    ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ["meta", { name: "twitter:image", content: "https://hk.jdx.dev/og.png" }],
   ],
 })
