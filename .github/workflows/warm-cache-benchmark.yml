@@ -56,7 +56,7 @@ jobs:
             echo "mbx_ref must be a full commit SHA" >&2
             exit 1
           fi
-          candidate_sha=${MBX_CANDIDATE_SHA,,}
+          candidate_sha=$(printf '%s' "$MBX_CANDIDATE_SHA" | tr '[:upper:]' '[:lower:]')
           if ! git ls-remote --heads https://github.com/jdx/mr-boxington.git |
             awk -v candidate="$candidate_sha" '$1 == candidate { found = 1 } END { exit !found }'
           then
