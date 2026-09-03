@@ -22,6 +22,7 @@ concurrency:
   group: cache-benchmark-${{ github.ref }}
   cancel-in-progress: false
 
+# Main-branch runs seed the shared read-only cache used by fork pull requests.
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
