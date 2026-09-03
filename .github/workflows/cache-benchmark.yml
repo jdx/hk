@@ -44,7 +44,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: server
-          version: 1.5.0
+          version: 1.6.0
       - name: Build
         id: build
         shell: bash
@@ -124,7 +124,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: server
-          version: 1.5.0
+          version: 1.6.0
       - name: Build
         id: build
         shell: bash
@@ -204,7 +204,7 @@ jobs:
       - uses: ./.github/actions/mbx
         with:
           backend: server
-          version: 1.5.0
+          version: 1.6.0
       - name: Build
         id: build
         shell: pwsh
