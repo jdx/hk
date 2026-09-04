@@ -12,16 +12,19 @@ if (!versionMatch) {
   console.warn('Unable to find package version in Cargo.toml');
 }
 const latestVersion = versionMatch?.[1] ?? '0.0.0';
+const siteUrl = "https://hk.jdx.dev";
+const siteDescription =
+  "Fast, language-agnostic git hooks and project linting with parallel execution, automatic fixes, file locking, and shareable Pkl configuration.";
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "hk",
-  description: "git hook manager",
+  description: siteDescription,
   lang: "en-US",
   lastUpdated: true,
   appearance: "force-dark",
   sitemap: {
-    hostname: "https://hk.jdx.dev",
+    hostname: siteUrl,
   },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
@@ -100,10 +103,45 @@ export default defineConfig({
     // OpenGraph
     ["meta", { property: "og:site_name", content: "hk" }],
     ["meta", { property: "og:type", content: "website" }],
+    ["meta", { property: "og:locale", content: "en_US" }],
     ["meta", { property: "og:image", content: "https://hk.jdx.dev/og.png" }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
+    ["meta", { property: "og:image:alt", content: "hk — fast git hooks and project linting" }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ["meta", { name: "twitter:site", content: "@jdxcode" }],
     ["meta", { name: "twitter:image", content: "https://hk.jdx.dev/og.png" }],
+    ["meta", { name: "twitter:image:alt", content: "hk — fast git hooks and project linting" }],
+    ["link", { rel: "icon", href: "/favicon.ico", sizes: "any" }],
+    ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" }],
+    ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" }],
+    ["link", { rel: "manifest", href: "/site.webmanifest" }],
+    ["meta", { name: "theme-color", content: "#0d0221" }],
   ],
+  transformHead({ pageData, title, description }) {
+    const url = `${siteUrl}/${pageData.relativePath}`
+      .replace(/index\.md$/, "")
+      .replace(/\.md$/, ".html");
+
+    return [
+      ["link", { rel: "canonical", href: url }],
+      ["meta", { property: "og:url", content: url }],
+      ["meta", { property: "og:title", content: title }],
+      ["meta", { property: "og:description", content: description }],
+      ["meta", { name: "twitter:title", content: title }],
+      ["meta", { name: "twitter:description", content: description }],
+      [
+        "script",
+        { type: "application/ld+json" },
+        JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: title,
+          description,
+          url,
+          isPartOf: { "@type": "WebSite", name: "hk", url: siteUrl },
+        }),
+      ],
+    ];
+  },
 })
