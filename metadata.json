@@ -1,0 +1,20 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M1SV3KXXJQETZVBMEGM1X0K5",
+  "strategy": "manual-commit",
+  "branch": "codex/hk-agent-skills",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".github/workflows/release.yml",
+    "README.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ]
+}
