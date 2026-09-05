@@ -309,10 +309,17 @@ jobs:
             --draft \
             release-assets/*
       - name: Install completion syntax checkers
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y zsh fish
-          mise install github:PowerShell/PowerShell@7.5.4
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y zsh fish
+          # Hosted runners include PowerShell; Namespace images have its signed apt repository.
+          if ! command -v pwsh >/dev/null 2>&1; then
+            sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 install -y powershell
+          fi
       # Publish native completion scripts so installers can load them without
       # a separate usage executable. Keep the CLI spec for other consumers.
       - name: Publish completions and the CLI specification
@@ -337,11 +344,12 @@ jobs:
           bash -n hk.bash
           zsh -n hk.zsh
           fish --no-execute hk.fish
-          mise exec github:PowerShell/PowerShell@7.5.4 -- pwsh -NoProfile -Command - <<'POWERSHELL'
+          cat > completion-syntax-check.ps1 <<'POWERSHELL'
             $parseErrors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD "hk.powershell"), [ref]$null, [ref]$parseErrors)
             if ($parseErrors.Count) { $parseErrors | Write-Error; exit 1 }
           POWERSHELL
+          pwsh -NoProfile -NonInteractive -File completion-syntax-check.ps1
           gh release upload "$TAG_NAME" hk.usage.kdl hk.bash hk.zsh hk.fish hk.powershell --clobber
       # The packslip is this release's signed inventory: every archive's
       # digest, the executable inside it, the shared objects it needs from
