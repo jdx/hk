@@ -1,5 +1,77 @@
 # Changelog
 
+## [1.58.0](https://github.com/jdx/hk/compare/v1.57.0..v1.58.0) - 2026-09-05
+
+### 🚀 Features
+
+- **(builtins)** add droast dockerfile linter by [@illesnagy1](https://github.com/illesnagy1) in [#1302](https://github.com/jdx/hk/pull/1302)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** match root action metadata files in pinact globs by [@risu729](https://github.com/risu729) in [#1321](https://github.com/jdx/hk/pull/1321)
+- **(ci)** target repository when publishing releases by [@jdx](https://github.com/jdx) in [#1292](https://github.com/jdx/hk/pull/1292)
+- **(ci)** generate pkl builtins for release binaries by [@sahidvelji](https://github.com/sahidvelji) in [#1299](https://github.com/jdx/hk/pull/1299)
+- **(config)** load scalar settings from pkl by [@jdx](https://github.com/jdx) in [#1307](https://github.com/jdx/hk/pull/1307)
+- **(config)** scope a standalone-loaded subproject to its own directory by [@thespags](https://github.com/thespags) in [#1290](https://github.com/jdx/hk/pull/1290)
+- **(hook)** honor the check and fix settings when selecting run type by [@jdx](https://github.com/jdx) in [#1318](https://github.com/jdx/hk/pull/1318)
+
+### 📚 Documentation
+
+- clarify lefthook stash management by [@jdx](https://github.com/jdx) in [#1297](https://github.com/jdx/hk/pull/1297)
+- fix prose and factual errors in docs and CLI help by [@jdx](https://github.com/jdx) in [#1316](https://github.com/jdx/hk/pull/1316)
+
+### ⚡ Performance
+
+- **(ci)** reuse appliance-local mbx cache by [@jdx](https://github.com/jdx) in [#1317](https://github.com/jdx/hk/pull/1317)
+
+### 🎨 Styling
+
+- fix clippy lints for rust 1.98 by [@risu729](https://github.com/risu729) in [#1278](https://github.com/jdx/hk/pull/1278)
+
+### 🧪 Testing
+
+- run the hook-triggering commit outside a login shell by [@sahidvelji](https://github.com/sahidvelji) in [#1301](https://github.com/jdx/hk/pull/1301)
+
+### 🛡️ Security
+
+- **(deps)** update anthropics/claude-code-action action to v1.0.205 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1304](https://github.com/jdx/hk/pull/1304)
+- add open graph share image by [@jdx](https://github.com/jdx) in [#1324](https://github.com/jdx/hk/pull/1324)
+- complete social and search metadata by [@jdx](https://github.com/jdx) in [#1327](https://github.com/jdx/hk/pull/1327)
+- enforce conventional commits by [@jdx](https://github.com/jdx) in [#1331](https://github.com/jdx/hk/pull/1331)
+
+### 🔍 Other Changes
+
+- **(ci)** restore mbx remote cache by [@jdx](https://github.com/jdx) in [#1288](https://github.com/jdx/hk/pull/1288)
+- **(ci)** use runner-provided rust by [@jdx](https://github.com/jdx) in [#1310](https://github.com/jdx/hk/pull/1310)
+- **(ci)** update mbx to 1.3.2 by [@jdx](https://github.com/jdx) in [#1309](https://github.com/jdx/hk/pull/1309)
+- **(ci)** update mbx to 1.4.0 by [@jdx](https://github.com/jdx) in [#1312](https://github.com/jdx/hk/pull/1312)
+- **(ci)** retry JavaScript dependency installation by [@jdx](https://github.com/jdx) in [#1314](https://github.com/jdx/hk/pull/1314)
+- **(ci)** update performance runner image by [@jdx](https://github.com/jdx) in [#1320](https://github.com/jdx/hk/pull/1320)
+- **(perf)** move benchmarks to dedicated runner by [@jdx](https://github.com/jdx) in [#1298](https://github.com/jdx/hk/pull/1298)
+- **(release)** improve sponsor message by [@jdx](https://github.com/jdx) in [#1306](https://github.com/jdx/hk/pull/1306)
+- **(release)** publish a signed packslip with each release by [@jdx](https://github.com/jdx) in [#1329](https://github.com/jdx/hk/pull/1329)
+- **(release)** bump packslip action to v1.0.0 by [@jdx](https://github.com/jdx) in [#1332](https://github.com/jdx/hk/pull/1332)
+- adopt mr-boxington 1.1 cargo shim by [@jdx](https://github.com/jdx) in [#1295](https://github.com/jdx/hk/pull/1295)
+- update mr-boxington to 1.3.0 by [@jdx](https://github.com/jdx) in [#1300](https://github.com/jdx/hk/pull/1300)
+- route mbx caching by runner provider by [@jdx](https://github.com/jdx) in [#1319](https://github.com/jdx/hk/pull/1319)
+- reseed remote build cache by [@jdx](https://github.com/jdx) in [41cda8a](https://github.com/jdx/hk/commit/41cda8ae31e0a22e4a18077cf75fcb8a05954568)
+- document remote cache seeding by [@jdx](https://github.com/jdx) in [7a44fe4](https://github.com/jdx/hk/commit/7a44fe49969e91f21ccbde14ca2d76d580127635)
+- clarify cache seed authorization by [@jdx](https://github.com/jdx) in [d860a75](https://github.com/jdx/hk/commit/d860a759c8d1cb07b42378605678e6ef72ceb634)
+- bump mbx to 1.6.0 by [@jdx](https://github.com/jdx) in [#1322](https://github.com/jdx/hk/pull/1322)
+- configure Entire search by [@jdx](https://github.com/jdx) in [#1326](https://github.com/jdx/hk/pull/1326)
+- adopt mbx 1.8.1 and benchmark its GitHub target cache by [@jdx](https://github.com/jdx) in [#1328](https://github.com/jdx/hk/pull/1328)
+- use mr-boxington-action directly and retire the cache server from CI by [@jdx](https://github.com/jdx) in [#1330](https://github.com/jdx/hk/pull/1330)
+
+### 📦️ Dependency Updates
+
+- update jdx/mise-action action to v4.3.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1305](https://github.com/jdx/hk/pull/1305)
+- update anthropics/claude-code-action action to v1.0.206 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1313](https://github.com/jdx/hk/pull/1313)
+
+### New Contributors
+
+- @thespags made their first contribution in [#1290](https://github.com/jdx/hk/pull/1290)
+- @illesnagy1 made their first contribution in [#1302](https://github.com/jdx/hk/pull/1302)
+
 ## [1.57.0](https://github.com/jdx/hk/compare/v1.56.1..v1.57.0) - 2026-08-30
 
 ### 🚀 Features

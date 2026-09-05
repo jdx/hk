@@ -4,9 +4,9 @@
 /// * Uses mypy for type checking
 /// * Sorts imports with isort
 /// * Validates with flake8
-amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Config.pkl"
 
-import "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Builtins.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Builtins.pkl"
 
 local python_linters = new Mapping<String, Step> {
   // Ruff is a fast Python linter

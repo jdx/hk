@@ -42,7 +42,7 @@ They provide dependency management, option parsing, parallel execution, and more
 Run `mise run` in `hk.pkl` like any other command:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Config.pkl"
 
 hooks {
     ["pre-commit"] {
