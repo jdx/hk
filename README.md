@@ -93,8 +93,9 @@ hk includes two skills for coding agents:
 - [hk-debug](skills/hk-debug/SKILL.md): diagnose hook failures, skipped steps, configuration overrides,
   and partially staged files.
 
-The release workflow declares both skills in hk's packslip manifest, so compatible installers can
-fetch the instructions from the same commit as the release. Making them available to an agent is
+Both skills ship in the `skills/` directory of each release archive. hk's packslip manifest points
+to those directories, so compatible installers can use the bundled instructions without a separate
+repository download. Making them available to an agent is
 opt-in; see [mise's skills documentation](https://mise.jdx.dev/dev-tools/packslip-resources.html).
 
 ## Documentation
