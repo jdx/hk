@@ -1,0 +1,86 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M1SSQ7VHWYARWP1WBCXEZ88C",
+  "session_id": "01a072cb-b323-7503-b97d-71e8265040d1",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-05T22:06:14.329925Z",
+  "branch": "codex/hk-agent-skills",
+  "checkpoints_count": 3,
+  "save_step_count": 3,
+  "files_touched": [
+    ".github/workflows/release.yml",
+    "README.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "702b4e91aed1",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 385150,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 9474944,
+    "output_tokens": 19707,
+    "api_call_count": 93
+  },
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-05T22:06:14.274879Z",
+    "agent_lines": 0,
+    "agent_removed": 0,
+    "human_added": 391,
+    "human_modified": 24,
+    "human_removed": 0,
+    "total_committed": 391,
+    "total_lines_changed": 415,
+    "agent_percentage": 0,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 55,
+      "user_lines_removed": 16,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".github/workflows/release.yml": 3,
+        "README.md": 2,
+        "docs/.vitepress/theme/EndevFooter.vue": 3,
+        "docs/.vitepress/theme/EndevSponsors.vue": 2,
+        "docs/cli/commands.json": 1,
+        "docs/cli/sponsors.md": 1,
+        "hk.usage.kdl": 1,
+        "src/cli/sponsors.rs": 2,
+        "src/hook.rs": 5,
+        "test/untracked_not_processed_pre_commit.bats": 35
+      },
+      "user_removed_per_file": {
+        ".github/workflows/release.yml": 3,
+        "README.md": 2,
+        "docs/.vitepress/theme/EndevFooter.vue": 3,
+        "docs/.vitepress/theme/EndevSponsors.vue": 2,
+        "docs/cli/commands.json": 1,
+        "docs/cli/sponsors.md": 1,
+        "hk.usage.kdl": 1,
+        "src/cli/sponsors.rs": 2,
+        "src/hook.rs": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 55,
+      "agent_lines_removed": 16
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 55,
+      "agent_lines_removed": 16
+    }
+  ]
+}
