@@ -6,9 +6,6 @@ on:
       trusted:
         required: true
         type: boolean
-      mbx-backend:
-        required: true
-        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -63,9 +60,15 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-      - uses: ./.github/actions/mbx
+      - name: Mount the local mbx store on the Namespace cache volume
+        if: inputs.trusted
+        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
         with:
-          backend: ${{ inputs.mbx-backend }}
+          path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
+      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+        with:
+          backend: ${{ inputs.trusted && 'local' || 'github' }}
+          version: 1.8.1
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -81,10 +84,9 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-          install_args: mr-boxington
-      - uses: ./.github/actions/mbx
+      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
-          backend: server
+          version: 1.8.1
       - name: Build
         run: mbx build --features git2/vendored-libgit2,git2/vendored-openssl
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -215,9 +217,15 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-      - uses: ./.github/actions/mbx
+      - name: Mount the local mbx store on the Namespace cache volume
+        if: inputs.trusted
+        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
         with:
-          backend: ${{ inputs.mbx-backend }}
+          path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
+      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+        with:
+          backend: ${{ inputs.trusted && 'local' || 'github' }}
+          version: 1.8.1
       - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
@@ -243,9 +251,15 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-      - uses: ./.github/actions/mbx
+      - name: Mount the local mbx store on the Namespace cache volume
+        if: inputs.trusted
+        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
         with:
-          backend: ${{ inputs.mbx-backend }}
+          path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
+      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+        with:
+          backend: ${{ inputs.trusted && 'local' || 'github' }}
+          version: 1.8.1
       - run: mise run msrv
   ci-windows:
     needs: build-windows
@@ -258,9 +272,9 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-      - uses: ./.github/actions/mbx
+      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
-          backend: server
+          version: 1.8.1
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-windows-latest
