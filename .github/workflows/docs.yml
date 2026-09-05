@@ -21,7 +21,6 @@ jobs:
     uses: ./.github/workflows/docs-impl.yml
     with:
       trusted: true
-      mbx-backend: local
 
   untrusted:
     if: ${{ github.actor != 'jdx' }}
@@ -30,7 +29,6 @@ jobs:
     uses: ./.github/workflows/docs-impl.yml
     with:
       trusted: false
-      mbx-backend: server
 
   docs:
     name: docs
