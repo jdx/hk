@@ -261,6 +261,10 @@ jobs:
     runs-on: namespace-profile-endev-linux-amd64
     permissions:
       contents: write
+      # The packslip is signed with this job's OIDC identity and its
+      # artifacts are attested; neither is possible without these.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -302,6 +306,36 @@ jobs:
             --notes-file release-notes.md \
             --draft \
             release-assets/*
+      # A consumer that has this file can generate completions, a man page,
+      # and documentation with its own copy of usage, so nothing of hk's
+      # runs on the machine it is installed on.
+      - name: Publish the CLI specification
+        env:
+          INPUTS_VERSION: ${{ inputs.version }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ -n "${INPUTS_VERSION}" ]]; then
+            TAG_NAME="v${INPUTS_VERSION}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+          mkdir -p bin
+          tar -xzf release-assets/hk-x86_64-unknown-linux-gnu.tar.gz -C bin
+          bin/hk usage > hk.usage.kdl
+          gh release upload "$TAG_NAME" hk.usage.kdl --clobber
+      # The packslip is this release's signed inventory: every archive's
+      # digest, the executable inside it, the shared objects it needs from
+      # the host, and the workflow identity that signed for all of it. It
+      # lets an installer check a download against jdx/hk's identity rather
+      # than against a key this project would have to hold. The Pkl package
+      # is not an artifact anyone installs a binary from, so it stays out.
+      # See https://packslip.dev.
+      - uses: jdx/packslip@433c0c0f033e64c22f12433471768c255ef2bd93 # v0.3.0
+        with:
+          tag: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
+          artifacts: release-assets/hk-*.tar.gz release-assets/hk-*.tar.xz release-assets/hk-*.zip
+          bin: hk
+          resources: cli-spec/usage=asset:hk.usage.kdl
 
   publish-crate:
     needs: [create-release]
