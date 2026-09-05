@@ -84,6 +84,20 @@ hk fix          # fix modified files
 hk check --all  # check the entire repository, useful in CI
 ```
 
+## Agent skills
+
+hk includes two skills for coding agents:
+
+- [hk-configure](skills/hk-configure/SKILL.md): add linters and custom checks, preserve the project's
+  Pkl schema version, and verify which files each step selects.
+- [hk-debug](skills/hk-debug/SKILL.md): diagnose hook failures, skipped steps, configuration overrides,
+  and partially staged files.
+
+Both skills ship in the `skills/` directory of each release archive. hk's packslip manifest points
+to those directories, so compatible installers can use the bundled instructions without a separate
+repository download. Making them available to an agent is
+opt-in; see [mise's skills documentation](https://mise.jdx.dev/dev-tools/packslip-resources.html).
+
 ## Documentation
 
 - [Getting started](https://hk.jdx.dev/getting_started)

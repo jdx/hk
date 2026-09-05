@@ -115,11 +115,13 @@ jobs:
           # Match upload-rust-binary-action's default Unix archive format.
           # tar.xz is disabled by default and zip is reserved for Windows.
           tar -czf "hk-${TARGET}.tar.gz" \
-            -C "target/${TARGET}/serious-pgo" hk
+            -C "target/${TARGET}/serious-pgo" hk \
+            -C "${GITHUB_WORKSPACE}" skills
       - if: matrix.optimized != true
         uses: taiki-e/upload-rust-binary-action@f0d45ae91ee7b8ee928de7a9d04d893a08bcbec6 # v1
         with:
           bin: hk
+          include: skills
           target: ${{ matrix.target }}
           build-tool: ${{ matrix.build-tool }}
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -335,7 +337,10 @@ jobs:
           tag: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
           artifacts: release-assets/hk-*.tar.gz release-assets/hk-*.tar.xz release-assets/hk-*.zip
           bin: hk
-          resources: cli-spec/usage=asset:hk.usage.kdl
+          resources: |
+            cli-spec/usage=asset:hk.usage.kdl
+            skill/hk-configure=archive:skills/hk-configure
+            skill/hk-debug=archive:skills/hk-debug
 
   publish-crate:
     needs: [create-release]
