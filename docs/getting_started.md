@@ -76,8 +76,8 @@ scripts on older versions. See [`hk install`](/cli/install) for all installation
 A typical configuration shares the same linters between automatic hooks and manual commands:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.57.0/hk@1.57.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
   ["eslint"] = Builtins.eslint
