@@ -335,7 +335,10 @@ jobs:
           tag: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
           artifacts: release-assets/hk-*.tar.gz release-assets/hk-*.tar.xz release-assets/hk-*.zip
           bin: hk
-          resources: cli-spec/usage=asset:hk.usage.kdl
+          resources: |
+            cli-spec/usage=asset:hk.usage.kdl
+            skill/hk-configure=repo:skills/hk-configure
+            skill/hk-debug=repo:skills/hk-debug
 
   publish-crate:
     needs: [create-release]
