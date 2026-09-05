@@ -9,7 +9,9 @@ Capture the failing command, `hk --version`, and `git status --short`. Distingui
 
 ## Inspect the effective configuration
 
-Use `hk config sources` and `hk config dump` to see what hk loads. `hk.local.pkl` takes precedence over `hk.pkl`, and `HK_FILE` can select another file. Inspect relevant `HK_*` overrides and use `hk config explain skip_steps` (or another relevant setting) when a setting differs from the project file.
+Check `HK_FILE` first: when set, it replaces the normal candidate list (a relative path is searched from the working directory upward). Otherwise, walk upward from the working directory, checking `hk.local.pkl`, `.config/hk.local.pkl`, `hk.pkl`, then `.config/hk.pkl` at each level. Legacy `hk.toml`, `hk.yaml`, `hk.yml`, and `hk.json` are checked after those Pkl paths at each level. The first existing file wins. Inspect a local override's `amends` chain before editing the shared project file.
+
+`hk config sources` prints the static precedence of configuration layers; `hk config dump` shows merged settings. Neither identifies the selected project file. Inspect relevant `HK_*` overrides and use `hk config explain skip_steps` (or another relevant setting) when a setting differs from the project file.
 
 Run `hk validate` for Pkl evaluation or schema errors. Compare the project's pinned package imports with its installed hk version before suggesting an upgrade.
 
