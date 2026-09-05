@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.58.1](https://github.com/jdx/hk/compare/v1.58.0..v1.58.1) - 2026-09-05
+
+### 📚 Documentation
+
+- generate page-specific social preview images by [@jdx](https://github.com/jdx) in [#1333](https://github.com/jdx/hk/pull/1333)
+
 ## [1.58.0](https://github.com/jdx/hk/compare/v1.57.0..v1.58.0) - 2026-09-05
 
 ### 🚀 Features
