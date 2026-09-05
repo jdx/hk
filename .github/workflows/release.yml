@@ -326,7 +326,10 @@ jobs:
           for shell in bash zsh fish powershell; do
             bin/hk completion "$shell" > "hk.$shell"
             test -s "hk.$shell"
+            grep -Fq '__complete_word__' "hk.$shell"
+            bin/hk __complete_word__ --shell "$shell" --line 'hk --ver' | grep -Fq -- '--verbose'
           done
+          bash -n hk.bash
           gh release upload "$TAG_NAME" hk.usage.kdl hk.bash hk.zsh hk.fish hk.powershell --clobber
       # The packslip is this release's signed inventory: every archive's
       # digest, the executable inside it, the shared objects it needs from
