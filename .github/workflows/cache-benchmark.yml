@@ -20,6 +20,10 @@ concurrency:
   group: cache-benchmark-${{ github.ref }}
   cancel-in-progress: false
 
+# Main-branch runs also seed the GitHub Actions cache that ci-impl restores on
+# GitHub-hosted runners, where trusted CI keeps its store on Namespace volumes
+# instead and would otherwise never write an entry for fork pull requests.
+
 env:
   CARGO_INCREMENTAL: 0
   CARGO_TERM_COLOR: always
@@ -76,7 +80,7 @@ jobs:
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
           version: 1.8.1
-          cache-generation: cache-benchmark-v1
+          cache-generation: ci-v1
       - name: Build
         id: build
         shell: bash
@@ -123,7 +127,7 @@ jobs:
 
   rust-cache:
     name: Swatinem rust-cache (macOS)
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 20
     outputs:
       build_seconds: ${{ steps.build.outputs.build_seconds }}
@@ -155,7 +159,7 @@ jobs:
 
   mbx_github_macos:
     name: mbx GitHub target cache (macOS)
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 20
     outputs:
       build_seconds: ${{ steps.build.outputs.build_seconds }}
@@ -172,7 +176,7 @@ jobs:
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
           version: 1.8.1
-          cache-generation: cache-benchmark-v1
+          cache-generation: ci-v1
       - name: Build
         id: build
         shell: bash
@@ -269,7 +273,7 @@ jobs:
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
           version: 1.8.1
-          cache-generation: cache-benchmark-v1
+          cache-generation: ci-v1
       - name: Build
         id: build
         shell: pwsh
