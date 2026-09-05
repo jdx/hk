@@ -308,6 +308,11 @@ jobs:
             --notes-file release-notes.md \
             --draft \
             release-assets/*
+      - name: Install completion syntax checkers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh fish
+          mise install github:PowerShell/PowerShell@7.5.4
       # Publish native completion scripts so installers can load them without
       # a separate usage executable. Keep the CLI spec for other consumers.
       - name: Publish completions and the CLI specification
@@ -330,6 +335,13 @@ jobs:
             bin/hk __complete_word__ --shell "$shell" --line 'hk --ver' | grep -Fq -- '--verbose'
           done
           bash -n hk.bash
+          zsh -n hk.zsh
+          fish --no-execute hk.fish
+          mise exec github:PowerShell/PowerShell@7.5.4 -- pwsh -NoProfile -Command - <<'POWERSHELL'
+            $parseErrors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD "hk.powershell"), [ref]$null, [ref]$parseErrors)
+            if ($parseErrors.Count) { $parseErrors | Write-Error; exit 1 }
+          POWERSHELL
           gh release upload "$TAG_NAME" hk.usage.kdl hk.bash hk.zsh hk.fish hk.powershell --clobber
       # The packslip is this release's signed inventory: every archive's
       # digest, the executable inside it, the shared objects it needs from
