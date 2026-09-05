@@ -1,3 +1,4 @@
+import { socialCard, writeSocialCard } from "./social-images.mjs";
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -104,21 +105,25 @@ export default defineConfig({
     ["meta", { property: "og:site_name", content: "hk" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:locale", content: "en_US" }],
-    ["meta", { property: "og:image", content: "https://hk.jdx.dev/og.png" }],
     ["meta", { property: "og:image:width", content: "1200" }],
     ["meta", { property: "og:image:height", content: "630" }],
-    ["meta", { property: "og:image:alt", content: "hk — fast git hooks and project linting" }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ["meta", { name: "twitter:site", content: "@jdxcode" }],
-    ["meta", { name: "twitter:image", content: "https://hk.jdx.dev/og.png" }],
-    ["meta", { name: "twitter:image:alt", content: "hk — fast git hooks and project linting" }],
     ["link", { rel: "icon", href: "/favicon.ico", sizes: "any" }],
     ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" }],
     ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" }],
     ["link", { rel: "manifest", href: "/site.webmanifest" }],
     ["meta", { name: "theme-color", content: "#0d0221" }],
   ],
-  transformHead({ pageData, title, description }) {
+  transformHead({ pageData, title, description, siteConfig }) {
+    const heading =
+      pageData.relativePath === "index.md"
+        ? "Fast git hooks and project linting"
+        : pageData.title || "hk";
+    const card = socialCard(heading);
+    writeSocialCard(siteConfig.outDir, card);
+    const image = new URL(card.path, `${siteUrl}/`).toString();
+    const imageAlt = `${heading} — hk docs`;
     const url = `${siteUrl}/${pageData.relativePath}`
       .replace(/index\.md$/, "")
       .replace(/\.md$/, ".html");
@@ -126,6 +131,10 @@ export default defineConfig({
     return [
       ["link", { rel: "canonical", href: url }],
       ["meta", { property: "og:url", content: url }],
+      ["meta", { property: "og:image", content: image }],
+      ["meta", { property: "og:image:alt", content: imageAlt }],
+      ["meta", { name: "twitter:image", content: image }],
+      ["meta", { name: "twitter:image:alt", content: imageAlt }],
       ["meta", { property: "og:title", content: title }],
       ["meta", { property: "og:description", content: description }],
       ["meta", { name: "twitter:title", content: title }],
