@@ -2,6 +2,15 @@ name: warm cache benchmark
 
 on:
   workflow_dispatch:
+    inputs:
+      mbx_ref:
+        description: Optional current jdx/mr-boxington branch-head SHA to build instead of the pinned release
+        required: false
+        type: string
+      rust_toolchain:
+        description: Optional Rust toolchain for the timed hk build, useful for stale-manifest tests
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -17,7 +26,9 @@ env:
 jobs:
   mbx:
     name: mbx (${{ matrix.label }})
-    if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && github.ref == 'refs/heads/main'
+    if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && (github.ref == 'refs/heads/main' || inputs.mbx_ref != '')
+    env:
+      MBX_SUMMARY: full
     permissions:
       contents: read
       id-token: write # Authenticate the main-branch dispatch to the cache server.
@@ -37,35 +48,95 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Validate unreleased mbx revision
+        if: inputs.mbx_ref != ''
+        shell: bash
+        env:
+          MBX_CANDIDATE_SHA: ${{ inputs.mbx_ref }}
+        run: |
+          if [[ ! "$MBX_CANDIDATE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "mbx_ref must be a full commit SHA" >&2
+            exit 1
+          fi
+          candidate_sha=$(printf '%s' "$MBX_CANDIDATE_SHA" | tr '[:upper:]' '[:lower:]')
+          if ! git ls-remote --heads https://github.com/jdx/mr-boxington.git |
+            awk -v candidate="$candidate_sha" '$1 == candidate { found = 1 } END { exit !found }'
+          then
+            echo "mbx_ref must be the current head of a branch in jdx/mr-boxington" >&2
+            exit 1
+          fi
+      - name: Check out unreleased mbx
+        if: inputs.mbx_ref != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: jdx/mr-boxington
+          ref: ${{ inputs.mbx_ref }}
+          path: .mbx-candidate-source
+          persist-credentials: false
+      - name: Build unreleased mbx outside the hk cache
+        if: inputs.mbx_ref != ''
+        shell: bash
+        env:
+          CARGO_HOME: ${{ runner.temp }}/mbx-candidate-cargo-home
+          CARGO_TARGET_DIR: ${{ runner.temp }}/mbx-candidate-target
+          MBX_CACHE_DIR: ${{ runner.temp }}/mbx-candidate-disabled-cache
+          MBX_REMOTE_URL: ""
+          MBX_REMOTE_NAMESPACE: ""
+          MBX_REMOTE_TOKEN: ""
+          MBX_REMOTE_OIDC_AUDIENCE: ""
+          RUSTC_WRAPPER: ""
+          RUSTC_WORKSPACE_WRAPPER: ""
+        run: cargo build --locked --release --package mbx --manifest-path .mbx-candidate-source/Cargo.toml
+      - name: Select an alternate Rust toolchain for hk
+        if: inputs.rust_toolchain != ''
+        shell: bash
+        env:
+          BENCH_RUST_TOOLCHAIN: ${{ inputs.rust_toolchain }}
+        run: |
+          rustup toolchain install "$BENCH_RUST_TOOLCHAIN" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$BENCH_RUST_TOOLCHAIN" >> "$GITHUB_ENV"
+      - name: Start cache timer
+        if: runner.os != 'Windows'
+        shell: bash
+        run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
+      - name: Start cache timer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       - uses: ./.github/actions/mbx
         with:
           backend: server
-          version: 1.6.0
+          executable-dir: ${{ inputs.mbx_ref != '' && format('{0}/mbx-candidate-target/release', runner.temp) || '' }}
+          version: 1.8.1
       - name: Build
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          started=$(python3 -c 'import time; print(time.monotonic_ns())')
+          build_started=$(python3 -c 'import time; print(time.monotonic_ns())')
           mbx build
           ended=$(python3 -c 'import time; print(time.monotonic_ns())')
-          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
-          echo "## mbx ${{ matrix.label }}: ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
+          cache_started=$(<"$RUNNER_TEMP/cache-benchmark-start")
+          build_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$build_started" "$ended")
+          total_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$cache_started" "$ended")
+          echo "## mbx ${{ matrix.label }}: ${total_elapsed}s total (${build_elapsed}s build)" >> "$GITHUB_STEP_SUMMARY"
           mbx cache stats
       - name: Build
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $timer = [System.Diagnostics.Stopwatch]::StartNew()
+          $buildStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
           mbx build --features git2/vendored-libgit2,git2/vendored-openssl
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $timer.Stop()
-          $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
-          "## mbx ${{ matrix.label }}: ${elapsed}s" >> $env:GITHUB_STEP_SUMMARY
+          $ended = [System.Diagnostics.Stopwatch]::GetTimestamp()
+          $cacheStarted = [long](Get-Content "$env:RUNNER_TEMP/cache-benchmark-start")
+          $buildElapsed = (($ended - $buildStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          $totalElapsed = (($ended - $cacheStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          "## mbx ${{ matrix.label }}: ${totalElapsed}s total (${buildElapsed}s build)" >> $env:GITHUB_STEP_SUMMARY
           mbx cache stats
 
   rust_cache:
     name: Swatinem rust-cache (${{ matrix.label }})
-    if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && github.ref == 'refs/heads/main'
+    if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && (github.ref == 'refs/heads/main' || inputs.mbx_ref != '')
     strategy:
       fail-fast: false
       matrix:
@@ -85,6 +156,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Start cache timer
+        if: runner.os != 'Windows'
+        shell: bash
+        run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
+      - name: Start cache timer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
       - name: Restore Cargo cache
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
@@ -94,18 +173,78 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          started=$(python3 -c 'import time; print(time.monotonic_ns())')
+          build_started=$(python3 -c 'import time; print(time.monotonic_ns())')
           cargo build
           ended=$(python3 -c 'import time; print(time.monotonic_ns())')
-          elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$started" "$ended")
-          echo "## Swatinem/rust-cache ${{ matrix.label }}: ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
+          cache_started=$(<"$RUNNER_TEMP/cache-benchmark-start")
+          build_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$build_started" "$ended")
+          total_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$cache_started" "$ended")
+          echo "## Swatinem/rust-cache ${{ matrix.label }}: ${total_elapsed}s total (${build_elapsed}s build)" >> "$GITHUB_STEP_SUMMARY"
       - name: Build
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $timer = [System.Diagnostics.Stopwatch]::StartNew()
+          $buildStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
           cargo build --features git2/vendored-libgit2,git2/vendored-openssl
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $timer.Stop()
-          $elapsed = $timer.Elapsed.TotalSeconds.ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
-          "## Swatinem/rust-cache ${{ matrix.label }}: ${elapsed}s" >> $env:GITHUB_STEP_SUMMARY
+          $ended = [System.Diagnostics.Stopwatch]::GetTimestamp()
+          $cacheStarted = [long](Get-Content "$env:RUNNER_TEMP/cache-benchmark-start")
+          $buildElapsed = (($ended - $buildStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          $totalElapsed = (($ended - $cacheStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          "## Swatinem/rust-cache ${{ matrix.label }}: ${totalElapsed}s total (${buildElapsed}s build)" >> $env:GITHUB_STEP_SUMMARY
+
+  mbx_github:
+    name: mbx GitHub target cache (${{ matrix.label }})
+    if: github.actor == 'jdx' && github.triggering_actor == 'jdx' && (github.ref == 'refs/heads/main' || inputs.mbx_ref != '')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: Linux
+          - os: macos-14
+            label: macOS
+          - os: windows-latest
+            label: Windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Start cache timer
+        if: runner.os != 'Windows'
+        shell: bash
+        run: python3 -c 'import pathlib, time; pathlib.Path("${{ runner.temp }}/cache-benchmark-start").write_text(str(time.monotonic_ns()))'
+      - name: Start cache timer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '[System.Diagnostics.Stopwatch]::GetTimestamp() | Set-Content "$env:RUNNER_TEMP/cache-benchmark-start"'
+      # Restore-only: the cache benchmark's main-branch pushes seed this entry.
+      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+        with:
+          version: 1.8.1
+          cache-generation: cache-benchmark-v1
+      - name: Build
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          build_started=$(python3 -c 'import time; print(time.monotonic_ns())')
+          mbx build
+          ended=$(python3 -c 'import time; print(time.monotonic_ns())')
+          cache_started=$(<"$RUNNER_TEMP/cache-benchmark-start")
+          build_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$build_started" "$ended")
+          total_elapsed=$(python3 -c 'import sys; print(f"{(int(sys.argv[2]) - int(sys.argv[1])) / 1e9:.3f}")' "$cache_started" "$ended")
+          echo "## mbx GitHub target cache ${{ matrix.label }}: ${total_elapsed}s total (${build_elapsed}s build)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Build
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $buildStarted = [System.Diagnostics.Stopwatch]::GetTimestamp()
+          mbx build --features git2/vendored-libgit2,git2/vendored-openssl
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $ended = [System.Diagnostics.Stopwatch]::GetTimestamp()
+          $cacheStarted = [long](Get-Content "$env:RUNNER_TEMP/cache-benchmark-start")
+          $buildElapsed = (($ended - $buildStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          $totalElapsed = (($ended - $cacheStarted) / [System.Diagnostics.Stopwatch]::Frequency).ToString("F3", [Globalization.CultureInfo]::InvariantCulture)
+          "## mbx GitHub target cache ${{ matrix.label }}: ${totalElapsed}s total (${buildElapsed}s build)" >> $env:GITHUB_STEP_SUMMARY
