@@ -44,8 +44,8 @@ Set [`HK_FILE`](/environment_variables#hk-file) to override the search and use a
 Here's a basic `hk.pkl` file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
     // steps can be manually defined
@@ -364,8 +364,8 @@ The hkrc file follows the same format as `hk.pkl` and can define hooks and linte
 Example hkrc file:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 local linters {
     ["prettier"] = Builtins.prettier
@@ -400,7 +400,7 @@ Add steps to your hkrc. hk merges them into every project's hooks, so steps with
 
 ```pkl
 // ~/.config/hk/config.pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 
 hooks {
     ["pre-commit"] {
@@ -493,7 +493,7 @@ Git config supports both multivar entries (multiple values with the same key) an
 User-specific defaults can be set in `~/.config/hk/config.pkl`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.0/hk@1.58.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 
 jobs = 4
 fail_fast = false
