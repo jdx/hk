@@ -18,7 +18,8 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Conventional Commits
 
-All commit messages and PR titles MUST follow conventional commit format:
+PR titles MUST follow conventional commit format. Intermediate commit subjects
+SHOULD use the same format:
 
 **Format:** `<type>(<scope>): <description>`
 
@@ -32,13 +33,15 @@ All commit messages and PR titles MUST follow conventional commit format:
 - `test:` - Testing changes
 - `chore:` - Maintenance tasks, releases, dependency updates, CI/infrastructure changes
 - `security:` - Security-related changes
+- `ci:` - CI and automation changes
+- `revert:` - Reverting a previous change
 
 **Scopes:**
 - For command-specific changes, use the command name: `check`, `fix`, `run`, `init`, `install`, `validate`, etc.
 - For subsystem changes: `hook`, `step`, `config`, `lock`, `pkl`, `builtins`, `stash`, `deps`
 
 **Description Style:**
-- Use lowercase after the colon
+- Start the description with a lowercase character
 - Use imperative mood ("add feature" not "added feature")
 - Keep it concise but descriptive
 
@@ -48,6 +51,11 @@ All commit messages and PR titles MUST follow conventional commit format:
 - `feat(builtins): add biome linter`
 - `docs: update pkl configuration examples`
 - `chore: release 0.5.0`
+
+CI validates the pull request title and re-runs when it is edited. Intermediate
+commit subjects are not checked because pull requests are squash-merged. CI
+mechanically checks the allowed type, syntax, and lowercase-leading description;
+imperative mood remains a review rule.
 
 ## Dependency Updates
 
