@@ -1,149 +1,107 @@
 ---
-outline: "deep"
+outline: deep
+description: Configure hooks, steps, file selection, profiles, local overrides, and runtime settings.
 ---
 
 # Configuration
 
-hk builds its effective configuration by layering sources from lowest to highest precedence:
+hk reads `hk.pkl` to decide which steps to run and how to run them. Start with a shared set of linters, then add file filters, dependencies, and profiles as your project needs them.
 
-| Precedence  | Source                                                 | Scope                     |
-| ----------- | ------------------------------------------------------ | ------------------------- |
-| 1 (lowest)  | Built-in defaults                                      | All projects              |
-| 2           | [hkrc](#hkrc) (`~/.config/hk/config.pkl`)              | All projects (user-level) |
-| 3           | [Project config](#hk-pkl) (`hk.pkl` or `hk.local.pkl`) | Single project            |
-| 4           | [Git config](#git-configuration) (global, then local)  | Per-repo                  |
-| 5           | [Environment variables](#settings-reference) (`HK_*`)  | Per-invocation            |
-| 6 (highest) | [CLI flags](#settings-reference)                       | Per-invocation            |
-
-Higher layers override lower. For hooks and steps, layers are **additive** — hkrc can define hooks the project doesn't have, but the project's definition wins on collision. See the [hkrc](#hkrc) section for merge semantics.
+For a first setup, use [getting started](/getting_started). For complete configurations, see the [examples](/reference/examples/).
 
 ## `hk.pkl`
 
-hk is configured via `hk.pkl`, which is written in [Pkl](https://pkl-lang.org/) from Apple. By default, hk uses the built-in pklr evaluator, so the pkl CLI is not required. Set `HK_PKL_BACKEND=pkl` to use the pkl CLI instead.
-
-### Config File Paths
-
-hk searches for config files in the following order (first match wins):
-
-| Precedence | Path                   | Purpose                                                    |
-| ---------- | ---------------------- | ---------------------------------------------------------- |
-| 1          | `hk.local.pkl`         | Local overrides, should not be committed to source control |
-| 2          | `.config/hk.local.pkl` | Local overrides, nested under `.config/`                   |
-| 3          | `hk.pkl`               | Standard project config                                    |
-| 4          | `.config/hk.pkl`       | Standard project config, nested under `.config/`           |
-
-hk walks up from the current directory to `/`, checking each directory for these files. The first file found is used.
-
-Set [`HK_FILE`](/environment_variables#hk-file) to override the search and use a specific path.
-
-> [!NOTE]
-> Unlike mise, hk does not merge multiple config files or support `conf.d/` directories. Local overrides use Pkl's `amends` mechanism instead (see [`hk.local.pkl`](#hk-local-pkl)).
-
-### Example
-
-Here's a basic `hk.pkl` file:
+A configuration amends hk’s [Pkl schema](/pkl_introduction) and defines named hooks:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-    // steps can be manually defined
-    ["eslint"] {
-        // the files to run the linter on, if no files are matched, the linter will be skipped
-        // this will filter the staged files and return the subset matching these globs
-        glob = List("*.js", "*.ts")
-        // the command to run that makes no changes
-        check = "eslint {{files}}"
-        // the command to run that fixes the files (used by default)
-        fix = "eslint --fix {{files}}"
-        // optional: files matching these globs will be staged after fix modifies them
-        // defaults to the step's glob when staging is enabled, so usually not needed
-        // stage = List("*.js", "*.ts")
-    }
-    // steps can also be pulled from the Builtins pkl library
-    ["prettier"] = Builtins.prettier
+  ["eslint"] = Builtins.eslint
+  ["prettier"] = Builtins.prettier
 }
 
 hooks {
-    ["pre-commit"] {
-        fix = true       // runs the fix step to make modifications
-        stash = "git"    // stashes unstaged changes before running fix steps
-        steps = linters
-    }
-    ["pre-push"] {
-        steps = linters
-    }
-    // "fix" and "check" are special steps for `hk fix` and `hk check` commands
-    ["fix"] {
-        fix = true
-        steps = linters
-    }
-    ["check"] {
-        steps = linters
-        // optional: run a report after the hook finishes; HK_REPORT_JSON contains timing JSON
-        report = #"node scripts/upload-timings.js <<<"$HK_REPORT_JSON""#
-    }
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = linters
+  }
+  ["check"] { steps = linters }
+  ["fix"] {
+    fix = true
+    steps = linters
+  }
 }
 ```
 
-The first line (`amends`) is required: it imports the base configuration schema that `hk.pkl` extends.
+`pre-commit` applies fixes to staged files while unstaged work is saved. The `check` and `fix` hooks provide the local commands. They are hooks, not individual steps.
 
-### Subprojects
+### Config file paths
 
-In a monorepo, the root config can load an `hk.pkl` owned by each component:
+Starting in the current directory, hk walks upward. At each directory it checks these paths in order, using the first match:
 
-```pkl
-subprojects = List("frontend", "backend", "packages/*")
-```
+| Order | Path                   | Purpose                               |
+| ----- | ---------------------- | ------------------------------------- |
+| 1     | `hk.local.pkl`         | Local project override                |
+| 2     | `.config/hk.local.pkl` | Local override under `.config/`       |
+| 3     | `hk.pkl`               | Shared project configuration          |
+| 4     | `.config/hk.pkl`       | Shared configuration under `.config/` |
 
-Subproject paths are relative to the root config and may be literal directories or
-glob patterns. hk merges a subproject's steps into the root hook with the same name,
-then scopes their working directories and file matching to that subproject. A step
-named `eslint` in `frontend/hk.pkl` is exposed as `frontend:eslint` for `--step` and
-`skip_steps`.
-
-Keep these composition rules in mind:
-
-- Hooks are not copied between events. A subproject step under `check` does not also
-  run in `pre-commit` or `fix`; add it to every event where it should run.
-- Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
-  the root config. Subprojects contribute steps and their local environment.
-- Subprojects are loaded one level deep. A `subprojects` declaration inside a
-  subproject config is ignored with a warning.
-- A subproject's literal `dir` is relative to that subproject. Templated workspace
-  directories have an additional caveat described under
-  [Step working directory](#step-working-directory).
-
-See the complete [monorepo example](/reference/examples/monorepo#nested-configs-with-subprojects),
-including per-directory mise environments and locally installed Node tools.
+[`HK_FILE`](/environment_variables#hk-file) selects a specific configuration instead. hk selects one project file; it does not merge every file it finds.
 
 ### `hk.local.pkl`
 
-If `hk.local.pkl` exists, it is used instead of `hk.pkl`. It is intended for local config and should
-not be committed to source control.
-
-Its first line is expected to be `amends "./hk.pkl"` so that it extends the project config.
-
-Example:
+Use Pkl’s `amends` to extend the shared project configuration locally:
 
 ```pkl
 amends "./hk.pkl"
-import "./hk.pkl" as repo_config
 
-hooks = (repo_config.hooks) {
-    ["pre-commit"] {
-        (steps) {
-            ["custom-step"] = new Step {
-                // ...
-            }
-        }
+hooks {
+  ["check"] {
+    steps {
+      ["local-check"] {
+        check = "make local-check"
+      }
     }
+  }
 }
-
 ```
 
-<!--@include: ./gen/pkl-config.md-->
+Add `hk.local.pkl` to `.git/info/exclude` or the project’s `.gitignore`. This example preserves inherited steps and adds one. Assign a new mapping when you want to replace the step list:
+
+```pkl
+amends "./hk.pkl"
+
+hooks {
+  ["check"] {
+    steps = new Mapping<String, Step> {
+      ["local-check"] { check = "make local-check" }
+    }
+  }
+}
+```
+
+## Define a step
+
+A step selects files and declares commands:
+
+```pkl
+local eslint = new Step {
+  glob = List("*.js", "*.ts")
+  exclude = List("**/generated/**")
+  check = "eslint {{files}}"
+  fix = "eslint --fix {{files}}"
+}
+```
+
+- `glob` filters the files selected for the run. With no match, the step is skipped.
+- `check` should return a nonzero status for problems and leave files unchanged.
+- `fix` should apply available fixes and report any problems that remain.
+- `{{files}}` expands to the selected file arguments.
+
+A step without file patterns can run even when no files are selected. Use that for whole-project commands, and declare ordering when they read or write beyond a known file set.
 
 ### Step commands
 
@@ -228,301 +186,211 @@ This behavior is opt-in because it adds another process invocation and requires 
 
 For partial fixers, set `check_after_diff = true` alongside `check` and `check_diff`. After applying a nonempty diff in fix mode, hk reruns `check` on the original batch so non-fixable findings are not hidden by a successfully applied patch. Complete formatters can leave this disabled to retain the single-command fast path.
 
-### `<GROUP>`
-
-A group is a collection of steps that run in parallel with each other. The group waits for previous steps and groups to finish, and blocks later steps and groups from starting until it finishes. This is a coarse way to enforce execution order; read/write locks and `depends` are usually better.
-
-Steps should not normally run `git add` or `git update-index` themselves. Declare generated or modified files with the step's `stage` setting and let hk stage them; hk serializes its own index writes. If a legacy or third-party command stages files internally and cannot be changed, hk cannot infer that hidden write, so serialize it with `exclusive = true`, a `depends` chain, or a separate group.
+### Customize a builtin
 
 ```pkl
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["build"] = new Group {
-                steps = new Mapping<String, Step> {
-                    ["ts"] = new Step {
-                        fix = "tsc -b"
-                    }
-                    ["rs"] = new Step {
-                        fix = "cargo build"
-                    }
-                }
-            }
-            // these steps will run in parallel after the build group finishes
-            ["lint"] = new Group {
-                steps = new Mapping<String, Step> {
-                    ["prettier"] = new Step {
-                        check = "prettier --check {{files}}"
-                    }
-                    ["eslint"] = new Step {
-                        check = "eslint {{files}}"
-                    }
-                }
-            }
-        }
-    }
+["prettier"] = (Builtins.prettier) {
+  glob = List("*.js", "*.ts", "*.json")
+  exclude = List("**/generated/**")
 }
 ```
 
-Groups may define a small set of step settings that child steps inherit when they do not define their own value:
+The amended object keeps properties you do not override. See [builtins](/builtins) for the catalogue and command details.
 
-| Group option          | Inherited step option | Type                                 |
-| --------------------- | --------------------- | ------------------------------------ |
-| `dir`                 | `dir`                 | `String?`                            |
-| `prefix`              | `prefix`              | `(String \| List<String>)?`          |
-| `workspace_indicator` | `workspace_indicator` | `String?`                            |
-| `shell`               | `shell`               | `(String \| Script)?`                |
-| `stage`               | `stage`               | `(String \| List<String>)?`          |
-| `exclude`             | `exclude`             | `(String \| List<String> \| Regex)?` |
+### Dependencies and groups
 
-Inheritance uses simple override semantics. If a child step defines the field, the child value is used. Otherwise, the group value is copied to the step. Values are not merged.
+Use `depends` when the result of one step is needed by another:
+
+```pkl
+["prettier"] = (Builtins.prettier) {
+  depends = "eslint"
+}
+```
+
+This waits for the `eslint` step. File locking already prevents simultaneous writes to selected files; a dependency additionally establishes their order.
+
+Prefer the step’s `stage` setting over running `git add` inside a command; hk serializes its own index writes. Serialize commands that write the index themselves with `exclusive`, `depends`, or a group.
+
+A `Group` is a scheduling boundary. Its child steps can run together, but the group waits for prior work and blocks later work until it finishes. Prefer individual dependencies when only a few steps need an order.
+
+#### Group defaults {#group}
 
 ```pkl
 local frontend = new Group {
-    dir = "packages/frontend"
-    prefix = "mise x --"
-    steps {
-        ["prettier"] = (Builtins.prettier) {
-            batch = true
-        }
-        ["eslint"] = (Builtins.eslint) {
-            dir = "different/path"
-            batch = true
-        }
-    }
-}
-```
-
-In this example, `prettier` inherits `dir = "packages/frontend"` and `prefix = "mise x --"`. `eslint` keeps its explicit `dir = "different/path"` and still inherits `prefix = "mise x --"`.
-
-String prefixes are shell syntax and can only be used with string commands. For a
-structured command, use a list so each prefix argument retains its boundary:
-
-```pkl
-["ruff"] = (Builtins.ruff) {
-    prefix = List("mise", "x", "--")
-}
-```
-
-An argv prefix is rendered and prepended to the structured command without invoking
-a shell. It cannot be combined with a string command, and it cannot contain
-`{{files}}` or `{{workspace_files}}`.
-
-## Git status in conditions and templates
-
-hk provides the current git status to both condition expressions and Tera templates via a `git` object. This lets you avoid shelling out in conditions (e.g. `exec('git …')`).
-
-- Available fields: `git.staged_files`, `git.unstaged_files`, `git.untracked_files`, `git.modified_files`
-  - Staged classifications: `git.staged_added_files`, `git.staged_modified_files`, `git.staged_deleted_files`, `git.staged_renamed_files`, `git.staged_copied_files`
-  - Unstaged classifications: `git.unstaged_modified_files`, `git.unstaged_deleted_files`, `git.unstaged_renamed_files`
-
-- In conditions (expr):
-
-```pkl
-// Run only if there are any staged files
-condition = "git.staged_files != []"
-
-// Run only if a Cargo.toml file is staged
-condition = #"any(git.staged_files, {hasSuffix(#, "Cargo.toml")})"#
-
-// Diff-filter approximations
-// Added or Renamed (AR):
-condition = "(git.staged_added_files != []) || (git.staged_renamed_files != [])"
-
-// Renamed or Deleted (RD):
-condition = "(git.staged_renamed_files != []) || (git.staged_deleted_files != [])"
-```
-
-- In templates (Tera):
-
-```pkl
-check = "echo staged: {{ git.staged_files }}"
-```
-
-These lists contain repository-relative paths for files currently in each state.
-
-## `hkrc`
-
-> [!WARNING]
-> `.hkrc.pkl` and `--hkrc` are deprecated and will be removed in hk v2.
->
-> - **Per-project overrides:** use `hk.local.pkl` in the project root (see [`hk.local.pkl`](#hk-local-pkl))
-> - **Global user config:** use `~/.config/hk/config.pkl`
-
-The `hkrc` is a user-level configuration file that customizes hk's behavior across all projects. hk discovers it in this order (first match wins):
-
-| Precedence | Path                      | Purpose                                 |
-| ---------- | ------------------------- | --------------------------------------- |
-| 1          | `.hkrc.pkl` (CWD)         | Per-directory override **(deprecated)** |
-| 2          | `~/.hkrc.pkl`             | Home directory **(deprecated)**         |
-| 3          | `~/.config/hk/config.pkl` | XDG config directory **(recommended)**  |
-
-The `--hkrc` flag, which overrides discovery with a specific path, is deprecated and hidden from `hk --help`.
-
-The hkrc file follows the same format as `hk.pkl` and can define hooks and linters that apply to all projects. This is useful for setting up consistent linting rules across multiple repositories.
-
-Example hkrc file:
-
-```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
-
-local linters {
+  dir = "frontend"
+  prefix = List("mise", "x", "--")
+  steps {
     ["prettier"] = Builtins.prettier
-    ["eslint"] {
-        glob = List("*.js", "*.ts")
-        check = "eslint {{files}}"
-        fix = "eslint --fix {{files}}"
-    }
-}
-
-hooks {
-    ["pre-commit"] {
-        fix = true
-        steps = linters
-    }
+    ["eslint"] = Builtins.eslint
+  }
 }
 ```
 
-An hkrc that amends `Config.pkl` is merged with the project configuration using "project wins" semantics:
+Groups can provide `dir`, `prefix`, `workspace_indicator`, `shell`, `stage`, and `exclude`. A child inherits a value only when it does not define its own. Child values replace group values; lists are not merged. A builtin may already define a property, so inspect its definition before relying on inheritance.
 
-- **Settings** (jobs, fail_fast, etc.): project config overrides hkrc values
-- **Environment variables**: hkrc values are set first; project config can override them
-- **Hooks/steps**: additive. hkrc can add hooks and steps the project doesn't define, but when both define the same step, the project's definition wins
+### Profiles
 
-A legacy hkrc that amends `UserConfig.pkl` is the exception; see the note under [User Configuration](#user-configuration-config-hk-config-pkl).
-
-### How to manage global hook preferences
-
-**Run your own linters on every project**
-
-Add steps to your hkrc. hk merges them into every project's hooks, so steps with names the project doesn't define always run:
+Profiles select optional steps:
 
 ```pkl
-// ~/.config/hk/config.pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-
-hooks {
-    ["pre-commit"] {
-        steps {
-            ["gitleaks"] { check = "gitleaks git --staged" }
-        }
-    }
+["typecheck"] = (Builtins.tsc) {
+  profiles = List("slow")
 }
 ```
 
-**Skip steps you don't want from a project**
-
-hkrc can't remove project steps, because the project wins on collision. To skip a step, use git config in that repo (persists) or an environment variable (one run):
-
-```bash
-# Skip a step permanently in this repo
-git config --local hk.skipSteps "slow-linter,noisy-formatter"
-
-# Skip for one run
-HK_SKIP_STEPS=slow-linter hk run pre-commit
+```sh
+hk check --slow
+hk check --profile slow
+HK_PROFILE=slow hk check
 ```
 
-**Completely replace a project's hooks locally**
+A step requires **all** of its positive profile names to be enabled. `profiles = List("ci", "slow")` requires both `ci` and `slow`. A negative profile such as `"!slow"` prevents that step from running when `slow` is enabled. Quote `!slow` when passing it through a shell.
 
-Create `hk.local.pkl` in the project root (don't commit it). hk loads it instead of `hk.pkl`, so amend the project config and redefine only what you want:
+Set active profiles at the top level, via CLI flags, Git config, or `HK_PROFILE`. A hook’s `env` block configures child commands; it is not the place to select hk’s profiles.
+
+### Workspaces
+
+Use `workspace_indicator` for a tool that works on a project identified by a file:
 
 ```pkl
-// hk.local.pkl  (add to .gitignore)
-amends "./hk.pkl"
-import "./hk.pkl" as upstream
-
-hooks = (upstream.hooks) {
-    ["pre-commit"] {
-        steps {
-            // keep only the steps you want
-            ["gitleaks"] = upstream.hooks["pre-commit"].steps["gitleaks"]
-        }
-    }
+["cargo-clippy"] = (Builtins.cargo_clippy) {
+  workspace_indicator = "Cargo.toml"
+  check = "cargo clippy --manifest-path {{workspace_indicator}}"
 }
 ```
 
-## Settings Reference
+hk partitions selected files by the matching workspace. `{{workspace}}` is its directory, `{{workspace_indicator}}` is the marker’s path, and `{{workspace_files}}` contains paths relative to that directory.
 
-This section lists the configuration settings that control how hk behaves. Settings are sourced from multiple places; higher precedence overrides lower. Some list settings (e.g. `exclude`, `skip_steps`, `skip_hooks`, `hide_warnings`) use union semantics, combining values from multiple sources.
+See the [monorepo example](/reference/examples/monorepo) for component groups and working directories.
 
-| Precedence | Source                         | Example                                 |
-| ---------- | ------------------------------ | --------------------------------------- |
-| 1          | CLI flags                      | `hk check --fail-fast`                  |
-| 2          | Environment variables (HK\_\*) | `HK_JOBS=8 hk check`                    |
-| 3          | Git config (local repo)        | `git config --local hk.jobs 4`          |
-| 4          | Git config (global/system)     | `git config --global hk.failFast false` |
-| 5          | Project config (hk.pkl)        | `jobs = 4` in `hk.pkl`                  |
-| 6          | User rc (hkrc)                 | `jobs = 4` in `~/.config/hk/config.pkl` |
-| 7          | Built-in defaults              | `jobs = 0` (auto, CPU cores)            |
+### Subprojects
 
-### Git Configuration
+In a monorepo, the root config can load an `hk.pkl` owned by each component:
 
-hk can be configured through git config. All git config keys use the `hk.` prefix:
-
-```bash
-# Set number of parallel jobs
-git config --local hk.jobs 5
-
-# Disable fail-fast behavior
-git config --local hk.failFast false
-
-# Add profiles
-git config --local hk.profile slow
-git config --local --add hk.profile fast
-
-# Add exclude patterns (union semantics)
-git config --local hk.exclude "node_modules"
-git config --local --add hk.exclude "**/*.min.js"
-
-# Skip specific steps
-git config --local hk.skipSteps "slow-test,flaky-test"
-
-# Skip entire hooks
-git config --local hk.skipHook "pre-push"
-
-# Configure warnings
-git config --local hk.warnings "missing-profiles"
-git config --local hk.hideWarnings "missing-profiles"
+```pkl
+subprojects = List("frontend", "backend", "packages/*")
 ```
 
-Git config supports both multivar entries (multiple values with the same key) and comma-separated values in a single entry.
+Subproject paths are relative to the root config and may be literal directories or
+glob patterns. hk merges a subproject's steps into the root hook with the same name,
+then scopes their working directories and file matching to that subproject. A step
+named `eslint` in `frontend/hk.pkl` is exposed as `frontend:eslint` for `--step` and
+`skip_steps`.
 
-### User Configuration (`~/.config/hk/config.pkl`)
+Keep these composition rules in mind:
 
-User-specific defaults can be set in `~/.config/hk/config.pkl`:
+- Hooks are not copied between events. A subproject step under `check` does not also
+  run in `pre-commit` or `fix`; add it to every event where it should run.
+- Hook-wide behavior such as `fix`, `stash`, `stage`, and `report` should be set in
+  the root config. Subprojects contribute steps and their local environment.
+- Subprojects are loaded one level deep. A `subprojects` declaration inside a
+  subproject config is ignored with a warning.
+- A subproject's literal `dir` is relative to that subproject. Templated workspace
+  directories have an additional caveat described under
+  [Step working directory](#step-working-directory).
+
+See the complete [monorepo example](/reference/examples/monorepo#nested-configs-with-subprojects),
+including per-directory mise environments and locally installed Node tools.
+
+### Conditions and Git status
+
+`condition` is an expression evaluated per step job. `step_condition` is evaluated once per step. Shell commands need an explicit `exec(...)` call:
+
+```pkl
+condition = "exec('test -f .lint-enabled')"
+```
+
+The `git` object makes common status checks available without invoking Git:
+
+```pkl
+condition = "git.staged_files != []"
+```
+
+To require a staged Cargo manifest:
+
+```pkl
+condition = #"any(git.staged_files, {hasSuffix(#, "Cargo.toml")})"#
+```
+
+Available lists include `staged_files`, `unstaged_files`, `untracked_files`, and `modified_files`. Staged classifications include `staged_added_files`, `staged_modified_files`, `staged_deleted_files`, `staged_renamed_files`, and `staged_copied_files`. Unstaged classifications include `unstaged_modified_files`, `unstaged_deleted_files`, and `unstaged_renamed_files`.
+
+These paths are repository-relative. Git status lists are also available to command templates, for example `{{ git.staged_files }}`.
+
+## Configuration precedence
+
+Runtime settings resolve from lowest to highest precedence:
+
+| Precedence | Source                                                               |
+| ---------- | -------------------------------------------------------------------- |
+| 1          | Built-in defaults                                                    |
+| 2          | User configuration, typically `~/.config/hk/config.pkl`              |
+| 3          | Selected project configuration                                       |
+| 4          | Git configuration, with local values overriding global/system values |
+| 5          | `HK_*` environment variables                                         |
+| 6          | CLI flags                                                            |
+
+Higher layers override lower ones for scalar settings. List settings such as `exclude`, `skip_steps`, `skip_hooks`, and `hide_warnings` combine values across sources.
+
+### User configuration {#hkrc}
+
+Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 
 jobs = 4
 fail_fast = false
-exclude = List("node_modules", "dist", "build")
-skip_steps = List("slow-test")
-skip_hooks = List("pre-push")
+skip_steps = List("optional-check")
 ```
 
-> [!NOTE]
-> Legacy hkrc files that amend `UserConfig.pkl` are still supported, but they do not
-> follow the "project wins" rule above. Values they set for `display_skip_reasons`,
-> `hide_warnings`, `warnings`, `stage`, and environment variables override the project
-> config instead. hk treats an hkrc as legacy when it exposes an `environment` key
-> rather than `env`. Amend `Config.pkl` to get the precedence documented above.
+For user files amending `Config.pkl`, hooks and steps merge additively with the project: user configuration adds names the project does not define, and project definitions win on collisions. Use `hk.local.pkl` to replace project behavior locally.
 
-### Configuration Introspection
+::: warning Legacy user schema
+Files amending `UserConfig.pkl` use older precedence: their `display_skip_reasons`, `hide_warnings`, `warnings`, `stage`, and environment values override the project. Amend `Config.pkl` to use the precedence described above.
+:::
 
-Use the `hk config` commands to inspect your configuration:
+::: warning Legacy hkrc paths
+`.hkrc.pkl`, `~/.hkrc.pkl`, and `--hkrc` are deprecated. Discovery still checks the legacy files before the user configuration directory. Migrate project overrides to `hk.local.pkl` and shared user defaults to `~/.config/hk/config.pkl`.
+:::
 
-```bash
-# Show effective configuration (all sources merged)
+Global configuration is separate from [global hook installation](/getting_started#install-hooks). An installed hook in a repository without a project configuration exits silently.
+
+### Git configuration
+
+Use Git settings for persistent preferences without modifying `hk.pkl`:
+
+```sh
+git config --local hk.jobs 4
+git config --local hk.skipSteps "slow-test,noisy-formatter"
+git config --local hk.skipHook pre-push
+git config --global hk.failFast false
+```
+
+List settings accept comma-separated values or multiple Git entries:
+
+```sh
+git config --local hk.exclude node_modules
+git config --local --add hk.exclude "**/*.min.js"
+```
+
+### Inspect effective settings
+
+```sh
 hk config dump
-
-# Get a specific configuration value
 hk config get exclude
-hk config get skip_steps
-
-# Show configuration source precedence
-hk config sources
+hk config explain jobs
 ```
+
+These commands inspect runtime settings. To inspect hook execution, use `hk check --plan`; to evaluate the Pkl file, use `hk validate` or the optional Pkl CLI.
+
+## Schema reference
+
+The following reference is generated from the schema’s documentation. It covers top-level configuration, hooks, steps, and groups.
+
+<!--@include: ./gen/pkl-config.md-->
+
+## Settings reference
+
+Each setting below lists its type, default, and supported sources. Pkl property names use underscores; CLI flags generally use hyphens.
 
 <!--@include: ./gen/settings-config.md-->

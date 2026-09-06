@@ -1,127 +1,63 @@
 ---
-outline: "deep"
+description: Definitions of hooks, steps, groups, profiles, file locks, stashing, and workspaces in hk.
 ---
 
 # Glossary
 
-This glossary defines key terms used throughout hk documentation and configuration.
+Definitions of hooks, steps, groups, profiles, file locks, stashing, and workspaces in hk.
 
-## Depends
+## Builtin
 
-A step configuration property that specifies other steps that must complete successfully before this step can run. Dependencies control execution order and ensure prerequisites are met.
+A reusable Pkl step definition supplied by hk. It describes how to invoke a linter or utility; external linter executables must be installed separately. [Browse builtins](/builtins).
 
-Example:
-```pkl
-steps {
-  ["typecheck"] {
-    depends = List("lint", "format")  // Wait for lint and format to complete
-    check = "tsc --noEmit"
-  }
-}
-```
+## Check
 
-See: [Step Dependencies](/configuration#step-depends-list-string)
+A command that reports problems without modifying files. hk relies on this convention to run checks concurrently with shared read locks. `hk check` runs the configured `check` hook.
+
+## Dependency
+
+The `depends` property names steps that must finish before another step runs. Use it to establish order, such as `depends = "eslint"` on a formatter. [Dependencies](/configuration#dependencies-and-groups).
+
+## File lock
+
+Coordination for a file selected by a step within a hook run. Multiple checks can hold read locks; a writer needs exclusive access. Locks only cover the files hk knows the step uses. [Execution model](/why-hk#parallelism-needs-coordination).
+
+## Fix
+
+A command that may modify files to resolve problems. A fix can still fail if some findings need manual changes. `hk fix` runs the configured `fix` hook.
+
+## Glob
+
+A pattern that selects file paths, such as `*.py` or `src/**/*.ts`. A step’s patterns filter the files selected for the run; they do not force a changed-file run to scan the whole repository.
 
 ## Group
 
-An organizational unit that contains multiple steps, allowing you to structure your configuration hierarchically. Groups help organize related steps together and can be used to create logical divisions like "frontend" and "backend" tasks.
-
-Example:
-```pkl
-steps {
-  ["frontend"] = new Group {
-    steps {
-      ["prettier"] = Builtins.prettier
-      ["eslint"] = Builtins.eslint
-    }
-  }
-}
-```
-
-See: [Group Configuration](/configuration#group)
+A collection of steps with a scheduling boundary: its children can run concurrently, while later groups wait. Groups can provide defaults such as `dir` and `prefix` for children. [Group defaults](/configuration#group).
 
 ## Hook
 
-A git hook or custom command that runs a collection of steps. hk supports standard git hooks like `pre-commit`, `pre-push`, `commit-msg`, and `prepare-commit-msg`, as well as custom hooks like `check` and `fix` for manual execution.
-
-Example:
-```pkl
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps = linters
-  }
-}
-```
-
-See: [Hooks](/hooks)
+A named collection of steps. Git hooks include `pre-commit` and `pre-push`; custom hooks such as `check` can be invoked manually. [Git hooks](/hooks).
 
 ## Job
 
-One unit of parallel work. The jobs setting is the number of steps hk runs concurrently, which controls how many linting and formatting tasks can run at the same time. It can be configured via the `-j/--jobs` CLI flag or the `HK_JOBS` environment variable and defaults to the number of CPU cores.
+A unit of step execution. A step may create multiple jobs through batching or workspace selection. `--jobs` and `HK_JOBS` limit concurrency; tools may also start their own workers.
 
-Example:
-```bash
-# Run with 4 parallel jobs
-hk check --jobs 4
+## Profile
 
-# Or via environment variable
-HK_JOBS=8 hk fix
-```
+A label used to enable or disable steps, such as `slow` or `types`. Activate one with `--profile types` or `HK_PROFILE=types`. A step requires all of its positive profile names. [Profiles](/configuration#profiles).
 
-See: [HK_JOBS](/environment_variables#hk-jobs)
+## Stage
 
-## Skip
-
-A mechanism to bypass execution of specific steps or entire hooks. Steps can be skipped using the `HK_SKIP_STEPS` environment variable, while entire hooks can be skipped with `HK_SKIP_HOOK`.
-
-Examples:
-```bash
-# Skip specific steps
-HK_SKIP_STEPS=lint,test hk run pre-commit
-
-# Skip entire hooks
-HK_SKIP_HOOK=pre-commit,pre-push git commit
-```
-
-See: [HK_SKIP_STEPS](/environment_variables#hk-skip-steps), [HK_SKIP_HOOK](/environment_variables#hk-skip-hook)
+To add file content to Git’s index for the next commit. A hook can stage fixes automatically, or leave them for review with `stage = false`. This differs from a step’s `stage` property, which specifies file patterns to stage.
 
 ## Stash
 
-A strategy for temporarily saving unstaged changes before running hooks that might modify files. This keeps fixers from touching your unstaged work and keeps that work from being staged by accident.
-
-Stash strategies:
-- `git`: Uses `git stash`
-- `patch-file`: Currently an alias of the `git` strategy
-- `none`: No stashing (the default; fastest, but fixers may modify unstaged changes in partially staged files)
-
-Example:
-```pkl
-hooks {
-  ["pre-commit"] {
-    stash = "git"  // Stash unstaged changes while fixers run
-    steps = linters
-  }
-}
-```
-
-See: [HK_STASH](/environment_variables#hk-stash)
+Temporarily saved unstaged work. A hook with `stash = "git"` isolates staged content before running its steps and restores saved changes afterward. `"patch-file"` currently uses the same implementation. [Stashing and partial commits](/hooks#stashing-and-partial-commits).
 
 ## Step
 
-An individual linting, formatting, or validation task that processes files. Steps are the fundamental units of work in hk, each defining commands to check and/or fix code. Steps can specify which files they operate on using glob patterns, and can have dependencies on other steps.
+An individual check, formatter, or task within a hook. A step defines commands and can select files, declare dependencies, and require profiles. [Define a step](/configuration#define-a-step).
 
-Example:
-```pkl
-steps {
-  ["eslint"] {
-    glob = List("*.js", "*.ts")
-    check = "eslint {{files}}"
-    fix = "eslint --fix {{files}}"
-    depends = List("prettier")  // Run after prettier
-  }
-}
-```
+## Workspace
 
-See: [Step Configuration](/configuration#hooks-hook-steps-step-group)
+A project directory located through a marker such as `package.json` or `Cargo.toml`. `workspace_indicator` partitions selected files so a step can run once per matching workspace. [Workspaces](/configuration#workspaces).

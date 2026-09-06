@@ -1,87 +1,86 @@
-# Getting Started
+---
+description: Install hk, configure your first checks, and run the same steps in Git hooks and CI.
+---
 
-This guide takes you from installing hk to running your first checks. Most projects can be set up
-in a few minutes.
+# Getting started
 
-## 1. Install hk
+Set up hk in an existing Git repository, then use the same linters when you commit, work locally, and run CI.
 
-From the project you want to configure, install hk with [mise](https://mise.jdx.dev/):
+## Installation
+
+Choose one installation method:
+
+::: code-group
+
+```sh [mise]
+mise use hk
+```
+
+```sh [Homebrew]
+brew install hk
+```
+
+```sh [Cargo]
+cargo install hk --locked
+```
+
+:::
+
+Verify the installation:
 
 ```sh
-cd my-project
-mise use hk
 hk --version
 ```
 
-Other installation methods:
+Prebuilt binaries are also available from [GitHub releases](https://github.com/jdx/hk/releases). hk uses the built-in [pklr evaluator](/pkl_introduction#evaluators) by default, so you do not need to install the Pkl CLI.
 
-- [Homebrew](https://formulae.brew.sh/formula/hk): `brew install hk`
-- Cargo: `cargo install hk`
-- [Aqua](https://github.com/aquaproj/aqua-registry/blob/main/pkgs/jdx/hk/registry.yaml): `aqua g -i jdx/hk`
+## Project setup
 
-hk uses its built-in Pkl evaluator by default, so you do not need to install the Pkl CLI. See the
-[Pkl introduction](/pkl_introduction) if you want to use the standalone evaluator or learn the
-configuration language.
-
-## 2. Enable git hooks
-
-With Git 2.54 or newer, install hk once for all repositories on your machine:
-
-```sh
-hk install --global
-```
-
-The global hooks are a silent no-op in repositories without an `hk.pkl`, so enabling them does not
-require every repository to use hk.
-
-On older Git versions, or when you only want hk in one repository, skip this step for now. You will
-install the repository hooks after creating `hk.pkl` in the next step.
-
-::: warning Avoid duplicate hooks
-Do not combine `hk install --global` with a per-repository install unless you intentionally want both.
-Git combines hook commands from its global and local configuration, which can cause hk to run twice.
-:::
-
-## 3. Create a project configuration
-
-From the project root, run:
+From the root of your repository, generate a configuration:
 
 ```sh
 hk init
 ```
 
-hk detects common project files and creates an `hk.pkl` using the relevant
-[built-in linters](/builtins). To review and select linters and hooks yourself, use:
+hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`.
 
-```sh
-hk init --interactive
-```
+::: tip Make the linters available
+Builtins configure commands; they do not install the tools they invoke. Install the selected linters with your project’s package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`.
+:::
 
-Builtins define how hk invokes a tool; they do not install the tool itself. Each selected linter or
-formatter must be available on `PATH`. If you use mise, the [mise integration](/mise_integration)
-can manage those tool versions with the project.
+## Install hooks
 
-If you skipped the global installation, install the hooks defined by the new configuration now:
+Choose the scope that fits your setup:
 
-```sh
-hk install
-```
+| Scope                       | Command               | Behavior                                                                               |
+| --------------------------- | --------------------- | -------------------------------------------------------------------------------------- |
+| All repositories, Git 2.54+ | `hk install --global` | Install once in your user Git config; projects without an hk configuration are skipped |
+| Current repository          | `hk install`          | Install the hooks defined in this project; supports older Git versions                 |
 
-Per-repository installation uses Git's config-based hooks on Git 2.54 or newer and `.git/hooks/`
-scripts on older versions. See [`hk install`](/cli/install) for all installation modes, including
-`--legacy` and `--mise`.
+On Git 2.54+, hk uses Git’s configuration-based hooks. On older Git, a per-repository install writes script shims. Use `hk install --legacy` to request shims explicitly.
 
-## 4. Review `hk.pkl`
+If hk is already installed globally, `hk install` skips the local installation and cleans up stale local hk hooks. `--force-local` overrides that behavior, but combining local and global hooks can cause duplicate runs.
 
-A typical configuration shares the same linters between automatic hooks and manual commands:
+::: tip Using mise tools in Git hooks
+Use `hk install --mise` or `hk install --global --mise` to launch hooks through `mise x`. This makes project tools available even when Git runs outside an activated shell, such as from an editor. mise itself must be on Git’s `PATH`.
+:::
+
+Commit `hk.pkl` so your team can share the configuration. Hook installation is local to each developer’s machine or clone.
+
+To remove an installation, use `hk uninstall` or `hk uninstall --global`. See the [install reference](/cli/install) for all options.
+
+## Your first configuration
+
+This complete example runs Prettier, ESLint, and Ruff. Install and configure those tools first, or replace them with [builtins](/builtins) that match your project.
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-  ["eslint"] = Builtins.eslint
   ["prettier"] = Builtins.prettier
+  ["eslint"] = Builtins.eslint
+  ["ruff"] = Builtins.ruff
 }
 
 hooks {
@@ -90,9 +89,7 @@ hooks {
     stash = "git"
     steps = linters
   }
-  ["check"] {
-    steps = linters
-  }
+  ["check"] { steps = linters }
   ["fix"] {
     fix = true
     steps = linters
@@ -100,84 +97,55 @@ hooks {
 }
 ```
 
-In this example, `pre-commit` and `hk fix` may modify files. During a commit, `stash = "git"`
-protects unstaged changes while fixes are applied to staged content.
+The `amends` line loads hk’s configuration schema. `Builtins` supplies reusable step definitions. The local `linters` mapping lets all three hooks use the same steps.
 
-See the [configuration guide](/configuration) for custom commands, dependencies, profiles, groups,
-and monorepo support. The [configuration examples](/reference/examples/) include complete JavaScript,
-Python, custom-linter, and monorepo setups.
+In this configuration, `pre-commit` fixes staged files while unstaged work is stashed. `check` checks your working tree, and `fix` applies fixes to it. Steps whose file patterns do not match any selected files are skipped.
 
-## 5. Test the setup
-
-Run checks without making changes:
+Validate the configuration without running its linters:
 
 ```sh
-hk check --all
+hk validate
 ```
 
-Apply available fixes:
+## Checking and fixing code
 
 ```sh
-hk fix --all
+hk check             # Check modified files
+hk fix               # Apply available fixes
+hk check --all       # Check all files, useful for CI
+hk check src/main.ts # Check a specific file
+hk check --step eslint
 ```
 
-To test the pre-commit configuration independently of its Git installation:
+With the configuration above, modified files include staged, unstaged, and untracked files. `--all` selects tracked files plus eligible untracked files; ignore rules and exclusions still apply. Hook settings and flags can change file selection.
+
+Check commands should be read-only. Fix commands may edit files, and some findings need a manual fix. Fixes may be staged automatically. Review `git diff` and `git diff --cached`, or use `hk fix --no-stage` to leave fixes unstaged.
+
+## Preview a run
+
+Use the plan to see which steps and files hk selects:
+
+```sh
+hk check --plan
+hk check --why eslint
+hk check --all --plan --json
+```
+
+These commands do not execute the hook’s steps. See [troubleshooting](/logging) if a step is missing or behaves unexpectedly.
+
+## Running hooks
+
+After installation, Git invokes configured hooks automatically. You can also invoke them directly:
 
 ```sh
 hk run pre-commit
 ```
 
-`pre-commit` selects staged files by default. Running it without `--staged` also preserves the
-hook's configured stashing behavior for partially staged files. This validates the configured
-steps; make a test commit when you need to verify the installed Git hook end to end.
+A manual hook run uses the hook’s configured behavior, including fixes, staging, and stashing. To inspect it first, use `hk run pre-commit --plan`.
 
-By default, `hk check` and `hk fix` only operate on modified files. Use `--all` in CI or when you
-want to verify the entire repository, and `--from-ref main` to check files changed since a branch or
-commit.
+## Next steps
 
-## Common next steps
-
-- Browse and customize [built-in linters](/builtins).
-- Learn how hk selects files and schedules steps in [Hooks](/hooks).
-- Add hk to a mise-managed project with [`hk init --mise`](/mise_integration#hk-init-mise).
-- Configure a shared user-level `~/.config/hk/config.pkl` in [hkrc](/configuration#hkrc).
-- Diagnose a configuration with [`hk config explain`](/cli/config/explain) and
-  [`hk config sources`](/cli/config/sources).
-
-## Removing hooks
-
-Remove the installation using the same scope you used to install it:
-
-```sh
-hk uninstall --global # global installation
-hk uninstall          # current repository
-```
-
-## Manual Git configuration
-
-If you prefer not to run `hk install --global`, you can add hooks directly to `~/.gitconfig`:
-
-```ini
-[hook "hk-pre-commit"]
-    command = test "${HK:-1}" = "0" || hk run pre-commit --from-hook "$@"
-    event = pre-commit
-[hook "hk-pre-push"]
-    command = test "${HK:-1}" = "0" || hk run pre-push --from-hook "$@"
-    event = pre-push
-[hook "hk-commit-msg"]
-    command = test "${HK:-1}" = "0" || hk run commit-msg --from-hook "$@"
-    event = commit-msg
-```
-
-`--from-hook` makes repositories without a matching hk configuration exit silently. The `HK`
-check provides a per-command escape hatch: use `HK=0 git commit` to bypass hk temporarily. If hk is
-installed through mise but is not automatically activated, replace `hk` with `mise x -- hk`.
-
-To disable one globally configured event for a particular repository:
-
-```sh
-git config --local hook.hk-pre-commit.enabled false
-```
-
-See the complete [`hk install` reference](/cli/install) for additional flags and installation
-behavior.
+- [Git hooks and stashing](/hooks): control automatic fixes and partial commits.
+- [Continuous integration](/ci): check a full repository or a branch.
+- [Configuration examples](/reference/examples/): start from a JavaScript, Python, or monorepo setup.
+- [Configuration](/configuration): customize steps, profiles, and local overrides.

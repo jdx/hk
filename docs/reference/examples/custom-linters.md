@@ -1,134 +1,60 @@
-# Example: custom-linters
+---
+description: Define your own check and fix commands, test them, and add conditions or platform-specific scripts.
+---
+
+# Custom steps
+
+A step can invoke any shell command. Define which files it uses, how to check them without writes, and how to apply fixes.
+
+This example manually defines a whitespace step using an hk utility. It needs only hk, and includes tests you can run before adding the step to your workflow.
+
+<a href="/custom-linters.pkl" download>Download custom-linters.pkl</a> and save it as `hk.pkl`.
+
+## Configuration
+
+<<< @/public/custom-linters.pkl
+
+## Test the step
+
+```sh
+hk validate
+hk test --step whitespace
+hk check --all --plan
+```
+
+Each test writes a file in a temporary sandbox. One expects a clean check to succeed; the other checks the exact content after fixing. The `files` list explicitly selects the sandbox paths passed to each command.
+
+Use this pattern when adding a custom linter or contributing a builtin.
+
+## Add a condition
+
+Conditions use expression syntax. To invoke a shell test, wrap it in `exec`:
 
 ```pkl
-/// Example configuration with custom linters and platform-specific commands
-/// * Shows how to define custom linters not in builtins
-/// * Demonstrates platform-specific commands
-/// * Uses conditions and workspace indicators
-/// * Shows test configuration
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
+condition = "exec('test -f .lint-enabled')"
+```
 
-local custom_linters = new Mapping<String, Step> {
-  // Custom SQL formatter
-  ["sql_formatter"] {
-    glob = List("**/*.sql")
-    exclude = List("**/migrations/**")
-    check = "sql-formatter --check {{files}}"
-    fix = "sql-formatter --write {{files}}"
-    batch = true
-  }
+This fragment assumes a POSIX shell. `condition` is evaluated for each job; use `step_condition` to evaluate once for the step.
 
-  // Platform-specific security scanner
-  ["security_scan"] {
-    check = new Script {
-      linux = "security-scanner-linux --scan {{files}}"
-      macos = "security-scanner-mac --scan {{files}}"
-      windows = "security-scanner.exe /scan {{files}}"
-    }
-    // Only run if security config exists
-    condition = "test -f .security-config.yml"
-    // Run exclusively to avoid conflicts
-    exclusive = true
-  }
+## Use platform-specific commands
 
-  // Custom workspace-based build tool
-  ["custom_build"] {
-    workspace_indicator = "build.toml"
-    // `dir` is templated, so commands run in each matched workspace
-    dir = "{{workspace}}"
-    check = "custom-build check"
-    fix = "custom-build fix"
-    // Use check_diff for efficient patching
-    check_diff = "custom-build diff"
-  }
+For a project that provides both shell and PowerShell check scripts, define a `Script`:
 
-  // Interactive migration tool
-  ["migrate"] {
-    glob = List("**/migrations/*.sql")
-    check = "migrate validate {{files}}"
-    fix = "migrate apply {{files}}"
-    // Enable interactive mode for prompts
-    interactive = true
-  }
-
-  // Custom linter with tests
-  ["custom_validator"] {
-    glob = List("**/*.custom")
-    check = "validator {{files}}"
-    fix = "validator --fix {{files}}"
-
-    // Define tests for this step
-    tests {
-      ["validates correct syntax"] {
-        run = "check"
-        write {
-          ["{{tmp}}/test.custom"] = #"valid content"#
-        }
-        files = List("{{tmp}}/test.custom")
-        expect {
-          code = 0
-        }
-      }
-      ["fixes invalid syntax"] {
-        run = "fix"
-        write {
-          ["{{tmp}}/broken.custom"] = #"broken  content"#
-        }
-        files = List("{{tmp}}/broken.custom")
-        expect {
-          files {
-            ["{{tmp}}/broken.custom"] = #"broken content"#
-          }
-        }
-      }
-    }
-  }
-}
-
-// Import some builtins and mix with custom
-local all_linters = new Mapping<String, Step> {
-  ...custom_linters
-  ["prettier"] = Builtins.prettier
-  ["shellcheck"] = Builtins.shellcheck
-}
-
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git" // Stash unstaged changes while fixers run
-    steps = all_linters
-  }
-  ["check"] {
-    steps = all_linters
-    // Generate a report after checking
-    report =
-      #"""
-        echo "Check completed at $(date)"
-        echo "Results: $HK_REPORT_JSON" | jq '.'
-      """#
-  }
-}
-
-// Show additional skip reasons for debugging
-display_skip_reasons =
-  List(
-    "profile-not-enabled",
-    "no-files-to-process",
-    "condition-false",
-  )
-
-// Environment variables for all steps
-env {
-  ["CUSTOM_VALIDATOR_STRICT"] = "true"
-  ["SQL_FORMATTER_CONFIG"] = ".sql-format.yml"
+```pkl
+check = new Script {
+  linux = "sh scripts/check.sh"
+  macos = "sh scripts/check.sh"
+  windows = "pwsh -NoProfile -File scripts/check.ps1"
 }
 ```
 
-## Description
+These scripts are project-owned placeholders: create them before using the fragment. They must leave files unchanged when used as a check.
 
-Example configuration with custom linters and platform-specific commands
-* Shows how to define custom linters not in builtins
-* Demonstrates platform-specific commands
-* Uses conditions and workspace indicators
-* Shows test configuration
+## Add optimizations when supported
+
+- `check_list_files` reports only the files that need fixing.
+- `check_diff` emits a unified diff that hk can apply.
+- `batch = true` lets hk divide files among jobs when the tool supports independent subsets.
+- `workspace_indicator` runs commands for matching projects.
+
+Keep the step’s selected files consistent with everything the command can modify. For broader effects, use dependencies or `exclusive = true`. See the [configuration reference](/configuration).

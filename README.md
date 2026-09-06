@@ -1,63 +1,39 @@
 # hk
 
-A fast, language-agnostic git hook manager and project linter.
+**Git hooks and project checks, in parallel.**
 
-hk runs linters concurrently while coordinating access to files with read/write locks. This lets
-formatters and other tools safely work on overlapping files without racing or silently overwriting
-one another's changes.
+hk runs linters and formatters with read/write file locks, so independent work runs concurrently and tools that modify the same files take turns. Use the same steps in Git hooks, from your terminal, and in CI.
 
-- Runs independent checks and fixes in parallel
-- Safely handles partially staged files by stashing and restoring unstaged changes
-- Includes [built-in configurations](https://hk.jdx.dev/builtins) for common linters and formatters
-- Uses typed [Pkl](https://pkl-lang.org/) configuration
-- Integrates with [mise](https://mise.jdx.dev/) for tool and task management
-- Provides fast native checks for common issues such as trailing whitespace and merge conflicts
+[Get started](https://hk.jdx.dev/getting_started) · [Documentation](https://hk.jdx.dev/) · [Built-in linters](https://hk.jdx.dev/builtins) · [CLI reference](https://hk.jdx.dev/cli/)
 
 ## Quick start
 
-From the project you want to configure, install hk with mise:
+Install with [mise](https://mise.jdx.dev/), then run these commands inside your repository:
 
 ```sh
-cd my-project
 mise use hk
-hk --version
-```
-
-With Git 2.54 or newer, install hk's hooks once for every repository on your machine:
-
-```sh
-hk install --global
-```
-
-Then enable hk in a project:
-
-```sh
 hk init
+hk install
+hk check --all
 ```
 
-`hk init` detects relevant linters and creates an `hk.pkl` configuration. Review the detected
-linters, or use `hk init --interactive` to select them yourself. You can then commit as usual; hk
-runs the configured `pre-commit` hook automatically. Repositories without an `hk.pkl` are left
-untouched by the global hooks.
+`hk init` detects project tools and generates `hk.pkl`. Review the selected linters and make sure their executables are available on `PATH`; hk configures how to run them, but does not install them. Use `hk init --interactive` to choose tools yourself.
 
-On older Git versions, run `hk install` in each project instead. See the
-[getting started guide](https://hk.jdx.dev/getting_started) for Homebrew, Cargo, and Aqua installation
-options and detailed hook setup.
+On Git 2.54+, you can run `hk install --global` once to enable hk across repositories. Installed hooks exit silently in projects without an hk configuration. See [installation options](https://hk.jdx.dev/getting_started#install-hooks) for older Git versions and mise environments.
 
-## Example configuration
+You can also install hk with `brew install hk` or `cargo install hk --locked`. The default Pkl evaluator is built into hk; a separate Pkl installation is optional.
 
-The generated `hk.pkl` uses hk's built-in linter definitions, which you can extend when a project
-needs different behavior:
+## A configuration you can share
+
+This example uses hk’s built-in whitespace utilities, so it needs no additional linter:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-  ["eslint"] = Builtins.eslint
-  ["prettier"] = (Builtins.prettier) {
-    glob = List("*.js", "*.ts", "*.json", "*.md")
-  }
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
 }
 
 hooks {
@@ -66,9 +42,7 @@ hooks {
     stash = "git"
     steps = linters
   }
-  ["check"] {
-    steps = linters
-  }
+  ["check"] { steps = linters }
   ["fix"] {
     fix = true
     steps = linters
@@ -76,13 +50,32 @@ hooks {
 }
 ```
 
-Run the same checks directly at any time:
+Add tools such as `Builtins.prettier`, `Builtins.eslint`, or `Builtins.ruff`, or [define your own steps](https://hk.jdx.dev/reference/examples/custom-linters).
 
-```sh
-hk check        # check modified files
-hk fix          # fix modified files
-hk check --all  # check the entire repository, useful in CI
-```
+## Everyday commands
+
+| Command                   | Use it to                                             |
+| ------------------------- | ----------------------------------------------------- |
+| `hk check`                | Check modified files                                  |
+| `hk fix`                  | Apply available fixes to modified files               |
+| `hk check --all`          | Check the repository, including in CI                 |
+| `hk check --plan`         | Preview selected files and steps without running them |
+| `hk check --why prettier` | Explain why a step will run or be skipped             |
+
+By convention, checks do not modify files. Fixes may modify and stage files; review `git diff` and `git diff --cached`. Use `hk fix --no-stage` to leave fixes unstaged. The generated pre-commit hook stashes unstaged work before fixing staged files, then restores it afterward. [Learn about hooks and partial commits](https://hk.jdx.dev/hooks).
+
+## Why hk?
+
+- **Coordinate concurrent tools.** File locks protect overlapping steps; diff and file-list checks reduce the work that needs exclusive access.
+- **Reuse linter configurations.** Builtins describe file patterns, check commands, fixes, and tool-specific optimizations.
+- **Keep configuration maintainable.** Pkl provides types, imports, and reusable objects for sharing steps across hooks and projects.
+- **Use your existing toolchain.** Run commands from `PATH`, or use [mise](https://hk.jdx.dev/mise_integration) to manage tools and environments.
+
+Read [how hk works](https://hk.jdx.dev/why-hk), browse [project examples](https://hk.jdx.dev/reference/examples/), or see the [benchmark methodology and results](https://hk.jdx.dev/benchmarks).
+
+## Demo
+
+![hk running project checks](docs/public/hk-demo.gif)
 
 ## Agent skills
 
@@ -98,15 +91,9 @@ to those directories, so compatible installers can use the bundled instructions 
 repository download. Making them available to an agent is
 opt-in; see [mise's skills documentation](https://mise.jdx.dev/dev-tools/packslip-resources.html).
 
-## Documentation
+## Contributing
 
-- [Getting started](https://hk.jdx.dev/getting_started)
-- [Configuration reference](https://hk.jdx.dev/configuration)
-- [Configuration examples](https://hk.jdx.dev/reference/examples/)
-- [Built-in linters](https://hk.jdx.dev/builtins)
-- [CLI reference](https://hk.jdx.dev/cli/)
-- [Why hk?](https://hk.jdx.dev/why-hk)
-- [Contributing](CONTRIBUTING.md)
+See the [contributing guide](CONTRIBUTING.md) for development setup, tests, and review expectations. hk is released under the [MIT license](LICENSE).
 
 ## Sponsors
 
@@ -129,16 +116,6 @@ opt-in; see [mise's skills documentation](https://mise.jdx.dev/dev-tools/packsli
   <a href="https://jdx.dev/sponsors.html">View all sponsors</a>
 </p>
 
-## Demo
-
-![hk demo](docs/public/hk-demo.gif)
-
-## CI
-
-<p>
-  <a href="https://namespace.so">
-    <img src="docs/public/namespace-logo.svg" alt="Namespace" width="64">
-  </a>
-</p>
-
 Thanks to [Namespace](https://namespace.so) for providing CI for hk.
+
+<a href="https://namespace.so"><img src="docs/public/namespace-logo.svg" alt="Namespace" width="64"></a>

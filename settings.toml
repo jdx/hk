@@ -7,23 +7,16 @@ type = "bool"
 default = false
 sources.cli = ["--all"]
 docs = """
-Run on all files instead of just staged files.
+Select all tracked and eligible untracked files, then apply step filters and exclusions.
 
-When enabled, hk will run steps against all tracked files in the repository rather than only the
-files currently staged in git. This is useful for running a full project-wide check or fix.
-
-Example: `hk check --all` to check all files in the repository.
+With stashing enabled, untracked files are not included. Use `hk check --all --plan` to inspect the selection.
 """
 
 [cache_dir]
 type = "path"
 sources.env = ["HK_CACHE_DIR"]
 docs = """
-Directory where hk stores cache files for improved performance.
-
-Default location: `~/.cache/hk`
-
-Cache includes tool binary locations, parsed configurations, and other performance optimizations.
+Directory for cached configuration and other cache files. The default is the platform cache directory plus `hk` (typically `~/.cache/hk` on Linux and `~/Library/Caches/hk` on macOS).
 """
 
 [default_branch]
@@ -132,12 +125,9 @@ sources.cli = ["--fix", "-f"]
 sources.env = ["HK_FIX"]
 sources.git = ["hk.fix"]
 docs = """
-Controls whether hk runs each step's fix command or its check command.
+Permit fix mode when the hook requests it. `HK_FIX=0` disables configured fixes unless an explicit fix flag overrides it. A value of `true` does not make a normal `hk check` run fixes.
 
-When enabled (default), runs fix commands to automatically resolve issues.
-When disabled, runs check commands, which by convention only report issues.
-
-Can be toggled with `--fix` / `--check` CLI flags, which outrank this setting. The `check` setting wins over this one when both are enabled.
+Use `--fix` or `--check` to select the mode for an invocation. The `check` setting, including `HK_CHECK=1`, wins over `fix` when both are enabled; explicit CLI flags take precedence.
 """
 
 [hide_warnings]
@@ -173,13 +163,10 @@ type = "path"
 default = ".hkrc.pkl"
 sources.cli = ["--hkrc"]
 docs = """
-**Deprecated:** Use `~/.config/hk/config.pkl` for global config or `hk.local.pkl` for per-project overrides.
+**Deprecated:** Use `~/.config/hk/config.pkl` for user defaults or `hk.local.pkl` for project overrides.
 
-Path to the user configuration file.
+Legacy discovery checks `.hkrc.pkl` in the current directory, then `~/.hkrc.pkl`, before the user configuration directory. The project wins when a user and project definition collide.
 
-Default: `.hkrc.pkl` in the current directory or parent directories.
-
-This file can override project-level settings and is useful for personal preferences.
 This setting and the `--hkrc` flag will be removed in hk v2.
 """
 
@@ -236,12 +223,7 @@ sources.cli = ["--json"]
 sources.env = ["HK_JSON"]
 sources.git = ["hk.json"]
 docs = """
-Enables JSON output format for structured data.
-
-When enabled, hk outputs machine-readable JSON instead of human-readable text.
-Useful for integration with other tools or for programmatic processing of results.
-
-Example: `hk check --json | jq '.steps[] | select(.failed)'`
+Request JSON output for commands that support it. For a plan, use `hk check --plan --json`. For trace events, use `HK_TRACE=json hk check`. This does not structure arbitrary linter output.
 """
 
 [libgit2]
@@ -259,11 +241,7 @@ When disabled, uses git CLI commands which may provide better performance in som
 type = "path"
 sources.env = ["HK_LOG_FILE"]
 docs = """
-Path to the log file where hk writes detailed execution logs.
-
-Default location: `~/.local/state/hk/hk.log`
-
-Useful for debugging issues or keeping an audit trail of hook executions.
+Path to the execution log. Defaults to `$HK_STATE_DIR/hk.log`, typically `~/.local/state/hk/hk.log` on Linux. Set a separate file verbosity with `HK_LOG_FILE_LEVEL`.
 """
 
 [log_file_level]
@@ -317,12 +295,9 @@ type = "bool"
 default = false
 sources.env = ["HK_MISE"]
 docs = """
-Enables deep integration with [mise](https://mise.jdx.dev) for tool management.
+Make `hk install` launch hooks through `mise x`, and make `hk init` create a starter `mise.toml` when absent.
 
-When enabled:
-- `hk install` will use `mise x` to execute hooks, ensuring mise tools are available without activation
-- `hk init` will create a `mise.toml` file with hk configured
-- Tool discovery will use mise shims automatically
+Git must be able to find mise. Reinstall existing hooks to update their launcher. Steps also receive the mise environment for their working directory, with explicit step environment values taking precedence.
 """
 
 [no_progress]
@@ -343,14 +318,9 @@ sources.env = ["HK_PROFILE", "HK_PROFILES"]
 sources.git = ["hk.profile"]
 sources.pkl = ["profiles", "defaults.profiles"]
 docs = """
-Profiles to enable or disable. Profiles allow you to group steps that should run only in certain contexts (e.g., CI, slow tests).
+Enable profile names, or prefix a name with `!` to disable it. A step requires all of its positive profiles to be enabled.
 
-Prefix with `!` to explicitly disable a profile.
-
-Example usage:
-- `HK_PROFILE=ci` - Enable the CI profile
-- `HK_PROFILE=slow,ci` - Enable multiple profiles
-- `--profile=!slow` - Explicitly disable the slow profile
+Example: `HK_PROFILE=ci,slow hk check --all` enables both profiles. A profile named `ci` is not activated simply because the command runs in CI.
 """
 
 [quiet]
@@ -434,7 +404,7 @@ sources.env = ["HK_STAGE"]
 sources.git = ["hk.stage"]
 sources.pkl = ["stage"]
 docs = """
-When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration.html#hooks-hook-stage-boolean).
+When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration#hook-stage-boolean).
 
 This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
 """
@@ -446,14 +416,13 @@ sources.cli = ["--stash"]
 sources.env = ["HK_STASH"]
 sources.git = ["hk.stash"]
 docs = """
-Strategy for temporarily saving unstaged changes before running hooks that might modify files. This prevents conflicts between your working directory changes and automated fixes.
+Override the hook's strategy for saving unstaged work.
 
-Available strategies:
-- `git`: Use `git stash` to stash changes
-- `patch-file`: Currently an alias of the `git` behavior
-- `none`: No stashing (fastest, but may cause staging conflicts if fixes modify unstaged changes in the same file)
+- `git`: Save unstaged changes using Git stashing.
+- `patch-file`: Currently an alias for the Git stash implementation.
+- `none`: Leave unstaged work in place; fixes may then include unstaged edits in a staged file.
 
-If not set, the hook-level `stash` setting applies (default: `none`).
+Without an override, use the hook's `stash` value, which defaults to `none`. `hk init` explicitly sets `git` for pre-commit.
 """
 
 [stash_untracked]
@@ -462,10 +431,7 @@ default = true
 sources.env = ["HK_STASH_UNTRACKED"]
 sources.git = ["hk.stashUntracked"]
 docs = """
-Controls whether untracked files are included when stashing before running hooks.
-
-When enabled (default), untracked files will be temporarily stashed along with tracked changes.
-This ensures a clean working directory for hook execution.
+Include untracked files when stashing. Disabling `HK_STASH_UNTRACKED` also skips untracked-file discovery, so those files are absent from status-based reports and normal `--all` selection.
 """
 
 [stash_backup_count]
@@ -502,12 +468,7 @@ type = "bool"
 default = false
 sources.env = ["HK_SUMMARY_TEXT"]
 docs = """
-Controls whether per-step output summaries are printed in plain text mode.
-
-By default, summaries are only shown when hk is rendering progress bars (non-text mode).
-Set to `true` to force summaries to appear in text mode, useful for CI environments.
-
-Example: `HK_SUMMARY_TEXT=1 hk check`
+In plain-text mode, summaries are shown for failed steps by default. Set `HK_SUMMARY_TEXT=1` to include summaries for successful steps too; their output normally streams during execution.
 """
 
 [terminal_progress]
@@ -549,7 +510,7 @@ When a hook-level `report` command is configured in `hk.pkl`, hk will set `HK_RE
 [trace]
 type = "enum"
 default = "off"
-validate.enum = ["off", "text", "json", "1", "true"]
+validate.enum = ["off", "json", "1", "true"]
 sources.cli = ["--trace"]
 sources.env = ["HK_TRACE"]
 sources.git = ["hk.trace"]
@@ -558,13 +519,12 @@ Enables tracing spans and performance diagnostics for detailed execution analysi
 
 Available formats:
 - `off`: No tracing (default)
-- `text`: Human-readable trace output
 - `json`: Machine-readable JSON trace output
-- `1` or `true`: Enable text tracing (aliases)
+- `1` or `true`: Human-readable trace output
 
 Useful for debugging performance issues or understanding execution flow.
 
-Example: `HK_TRACE=text hk check` to see detailed execution traces.
+Example: `HK_TRACE=1 hk check` to enable text tracing with the environment variable.
 """
 
 [walk_ignore]
@@ -574,15 +534,9 @@ sources.env = ["HK_WALK_IGNORE"]
 sources.git = ["hk.walkIgnore"]
 sources.pkl = ["walk_ignore"]
 docs = """
-Controls whether hk respects .gitignore and other ignore files when walking directories.
+Respect `.gitignore` and other ignore files while walking directories. This controls discovery; step patterns and exclusions still apply.
 
-When enabled (default), hk will skip files matching patterns in .gitignore, .ignore, and other
-standard ignore files when discovering files for linting. This improves performance by not
-processing generated files, build artifacts, or vendored dependencies.
-
-When disabled, all files are included regardless of ignore patterns.
-
-Example: `HK_WALK_IGNORE=0 hk check --all` to include all files.
+Set `HK_WALK_IGNORE=0` to disable ignore rules for directory walks.
 """
 
 [verbose]
@@ -590,14 +544,9 @@ type = "u8"
 default = 0
 sources.cli = ["--verbose", "-v"]
 docs = """
-Controls the verbosity of output.
+Increase log verbosity: `-v` enables debug logging, and `-vv` enables trace logging.
 
-Can be specified multiple times to increase verbosity:
-- `-v`: Basic verbose output
-- `-vv`: More detailed output
-- `-vvv`: Very detailed output
-
-Example: `hk check -vv` for detailed debugging output.
+Example: `hk check -v`.
 """
 
 [warnings]

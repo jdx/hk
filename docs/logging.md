@@ -1,206 +1,148 @@
 ---
-outline: "deep"
+description: Diagnose skipped steps, configuration problems, missing tools, hook failures, and slow runs.
 ---
 
-# Logging and Debugging
+# Troubleshooting
 
-hk provides several ways to control logging output for debugging issues and understanding what happens during execution.
+Start with a plan and verbose output. They usually show whether the problem is file selection, configuration, or a linter command.
 
-## Log Levels
-
-hk supports standard log levels that control the amount of information displayed:
-
-- **error**: Only show error messages
-- **warn**: Show warnings and errors
-- **info**: Show informational messages, warnings, and errors (default)
-- **debug**: Show debug information including file operations and step execution details
-- **trace**: Show detailed trace information including all internal operations
-
-## Setting Log Levels
-
-### Using CLI Flags
-
-The simplest way to control logging is through command-line flags:
-
-```bash
-# Show debug output (includes what files are being checked/fixed)
+```sh
+hk check --plan
 hk check -v
-hk fix --verbose
-
-# Show trace output (very detailed, includes all internal operations)
-hk check -vv
 ```
 
-The `-v` flag can be used multiple times:
-- `-v` or `--verbose`: Sets log level to DEBUG
-- `-vv`: Sets log level to TRACE
+## A step does not run
 
-### Using Environment Variables
+Ask hk to explain the step:
 
-You can also set the log level using the `HK_LOG` environment variable:
-
-```bash
-# Set log level to debug for a single command
-HK_LOG=debug hk check
-
-# Set log level to trace
-HK_LOG=trace hk fix
-
-# Export for all commands in the session
-export HK_LOG=debug
-hk check
-hk fix
+```sh
+hk check --why eslint
+hk check --all --why eslint
 ```
 
-### Log File Output
+Replace `eslint` with the name in your configuration. Check its file patterns, exclusions, required environment variables, conditions, and profiles.
 
-By default, hk writes logs to a file at `~/.local/state/hk/hk.log`. You can control this with environment variables:
+`hk check` normally selects modified files. `--all` expands the selection. A step with a `slow` profile needs `--slow` or `--profile slow`; a step with multiple positive profiles requires all of them.
 
-```bash
-# Change the log file location
-HK_LOG_FILE=/tmp/my-hk.log hk check
+To inspect the plan as JSON:
 
-# Set a different log level for the file (defaults to HK_LOG)
-HK_LOG_FILE_LEVEL=trace hk check
+```sh
+hk check --all --plan --json
 ```
 
-This is useful when you want minimal console output but detailed file logging for later analysis.
+Plans do not run linter commands. Configuration evaluation and condition evaluation may still inspect the environment.
 
-## Tracing and Performance Diagnostics
+## Configuration is not what you expect
 
-hk includes built-in tracing support for performance analysis and detailed execution tracking.
-
-### Enabling Tracing
-
-Use the `--trace` flag or `HK_TRACE` environment variable:
-
-```bash
-# Enable tracing with console output
-hk check --trace
-
-# Enable tracing via environment variable (text mode)
-HK_TRACE=1 hk check
-HK_TRACE=text hk check
-
-# Enable tracing with JSON output for programmatic analysis
-HK_TRACE=json hk check > trace.jsonl
-hk check --trace --json > trace.jsonl
+```sh
+hk validate -v
+hk config dump
+hk config get skip_steps
+hk config explain jobs
 ```
 
-### Trace Output Formats
+`hk validate` checks the Pkl configuration. `hk config dump` shows effective runtime settings, rather than the complete hook and step definitions. `hk config explain` helps identify overrides.
 
-**Text Mode**: Human-readable hierarchical output showing spans and timing:
-```
-  0.123s INFO Starting check
-  0.456s ├─ lint::eslint
-  0.789s │  ├─ Running eslint on 45 files
-  1.234s │  └─ Complete (478ms)
-  1.567s └─ Complete (1.444s)
-```
+Check for `hk.local.pkl`, a user config, Git settings, and `HK_*` environment variables. See [configuration precedence](/configuration#configuration-precedence).
 
-**JSON Mode**: Outputs newline-delimited JSON (JSONL) for programmatic analysis:
-```json
-{"type":"meta","span_schema_version":1,"hk_version":"1.12.1","pid":12345}
-{"type":"span_start","ts_ns":123456,"id":"span_0","name":"check","attrs":{}}
-{"type":"span_start","ts_ns":456789,"id":"span_1","name":"lint","attrs":{"step":"eslint"},"parent_id":"span_0"}
-{"type":"span_end","ts_ns":789012,"id":"span_1"}
-{"type":"span_end","ts_ns":1234567,"id":"span_0"}
+For evaluator or cache issues:
+
+```sh
+HK_CACHE=0 hk validate
+HK_PKL_BACKEND=pkl hk validate
 ```
 
-### Performance Timing Reports
+The second command requires the Pkl CLI. See [Pkl evaluators](/pkl_introduction#evaluators).
 
-Generate JSON timing reports for analysis:
+## A command is missing
 
-```bash
-# Write timing report to a file
-HK_TIMING_JSON=/tmp/timing.json hk check
+Builtins do not install linters. Check that the named executable is available in the environment running hk.
 
-# The report includes:
-# - Total wall time
-# - Per-step wall time (with overlapping intervals merged)
-# - Profile information for each step
+If it works in your terminal but fails from Git or an editor, install the launcher with `hk install --mise` when using mise. Git must still be able to find mise itself. For language package dependencies, expose the package’s executable directory. See [mise integration](/mise_integration).
+
+## A hook does not fire, or fires twice
+
+Inspect installation without rewriting it:
+
+```sh
+git config --show-origin --get-regexp '^hook\.hk-'
+git config --show-origin --get core.hooksPath
 ```
 
-Example timing report:
+These commands may exit nonzero if no matching setting exists. On older Git or with `--legacy`, inspect the applicable hook scripts too.
+
+Use `hk run pre-commit --plan` to confirm the configured hook can be loaded. Run `hk install` to refresh a local installation, or `hk install --global` for a global one.
+
+A normal local install detects existing global hk hooks and avoids duplicating them. An explicitly forced local install alongside global hooks can cause duplicate runs. See [installation](/getting_started#install-hooks).
+
+## A hook changes more than expected
+
+Compare `git diff` and `git diff --cached`. A staged path can contain unstaged edits, and formatters work on whole files.
+
+Use `stash = "git"` to isolate staged content before a pre-commit fixer runs. Use `stage = false` with `fail_on_fix = true` to review fixes before committing. See [hooks and stashing](/hooks).
+
+## A run is slow
+
+Write a timing report:
+
+```sh
+HK_TIMING_JSON=hk-timing.json hk check --all
+```
+
+The report contains total and per-step wall time:
+
 ```json
 {
   "total": { "wall_time_ms": 12456 },
   "steps": {
-    "lint": { "wall_time_ms": 4321, "profiles": ["ci", "fast"] },
-    "fmt": { "wall_time_ms": 2100 },
-    "typecheck": { "wall_time_ms": 6035 }
+    "lint": { "wall_time_ms": 4321, "profiles": ["slow"] },
+    "format": { "wall_time_ms": 2100 }
   }
 }
 ```
 
-## Quiet and Silent Modes
+Step time merges overlapping intervals within that step. Different steps can overlap, so their durations do not sum to total run time.
 
-To reduce output:
+Look for expensive linters, unnecessary `exclusive` settings, broad file patterns, and dependencies that serialize work. Compare with fewer jobs if the linters already parallelize internally. For very large worktrees, untracked-file discovery can also be costly; see [`HK_STASH_UNTRACKED`](/environment_variables#hk-stash-untracked).
 
-```bash
-# Suppress non-essential output (info messages, progress indicators)
-# Failed-step diagnostics are still shown
-hk check --quiet
-hk check -q
+## Log levels
 
-# Suppress all output including warnings (only errors are shown)
-hk check --silent
-```
+| Level   | Output                               |
+| ------- | ------------------------------------ |
+| `error` | Errors                               |
+| `warn`  | Warnings and errors                  |
+| `info`  | Informational messages; the default  |
+| `debug` | File selection and execution details |
+| `trace` | More detailed internal operations    |
 
-## Common Debugging Scenarios
-
-### Debugging Step Execution
-
-To see which files are being processed by each step:
-
-```bash
-# Use debug level to see file operations
+```sh
+hk check -v          # Debug logging
+hk check -vv         # Trace logging
 HK_LOG=debug hk check
-
-# Use trace level for maximum detail
-HK_LOG=trace hk check
 ```
 
-### Debugging Performance Issues
+Use `--quiet` to reduce output or `--silent` to suppress it. Failed-step summaries remain useful in plain-text CI output; `HK_SUMMARY_TEXT=1` also requests summaries for successful steps.
 
-To identify slow steps:
+### Log files
 
-```bash
-# Generate a timing report
-HK_TIMING_JSON=/tmp/timing.json hk check
-cat /tmp/timing.json | jq .
+Logs go to `$HK_STATE_DIR/hk.log` by default. On Linux, this is typically `~/.local/state/hk/hk.log`. Override the file path and level independently:
 
-# Use tracing to see detailed timing
+```sh
+HK_LOG_FILE=/tmp/hk-debug.log HK_LOG_FILE_LEVEL=trace hk check
+```
+
+## Tracing
+
+Tracing records spans and timing in addition to ordinary logs:
+
+```sh
 hk check --trace
+HK_TRACE=1 hk check
+HK_TRACE=json hk check > trace.jsonl
 ```
 
-### Debugging Configuration Issues
+Text tracing goes to standard error. JSON tracing writes events to standard output. Commands that print their own standard output may share that stream, so inspect it before treating the entire file as JSONL.
 
-To see how configuration is being loaded and processed:
+## Report a bug
 
-```bash
-# Validate configuration with verbose output
-hk validate -v
-
-# Check which steps would run without running them
-hk check --plan
-```
-
-### Debugging Git Hook Issues
-
-When git hooks aren't working as expected:
-
-```bash
-# Test hooks directly with debug output
-HK_LOG=debug hk run pre-commit
-
-# Check hook installation
-hk install --verbose
-```
-
-## Tips
-
-1. **Start with `-v`**: For most debugging, `hk check -v` provides enough detail without overwhelming output
-2. **Use log files**: Set `HK_LOG_FILE_LEVEL=trace` to capture detailed logs without cluttering the console
-3. **Combine with other tools**: Pipe JSON trace output to tools like `jq` for analysis
-4. **Profile-specific debugging**: Use `HK_LOG=debug hk check --profile slow` to debug specific profiles
+Include the hk version, operating system, Git version, relevant configuration, exact command, and the first substantive error from verbose output. For file-selection or stashing issues, describe which files or hunks were staged. Review logs for private paths, command output, and environment values before posting them to [GitHub issues](https://github.com/jdx/hk/issues).

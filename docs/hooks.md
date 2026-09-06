@@ -1,28 +1,115 @@
-# Hooks
+---
+description: Configure Git hooks, understand staged-file selection, and control fixes, stashing, and execution order.
+---
 
-This page describes the behavior of the git hooks that hk supports. Each step provides a "check" and a "fix" command. "check" commands are read-only and can run in parallel. "fix" commands can edit files and block other "fix" or "check" commands on the same files from running at the same time. For performance reasons, hk does not enforce that "check" commands leave files untouched, so follow this convention yourself for hk to behave as expected.
+# Git hooks and stashing
 
-This read/write locking is what lets hk run hooks as fast as possible while staying safe.
+A hook is a named collection of steps. Git invokes installed hooks at specific events; `hk run <hook>` invokes them directly. The `check` and `fix` hooks are also available through `hk check` and `hk fix`.
 
-## Hook Behavior
+For installation, see [getting started](/getting_started#install-hooks).
 
-With `fix = true`, an hk hook performs the following:
+## Check and fix commands
 
-* Stashes any untracked/unstaged changes if stashing is enabled. It is off by default; see [`HK_STASH`](/environment_variables#hk-stash)
-* Gathers the list of files with staged changes (or all files if running `hk run pre-commit --all`)
-* Runs linters and hook steps in parallel up to [`HK_JOBS`](/environment_variables#hk-jobs) at a time, with caveats:
-  * `exclusive = true` steps wait until all previous steps have finished and block later steps from starting
-  * if a step has dependencies, hk waits for them to complete before starting it
-  * hk takes read/write locks on each file the step matches (according to its glob patterns) unless `stomp = true`
-  * if `check_first = true` on the step, hk runs the "check" command first with read locks; if that fails, it runs the "fix" command with write locks on all the files
-  * if the step has a `check_list_files` command, hk uses its output to narrow the files it takes write locks on and passes to "fix"
-  * if `check_first = false` on the step, hk runs the "fix" command after taking write locks, blocking other steps on the same files. Avoid this configuration for performance reasons.
-  * if any files were modified and match the `stage` globs, they are added to the git index (`stage` defaults to the step's `glob` for steps with a `fix` command)
-* Restores the stashed untracked/unstaged changes
+A step’s `check` command should report problems without editing files. Its `fix` command may edit them. A hook with `fix = true` uses the fix workflow; steps with only a check command can still validate files.
 
-If `fix = false`, hk only runs the `check` commands and does not need read/write locks, since nothing should be making modifications. Steps with [`check_failed_files = true`](/configuration#focus-checks-on-failing-files) first use `check_diff` or `check_list_files` to identify affected paths, then run the detailed `check` command only on that focused set.
+hk uses read locks for checks and write locks for fixes. These locks coordinate steps that select the same files. hk does not sandbox commands or detect every undeclared write, so a check that edits files can interfere with other steps.
 
-### Allowing a step to fail
+Use [structured output and command effects](/agents) when integrating checks with coding agents or automation.
+
+## File selection
+
+With the generated configuration:
+
+| Invocation                               | Default selection                                       |
+| ---------------------------------------- | ------------------------------------------------------- |
+| `hk run pre-commit`                      | Staged files                                            |
+| `hk check` / `hk fix`                    | Modified files: staged, unstaged, and untracked         |
+| `hk check --all`                         | Tracked files and eligible untracked files              |
+| `hk check --staged`                      | Staged paths, using their current working-tree contents |
+| `hk check --from-ref main --to-ref HEAD` | Paths changed between those references                  |
+
+Step patterns, exclusions, ignore rules, and settings further filter this selection. Enabling stashing also changes default selection to staged files.
+
+For both `hk run pre-commit --all` and `hk check --all`, the resolved stash method controls untracked-file selection: `git` and `patch-file` select tracked files only; `none` also selects discovered untracked files. When `--stash` is omitted, `HK_STASH` overrides the hook setting.
+
+`HK_STASH_UNTRACKED=0` disables discovery and stashing of untracked files. Setting it to `1` allows discovery and stashing, but does not include untracked files in `--all` when stashing is enabled.
+
+::: warning Staged paths are not staged contents
+`--staged` does not stash unstaged changes. If a file contains both staged and unstaged edits, the command sees its working-tree contents. Use a hook configured with stashing when the staged version must be isolated.
+:::
+
+Use `hk run pre-commit --plan` to inspect selected steps and files before executing them.
+
+## Stashing and partial commits
+
+For a pre-commit hook that applies fixes, set both `fix` and `stash`:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = linters
+  }
+}
+```
+
+hk saves unstaged work, runs the hook against the staged content, stages applicable fixes, and restores the saved work. This lets you use `git add -p` without intentionally including the rest of your edits.
+
+Linters still operate on whole files. Staging one hunk does not restrict a formatter to that hunk.
+
+### Choose a stash strategy
+
+| Value               | Behavior                                            |
+| ------------------- | --------------------------------------------------- |
+| `"git"` or `true`   | Save unstaged changes with Git stashing             |
+| `"patch-file"`      | Currently an alias for the Git stash implementation |
+| `"none"` or `false` | Leave unstaged work in place                        |
+
+An unspecified hook stash setting defaults to `"none"`. `hk init` explicitly enables `"git"` for pre-commit. Override a run with `--stash` or [`HK_STASH`](/environment_variables#hk-stash).
+
+Untracked files are included in stashing by default. `HK_STASH_UNTRACKED=0` also disables their discovery, which can help very large worktrees but changes file selection.
+
+### If restoration fails
+
+Read hk’s error before changing the working tree. Inspect `git status`, `git diff`, `git diff --cached`, and `git stash list` to understand which changes are present.
+
+hk keeps backup patches under `$HK_STATE_DIR/patches/` when Git stashing is used; the `stash_backup_count` setting controls retention. Preserve the reported stash and backup until you have recovered and reviewed your work. Avoid blindly applying a stash again to files that already contain its changes.
+
+## Review fixes before committing
+
+The generated pre-commit hook stages applicable fixes automatically. To apply fixes but stop the commit for review:
+
+```pkl
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    stage = false
+    fail_on_fix = true
+    steps = linters
+  }
+}
+```
+
+When a fixer changes a file, hk fails the hook and leaves the fixes for you to review and stage. Retry the commit afterward. `stage = false` alone disables staging without requiring the hook to fail.
+
+For a single run, use `--no-stage` to disable automatic staging.
+
+<span id="hook-behavior"></span>
+
+## Order steps deliberately
+
+Steps run concurrently, up to the job limit, unless coordination requires them to wait:
+
+- `depends = "eslint"` waits for the named step.
+- `exclusive = true` waits for earlier steps and blocks later ones until it finishes.
+- A `Group` creates a boundary: its children run together, and later groups wait.
+- Read/write locks coordinate steps that select overlapping files.
+
+Locks prevent simultaneous writes; they do not choose the final style when tools disagree. Configure compatible rules or declare an explicit dependency.
+
+## Allowing a step to fail
 
 Set `allow_failure = true` on a step to run it and report a non-zero command
 exit without failing the hook. This is narrower than bypassing the hook or
@@ -43,85 +130,49 @@ conditional on an environment variable:
 allow the commit, while an ordinary `git commit` remains blocked by the same
 failure.
 
-## `pre-commit`
+## Commit-message hooks
 
-Runs during `git commit`, before the commit is created.
+`commit-msg` runs after the message is prepared and before the commit is created. Use the built-in Conventional Commits check:
 
 ```pkl
+amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
+
 hooks {
-    ["pre-commit"] {
-        fix = true
-        stash = "git"
-        steps {
-            ["cargo-fmt"] {
-                glob = "*.rs"
-                check_first = true
-                check = "cargo fmt --check"
-                fix = "cargo fmt"
-            }
-            ["cargo-clippy"] {
-                glob = "*.rs"
-                check_first = true
-                check = "cargo clippy"
-                fix = "cargo clippy --fix --allow-dirty --allow-staged"
-            }
-        }
+  ["commit-msg"] {
+    steps {
+      ["conventional-commit"] = Builtins.check_conventional_commit
     }
+  }
 }
 ```
 
-## `prepare-commit-msg`
+The `commit_msg_file` template variable contains the message path. `prepare-commit-msg` also receives `source` and `sha` when Git supplies them. Use that hook to prepare or edit a message before the user’s editor opens.
 
-Runs during `git commit`, before the commit message editor opens. Useful for rendering a default commit message template.
-The `commit_msg_file`, `source`, and `sha` template variables are available in this hook. The raw git hook arguments are also available as `hook_args`.
+## Other Git events
 
-```pkl
-hooks {
-    ["prepare-commit-msg"] {
-        steps {
-            ["render-commit-msg"] {
-                check = "echo 'default commit message' > {{commit_msg_file}}"
-            }
-        }
-    }
-}
+hk has dedicated handlers for these events:
 
+| Event                | Useful template variables                                 |
+| -------------------- | --------------------------------------------------------- |
+| `pre-commit`         | Staged file selection                                     |
+| `pre-push`           | `hook_args` (remote and URL), `hook_stdin` (updated refs) |
+| `commit-msg`         | `commit_msg_file`                                         |
+| `prepare-commit-msg` | `commit_msg_file`, `source`, `sha`                        |
+| `post-checkout`      | `prev_head`, `new_head`, `is_branch_checkout`             |
+| `post-merge`         | `hook_args` (squash flag)                                 |
+| `post-rewrite`       | `hook_args` (command), `hook_stdin` (rewritten refs)      |
+| `pre-rebase`         | `hook_args` (upstream and optional branch)                |
+| `post-commit`        | No event-specific arguments                               |
+
+Dedicated handlers also expose their raw arguments as `hook_args`. See the [run reference](/cli/run) for argument details. Custom hooks can be invoked by name; hooks without a dedicated handler receive an empty `hook_args` value.
+
+## Skip a hook or step
+
+```sh
+HK_SKIP_STEPS=eslint git commit
+HK_SKIP_HOOK=pre-push git push
+HK=0 git commit
 ```
 
-## `commit-msg`
-
-Runs during `git commit`, after the commit message has been written. Useful for validating the commit message.
-The `commit_msg_file` template variable is available in this hook. The raw git hook arguments are also available as `hook_args`.
-
-```pkl
-hooks {
-    ["commit-msg"] {
-        steps {
-            ["validate-commit-msg"] {
-                check = "grep -Eq '^(fix|feat|chore):' {{commit_msg_file}}"
-            }
-        }
-    }
-}
-```
-
-## `post-checkout`
-
-Runs after `git checkout` updates the worktree. The `prev_head`, `new_head`, and `is_branch_checkout` template variables are available in this hook. `is_branch_checkout` is a boolean value. The raw git hook arguments are also available as `hook_args`.
-
-```pkl
-hooks {
-    ["post-checkout"] {
-        steps {
-            ["restore-lfs"] {
-                check = "git lfs post-checkout {{ hook_args }}"
-            }
-        }
-    }
-}
-```
-
-## Other Hooks
-
-Other git hooks are also supported. See <https://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks>.
-The raw arguments for hooks with dedicated handlers are available as `hook_args`; hooks without dedicated handlers get an empty `hook_args`.
+`HK=0` bypasses hk’s installed hook launcher. To persist a preference, use [Git configuration](/configuration#git-configuration), such as `git config --local hk.skipSteps eslint`.

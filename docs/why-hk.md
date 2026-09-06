@@ -1,127 +1,72 @@
+---
+description: Understand hk’s file locking, linter integration, configuration model, and tradeoffs.
+---
+
 # Why hk?
 
-Tools like pre-commit, prek, and lefthook simply shell out to run linters. That means they can't safely run linters in parallel: if two linters try to modify the same file at the same time, there will be a race condition.
+hk is designed for projects that run several linters and formatters over overlapping files. It combines concurrent execution with file-level coordination, so tools can work together without writing to the same file at the same time.
 
-hk has a lot of tricks up its sleeve so that it can safely do this. hk maintains a read/write lock for every file being linted. If a linter needs to write, it needs an exclusive lock. Of course, if every linter needed a write lock, nothing could run in parallel, so hk avoids write locks through several mechanisms depending on the capabilities of the linter.
+## Parallelism needs coordination
 
-## How hk avoids write locks
+A read-only check can run alongside other checks. A formatter needs exclusive access to the files it changes. Without that coordination, two formatters can read the same original content and overwrite one another’s fixes.
 
-A couple of examples:
+Within a hook run, hk tracks read/write locks for the files selected by each step:
 
-**ruff** – has diff output, which is perfect for hk. hk runs `ruff format --diff`, which outputs a diff if there are any changes that need to be made. hk can then apply that diff itself without shelling out to ruff again. (If multiple linters edited the same file and the diff no longer applies cleanly, hk falls back to running the fix command.)
+| Work                         | Lock              | What can run alongside it?       |
+| ---------------------------- | ----------------- | -------------------------------- |
+| Check a file                 | Read              | Other readers of that file       |
+| Fix a file                   | Write             | Steps using different files      |
+| Check or fix unrelated files | Independent locks | Other steps, up to the job limit |
 
-**prettier** – supports `--list-different`, which tells hk which files need formatting without modifying anything. hk uses this to run the check with only a read lock on all targeted files, then narrows down the set of files before running `prettier --write`.
+This relies on accurate step definitions. A check must be read-only, and a step must declare the files its commands may touch. Commands that modify undeclared files bypass that protection. Use `depends` or `exclusive` when a tool’s effects extend beyond its selected files.
 
-For linters with none of these capabilities (ahem: eslint), hk falls back to taking a write lock on all of the linter's files. Other linters that don't touch the same files still run in parallel. With `check_first`, hk first runs the check command (such as `eslint`) under a read lock and only takes the write lock to run the fix command (`eslint --fix`) if the check fails.
+## Use each linter’s capabilities
 
-For this reason, hk requires more integration work with each linter. However, since it comes with a large corpus of [builtins](/builtins), you likely won't need to deal with the details yourself.
+Taking a write lock on every file can serialize otherwise independent work. hk’s [builtins](/builtins) describe more efficient ways to run tools when they support them.
 
-## Smart stashing
+### Diff output
 
-Here's a scenario every developer hits: you've got a file with some changes staged for commit and other changes you're still working on. You run your pre-commit hooks, and suddenly your unstaged work-in-progress gets formatted, linted, and staged along with everything else. Your careful partial commit is ruined.
+A `check_diff` command emits a patch without editing files. hk can run it with read locks, then apply the patch under write locks. Builtins such as Ruff’s formatter use this approach.
 
-hk solves this properly when a hook sets `stash = "git"`. Before running any fixers, hk stashes your unstaged changes so linters only see what you're actually committing. After linters run, hk restores your unstaged work using a **three-way merge**:
+### Lists of files needing fixes
 
-1. **Before hooks run**: hk snapshots your working tree and stashes only the unstaged changes (the diff between your worktree and your index). Your working tree now matches your staged content exactly.
-2. **Hooks run**: linters and fixers see only the staged content. If prettier reformats a file, it reformats the version you're committing, not your work-in-progress.
-3. **After hooks run**: hk does a three-way merge to combine the fixer's changes with your unstaged work. If the fixer changed line 5 and your unstaged changes are on line 20, both are preserved. If there's a conflict, your unstaged changes take priority; hk never destroys your in-progress work.
+A `check_list_files` command reports which files need changes. For example, Prettier’s `--list-different` lets hk narrow the files passed to `--write`.
 
-This works even with partially staged hunks in a single file. If you `git add -p` to stage just one function, hk will lint that function, apply fixes to it, and leave your other unstaged changes in the file untouched.
+### Check before fixing
 
-Other tools provide more limited stash handling. Lefthook [hides tracked, partially staged changes](https://github.com/evilmartians/lefthook/pull/402) for pre-commit hooks, but [does not hide untracked files](https://github.com/evilmartians/lefthook/issues/833). Pre-commit and prek use basic stashing that can lose changes when fixers and unstaged edits touch the same file.
+For other tools, `check_first` can run a read-only check before acquiring write locks for a fix. When checks frequently pass, this avoids unnecessary exclusive access. When nearly every file needs fixing, the extra check may cost more than it saves.
 
-## Built-in utilities
+These strategies affect orchestration overhead. Actual speed depends on your linters, file overlap, number of changed files, and available CPU cores. See the [benchmarks](/benchmarks) for a reproducible workload and its limitations.
 
-hk ships with fast Rust-native utilities for common tasks like trailing whitespace removal, end-of-file fixing, and merge conflict detection. These run as part of hk itself, so there are no extra tools to install. We plan to add more of these over time so common checks are as fast as possible.
+## Work with partial commits
 
-## Plugin security
+When a pre-commit hook uses `stash = "git"`, hk temporarily saves unstaged changes, runs the steps against the staged versions, and restores the saved work afterward.
 
-pre-commit and prek download hook implementations from external git repositories. Each hook repo contains its own environment setup, dependencies, and entry points, so you're running code pulled from third-party repos.
+The unit of linting is a **file**, not a staged hunk. If you stage one function, a formatter can still reformat the whole staged version of that file. Stashing keeps unrelated work out of that version; it does not make the formatter operate on individual hunks.
 
-hk builtins are just [Pkl](https://pkl-lang.org/) config hosted in the [hk repository](https://github.com/jdx/hk/tree/main/pkl/builtins) and fetched via the import statement in your `hk.pkl`. They define how to invoke linters already on your system; they don't download or execute third-party code. You can read exactly what each builtin does in a few lines of Pkl:
+Read [hooks and stashing](/hooks#stashing-and-partial-commits) for automatic staging, review-before-commit settings, and recovery guidance.
 
-```pkl
-// This is an entire hk builtin. That's it.
-prettier = new Config.Step {
-  glob = List("**/*.js", "**/*.ts", "**/*.css", "**/*.json", "**/*.md")
-  check = "prettier --check {{ files }}"
-  check_list_files = "prettier --list-different {{ files }}"
-  fix = "prettier --write {{ files }}"
-}
-```
+## Reuse configuration, keep control of tools
 
-Compare that to pre-commit:
+Builtins are Pkl step definitions: file patterns and commands you can inspect and amend. They invoke tools available in your environment. hk also includes [native utilities](/cli/util) for tasks such as trailing whitespace and merge conflict checks.
 
-```yaml
-# pre-commit: hooks are downloaded from external git repos
-repos:
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.1.0
-    hooks:
-      - id: prettier
-```
+Pkl imports can refer to local files or remote packages. Pin package versions, review imported configuration, and manage linter versions as you would other project dependencies. A configuration that defines a shell command determines what hk will execute.
 
-## vs pre-commit
+## Is hk a fit?
 
-[pre-commit](https://pre-commit.com/) is the most popular hook manager. It's written in Python and requires Python as a runtime dependency.
+hk is useful when you want:
 
-- Runs hooks **sequentially**: hook B waits for hook A to finish completely
-- Downloads hook code from external git repos
-- Requires Python on the system
-- Uses YAML for configuration
+- The same steps in Git hooks, local checks, and CI.
+- Concurrent checks and coordinated fixes over shared files.
+- Reusable configuration with types, imports, and local overrides.
+- Control over tool installation through mise or an existing package manager.
 
-## vs prek
+The tradeoffs are a configuration language to learn and responsibility for providing your tools. File locks coordinate access; they cannot reconcile formatters with incompatible style rules. Choose compatible rules or use `depends` to establish the order your project needs.
 
-[prek](https://github.com/j178/prek) is pre-commit reimplemented in Rust. It's faster than pre-commit but fundamentally the same model:
+## Moving from another hook manager
 
-- Still runs hooks **sequentially**, the same execution model as pre-commit
-- Still downloads hook code from external git repos
-- prek itself doesn't require Python, but Python-based hooks (which are most of the pre-commit ecosystem) still need Python at runtime; prek just manages it automatically via uv
-- prek does have some built-in Rust-native hooks for common checks, similar to hk's `hk util` commands
+You can evaluate hk on a branch before changing your team’s setup. Create a configuration, run `hk check --all --plan`, then compare the checks and fixes with your existing workflow.
 
-hk gets its speed from **parallelism**, not just language choice. Running 10 linters in parallel is fundamentally faster than running them one at a time, regardless of how fast each individual run is.
+For a pre-commit configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Review the generated steps, tool versions, file filters, and any unsupported hooks before installing hk’s Git hooks.
 
-## vs lefthook
-
-[lefthook](https://github.com/evilmartians/lefthook) is a hook manager written in Go. It's the closest to hk in philosophy, since it supports parallel execution.
-
-The problem: lefthook has **no file-level coordination**. If two parallel jobs modify the same file, you get a race condition: the last writer wins and the other's changes are silently lost. In practice you either accept the risk or configure your hooks not to overlap, which defeats the purpose.
-
-hk solves this with read/write file locks. Multiple linters can safely run in parallel, even when they touch the same files.
-
-Other differences:
-- lefthook has no builtin linter definitions; you write shell commands directly in YAML
-- lefthook only stashes tracked changes in partially staged files for pre-commit hooks; it does not stash untracked files
-- lefthook uses YAML; hk uses [Pkl](https://pkl-lang.org/) for type-safe configuration
-
-## vs husky + lint-staged
-
-[husky](https://github.com/typicode/husky) (~35k stars) and [lint-staged](https://github.com/lint-staged/lint-staged) (~14k stars) are the most popular combination in the JavaScript ecosystem.
-
-husky is intentionally minimal: it just wires up git hooks. lint-staged handles the actual linting orchestration. lint-staged does run tasks matched to *different* glob patterns in parallel, but tasks targeting the *same* glob run sequentially. There's no file-level coordination, so if two tasks end up touching the same file through different globs, you get a race condition.
-
-Both require Node.js. If your project isn't a JS project, you're adding a runtime dependency just for your hook manager.
-
-## Feature comparison
-
-| Feature | hk | pre-commit | lefthook | prek |
-|---------|-----|-----------|----------|------|
-| Parallel execution | File-locked | No | Unsafe | No |
-| Language | Rust | Python | Go | Rust |
-| Requires Python | No | Yes | No | Often† |
-| Config format | Pkl | YAML | YAML | YAML |
-| Built-in linter configs | [150+](/builtins) | — | — | — |
-| Plugin model | Pkl config (local) | Git repos (remote) | Shell commands | Git repos (remote) |
-| check_diff support | Yes | No | No | No |
-| check_list_files support | Yes | No | No | No |
-| Stash management | Yes | Partial | Partial* | Partial |
-| Dependency resolution | Yes | No | No | No |
-| Batched execution | Yes | No | No | No |
-
-\* Lefthook hides tracked, partially staged changes during pre-commit hooks, but does not hide untracked files.
-
-† prek itself is Rust, but many hooks in the pre-commit ecosystem require Python environments to run.
-
-See also: [Benchmarks](/benchmarks) for reproducible performance numbers.
-
-Come give it a whirl: [Getting Started](/getting_started)
+[Get started](/getting_started) or browse the [configuration examples](/reference/examples/).

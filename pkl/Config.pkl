@@ -65,7 +65,7 @@ class CommandSpec {
 /// default_branch = "main"
 ///
 /// // Or a remote-qualified ref
-/// default_branch = "origin/main"
+/// // default_branch = "origin/main"
 /// ```
 ///
 /// Notes:
@@ -94,13 +94,13 @@ env: Mapping<String, String> = new Mapping<String, String> {}
 /// exclude = List("node_modules", "dist", "build")
 ///
 /// // Exclude using glob patterns
-/// exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
+/// // exclude = List("**/*.min.js", "**/*.map", "**/vendor/**")
 ///
 /// // Single pattern
-/// exclude = "node_modules"
+/// // exclude = "node_modules"
 ///
 /// // Exclude using regex pattern (for complex matching)
-/// exclude = Regex(#".*\.(test|spec)\.(js|ts)$"#)
+/// // exclude = Regex(#".*\.(test|spec)\.(js|ts)$"#)
 /// ```
 ///
 /// Notes:
@@ -160,7 +160,8 @@ jobs: UInt?
 /// Example usage:
 /// ```pkl
 /// profiles = List("ci", "slow")
-/// profiles = List("!slow")  // explicitly disable
+/// // Or explicitly disable a profile:
+/// // profiles = List("!slow")
 /// ```
 profiles: List<String> = List()
 
@@ -181,7 +182,7 @@ skip_hooks: List<String> = List()
 /// **All skip configurations from different sources are unioned together.**
 skip_steps: List<String> = List()
 
-/// When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration.html#hooks-hook-stage-boolean).
+/// When specified, overrides the [hook's `stage` key](https://hk.jdx.dev/configuration#hook-stage-boolean).
 ///
 /// This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
 stage: Boolean?
@@ -235,7 +236,7 @@ class Hook {
   /// If true, hk will automatically stage fixed files after `fix` commands run.
   ///
   /// This can be overridden via the `stage` [configuration setting](https://hk.jdx.dev/configuration.html#stage).
-  /// Note that this means the value of `stage` in your `hk.pkl` takes precendence.
+  /// Note that this means the value of `stage` in your `hk.pkl` takes precedence.
   stage: Boolean?
 
   /// Default: `"none"`
@@ -272,7 +273,7 @@ class Hook {
   /// hooks {
   ///   ["pre-push"] {
   ///     env {
-  ///       ["HK_PROFILES"] = "types"
+  ///       ["NODE_ENV"] = "test"
   ///     }
   ///     steps = linters
   ///   }
@@ -302,8 +303,8 @@ class Hook {
   report: (String | Script)?
 
   /// Steps are the individual linters that make up a hook.
-  /// They are executed in the order they are defined in parallel up to
-  /// [`HK_JOBS`](https://hk.jdx.dev//configuration#hk-jobs) at a time.
+  /// Steps can run concurrently, subject to dependencies, groups, and file locks, up to
+  /// [`HK_JOBS`](https://hk.jdx.dev/environment_variables#hk-jobs) at a time.
   steps: Mapping<String, Step | Group> = new Mapping<String, Step> {}
 }
 
@@ -324,8 +325,8 @@ class Step {
   /// If any are missing, the step will be skipped with a clear message.
   required: List<String> = List()
 
-  /// Files the step should run on. By default this will only run this step if
-  /// at least 1 staged file matches the glob or regex patterns.
+  /// Files the step should run on. The step runs when at least one selected file
+  /// matches the glob or regex patterns. The hook and CLI options select the initial files.
   /// If no patterns are provided, the step will always run.
   ///
   /// ```pkl
@@ -343,7 +344,7 @@ class Step {
   ///
   /// // Regex pattern for complex matching
   /// ["config-lint"] {
-  ///     glob = Types.Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
+  ///     glob = Regex(#"^(config|settings).*\.(json|yaml|yml)$"#)
   ///     check = "config-lint {{files}}"
   /// }
   /// ```
@@ -410,8 +411,8 @@ class Step {
   /// ```pkl
   /// ["shellcheck"] {
   ///   match_any = List(
-  ///     new { glob = List("**/*.sh", "**/*.bash") },
-  ///     new { types = List("sh", "bash") }
+  ///     new FileSelector { glob = List("**/*.sh", "**/*.bash") },
+  ///     new FileSelector { types = List("sh", "bash") }
   ///   )
   ///   check = "shellcheck {{files}}"
   /// }
@@ -432,8 +433,10 @@ class Step {
   /// ```pkl
   /// hooks {
   ///     ["pre-commit"] {
-  ///         ["prettier"] {
-  ///             check = "prettier --check {{files}}"
+  ///         steps {
+  ///             ["prettier"] {
+  ///                 check = "prettier --check {{files}}"
+  ///             }
   ///         }
   ///     }
   /// }
@@ -445,12 +448,14 @@ class Step {
   /// ```pkl
   /// hooks {
   ///     ["pre-commit"] {
-  ///         ["prettier"] {
-  ///             check = new Script {
-  ///                 linux = "prettier --check {{files}}"
-  ///                 macos = "prettier --check {{files}}"
-  ///                 windows = "prettier --check {{files}}"
-  ///                 other = "prettier --check {{files}}"
+  ///         steps {
+  ///             ["prettier"] {
+  ///                 check = new Script {
+  ///                     linux = "prettier --check {{files}}"
+  ///                     macos = "prettier --check {{files}}"
+  ///                     windows = "prettier --check {{files}}"
+  ///                     other = "prettier --check {{files}}"
+  ///                 }
   ///             }
   ///         }
   ///     }
@@ -482,8 +487,10 @@ class Step {
   /// ```pkl
   /// hooks {
   ///     ["pre-commit"] {
-  ///         ["prettier"] {
-  ///             check_list_files = "prettier --list-different {{files}}"
+  ///         steps {
+  ///             ["prettier"] {
+  ///                 check_list_files = "prettier --list-different {{files}}"
+  ///             }
   ///         }
   ///     }
   /// }
@@ -531,8 +538,8 @@ class Step {
   /// }
   /// ```
   ///
-  /// By default, hk will use `fix` commands but this can be overridden by setting
-  /// [`HK_FIX=0`](https://hk.jdx.dev/configuration#hk-fix) or running `hk run <HOOK> --check`.
+  /// A hook with `fix = true` uses fix commands. Disable configured fixes by setting
+  /// [`HK_FIX=0`](https://hk.jdx.dev/environment_variables#hk-fix) or running `hk run <HOOK> --check`.
   fix: (String | Script | Command | CommandSpec)?
 
   /// If true, hk will run the check step first and only run the fix step if the check step fails.
@@ -554,9 +561,10 @@ class Step {
 
   /// Default: `false`
   ///
-  /// If true, hk will get a write lock instead of a read lock when running fix/fix_all.
-  /// Use this if the tool has its own locking mechanism or you simply don't care
-  /// if files may be written to by multiple linters simultaneously.
+  /// If true, bypass hk's file locks for this step.
+  /// Only use this when another mechanism coordinates access or the command
+  /// can safely run alongside readers and writers. Read-only checks normally
+  /// need no such override because they already share read locks.
   stomp: Boolean = false
 
   /// If set, run the linter on workspaces only which are parent directories containing this filename.
@@ -606,8 +614,8 @@ class Step {
   ///   ["npm-lint"] {
   ///     glob = List("*.js", "*.jsx", "*.ts", "*.tsx")
   ///     workspace_indicator = "package.json"
-  ///     check = "echo cd {{workspace}} && npm run lint -- {{workspace_files}}"
-  ///     fix = "echo cd {{workspace}} && npm run fix -- {{workspace_files}}"
+  ///     check = "cd {{workspace}} && npm run lint -- {{workspace_files}}"
+  ///     fix = "cd {{workspace}} && npm run fix -- {{workspace_files}}"
   ///   }
   /// }
   /// ```
@@ -660,7 +668,7 @@ class Step {
   dir: String?
 
   /// Profiles are a way to enable/disable linters based on the current profile.
-  /// The linter will only run if its profile is in [`HK_PROFILE`](https://hk.jdx.dev/configuration#hk-profile).
+  /// All positive profiles must be enabled in [`HK_PROFILE`](https://hk.jdx.dev/environment_variables#hk-profile).
   ///
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
@@ -670,7 +678,7 @@ class Step {
   /// }
   /// ```
   ///
-  /// Profiles can be prefixed with `!` to disable them.
+  /// A negative step profile, prefixed with `!`, skips the step when that profile is enabled.
   ///
   /// ```pkl
   /// local linters = new Mapping<String, Step> {
@@ -788,7 +796,7 @@ class Step {
   /// // Exclude with regex pattern for complex matching
   /// ["linter"] {
   ///     glob = List("**/*")
-  ///     exclude = Types.Regex(#"""
+  ///     exclude = Regex(#"""
   /// (?x)
   /// ^(vendor|dist|build)/.*$|
   /// .*\.(min|bundle)\.(js|css)$|
@@ -998,14 +1006,14 @@ class Step {
   /// ```bash
   /// hk test                 # all tests
   /// hk test --step prettier # only prettier's tests
-  /// hk test --name formats json via fix
+  /// hk test --name "formats json via fix"
   /// hk test --list          # list without running
   /// ```
   tests: Mapping<String, StepTest> = new Mapping<String, StepTest> {}
 }
 
 class StepTest {
-  /// What to run: "check", "fix", or "command"
+  /// What to run: "check" or "fix"
   run: "check" | "fix" = "check"
 
   /// Files to pass to the command (used to render {{ files }})

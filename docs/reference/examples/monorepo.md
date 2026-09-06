@@ -1,110 +1,41 @@
-# Example: monorepo
+---
+description: Share step defaults across frontend, Rust, Terraform, and repository-wide checks.
+---
 
-This example shows a monorepo with frontend, backend, infrastructure, and shared steps.
+# Monorepo
 
-Groups can set common step attributes such as `dir`, `workspace_indicator`, `prefix`, `shell`, `stage`, and `exclude`. Child steps inherit those values by default, but a child can still set its own value when it needs different behavior. Child values replace group values; they are not merged.
+Organize frontend, backend, and infrastructure checks into groups, then add repository-wide Markdown and YAML checks.
+
+**Prerequisites:** the tools referenced in the configuration must be available, with project configuration in the appropriate directories. This example expects `frontend/`, `backend/`, and `infrastructure/`.
+
+<a href="/monorepo.pkl" download>Download monorepo.pkl</a> and save it as `hk.pkl`.
 
 ## Configuration
 
-```pkl
-/// Example configuration for a monorepo with multiple languages
-/// * Frontend: JavaScript/TypeScript with React
-/// * Backend: Rust
-/// * Infrastructure: Terraform
-/// * Uses groups to organize steps by component
+<<< @/public/monorepo.pkl
 
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
+## Understand the boundaries
 
-// Frontend linters (JavaScript/TypeScript)
-local frontend = new Group {
-  // Inherited by frontend steps unless a child overrides `dir`.
-  dir = "frontend"
-  steps {
-    ["prettier"] = (Builtins.prettier) {
-      batch = true
-    }
-    ["eslint"] = (Builtins.eslint) {
-      batch = true
-    }
-    ["stylelint"] = (Builtins.stylelint) {
-      // Override the group dir for a step that scans files from the repo root.
-      dir = "."
-      glob = List("frontend/**/*.css", "frontend/**/*.scss", "packages/design-system/**/*.scss")
-    }
-  }
-}
+Each group can provide common defaults such as `dir`, `prefix`, and `workspace_indicator`. A child keeps an explicitly defined property; child values replace rather than merge with group values. Builtins may already define these properties.
 
-// Backend linters (Rust)
-local backend = new Group {
-  // Inherited by all backend steps.
-  dir = "backend"
-  workspace_indicator = "Cargo.toml"
-  steps {
-    ["cargo_fmt"] = Builtins.cargo_fmt
-    ["cargo_clippy"] = Builtins.cargo_clippy
-    ["cargo_check"] = (Builtins.cargo_check) {
-      // Only run in CI or with "full" profile.
-      profiles = List("ci", "full")
-    }
-  }
-}
+Groups also affect scheduling: children can run concurrently within a group, but groups run in order. If frontend and backend checks should overlap, place the steps in one mapping and use `depends` only where ordering is required.
 
-// Infrastructure linters (Terraform)
-local infrastructure = new Group {
-  dir = "infrastructure"
-  exclude = List("**/.terraform/**")
-  steps {
-    ["terraform"] = (Builtins.terraform) {
-      glob = "**/*.tf"
-    }
-    ["tflint"] = (Builtins.tf_lint) {
-      glob = "**/*.tf"
-      // Child exclude replaces the group exclude, so repeat common exclusions.
-      exclude = List("**/.terraform/**", "modules/vendor/**")
-    }
-  }
-}
+## Try it
 
-// Shared linters (apply to all components)
-local shared = new Mapping<String, Step> {
-  ["markdown"] = (Builtins.markdown_lint) {
-    glob = List("**/*.md")
-    exclude = List("**/node_modules/**", "**/target/**")
-  }
-  ["yaml"] = (Builtins.yamllint) {
-    glob = List("**/*.yaml", "**/*.yml")
-    exclude = List("**/node_modules/**")
-  }
-}
-
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps {
-      ["frontend"] = frontend
-      ["backend"] = backend
-      ["infrastructure"] = infrastructure
-      ...shared
-    }
-  }
-  ["check"] {
-    steps {
-      ["frontend"] = frontend
-      ["backend"] = backend
-      ["infrastructure"] = infrastructure
-      ...shared
-    }
-  }
-}
+```sh
+hk validate
+hk check --all --plan
+hk check --all
+hk check --all --profile slow
 ```
 
-## Key Features
+The `slow` profile enables the additional Cargo check. It is not enabled automatically in CI.
 
-- Group-level defaults keep shared settings close to the component they apply to.
-- Child steps can override inherited values when a tool needs a different working directory, glob, shell, stage, prefix, workspace indicator, or exclude list.
-- Override semantics are simple: a child value replaces the group value instead of merging with it.
+## Adapt it
+
+Change `dir` values to match your repository, remove components you do not use, and inspect `--plan` to verify how paths and workspaces are selected. Use `hk check --why <step>` when a component is unexpectedly skipped.
+
+For tools that discover nested packages, see [workspaces](/configuration#workspaces).
 
 ## Nested configs with `subprojects`
 

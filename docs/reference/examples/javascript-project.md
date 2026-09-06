@@ -1,62 +1,33 @@
-# Example: javascript-project
+---
+description: Configure ESLint, Prettier, and optional TypeScript checking with hk.
+---
 
-```pkl
-/// Example configuration for a JavaScript/TypeScript project
-/// * Uses prettier for formatting
-/// * Uses eslint for linting
-/// * Runs type checking with tsc
-/// * Enables automatic fixes in pre-commit
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
+# JavaScript and TypeScript
 
-// Configure environment for all tools
-env {
-  ["NODE_ENV"] = "development"
-}
+Run ESLint before Prettier, and enable TypeScript checking when you need it.
 
-// Define linters to use across hooks
-local linters = new Mapping<String, Step> {
-  ["prettier"] = (Builtins.prettier) {
-    // Enable batch processing for performance
-    batch = true
-    // Run prettier after other formatters
-    depends = List("eslint")
-  }
-  ["eslint"] = (Builtins.eslint) {
-    batch = true
-  }
-  ["tsc"] = (Builtins.tsc) {
-    // Type checking doesn't need file locking
-    stomp = true
-  }
-}
+**Prerequisites:** ESLint, Prettier, and TypeScript executables on `PATH`, plus their project configuration. If they are package dependencies, expose `node_modules/.bin` through [mise](/mise_integration#install-tools) or your existing environment.
 
-hooks {
-  ["pre-commit"] {
-    // Enable automatic fixes
-    fix = true
-    // Stash unstaged changes
-    stash = "git"
-    steps = linters
-  }
-  ["pre-push"] {
-    // Just check, don't fix
-    steps = linters
-  }
-  ["check"] {
-    steps = linters
-  }
-  ["fix"] {
-    fix = true
-    steps = linters
-  }
-}
+<a href="/javascript-project.pkl" download>Download javascript-project.pkl</a> and save it as `hk.pkl`.
+
+## Configuration
+
+<<< @/public/javascript-project.pkl
+
+## Try it
+
+```sh
+hk validate
+hk check --all --plan
+hk check --all
+hk check --all --profile types
+hk fix
 ```
 
-## Description
+ESLint and Prettier can both change JavaScript files. The dependency gives them a stable order; configure their rules to agree. TypeScript checking stays behind the `types` profile so it is opt-in.
 
-Example configuration for a JavaScript/TypeScript project
-* Uses prettier for formatting
-* Uses eslint for linting
-* Runs type checking with tsc
-* Enables automatic fixes in pre-commit
+The same linter mapping powers `pre-commit`, `check`, and `fix`. The pre-commit hook saves unstaged work before fixing the staged versions.
+
+## Adapt it
+
+Remove `tsc` for a JavaScript-only project. If your tools live in multiple packages, use [workspaces](/configuration#workspaces) or the [monorepo example](./monorepo). Use `hk check --all --profile types` in CI to include type checking.

@@ -1,10 +1,17 @@
+---
+description: Listen to Haul Away, HK, a sea shanty about Git hooks, Pkl, and mise.
+---
+
 # Haul Away, HK
 
-*A sea shanty celebrating the hk git hook manager*
+_A sea shanty celebrating the hk git hook manager_
 
-<audio controls>
+<audio controls preload="none" aria-label="Haul Away, HK sea shanty">
   <source src="/haul-away-hk.mp3" type="audio/mpeg">
+  Your browser does not support audio playback. <a href="/haul-away-hk.mp3">Download the song</a>.
 </audio>
+
+The lyrics are below. For the tool itself, start with [getting started](/getting_started).
 
 ## Verse 1
 
@@ -27,7 +34,7 @@
 > In parallel she's running, all hands upon the deck,<br>
 > Your pre-commit hooks flying, keeping code safe from all wreck!<br>
 
-*(Chorus)*
+_(Chorus)_
 
 ## Verse 3
 
@@ -36,7 +43,7 @@
 > She battens down the hatches on your staged and unstaged files,<br>
 > And guides your code to harbor across a thousand miles!<br>
 
-*(Chorus)*
+_(Chorus)_
 
 ## Final Verse
 

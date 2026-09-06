@@ -1,72 +1,116 @@
+---
+description: Use mise to provide hk and linter versions, environment variables, and Git hook execution.
+---
+
 # mise integration
 
-Many git hook managers build in features that hk's sister project, [mise-en-place](https://github.com/jdx/mise), already provides. hk leaves those to mise, so use mise and hk together if you want
-any of the features described below.
+[mise](https://mise.jdx.dev/) manages tools, environments, and tasks. hk selects files and coordinates checks and fixes. Together they let a team share tool versions and run hooks from terminals, editors, and CI.
 
-To default hk to enable these mise features, set [`HK_MISE=1`](/environment_variables#hk-mise).
+mise is optional: hk can run any executable available on `PATH`.
 
-:::info
-Setting `HK_MISE=1` will wrap your Git hooks with `mise x`. This ensures that mise automatically sets up the correct environment and tool versions before running hk, even if other developers haven't activated mise in their shell.
-:::
+## Install tools
 
-## `hk init --mise`
-
-Use the `--mise` flag on `hk init` to have hk create a new `mise.toml`
-file in the root of the repository that installs hk and defines a `pre-commit` task, so users can run `mise run pre-commit` as a "shortcut" for `hk run pre-commit`. Of course, that's actually longer, but the advantage is that tasks can be used consistently for all project actions, not just git hooks.
-
-## `hk install --mise`
-
-Use the `--mise` flag on `hk install` to make the installed hooks run hk through `mise x`. This sets up the mise environment (namely, adding tools to `PATH`) before hk runs.
-
-With `mise x`, other developers do not need mise activated in their shell to use the hooks. It's useful for working
-with developers who don't typically use mise but want hooks on a particular project to work with the tools defined in `mise.toml`.
-
-## Tool Management
-
-mise's tool management lets you pin the versions of all the tools used in `hk.pkl` in a single place. Run `mise use` for
-each tool you want to manage:
+From your project directory:
 
 ```sh
 mise use hk
-mise use jq
 mise use npm:prettier
 ```
 
-This will create a `mise.toml` file that can be committed into the project. See the [mise dev tool docs](https://mise.jdx.dev/dev-tools/) for more information.
+Commit the resulting `mise.toml`. Other developers can run `mise install` to install the declared versions.
 
-## Task Management
+For tools already managed by a language package manager, keep them there. For example, expose a Node project’s installed executables through mise:
 
-[mise tasks](https://mise.jdx.dev/tasks/) can be used inside hk steps.
-They provide dependency management, option parsing, parallel execution, and more.
+```toml
+[env]
+_.path = ["node_modules/.bin"]
+```
 
-Run `mise run` in `hk.pkl` like any other command:
+Run the project’s package installation command before invoking hk. See [mise tool management](https://mise.jdx.dev/dev-tools/) for supported backends.
+
+## Make tools available to Git
+
+Install hk’s hooks with mise integration:
+
+```sh
+hk install --mise
+```
+
+Or, on Git 2.54+, install globally:
+
+```sh
+hk install --global --mise
+```
+
+The launcher uses `mise x` to prepare the project environment before running hk. Developers do not need an activated shell, but Git must be able to find `mise` itself.
+
+Setting `HK_MISE=1` makes `--mise` the default for later `hk init` and `hk install` commands. It does not rewrite an already-installed launcher until installation runs again.
+
+## Generate a starter setup
+
+`hk init --mise` creates `hk.pkl` and, when absent, a `mise.toml` with hk configured and a `pre-commit` task.
+
+```sh
+hk init --mise
+hk install --mise
+```
+
+Review the generated tools and tasks. Existing `mise.toml` files are preserved.
+
+## Install hooks when tools are installed
+
+Add a postinstall hook to the project’s `mise.toml`:
+
+```toml
+[hooks]
+postinstall = "hk install --mise"
+```
+
+This installs or updates hooks when mise installs tools. If hk hooks are already installed globally, hk skips the local installation and cleans up stale local hooks.
+
+## Call a mise task from a step
+
+Use a task when a check is also useful outside Git hooks:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 
 hooks {
-    ["pre-commit"] {
-        steps {
-            ["prelint"] {
-                check = "mise run prelint"
-                exclusive = true // ensures this completes before the next steps
-            }
-            // ... more steps ...
-        }
+  ["check"] {
+    steps {
+      ["test"] {
+        check = "mise run test"
+      }
     }
+  }
 }
 ```
 
-## Environment Variables
+A step without a `glob` runs regardless of file matches. Add a pattern if the task should only run for selected file types.
 
-You can define an `[env]` section in `mise.toml` to set environment variables for the hooks:
+If a task writes files outside the step’s selected paths, declare suitable dependencies or use `exclusive = true` to keep it from interfering with other steps.
+
+## Share environment variables
+
+Use mise’s `[env]` section for variables that should apply to project commands:
 
 ```toml
 [env]
-PRETTIER_CONFIG = ".prettierrc.json"
+NODE_ENV = "development"
 ```
 
-mise has much more functionality around environment variables, so see the [mise docs](https://mise.jdx.dev/environments/) for more information.
+Use hk’s global, hook, or step `env` blocks for variables specific to linter commands. See [mise environments](https://mise.jdx.dev/environments/) and [hk configuration](/configuration).
+
+## Run in CI
+
+Once mise is available:
+
+```sh
+mise install
+mise exec -- hk check --all
+```
+
+Install language package dependencies too, if the steps use them. See [continuous integration](/ci) for branch comparisons, profiles, and diagnostics.
 
 ## Per-directory environments (monorepos)
 
@@ -91,27 +135,3 @@ hooks {
 ```
 
 Explicit step `env` values always win over the mise-provided environment.
-
-## Recommended Setup
-
-The recommended approach is to use `mise.toml` as the source of truth for your tools and environment, while using `hk` specifically for managing the Git lifecycle.
-
-By setting `HK_MISE=1` and using a `postinstall` hook, you can automate hook installation for your entire team:
-
-```toml
-[tools]
-hk = "latest"
-# ... other tools like prettier, actionlint, etc.
-
-[env]
-HK_MISE = 1
-
-[hooks]
-# Automatically install/update hooks when tools are installed
-postinstall = "hk install --mise"
-```
-
-If hk is already configured globally (e.g. `hk install --global` from a
-dotfiles setup), `hk install` automatically skips the per-repo install
-and cleans up any stale local hooks, so it's safe to leave the
-`postinstall` line in place across machines with mixed setups.

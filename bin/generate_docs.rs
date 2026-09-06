@@ -34,7 +34,7 @@ fn generate_settings_doc() -> Result<(), Box<dyn std::error::Error>> {
     // Include per-setting docs as collapsible sections
     for key in &keys {
         let opt = registry.options.get(key).unwrap();
-        md.push_str(&format!("### `{}`\n\n", key.replace('_', "-")));
+        md.push_str(&format!("### `{key}`\n\n"));
         // Metadata: unordered list with type, default (if any), and sources
         md.push_str(&format!("- Type: `{}`\n", opt.typ));
         if let Some(default) = &opt.default {
@@ -307,6 +307,8 @@ fn generate_builtins_doc() -> Result<(), Box<dyn std::error::Error>> {
             // Format the builtin name with underscores replaced by hyphens for display
             let display_name = info.name.replace('_', "-");
             md.push_str(&format!("### `{}`\n\n", display_name));
+
+            md.push_str(&format!("**Pkl:** `Builtins.{}`\n\n", info.name));
 
             if !info.description.is_empty() {
                 md.push_str(&format!("{}\n\n", info.description));

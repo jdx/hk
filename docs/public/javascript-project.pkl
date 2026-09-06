@@ -1,49 +1,26 @@
-/// Example configuration for a JavaScript/TypeScript project
-/// * Uses prettier for formatting
-/// * Uses eslint for linting
-/// * Runs type checking with tsc
-/// * Enables automatic fixes in pre-commit
+/// Prettier and ESLint, with TypeScript checking enabled by the types profile.
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
-// Configure environment for all tools
-env {
-  ["NODE_ENV"] = "development"
-}
-
-// Define linters to use across hooks
 local linters = new Mapping<String, Step> {
+  ["eslint"] = Builtins.eslint
   ["prettier"] = (Builtins.prettier) {
-    // Enable batch processing for performance
-    batch = true
-    // Run prettier after other formatters
-    depends = List("eslint")
-  }
-  ["eslint"] = (Builtins.eslint) {
-    batch = true
+    // Choose a stable order when both tools can format JavaScript.
+    depends = "eslint"
   }
   ["tsc"] = (Builtins.tsc) {
-    // Type checking doesn't need file locking
-    stomp = true
+    profiles = List("types")
   }
 }
 
 hooks {
   ["pre-commit"] {
-    // Enable automatic fixes
     fix = true
-    // Stash unstaged changes
     stash = "git"
     steps = linters
   }
-  ["pre-push"] {
-    // Just check, don't fix
-    steps = linters
-  }
-  ["check"] {
-    steps = linters
-  }
+  ["check"] { steps = linters }
   ["fix"] {
     fix = true
     steps = linters

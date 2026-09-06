@@ -1,123 +1,48 @@
-/// Example configuration with custom linters and platform-specific commands
-/// * Shows how to define custom linters not in builtins
-/// * Demonstrates platform-specific commands
-/// * Uses conditions and workspace indicators
-/// * Shows test configuration
+/// A custom step using hk's whitespace utility, including check and fix tests.
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
-local custom_linters = new Mapping<String, Step> {
-  // Custom SQL formatter
-  ["sql_formatter"] {
-    glob = List("**/*.sql")
-    exclude = List("**/migrations/**")
-    check = "sql-formatter --check {{files}}"
-    fix = "sql-formatter --write {{files}}"
-    batch = true
-  }
-
-  // Platform-specific security scanner
-  ["security_scan"] {
-    check = new Script {
-      linux = "security-scanner-linux --scan {{files}}"
-      macos = "security-scanner-mac --scan {{files}}"
-      windows = "security-scanner.exe /scan {{files}}"
-    }
-    // Only run if security config exists
-    condition = "test -f .security-config.yml"
-    // Run exclusively to avoid conflicts
-    exclusive = true
-  }
-
-  // Custom workspace-based build tool
-  ["custom_build"] {
-    workspace_indicator = "build.toml"
-    // `dir` is templated, so commands run in each matched workspace
-    dir = "{{workspace}}"
-    check = "custom-build check"
-    fix = "custom-build fix"
-    // Use check_diff for efficient patching
-    check_diff = "custom-build diff"
-  }
-
-  // Interactive migration tool
-  ["migrate"] {
-    glob = List("**/migrations/*.sql")
-    check = "migrate validate {{files}}"
-    fix = "migrate apply {{files}}"
-    // Enable interactive mode for prompts
-    interactive = true
-  }
-
-  // Custom linter with tests
-  ["custom_validator"] {
-    glob = List("**/*.custom")
-    check = "validator {{files}}"
-    fix = "validator --fix {{files}}"
-
-    // Define tests for this step
+local linters = new Mapping<String, Step> {
+  ["whitespace"] {
+    glob = List("*.txt", "*.md")
+    check = "hk util trailing-whitespace {{files}}"
+    fix = "hk util trailing-whitespace --fix {{files}}"
     tests {
-      ["validates correct syntax"] {
+      ["accepts clean text"] {
         run = "check"
+        files = List("{{tmp}}/clean.txt")
         write {
-          ["{{tmp}}/test.custom"] = #"valid content"#
+          ["{{tmp}}/clean.txt"] = "hello\n"
         }
-        files = List("{{tmp}}/test.custom")
-        expect {
-          code = 0
-        }
+        expect { code = 0 }
       }
-      ["fixes invalid syntax"] {
+      ["removes trailing spaces"] {
         run = "fix"
+        files = List("{{tmp}}/dirty.txt")
         write {
-          ["{{tmp}}/broken.custom"] = #"broken  content"#
+          ["{{tmp}}/dirty.txt"] = "hello  \n"
         }
-        files = List("{{tmp}}/broken.custom")
         expect {
           files {
-            ["{{tmp}}/broken.custom"] = #"broken content"#
+            ["{{tmp}}/dirty.txt"] = "hello\n"
           }
         }
       }
     }
   }
-}
-
-// Import some builtins and mix with custom
-local all_linters = new Mapping<String, Step> {
-  ...custom_linters
-  ["prettier"] = Builtins.prettier
-  ["shellcheck"] = Builtins.shellcheck
+  ["newlines"] = Builtins.newlines
 }
 
 hooks {
   ["pre-commit"] {
     fix = true
-    stash = "git" // Stash unstaged changes while fixers run
-    steps = all_linters
+    stash = "git"
+    steps = linters
   }
-  ["check"] {
-    steps = all_linters
-    // Generate a report after checking
-    report =
-      #"""
-        echo "Check completed at $(date)"
-        echo "Results: $HK_REPORT_JSON" | jq '.'
-      """#
+  ["check"] { steps = linters }
+  ["fix"] {
+    fix = true
+    steps = linters
   }
-}
-
-// Show additional skip reasons for debugging
-display_skip_reasons =
-  List(
-    "profile-not-enabled",
-    "no-files-to-process",
-    "condition-false",
-  )
-
-// Environment variables for all steps
-env {
-  ["CUSTOM_VALIDATOR_STRICT"] = "true"
-  ["SQL_FORMATTER_CONFIG"] = ".sql-format.yml"
 }
