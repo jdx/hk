@@ -1,0 +1,69 @@
+why is this faililng? [https://github.com/jdx/hk/actions/runs/34014886219/job/101436840552](https://github.com/jdx/hk/actions/runs/34014886219/job/101436840552)
+
+---
+
+you can ssh in and make it, then rerun it to see if it works
+
+---
+
+why didn't it start automatically?
+
+---
+
+ok fix it
+
+---
+
+do you need to update the repo where we keep the config?
+
+---
+
+no pr, just commit and push
+
+---
+
+what are we waiting on?
+
+---
+
+looks like the caching isn't working on that job, can you make a pr to have it use mbx and have it use local mbx
+
+---
+
+to be clear, it's not possible for forked users to run this job on my appliance is it?
+
+---
+
+cancel the in progress jobs so we can test the hk rerun we made, see what happens with it
+
+---
+
+why 3 minutes?
+
+---
+
+would 60 seconds be so bad?
+
+---
+
+could we put an authenticated token on the box with no scopes?
+
+---
+
+ok i have one to use
+
+---
+
+give me a script to run
+
+---
+
+done
+
+---
+
+why has it not started?
+
+---
+
+make a pr for hk's perf to use mbx as well, bump mbx in hk in that pr too
