@@ -35,6 +35,8 @@ jobs:
       # Persistent appliance-local store; no remote backend is configured.
       MBX_CACHE_DIR: /var/cache/mbx
       MBX_REMOTE_URL: ""
+      # Install only the benchmark tools below, including when tasks run.
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
     name: Measure
     # Pinned to one runner class on purpose. Absolute instruction counts shift
     # between machine types by more than a real regression does, so a series
@@ -42,7 +44,8 @@ jobs:
     runs-on: [self-hosted, jdx-perf-v1]
     container:
       image: ghcr.io/jdx/perf-runner@sha256:5263c143b12ce2234e7b0b21d3d6501c2ed05837b42937d0eaeaa191cd5c8e68
-      options: --cpuset-cpus 0-7 --mount type=bind,src=/var/cache/jdx-perf/mbx,dst=/var/cache/mbx
+      # Persist source downloads separately from mbx compiler artifacts.
+      options: --cpuset-cpus 0-7 --mount type=bind,src=/var/cache/jdx-perf/mbx,dst=/var/cache/mbx --mount type=bind,src=/var/cache/jdx-perf/cargo/registry,dst=/opt/cargo/registry --mount type=bind,src=/var/cache/jdx-perf/cargo/git,dst=/opt/cargo/git
     timeout-minutes: 30
     permissions:
       contents: read
@@ -56,6 +59,7 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
+          install_args: mr-boxington github:jdx/tak
         env:
           MISE_LOCKED: "1"
 
