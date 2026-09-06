@@ -26,7 +26,7 @@
 - [Configuration](https://hk.jdx.dev/configuration.html): hk reads hk.pkl to decide which steps to run and how to run them. Start with a shared set of linters, then add file filters, dependencies, and profiles as your project needs them.
 - [Built-in linters](https://hk.jdx.dev/builtins.html): Builtins are reusable Pkl step definitions for linters, formatters, and hk’s own utilities. They supply file patterns, check and fix commands, and optimizations such as diff output.
 - [Environment variables](https://hk.jdx.dev/environment_variables.html): Use environment variables for a single invocation or an environment-wide preference. Runtime settings generally override Git and Pkl settings; CLI flags take precedence. See configuration precedence.
-- [Glossary](https://hk.jdx.dev/glossary.html): A reusable Pkl step definition supplied by hk. It describes how to invoke a linter or utility; external linter executables must be installed separately. Browse builtins.
+- [Glossary](https://hk.jdx.dev/glossary.html): Definitions of hooks, steps, groups, profiles, file locks, stashing, and workspaces in hk.
 - [CLI commands](https://hk.jdx.dev/cli/): Run the same configured steps locally, in Git hooks, and in CI.
 - [agent](https://hk.jdx.dev/cli/agent.html): Generate integration snippets for coding agents
 - [agent hooks](https://hk.jdx.dev/cli/agent/hooks.html): Print a hook configuration for an agent or editor

@@ -87,7 +87,7 @@ EXAMPLES = {
                               "hk util mixed-line-ending README.md\nhk util mixed-line-ending --fix README.md"),
     "util/no-commit-to-branch": ("Protect a named branch instead of the default main/master list.",
                                "hk util no-commit-to-branch --branch production"),
-    "util/python-check-ast": ("Validate Python syntax using python3 (or python). If neither interpreter is available, the utility skips the files. Python may create __pycache__ files.",
+    "util/python-check-ast": ("Validate Python syntax using python3 (or python). If neither interpreter is available, the utility skips the files. Python may create `__pycache__` directories.",
                              "hk util python-check-ast app.py"),
     "util/python-debug-statements": ("Check Python files for debugging statements.",
                                     "hk util python-debug-statements app.py"),

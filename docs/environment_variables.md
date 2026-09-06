@@ -261,7 +261,7 @@ Write total and per-step wall time as JSON after a hook finishes. Example: `HK_T
 
 **Type:** `1`, `true`, or `json` · **Default:** off
 
-Enable text tracing with `HK_TRACE=1`, or JSON trace events with `HK_TRACE=json`. Text goes to standard error; JSON events go to standard output. See [tracing](/logging#tracing).
+Enable text tracing with `HK_TRACE=1`, or JSON trace events with `HK_TRACE=json`. Text goes to standard error; JSON events go to standard output. Other values, including `off`, disable tracing; `text` is not an alias for `1`. See [tracing](/logging#tracing).
 
 ## `HK_WALK_IGNORE` {#hk-walk-ignore}
 

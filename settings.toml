@@ -510,7 +510,7 @@ When a hook-level `report` command is configured in `hk.pkl`, hk will set `HK_RE
 [trace]
 type = "enum"
 default = "off"
-validate.enum = ["off", "text", "json", "1", "true"]
+validate.enum = ["off", "json", "1", "true"]
 sources.cli = ["--trace"]
 sources.env = ["HK_TRACE"]
 sources.git = ["hk.trace"]
@@ -519,9 +519,8 @@ Enables tracing spans and performance diagnostics for detailed execution analysi
 
 Available formats:
 - `off`: No tracing (default)
-- `text`: Human-readable trace output
 - `json`: Machine-readable JSON trace output
-- `1` or `true`: Enable text tracing (aliases)
+- `1` or `true`: Human-readable trace output
 
 Useful for debugging performance issues or understanding execution flow.
 

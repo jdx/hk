@@ -104,5 +104,54 @@ The matching mise configuration makes hk, aube, and each component's tools
 available in the directory where its steps run:
 
 ```toml
+# mise.toml (repo root)
+monorepo_root = true
 
+[monorepo]
+config_roots = [".", "frontend", "backend"]
+
+[tools]
+aube = "latest"
+hk = "latest"
+
+[env]
+HK_MISE = 1
+
+[hooks]
+postinstall = "hk install --mise"
 ```
+
+```toml
+# frontend/mise.toml
+[tools]
+node = "lts"
+```
+
+```toml
+# backend/mise.toml
+[tools]
+rust = "stable"
+```
+
+When hk runs from the repo root, each subproject's hooks are merged in, scoped to
+its directory:
+
+- Step working directories and glob matching are relative to the subdirectory, so
+  `frontend/hk.pkl` only sees files under `frontend/`.
+- Step names are prefixed with the directory (e.g. `frontend:eslint`), which is the
+  name to use with `--step` or `skip_steps`.
+- A subproject's `env` applies to its own steps only.
+- Glob entries like `packages/*` match any directory containing an hk config file;
+  directories without one are skipped.
+- Hooks compose by name. Steps declared only under `check` do not automatically run
+  under `pre-commit` or `fix`.
+- Define hook-wide settings such as `fix`, `stash`, `stage`, and `report` in the root
+  config so every subproject uses the same behavior.
+- Only one level of subprojects is supported.
+
+This maps directly onto [mise monorepo config roots](https://mise.jdx.dev/tasks/monorepo.html):
+the same directories that own a `mise.toml` can own their `hk.pkl`.
+
+Use `hk check --all --plan` to inspect the resolved jobs without executing them.
+For this example, the plan includes `frontend:eslint`, `frontend:prettier`,
+`backend:cargo-fmt`, and `backend:cargo-clippy`.

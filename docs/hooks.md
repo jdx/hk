@@ -28,7 +28,11 @@ With the generated configuration:
 | `hk check --staged`                      | Staged paths, using their current working-tree contents |
 | `hk check --from-ref main --to-ref HEAD` | Paths changed between those references                  |
 
-Step patterns, exclusions, ignore rules, and settings further filter this selection. Enabling stashing also changes default selection to staged files and excludes untracked files from an `--all` run.
+Step patterns, exclusions, ignore rules, and settings further filter this selection. Enabling stashing also changes default selection to staged files.
+
+For both `hk run pre-commit --all` and `hk check --all`, the resolved stash method controls untracked-file selection: `git` and `patch-file` select tracked files only; `none` also selects discovered untracked files. When `--stash` is omitted, `HK_STASH` overrides the hook setting.
+
+`HK_STASH_UNTRACKED=0` disables discovery and stashing of untracked files. Setting it to `1` allows discovery and stashing, but does not include untracked files in `--all` when stashing is enabled.
 
 ::: warning Staged paths are not staged contents
 `--staged` does not stash unstaged changes. If a file contains both staged and unstaged edits, the command sees its working-tree contents. Use a hook configured with stashing when the staged version must be isolated.

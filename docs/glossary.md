@@ -4,6 +4,8 @@ description: Definitions of hooks, steps, groups, profiles, file locks, stashing
 
 # Glossary
 
+Definitions of hooks, steps, groups, profiles, file locks, stashing, and workspaces in hk.
+
 ## Builtin
 
 A reusable Pkl step definition supplied by hk. It describes how to invoke a linter or utility; external linter executables must be installed separately. [Browse builtins](/builtins).
