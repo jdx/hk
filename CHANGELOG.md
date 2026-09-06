@@ -1,10 +1,35 @@
 # Changelog
 
+## [1.59.0](https://github.com/jdx/hk/compare/v1.58.1..v1.59.0) - 2026-09-06
+
+### 🚀 Features
+
+- ship hk configuration and debugging skills with packslip by [@jdx](https://github.com/jdx) in [#1337](https://github.com/jdx/hk/pull/1337)
+
+### 📚 Documentation
+
+- overhaul guides and redesign the documentation site by [@jdx](https://github.com/jdx) in [#1340](https://github.com/jdx/hk/pull/1340)
+
+### 🔍 Other Changes
+
+- **(release)** publish native completions in packslip by [@jdx](https://github.com/jdx) in [#1336](https://github.com/jdx/hk/pull/1336)
+- remove pr.md stray draft accidentally committed in #997 by [@sahidvelji](https://github.com/sahidvelji) in [#1341](https://github.com/jdx/hk/pull/1341)
+- cache perf source downloads and install only benchmark tools by [@jdx](https://github.com/jdx) in [#1343](https://github.com/jdx/hk/pull/1343)
+
+### 📦️ Dependency Updates
+
+- bump mr-boxington to 1.8.3 by [@jdx](https://github.com/jdx) in [#1339](https://github.com/jdx/hk/pull/1339)
+- bump mbx to 1.9.0 for performance builds by [@jdx](https://github.com/jdx) in [#1342](https://github.com/jdx/hk/pull/1342)
+
 ## [1.58.1](https://github.com/jdx/hk/compare/v1.58.0..v1.58.1) - 2026-09-05
 
 ### 📚 Documentation
 
 - generate page-specific social preview images by [@jdx](https://github.com/jdx) in [#1333](https://github.com/jdx/hk/pull/1333)
+
+### 🔍 Other Changes
+
+- **(ci)** bump packslip to v1.1.1 by [@jdx](https://github.com/jdx) in [#1335](https://github.com/jdx/hk/pull/1335)
 
 ## [1.58.0](https://github.com/jdx/hk/compare/v1.57.0..v1.58.0) - 2026-09-05
 

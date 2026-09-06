@@ -13,8 +13,8 @@ Pkl evaluates configuration. hk then runs the commands that configuration define
 Every project configuration should amend hk’s base schema:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.59.0/hk@1.59.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.59.0/hk@1.59.0#/Builtins.pkl"
 ```
 
 `amends` supplies the allowed properties and classes, such as `Step`, `Hook`, and `Group`. `import` makes another module available under its name, here `Builtins`.
