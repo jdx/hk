@@ -67,3 +67,9 @@ why has it not started?
 ---
 
 make a pr for hk's perf to use mbx as well, bump mbx in hk in that pr too
+
+---
+
+The pin now installs mbx 1.9.0, but `CONTRIBUTING.md` still says that `mise install` installs mbx 1.8. This non-blocking mismatch can mislead contributors about the tool version in their development environment; please update the documented version alongside this pin.
+
+remove the versoin number from contributing.md
