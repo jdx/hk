@@ -75,6 +75,8 @@ jobs:
       # Job-local appliance volume; no remote backend is configured.
       MBX_CACHE_DIR: /var/cache/mbx
       MBX_REMOTE_URL: ""
+      # Install only the benchmark tools below, including when tasks run.
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
     name: Compare instruction counts
     needs: authorize
     if: needs.authorize.outputs.authorized == 'true'
@@ -116,6 +118,7 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
+          install_args: mr-boxington github:jdx/tak
         env:
           MISE_LOCKED: "1"
 
