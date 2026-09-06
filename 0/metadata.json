@@ -1,0 +1,93 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M1TK37HSR35H04GKNKXQCX3C",
+  "session_id": "01a074ec-4a89-7281-98dd-6ddf6719b3df",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-06T05:29:42.436723Z",
+  "branch": "codex/docs-overhaul",
+  "checkpoints_count": 1,
+  "save_step_count": 2,
+  "files_touched": [
+    "docs/cli/util/python-check-ast.md",
+    "docs/environment_variables.md",
+    "docs/glossary.md",
+    "docs/hooks.md",
+    "docs/reference/examples/monorepo.md",
+    "scripts/enrich-cli-docs.py",
+    "settings.toml"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "cf26da42ed78",
+  "checkpoint_transcript_start": 979,
+  "transcript_lines_at_start": 979,
+  "compact_transcript_start": 121,
+  "token_usage": {
+    "input_tokens": 35374,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 1787136,
+    "output_tokens": 4140,
+    "api_call_count": 34
+  },
+  "session_metrics": {
+    "turn_count": 2
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-06T05:29:42.180763Z",
+    "agent_lines": 481,
+    "agent_removed": 466,
+    "human_added": 210,
+    "human_modified": 32,
+    "human_removed": 0,
+    "total_committed": 723,
+    "total_lines_changed": 1190,
+    "agent_percentage": 79.5798319327731,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 55,
+      "user_lines_removed": 16,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".github/workflows/release.yml": 3,
+        "README.md": 2,
+        "docs/.vitepress/theme/EndevFooter.vue": 3,
+        "docs/.vitepress/theme/EndevSponsors.vue": 2,
+        "docs/cli/commands.json": 1,
+        "docs/cli/sponsors.md": 1,
+        "hk.usage.kdl": 1,
+        "src/cli/sponsors.rs": 2,
+        "src/hook.rs": 5,
+        "test/untracked_not_processed_pre_commit.bats": 35
+      },
+      "user_removed_per_file": {
+        ".github/workflows/release.yml": 3,
+        "README.md": 2,
+        "docs/.vitepress/theme/EndevFooter.vue": 3,
+        "docs/.vitepress/theme/EndevSponsors.vue": 2,
+        "docs/cli/commands.json": 1,
+        "docs/cli/sponsors.md": 1,
+        "hk.usage.kdl": 1,
+        "src/cli/sponsors.rs": 2,
+        "src/hook.rs": 1
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 3755,
+      "agent_lines_removed": 3449
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 0,
+      "user_lines_removed": 0,
+      "agent_lines_added": 3755,
+      "agent_lines_removed": 3449
+    }
+  ]
+}
