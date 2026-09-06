@@ -1,61 +1,17 @@
 #!/usr/bin/env bash
+# Validate examples; VitePress includes their source directly in the guide pages.
 set -euo pipefail
 
-# Script to extract and validate examples from docs/public/*.pkl files
-# These examples can be embedded in the documentation
+cd "$(dirname "$0")/.."
 
-PUBLIC_DIR="docs/public"
-OUTPUT_DIR="docs/reference/examples"
-
-if [ ! -d "$PUBLIC_DIR" ]; then
-    echo "No public examples directory found at $PUBLIC_DIR"
-    exit 0
-fi
-
-echo "Extracting examples from $PUBLIC_DIR..."
-
-mkdir -p "$OUTPUT_DIR"
-
-# Process each .pkl file in the public directory
-for pkl_file in "$PUBLIC_DIR"/*.pkl; do
-    if [ ! -f "$pkl_file" ]; then
-        continue
+for pkl_file in docs/public/*.pkl; do
+    [ -f "$pkl_file" ] || continue
+    example_name=$(basename "$pkl_file" .pkl)
+    guide="docs/reference/examples/$example_name.md"
+    if ! rg -Fq "<<< @/public/$example_name.pkl" "$guide"; then
+        echo "Missing source include in $guide" >&2
+        exit 1
     fi
-
-    basename=$(basename "$pkl_file" .pkl)
-    output_file="$OUTPUT_DIR/${basename}.md"
-
-    echo "Processing $pkl_file -> $output_file"
-
-    cat > "$output_file" << EOF
-# Example: ${basename}
-
-\`\`\`pkl
-$(cat "$pkl_file")
-\`\`\`
-
-## Description
-
-$(grep -E "^///" "$pkl_file" 2>/dev/null | sed 's|^///[ ]*||' || echo "No description available.")
-EOF
+    pkl eval --format json "$pkl_file" >/dev/null
+    echo "Validated $pkl_file and its documentation include"
 done
-
-# Generate index file
-cat > "$OUTPUT_DIR/index.md" << EOF
-# Configuration Examples
-
-This directory contains runnable examples extracted from the public Pkl configurations.
-
-## Available Examples
-
-EOF
-
-for pkl_file in "$PUBLIC_DIR"/*.pkl; do
-    if [ ! -f "$pkl_file" ]; then
-        continue
-    fi
-    basename=$(basename "$pkl_file" .pkl)
-    echo "- [${basename}](./${basename}.md)" >> "$OUTPUT_DIR/index.md"
-done
-
-echo "Examples generated in $OUTPUT_DIR"

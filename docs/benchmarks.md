@@ -1,118 +1,79 @@
+---
+description: Recorded hk benchmark results, workload configuration, limitations, and reproduction commands.
+---
+
 <script setup>
-import { ref, onMounted } from 'vue'
-
-const data = ref(null)
-const loading = ref(true)
-
-onMounted(async () => {
-  try {
-    const res = await fetch('/benchmark-data.json')
-    data.value = await res.json()
-  } catch (e) {
-    console.warn('Could not load benchmark data:', e)
-  }
-  loading.value = false
-})
+import data from './public/benchmark-data.json'
 
 function fmt(seconds) {
-  if (!seconds) return '—'
-  if (seconds < 0.1) return `${(seconds * 1000).toFixed(0)}ms`
-  return `${seconds.toFixed(2)}s`
-}
-
-function speedup(scenario, tool) {
-  const key = `${tool}_vs_hk`
-  const s = data.value?.scenarios?.[scenario]
-  if (!s || !s[key]) return ''
-  const ratio = s[key]
-  if (ratio >= 1.05) return `${ratio.toFixed(1)}x slower`
-  if (ratio <= 0.95) return `${(1/ratio).toFixed(1)}x faster`
-  return '~same'
+  return Number.isFinite(seconds) ? seconds.toFixed(2) + ' s' : '—'
 }
 </script>
 
 # Benchmarks
 
-These benchmarks compare hk, lefthook, pre-commit, and prek running 10 linters on a synthetic project. Since lefthook's `parallel: true` mode has race conditions when linters touch overlapping files, we run lefthook in safe (sequential) mode, the only correct option. pre-commit and prek both run hooks sequentially.
+These results measure one synthetic workload with overlapping linter file patterns. They illustrate how orchestration affects this setup; they are not a prediction for every repository or a survey of every tool’s available configuration.
 
-hk is the only tool that runs linters in parallel **and** safely.
+The recorded run was generated on **{{ data.generated.split('T')[0] }}**. No new benchmark run is implied by this page’s last-updated date.
 
-See [Why hk?](/why-hk) for context on why these differences exist.
+## Recorded results
 
-## Setup
+Mean wall time, in seconds. Lower is faster.
 
-A synthetic project with **~6,000 files** across multiple languages:
+| Tool       | All files ({{ data.total_files }})                     | Staged changes ({{ data.staged_files }})                    |
+| ---------- | ------------------------------------------------------ | ----------------------------------------------------------- |
+| hk         | {{ fmt(data.scenarios.all_files.hk.mean) }}            | {{ fmt(data.scenarios.staged_changes.hk.mean) }}            |
+| lefthook   | {{ fmt(data.scenarios.all_files.lefthook.mean) }}      | {{ fmt(data.scenarios.staged_changes.lefthook.mean) }}      |
+| pre-commit | {{ fmt(data.scenarios.all_files['pre-commit'].mean) }} | {{ fmt(data.scenarios.staged_changes['pre-commit'].mean) }} |
+| prek       | {{ fmt(data.scenarios.all_files.prek.mean) }}          | {{ fmt(data.scenarios.staged_changes.prek.mean) }}          |
 
-- 4000 Python, 500 JavaScript/TypeScript, 500 JSON, 500 Shell, 250 YAML, 200 CSS, 200 Markdown
+![Recorded mean runtimes for all-files and staged-change scenarios; values are in the table above](/benchmark.png)
 
-Ten linters with overlapping file coverage:
+[Download the recorded data](/benchmark-data.json), including standard deviations, minimums, and maximums.
 
-| Linter | Files | How hk avoids write locks |
-|--------|-------|---------------------------|
-| prettier | `*.{js,ts,css,md}` | `check_list_files` — only locks files that need fixing |
-| eslint | `*.{js,ts}` | Falls back to write lock (eslint has no diff/list mode) |
-| black | `*.py` | `check_diff` — hk applies the diff itself |
-| ruff check | `*.py` | Check only — read lock |
-| ruff format | `*.py` | `check_diff` — hk applies the diff itself |
-| jq | `*.json` | `check_diff` |
-| yq | `*.{yml,yaml}` | `check_diff` |
-| shfmt | `*.{sh,bash}` | `check_diff` |
-| trailing-whitespace | `*` (all files) | `check_diff` via `hk util` (built-in Rust) |
-| newlines | `*` (all files) | `check_diff` via `hk util` (built-in Rust) |
+## Workload
 
-The `trailing-whitespace` and `newlines` linters use `**/*` globs, so they overlap with **every other linter**. pre-commit and prek always run hooks sequentially. lefthook supports `parallel: true` but has no file-level coordination, so overlapping linters cause race conditions, and we run it in safe (sequential) mode. hk is the only tool that runs everything in parallel safely, using file-level read/write locks.
+The generator defaults to roughly 6,000 files: 4,000 Python, 500 JavaScript/TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown files, plus project configuration.
 
-## Results
+Ten configured steps include ESLint, Prettier, Black, Ruff linting, Ruff formatting, jq, yq, shfmt, trailing whitespace, and final newlines. The whitespace steps overlap with the language-specific steps.
 
-![Benchmark results](/benchmark.png)
+The committed runner:
 
-<div v-if="data">
+- Invokes hk’s pre-commit hook in fix mode, with stashing disabled through `HK_STASH=false`.
+- Configures lefthook with sequential execution to avoid concurrent writes from overlapping formatters in this workload.
+- Runs pre-commit and prek using the provided hook definitions.
+- Resets the fixture between runs, primes hk’s configuration cache, and uses Hyperfine warmups and repeated measurements.
 
-### All Files ({{ data.total_files || '~6,000' }} files, 10 linters)
+The [runner](https://github.com/jdx/hk/blob/main/benchmark/run.sh) and [tool configurations](https://github.com/jdx/hk/tree/main/benchmark/parallel) define the comparison. These choices matter as much as the timing values.
 
-| Tool | Time | |
-|------|------|-|
-| **hk** | **{{ fmt(data.scenarios.all_files?.hk?.mean) }}** | |
-| lefthook | {{ fmt(data.scenarios.all_files?.lefthook?.mean) }} | {{ speedup('all_files', 'lefthook') }} |
-| pre-commit | {{ fmt(data.scenarios.all_files?.['pre-commit']?.mean) }} | {{ speedup('all_files', 'pre-commit') }} |
-| prek | {{ fmt(data.scenarios.all_files?.prek?.mean) }} | {{ speedup('all_files', 'prek') }} |
+## Limitations
 
-### Staged Changes ({{ data.staged_files || '~50' }} files)
+This workload favors concurrent work across languages while also exercising overlapping formatters. A small project, a single linter, or tools that already parallelize internally may see different results.
 
-| Tool | Time | |
-|------|------|-|
-| **hk** | **{{ fmt(data.scenarios.staged_changes?.hk?.mean) }}** | |
-| lefthook | {{ fmt(data.scenarios.staged_changes?.lefthook?.mean) }} | {{ speedup('staged_changes', 'lefthook') }} |
-| pre-commit | {{ fmt(data.scenarios.staged_changes?.['pre-commit']?.mean) }} | {{ speedup('staged_changes', 'pre-commit') }} |
-| prek | {{ fmt(data.scenarios.staged_changes?.prek?.mean) }} | {{ speedup('staged_changes', 'prek') }} |
+Stashing is disabled in the runner, so the results do not measure partial-commit restoration. Hyperfine is configured to tolerate nonzero exits from lint commands; timings alone do not establish equivalent fixes or successful checks.
 
-<p style="color: #888; font-size: 0.85em;">Last generated: {{ data.generated?.split('T')[0] }}</p>
+The recorded JSON does not include machine specifications or exact tool versions. Treat it as a historical example and rerun the workload with those details recorded before using the numbers for a tool-selection decision. Current scripts may also differ from the ones used for the recorded result.
 
-</div>
+## Reproduce
 
-## Reproducing
+Use a disposable directory. The benchmark runner resets its fixture repository and overwrites generated results.
 
-Everything is in the `benchmark/` directory.
+Install `hk`, `hyperfine`, `lefthook`, `pre-commit`, `prek`, `prettier`, `eslint`, `black`, `ruff`, `shfmt`, `jq`, `yq`, and `uv`, and record their versions. The shell scripts expect a Unix-like environment and compatible command-line utilities.
 
-### Prerequisites
+From the repository root:
 
-```bash
-mise use hyperfine lefthook prettier eslint shfmt jq yq
-uv tool install pre-commit prek black ruff
+```sh
+benchmark/generate-project.sh /tmp/hk-bench
+benchmark/run.sh /tmp/hk-bench
 ```
 
-### Generate and run
+To change the workload or number of repetitions:
 
-```bash
-# Generate a synthetic project (~6,000 files by default)
-benchmark/generate-project.sh /tmp/hk-bench
-
-# Run benchmarks
-benchmark/run.sh /tmp/hk-bench
-
-# Customize
+```sh
 NUM_JS=500 NUM_PY=500 benchmark/generate-project.sh /tmp/hk-bench
 RUNS=20 WARMUP=3 benchmark/run.sh /tmp/hk-bench
 ```
 
-Results are saved as JSON in `benchmark/results/` and both a chart and data file are generated in `docs/public/`.
+Results are written to `benchmark/results/`; the runner also updates `docs/public/benchmark.png` and `docs/public/benchmark-data.json`.
+
+For your own project, start with [hk timing reports](/logging#a-run-is-slow). See [Why hk?](/why-hk) for the execution model.

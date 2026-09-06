@@ -1,69 +1,32 @@
-# HK Test Suite
+# hk test suite
 
-This directory contains the test suite for HK, using the [Bats](https://github.com/bats-core/bats-core) testing framework.
+hk uses Rust tests for internal behavior, Bats for CLI integration, and Pkl step tests for builtins.
 
-## Running Tests
+## Run tests
 
-```bash
-# Run all tests
-mise run test
+From the repository root:
 
-# Run only bats tests
-mise run test:bats
-
-# Run specific test file
-bats test/check.bats
-
-# Run specific test by name
-bats test/check.bats --filter "check files"
+```sh
+mise run test                          # Full test suite
+mise run test:cargo                    # Rust tests
+mise run test:bats                     # Bats backend variants
+mise run test:bats test/check.bats      # One integration-test file
 ```
 
-## Test Caching
+The Bats task builds hk and runs variants for libgit2, the Git CLI, and operation outside a Git repository where supported.
 
-To improve test performance, the test suite enables caching for parsed PKL configurations. The test framework automatically sets `HK_CACHE=1` to enable caching (which is disabled by default in debug builds).
+After building, run a specific Bats test directly when debugging:
 
-### How It Works
-
-- `HK_CACHE` environment variable controls caching behavior
-- In release builds: caching is enabled by default
-- In debug builds: caching is disabled by default
-- Tests override this by setting `HK_CACHE=1`
-
-### Cache Location
-
-The cache is stored in `/tmp/hk-test-cache` by default. This location:
-- Persists between test runs for performance
-- Gets cleared on system reboot
-- Automatically removes entries older than 1 day
-
-### Manual Control
-
-```bash
-# Run tests without cache (useful for debugging)
-HK_CACHE=0 mise run test:bats
-
-# Run hk with cache enabled in debug build
-HK_CACHE=1 hk validate
-
-# Clear the cache manually
-rm -rf /tmp/hk-test-cache
+```sh
+mise exec -- bats test/check.bats --filter "check files"
 ```
 
-### Per-Test Cache Control
+This direct command does not run every backend variant.
 
-Individual tests can control caching:
+## Write a Bats test
 
-```bash
-# In a test file
-_disable_test_cache   # Sets HK_CACHE=0 for this test
-_clear_test_cache     # Clear the cache directory
-```
+Use the shared setup and teardown to get an isolated temporary repository:
 
-## Writing Tests
-
-Tests are written using Bats syntax. Each test file should:
-
-1. Include the common setup:
 ```bash
 setup() {
     load 'test_helper/common_setup'
@@ -73,15 +36,38 @@ setup() {
 teardown() {
     _common_teardown
 }
-```
 
-2. Define tests using `@test`:
-```bash
-@test "description of test" {
-    # test code here
+@test "validates an empty configuration" {
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+EOF
     run hk validate
     assert_success
 }
 ```
 
-See existing test files for examples of different testing patterns.
+`$PKL_PATH` points to the local schema. Create only the files and Git state needed by the test, invoke hk through `run`, and assert the relevant output, exit status, file contents, or index state.
+
+For stashing tests, distinguish working-tree content from staged content explicitly. A successful command alone does not prove a partial commit was preserved.
+
+## Test builtins
+
+Builtin tests belong in the step’s `tests` field in `pkl/builtins/<name>.pkl`. They run through `hk test`; the integration harness in [builtins_tests.bats](builtins_tests.bats) loads the builtin catalogue.
+
+Use tool stubs in `builtin_tool_stubs/` to provide external tools and the `TestMaker` helper in `pkl/builtins/test/helpers.pkl` for standard check/fix cases. See [adding a builtin](../docs/contributing.md#add-a-builtin).
+
+## Configuration cache
+
+Shared setup enables `HK_CACHE=1` even for debug builds. The cache directory is `$BATS_TEST_TMPDIR/hk-test-cache` when Bats supplies that directory, otherwise `/tmp/hk-test-cache`. Setup removes cache files older than one day.
+
+The helper sets `HK_CACHE` during setup, so setting `HK_CACHE=0` on the outer test command does not disable it. Call the helper **after** `_common_setup` in a test that needs uncached evaluation:
+
+```bash
+setup() {
+    load 'test_helper/common_setup'
+    _common_setup
+    _disable_test_cache
+}
+```
+
+Use `_clear_test_cache` to clear the test’s configured cache directory or `_test_cache_stats` for diagnostics. For a direct hk invocation, `HK_CACHE=0 hk validate` bypasses caching.

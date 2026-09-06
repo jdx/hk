@@ -5,3 +5,4 @@
 set -eu
 
 aube install && aube run docs:build
+python3 ../scripts/check-docs-links.py

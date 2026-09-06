@@ -1,21 +1,22 @@
 ---
-outline: "deep"
+outline: [2, 3]
+description: Browse reusable linter and formatter definitions, customize them, and understand tool requirements.
 ---
 
-# Built-in Linters Reference
+# Built-in linters
 
-hk provides 150+ pre-configured linters and formatters through the `Builtins` module. Each builtin supplies the command, file matching, batching, and other hk behavior; the corresponding tool must be available in the step's environment.
+Builtins are reusable Pkl step definitions for linters, formatters, and hk’s own utilities. They supply file patterns, check and fix commands, and optimizations such as diff output.
 
-## Usage
+**Install the tools separately.** A builtin invokes executables from your environment; it does not install them. Use your project’s package manager or [mise](/mise_integration).
 
-Import and use builtins in your `hk.pkl`:
+## Use a builtin
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 hooks {
-  ["pre-commit"] {
+  ["check"] {
     steps {
       ["prettier"] = Builtins.prettier
       ["eslint"] = Builtins.eslint
@@ -24,16 +25,42 @@ hooks {
 }
 ```
 
-You can also customize builtins:
+`Builtins.prettier` is the Pkl property name. The step name, `"prettier"`, is your label for selecting the step in commands such as `hk check --step prettier`.
+
+Keep the schema and Builtins imports on the same version. The catalogue below describes the version of the source used to build this website; an older pinned package may differ.
+
+## Customize a builtin
+
+Amend a builtin to keep its defaults while changing specific properties:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  batch = false  // Override the default batch setting
-  glob = List("*.js", "*.ts")  // Override file patterns
+  glob = List("*.js", "*.ts", "*.json")
+  exclude = List("**/generated/**")
+  batch = false
 }
 ```
 
-### Tool availability
+A property assignment replaces that property. If you override `glob` or `exclude`, include every pattern you want to retain.
+
+Use dependencies for ordering and profiles for optional checks:
+
+```pkl
+["prettier"] = (Builtins.prettier) {
+  depends = "eslint"
+}
+["mypy"] = (Builtins.mypy) {
+  profiles = List("types")
+}
+```
+
+Run the type checker with `hk check --profile types`. See [configuration](/configuration) for groups, workspaces, and command templates.
+
+## Utilities included with hk
+
+Steps such as `Builtins.trailing_whitespace`, `Builtins.newlines`, and `Builtins.check_merge_conflict` invoke [`hk util`](/cli/util) commands. These need no separate linter executable.
+
+## Tool availability
 
 Builtins configure how hk invokes a tool; they do not install that tool. The
 executable used by the builtin must be on `PATH`, or the step must use a `prefix`
@@ -53,77 +80,14 @@ locally by aube, prefix its builtin with `aube exec`:
 Use an argv list for builtins backed by structured commands. A string prefix such
 as `"aube exec"` or `"mise x --"` cannot be combined with those commands.
 
-The generated list below summarizes each builtin. The complete command and defaults
-for each builtin are defined in the corresponding Pkl file in
-[`pkl/builtins`](https://github.com/jdx/hk/tree/main/pkl/builtins).
+## Available builtins
 
-## Available Builtins
+The following catalogue is generated from the builtin definitions. Each entry includes the exact Pkl property to use. Refer to the [source definitions](https://github.com/jdx/hk/tree/main/pkl/builtins) for additional options and tests.
 
 <!--@include: ./gen/builtins.md-->
 
-## Customizing Builtins
+## Add a tool of your own
 
-### Override Properties
+If there is no builtin, define a step with `glob`, `check`, and an optional `fix` command. Only enable batching if the tool can process independent subsets of files correctly.
 
-```pkl
-["prettier"] = (Builtins.prettier) {
-  // Override glob patterns
-  glob = List("src/**/*.js", "src/**/*.ts")
-
-  // Disable batch processing
-  batch = false
-
-  // Add environment variables
-  env {
-    ["PRETTIER_CONFIG"] = ".prettierrc.json"
-  }
-}
-```
-
-### Add Dependencies
-
-```pkl
-["eslint"] = (Builtins.eslint) {
-  // Run after prettier
-  depends = "prettier"
-}
-```
-
-### Workspace-Specific Configuration
-
-```pkl
-["cargo_clippy"] = (Builtins.cargo_clippy) {
-  // Only run in directories with Cargo.toml
-  workspace_indicator = "Cargo.toml"
-
-  // Custom command using workspace
-  check = "cargo clippy --manifest-path {{workspace}}/Cargo.toml"
-}
-```
-
-### Profile-Based Configuration
-
-```pkl
-["mypy"] = (Builtins.mypy) {
-  // Only run with "python" profile
-  profiles = List("python")
-}
-```
-
-## Creating Custom Steps
-
-If a builtin doesn't exist for your tool:
-
-```pkl
-["custom-tool"] {
-  glob = List("*.custom")
-  check = "custom-tool --check {{files}}"
-  fix = "custom-tool --fix {{files}}"
-  batch = true  // Enable parallel processing
-}
-```
-
-## See Also
-
-- [Configuration Guide](/configuration)
-- [Getting Started](/getting_started)
+See [custom steps](/reference/examples/custom-linters) for a complete example, or [contributing](/contributing#add-a-builtin) to contribute a reusable definition.

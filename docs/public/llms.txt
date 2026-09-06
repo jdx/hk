@@ -2,30 +2,38 @@
 
 > Run linters concurrently without letting overlapping fixes race
 
-## Getting Started
+## Start here
 
-- [Getting Started](https://hk.jdx.dev/getting_started.html): This guide takes you from installing hk to running your first checks. Most projects can be set up in a few minutes.
-
-## Configuration
-
-- [Configuration](https://hk.jdx.dev/configuration.html): hk builds its effective configuration by layering sources from lowest to highest precedence.
+- [Getting started](https://hk.jdx.dev/getting_started.html): Set up hk in an existing Git repository, then use the same linters when you commit, work locally, and run CI.
+- [Why hk?](https://hk.jdx.dev/why-hk.html): hk is designed for projects that run several linters and formatters over overlapping files. It combines concurrent execution with file-level coordination, so tools can work together without writing to…
+- [Pkl essentials](https://hk.jdx.dev/pkl_introduction.html): hk uses Pkl for typed configuration. Most projects need only a few features: amend the schema, import builtins, define steps, and reuse them across hooks.
 
 ## Guides
 
-- [Built-in Linters](https://hk.jdx.dev/builtins.html): hk provides 150+ pre-configured linters and formatters through the Builtins module. Each builtin supplies the command, file matching, batching, and other hk behavior; the corresponding tool must be…
-- [Configuration Examples](https://hk.jdx.dev/reference/examples/): This directory contains runnable examples extracted from the public Pkl configurations.
-- [Git Hooks](https://hk.jdx.dev/hooks.html): This page describes the behavior of the git hooks that hk supports. Each step provides a "check" and a "fix" command. "check" commands are read-only and can run in parallel.
-- [mise Integration](https://hk.jdx.dev/mise_integration.html): Many git hook managers build in features that hk's sister project, mise-en-place, already provides. hk leaves those to mise, so use mise and hk together if you want any of the features described…
-- [Coding Agents](https://hk.jdx.dev/agents.html): hk gives coding agents a narrow, inspectable way to run project checks and fixes. Agents can use structured CLI output everywhere, or the MCP server for persistent runs, cancellation, paged logs,…
+- [Git hooks and stashing](https://hk.jdx.dev/hooks.html): A hook is a named collection of steps. Git invokes installed hooks at specific events; hk run invokes them directly. The check and fix hooks are also available through hk check and hk fix.
+- [Continuous integration](https://hk.jdx.dev/ci.html): Use hk check --all to run the project’s checks against a checkout. CI must install hk and every tool used by the configured steps, just as a developer’s machine does.
+- [mise integration](https://hk.jdx.dev/mise_integration.html): mise manages tools, environments, and tasks. hk selects files and coordinates checks and fixes. Together they let a team share tool versions and run hooks from terminals, editors, and CI.
+- [Troubleshooting](https://hk.jdx.dev/logging.html): Start with a plan and verbose output. They usually show whether the problem is file selection, configuration, or a linter command.
+- [Coding agents](https://hk.jdx.dev/agents.html): hk gives coding agents a narrow, inspectable way to run project checks and fixes. Agents can use structured CLI output everywhere, or the MCP server for persistent runs, cancellation, paged logs,…
+- [Configuration examples](https://hk.jdx.dev/reference/examples/): Choose a starting point, save its downloadable Pkl file as hk.pkl, and adapt the tools and paths to your project. Each page includes the exact file it offers for download.
+- [JavaScript and TypeScript](https://hk.jdx.dev/reference/examples/javascript-project.html): Run ESLint before Prettier, and enable TypeScript checking when you need it.
+- [Python](https://hk.jdx.dev/reference/examples/python-project.html): Use Ruff for linting and formatting, with mypy behind the types profile.
+- [Monorepo](https://hk.jdx.dev/reference/examples/monorepo.html): Organize frontend, backend, and infrastructure checks into groups, then add repository-wide Markdown and YAML checks.
+- [Custom steps](https://hk.jdx.dev/reference/examples/custom-linters.html): A step can invoke any shell command. Define which files it uses, how to check them without writes, and how to apply fixes.
 
-## CLI Reference
+## Reference
 
-- [CLI Reference](https://hk.jdx.dev/cli/): Usage: hk [FLAGS] <SUBCOMMAND>
+- [Configuration](https://hk.jdx.dev/configuration.html): hk reads hk.pkl to decide which steps to run and how to run them. Start with a shared set of linters, then add file filters, dependencies, and profiles as your project needs them.
+- [Built-in linters](https://hk.jdx.dev/builtins.html): Builtins are reusable Pkl step definitions for linters, formatters, and hk’s own utilities. They supply file patterns, check and fix commands, and optimizations such as diff output.
+- [Environment variables](https://hk.jdx.dev/environment_variables.html): Use environment variables for a single invocation or an environment-wide preference. Runtime settings generally override Git and Pkl settings; CLI flags take precedence. See configuration precedence.
+- [Glossary](https://hk.jdx.dev/glossary.html): A reusable Pkl step definition supplied by hk. It describes how to invoke a linter or utility; external linter executables must be installed separately. Browse builtins.
+- [CLI commands](https://hk.jdx.dev/cli/): Run the same configured steps locally, in Git hooks, and in CI.
 - [agent](https://hk.jdx.dev/cli/agent.html): Generate integration snippets for coding agents
 - [agent hooks](https://hk.jdx.dev/cli/agent/hooks.html): Print a hook configuration for an agent or editor
 - [agent instructions](https://hk.jdx.dev/cli/agent/instructions.html): Print project instructions for a coding agent
 - [agent mcp](https://hk.jdx.dev/cli/agent/mcp.html): Print an MCP server configuration
 - [builtins](https://hk.jdx.dev/cli/builtins.html): List all available builtin linters
+- [cache clear](https://hk.jdx.dev/cli/cache/clear.html): Clear the cache directory
 - [check](https://hk.jdx.dev/cli/check.html): Run the check hook
 - [completion](https://hk.jdx.dev/cli/completion.html): Generate shell completion scripts
 - [config](https://hk.jdx.dev/cli/config.html): Inspect hk's configuration
@@ -72,17 +80,9 @@
 - [validate](https://hk.jdx.dev/cli/validate.html): Validate the config file
 - [version](https://hk.jdx.dev/cli/version.html): Print the version of hk
 
-## Reference
-
-- [Environment Variables](https://hk.jdx.dev/environment_variables.html): Environment variables can be used to configure hk.
-- [Pkl Introduction](https://hk.jdx.dev/pkl_introduction.html): hk uses pkl for configuration. As pkl is a relatively new configuration language, this doc gives an overview of how to write it and work with it for hk configuration.
-- [Logging and Debugging](https://hk.jdx.dev/logging.html): hk provides several ways to control logging output for debugging issues and understanding what happens during execution.
-- [Glossary](https://hk.jdx.dev/glossary.html): This glossary defines key terms used throughout hk documentation and configuration.
-
 ## Project
 
-- [Why hk?](https://hk.jdx.dev/why-hk.html): Tools like pre-commit, prek, and lefthook simply shell out to run linters. That means they can't safely run linters in parallel: if two linters try to modify the same file at the same time, there will…
-- [Benchmarks](https://hk.jdx.dev/benchmarks.html): These benchmarks compare hk, lefthook, pre-commit, and prek running 10 linters on a synthetic project.
-- [Contributing](https://hk.jdx.dev/contributing.html): Thank you for your interest in contributing to hk! This guide will help you get started.
-- [About](https://hk.jdx.dev/about.html): hk is built by @jdx.
-- [Sea Shanty](https://hk.jdx.dev/shanty.html): A sea shanty celebrating the hk git hook manager
+- [Benchmarks](https://hk.jdx.dev/benchmarks.html): These results measure one synthetic workload with overlapping linter file patterns. They illustrate how orchestration affects this setup; they are not a prediction for every repository or a survey of…
+- [About hk](https://hk.jdx.dev/about.html): hk is a Git hook manager and project linting tool built by @jdx. It is written in Rust and released under the MIT license.
+- [Contributing](https://hk.jdx.dev/contributing.html): Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
+- [Sea shanty](https://hk.jdx.dev/shanty.html): A sea shanty celebrating the hk git hook manager

@@ -1,18 +1,20 @@
 import { socialCard, writeSocialCard } from "./social-images.mjs";
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitepress'
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitepress";
 
-import pklLang from '../pkl.tmLanguage.json'
-import { sidebar } from './sidebar'
+import pklLang from "../pkl.tmLanguage.json";
+import { sidebar } from "./sidebar";
 const configDir = dirname(fileURLToPath(import.meta.url));
-const cargoToml = readFileSync(resolve(configDir, '../../Cargo.toml'), 'utf8');
-const versionMatch = cargoToml.match(/^\[package\][\s\S]*?^\s*version\s*=\s*"([^"]+)"/m);
+const cargoToml = readFileSync(resolve(configDir, "../../Cargo.toml"), "utf8");
+const versionMatch = cargoToml.match(
+  /^\[package\][\s\S]*?^\s*version\s*=\s*"([^"]+)"/m,
+);
 if (!versionMatch) {
-  console.warn('Unable to find package version in Cargo.toml');
+  console.warn("Unable to find package version in Cargo.toml");
 }
-const latestVersion = versionMatch?.[1] ?? '0.0.0';
+const latestVersion = versionMatch?.[1] ?? "0.0.0";
 const siteUrl = "https://hk.jdx.dev";
 const siteDescription =
   "Fast, language-agnostic git hooks and project linting with parallel execution, automatic fixes, file locking, and shareable Pkl configuration.";
@@ -23,49 +25,57 @@ export default defineConfig({
   description: siteDescription,
   lang: "en-US",
   lastUpdated: true,
-  appearance: "force-dark",
+  appearance: "dark",
+  // Included reference fragments are not standalone pages.
+  srcExclude: ["gen/**"],
   sitemap: {
     hostname: siteUrl,
   },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    logo: '/logo-small.png',
+    logo: "/logo-small.png",
     nav: [
-      { text: 'Getting Started', link: '/getting_started' },
-      { text: 'Contributing', link: '/contributing' },
-      { text: 'Configuration', link: '/configuration' },
-      { text: 'CLI Reference', link: '/cli/' },
-      { text: `v${latestVersion}`, link: 'https://github.com/jdx/hk/releases' },
+      {
+        text: "Guide",
+        link: "/getting_started",
+        activeMatch: "^/(getting_started|hooks|ci|mise_integration|logging)",
+      },
+      { text: "Configuration", link: "/configuration" },
+      { text: "Builtins", link: "/builtins" },
+      { text: "CLI", link: "/cli/", activeMatch: "^/cli/" },
+      { text: `v${latestVersion}`, link: "https://github.com/jdx/hk/releases" },
     ],
     sidebar,
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/jdx/hk' },
-      { icon: 'discord', link: 'https://discord.gg/UBa7pJUN7Z' },
+      { icon: "github", link: "https://github.com/jdx/hk" },
+      { icon: "discord", link: "https://discord.gg/UBa7pJUN7Z" },
     ],
     editLink: {
       pattern: "https://github.com/jdx/hk/edit/main/docs/:path",
     },
     search: {
-      provider: 'local',
+      provider: "local",
     },
-    footer: false,
+    outline: { level: [2, 3], label: "On this page" },
   },
   markdown: {
     // https://github.com/vuejs/vitepress/discussions/3724
     config(md) {
-      const defaultCodeInline = md.renderer.rules.code_inline!
+      const defaultCodeInline = md.renderer.rules.code_inline!;
       md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
-        tokens[idx].attrSet('v-pre', '')
-        return defaultCodeInline(tokens, idx, options, env, self)
-      }
+        tokens[idx].attrSet("v-pre", "");
+        return defaultCodeInline(tokens, idx, options, env, self);
+      };
     },
-    languages: [{
-      name: 'pkl',
-      displayName: 'pkl',
-      scopeName: 'source.pkl',
-      repository: {},
-      patterns: pklLang.patterns as any,
-    }]
+    languages: [
+      {
+        name: "pkl",
+        displayName: "pkl",
+        scopeName: "source.pkl",
+        repository: {},
+        patterns: pklLang.patterns as any,
+      },
+    ],
   },
   head: [
     [
@@ -110,10 +120,25 @@ export default defineConfig({
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ["meta", { name: "twitter:site", content: "@jdxcode" }],
     ["link", { rel: "icon", href: "/favicon.ico", sizes: "any" }],
-    ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" }],
-    ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" }],
+    [
+      "link",
+      {
+        rel: "icon",
+        type: "image/png",
+        sizes: "32x32",
+        href: "/favicon-32x32.png",
+      },
+    ],
+    [
+      "link",
+      {
+        rel: "apple-touch-icon",
+        sizes: "180x180",
+        href: "/apple-touch-icon.png",
+      },
+    ],
     ["link", { rel: "manifest", href: "/site.webmanifest" }],
-    ["meta", { name: "theme-color", content: "#0d0221" }],
+    ["meta", { name: "theme-color", content: "#101a23" }],
   ],
   transformHead({ pageData, title, description, siteConfig }) {
     const heading =
@@ -153,4 +178,4 @@ export default defineConfig({
       ],
     ];
   },
-})
+});

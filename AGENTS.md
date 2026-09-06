@@ -2,7 +2,7 @@
 
 ## mbx build cache
 
-`mise install` installs mbx 1.6. `mise run` activates the project's transparent
+`mise install` installs the configured mbx version. `mise run` activates the project's transparent
 Cargo wrapper, so compilation-heavy mise tasks and hk checks use ordinary
 `cargo` commands. Standalone Cargo commands require an activated mise shell. If
 the wrapper fails or creates a development papercut, rerun the exact equivalent
@@ -24,6 +24,7 @@ SHOULD use the same format:
 **Format:** `<type>(<scope>): <description>`
 
 **Types:**
+
 - `feat:` - New features
 - `fix:` - Bug fixes that affect the CLI behavior (not CI, docs, or infrastructure)
 - `refactor:` - Code refactoring
@@ -37,15 +38,18 @@ SHOULD use the same format:
 - `revert:` - Reverting a previous change
 
 **Scopes:**
+
 - For command-specific changes, use the command name: `check`, `fix`, `run`, `init`, `install`, `validate`, etc.
 - For subsystem changes: `hook`, `step`, `config`, `lock`, `pkl`, `builtins`, `stash`, `deps`
 
 **Description Style:**
+
 - Start the description with a lowercase character
 - Use imperative mood ("add feature" not "added feature")
 - Keep it concise but descriptive
 
 **Examples:**
+
 - `fix(step): resolve race condition in file locking`
 - `feat(check): add --slow flag for expensive linters`
 - `feat(builtins): add biome linter`
@@ -66,11 +70,13 @@ imperative mood remains a review rule.
 ## Development Commands
 
 **Build the project:**
+
 ```bash
 mise run build
 ```
 
 **Run tests:**
+
 ```bash
 # Run all tests (Rust unit tests + bats integration tests)
 mise run test
@@ -89,6 +95,7 @@ mise run test:bats test/check.bats
 ```
 
 **Lint and format code:**
+
 ```bash
 # Run all linters and checks
 hk check --all
@@ -103,28 +110,32 @@ hk fix --all --slow
 
 hk is a git hook manager and project linting tool written in Rust with emphasis on performance and concurrent execution. The architecture leverages file locks to maximize concurrency while preventing race conditions.
 
-### Workspace Structure
+### Crate Structure
 
-The project is a Cargo workspace with these crates:
-- **hk** (root): Main CLI application
-- **xx**: HTTP client and utility library
+The root Cargo package builds the **hk** CLI and the **generate-docs** utility.
+It depends on separately published crates for shared functionality:
+
+- **xx**: HTTP client and utilities
 - **clx**: CLI/terminal UI utilities (progress indicators, styling)
 - **ensembler**: Script/command execution engine
 
 ### Core Components
 
 **Configuration System (src/config.rs):**
+
 - Main config file: `hk.pkl` in project root
 - Uses Pkl (github.com/apple/pkl) as the configuration language
 - Config amends a base schema from `pkl/Config.pkl`
 
 **Hook System (src/hook.rs):**
+
 - Manages git hooks (pre-commit, pre-push, commit-msg, prepare-commit-msg)
 - Supports custom hooks like "check" and "fix" for manual runs
 - Implements stashing strategies for git hooks
 - Handles concurrent step execution with proper locking
 
 **Step Execution (src/step/):**
+
 - Steps are individual linting/formatting tasks
 - Each step can have: check, fix, shell commands
 - Steps support glob patterns for file filtering
@@ -132,25 +143,35 @@ The project is a Cargo workspace with these crates:
 - Steps use read/write file locks to prevent conflicts
 
 **File Locking (src/file_rw_locks.rs):**
+
 - Implements a sophisticated file locking system
 - Allows multiple readers or single writer per file
 - Prevents race conditions during concurrent execution
 - Critical for maximizing parallelism
 
 **Built-in Linters (pkl/builtins/):**
+
 - Extensive library of pre-configured linters and formatters
 - Each builtin is a Pkl file defining step configuration
 - Used via `Builtins.linter_name` in hk.pkl
 
 **CLI Interface (src/cli/):**
+
 - Subcommands: init, install, uninstall, check, fix, run, validate, config
-- Uses clap for argument parsing
+- Uses usage-rs for argument parsing
 - Supports running specific hooks or steps
+
+### Documentation
+
+- Preview or build the website with `mise run docs` or `mise run docs:build`.
+- Edit generated reference content at its source: `pkl/Config.pkl`, `settings.toml`, builtin definitions, and Rust CLI help comments.
+- `scripts/enrich-cli-docs.py` adds maintained examples after CLI reference generation.
+- Example pages include `docs/public/*.pkl` directly. Validate them with `scripts/generate-examples.sh` in the mise environment.
 
 ### Key Design Patterns
 
 1. **Concurrent Execution:** Steps run in parallel when possible, using tokio for async runtime
-2. **File-based Coordination:** Uses file locks instead of in-memory coordination for cross-process safety
+2. **File-based Coordination:** Uses in-memory read/write locks keyed by file path to coordinate steps within a hook run
 3. **Pluggable Configuration:** Pkl-based config allows easy extension and customization
 4. **Progressive Enhancement:** Works with or without git, libgit2, mise, etc.
 
@@ -163,12 +184,14 @@ The project is a Cargo workspace with these crates:
 ### Testing
 
 Bats integration tests are in `test/*.bats`. Each test file uses a common setup pattern:
+
 ```bash
 setup() {
     load 'test_helper/common_setup'
     _common_setup
 }
 ```
+
 Tests run in isolated temp directories with a clean git repo. The `$PKL_PATH` variable points to the pkl config directory for amending `Config.pkl`.
 
 #### Testing Builtins
@@ -176,6 +199,7 @@ Tests run in isolated temp directories with a clean git repo. The `$PKL_PATH` va
 Builtins should have pkl-level tests defined via the `tests` field on the Step (see `pkl/Config.pkl` `StepTest`). These tests are run by `hk test` and exercised in CI via `test/builtins_tests.bats`, which loads all builtins and runs their tests.
 
 **Tool stubs** in `test/builtin_tool_stubs/` use `mise tool-stub` to auto-install the correct tool version on demand. Each stub is a small script:
+
 ```bash
 #!/usr/bin/env -S mise tool-stub
 version = "2"
@@ -183,6 +207,7 @@ tool = "aqua:golangci/golangci-lint"
 ```
 
 To add a new builtin with tests:
+
 1. Define the builtin in `pkl/builtins/<name>.pkl` with a `tests` block
 2. Add a tool stub in `test/builtin_tool_stubs/<tool-name>` if the tool isn't already available
 3. Use the `TestMaker` helper from `pkl/builtins/test/helpers.pkl` for standard check/fix test patterns

@@ -10,7 +10,7 @@ pub(crate) struct HookOptions {
         conflicts("--all", "--files0-from", "--pr", "--staged", "--unstaged")
     )]
     pub files: Option<Vec<PathBuf>>,
-    /// Run on all files instead of just staged files
+    /// Select all tracked and eligible untracked files, then apply step filters
     #[usage(short, long, conflicts("--staged", "--unstaged"))]
     pub all: bool,
     /// Run check command instead of fix command
@@ -19,8 +19,7 @@ pub(crate) struct HookOptions {
     /// Exclude files that otherwise would have been selected
     #[usage(short, long, value_hint = ValueHint::FilePath)]
     pub exclude: Option<Vec<String>>,
-    /// Run fix command instead of check command
-    /// (this is the default behavior unless HK_FIX=0)
+    /// Run fix commands instead of check commands for this invocation
     #[usage(short, long, overrides = "--check")]
     pub fix: bool,
     /// Run on files that match these glob patterns
@@ -56,7 +55,7 @@ pub(crate) struct HookOptions {
     /// present or the event isn't defined. Set automatically by `hk install`.
     #[usage(long, hide)]
     pub from_hook: bool,
-    /// Start reference for checking files (requires --to-ref)
+    /// Select files changed since this reference; optionally pair with --to-ref
     #[usage(long)]
     pub from_ref: Option<String>,
     /// Continue on failures (opposite of --fail-fast)
@@ -100,7 +99,7 @@ pub(crate) struct HookOptions {
     /// Display statistics about files matching each step
     #[usage(long)]
     pub stats: bool,
-    /// End reference for checking files (requires --from-ref)
+    /// End reference for comparison with --from-ref
     #[usage(long)]
     pub to_ref: Option<String>,
     /// Run on unstaged and untracked files only (excludes staged files),

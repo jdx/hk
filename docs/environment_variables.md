@@ -1,226 +1,156 @@
 ---
-outline: "deep"
+outline: [2, 2]
+description: Configure hk with environment variables for files, profiles, execution, logging, Pkl evaluation, and stashing.
 ---
 
-# Environment Variables
+# Environment variables
 
-Environment variables can be used to configure hk.
+Use environment variables for a single invocation or an environment-wide preference. Runtime settings generally override Git and Pkl settings; CLI flags take precedence. See [configuration precedence](/configuration#configuration-precedence).
 
-Most of these map to settings that can also be configured via CLI flags, git config, `hk.pkl`, or user config. See the
-[Settings Reference](/configuration#settings-reference) for every setting's available sources and precedence. Variables are listed here in alphabetical order.
+Boolean settings accept `1`/`true` and `0`/`false`. List settings use commas. Set hk’s variables in the environment that launches hk; hook and step `env` blocks are for child commands.
 
-## `HK_CACHE`
+Common overrides:
 
-Type: `bool`
-Default: `true` (release builds), `false` (debug builds)
-
-Controls whether hk caches data such as parsed configuration files. Set to `0` or `false` to disable caching.
-
-## `HK_CACHE_DIR`
-
-Type: `path`
-Default: `~/.cache/hk`
-
-The cache directory to use.
-
-## `HK_CHECK`
-
-Type: `bool`
-Default: `false`
-
-Forces hooks to run their check commands instead of their fix commands, the opposite of
-`HK_FIX`. Useful in CI, where you want a report rather than fixes.
-
-By convention a check command only reports problems, but hk does not enforce that, so this
-variable selects which command runs rather than guaranteeing an unchanged worktree. A
-project whose check command edits files will still edit them.
-
-`--check` and `--fix` are per-invocation flags and outrank this variable, so
-`HK_CHECK=1 hk fix --fix` still runs fix commands. When both `HK_CHECK` and `HK_FIX` are
-enabled, `HK_CHECK` wins. `git config hk.check` sets the same value at a lower precedence.
-
-## `HK_CHECK_FIRST`
-
-Type: `bool`
-Default: `true`
-
-If `true`, when multiple steps match the same file, hk runs their check commands first and only runs a step's fix command if its check fails.
-
-This lets hk parallelize as much as possible. Any number of check commands can run against the same file at once without interfering with each other, but two fix commands cannot safely write to the same file. So hk optimistically runs the check commands in parallel and then, for any that fail, runs the fix commands, serialized where they share files.
-
-If disabled, hk skips the check pass and runs the overlapping fix commands in series.
-
-## `HK_CONFIG_DIR`
-
-Type: `path`
-Default: `$XDG_CONFIG_HOME/hk` (usually `~/.config/hk`)
-
-The directory hk uses for user configuration such as `~/.config/hk/config.pkl`.
-
-## `HK_DISPLAY_SKIP_REASONS`
-
-Type: `string[]` (comma-separated list)
-Default: `profile-not-enabled`
-
-Controls which skip reasons are displayed when steps are skipped. A step skipped for a reason not in this list is skipped silently.
-
-Available reasons:
-
-- `profile-not-enabled`: a profile the step requires is not enabled (default)
-- `profile-explicitly-disabled`: a profile the step requires was disabled with `!profile`
-- `disabled-by-config`: the step is listed in `skip_steps` in `hk.pkl`, user config, or git config
-- `disabled-by-env`: the step is listed in `HK_SKIP_STEPS`
-- `disabled-by-cli`: the step was skipped with `--skip-step`
-- `no-command-for-run-type`: the step has no command for the current mode (for example no `fix` command during `hk fix`)
-- `no-files-to-process`: no files matched the step's globs
-- `condition-false`: the step's `condition` evaluated to false
-- `missing-required-env`: an environment variable listed in the step's `required` setting is unset
-
-Example: `HK_DISPLAY_SKIP_REASONS=profile-not-enabled,no-files-to-process`.
-
-## `HK_EXCLUDE`
-
-Type: `string[]` (comma-separated list)
-Default: `(empty)`
-
-A comma-separated list of glob patterns to exclude from processing. These patterns are unioned with exclude patterns from other configuration sources (git config, user config, project config). Supports both directory names and glob patterns.
-
-Examples:
-```bash
-# Exclude specific directories
-HK_EXCLUDE=node_modules,dist
-
-# Exclude using glob patterns
-HK_EXCLUDE="**/*.min.js,**/*.map"
+```sh
+HK_PROFILE=slow hk check --all
+HK_SKIP_STEPS=eslint hk check
+HK_LOG=debug hk run pre-commit
 ```
 
-## `HK_FAIL_FAST`
+## `HK` {#hk}
 
-Type: `bool`
-Default: `true`
+**Type:** boolean · **Default:** enabled in installed launchers
 
-If `true`, hk will abort running steps after the first one fails.
+Set `HK=0` to bypass hk’s installed Git hook launcher for one command, for example `HK=0 git commit`. This is handled by the launcher, not by every direct hk invocation.
 
-## `HK_FILE`
+## `HK_CACHE` {#hk-cache}
 
-Type: `string`
-Default: `hk.pkl`
+**Type:** boolean · **Default:** true in release builds; false in debug builds
 
-The config file to use. Setting this skips the normal [config file search](/configuration#config-file-paths).
+Enable or disable the evaluated-configuration cache. Use `HK_CACHE=0 hk validate` when diagnosing stale configuration, or `hk cache clear` to remove hk’s cache.
 
-## `HK_FIX`
+## `HK_CACHE_DIR` {#hk-cache-dir}
 
-Type: `bool`
-Default: `true`
+**Type:** path · **Default:** platform cache directory plus `hk`
 
-If set to `false`, hooks run their check commands instead of their fix commands. Passing `--fix` overrides it for a single run, and `--check` or [`HK_CHECK`](#hk-check) forces check commands. `git config hk.fix` sets the same value at a lower precedence.
+Directory for cached configuration and other cache files. On Linux this is typically `~/.cache/hk`; on macOS it is typically `~/Library/Caches/hk`.
 
-## `HK_HIDE_WARNINGS`
+## `HK_CHECK` {#hk-check}
 
-Type: `string[]` (comma-separated list)
-Default: `(empty)`
+**Type:** boolean · **Default:** false
 
-A comma-separated list of warning tags to suppress. This allows you to hide specific warning messages that you don't want to see.
+Request check commands instead of fix commands. This setting wins when both `HK_CHECK` and `HK_FIX` are enabled; explicit `--check` and `--fix` flags take precedence. Check commands should leave files unchanged, but hk does not enforce that convention.
 
-Available warning tags:
+## `HK_CHECK_FIRST` {#hk-check-first}
 
-- `missing-profiles`: Suppresses warnings about steps being skipped due to missing profiles
+**Type:** boolean · **Default:** true
 
-Example usage:
+Allow read-only checks before fixes when steps overlap. A passing check can avoid a write lock; a failing check can narrow the files that need fixing. The step’s `check_first` setting also affects this optimization.
 
-```bash
-HK_HIDE_WARNINGS=missing-profiles hk check
-```
+## `HK_CONFIG_DIR` {#hk-config-dir}
 
-## `HK_HIDE_WHEN_DONE`
+**Type:** path · **Default:** `$XDG_CONFIG_HOME/hk` or `~/.config/hk`
 
-Type: `bool`
-Default: `false`
+Directory containing the user `config.pkl`. See [user configuration](/configuration#hkrc) for discovery and legacy paths.
 
-If set to `true`, hk will hide the progress output when the hook finishes if there are no errors.
+## `HK_DISPLAY_SKIP_REASONS` {#hk-display-skip-reasons}
 
-## `HK_JOBS`
+**Type:** comma-separated strings · **Default:** `profile-not-enabled`
 
-Type: `usize`
-Default: `(number of cores)`
+Select skip reasons to display. Use `hk check --why <step>` for a detailed explanation of a particular step’s selection.
 
-The number of jobs to run in parallel. `HK_JOB` is accepted as an alias.
+## `HK_EXCLUDE` {#hk-exclude}
 
-## `HK_JSON`
+**Type:** comma-separated patterns · **Default:** empty
 
-Type: `bool`
-Default: `false`
+Exclude files or directories from processing. These patterns combine with exclusions from other sources. Example: `HK_EXCLUDE='node_modules,dist,**/*.min.js' hk check --all`.
 
-Enables JSON output format for structured data, equivalent to passing `--json`. Useful for integration with other tools or for programmatic processing of results.
+## `HK_FAIL_FAST` {#hk-fail-fast}
 
-Example: `hk check --json | jq '.steps[] | select(.failed)'`
+**Type:** boolean · **Default:** true
 
-## `HK_LIBGIT2`
+Stop remaining work after a failure. Use `HK_FAIL_FAST=0 hk check --all` or `--no-fail-fast` to collect failures from remaining steps.
 
-Type: `bool`
-Default: `true`
+## `HK_FILE` {#hk-file}
 
-If set to `false`, hk shells out to the `git` command instead of using libgit2. This may perform better
-in some cases, such as repositories that use `fsmonitor` to watch for changes.
+**Type:** path · **Default:** automatic project config discovery
 
-## `HK_LOG`
+Select a specific Pkl configuration instead of searching for `hk.local.pkl` or `hk.pkl`. Example: `HK_FILE=./config/ci.pkl hk check --all`.
 
-Type: `off` | `error` | `warn` | `info` | `debug` | `trace`
-Default: `info`
+## `HK_FIX` {#hk-fix}
 
-The log level to use. `HK_LOG_LEVEL` is accepted as an alias.
+**Type:** boolean · **Default:** true
 
-## `HK_LOG_FILE`
+Permit fix mode when the hook requests it. Setting this to `false` disables configured fixes unless an explicit fix flag overrides it. A value of `true` does not make a normal `hk check` run fixes. `HK_CHECK=1` takes precedence when both settings are enabled.
 
-Type: `path`
-Default: `~/.local/state/hk/hk.log`
+## `HK_HIDE_WARNINGS` {#hk-hide-warnings}
 
-The log file to use.
+**Type:** comma-separated tags · **Default:** empty
 
-## `HK_LOG_FILE_LEVEL`
+Suppress named warning categories, such as `missing-profiles`. Suppressed tags combine across configuration sources.
 
-Type: `off` | `error` | `warn` | `info` | `debug` | `trace`
-Default: `HK_LOG`
+## `HK_HIDE_WHEN_DONE` {#hk-hide-when-done}
 
-The log level to use for the log file.
+**Type:** boolean · **Default:** false
 
-## `HK_MISE`
+Hide progress output after a successful hook finishes. Failed runs keep their diagnostics.
 
-Type: `bool`
-Default: `false`
+## `HK_JOBS` {#hk-jobs}
 
-If set to `true`:
+**Type:** nonnegative integer · **Default:** 0 (detect CPU count)
 
-- `hk install` installs hooks that run hk through `mise x`, so mise-managed tools are available without activating mise in the shell
-- `hk init` also creates a `mise.toml` file with hk configured
-- Steps with a `dir` get the mise environment for that directory (`mise env`, cached per directory), so tools and env vars from the directory's mise config are available. See [mise integration](/mise_integration#per-directory-environments-monorepos)
+Limit concurrent hk jobs. Example: `HK_JOBS=4 hk check --all`. Linters can also start their own workers, so increasing this value does not always improve speed.
 
-## `HK_OUTPUT_FILE`
+## `HK_JSON` {#hk-json}
+
+**Type:** boolean · **Default:** false
+
+Request JSON output for commands that support it. For execution plans, use `hk check --plan --json`. For trace events, use `HK_TRACE=json`; this setting does not turn arbitrary linter output into structured results.
+
+## `HK_LIBGIT2` {#hk-libgit2}
+
+**Type:** boolean · **Default:** true
+
+Use libgit2 for Git operations where supported. Set `HK_LIBGIT2=0` to use the Git CLI backend, for example when comparing performance with Git’s fsmonitor integration.
+
+## `HK_LOG` {#hk-log}
+
+**Type:** log level · **Default:** `info`
+
+Console log level: `off`, `error`, `warn`, `info`, `debug`, or `trace`. `HK_LOG_LEVEL` is also accepted. Use `hk check -v` for debug output or `-vv` for trace logging.
+
+## `HK_LOG_FILE` {#hk-log-file}
+
+**Type:** path · **Default:** `$HK_STATE_DIR/hk.log`
+
+Log file location. Example: `HK_LOG_FILE=/tmp/hk.log hk check`.
+
+## `HK_LOG_FILE_LEVEL` {#hk-log-file-level}
+
+**Type:** log level · **Default:** the environment’s log level
+
+Choose a separate verbosity for file logs. Example: `HK_LOG_FILE_LEVEL=trace hk check`.
+
+## `HK_MISE` {#hk-mise}
+
+**Type:** boolean · **Default:** false
+
+Make `hk install` use `mise x` in hook launchers and make `hk init` create a starter `mise.toml` when absent. Reinstall hooks to update an existing launcher. See [mise integration](/mise_integration). Steps also receive the mise environment for their working directory; explicit step environment values take precedence. See [per-directory environments](/mise_integration#per-directory-environments-monorepos).
+
+## `HK_OUTPUT_FILE` {#hk-output-file}
 
 Type: `path`
 Default: `~/.local/state/hk/output.log`
 
 The file where hk writes the complete output of a failed command. An empty value uses the default location.
 
+## `HK_PKL_BACKEND` {#hk-pkl-backend}
 
-## `HK_PKL_BACKEND`
+**Type:** `pklr` or `pkl` · **Default:** `pklr`
 
-Type: `pkl` | `pklr`
-Default: `pklr`
+Choose the built-in evaluator or the separately installed Pkl CLI. Example: `HK_PKL_BACKEND=pkl hk validate`. See [Pkl evaluators](/pkl_introduction#evaluators).
 
-Selects the evaluator used to read `hk.pkl`. Set to `pkl` to use the pkl CLI instead of the built-in pklr evaluator.
-
-## `HK_PKL_CA_CERTIFICATES`
-
-Type: `path`
-
-A path to a CA certificates file to provide `pkl`'s `--ca-certificates` flag when invoking `pkl`.
-
-This is useful in corporate environments with SSL-intercepting proxies where pkl needs to trust custom CA certificates to download packages.
-
-This variable is read directly from the environment before pkl is invoked, so it cannot be configured in `hk.pkl`.
-
-## `HK_PKL_CACHE_DIR`
+## `HK_PKL_CACHE_DIR` {#hk-pkl-cache-dir}
 
 Type: `path`
 Default: the platform cache directory with `pklr` appended (`~/.cache/pklr` on Linux, `~/Library/Caches/pklr` on macOS, and `%LOCALAPPDATA%\pklr` on Windows). Falls back to `~/.cache/pklr` when the platform cache directory is unavailable.
@@ -229,7 +159,13 @@ The directory used by the built-in pklr evaluator to persist downloaded Pkl pack
 
 This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
-## `HK_PKL_EMBEDDED`
+## `HK_PKL_CA_CERTIFICATES` {#hk-pkl-ca-certificates}
+
+**Type:** path · **Default:** unset
+
+With the Pkl CLI backend, pass a CA certificate file through Pkl’s `--ca-certificates` flag. This must be set before configuration is evaluated.
+
+## `HK_PKL_EMBEDDED` {#hk-pkl-embedded}
 
 Type: `bool`
 Default: `true`
@@ -240,15 +176,13 @@ Set to `0` to disable seeding. The package is then resolved from `HK_PKL_CACHE_D
 
 This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
-## `HK_PKL_HTTP_REWRITE`
+## `HK_PKL_HTTP_REWRITE` {#hk-pkl-http-rewrite}
 
-Type: `string`
+**Type:** string · **Default:** unset
 
-A value to provide `pkl`'s `--http-rewrite` flag when invoking `pkl`, in the form `http(s)://<FROM>/=http(s)://<TO>/`.
+With the Pkl CLI backend, pass a URL rewrite through Pkl’s `--http-rewrite` flag. The value has the form `https://source.example/=https://mirror.example/` and must be set before evaluation.
 
-This variable is read directly from the environment before pkl is invoked, so it cannot be configured in `hk.pkl`.
-
-## `HK_PKL_OFFLINE`
+## `HK_PKL_OFFLINE` {#hk-pkl-offline}
 
 Type: `bool`
 Default: `false`
@@ -257,177 +191,96 @@ Disables network access in the built-in pklr evaluator. Package imports already 
 
 This variable is read directly from the environment before `hk.pkl` is evaluated, so it cannot be configured in `hk.pkl`.
 
-## `HK_PROFILE`
+## `HK_PROFILE` {#hk-profile}
 
-Type: `string[]` (comma-separated list)
+**Type:** comma-separated profile names · **Default:** empty
 
-The profile(s) to enable. Prefix a profile with `!` to explicitly disable it. `HK_PROFILES` is accepted as an alias.
+Enable profiles such as `slow` or `types`. Prefix a name with `!` to disable it. `HK_PROFILES` is also accepted. A step requires all of its positive profiles. Example: `HK_PROFILE=ci,slow hk check --all`.
 
-Example usage:
+## `HK_SKIP_HOOK` {#hk-skip-hook}
 
-- `HK_PROFILE=ci` - Enable the CI profile
-- `HK_PROFILE=slow,ci` - Enable multiple profiles
+**Type:** comma-separated hook names · **Default:** empty
 
-## `HK_SKIP_HOOK`
+Skip entire hooks, for example `HK_SKIP_HOOK=pre-push git push`. `HK_SKIP_HOOKS` is also accepted. Skip lists combine with Git and Pkl configuration.
 
-Type: `string[]` (comma-separated list)
-Default: `(empty)`
+## `HK_SKIP_STEPS` {#hk-skip-steps}
 
-A comma-separated list of hook names to skip entirely.
-For example: `HK_SKIP_HOOK=pre-commit,pre-push` skips those hooks completely. `HK_SKIP_HOOKS` is accepted as an alias.
+**Type:** comma-separated step names · **Default:** empty
 
-This is useful when you want to temporarily disable certain hooks while still keeping them configured in your `hk.pkl` file.
-Unlike `HK_SKIP_STEPS` which skips individual steps, this skips the entire hook and all its steps.
+Skip named steps in any hook, for example `HK_SKIP_STEPS=eslint hk check`. `HK_SKIP_STEP` is also accepted. Skip lists combine across configuration sources.
 
-This setting can also be configured via:
-- Git config: `git config hk.skipHook "pre-commit"`
-- User config (`~/.config/hk/config.pkl`): `skip_hooks = List("pre-commit")`
+## `HK_STAGE` {#hk-stage}
 
-All skip configurations from different sources are unioned together.
+**Type:** boolean · **Default:** the hook’s staging setting
 
-## `HK_SKIP_STEPS`
+Override automatic staging of fixes. Set `HK_STAGE=0` to leave fixes for review. See [reviewing fixes](/hooks#review-fixes-before-committing).
 
-Type: `string[]` (comma-separated list)
+## `HK_STASH` {#hk-stash}
 
-A comma-separated list of step names to skip in every hook.
-For example: `HK_SKIP_STEPS=lint,test` skips any steps named "lint" or "test". `HK_SKIP_STEP` is accepted as an alias.
+**Type:** `git`, `patch-file`, or `none` · **Default:** the hook’s setting, otherwise `none`
 
-This setting can also be configured via:
-- Git config: `git config hk.skipSteps "step1,step2"`
-- User config (`~/.config/hk/config.pkl`): `skip_steps = List("step1", "step2")`
+Override how unstaged work is saved before a hook. `git` enables stashing; `patch-file` currently uses the same Git implementation; `none` leaves unstaged work in place. Boolean `true`/`1` and `false`/`0` are also accepted. `hk init` explicitly configures Git stashing for pre-commit. See [stashing](/hooks#stashing-and-partial-commits).
 
-All skip configurations from different sources are unioned together.
+## `HK_STASH_BACKUP_COUNT` {#hk-stash-backup-count}
 
-## `HK_STAGE`
+**Type:** nonnegative integer · **Default:** 20
 
-Type: `bool`
+Number of backup patches to retain per repository under `$HK_STATE_DIR/patches/`. Set to `0` to disable patch backups.
 
-When set, overrides the [hook's `stage` key](/configuration#hooks-hook-stage-boolean), which controls whether hk automatically stages files modified by fix commands.
+## `HK_STASH_UNTRACKED` {#hk-stash-untracked}
 
-This is useful when you want to manually review changes made by auto-fixers before including them in your commit.
+**Type:** boolean · **Default:** true
 
-## `HK_STASH`
+Include untracked files when stashing. Setting this to `false` also skips untracked-file discovery entirely: those files will not appear in status-based reports or normal `hk check --all` selection. This can reduce scan time for very large worktrees, such as dotfiles repositories rooted at the home directory.
 
-Type: `git` | `patch-file` | `none`
-Default: `none`
+## `HK_STATE_DIR` {#hk-state-dir}
 
-Overrides the [hook-level `stash` setting](/configuration), which defaults to `none`.
+**Type:** path · **Default:** platform state directory plus `hk`
 
-- `git`: Use `git stash` to stash unstaged changes before running hooks.
-- `patch-file`: Currently an alias of the `git` behavior.
-- `none`: Do not stash unstaged changes before running hooks. Fastest option, but fix steps may modify unstaged changes if they are in the same file as staged changes.
+Directory for logs and stash backup patches. It typically resolves to `~/.local/state/hk` on Linux; hk also uses that fallback on platforms without a state-directory convention.
 
-In `hk.pkl`, the hook-level `stash` key also accepts booleans: `true` is an alias of `"git"` and `false` is an alias of `"none"`.
+## `HK_SUMMARY_TEXT` {#hk-summary-text}
 
-## `HK_STASH_BACKUP_COUNT`
+**Type:** boolean · **Default:** false
 
-Type: `usize`
-Default: `20`
+In plain-text mode, hk prints summaries for failed steps by default. Set to `true` to include successful-step summaries too; their output normally streams during execution.
 
-Number of backup patch files to keep per repository when stashing. Each time hk stashes changes, it writes a backup patch file to `$HK_STATE_DIR/patches/`; the oldest backups beyond this count are deleted automatically.
+## `HK_TERMINAL_PROGRESS` {#hk-terminal-progress}
 
-Set to `0` to disable patch backup creation entirely.
+**Type:** boolean · **Default:** true
 
-## `HK_STASH_UNTRACKED`
+Send progress updates through OSC sequences to compatible terminals. Disable this if the terminal renders those updates incorrectly.
 
-Type: `bool`
-Default: `true`
+## `HK_TIMING_JSON` {#hk-timing-json}
 
-If set to `true`, hk will stash untracked files when stashing before running hooks.
+**Type:** path · **Default:** unset
 
-When set to `false`, hk also skips the untracked-file scan entirely (`git status --untracked-files=no`). This is the recommended setting when `GIT_WORK_TREE` points at a very large directory such as `$HOME` (e.g. a YADM dotfiles repo), where scanning for untracked files can take tens of seconds. Untracked files will not appear in reports or `hk check --all` results in this mode.
+Write total and per-step wall time as JSON after a hook finishes. Example: `HK_TIMING_JSON=hk-timing.json hk check --all`. See [timing reports](/logging#a-run-is-slow).
 
-## `HK_STATE_DIR`
+## `HK_TRACE` {#hk-trace}
 
-Type: `path`
-Default: `~/.local/state/hk`
+**Type:** `1`, `true`, or `json` · **Default:** off
 
-The state directory to use.
+Enable text tracing with `HK_TRACE=1`, or JSON trace events with `HK_TRACE=json`. Text goes to standard error; JSON events go to standard output. See [tracing](/logging#tracing).
 
-## `HK_SUMMARY_TEXT`
+## `HK_WALK_IGNORE` {#hk-walk-ignore}
 
-Type: `bool`
-Default: `false`
+**Type:** boolean · **Default:** true
 
-Controls whether per-step output summaries are printed in plain text mode. By default, text mode only prints summaries for **failed** steps, so CI logs always include the full diagnostics for a failure. Successful steps stream their output during execution, so a trailing summary would only duplicate it. Set this to `true` to print a summary for every step in text mode.
+Respect `.gitignore` and other ignore files during directory walks. This affects discovery; other file filters and step exclusions still apply.
 
-Example:
+## `HK_WARNINGS` {#hk-warnings}
 
-```bash
-HK_SUMMARY_TEXT=1 hk check
-```
+**Type:** comma-separated warning tags · **Default:** empty
 
-## `HK_TERMINAL_PROGRESS`
+Enable opt-in warning categories, currently including `missing-profiles`. In Pkl, use `warnings = List("missing-profiles")`.
 
-Type: `bool`
-Default: `true`
+## `HK_REPORT_JSON` {#hk-report-json}
 
-Enables or disables reporting progress via OSC sequences to compatible terminals.
-
-## `HK_TIMING_JSON`
-
-Type: `path`
-
-If set to a file path, hk will write a JSON timing report at the end of a run. The report includes total wall time and per-step wall time, with overlapping intervals merged so time isn't double-counted across parallel step parts.
-
-The `steps` field is an object mapping step names to an object with:
-
-- `wall_time_ms`: merged wall time in milliseconds
-- `profiles` (optional): the list of profiles required for that step. If there are no profiles, this field is omitted.
-
-Example usage:
-
-```bash
-HK_TIMING_JSON=/tmp/hk-timing.json hk check
-```
-
-Additionally, when a hook-level `report` command is configured in `hk.pkl`, hk will set `HK_REPORT_JSON` to the same timing JSON content (in-memory) and execute the command after the hook finishes. This enables custom scripts to post-process or upload timing data without reading a file.
-
-Example output shape:
-
-```json
-{
-  "total": { "wall_time_ms": 12456 },
-  "steps": {
-    "lint": { "wall_time_ms": 4321, "profiles": ["ci", "fast"] },
-    "fmt": { "wall_time_ms": 2100 }
-  }
-}
-```
-
-## `HK_TRACE`
-
-Type: `off` | `text` | `json` | `1` | `true`
-Default: `off`
-
-Enables tracing spans and performance diagnostics for detailed execution analysis.
-
-- `off`: No tracing (default)
-- `text` (or the aliases `1` / `true`): Human-readable trace output
-- `json`: Machine-readable JSON trace output
-
-Example: `HK_TRACE=text hk check` to see detailed execution traces.
-
-## `HK_WALK_IGNORE`
-
-Type: `bool`
-Default: `true`
-
-Controls whether hk respects `.gitignore` and other ignore files when walking directories.
-
-When enabled (default), hk will skip files matching patterns in `.gitignore`, `.ignore`, and other standard ignore files when discovering files for linting. This improves performance by not processing generated files, build artifacts, or vendored dependencies.
-
-When disabled, all files are included regardless of ignore patterns.
-
-Example: `HK_WALK_IGNORE=0 hk check --all` to include all files.
-
-## `HK_WARNINGS`
-
-Type: `string[]` (comma-separated list)
-Default: `(empty)`
-
-Warning tags to enable. This can also be configured in `hk.pkl` or user config:
+hk sets this variable for a hook’s `report` command. It contains the same timing data that `HK_TIMING_JSON` writes to a file. It is an output supplied to the report command, not a setting for users to configure.
 
 ```pkl
-warnings = List("missing-profiles")
+report = "node scripts/report-timings.js"
 ```
+
+The script can read `process.env.HK_REPORT_JSON`. See [timing reports](/logging#a-run-is-slow) for the JSON shape.

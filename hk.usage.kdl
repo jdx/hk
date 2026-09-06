@@ -6,14 +6,14 @@ version "1.58.1"
 unknown_flags error
 subcommand_required #true
 flagset hook-options {
-    flag "-a --all" help="Run on all files instead of just staged files" {
+    flag "-a --all" help="Select all tracked and eligible untracked files, then apply step filters" {
         conflicts --staged --unstaged
     }
     flag "-c --check" help="Run check command instead of fix command" overrides=--fix
     flag "-e --exclude" help="Exclude files that otherwise would have been selected" var=#true {
         arg <EXCLUDE>
     }
-    flag "-f --fix" help="Run fix command instead of check command (this is the default behavior unless HK_FIX=0)" overrides=--check
+    flag "-f --fix" help="Run fix commands instead of check commands for this invocation" overrides=--check
     flag "-g --glob" help="Run on files that match these glob patterns" var=#true {
         arg <GLOB>
     }
@@ -40,7 +40,7 @@ flagset hook-options {
         }
     }
     flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true
-    flag --from-ref help="Start reference for checking files (requires --to-ref)" {
+    flag --from-ref help="Select files changed since this reference; optionally pair with --to-ref" {
         arg <FROM_REF>
     }
     flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)" overrides=--fail-fast
@@ -65,7 +65,7 @@ flagset hook-options {
         }
     }
     flag --stats help="Display statistics about files matching each step"
-    flag --to-ref help="End reference for checking files (requires --from-ref)" {
+    flag --to-ref help="End reference for comparison with --from-ref" {
         arg <TO_REF>
     }
     flag --unstaged help="Run on unstaged and untracked files only (excludes staged files), without stashing. Useful for linting files an agent just changed." {
