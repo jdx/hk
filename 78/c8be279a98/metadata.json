@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "78c8be279a98",
+  "strategy": "manual-commit",
+  "branch": "codex/remove-release-cargo-update",
+  "checkpoints_count": 3,
+  "files_touched": [
+    ".github/workflows/release.yml",
+    "README.md",
+    "docs/.vitepress/theme/EndevFooter.vue",
+    "docs/.vitepress/theme/EndevSponsors.vue",
+    "docs/cli/commands.json",
+    "docs/cli/sponsors.md",
+    "hk.usage.kdl",
+    "src/cli/sponsors.rs",
+    "src/hook.rs",
+    "test/untracked_not_processed_pre_commit.bats"
+  ],
+  "sessions": [
+    {
+      "metadata": "/78/c8be279a98/0/metadata.json",
+      "transcript": "/78/c8be279a98/0/full.jsonl",
+      "compact_transcript": "/78/c8be279a98/0/transcript.jsonl",
+      "content_hash": "/78/c8be279a98/0/content_hash.txt",
+      "prompt": "/78/c8be279a98/0/prompt.txt"
+    }
+  ]
+}

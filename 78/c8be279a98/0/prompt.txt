@@ -1,0 +1,17 @@
+why did this fail? [https://github.com/jdx/hk/actions/runs/33982465558/job/101351825561](https://github.com/jdx/hk/actions/runs/33982465558/job/101351825561)
+
+---
+
+ok make a pr to fix
+
+---
+
+i want to cut a release to packslip first
+
+---
+
+ok merge the packslip release pr once it opens and then wait for the release. I want you to bump packslip on all jdx.dev projects that use it too, not just hk
+
+---
+
+merge or set auto-merge on all of those prs
