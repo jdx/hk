@@ -14,8 +14,8 @@ For a first setup, use [getting started](/getting_started). For complete configu
 A configuration amends hk’s [Pkl schema](/pkl_introduction) and defines named hooks:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.59.0/hk@1.59.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.59.0/hk@1.59.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
   ["eslint"] = Builtins.eslint
@@ -336,7 +336,7 @@ Higher layers override lower ones for scalar settings. List settings such as `ex
 Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.59.0/hk@1.59.0#/Config.pkl"
 
 jobs = 4
 fail_fast = false
