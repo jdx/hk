@@ -16,7 +16,7 @@ PR titles must use Conventional Commits; use the same format for intermediate co
 
 ## mbx build cache
 
-`mise install` installs [mbx](https://mr-boxington.jdx.dev) 1.8. The normal
+`mise install` installs [mbx](https://mr-boxington.jdx.dev). The normal
 `mise run build`, `mise run test:cargo`, and `mise run lint` workflows activate
 its transparent Cargo wrapper and therefore use the cache while invoking Cargo
 normally. Standalone Cargo commands require an activated mise shell. To bypass
