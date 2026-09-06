@@ -130,7 +130,7 @@ for path in sorted(CLI.rglob("*.md")):
             flags=re.S,
         )
         content = content.replace("# CLI reference\n\n", "# CLI reference\n\n" + OVERVIEW, 1)
-        content = re.sub(r"^- \*\*Usage\*\*:.*\n", "", content, flags=re.M)
+        content = re.sub(r"^- \*\*Usage(?::\*\*|\*\*:).*\n", "", content, flags=re.M)
     else:
         content = content.replace("- **Usage**:", "**Usage**:")
     description = "Commands, options, and examples for the hk CLI." if key == "index" else EXAMPLES.get(key, (f"Arguments and options for {title}.", ""))[0]

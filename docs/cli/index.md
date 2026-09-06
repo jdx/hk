@@ -25,8 +25,6 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 
 **Version:** 1.58.1
 
-- **Usage:** `hk [FLAGS] <SUBCOMMAND>`
-
 ## Global Flags
 
 - **`--cd <DIRECTORY>`** — Run as if hk was started in this directory
