@@ -1,0 +1,24 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Markdown"
+  description = "Fast Markdown linter (CommonMark/GFM)"
+  project_indicators {
+    new { file = "mado.toml" }
+    new { file = ".mado.toml" }
+  }
+}
+mado = new Config.Step {
+  types = List("markdown")
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("mado", "check", "{{files}}") }
+    effect = "read"
+  }
+  tests {
+    local const testMaker = new helpers.TestMaker { filename = "test.md" }
+    ["check bad file"] = testMaker.checkFail("#Hello.", 1)
+    ["check good file"] = testMaker.checkPass("# Hello\n")
+  }
+}
