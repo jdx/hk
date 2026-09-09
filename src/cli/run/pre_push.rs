@@ -36,12 +36,16 @@ impl From<&str> for PrePushRefs {
     }
 }
 
-// Check that a string is a valid Git commit hash (3-64 lowercase hexits)
+// Check that a string is a valid Git commit long hash (40 or 64 lowercase hexits)
 fn is_valid_commit_hash(s: &str) -> bool {
-    if s.len() < 3 || 64 < s.len() {
+    let length_is_valid = s.len() == 40 || s.len() == 64;
+    let is_all_lowercase_hexits = s.chars().all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
+    let is_valid = length_is_valid && is_all_lowercase_hexits;
+    if !is_valid {
+        eprintln!("Warning: \"{}\" is not a valid full Git hash (must be exactly 40 or 64 lowercase hexits)", s);
         return false;
     }
-    return s.chars().all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
+    return is_valid;
 }
 
 // Check that a string is a valid four-part stdin line.
