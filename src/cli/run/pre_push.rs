@@ -1,8 +1,6 @@
 use std::io::IsTerminal;
 use std::io::Read;
 
-use similar::DiffableStr;
-
 use crate::hook_options::HookOptions;
 use crate::{
     Result,
