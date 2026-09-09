@@ -1,6 +1,8 @@
 use std::io::IsTerminal;
 use std::io::Read;
 
+use similar::DiffableStr;
+
 use crate::hook_options::HookOptions;
 use crate::{
     Result,
@@ -34,6 +36,31 @@ impl From<&str> for PrePushRefs {
     }
 }
 
+// Check that a string is a valid Git commit hash (3-64 lowercase hexits)
+fn is_valid_commit_hash(s: &str) -> bool {
+    if s.len() < 3 || 64 < s.len() {
+        return false;
+    }
+    return s.chars().all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
+}
+
+// Check that a string is a valid four-part stdin line.
+// Silently ignores empty lines; prints warning for others.
+fn validate_input_line(line: &str) -> bool {
+    if line.is_empty() {
+        return false;
+    }
+    // Check that the line splits into four parts of which the second and fourth are commit hashes.
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    let is_valid = parts.len() == 4
+        && is_valid_commit_hash(parts[1])
+        && is_valid_commit_hash(parts[3]);
+    if !is_valid {
+        eprintln!("Ignoring malformed line from stdin: {}", line);
+    }
+    return is_valid;
+}
+
 impl PrePush {
     pub async fn run(mut self) -> Result<()> {
         if self.hook.reads_file_list_from_stdin() {
@@ -64,7 +91,7 @@ impl PrePush {
             // unrelated files.
             input
                 .lines()
-                .filter(|line| !line.is_empty())
+                .filter(|line| validate_input_line(&line))
                 .map(PrePushRefs::from)
                 .collect::<Vec<_>>()
         };
