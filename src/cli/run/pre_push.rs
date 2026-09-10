@@ -152,3 +152,103 @@ impl PrePush {
         self.hook.run("pre-push").await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SHA1: &str = "0123456789abcdef0123456789abcdef01234567";
+    const SHA256: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const ZERO_SHA1: &str = "0000000000000000000000000000000000000000";
+
+    #[test]
+    fn test_accepts_sha1_hash() {
+        assert!(is_valid_commit_hash(SHA1));
+    }
+
+    #[test]
+    fn test_accepts_sha256_hash() {
+        assert!(is_valid_commit_hash(SHA256));
+    }
+
+    #[test]
+    fn test_accepts_zero_sha() {
+        // Deletions and new branches arrive with an all-zeros sha. These must
+        // survive the filter so the EMPTY_REF guard in hook.rs can
+        // short-circuit them to an empty file set.
+        assert!(is_valid_commit_hash(ZERO_SHA1));
+    }
+
+    #[test]
+    fn test_rejects_abbreviated_hash() {
+        assert!(!is_valid_commit_hash("abc1234"));
+    }
+
+    #[test]
+    fn test_rejects_uppercase_hash() {
+        assert!(!is_valid_commit_hash(&SHA1.to_uppercase()));
+    }
+
+    #[test]
+    fn test_rejects_non_hex_hash() {
+        // Right length, wrong alphabet.
+        assert!(!is_valid_commit_hash(&"z".repeat(40)));
+    }
+
+    #[test]
+    fn test_accepts_well_formed_line() {
+        let line = format!("refs/heads/main {SHA1} refs/heads/main {SHA1}");
+        assert!(validate_input_line(&line));
+    }
+
+    #[test]
+    fn test_accepts_deletion_line() {
+        // git sends the all-zeros local sha when deleting a remote branch.
+        let line = format!("(delete) {ZERO_SHA1} refs/heads/gone {SHA1}");
+        assert!(validate_input_line(&line));
+    }
+
+    #[test]
+    fn test_rejects_line_with_too_few_fields() {
+        // The crash case: PrePushRefs::from indexes parts[3] unconditionally,
+        // so a short line used to panic instead of being skipped.
+        assert!(!validate_input_line("refs/heads/main"));
+        assert!(!validate_input_line(&format!("refs/heads/main {SHA1}")));
+        assert!(!validate_input_line(&format!(
+            "refs/heads/main {SHA1} refs/heads/main"
+        )));
+    }
+
+    #[test]
+    fn test_rejects_line_with_too_many_fields() {
+        let line = format!("refs/heads/main {SHA1} refs/heads/main {SHA1} extra");
+        assert!(!validate_input_line(&line));
+    }
+
+    #[test]
+    fn test_rejects_line_with_abbreviated_hashes() {
+        assert!(!validate_input_line("refs/heads/main abc refs/heads/main def"));
+    }
+
+    #[test]
+    fn test_rejects_blank_lines() {
+        assert!(!validate_input_line(""));
+        assert!(!validate_input_line("   "));
+        assert!(!validate_input_line("\t"));
+    }
+
+    #[test]
+    fn test_accepted_lines_are_safe_to_parse() {
+        // The filter/map pairing in run() means anything validate_input_line
+        // accepts is handed straight to PrePushRefs::from, which indexes
+        // parts[0..=3] without bounds checks.
+        let line = format!("refs/heads/main {SHA1} refs/heads/main {ZERO_SHA1}");
+        assert!(validate_input_line(&line));
+        let refs = PrePushRefs::from(line.as_str());
+        assert_eq!(refs.to, ("refs/heads/main".to_string(), SHA1.to_string()));
+        assert_eq!(
+            refs.from,
+            ("refs/heads/main".to_string(), ZERO_SHA1.to_string())
+        );
+    }
+}
