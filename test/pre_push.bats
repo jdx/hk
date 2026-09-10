@@ -197,3 +197,51 @@ EOF
     assert_success
     refute_output --partial "[warn] unrelated.js"
 }
+
+@test "pre-push warns on malformed stdin lines instead of crashing" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+    git push origin main
+    git remote set-head origin --auto
+
+    # A line with fewer than four fields used to panic in PrePushRefs::from,
+    # which indexes parts[3] without bounds checking.
+    run bash -c "printf 'refs/heads/main\n' | hk run pre-push origin example"
+
+    assert_success
+    assert_output --partial "Ignoring malformed line from stdin"
+    refute_output --partial "panicked"
+}
+
+@test "pre-push warns on abbreviated commit hashes from stdin" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-push"] {
+        steps {
+            ["print-files"] { check = "echo '{{files}}'" }
+        }
+    }
+}
+EOF
+    git add hk.pkl
+    git commit -m "test(pre-push): install hk"
+    git push origin main
+    git remote set-head origin --auto
+
+    run bash -c "printf 'refs/heads/main abc refs/heads/main def\n' | hk run pre-push origin example"
+
+    assert_success
+    assert_output --partial "not a valid full Git hash"
+    refute_output --partial "panicked"
+}
