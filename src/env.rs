@@ -94,6 +94,7 @@ pub static HK_TRACE: LazyLock<TraceMode> =
     });
 
 pub static HK_JSON: LazyLock<bool> = LazyLock::new(|| var_true("HK_JSON"));
+pub static HK_QUIET: LazyLock<bool> = LazyLock::new(|| var_true("HK_QUIET"));
 
 pub static GIT_INDEX_FILE: LazyLock<Option<PathBuf>> = LazyLock::new(|| var_path("GIT_INDEX_FILE"));
 
