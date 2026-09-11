@@ -1,0 +1,28 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Forbid git submodules in the repository"
+}
+forbid_submodules = new Config.Step {
+  check = new Config.CommandSpec {
+    command = "hk util forbid-submodules"
+    effect = "read"
+  }
+  tests {
+    ["detects submodule"] {
+      run = "check"
+      write { ["{{tmp}}/README.md"] = "# Project\n" }
+      before =
+        "git init -q && git add -A && git update-index --add --cacheinfo 160000,1111111111111111111111111111111111111111,vendor/dep"
+      expect { code = 1 }
+    }
+    ["passes without submodules"] {
+      run = "check"
+      write { ["{{tmp}}/README.md"] = "# Project\n" }
+      before = "git init -q && git add -A"
+      expect { code = 0 }
+    }
+  }
+}
