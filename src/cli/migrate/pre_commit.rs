@@ -1141,6 +1141,9 @@ impl PreCommit {
         // Terraform
         map.insert("terraform-fmt", "terraform");
         map.insert("tflint", "tf_lint");
+        // Upstream `terragrunt_validate` runs terraform validate through
+        // terragrunt, so it has no counterpart here and is left unmapped.
+        map.insert("terragrunt_fmt", "terragrunt_hcl_fmt");
 
         // CSS
         map.insert("stylelint", "stylelint");
