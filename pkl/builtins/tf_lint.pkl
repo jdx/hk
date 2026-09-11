@@ -6,13 +6,95 @@ import "../Config.pkl"
   description = "Terraform linter"
 }
 tf_lint = new Config.Step {
-  glob = "**/*.tf"
+  glob = List("**/*.tf", "**/*.tfvars", "**/*.tofu")
+  exclude = "**/.terraform/**"
   check = new Config.CommandSpec {
-    command = "tflint"
+    command =
+      """
+      for f in {{ files }}; do dirname "$f"; done | sort -u | { code=0; while IFS= read -r dir; do
+      tflint --chdir="$dir" || code=1
+      done; exit $code; }
+      """
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "tflint --fix"
+    command =
+      """
+      for f in {{ files }}; do dirname "$f"; done | sort -u | { code=0; while IFS= read -r dir; do
+      tflint --chdir="$dir" --fix || tflint --chdir="$dir" || code=1
+      done; exit $code; }
+      """
     effect = "write"
+  }
+  tests {
+    local const cleanModule =
+      """
+      terraform {
+        required_version = ">= 1.0"
+      }
+
+      output "greeting" {
+        value = "hello"
+      }
+      """
+    local const unusedVariable =
+      """
+      terraform {
+        required_version = ">= 1.0"
+      }
+
+      output "greeting" {
+        value = "hello"
+      }
+
+      variable "unused" {
+        type = string
+      }
+      """
+    ["check clean module"] {
+      run = "check"
+      tmpdir = true
+      write { ["main.tf"] = cleanModule }
+      files = List("main.tf")
+      expect { code = 0 }
+    }
+    ["check module with unused declaration"] {
+      run = "check"
+      tmpdir = true
+      write { ["main.tf"] = unusedVariable }
+      files = List("main.tf")
+      expect { code = 1 }
+    }
+    ["check nested module directory"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["main.tf"] = cleanModule
+        ["modules/sub/main.tf"] = unusedVariable
+      }
+      files = List("modules/sub/main.tf")
+      expect { code = 1 }
+    }
+    ["check reports every module directory"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["modules/a/main.tf"] = unusedVariable
+        ["modules/b/main.tf"] = unusedVariable
+      }
+      files = List("modules/a/main.tf", "modules/b/main.tf")
+      expect {
+        code = 1
+        stdout = "modules/b"
+      }
+    }
+    ["fix removes unused declaration"] {
+      run = "fix"
+      tmpdir = true
+      write { ["main.tf"] = unusedVariable }
+      files = List("main.tf")
+      after = "tflint --chdir=."
+      expect { code = 0 }
+    }
   }
 }
