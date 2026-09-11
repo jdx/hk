@@ -91,6 +91,36 @@ PRECOMMIT
     assert_output --partial 'prefix = "mise x mypy@latest --"'
 }
 
+@test "migrate precommit - terraform hooks resolve to mise tool names" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.0
+    hooks:
+    -   id: terraform_docs
+        additional_dependencies: [terraform-docs]
+    -   id: terraform_validate
+        additional_dependencies: [terraform]
+    -   id: terraform_tflint
+        additional_dependencies: [tflint]
+    -   id: terragrunt_fmt
+        additional_dependencies: [terragrunt]
+PRECOMMIT
+
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    assert_success
+
+    # Scope each assertion to its own hook block so swapped mappings still fail
+    run awk '/\["terraform_docs"\]/,/prefix = /' hk.pkl
+    assert_output --partial 'prefix = "mise x terraform-docs@latest --"'
+    run awk '/\["terraform_validate"\]/,/prefix = /' hk.pkl
+    assert_output --partial 'prefix = "mise x terraform@latest --"'
+    run awk '/\["terraform_tflint"\]/,/prefix = /' hk.pkl
+    assert_output --partial 'prefix = "mise x tflint@latest --"'
+    run awk '/\["terragrunt_fmt"\]/,/prefix = /' hk.pkl
+    assert_output --partial 'prefix = "mise x terragrunt@latest --"'
+}
+
 @test "migrate precommit - with types and type filtering" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:
