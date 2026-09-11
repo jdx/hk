@@ -18,7 +18,7 @@ jobs:
       contents: read
       id-token: write
       pages: write
-    uses: ./.github/workflows/docs-impl.yml
+    uses: $/.github/workflows/docs-impl.yml
     with:
       trusted: true
 
@@ -26,7 +26,7 @@ jobs:
     if: ${{ github.actor != 'jdx' }}
     permissions:
       contents: read
-    uses: ./.github/workflows/docs-impl.yml
+    uses: $/.github/workflows/docs-impl.yml
     with:
       trusted: false
 
