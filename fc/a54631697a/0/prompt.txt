@@ -1,0 +1,29 @@
+why is this failing [https://github.com/jdx/hk/pull/1345#issue-comment-box](https://github.com/jdx/hk/pull/1345#issue-comment-box)
+
+---
+
+ok fix the pr directly
+
+---
+
+actually, instead, in the next mise release it moved to the packlist backend didn't it?
+
+---
+
+ok just wait for the mise release to finish, clear the gha cache to get mise to update, then update the lockfile to use packslip
+
+---
+
+once you do that, i think there is a discussion in mise or aube where people are asking about this, tell them to move to packslip and also mention [aquaproj/aqua-registry#60040](https://github.com/aquaproj/aqua-registry/pull/60040)
+
+---
+
+check again
+
+---
+
+note [https://discord.com/channels/1066429325269794907/1314301006992900117/1546609138493165570](https://discord.com/channels/1066429325269794907/1314301006992900117/1546609138493165570) btw
+
+---
+
+read it [https://github.com/jdx/mise/pull/12766](https://github.com/jdx/mise/pull/12766)
