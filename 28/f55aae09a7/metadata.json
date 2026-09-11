@@ -2,7 +2,7 @@
   "cli_version": "0.10.5",
   "checkpoint_id": "28f55aae09a7",
   "strategy": "manual-commit",
-  "checkpoints_count": 12,
+  "checkpoints_count": 13,
   "files_touched": [
     "docs/builtins.md"
   ],
@@ -22,6 +22,20 @@
     {
       "metadata": "/28/f55aae09a7/3/metadata.json",
       "prompt": ""
+    },
+    {
+      "metadata": "/28/f55aae09a7/4/metadata.json",
+      "transcript": "/28/f55aae09a7/4/full.jsonl",
+      "compact_transcript": "/28/f55aae09a7/4/transcript.jsonl",
+      "content_hash": "/28/f55aae09a7/4/content_hash.txt",
+      "prompt": "/28/f55aae09a7/4/prompt.txt"
     }
-  ]
+  ],
+  "token_usage": {
+    "input_tokens": 209126,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4589440,
+    "output_tokens": 19124,
+    "api_call_count": 54
+  }
 }
