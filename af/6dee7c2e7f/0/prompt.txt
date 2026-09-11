@@ -1,0 +1,11 @@
+what do you think of this and the hk discussion: [https://github.com/renovatebot/renovate/discussions/45740](https://github.com/renovatebot/renovate/discussions/45740)
+
+i feel like pkl is not editable
+
+---
+
+i think it's fine but yes, hk is generally backwards compatible with older configs
+
+---
+
+post a reply to the hk discussion
