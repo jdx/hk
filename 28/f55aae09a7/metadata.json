@@ -2,13 +2,17 @@
   "cli_version": "0.10.5",
   "checkpoint_id": "28f55aae09a7",
   "strategy": "manual-commit",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "docs/builtins.md"
   ],
   "sessions": [
     {
       "metadata": "/28/f55aae09a7/0/metadata.json",
+      "prompt": ""
+    },
+    {
+      "metadata": "/28/f55aae09a7/1/metadata.json",
       "prompt": ""
     }
   ]
