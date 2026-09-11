@@ -54,6 +54,48 @@ PKL
     assert_output --partial "ok - gitleaks :: check bad staged file"
 }
 
+@test "editorconfig-checker builtin tests run with editorconfig-checker v4" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["editorconfig_checker"] = Builtins.editorconfig_checker
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step editorconfig_checker
+    assert_success
+    assert_output --partial "ok - editorconfig_checker :: check bad file"
+    assert_output --partial "ok - editorconfig_checker :: check good file"
+}
+
+@test "editorconfig-checker v3 builtin tests run with ec" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["editorconfig_checker_v3"] = (Builtins.editorconfig_checker) {
+        version = "3"
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step editorconfig_checker_v3
+    assert_success
+    assert_output --partial "ok - editorconfig_checker_v3 :: check bad file"
+    assert_output --partial "ok - editorconfig_checker_v3 :: check good file"
+}
+
 @test "pinact v3 builtin tests run with pinact v3" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"

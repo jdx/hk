@@ -1,0 +1,9 @@
+import "../Config.pkl"
+import "./editorconfig-checker.pkl" as EditorconfigChecker
+
+editorconfig_checker_v3 = (EditorconfigChecker.editorconfig_checker) {
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("ec", "{{files}}") }
+    effect = "read"
+  }
+}

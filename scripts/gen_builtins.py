@@ -45,9 +45,19 @@ class meta extends Annotation {
 
 """
 
-INTERNAL_VARIANTS = {"knip_strict", "pinact_v3", "pinact_update_v3"}
+INTERNAL_VARIANTS = {
+    "editorconfig_checker_v3",
+    "knip_strict",
+    "pinact_v3",
+    "pinact_update_v3",
+}
 
 OPTION_FACTORIES = {
+    "editorconfig_checker": (
+        '  version: "3" | "4" = "4"\n',
+        'if (version == "3") {editorconfig_checker_v3}.editorconfig_checker_v3 '
+        'else {raw}.editorconfig_checker',
+    ),
     "gitleaks": (
         "  staged: Boolean = false\n",
         "if (staged) ({raw}.gitleaks) {{ staged = true }} else {raw}.gitleaks",
@@ -146,6 +156,7 @@ def main():
             )
             expression = expression.format(
                 raw=raw_alias(identifier),
+                editorconfig_checker_v3=raw_alias("editorconfig_checker_v3"),
                 knip_strict=raw_alias("knip_strict"),
                 pinact_v3=raw_alias("pinact_v3"),
                 pinact_update_v3=raw_alias("pinact_update_v3"),
