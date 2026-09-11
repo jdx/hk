@@ -1164,7 +1164,13 @@ impl PreCommit {
             "check-executables-have-shebangs",
             "check_executables_have_shebangs",
         );
+        map.insert(
+            "check-shebang-scripts-are-executable",
+            "check_shebang_scripts_are_executable",
+        );
         map.insert("check-symlinks", "check_symlinks");
+        map.insert("destroyed-symlinks", "destroyed_symlinks");
+        map.insert("forbid-submodules", "forbid_submodules");
         map.insert("check-byte-order-marker", "byte_order_marker");
         map.insert("check-added-large-files", "check_added_large_files");
         map.insert("check-ast", "python_check_ast");

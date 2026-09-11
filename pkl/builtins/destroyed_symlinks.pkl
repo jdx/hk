@@ -1,0 +1,36 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Detect symlinks replaced by regular files holding their target path"
+}
+destroyed_symlinks = new Config.Step {
+  check = new Config.CommandSpec {
+    command = "hk util destroyed-symlinks"
+    effect = "read"
+  }
+  tests {
+    local const commit = "git -c user.name=Test -c user.email=test@example.com commit -qm initial"
+    ["detects destroyed symlink"] {
+      run = "check"
+      write { ["{{tmp}}/target.txt"] = "content\n" }
+      before =
+        "git init -q && ln -s target.txt link && git add -A && \(commit) && rm link && printf 'target.txt' > link && git add link"
+      expect { code = 1 }
+    }
+    ["passes intact symlink"] {
+      run = "check"
+      write { ["{{tmp}}/target.txt"] = "content\n" }
+      before = "git init -q && ln -s target.txt link && git add -A && \(commit)"
+      expect { code = 0 }
+    }
+    ["passes regular file edit"] {
+      run = "check"
+      write { ["{{tmp}}/target.txt"] = "content\n" }
+      before =
+        "git init -q && git add -A && \(commit) && printf 'changed\\n' > target.txt && git add target.txt"
+      expect { code = 0 }
+    }
+  }
+}

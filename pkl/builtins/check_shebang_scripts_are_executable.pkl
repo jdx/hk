@@ -1,0 +1,36 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Verify files with shebang lines are executable"
+}
+check_shebang_scripts_are_executable = new Config.Step {
+  types = List("text")
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("hk", "util", "check-shebang-scripts-are-executable", "{{files}}")
+    }
+    effect = "read"
+  }
+  tests {
+    ["detects shebang without executable bit"] {
+      run = "check"
+      write { ["{{tmp}}/script.sh"] = "#!/bin/bash\necho hello\n" }
+      before = "chmod 644 {{tmp}}/script.sh"
+      expect { code = 1 }
+    }
+    ["passes executable with shebang"] {
+      run = "check"
+      write { ["{{tmp}}/script.sh"] = "#!/bin/bash\necho hello\n" }
+      before = "chmod +x {{tmp}}/script.sh"
+      expect { code = 0 }
+    }
+    ["passes non-executable file without shebang"] {
+      run = "check"
+      write { ["{{tmp}}/notes.txt"] = "echo hello\n" }
+      before = "chmod 644 {{tmp}}/notes.txt"
+      expect { code = 0 }
+    }
+  }
+}

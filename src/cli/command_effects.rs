@@ -50,12 +50,15 @@ pub const EFFECTS: &[(&str, SpecCommandEffect)] = &[
     ("util check-conventional-commit", Read),
     ("util check-executables-have-shebangs", Read),
     ("util check-merge-conflict", Read),
+    ("util check-shebang-scripts-are-executable", Read),
     ("util check-symlinks", Read),
+    ("util destroyed-symlinks", Read),
     ("util detect-private-key", Read),
-    // These rewrite the files they inspect.
+    // The Write entries below rewrite the files they inspect.
     ("util end-of-file-fixer", Write),
     ("util fix-byte-order-marker", Write),
     ("util fix-smart-quotes", Write),
+    ("util forbid-submodules", Read),
     ("util mixed-line-ending", Write),
     ("util no-commit-to-branch", Read),
     ("util python-check-ast", Read),

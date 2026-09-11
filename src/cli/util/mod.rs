@@ -4,10 +4,13 @@ mod check_case_conflict;
 mod check_conventional_commit;
 mod check_executables_have_shebangs;
 mod check_merge_conflict;
+mod check_shebang_scripts_are_executable;
 mod check_symlinks;
+mod destroyed_symlinks;
 mod detect_private_key;
 mod end_of_file_fixer;
 mod fix_smart_quotes;
+mod forbid_submodules;
 mod mixed_line_ending;
 mod no_commit_to_branch;
 mod python_check_ast;
@@ -20,10 +23,13 @@ pub use check_case_conflict::CheckCaseConflict;
 pub use check_conventional_commit::CheckConventionalCommit;
 pub use check_executables_have_shebangs::CheckExecutablesHaveShebangs;
 pub use check_merge_conflict::CheckMergeConflict;
+pub use check_shebang_scripts_are_executable::CheckShebangScriptsAreExecutable;
 pub use check_symlinks::CheckSymlinks;
+pub use destroyed_symlinks::DestroyedSymlinks;
 pub use detect_private_key::DetectPrivateKey;
 pub use end_of_file_fixer::EndOfFileFixer;
 pub use fix_smart_quotes::FixSmartQuotes;
+pub use forbid_submodules::ForbidSubmodules;
 pub use mixed_line_ending::MixedLineEnding;
 pub use no_commit_to_branch::NoCommitToBranch;
 pub use python_check_ast::PythonCheckAst;
@@ -57,8 +63,12 @@ enum UtilCommands {
     CheckExecutablesHaveShebangs(CheckExecutablesHaveShebangs),
     /// Check for merge conflict markers
     CheckMergeConflict(CheckMergeConflict),
+    /// Check that files with shebangs are executable
+    CheckShebangScriptsAreExecutable(CheckShebangScriptsAreExecutable),
     /// Check for broken symlinks
     CheckSymlinks(CheckSymlinks),
+    /// Check for symlinks replaced by regular files containing their target path
+    DestroyedSymlinks(DestroyedSymlinks),
     /// Detect private keys in files
     DetectPrivateKey(DetectPrivateKey),
     /// Check for and optionally fix missing final newlines
@@ -67,6 +77,8 @@ enum UtilCommands {
     FixByteOrderMarker(FixByteOrderMarker),
     /// Replace smart quotes with plain ASCII quotes
     FixSmartQuotes(FixSmartQuotes),
+    /// Check that the repository contains no git submodules
+    ForbidSubmodules(ForbidSubmodules),
     /// Detect and fix mixed line endings
     MixedLineEnding(MixedLineEnding),
     /// Prevent commits to specific branches
@@ -88,11 +100,14 @@ impl Util {
             UtilCommands::CheckConventionalCommit(cmd) => cmd.run().await,
             UtilCommands::CheckExecutablesHaveShebangs(cmd) => cmd.run().await,
             UtilCommands::CheckMergeConflict(cmd) => cmd.run().await,
+            UtilCommands::CheckShebangScriptsAreExecutable(cmd) => cmd.run().await,
             UtilCommands::CheckSymlinks(cmd) => cmd.run().await,
+            UtilCommands::DestroyedSymlinks(cmd) => cmd.run().await,
             UtilCommands::DetectPrivateKey(cmd) => cmd.run().await,
             UtilCommands::EndOfFileFixer(cmd) => cmd.run().await,
             UtilCommands::FixByteOrderMarker(cmd) => cmd.run().await,
             UtilCommands::FixSmartQuotes(cmd) => cmd.run().await,
+            UtilCommands::ForbidSubmodules(cmd) => cmd.run().await,
             UtilCommands::MixedLineEnding(cmd) => cmd.run().await,
             UtilCommands::NoCommitToBranch(cmd) => cmd.run().await,
             UtilCommands::PythonCheckAst(cmd) => cmd.run().await,

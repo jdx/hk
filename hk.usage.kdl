@@ -525,9 +525,17 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check"
     }
+    cmd check-shebang-scripts-are-executable help="Check that files with shebangs are executable" effect=read {
+        flag "-h --help" help="Print help" action=help builtin=#true
+        arg <FILES>... help="Files to check"
+    }
     cmd check-symlinks help="Check for broken symlinks" effect=read {
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check"
+    }
+    cmd destroyed-symlinks help="Check for symlinks replaced by regular files containing their target path" effect=read {
+        flag "-h --help" help="Print help" action=help builtin=#true
+        arg "[FILES]..." help="Files to check. Defaults to the whole repository."
     }
     cmd detect-private-key help="Detect private keys in files" effect=read {
         flag "-h --help" help="Print help" action=help builtin=#true
@@ -548,6 +556,10 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-d --diff" help="Output a diff of the change (implies `--check`)"
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check/fix"
+    }
+    cmd forbid-submodules help="Check that the repository contains no git submodules" effect=read {
+        flag "-h --help" help="Print help" action=help builtin=#true
+        arg "[PATHS]..." help="Paths to check. Defaults to the whole repository."
     }
     cmd mixed-line-ending help="Detect and fix mixed line endings" effect=write {
         flag "-d --diff" help="Output a diff of the change. Cannot use with `fix`." conflicts=--fix
