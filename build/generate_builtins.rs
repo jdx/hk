@@ -67,7 +67,10 @@ fn collect_builtin_names(builtins_dir: &Path) -> Result<BTreeSet<String>, std::i
 
         if path.extension().and_then(|s| s.to_str()) == Some("pkl")
             && let Some(name) = path.file_stem().and_then(|s| s.to_str())
-            && !matches!(name, "knip_strict" | "pinact_v3" | "pinact_update_v3")
+            && !matches!(
+                name,
+                "editorconfig-checker_v3" | "knip_strict" | "pinact_v3" | "pinact_update_v3"
+            )
         {
             builtins.insert(name.to_string());
         }

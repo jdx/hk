@@ -80,6 +80,9 @@ hooks {
                 staged = true
                 step { batch = false }
             }
+            ["editorconfig_checker_v3"] = (Builtins.editorconfig_checker) {
+                version = "3"
+            }
             ["all"] = new Group {
                 steps = Builtins.all
             }
