@@ -21,6 +21,22 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  apple-pkl:
+    name: apple-pkl
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          cache: false
+      - name: Validate v2 fixtures with Apple Pkl
+        run: python3 scripts/validate-apple-pkl.py
+
   mcp-ui:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -304,6 +320,7 @@ jobs:
   final:
     permissions: {}
     needs:
+      - apple-pkl
       - build
       - build-windows
       - ci-libgit2
