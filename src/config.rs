@@ -152,7 +152,7 @@ impl Config {
         let paths = Self::project_config_search_paths();
         if let Some(path) = Self::find_project_config(&paths) {
             let mut config = Self::load_config_cached(path)?;
-            config.apply_implicit_root_dir();
+            config.apply_implicit_root_dir()?;
             return Ok(config);
         }
         debug!("No config file found, using default");
@@ -171,9 +171,10 @@ impl Config {
     /// this config (before `load_subprojects` merges anything else in) a
     /// default `dir` for the offset from the work tree root to this config's
     /// own directory, the same way a subproject's steps get scoped to it.
-    fn apply_implicit_root_dir(&mut self) {
+    fn apply_implicit_root_dir(&mut self) -> Result<()> {
+        self.materialize_default_hooks()?;
         let Some(subdir) = Self::implicit_root_dir(&self.path) else {
-            return;
+            return Ok(());
         };
         for hook in self.hooks.values_mut() {
             for step_or_group in hook.steps.values_mut() {
@@ -190,6 +191,7 @@ impl Config {
                 }
             }
         }
+        Ok(())
     }
 
     /// The path from the git work tree root to the directory containing
@@ -729,6 +731,7 @@ impl Config {
         root_offset: Option<&str>,
         mut sub: Config,
     ) -> Result<()> {
+        sub.materialize_default_hooks()?;
         if sub.subprojects.as_ref().is_some_and(|s| !s.is_empty()) {
             warn!(
                 "subprojects: nested `subprojects` in {} is ignored (only one level is supported)",
@@ -1384,6 +1387,32 @@ mod tests {
     }
 
     #[test]
+    fn implicit_root_dir_scopes_materialized_top_level_steps() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join(".git")).unwrap();
+        let project_dir = tmp.path().join("packages/web");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let mut config = Config {
+            path: project_dir.join("hk.pkl"),
+            ..Default::default()
+        };
+        config.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+
+        config.apply_implicit_root_dir().unwrap();
+
+        for hook_name in ["check", "fix", "pre-commit"] {
+            let StepOrGroup::Step(lint) = &config.hooks[hook_name].steps["lint"] else {
+                panic!("expected step");
+            };
+            assert_eq!(lint.dir.as_deref(), Some("packages/web"));
+        }
+    }
+
+    #[test]
     fn hkrc_top_level_steps_are_additive_and_project_wins() {
         let mut project = Config::default();
         project.steps.insert(
@@ -1469,6 +1498,25 @@ mod tests {
         assert_eq!(fmt.dir.as_deref(), Some("packages/web/nested"));
         // step env wins over subproject config env
         assert_eq!(fmt.env.get("FOO").map(String::as_str), Some("from-step"));
+    }
+
+    #[test]
+    fn merge_subproject_materializes_top_level_steps() {
+        let mut root = Config::default();
+        let mut sub = Config::default();
+        sub.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+
+        root.merge_subproject("packages/web", None, sub).unwrap();
+
+        for hook_name in ["check", "fix", "pre-commit"] {
+            let StepOrGroup::Step(lint) = &root.hooks[hook_name].steps["packages/web:lint"] else {
+                panic!("expected step");
+            };
+            assert_eq!(lint.dir.as_deref(), Some("packages/web"));
+        }
     }
 
     #[test]

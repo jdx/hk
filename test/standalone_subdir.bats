@@ -12,14 +12,10 @@ teardown() {
     mkdir -p sub
     cat <<EOF > sub/hk.pkl
 amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["list"] {
-                glob = "*.txt"
-                check = "for f in {{files}}; do echo checked \$f; done"
-            }
-        }
+steps {
+    ["list"] {
+        glob = "*.txt"
+        check = "for f in {{files}}; do echo checked \$f; done"
     }
 }
 EOF

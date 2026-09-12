@@ -22,27 +22,19 @@ amends "$PKL_PATH/Config.pkl"
 env {
     ["GREETING"] = "hello-from-sub"
 }
-hooks {
-    ["check"] {
-        steps {
-            ["greet"] {
-                glob = "*.txt"
-                check = "echo GREETING=\$GREETING; for f in {{files}}; do echo checked \$f; done; exit 1"
-            }
-        }
+steps {
+    ["greet"] {
+        glob = "*.txt"
+        check = "echo GREETING=\$GREETING; for f in {{files}}; do echo checked \$f; done; exit 1"
     }
 }
 EOF
     cat <<EOF > packages/a/hk.pkl
 amends "$PKL_PATH/Config.pkl"
-hooks {
-    ["check"] {
-        steps {
-            ["pkga"] {
-                glob = "*.txt"
-                check = "echo pkga saw {{files}}; exit 1"
-            }
-        }
+steps {
+    ["pkga"] {
+        glob = "*.txt"
+        check = "echo pkga saw {{files}}; exit 1"
     }
 }
 EOF
