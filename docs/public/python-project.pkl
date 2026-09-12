@@ -3,13 +3,13 @@ amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.
 
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping<String, StepDefinition> {
   ["ruff"] = Builtins.ruff
   ["ruff-format"] = (Builtins.ruff_format) {
-    depends = "ruff"
+    step { depends = "ruff" }
   }
   ["mypy"] = (Builtins.mypy) {
-    profiles = List("types")
+    step { profiles = List("types") }
   }
 }
 

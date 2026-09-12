@@ -36,7 +36,7 @@ For a push hook that always includes mypy, add a `pre-push` hook using an amende
 ["pre-push"] {
   steps = (linters) {
     ["mypy"] = (Builtins.mypy) {
-      profiles = List()
+      step { profiles = List() }
     }
   }
 }

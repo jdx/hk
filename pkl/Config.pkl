@@ -306,7 +306,7 @@ class Hook {
   /// Steps are the individual linters that make up a hook.
   /// Steps can run concurrently, subject to dependencies, groups, and file locks, up to
   /// [`HK_JOBS`](https://hk.jdx.dev/environment_variables#hk-jobs) at a time.
-  steps: Mapping<String, Step | Group> = new Mapping<String, Step> {}
+  steps: Mapping<String, StepDefinition | Group> = new Mapping<String, Step> {}
 }
 
 /// A positive file-selection clause used by `Step.match_any`.
