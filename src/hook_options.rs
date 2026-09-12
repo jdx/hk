@@ -234,7 +234,9 @@ impl HookOptions {
         match config.hooks.get(name) {
             Some(hook) => {
                 if !hook.enabled {
-                    log::debug!("hook '{name}' is disabled, skipping");
+                    warn!(
+                        "hook '{name}' is disabled by hooks[\"{name}\"].enabled = false"
+                    );
                     crate::structured_output::emit_noop_run(
                         Settings::cli_output_format(),
                         name,
