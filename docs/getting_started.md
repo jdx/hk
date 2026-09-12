@@ -77,7 +77,7 @@ This complete example runs Prettier, ESLint, and Ruff. Install and configure tho
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping<String, StepDefinition> {
   ["prettier"] = Builtins.prettier
   ["eslint"] = Builtins.eslint
   ["ruff"] = Builtins.ruff

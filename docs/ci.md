@@ -60,7 +60,7 @@ Use profiles for checks that are too expensive for every commit:
 
 ```pkl
 ["typecheck"] = (Builtins.tsc) {
-  profiles = List("slow")
+  step { profiles = List("slow") }
 }
 ```
 

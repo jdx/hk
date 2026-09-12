@@ -35,9 +35,11 @@ Amend a builtin to keep its defaults while changing specific properties:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  glob = List("*.js", "*.ts", "*.json")
-  exclude = List("**/generated/**")
-  batch = false
+  step {
+    glob = List("*.js", "*.ts", "*.json")
+    exclude = List("**/generated/**")
+    batch = false
+  }
 }
 ```
 
@@ -47,10 +49,10 @@ Use dependencies for ordering and profiles for optional checks:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  depends = "eslint"
+  step { depends = "eslint" }
 }
 ["mypy"] = (Builtins.mypy) {
-  profiles = List("types")
+  step { profiles = List("types") }
 }
 ```
 
