@@ -5,6 +5,7 @@
 ## Start here
 
 - [Getting started](https://hk.jdx.dev/getting_started.html): Set up hk in an existing Git repository, then use the same linters when you commit, work locally, and run CI.
+- [Migrating to hk v2](https://hk.jdx.dev/migration-v2.html): hk v2 removes deprecated configuration entry points and makes shared steps and staging behavior explicit.
 - [Why hk?](https://hk.jdx.dev/why-hk.html): hk is designed for projects that run several linters and formatters over overlapping files. It combines concurrent execution with file-level coordination, so tools can work together without writing to…
 - [Pkl essentials](https://hk.jdx.dev/pkl_introduction.html): hk uses Pkl for typed configuration. Most projects need only a few features: amend the schema, import builtins, define steps, and reuse them across hooks.
 
