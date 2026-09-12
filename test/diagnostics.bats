@@ -334,7 +334,7 @@ hooks {
                 check_first = true
                 check_failed_files = true
                 check_list_files = "printf 'input.txt\\n'; printf 'listing diagnostic\\n' >&2; exit 1"
-                check = "touch ready; sleep 5"
+                check = "touch ready; while :; do sleep 1; done"
                 output_summary = "combined"
             }
             ["stop"] {
