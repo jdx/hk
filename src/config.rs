@@ -1577,10 +1577,9 @@ mod tests {
         ));
         sub_check.fail_on_fix = true;
         sub_check.report = Some("echo report".parse().unwrap());
-        sub_check.steps.insert(
-            "sub".to_string(),
-            StepOrGroup::Step(Box::new(step("sub"))),
-        );
+        sub_check
+            .steps
+            .insert("sub".to_string(), StepOrGroup::Step(Box::new(step("sub"))));
         sub.hooks.insert("check".to_string(), sub_check);
 
         root.merge_subproject("packages/web", None, sub).unwrap();
