@@ -1,10 +1,6 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
 
-@Builtins.meta {
-  category = "Infrastructure"
-  description = "Pin GitHub Actions to update actions to latest versions"
-}
 class PinactUpdateStep extends Config.Step {
   hidden version: "3" | "4" = "4"
   glob = List(".github/workflows/*", "**/action.*")
@@ -40,4 +36,8 @@ class PinactUpdateStep extends Config.Step {
   // Tests removed: they check against live GitHub Action versions, making them flaky
 }
 
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Pin GitHub Actions to update actions to latest versions"
+}
 const pinact_update = (new PinactUpdateStep {}) as Config.Step

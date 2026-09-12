@@ -2,13 +2,6 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
-@Builtins.meta {
-  category = "JavaScript/TypeScript"
-  description = "Find unused files, dependencies, and exports"
-  project_indicators {
-    new { file = "package.json"; contains = "\"knip\"" }
-  }
-}
 class KnipStep extends Config.Step {
   hidden strict: Boolean = false
   workspace_indicator = "package.json"
@@ -111,4 +104,11 @@ class KnipStep extends Config.Step {
       }
 }
 
+@Builtins.meta {
+  category = "JavaScript/TypeScript"
+  description = "Find unused files, dependencies, and exports"
+  project_indicators {
+    new { file = "package.json"; contains = "\"knip\"" }
+  }
+}
 knip = (new KnipStep {}) as Config.Step

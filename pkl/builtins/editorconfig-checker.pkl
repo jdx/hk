@@ -2,10 +2,6 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
-@Builtins.meta {
-  category = "EditorConfig"
-  description = "Validate files against EditorConfig rules"
-}
 class EditorconfigCheckerStep extends Config.Step {
   hidden version: "3" | "4" = "4"
   types = List("text")
@@ -40,4 +36,8 @@ class EditorconfigCheckerStep extends Config.Step {
   }
 }
 
+@Builtins.meta {
+  category = "EditorConfig"
+  description = "Validate files against EditorConfig rules"
+}
 editorconfig_checker = (new EditorconfigCheckerStep {}) as Config.Step
