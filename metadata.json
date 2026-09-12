@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BSX49PG61Y2JZHRDAD75XC",
   "strategy": "manual-commit",
   "branch": "rebase-v2-shared-steps",
-  "checkpoints_count": 12,
+  "checkpoints_count": 13,
   "files_touched": [
     "src/hook_options.rs"
   ],
@@ -23,6 +23,13 @@
     {
       "metadata": "/3/metadata.json",
       "prompt": ""
+    },
+    {
+      "metadata": "/4/metadata.json",
+      "transcript": "/4/full.jsonl",
+      "compact_transcript": "/4/transcript.jsonl",
+      "content_hash": "/4/content_hash.txt",
+      "prompt": "/4/prompt.txt"
     }
   ]
 }
