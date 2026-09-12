@@ -16,7 +16,7 @@ hooks = new {
         glob = "**/*.rs"
         check = "! rg -e 'dbg!' {{files}}"
       }
-      ["prettier"] = (Builtins.prettier.step) {
+      ["prettier"] = (Builtins.prettier) {
         glob = List("*.js", "*.ts", "*.yml", "*.yaml") // override the default globs
       }
     }

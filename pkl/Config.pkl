@@ -43,10 +43,13 @@ class Command {
 
 typealias CommandEffect = "read" | "write" | "destructive"
 typealias DiagnosticFormat = "sarif" | "cargo-json" | "eslint-json" | "gcc"
-typealias StepDefinition = Step | BuiltinFactory
 
 /// A command paired with its declared effect on user or project state.
 /// Commands that do not use CommandSpec remain valid and have an unknown effect.
+///
+/// This class is abstract because neither property has a meaningful default;
+/// pklr 2.x otherwise attempts to instantiate the union-typed `command` and
+/// rejects the schema before a concrete command specification is provided.
 class CommandSpec {
   abstract command: String | Script | Command
   abstract effect: CommandEffect
@@ -306,7 +309,7 @@ class Hook {
   /// Steps are the individual linters that make up a hook.
   /// Steps can run concurrently, subject to dependencies, groups, and file locks, up to
   /// [`HK_JOBS`](https://hk.jdx.dev/environment_variables#hk-jobs) at a time.
-  steps: Mapping<String, StepDefinition | Group> = new Mapping<String, Step> {}
+  steps: Mapping<String, Step | Group> = new Mapping<String, Step> {}
 }
 
 /// A positive file-selection clause used by `Step.match_any`.
@@ -639,7 +642,7 @@ open class Step {
   /// ```pkl
   /// local linters = new Mapping {
   ///     ["eslint"] = (Builtins.eslint) {
-  ///         step { dir = "frontend" }
+  ///         dir = "frontend"
   ///     }
   /// }
   /// ```
@@ -674,7 +677,7 @@ open class Step {
   /// ```pkl
   /// local linters = new Mapping {
   ///     ["prettier"] = (Builtins.prettier) {
-  ///         step { profiles = List("slow") }
+  ///         profiles = List("slow")
   ///     }
   /// }
   /// ```
@@ -684,7 +687,7 @@ open class Step {
   /// ```pkl
   /// local linters = new Mapping {
   ///     ["prettier"] = (Builtins.prettier) {
-  ///         step { profiles = List("!slow") }
+  ///         profiles = List("!slow")
   ///     }
   /// }
   /// ```
@@ -1013,15 +1016,6 @@ open class Step {
   tests: Mapping<String, StepTest> = new Mapping<String, StepTest> {}
 }
 
-/// A configurable builtin using Pkl's class-as-a-function pattern.
-///
-/// Instances are accepted wherever a Step is accepted and render as their
-/// `step` output. Amend the factory for builtin-specific options, or amend its
-/// nested `step` property for generic Step overrides.
-abstract class BuiltinFactory {
-  step: Step
-}
-
 class StepTest {
   /// What to run: "check" or "fix"
   run: "check" | "fix" = "check"
@@ -1101,35 +1095,10 @@ class Group {
   exclude: (String | List<String> | Regex)?
 
   /// Child steps in this group.
-  steps: Mapping<String, StepDefinition> = new Mapping<String, Step> {}
+  steps: Mapping<String, Step> = new Mapping<String, Step> {}
 }
 
 output {
-  local function renderStep(step) = new Dynamic {
-    _type = "step"
-    ...step
-      .toMap()
-      .mapValues((key, value) ->
-        if ((key == "depends" || key == "stage") && value is String)
-          List(value) // permits "s" instead of List("s")
-        else if (key == "stash" && value is Boolean)
-          if (value) "git" else "none"
-        else
-          value
-      )
-      .toDynamic()
-  }
-
-  // pklr preserves the nested factory output when a StepDefinition is amended
-  // through a Mapping whose default value type is Step. Unwrap that shape so
-  // shorthand custom steps and builtin factories can share the same mapping.
-  local function unwrapStep(step) =
-    let (properties = step.toMap())
-      if (properties.containsKey("step") && properties["step"] is Step)
-        properties["step"]
-      else
-        step
-
   renderer {
     converters {
       [Regex] = (r) -> new Mapping {
@@ -1147,8 +1116,20 @@ output {
               v
           )
       }
-      [BuiltinFactory] = (factory) -> renderStep(factory.step)
-      [Step] = (step) -> renderStep(unwrapStep(step))
+      [Step] = (s) -> new Dynamic {
+        _type = "step"
+        ...s
+          .toMap()
+          .mapValues((k, v) ->
+            if ((k == "depends" || k == "stage") && v is String)
+              List(v) // permits "s" instead of List("s")
+            else if (k == "stash" && v is Boolean)
+              if (v) "git" else "none"
+            else
+              v
+          )
+          .toDynamic()
+      }
     }
   }
 }

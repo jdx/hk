@@ -12,10 +12,10 @@ local linters = new Mapping {
   // JS/TS: prettier uses check_list_files to narrow down files
   // eslint has no diff mode so it needs a write lock
   // Both touch the same **/*.js **/*.ts files — hk coordinates with locks
-  ["prettier"] = (Builtins.prettier.step) {
+  ["prettier"] = (Builtins.prettier) {
     glob = List("**/*.js", "**/*.ts", "**/*.css", "**/*.md")
   }
-  ["eslint"] = (Builtins.eslint.step) {
+  ["eslint"] = (Builtins.eslint) {
     glob = List("**/*.js", "**/*.ts")
   }
 

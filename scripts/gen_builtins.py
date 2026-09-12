@@ -13,11 +13,8 @@ COMMAND_FIELDS = ("check", "check_list_files", "check_diff", "fix")
 HEADER = """\
 // THIS FILE IS GENERATED: Run 'mise run pkl:gen' to generate.
 
+import* "builtins/*.pkl" as Builtins
 import "Config.pkl" as Config
-
-"""
-
-FACTORY_HEADER = """\
 
 /// Indicator for detecting if a builtin is relevant to a project
 class ProjectIndicator {
@@ -44,46 +41,6 @@ class meta extends Annotation {
 }
 
 """
-
-INTERNAL_VARIANTS = {
-    "editorconfig_checker_v3",
-    "knip_strict",
-    "pinact_v3",
-    "pinact_update_v3",
-}
-
-OPTION_FACTORIES = {
-    "editorconfig_checker": (
-        '  version: "3" | "4" = "4"\n',
-        'if (version == "3") {editorconfig_checker_v3}.editorconfig_checker_v3 '
-        'else {raw}.editorconfig_checker',
-    ),
-    "gitleaks": (
-        "  staged: Boolean = false\n",
-        "if (staged) ({raw}.gitleaks) {{ staged = true }} else {raw}.gitleaks",
-    ),
-    "knip": (
-        "  strict: Boolean = false\n",
-        "if (strict) {knip_strict}.knip_strict else {raw}.knip",
-    ),
-    "pinact": (
-        '  version: "3" | "4" = "4"\n',
-        'if (version == "3") {pinact_v3}.pinact_v3 else {raw}.pinact',
-    ),
-    "pinact_update": (
-        '  version: "3" | "4" = "4"\n',
-        'if (version == "3") {pinact_update_v3}.pinact_update_v3 '
-        'else {raw}.pinact_update',
-    ),
-}
-
-
-def class_name(identifier):
-    return "".join(part.capitalize() for part in identifier.split("_"))
-
-
-def raw_alias(identifier):
-    return f"Raw{class_name(identifier)}"
 
 
 # Deprecated aliases. These point at a canonical builtin so loading
@@ -119,7 +76,6 @@ def validate_effect_coverage():
     for name, step in builtins.items():
         if not isinstance(step, dict):
             continue
-        step = step.get("step", step)
         for field in COMMAND_FIELDS:
             command = step.get(field)
             if command is not None and (
@@ -134,7 +90,7 @@ def validate_effect_coverage():
 
 
 def main():
-    skip = {alias for alias, _, _, _ in DEPRECATED_ALIASES} | INTERNAL_VARIANTS
+    skip = {alias for alias, _, _, _ in DEPRECATED_ALIASES}
 
     # Generate pkl/Builtins.pkl
     with open("pkl/Builtins.pkl", "w", newline="\n") as f:
@@ -142,32 +98,12 @@ def main():
         for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             identifier = filename.replace("-", "_")
-            f.write(f'import "builtins/{filename}.pkl" as {raw_alias(identifier)}\n')
-        f.write(FACTORY_HEADER)
-        for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
-            filename = os.path.splitext(os.path.basename(filepath))[0]
-            identifier = filename.replace("-", "_")
             if identifier in skip:
                 continue
-            factory_class = class_name(identifier)
-            properties, expression = OPTION_FACTORIES.get(
-                identifier,
-                ("", f"{{raw}}.{identifier}"),
-            )
-            expression = expression.format(
-                raw=raw_alias(identifier),
-                editorconfig_checker_v3=raw_alias("editorconfig_checker_v3"),
-                knip_strict=raw_alias("knip_strict"),
-                pinact_v3=raw_alias("pinact_v3"),
-                pinact_update_v3=raw_alias("pinact_update_v3"),
-            )
-            f.write(f"class {factory_class} extends Config.BuiltinFactory {{\n")
-            f.write(properties)
-            f.write(f"  step = {expression}\n")
-            f.write("}\n")
-            f.write(f"{identifier} = new {factory_class} {{}}\n")
+            f.write(f'{identifier} = Builtins["builtins/{filename}.pkl"].{identifier}\n')
 
-        f.write("\nall = new Mapping<String, Config.BuiltinFactory> {\n")
+        f.write("\n// Internal inventory used by builtin tests and documentation generation.\n")
+        f.write("all = new Mapping<String, Config.Step> {\n")
         for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
             filename = os.path.splitext(os.path.basename(filepath))[0]
             identifier = filename.replace("-", "_")

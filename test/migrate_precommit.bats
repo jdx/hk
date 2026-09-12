@@ -29,7 +29,6 @@ PRECOMMIT
     run cat hk.pkl
     assert_output --partial "Builtins.prettier"
     assert_output --partial "Builtins.eslint"
-    assert_output --partial 'step {'
     assert_output --partial 'hooks {'
     assert_output --partial '["pre-commit"]'
 

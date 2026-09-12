@@ -17,7 +17,7 @@ A configuration amends hk’s [Pkl schema](/pkl_introduction) and defines named 
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
-local linters = new Mapping<String, StepDefinition> {
+local linters = new Mapping<String, Step> {
   ["eslint"] = Builtins.eslint
   ["prettier"] = Builtins.prettier
 }
@@ -205,10 +205,8 @@ For partial fixers, set `check_after_diff = true` alongside `check` and `check_d
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  step {
-    glob = List("*.js", "*.ts", "*.json")
-    exclude = List("**/generated/**")
-  }
+  glob = List("*.js", "*.ts", "*.json")
+  exclude = List("**/generated/**")
 }
 ```
 
@@ -220,7 +218,7 @@ Use `depends` when the result of one step is needed by another:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  step { depends = "eslint" }
+  depends = "eslint"
 }
 ```
 
@@ -251,7 +249,7 @@ Profiles select optional steps:
 
 ```pkl
 ["typecheck"] = (Builtins.tsc) {
-  step { profiles = List("slow") }
+  profiles = List("slow")
 }
 ```
 
@@ -271,10 +269,8 @@ Use `workspace_indicator` for a tool that works on a project identified by a fil
 
 ```pkl
 ["cargo-clippy"] = (Builtins.cargo_clippy) {
-  step {
-    workspace_indicator = "Cargo.toml"
-    check = "cargo clippy --manifest-path {{workspace_indicator}}"
-  }
+  workspace_indicator = "Cargo.toml"
+  check = "cargo clippy --manifest-path {{workspace_indicator}}"
 }
 ```
 
