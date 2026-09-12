@@ -4,7 +4,7 @@ amends "pkl/Config.pkl"
 import "pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
-local linters = new Mapping<String, Step | Group> {
+local linters = new Mapping<String, StepDefinition | Group> {
   ["cargo-fmt"] = Builtins.cargo_fmt
   // TODO: fails on releases with hk-example.pkl
   // ["pkl"] {
