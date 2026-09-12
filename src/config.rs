@@ -1580,7 +1580,7 @@ mod tests {
         );
         sub.hooks.insert("pre-commit".to_string(), disabled);
 
-        root.merge_subproject("sub", sub).unwrap();
+        root.merge_subproject("sub", None, sub).unwrap();
 
         assert!(!root.hooks.contains_key("pre-commit"));
     }
