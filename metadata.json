@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BWA7T8HVXGTXSFZPW8B02G",
   "strategy": "manual-commit",
   "branch": "rebase-v2-shared-steps",
-  "checkpoints_count": 17,
+  "checkpoints_count": 18,
   "files_touched": [
     "src/hook_options.rs"
   ],
@@ -37,6 +37,20 @@
       "compact_transcript": "/5/transcript.jsonl",
       "content_hash": "/5/content_hash.txt",
       "prompt": "/5/prompt.txt"
+    },
+    {
+      "metadata": "/6/metadata.json",
+      "transcript": "/6/full.jsonl",
+      "compact_transcript": "/6/transcript.jsonl",
+      "content_hash": "/6/content_hash.txt",
+      "prompt": "/6/prompt.txt"
     }
-  ]
+  ],
+  "token_usage": {
+    "input_tokens": 816,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 147840,
+    "output_tokens": 191,
+    "api_call_count": 1
+  }
 }
