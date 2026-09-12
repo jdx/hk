@@ -1,0 +1,18 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2BM7QB2WMMQ67116XVKXMRQ",
+  "strategy": "manual-commit",
+  "branch": "rebase-v2-remove-pkl-cli",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/environment_variables.md",
+    "docs/logging.md",
+    "docs/pkl_introduction.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "prompt": ""
+    }
+  ]
+}
