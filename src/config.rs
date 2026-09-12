@@ -268,6 +268,7 @@ impl Config {
             let imports_cache_path =
                 cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
             let imports_cache_mgr = CacheManagerBuilder::new(imports_cache_path)
+                .with_cache_key(pkl_http_rewrite_cache_key())
                 .with_fresh_files(vec![path.clone()])
                 .build::<ImportAnalysis>();
 
@@ -293,7 +294,8 @@ impl Config {
         } else {
             cache_dir.join("resolved-config.json")
         };
-        let config_cache_builder = CacheManagerBuilder::new(config_cache_path);
+        let config_cache_builder = CacheManagerBuilder::new(config_cache_path)
+            .with_cache_key(pkl_http_rewrite_cache_key());
         let config_cache_mgr = if has_untracked_imports {
             config_cache_builder.with_fresh_files(fresh_files)
         } else {
@@ -779,6 +781,13 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
     let json = block_on_pklr(evaluator.eval_to_json(path))?
         .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
     serde_json::from_value(json).map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))
+}
+
+fn pkl_http_rewrite_cache_key() -> String {
+    match env::HK_PKL_HTTP_REWRITE.as_deref() {
+        Some(rewrite) => format!("HK_PKL_HTTP_REWRITE={rewrite}"),
+        None => "HK_PKL_HTTP_REWRITE=<unset>".to_string(),
+    }
 }
 
 fn block_on_pklr<T>(future: impl Future<Output = pklr::Result<T>>) -> Result<pklr::Result<T>> {
