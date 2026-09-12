@@ -25,7 +25,7 @@ import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/B
 
     output.push_str("steps = linters\n");
 
-    let implicit_hooks = ["pre-commit", "check", "fix"];
+    let implicit_hooks = ["pre-commit"];
     let disabled_hooks = implicit_hooks
         .iter()
         .filter(|name| !hooks.iter().any(|hook| hook == **name))
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn test_generate_pkl_empty() {
-        let hooks = vec!["check".to_string()];
+        let hooks = vec![];
         let pkl = generate_pkl(&[], &hooks, "1.34.0");
         assert!(pkl.contains("amends"));
         assert!(pkl.contains("hooks"));
@@ -103,11 +103,7 @@ mod tests {
     fn test_generate_pkl_with_builtins() {
         let prettier = BUILTINS_META.iter().find(|b| b.name == "prettier").unwrap();
         let builtins = vec![prettier];
-        let hooks = vec![
-            "pre-commit".to_string(),
-            "check".to_string(),
-            "fix".to_string(),
-        ];
+        let hooks = vec!["pre-commit".to_string()];
         let pkl = generate_pkl(&builtins, &hooks, "1.34.0");
 
         assert!(pkl.contains("Builtins.prettier"));
@@ -118,7 +114,7 @@ mod tests {
     #[test]
     fn test_generate_pkl_with_builtin_options() {
         let gitleaks = BUILTINS_META.iter().find(|b| b.name == "gitleaks").unwrap();
-        let pkl = generate_pkl(&[gitleaks], &["check".to_string()], "1.34.0");
+        let pkl = generate_pkl(&[gitleaks], &["pre-commit".to_string()], "1.34.0");
 
         assert!(pkl.contains("Builtins.gitleaks"));
     }

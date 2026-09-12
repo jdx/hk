@@ -56,8 +56,6 @@ pub fn pick_builtins(detected: &[Detection]) -> Result<Vec<&'static BuiltinMeta>
 pub fn pick_hooks() -> Result<Vec<String>> {
     let hooks = vec![
         ("pre-commit", "Run linters before committing"),
-        ("check", "Manual check command (hk check)"),
-        ("fix", "Manual fix command (hk fix)"),
         ("pre-push", "Run linters before pushing"),
     ];
 

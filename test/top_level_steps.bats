@@ -72,5 +72,18 @@ EOF
 
     run hk check --all
     assert_success
+    assert_output --partial 'hook '\''check'\'' is disabled by hooks["check"].enabled = false'
     refute_output --partial "inherited"
+}
+
+@test "every builtin is accepted in the top-level steps mapping" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+
+steps = Builtins.all
+EOF
+
+    run hk validate
+    assert_success
 }

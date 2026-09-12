@@ -529,6 +529,9 @@ impl Config {
         // Hooks: additive, project wins on same-named step collision
         for (hook_name, hkrc_hook) in hkrc.hooks {
             if let Some(project_hook) = self.hooks.get_mut(&hook_name) {
+                if !hkrc_hook.enabled {
+                    continue;
+                }
                 for (step_name, hkrc_step) in hkrc_hook.steps {
                     project_hook.steps.entry(step_name).or_insert(hkrc_step);
                 }
@@ -747,13 +750,19 @@ impl Config {
             if !sub_hook.enabled {
                 continue;
             }
+            if sub_hook.fix.is_some()
+                || sub_hook.stash.is_some()
+                || sub_hook.stage.is_some()
+                || sub_hook.fail_on_fix
+                || sub_hook.report.is_some()
+            {
+                debug!(
+                    "subprojects: ignoring hook-level settings for '{hook_name}' in {}",
+                    sub.path.display()
+                );
+            }
             let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| Hook {
                 name: hook_name.clone(),
-                fix: sub_hook.fix,
-                stash: sub_hook.stash.clone(),
-                stage: sub_hook.stage,
-                fail_on_fix: sub_hook.fail_on_fix,
-                report: sub_hook.report.clone(),
                 ..Default::default()
             });
             // Names of the subproject hook's steps and groups, for rewriting
@@ -1460,6 +1469,33 @@ mod tests {
     }
 
     #[test]
+    fn hkrc_disabled_hook_does_not_add_steps_to_enabled_project_hook() {
+        let mut project = Config::default();
+        let mut project_check = hook("check");
+        project_check.steps.insert(
+            "project".to_string(),
+            StepOrGroup::Step(Box::new(step("project"))),
+        );
+        project.hooks.insert("check".to_string(), project_check);
+
+        let mut user = Config::default();
+        let mut user_check = hook("check");
+        user_check.enabled = false;
+        user_check.steps.insert(
+            "user".to_string(),
+            StepOrGroup::Step(Box::new(step("user"))),
+        );
+        user.hooks.insert("check".to_string(), user_check);
+
+        project.merge_from_hkrc(user);
+
+        let check = &project.hooks["check"];
+        assert!(check.enabled);
+        assert!(check.steps.contains_key("project"));
+        assert!(!check.steps.contains_key("user"));
+    }
+
+    #[test]
     fn merge_subproject_scopes_flat_steps() {
         let mut root = Config::default();
         let mut sub = Config::default();
@@ -1521,6 +1557,43 @@ mod tests {
             };
             assert_eq!(lint.dir.as_deref(), Some("packages/web"));
         }
+    }
+
+    #[test]
+    fn subproject_hook_settings_are_ignored_before_root_hook_materialization() {
+        let mut root = Config::default();
+        root.steps.insert(
+            "root".to_string(),
+            StepOrGroup::Step(Box::new(step("root"))),
+        );
+
+        let mut sub = Config::default();
+        sub.path = PathBuf::from("packages/web/hk.pkl");
+        let mut sub_check = hook("check");
+        sub_check.fix = Some(true);
+        sub_check.stage = Some(true);
+        sub_check.stash = Some(crate::hook::StashSetting::Method(
+            crate::git::StashMethod::Git,
+        ));
+        sub_check.fail_on_fix = true;
+        sub_check.report = Some("echo report".parse().unwrap());
+        sub_check.steps.insert(
+            "sub".to_string(),
+            StepOrGroup::Step(Box::new(step("sub"))),
+        );
+        sub.hooks.insert("check".to_string(), sub_check);
+
+        root.merge_subproject("packages/web", None, sub).unwrap();
+        root.materialize_default_hooks().unwrap();
+
+        let check = &root.hooks["check"];
+        assert_eq!(check.fix, Some(false));
+        assert_eq!(check.stage, Some(false));
+        assert_eq!(check.stash, None);
+        assert!(!check.fail_on_fix);
+        assert_eq!(check.report, None);
+        assert!(check.steps.contains_key("root"));
+        assert!(check.steps.contains_key("packages/web:sub"));
     }
 
     #[test]
