@@ -1,4 +1,3 @@
-use std::ffi::{OsStr, OsString};
 use std::num::NonZero;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -70,6 +69,9 @@ struct Cli {
     /// Output in JSON format
     #[usage(long, global)]
     json: bool,
+    /// Removed in hk v2; retained only to report migration guidance
+    #[usage(long, global, hide, value_name = "PATH", value_hint = ValueHint::FilePath)]
+    hkrc: Option<PathBuf>,
     #[usage(subcommand)]
     command: Commands,
 }
@@ -130,6 +132,8 @@ enum Commands {
     Config(Box<config::Config>),
     #[usage(alias = "f")]
     Fix(Box<fix::Fix>),
+    #[usage(hide)]
+    Generate(Box<RemovedGenerate>),
     Init(Box<init::Init>),
     #[usage(alias = "i")]
     Install(Box<install::Install>),
@@ -147,6 +151,10 @@ enum Commands {
     Version(Box<version::Version>),
 }
 
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
+struct RemovedGenerate {}
+
 impl Commands {
     fn output_format(&self) -> Option<crate::structured_output::OutputFormat> {
         match self {
@@ -159,18 +167,20 @@ impl Commands {
 }
 
 pub async fn run() -> Result<Option<std::process::ExitStatus>> {
-    if let Some(removed) = removed_v1_interface(std::env::args_os().skip(1)) {
-        return match removed {
-            RemovedV1Interface::Generate => Err(eyre::eyre!(
-                "`hk generate` was removed in hk v2; use `hk init`"
-            )),
-            RemovedV1Interface::Hkrc => Err(eyre::eyre!(
-                "--hkrc was removed in hk v2; use {}/config.pkl for global config or hk.local.pkl for project overrides",
-                env::HK_CONFIG_DIR.display()
-            )),
-        };
-    }
     let args = Cli::parse();
+    if args.hkrc.is_some() {
+        return Err(eyre::eyre!(
+            "--hkrc was removed in hk v2; use {}/config.pkl for global config or hk.local.pkl for project overrides\n\nSee {}",
+            env::HK_CONFIG_DIR.display(),
+            crate::config::V2_MIGRATION_URL
+        ));
+    }
+    if matches!(args.command, Commands::Generate(_)) {
+        return Err(eyre::eyre!(
+            "`hk generate` was removed in hk v2; use `hk init`\n\nSee {}",
+            crate::config::V2_MIGRATION_URL
+        ));
+    }
     if let Some(cd) = &args.cd {
         return reexec_for_cd(cd).map(Some);
     }
@@ -276,6 +286,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         Commands::Completion(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
         Commands::Fix(cmd) => cmd.hook.run("fix").await,
+        Commands::Generate(_) => unreachable!("removed command handled after parsing"),
         Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
         Commands::Mcp(cmd) => cmd.run().await,
@@ -292,68 +303,9 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     Ok(None)
 }
 
-#[derive(Debug, Eq, PartialEq)]
-enum RemovedV1Interface {
-    Generate,
-    Hkrc,
-}
-
-fn removed_v1_interface(args: impl IntoIterator<Item = OsString>) -> Option<RemovedV1Interface> {
-    let mut skip_value = false;
-    let mut command = None;
-    for arg in args {
-        if skip_value {
-            skip_value = false;
-            continue;
-        }
-        if arg == OsStr::new("--") {
-            break;
-        }
-        if arg == OsStr::new("--hkrc") || arg.to_str().is_some_and(|arg| arg.starts_with("--hkrc="))
-        {
-            return Some(RemovedV1Interface::Hkrc);
-        }
-        if matches!(
-            arg.to_str(),
-            Some("--cd" | "--format" | "--jobs" | "-j" | "--profile" | "-p")
-        ) {
-            skip_value = true;
-            continue;
-        }
-        if command.is_some() || arg.to_string_lossy().starts_with('-') {
-            continue;
-        }
-        command = Some(arg == OsStr::new("generate"));
-    }
-    command
-        .filter(|is_generate| *is_generate)
-        .map(|_| RemovedV1Interface::Generate)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn detects_removed_generate_command_without_adding_it_to_usage() {
-        let args = ["--profile", "generate", "--cd=/tmp", "generate"]
-            .into_iter()
-            .map(OsString::from);
-        assert_eq!(
-            removed_v1_interface(args),
-            Some(RemovedV1Interface::Generate)
-        );
-
-        let args = ["--profile", "generate", "check"]
-            .into_iter()
-            .map(OsString::from);
-        assert_eq!(removed_v1_interface(args), None);
-
-        let args = ["check", "--hkrc=custom.pkl"]
-            .into_iter()
-            .map(OsString::from);
-        assert_eq!(removed_v1_interface(args), Some(RemovedV1Interface::Hkrc));
-    }
 
     #[test]
     fn test_subcommands_are_sorted() {

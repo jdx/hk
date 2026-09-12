@@ -373,13 +373,8 @@ skip_steps = List("optional-check")
 
 For user files amending `Config.pkl`, hooks and steps merge additively with the project: user configuration adds names the project does not define, and project definitions win on collisions. Use `hk.local.pkl` to replace project behavior locally.
 
-::: warning Legacy user schema
-Files amending `UserConfig.pkl` use older precedence: their `display_skip_reasons`, `hide_warnings`, `warnings`, `stage`, and environment values override the project. Amend `Config.pkl` to use the precedence described above.
-:::
-
-::: warning Legacy hkrc paths
-`.hkrc.pkl`, `~/.hkrc.pkl`, and `--hkrc` are deprecated. Discovery still checks the legacy files before the user configuration directory. Migrate project overrides to `hk.local.pkl` and shared user defaults to `~/.config/hk/config.pkl`.
-:::
+For removed `UserConfig.pkl` fields and legacy paths, see the
+[hk v2 migration guide](/migration-v2).
 
 Global configuration is separate from [global hook installation](/getting_started#install-hooks). An installed hook in a repository without a project configuration exits silently.
 

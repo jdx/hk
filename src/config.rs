@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use crate::{Result, cache::CacheManagerBuilder, env, hash, hook::Hook, version};
 use eyre::{WrapErr, bail};
 
+pub const V2_MIGRATION_URL: &str = "https://hk.jdx.dev/migration-v2";
+
 impl Config {
     /// Return the resolved config for this hk invocation.
     ///
@@ -41,11 +43,14 @@ impl Config {
                 }
             }
             "toml" | "yaml" | "yml" | "json" => bail!(
-                "{} configuration was removed in hk v2; convert {} to hk.pkl and amend Config.pkl",
+                "{} configuration was removed in hk v2; convert {} to hk.pkl and amend Config.pkl\n\nSee {}",
                 ext.to_uppercase(),
-                path.display()
+                path.display(),
+                V2_MIGRATION_URL
             ),
-            _ => bail!("Unsupported config extension: {ext}; hk v2 requires a Pkl config"),
+            _ => bail!(
+                "Unsupported config extension: {ext}; hk v2 requires a Pkl config\n\nSee {V2_MIGRATION_URL}"
+            ),
         };
         config.init(path, apply_env)?;
         Ok(config)
@@ -146,6 +151,11 @@ impl Config {
             config.apply_implicit_root_dir()?;
             return Ok(config);
         }
+        if env::HK_FILE.is_none()
+            && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
+        {
+            return Self::read(&path, true);
+        }
         debug!("No config file found, using default");
         let mut config = Config::default();
         config.init(Path::new(&paths[0]), true)?;
@@ -213,16 +223,18 @@ impl Config {
                 // Standard config
                 "hk.pkl",
                 ".config/hk.pkl",
-                // Soon-to-be-deprecated
-                "hk.toml",
-                "hk.yaml",
-                "hk.yml",
-                "hk.json",
             ]
             .iter()
             .map(|s| s.to_string())
             .collect()
         }
+    }
+
+    fn legacy_project_config_paths() -> Vec<String> {
+        ["hk.toml", "hk.yaml", "hk.yml", "hk.json"]
+            .into_iter()
+            .map(str::to_string)
+            .collect()
     }
 
     fn find_project_config(paths: &[String]) -> Option<PathBuf> {
@@ -330,14 +342,15 @@ impl Config {
         let cwd_path = PathBuf::from(".hkrc.pkl");
         if cwd_path.exists() {
             bail!(
-                ".hkrc.pkl was removed in hk v2; rename it to hk.local.pkl for project overrides"
+                ".hkrc.pkl was removed in hk v2; rename it to hk.local.pkl for project overrides\n\nSee {V2_MIGRATION_URL}"
             );
         }
         let home_path = env::HOME_DIR.join(".hkrc.pkl");
         if home_path.exists() {
             bail!(
-                "~/.hkrc.pkl was removed in hk v2; move it to {}/config.pkl",
-                env::HK_CONFIG_DIR.display()
+                "~/.hkrc.pkl was removed in hk v2; move it to {}/config.pkl\n\nSee {}",
+                env::HK_CONFIG_DIR.display(),
+                V2_MIGRATION_URL
             );
         }
 
@@ -352,9 +365,9 @@ impl Config {
                 run_pkl(&["eval"], &path)?
             };
 
-            if json_value.get("environment").is_some() {
+            if json_value.get("environment").is_some() || json_value.get("defaults").is_some() {
                 bail!(
-                    "UserConfig.pkl and its `environment` field were removed in hk v2; amend Config.pkl and rename `environment` to `env`"
+                    "UserConfig.pkl was removed in hk v2; amend Config.pkl, rename `environment` to `env`, and move settings from `defaults` to the top level (for example `jobs`, `skip_steps`, `skip_hooks`, and `profiles`)\n\nSee {V2_MIGRATION_URL}"
                 );
             }
             let mut hkrc_config: Config = serde_json::from_value(json_value)
@@ -956,9 +969,12 @@ fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyr
     let uses_legacy_environment = source.contains("environment {")
         || source.contains("environment=")
         || source.contains("environment =");
-    if combined.contains("UserConfig.pkl") || uses_legacy_environment {
+    let uses_legacy_defaults = source.contains("defaults {")
+        || source.contains("defaults=")
+        || source.contains("defaults =");
+    if combined.contains("UserConfig.pkl") || uses_legacy_environment || uses_legacy_defaults {
         hints.push(
-            "UserConfig.pkl was removed in hk v2; amend Config.pkl and rename `environment` to `env`.",
+            "UserConfig.pkl was removed in hk v2; amend Config.pkl, rename `environment` to `env`, and move settings from `defaults` to the top level (for example `jobs`, `skip_steps`, `skip_hooks`, and `profiles`).",
         );
     }
     if combined.contains("Types.pkl") || combined.contains("Types.Regex") {
@@ -980,7 +996,10 @@ fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyr
     let hint = if hints.is_empty() {
         String::new()
     } else {
-        format!("\n\nMigration:\n- {}", hints.join("\n- "))
+        format!(
+            "\n\nMigration:\n- {}\n\nSee {V2_MIGRATION_URL}",
+            hints.join("\n- ")
+        )
     };
     match code {
         Some(code) => eyre::eyre!(
