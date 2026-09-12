@@ -1,10 +1,60 @@
 # Changelog
 
+## [1.59.0](https://github.com/jdx/hk/compare/v1.58.1..v1.59.0) - 2026-09-12
+
+### 🚀 Features
+
+- **(builtins)** add destroyed_symlinks, forbid_submodules, and shebang checks by [@sassdavid](https://github.com/sassdavid) in [#1360](https://github.com/jdx/hk/pull/1360)
+- **(builtins)** add mado linter by [@hituzi-no-sippo](https://github.com/hituzi-no-sippo) in [#1349](https://github.com/jdx/hk/pull/1349)
+- **(builtins)** add terragrunt and kubeconform by [@sassdavid](https://github.com/sassdavid) in [#1363](https://github.com/jdx/hk/pull/1363)
+- **(builtins)** add terraform_docs and terraform_validate by [@sassdavid](https://github.com/sassdavid) in [#1362](https://github.com/jdx/hk/pull/1362)
+- ship hk configuration and debugging skills with packslip by [@jdx](https://github.com/jdx) in [#1337](https://github.com/jdx/hk/pull/1337)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** run tflint in each module directory by [@sassdavid](https://github.com/sassdavid) in [#1361](https://github.com/jdx/hk/pull/1361)
+- **(builtins)** make zizmor tests pass with hash pinning by [@nettlesh](https://github.com/nettlesh) in [#1366](https://github.com/jdx/hk/pull/1366)
+- **(builtins)** use --format files in rubocop check_list_files by [@andyw8](https://github.com/andyw8) in [#1355](https://github.com/jdx/hk/pull/1355)
+
+### 📚 Documentation
+
+- overhaul guides and redesign the documentation site by [@jdx](https://github.com/jdx) in [#1340](https://github.com/jdx/hk/pull/1340)
+- document escaping literal braces in step commands by [@sassdavid](https://github.com/sassdavid) in [#1359](https://github.com/jdx/hk/pull/1359)
+- write PR titles and descriptions for release notes by [@jdx](https://github.com/jdx) in [#1364](https://github.com/jdx/hk/pull/1364)
+
+### 🔍 Other Changes
+
+- **(ci)** use self-repository workflow references by [@jdx](https://github.com/jdx) in [#1353](https://github.com/jdx/hk/pull/1353)
+- **(release)** publish native completions in packslip by [@jdx](https://github.com/jdx) in [#1336](https://github.com/jdx/hk/pull/1336)
+- remove pr.md stray draft accidentally committed in #997 by [@sahidvelji](https://github.com/sahidvelji) in [#1341](https://github.com/jdx/hk/pull/1341)
+- cache perf source downloads and install only benchmark tools by [@jdx](https://github.com/jdx) in [#1343](https://github.com/jdx/hk/pull/1343)
+- clarify matrix job names by [@jdx](https://github.com/jdx) in [#1368](https://github.com/jdx/hk/pull/1368)
+
+### 📦️ Dependency Updates
+
+- bump mr-boxington to 1.8.3 by [@jdx](https://github.com/jdx) in [#1339](https://github.com/jdx/hk/pull/1339)
+- bump mbx to 1.9.0 for performance builds by [@jdx](https://github.com/jdx) in [#1342](https://github.com/jdx/hk/pull/1342)
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1345](https://github.com/jdx/hk/pull/1345)
+- update zizmorcore/zizmor-action action to v0.6.3 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1347](https://github.com/jdx/hk/pull/1347)
+- update anthropics/claude-code-action action to v1.0.211 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1346](https://github.com/jdx/hk/pull/1346)
+- update jdx/renovate-config digest to 8cabc2e by [@renovate[bot]](https://github.com/renovate[bot]) in [#1348](https://github.com/jdx/hk/pull/1348)
+- update anthropics/claude-code-action action to v1.0.213 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1350](https://github.com/jdx/hk/pull/1350)
+- update communique to v1.4.0 by [@jdx](https://github.com/jdx) in [#1365](https://github.com/jdx/hk/pull/1365)
+
+### New Contributors
+
+- @sassdavid made their first contribution in [#1362](https://github.com/jdx/hk/pull/1362)
+- @nettlesh made their first contribution in [#1366](https://github.com/jdx/hk/pull/1366)
+
 ## [1.58.1](https://github.com/jdx/hk/compare/v1.58.0..v1.58.1) - 2026-09-05
 
 ### 📚 Documentation
 
 - generate page-specific social preview images by [@jdx](https://github.com/jdx) in [#1333](https://github.com/jdx/hk/pull/1333)
+
+### 🔍 Other Changes
+
+- **(ci)** bump packslip to v1.1.1 by [@jdx](https://github.com/jdx) in [#1335](https://github.com/jdx/hk/pull/1335)
 
 ## [1.58.0](https://github.com/jdx/hk/compare/v1.57.0..v1.58.0) - 2026-09-05
 

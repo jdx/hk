@@ -74,8 +74,8 @@ To remove an installation, use `hk uninstall` or `hk uninstall --global`. See th
 This complete example runs Prettier, ESLint, and Ruff. Install and configure those tools first, or replace them with [builtins](/builtins) that match your project.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v1.59.0/hk@1.59.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v1.59.0/hk@1.59.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
   ["prettier"] = Builtins.prettier
