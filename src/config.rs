@@ -750,20 +750,30 @@ impl Config {
             if !sub_hook.enabled {
                 continue;
             }
-            if sub_hook.fix.is_some()
-                || sub_hook.stash.is_some()
-                || sub_hook.stage.is_some()
-                || sub_hook.fail_on_fix
-                || sub_hook.report.is_some()
+            let sub_hook_is_implicit = sub.implicit_default_hooks.contains(&hook_name);
+            if !sub_hook_is_implicit
+                && (sub_hook.fix.is_some()
+                    || sub_hook.stash.is_some()
+                    || sub_hook.stage.is_some()
+                    || sub_hook.fail_on_fix
+                    || sub_hook.report.is_some())
             {
                 debug!(
                     "subprojects: ignoring hook-level settings for '{hook_name}' in {}",
                     sub.path.display()
                 );
             }
-            let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| Hook {
-                name: hook_name.clone(),
-                ..Default::default()
+            let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| {
+                let mut hook = Hook {
+                    name: hook_name.clone(),
+                    ..Default::default()
+                };
+                if sub_hook_is_implicit {
+                    hook.fix = sub_hook.fix;
+                    hook.stage = sub_hook.stage;
+                    hook.stash = sub_hook.stash.clone();
+                }
+                hook
             });
             // Names of the subproject hook's steps and groups, for rewriting
             // `depends` references to their scoped names.
@@ -1090,6 +1100,9 @@ pub struct Config {
     #[serde(skip)]
     #[serde(default)]
     default_hooks_materialized: bool,
+    #[serde(skip)]
+    #[serde(default)]
+    implicit_default_hooks: IndexSet<String>,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
     /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
@@ -1141,7 +1154,11 @@ impl Config {
                 )),
             ),
         ] {
+            let is_implicit = !self.hooks.contains_key(name);
             let hook = self.hooks.entry(name.to_string()).or_default();
+            if is_implicit {
+                self.implicit_default_hooks.insert(name.to_string());
+            }
             let explicit_steps = std::mem::take(&mut hook.steps);
             hook.steps = self.steps.clone();
             hook.steps.extend(explicit_steps);
@@ -1557,6 +1574,18 @@ mod tests {
             };
             assert_eq!(lint.dir.as_deref(), Some("packages/web"));
         }
+        assert_eq!(root.hooks["check"].fix, Some(false));
+        assert_eq!(root.hooks["check"].stage, Some(false));
+        assert_eq!(root.hooks["fix"].fix, Some(true));
+        assert_eq!(root.hooks["fix"].stage, Some(false));
+        assert_eq!(root.hooks["pre-commit"].fix, Some(true));
+        assert_eq!(root.hooks["pre-commit"].stage, Some(true));
+        assert_eq!(
+            root.hooks["pre-commit"].stash,
+            Some(crate::hook::StashSetting::Method(
+                crate::git::StashMethod::Git
+            ))
+        );
     }
 
     #[test]
