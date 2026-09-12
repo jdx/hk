@@ -2,7 +2,7 @@
 min_usage_version "4.0"
 name hk
 bin hk
-version "1.58.1"
+version "1.59.0"
 unknown_flags error
 subcommand_required #true
 flagset hook-options {
