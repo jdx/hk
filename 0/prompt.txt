@@ -1,0 +1,1 @@
+let's work on the v2 stack, rebase it, tell me what is in it, read the discussion, propose what we should do
