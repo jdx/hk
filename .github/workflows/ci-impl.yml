@@ -35,7 +35,9 @@ jobs:
         with:
           cache: false
       - name: Validate v2 fixtures with Apple Pkl
-        run: python3 scripts/validate-apple-pkl.py
+        run: |
+          mise run pkl:gen
+          python3 scripts/validate-apple-pkl.py
 
   mcp-ui:
     runs-on: ubuntu-latest
