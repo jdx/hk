@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BSQ4JK9T48V8XZQ45EBT6F",
   "strategy": "manual-commit",
   "branch": "rebase-v2-builtin-functions",
-  "checkpoints_count": 20,
+  "checkpoints_count": 21,
   "files_touched": [
     "README.md",
     "docs/builtins.md",
@@ -54,6 +54,20 @@
       "compact_transcript": "/6/transcript.jsonl",
       "content_hash": "/6/content_hash.txt",
       "prompt": "/6/prompt.txt"
+    },
+    {
+      "metadata": "/7/metadata.json",
+      "transcript": "/7/full.jsonl",
+      "compact_transcript": "/7/transcript.jsonl",
+      "content_hash": "/7/content_hash.txt",
+      "prompt": "/7/prompt.txt"
     }
-  ]
+  ],
+  "token_usage": {
+    "input_tokens": 132459,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 15356032,
+    "output_tokens": 32547,
+    "api_call_count": 112
+  }
 }
