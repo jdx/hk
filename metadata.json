@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2AZH4ZK6V4BBEKCTX54K8QP",
   "strategy": "manual-commit",
   "branch": "rebase-v2-remove-pkl-cli",
-  "checkpoints_count": 5,
+  "checkpoints_count": 12,
   "files_touched": [
     "docs/environment_variables.md",
     "docs/logging.md",
@@ -20,6 +20,10 @@
     },
     {
       "metadata": "/2/metadata.json",
+      "prompt": ""
+    },
+    {
+      "metadata": "/3/metadata.json",
       "prompt": ""
     }
   ]
