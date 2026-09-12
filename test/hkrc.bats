@@ -59,14 +59,22 @@ EOF
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["check"] {
-        env { ["HK_TEST_HOOK_ENV"] = "global-hook" }
+        env {
+            ["HK_TEST_HOOK_ENV"] = "global-hook"
+            ["HK_TEST_HOOK_ONLY"] = "global-only"
+        }
         report = "touch global-report"
     }
 }
 EOF
     cat > hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
-steps { ["project"] { check = "test \"\$HK_TEST_HOOK_ENV\" = global-hook" } }
+env { ["HK_TEST_HOOK_ENV"] = "project-config" }
+steps {
+    ["project"] {
+        check = "test \"\$HK_TEST_HOOK_ENV\" = project-config && test \"\$HK_TEST_HOOK_ONLY\" = global-only"
+    }
+}
 EOF
 
     run hk check --all

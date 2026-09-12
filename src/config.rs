@@ -424,7 +424,9 @@ impl Config {
                 if self.implicit_default_hooks.contains(&hook_name) {
                     // Hook-level global settings are defaults for hooks created
                     // solely from project top-level steps. Keep the project
-                    // steps authoritative while adopting those settings.
+                    // steps and project-level environment authoritative while
+                    // adopting those settings.
+                    hkrc_hook.env.retain(|key, _| !self.env.contains_key(key));
                     for (step_name, project_step) in std::mem::take(&mut project_hook.steps) {
                         hkrc_hook.steps.insert(step_name, project_step);
                     }
