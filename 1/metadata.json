@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BTF9276MWMSRRXPQ41J8T6",
   "session_id": "01a074ec-4a89-7281-98dd-6ddf6719b3df",
   "strategy": "manual-commit",
-  "created_at": "2026-09-12T22:11:14.860197Z",
+  "created_at": "2026-09-12T22:23:03.340279Z",
   "branch": "rebase-v2-remove-v1",
   "checkpoints_count": 1,
   "files_touched": [
@@ -18,15 +18,15 @@
     "turn_count": 2
   },
   "initial_attribution": {
-    "calculated_at": "2026-09-12T22:11:14.858816Z",
+    "calculated_at": "2026-09-12T22:23:03.339023Z",
     "agent_lines": 0,
     "agent_removed": 422,
-    "human_added": 3263,
+    "human_added": 3264,
     "human_modified": 981,
     "human_removed": 0,
-    "total_committed": 3586,
-    "total_lines_changed": 4771,
-    "agent_percentage": 8.845105847830643,
+    "total_committed": 3587,
+    "total_lines_changed": 4772,
+    "agent_percentage": 8.84325230511316,
     "metric_version": 2
   }
 }
