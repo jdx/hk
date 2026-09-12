@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2BESAK16DA83MXT0H31RAY0",
+  "session_id": "01a07d98-85e5-74a1-b965-b48bbd22c7c7",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-12T18:41:28.069862Z",
+  "branch": "rebase-v2-remove-pkl-cli",
+  "checkpoints_count": 7,
+  "files_touched": [
+    "hk.usage.kdl"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "ee7063cd156e",
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-12T18:41:28.067556Z",
+    "agent_lines": 0,
+    "agent_removed": 53,
+    "human_added": 0,
+    "human_modified": 462,
+    "human_removed": 104,
+    "total_committed": 55,
+    "total_lines_changed": 619,
+    "agent_percentage": 8.562197092084006,
+    "metric_version": 2
+  }
+}

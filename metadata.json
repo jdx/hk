@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BESAK16DA83MXT0H31RAY0",
   "strategy": "manual-commit",
   "branch": "rebase-v2-remove-pkl-cli",
-  "checkpoints_count": 8,
+  "checkpoints_count": 15,
   "files_touched": [
     "hk.usage.kdl"
   ],
@@ -22,6 +22,10 @@
     },
     {
       "metadata": "/3/metadata.json",
+      "prompt": ""
+    },
+    {
+      "metadata": "/4/metadata.json",
       "prompt": ""
     }
   ]
