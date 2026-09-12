@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BVSBQRJTX6EGZYXVHVX17B",
   "strategy": "manual-commit",
   "branch": "rebase-v2-remove-v1",
-  "checkpoints_count": 2,
+  "checkpoints_count": 5,
   "files_touched": [
     "src/hook_options.rs"
   ],
@@ -14,6 +14,10 @@
     },
     {
       "metadata": "/1/metadata.json",
+      "prompt": ""
+    },
+    {
+      "metadata": "/2/metadata.json",
       "prompt": ""
     }
   ]
