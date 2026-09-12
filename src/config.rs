@@ -1573,11 +1573,11 @@ mod tests {
             assert_eq!(lint.dir.as_deref(), Some("packages/web"));
         }
         assert_eq!(root.hooks["check"].fix, Some(false));
-        assert_eq!(root.hooks["check"].stage, Some(false));
+        assert_eq!(root.hooks["check"].stage, None);
         assert_eq!(root.hooks["fix"].fix, Some(true));
-        assert_eq!(root.hooks["fix"].stage, Some(false));
+        assert_eq!(root.hooks["fix"].stage, None);
         assert_eq!(root.hooks["pre-commit"].fix, Some(true));
-        assert_eq!(root.hooks["pre-commit"].stage, Some(true));
+        assert_eq!(root.hooks["pre-commit"].stage, None);
         assert_eq!(
             root.hooks["pre-commit"].stash,
             Some(crate::hook::StashSetting::Method(
