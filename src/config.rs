@@ -341,8 +341,8 @@ impl Config {
     }
 
     fn apply_hkrc(&mut self) -> Result<()> {
-        let cwd_path = PathBuf::from(".hkrc.pkl");
-        if cwd_path.exists() {
+        let project_path = Self::project_root_of(&self.path).join(".hkrc.pkl");
+        if project_path.exists() {
             bail!(
                 ".hkrc.pkl was removed in hk v2; rename it to hk.local.pkl for project overrides\n\nSee {V2_MIGRATION_URL}"
             );
@@ -373,18 +373,18 @@ impl Config {
                 );
             }
             let mut hkrc_config: Config = serde_json::from_value(json_value)
-                .wrap_err("failed to parse global config as Config")?;
+                .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), &path))?;
             // The project config has already exported its environment. Do not
             // overwrite it before the project-wins merge below.
             hkrc_config.init(&path, false)?;
             hkrc_config.materialize_default_hooks()?;
-            self.merge_from_hkrc(hkrc_config);
+            self.merge_from_hkrc(hkrc_config)?;
         }
         Ok(())
     }
 
     /// Merge Config-format user settings as fallbacks while preserving project values.
-    fn merge_from_hkrc(&mut self, hkrc: Config) {
+    fn merge_from_hkrc(&mut self, hkrc: Config) -> Result<()> {
         // Environment: project wins. hkrc values are set only if not defined by project.
         // set_var is unsafe in Rust 2024 but required so child processes inherit these.
         for (key, value) in hkrc.env {
@@ -419,18 +419,28 @@ impl Config {
         }
 
         // Hooks: additive, project wins on same-named step collision
-        for (hook_name, hkrc_hook) in hkrc.hooks {
+        for (hook_name, mut hkrc_hook) in hkrc.hooks {
             if let Some(project_hook) = self.hooks.get_mut(&hook_name) {
-                if !hkrc_hook.enabled {
-                    continue;
-                }
-                for (step_name, hkrc_step) in hkrc_hook.steps {
-                    project_hook.steps.entry(step_name).or_insert(hkrc_step);
+                if self.implicit_default_hooks.contains(&hook_name) {
+                    // Hook-level global settings are defaults for hooks created
+                    // solely from project top-level steps. Keep the project
+                    // steps authoritative while adopting those settings.
+                    for (step_name, project_step) in std::mem::take(&mut project_hook.steps) {
+                        hkrc_hook.steps.insert(step_name, project_step);
+                    }
+                    *project_hook = hkrc_hook;
+                    project_hook.init(&hook_name)?;
+                } else if hkrc_hook.enabled {
+                    for (step_name, hkrc_step) in hkrc_hook.steps {
+                        project_hook.steps.entry(step_name).or_insert(hkrc_step);
+                    }
+                    project_hook.init(&hook_name)?;
                 }
             } else {
                 self.hooks.insert(hook_name, hkrc_hook);
             }
         }
+        Ok(())
     }
 
     /// Load configs from `subprojects` directories and merge their hooks into
@@ -1340,7 +1350,7 @@ mod tests {
 
         project.materialize_default_hooks().unwrap();
         user.materialize_default_hooks().unwrap();
-        project.merge_from_hkrc(user);
+        project.merge_from_hkrc(user).unwrap();
 
         let StepOrGroup::Step(shared) = &project.hooks["check"].steps["shared"] else {
             panic!("expected step");
@@ -1371,7 +1381,7 @@ mod tests {
         );
         user.hooks.insert("check".to_string(), user_check);
 
-        project.merge_from_hkrc(user);
+        project.merge_from_hkrc(user).unwrap();
 
         let check = &project.hooks["check"];
         assert!(check.enabled);

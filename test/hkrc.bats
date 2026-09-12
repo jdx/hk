@@ -52,6 +52,45 @@ EOF
     assert_output --partial "global-loaded"
 }
 
+@test "XDG hook settings apply to hooks materialized from project steps" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        env { ["HK_TEST_HOOK_ENV"] = "global-hook" }
+        report = "touch global-report"
+    }
+}
+EOF
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+steps { ["project"] { check = "test \"\$HK_TEST_HOOK_ENV\" = global-hook" } }
+EOF
+
+    run hk check --all
+    assert_success
+    [ -f global-report ]
+
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+steps { ["project"] { check = "test \"\$HK_TEST_HOOK_ENV\" = project-hook" } }
+hooks {
+    ["check"] {
+        env { ["HK_TEST_HOOK_ENV"] = "project-hook" }
+        report = "touch project-report"
+    }
+}
+EOF
+    rm global-report
+
+    run hk check --all
+    assert_success
+    [ -f project-report ]
+    [ ! -f global-report ]
+}
+
 @test "project top-level step wins an XDG name collision" {
     write_project_config
     mkdir -p "$HOME/.config/hk"
@@ -104,9 +143,11 @@ EOF
     [ "$(echo "$output" | jq -r '.walk_ignore')" = "false" ]
 }
 
-@test "CWD .hkrc.pkl fails with project-local migration guidance" {
+@test "project-root .hkrc.pkl fails from a subdirectory with migration guidance" {
     write_project_config
     echo "amends \"$PKL_PATH/Config.pkl\"" > .hkrc.pkl
+    mkdir nested
+    cd nested
 
     run hk check --all
     assert_failure
@@ -164,4 +205,15 @@ EOF
     assert_output --partial 'move settings from `defaults` to the top level'
     assert_output --partial '`jobs`, `skip_steps`, `skip_hooks`, and `profiles`'
     assert_output --partial "https://hk.jdx.dev/migration-v2"
+}
+
+@test "global config deserialization uses missing-amends guidance" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    echo 'unexpected = 1' > "$HOME/.config/hk/config.pkl"
+
+    run hk check --all
+    assert_failure
+    assert_output --partial "Missing 'amends' declaration"
+    assert_output --partial "$HOME/.config/hk/config.pkl"
 }
