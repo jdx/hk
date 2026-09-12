@@ -125,14 +125,20 @@ EOF
 amends "$PKL_PATH/Config.pkl"
 hooks {
     ["custom"] {
-        steps { ["global-hook"] { check = "echo global-hook" } }
+        env { ["HK_TEST_PRECEDENCE"] = "global-hook" }
+        steps {
+            ["global-hook"] {
+                env { ["HK_TEST_PRECEDENCE"] = "global-step" }
+                check = "echo custom-\$HK_TEST_PRECEDENCE"
+            }
+        }
     }
 }
 EOF
 
     run hk run custom --all
     assert_success
-    assert_output --partial "global-hook"
+    assert_output --partial "custom-project"
 }
 
 @test "XDG Config.pkl provides scalar settings" {

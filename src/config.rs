@@ -467,6 +467,19 @@ impl Config {
                     project_hook.init(&hook_name)?;
                 }
             } else {
+                for step_or_group in hkrc_hook.steps.values_mut() {
+                    match step_or_group {
+                        crate::hook::StepOrGroup::Step(step) => {
+                            step.env.retain(|key, _| !self.env.contains_key(key));
+                        }
+                        crate::hook::StepOrGroup::Group(group) => {
+                            for step in group.steps.values_mut() {
+                                step.env.retain(|key, _| !self.env.contains_key(key));
+                            }
+                        }
+                    }
+                }
+                hkrc_hook.env.retain(|key, _| !self.env.contains_key(key));
                 self.hooks.insert(hook_name, hkrc_hook);
             }
         }
