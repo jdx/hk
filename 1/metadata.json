@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2BT3KA0N0JVT01S0Q4CWB49",
+  "session_id": "01a0782d-b14f-7063-b66e-a09df81cb37d",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-12T21:59:18.777742Z",
+  "branch": "rebase-v2-contextual-staging",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/configuration.md",
+    "src/hook_options.rs"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "bb3eb1e7b5fa",
+  "session_metrics": {
+    "turn_count": 32
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-12T21:59:18.77704Z",
+    "agent_lines": 138,
+    "agent_removed": 273,
+    "human_added": 277,
+    "human_modified": 31,
+    "human_removed": 0,
+    "total_committed": 446,
+    "total_lines_changed": 732,
+    "agent_percentage": 56.14754098360656,
+    "metric_version": 2
+  }
+}
