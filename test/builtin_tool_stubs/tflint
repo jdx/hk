@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "0.64.0"
+tool = "aqua:terraform-linters/tflint"

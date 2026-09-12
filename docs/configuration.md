@@ -130,6 +130,21 @@ Structured commands cannot be combined with the step's `shell` option or a strin
 structured command should run through a launcher. Other step behavior, including
 `dir`, `env`, and automatic batching for large file lists, continues to apply.
 
+### Literal braces in commands
+
+Commands are rendered as [Tera](https://keats.github.io/tera/) templates, so `{{` starts an expression. A tool whose own syntax uses `{{`, such as a Go template, fails to render:
+
+```pkl
+// error: "{{.ResourceKind}}" is parsed as a hk expression
+check = "kubeconform -schema-location 'https://example.com/{{.ResourceKind}}.json' {{files}}"
+```
+
+Wrap the literal part in `{% raw %}` to pass it through unchanged:
+
+```pkl
+check = "kubeconform -schema-location 'https://example.com/{% raw %}{{.ResourceKind}}{% endraw %}.json' {{files}}"
+```
+
 ### Step working directory
 
 `dir` sets the directory a step's commands run in. It is rendered as a template, so a step with `workspace_indicator` can follow each job's workspace rather than opening every command with a `cd`:

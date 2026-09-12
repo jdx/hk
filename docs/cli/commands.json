@@ -7073,6 +7073,48 @@
             "examples": [],
             "headings": []
           },
+          "check-shebang-scripts-are-executable": {
+            "full_cmd": ["util", "check-shebang-scripts-are-executable"],
+            "usage": "util check-shebang-scripts-are-executable <FILES>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to check",
+                "help_first_line": "Files to check",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "effect": "read",
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Check that files with shebangs are executable",
+            "name": "check-shebang-scripts-are-executable",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
+          },
           "check-symlinks": {
             "full_cmd": ["util", "check-symlinks"],
             "usage": "util check-symlinks <FILES>…",
@@ -7110,6 +7152,48 @@
             "args_override_self": true,
             "help": "Check for broken symlinks",
             "name": "check-symlinks",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
+          },
+          "destroyed-symlinks": {
+            "full_cmd": ["util", "destroyed-symlinks"],
+            "usage": "util destroyed-symlinks [FILES]…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "[FILES]…",
+                "help": "Files to check. Defaults to the whole repository.",
+                "help_first_line": "Files to check. Defaults to the whole repository.",
+                "required": false,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "effect": "read",
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Check for symlinks replaced by regular files containing their target path",
+            "name": "destroyed-symlinks",
             "aliases": [],
             "hidden_aliases": [],
             "examples": [],
@@ -7319,6 +7403,48 @@
             "args_override_self": true,
             "help": "Replace smart quotes with plain ASCII quotes",
             "name": "fix-smart-quotes",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
+          },
+          "forbid-submodules": {
+            "full_cmd": ["util", "forbid-submodules"],
+            "usage": "util forbid-submodules [PATHS]…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "PATHS",
+                "usage": "[PATHS]…",
+                "help": "Paths to check. Defaults to the whole repository.",
+                "help_first_line": "Paths to check. Defaults to the whole repository.",
+                "required": false,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "effect": "read",
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Check that the repository contains no git submodules",
+            "name": "forbid-submodules",
             "aliases": [],
             "hidden_aliases": [],
             "examples": [],

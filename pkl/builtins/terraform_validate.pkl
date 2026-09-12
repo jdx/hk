@@ -1,0 +1,58 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Terraform configuration validator"
+}
+terraform_validate = new Config.Step {
+  glob = List("**/*.tf", "**/*.tfvars", "**/*.tf.json", "**/*.tofu", "**/.terraform.lock.hcl")
+  exclude = "**/.terraform/**"
+  check = new Config.CommandSpec {
+    command =
+      """
+      for f in {{ files }}; do dirname "$f"; done | sort -u | { code=0; while IFS= read -r dir; do
+      terraform -chdir="$dir" validate && continue
+      terraform -chdir="$dir" init -backend=false -input=false > /dev/null || { code=1; continue; }
+      terraform -chdir="$dir" validate || code=1
+      done; exit $code; }
+      """
+    effect = "write"
+  }
+  tests {
+    ["check valid module"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["main.tf"] =
+          """
+          variable "name" {
+            type = string
+          }
+
+          output "name" {
+            value = var.name
+          }
+
+          """
+      }
+      files = List("main.tf")
+      expect { code = 0 }
+    }
+    ["check undeclared reference"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["main.tf"] =
+          """
+          output "name" {
+            value = var.undeclared
+          }
+
+          """
+      }
+      files = List("main.tf")
+      expect { code = 1 }
+    }
+  }
+}

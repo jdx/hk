@@ -67,11 +67,14 @@
 - [util check-conventional-commit](https://hk.jdx.dev/cli/util/check-conventional-commit.html): Check that a commit message follows the Conventional Commits format
 - [util check-executables-have-shebangs](https://hk.jdx.dev/cli/util/check-executables-have-shebangs.html): Check that executable files have shebangs
 - [util check-merge-conflict](https://hk.jdx.dev/cli/util/check-merge-conflict.html): Check for merge conflict markers
+- [util check-shebang-scripts-are-executable](https://hk.jdx.dev/cli/util/check-shebang-scripts-are-executable.html): Check that files with shebangs are executable
 - [util check-symlinks](https://hk.jdx.dev/cli/util/check-symlinks.html): Check for broken symlinks
+- [util destroyed-symlinks](https://hk.jdx.dev/cli/util/destroyed-symlinks.html): Check for symlinks replaced by regular files containing their target path
 - [util detect-private-key](https://hk.jdx.dev/cli/util/detect-private-key.html): Detect private keys in files
 - [util end-of-file-fixer](https://hk.jdx.dev/cli/util/end-of-file-fixer.html): Check for and optionally fix missing final newlines
 - [util fix-byte-order-marker](https://hk.jdx.dev/cli/util/fix-byte-order-marker.html): Remove UTF-8 byte order marker (BOM)
 - [util fix-smart-quotes](https://hk.jdx.dev/cli/util/fix-smart-quotes.html): Replace smart quotes with plain ASCII quotes
+- [util forbid-submodules](https://hk.jdx.dev/cli/util/forbid-submodules.html): Check that the repository contains no git submodules
 - [util mixed-line-ending](https://hk.jdx.dev/cli/util/mixed-line-ending.html): Detect and fix mixed line endings
 - [util no-commit-to-branch](https://hk.jdx.dev/cli/util/no-commit-to-branch.html): Prevent commits to specific branches
 - [util python-check-ast](https://hk.jdx.dev/cli/util/python-check-ast.html): Check Python files for valid syntax

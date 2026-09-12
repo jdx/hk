@@ -1,0 +1,83 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+/// Scoped to the conventional Kubernetes manifest directories because
+/// kubeconform fails on any YAML without a `kind`, which would reject ordinary
+/// files such as `.github/workflows/*.yml` and `docker-compose.yml`. A
+/// directory-based default therefore misses manifests in unconventional
+/// locations rather than failing on every repository that holds other YAML.
+/// Override `glob` for other layouts, and add `-schema-location` to validate
+/// custom resources.
+///
+/// Not batched: kubeconform already validates concurrently via `-n`, and one
+/// process keeps `-summary` to a single line instead of one per batch.
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Kubernetes manifest validator"
+}
+kubeconform = new Config.Step {
+  glob =
+    List(
+      "**/k8s/**/*.yaml",
+      "**/k8s/**/*.yml",
+      "**/kubernetes/**/*.yaml",
+      "**/kubernetes/**/*.yml",
+      "**/manifests/**/*.yaml",
+      "**/manifests/**/*.yml",
+      "**/deploy/**/*.yaml",
+      "**/deploy/**/*.yml",
+      "**/deployments/**/*.yaml",
+      "**/deployments/**/*.yml",
+    )
+  exclude =
+    List(
+      "**/templates/**",
+      "**/values.yaml",
+      "**/values.yml",
+      "**/kustomization.yaml",
+      "**/kustomization.yml",
+    )
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("kubeconform", "-summary", "-strict", "-ignore-missing-schemas", "{{files}}")
+    }
+    effect = "read"
+  }
+  tests {
+    ["check manifest without kind"] {
+      run = "check"
+      tmpdir = true
+      write { ["k8s/resource.yaml"] = "key: value\n" }
+      expect { code = 1 }
+    }
+    ["check manifest without apiVersion"] {
+      run = "check"
+      tmpdir = true
+      write { ["manifests/resource.yaml"] = "kind: ConfigMap\n" }
+      expect { code = 1 }
+    }
+    ["check file with no resources"] {
+      run = "check"
+      tmpdir = true
+      write { ["kubernetes/resource.yaml"] = "# no resources here\n" }
+      expect { code = 0 }
+    }
+    ["check deploy directory manifest"] {
+      run = "check"
+      tmpdir = true
+      write { ["deploy/deployment.yaml"] = "key: value\n" }
+      expect { code = 1 }
+    }
+    ["check skips helm values and kustomization"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["k8s/resource.yaml"] = "# no resources here\n"
+        ["k8s/values.yaml"] = "replicaCount: 2\n"
+        ["k8s/kustomization.yaml"] = "resources:\n  - deployment.yaml\n"
+        ["k8s/templates/deployment.yaml"] = "{{- if .Values.enabled }}\n"
+      }
+      expect { code = 0 }
+    }
+  }
+}
