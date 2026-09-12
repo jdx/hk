@@ -43,6 +43,7 @@ jobs:
       - run: ./scripts/check_mcp_ui_fresh
 
   build:
+    name: build (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -129,6 +130,7 @@ jobs:
           max_attempts: 3
           command: mise run test:bats:libgit2
   ci-nolibgit2:
+    name: ci-nolibgit2 (${{ matrix.os }})
     needs: build
     permissions:
       contents: read
@@ -200,6 +202,7 @@ jobs:
           max_attempts: 3
           command: mise run test:bats:nogit
   ci-other:
+    name: ci-other (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
