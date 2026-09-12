@@ -191,9 +191,10 @@ impl HookOptions {
         self.validate()?;
         self.load_files0()?;
         // Under `--from-hook`, short-circuit *before* loading the config. A
-        // broken user-global hkrc (or missing `pkl`) shouldn't fail every
-        // `git commit` in a repo that doesn't even use hk — which is the
-        // main risk under `hk install --global`.
+        // broken user-global config shouldn't fail every `git commit` in a
+        // repo that doesn't use hk — which is the main risk under
+        // `hk install --global`. Legacy project configs deliberately count as
+        // present so Config::get can report their v2 migration error.
         if self.from_hook && !Config::project_config_exists() {
             log::debug!("no hk config found for {name}, skipping (--from-hook)");
             crate::structured_output::emit_noop_run(

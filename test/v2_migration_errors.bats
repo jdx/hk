@@ -18,6 +18,13 @@ assert_raw_config_removed() {
     assert_output --partial "$filename"
     assert_output --partial "to hk.pkl"
     assert_output --partial "https://hk.jdx.dev/migration-v2"
+
+    run hk run pre-commit --from-hook
+    assert_failure
+    assert_output --partial "configuration was removed in hk v2"
+    assert_output --partial "$filename"
+    assert_output --partial "to hk.pkl"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "hk.toml is rejected with migration guidance" {
