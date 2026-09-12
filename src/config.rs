@@ -1078,6 +1078,9 @@ pub struct Config {
     pub min_hk_version: Option<String>,
     #[serde(default)]
     pub steps: IndexMap<String, crate::hook::StepOrGroup>,
+    #[serde(skip)]
+    #[serde(default)]
+    default_hooks_materialized: bool,
     #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
     /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
@@ -1113,7 +1116,7 @@ impl std::fmt::Display for Config {
 
 impl Config {
     fn materialize_default_hooks(&mut self) -> Result<()> {
-        if self.steps.is_empty() {
+        if self.default_hooks_materialized || self.steps.is_empty() {
             return Ok(());
         }
 
@@ -1138,6 +1141,7 @@ impl Config {
             hook.stash = hook.stash.clone().or(stash);
             hook.init(name)?;
         }
+        self.default_hooks_materialized = true;
         Ok(())
     }
 
@@ -1517,6 +1521,41 @@ mod tests {
             };
             assert_eq!(lint.dir.as_deref(), Some("packages/web"));
         }
+    }
+
+    #[test]
+    fn rematerializing_does_not_apply_root_hook_env_to_subproject_steps() {
+        let mut root = Config::default();
+        root.steps.insert(
+            "root".to_string(),
+            StepOrGroup::Step(Box::new(step("root"))),
+        );
+        let mut root_check = hook("check");
+        root_check
+            .env
+            .insert("ROOT_ONLY".to_string(), "root".to_string());
+        root.hooks.insert("check".to_string(), root_check);
+        root.materialize_default_hooks().unwrap();
+
+        let mut sub = Config::default();
+        sub.env
+            .insert("SUB_ONLY".to_string(), "subproject".to_string());
+        sub.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        root.merge_subproject("packages/web", None, sub).unwrap();
+
+        root.materialize_default_hooks().unwrap();
+
+        let StepOrGroup::Step(lint) = &root.hooks["check"].steps["packages/web:lint"] else {
+            panic!("expected step");
+        };
+        assert_eq!(
+            lint.env.get("SUB_ONLY").map(String::as_str),
+            Some("subproject")
+        );
+        assert!(!lint.env.contains_key("ROOT_ONLY"));
     }
 
     #[test]
