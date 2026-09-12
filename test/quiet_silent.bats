@@ -116,3 +116,65 @@ EOF
     refute_output --partial "Created"
     refute_output --partial "Detected"
 }
+
+@test "HK_SILENT suppresses successful output" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["a"] { check = "echo check-success" } } } }
+EOF
+    git add hk.pkl
+    run env HK_SILENT=true hk check
+    assert_success
+    assert_output ""
+
+    run env HK_SILENT=true hk check --stats
+    assert_success
+    assert_output ""
+}
+
+@test "HK_SILENT suppresses failed step summaries and preserves output file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["a"] { check = "echo check-diagnostic && exit 1" } } } }
+EOF
+    git add hk.pkl
+    run env HK_SILENT=1 HK_OUTPUT_FILE="$PWD/output.log" hk check
+    assert_failure
+    refute_output --partial "check-diagnostic"
+    refute_output --partial "output:"
+    assert_file_contains output.log "check-diagnostic"
+}
+
+@test "HK_SILENT works with CLI output flags" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["check"] { steps { ["a"] { check = "echo check-success" } } } }
+EOF
+    git add hk.pkl
+    run env HK_SILENT=0 hk check
+    assert_success
+    assert_output --partial "check-success"
+
+    run env HK_SILENT=0 hk check --silent
+    assert_success
+    assert_output ""
+
+    run env HK_SILENT=1 hk check --verbose
+    assert_success
+    assert_output ""
+}
+
+@test "git hooks inherit HK_SILENT" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks { ["pre-commit"] { steps { ["a"] { check = "echo hook-success; touch hook-ran" } } } }
+EOF
+    run env HK_SILENT=1 hk install
+    assert_success
+    assert_output ""
+    git add hk.pkl
+    run env HK_SILENT=1 git commit -m "test hook"
+    assert_success
+    assert_file_exist hook-ran
+    refute_output --partial "hook-success"
+}

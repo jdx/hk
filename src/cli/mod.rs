@@ -198,7 +198,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         clx::progress::set_output(ProgressOutput::Quiet);
         level = Some(log::LevelFilter::Warn);
     }
-    if args.silent {
+    if args.silent || *env::HK_SILENT {
         clx::progress::set_output(ProgressOutput::Quiet);
         level = Some(log::LevelFilter::Error);
     }
