@@ -250,7 +250,6 @@ Runs each step's fix command to modify files in place. Passing `--check`, or set
     complete path type=path
 }
 cmd init help="Generate a new hk.pkl file for a project" effect=write {
-    alias generate
     flag "-f --force" help="Overwrite existing hk.pkl file"
     flag "-i --interactive" help="Interactive mode: select linters and hooks manually"
     flag --mise help="Generate a mise.toml file with hk configured" {
