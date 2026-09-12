@@ -257,10 +257,12 @@ impl Config {
     }
 
     /// Returns true when a project-level hk config file exists without
-    /// loading or parsing it. Used by `--from-hook` so a broken user-global
-    /// hkrc doesn't blow up `git commit` in repos that have no hk.pkl.
+    /// loading or parsing it. Legacy config files count here so callers load
+    /// them and report the v2 migration error instead of silently skipping.
     pub fn project_config_exists() -> bool {
         Self::find_project_config(&Self::project_config_search_paths()).is_some()
+            || (env::HK_FILE.is_none()
+                && Self::find_project_config(&Self::legacy_project_config_paths()).is_some())
     }
 
     /// Returns true when project config discovery from `start` would find a
