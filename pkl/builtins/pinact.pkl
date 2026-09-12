@@ -2,10 +2,6 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
-@Builtins.meta {
-  category = "Infrastructure"
-  description = "Pin GitHub Actions to commit SHA for security"
-}
 class PinactStep extends Config.Step {
   hidden version: "3" | "4" = "4"
   glob = List(".github/workflows/*", "**/action.*")
@@ -31,6 +27,19 @@ class PinactStep extends Config.Step {
     }
     effect = "write"
   }
+  // pinact v3 can fix the SHA while leaving a mismatched version comment.
+  // Re-run its check after a fix so that partial repair still fails.
+  check =
+    if (version == "3")
+      new Config.CommandSpec {
+        command = new Config.Command {
+          argv = List("pinact", "run", "--verify", "--check", "{{files}}")
+        }
+        effect = "read"
+      }
+    else
+      null
+  check_after_diff = version == "3"
   tests =
     if (version == "3")
       new Mapping<String, Config.StepTest> {
@@ -132,4 +141,8 @@ class PinactStep extends Config.Step {
       }
 }
 
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Pin GitHub Actions to commit SHA for security"
+}
 const pinact = (new PinactStep {}) as Config.Step
