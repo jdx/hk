@@ -1088,7 +1088,10 @@ impl PreCommit {
             "gofmt" | "goimports" | "golangci-lint" | "go-vet" => "go".to_string(),
             "yamllint" => "yamllint".to_string(),
             "hadolint" => "hadolint".to_string(),
-            "terraform-fmt" | "tflint" => "terraform".to_string(),
+            "terraform-fmt" | "terraform_fmt" | "terraform_validate" => "terraform".to_string(),
+            "tflint" | "terraform_tflint" => "tflint".to_string(),
+            "terraform_docs" => "terraform-docs".to_string(),
+            "terragrunt_fmt" => "terragrunt".to_string(),
             "stylelint" => "node".to_string(),
             "markdownlint" => "node".to_string(),
             "actionlint" => "actionlint".to_string(),
@@ -1140,7 +1143,11 @@ impl PreCommit {
 
         // Terraform
         map.insert("terraform-fmt", "terraform");
+        map.insert("terraform_fmt", "terraform");
+        map.insert("terraform_docs", "terraform_docs");
+        map.insert("terraform_validate", "terraform_validate");
         map.insert("tflint", "tf_lint");
+        map.insert("terraform_tflint", "tf_lint");
         // Upstream `terragrunt_validate` runs terraform validate through
         // terragrunt, so it has no counterpart here and is left unmapped.
         map.insert("terragrunt_fmt", "terragrunt_hcl_fmt");

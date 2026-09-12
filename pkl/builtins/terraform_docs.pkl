@@ -1,0 +1,80 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+/// No `stage`: a module's README path depends on the repository layout, and a
+/// repo-wide `**/README.md` would stage READMEs this step never generated. Set
+/// `stage` yourself once you know where your modules live.
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Terraform module documentation generator"
+}
+terraform_docs = new Config.Step {
+  glob = List("**/*.tf", "**/*.tofu", "**/.terraform.lock.hcl")
+  exclude = "**/.terraform/**"
+  check = new Config.CommandSpec {
+    command =
+      """
+      for f in {{ files }}; do dirname "$f"; done | sort -u | { code=0; while IFS= read -r dir; do
+      terraform-docs markdown table --output-check --output-file README.md --output-mode inject "$dir" || code=1
+      done; exit $code; }
+      """
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command =
+      """
+      for f in {{ files }}; do dirname "$f"; done | sort -u | { code=0; while IFS= read -r dir; do
+      terraform-docs markdown table --output-file README.md --output-mode inject "$dir" || code=1
+      done; exit $code; }
+      """
+    effect = "write"
+  }
+  tests {
+    local const moduleFile =
+      """
+      variable "name" {
+        description = "The name"
+        type        = string
+      }
+      """
+    local const generate =
+      "terraform-docs markdown table --output-file README.md --output-mode inject ."
+    ["check without README"] {
+      run = "check"
+      tmpdir = true
+      write { ["main.tf"] = moduleFile }
+      files = List("main.tf")
+      expect { code = 1 }
+    }
+    ["check stale README"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["main.tf"] = moduleFile
+        ["README.md"] = "<!-- BEGIN_TF_DOCS -->\n<!-- END_TF_DOCS -->"
+      }
+      files = List("main.tf")
+      expect { code = 1 }
+    }
+    ["check up to date README"] {
+      run = "check"
+      tmpdir = true
+      write { ["main.tf"] = moduleFile }
+      before = generate
+      files = List("main.tf")
+      expect { code = 0 }
+    }
+    ["fix generates README"] {
+      run = "fix"
+      tmpdir = true
+      write { ["main.tf"] = moduleFile }
+      files = List("main.tf")
+      after =
+        "terraform-docs markdown table --output-check --output-file README.md --output-mode inject ."
+      expect {
+        code = 0
+        stdout = "README.md updated successfully"
+      }
+    }
+  }
+}
