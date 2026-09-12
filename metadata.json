@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BT3KA0N0JVT01S0Q4CWB49",
   "strategy": "manual-commit",
   "branch": "rebase-v2-contextual-staging",
-  "checkpoints_count": 5,
+  "checkpoints_count": 12,
   "files_touched": [
     "docs/configuration.md",
     "src/hook_options.rs"
@@ -19,6 +19,10 @@
     },
     {
       "metadata": "/2/metadata.json",
+      "prompt": ""
+    },
+    {
+      "metadata": "/3/metadata.json",
       "prompt": ""
     }
   ]
