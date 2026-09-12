@@ -183,12 +183,15 @@ pub fn emit_run(
     for group in &ctx.groups {
         for name in group.steps.keys() {
             let skip_reason = skipped.get(name).map(|reason| reason.message());
-            let status = if failed.contains(name) {
+            // A cancelled step can also retain output from an earlier failed
+            // check. Cancellation describes the final step outcome and must
+            // therefore take precedence over that diagnostic bookkeeping.
+            let status = if cancelled.contains(name) {
+                "cancelled"
+            } else if failed.contains(name) {
                 "failed"
             } else if skip_reason.is_some() {
                 "skipped"
-            } else if cancelled.contains(name) {
-                "cancelled"
             } else if finished.contains(name) {
                 "passed"
             } else {
