@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BTF9276MWMSRRXPQ41J8T6",
   "strategy": "manual-commit",
   "branch": "rebase-v2-remove-v1",
-  "checkpoints_count": 16,
+  "checkpoints_count": 20,
   "files_touched": [
     "docs/cli/commands.json",
     "docs/configuration.md",
@@ -36,6 +36,13 @@
       "compact_transcript": "/5/transcript.jsonl",
       "content_hash": "/5/content_hash.txt",
       "prompt": "/5/prompt.txt"
+    },
+    {
+      "metadata": "/6/metadata.json",
+      "transcript": "/6/full.jsonl",
+      "compact_transcript": "/6/transcript.jsonl",
+      "content_hash": "/6/content_hash.txt",
+      "prompt": "/6/prompt.txt"
     }
   ]
 }
