@@ -3,14 +3,19 @@
   "checkpoint_id": "01M2BTF9276MWMSRRXPQ41J8T6",
   "strategy": "manual-commit",
   "branch": "rebase-v2-remove-v1",
-  "checkpoints_count": 3,
+  "checkpoints_count": 4,
   "files_touched": [
     "docs/cli/commands.json",
+    "docs/configuration.md",
     "hk.usage.kdl"
   ],
   "sessions": [
     {
       "metadata": "/0/metadata.json",
+      "prompt": ""
+    },
+    {
+      "metadata": "/1/metadata.json",
       "prompt": ""
     }
   ]
