@@ -144,12 +144,6 @@ Default: `~/.local/state/hk/output.log`
 
 The file where hk writes the complete output of a failed command. An empty value uses the default location.
 
-## `HK_PKL_BACKEND` {#hk-pkl-backend}
-
-**Type:** `pklr` or `pkl` · **Default:** `pklr`
-
-Choose the built-in evaluator or the separately installed Pkl CLI. Example: `HK_PKL_BACKEND=pkl hk validate`. See [Pkl evaluators](/pkl_introduction#evaluators).
-
 ## `HK_PKL_CACHE_DIR` {#hk-pkl-cache-dir}
 
 Type: `path`
@@ -163,7 +157,7 @@ This variable is read directly from the environment before `hk.pkl` is evaluated
 
 **Type:** path · **Default:** unset
 
-With the Pkl CLI backend, pass a CA certificate file through Pkl’s `--ca-certificates` flag. This must be set before configuration is evaluated.
+A path to a PEM bundle containing CA certificates trusted by the built-in pklr evaluator. This must be set before configuration is evaluated.
 
 ## `HK_PKL_EMBEDDED` {#hk-pkl-embedded}
 
@@ -180,7 +174,7 @@ This variable is read directly from the environment before `hk.pkl` is evaluated
 
 **Type:** string · **Default:** unset
 
-With the Pkl CLI backend, pass a URL rewrite through Pkl’s `--http-rewrite` flag. The value has the form `https://source.example/=https://mirror.example/` and must be set before evaluation.
+A URL rewrite used by the built-in pklr evaluator. The value has the form `https://source.example/=https://mirror.example/` and must be set before evaluation.
 
 ## `HK_PKL_OFFLINE` {#hk-pkl-offline}
 
