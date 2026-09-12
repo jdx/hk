@@ -30,6 +30,8 @@ PRECOMMIT
     assert_output --partial "Builtins.prettier"
     assert_output --partial "Builtins.eslint"
     assert_output --partial 'steps {'
+    assert_output --partial '["prettier"] = linters["prettier"]'
+    assert_output --partial '["eslint"] = linters["eslint"]'
     refute_output --partial '["pre-commit"]'
 
     run hk validate
