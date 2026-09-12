@@ -23,9 +23,11 @@ impl Config {
 
     #[tracing::instrument(level = "info", name = "config.load")]
     fn load() -> Result<Self> {
-        if std::env::var_os("HK_PKL_BACKEND").is_some() {
+        if let Some(backend) = std::env::var_os("HK_PKL_BACKEND")
+            && backend != "pklr"
+        {
             bail!(
-                "HK_PKL_BACKEND was removed in hk v2; hk now always uses the built-in pklr evaluator. Remove this environment variable"
+                "HK_PKL_BACKEND no longer selects an evaluator in hk v2; remove it or set it to `pklr`. The built-in pklr evaluator is always used.\n\nSee {V2_MIGRATION_URL}"
             );
         }
         let mut config = Self::load_project_config()?;

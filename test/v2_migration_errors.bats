@@ -51,11 +51,28 @@ assert_raw_config_removed() {
     assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
-@test "HK_PKL_BACKEND is rejected with migration guidance" {
+@test "HK_PKL_BACKEND=pklr is accepted as a compatibility no-op" {
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+EOF
+
+    run env HK_PKL_BACKEND=pklr hk validate
+    assert_success
+}
+
+@test "HK_PKL_BACKEND=pkl is rejected with migration guidance" {
     run env HK_PKL_BACKEND=pkl hk validate
     assert_failure
-    assert_output --partial "HK_PKL_BACKEND was removed in hk v2"
-    assert_output --partial "always uses the built-in pklr evaluator"
+    assert_output --partial "HK_PKL_BACKEND no longer selects an evaluator in hk v2"
+    assert_output --partial 'set it to `pklr`'
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
+}
+
+@test "unknown HK_PKL_BACKEND value is rejected with migration guidance" {
+    run env HK_PKL_BACKEND=unknown hk validate
+    assert_failure
+    assert_output --partial "HK_PKL_BACKEND no longer selects an evaluator in hk v2"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "removed byte-order-marker aliases have migration guidance" {
