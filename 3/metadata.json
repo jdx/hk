@@ -1,13 +1,14 @@
 {
   "cli_version": "0.10.5",
   "checkpoint_id": "01M2BSQ4JK9T48V8XZQ45EBT6F",
+  "session_id": "01a079fb-2b89-7c22-acf0-49ee2a3c0d33",
   "strategy": "manual-commit",
+  "created_at": "2026-09-12T21:52:30.521792Z",
   "branch": "rebase-v2-builtin-functions",
-  "checkpoints_count": 8,
+  "checkpoints_count": 3,
   "files_touched": [
     "README.md",
     "docs/builtins.md",
-    "docs/ci.md",
     "docs/configuration.md",
     "docs/getting_started.md",
     "docs/mise_integration.md",
@@ -20,22 +21,22 @@
     "docs/reference/examples/python-project.md",
     "pkl/Config.pkl"
   ],
-  "sessions": [
-    {
-      "metadata": "/0/metadata.json",
-      "prompt": ""
-    },
-    {
-      "metadata": "/1/metadata.json",
-      "prompt": ""
-    },
-    {
-      "metadata": "/2/metadata.json",
-      "prompt": ""
-    },
-    {
-      "metadata": "/3/metadata.json",
-      "prompt": ""
-    }
-  ]
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "b2b85976dadf",
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-12T21:52:30.520933Z",
+    "agent_lines": 660,
+    "agent_removed": 1003,
+    "human_added": 700,
+    "human_modified": 53,
+    "human_removed": 0,
+    "total_committed": 1413,
+    "total_lines_changed": 2759,
+    "agent_percentage": 60.27546212395796,
+    "metric_version": 2
+  }
 }
