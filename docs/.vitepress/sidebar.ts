@@ -27,6 +27,7 @@ export const sidebar: SidebarItem[] = [
     text: "Start here",
     items: [
       { text: "Getting started", link: "/getting_started" },
+      { text: "Migrating to hk v2", link: "/migration-v2" },
       { text: "Why hk?", link: "/why-hk" },
       { text: "Pkl essentials", link: "/pkl_introduction" },
     ],

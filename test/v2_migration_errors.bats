@@ -17,6 +17,7 @@ assert_raw_config_removed() {
     assert_output --partial "configuration was removed in hk v2"
     assert_output --partial "$filename"
     assert_output --partial "to hk.pkl"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "hk.toml is rejected with migration guidance" {
@@ -40,6 +41,7 @@ assert_raw_config_removed() {
     assert_failure
     assert_output --partial '`hk generate` was removed in hk v2'
     assert_output --partial '`hk init`'
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "removed byte-order-marker aliases have migration guidance" {
@@ -53,6 +55,7 @@ EOF
     assert_failure
     assert_output --partial "Builtins.check_byte_order_marker was removed in hk v2"
     assert_output --partial "Builtins.byte_order_marker"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "removed fix byte-order-marker alias has migration guidance" {
@@ -66,4 +69,5 @@ EOF
     assert_failure
     assert_output --partial "Builtins.fix_byte_order_marker was removed in hk v2"
     assert_output --partial "Builtins.byte_order_marker"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }

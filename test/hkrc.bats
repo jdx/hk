@@ -112,6 +112,7 @@ EOF
     assert_failure
     assert_output --partial ".hkrc.pkl was removed in hk v2"
     assert_output --partial "hk.local.pkl"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "HOME .hkrc.pkl fails with XDG migration guidance" {
@@ -122,6 +123,7 @@ EOF
     assert_failure
     assert_output --partial "~/.hkrc.pkl was removed in hk v2"
     assert_output --partial ".config/hk/config.pkl"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "--hkrc fails with migration guidance" {
@@ -131,6 +133,7 @@ EOF
     assert_failure
     assert_output --partial "--hkrc was removed in hk v2"
     assert_output --partial "hk.local.pkl"
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }
 
 @test "UserConfig schema fails with migration guidance" {
@@ -145,4 +148,20 @@ EOF
     assert_failure
     assert_output --partial "UserConfig.pkl"
     assert_output --partial 'rename `environment` to `env`'
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
+}
+
+@test "UserConfig defaults block fails with top-level migration guidance" {
+    write_project_config
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
+defaults { jobs = 2 }
+EOF
+
+    run hk check --all
+    assert_failure
+    assert_output --partial 'move settings from `defaults` to the top level'
+    assert_output --partial '`jobs`, `skip_steps`, `skip_hooks`, and `profiles`'
+    assert_output --partial "https://hk.jdx.dev/migration-v2"
 }

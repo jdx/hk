@@ -1,3 +1,7 @@
+---
+description: Replace removed v1 configuration files, builtin variants, and CLI entry points when upgrading to hk v2.
+---
+
 # Migrating to hk v2
 
 hk v2 removes deprecated configuration entry points and makes shared steps and
@@ -6,18 +10,17 @@ targeted replacement when it detects a removed input.
 
 ## Builtins
 
-Every builtin is now a class-as-a-function factory value. Default references
-stay concise and do not need to change:
+Every builtin is a `Config.Step`. Default references stay concise and do not
+need to change:
 
 ```pkl
 ["prettier"] = Builtins.prettier
 ```
 
-If a local mapping contains builtin factories, let Pkl infer its value type (or
-use `StepDefinition`) instead of declaring `Mapping<String, Step>`:
+Builtin collections remain typed as `Mapping<String, Step>`:
 
 ```pkl
-local linters = new Mapping {
+local linters = new Mapping<String, Step> {
   ["prettier"] = Builtins.prettier
 }
 ```
@@ -26,7 +29,7 @@ Replace the removed staged, strict, and versioned names as follows:
 
 ```pkl
 ["gitleaks"] = (Builtins.gitleaks) {
-  staged = true
+  scan = "staged"
 }
 ["knip"] = (Builtins.knip) {
   strict = true
@@ -41,15 +44,10 @@ Replace the removed staged, strict, and versioned names as follows:
 
 These replace `gitleaks_staged`, `knip_strict`, `pinact_v3`, and
 `pinact_update_v3`, respectively. Put generic step customization under the
-factory's nested `step` output. This syntax remains stable if a builtin gains
-its own options later:
+same amended step object:
 
 ```pkl
-["prettier"] = (Builtins.prettier) {
-  step {
-    batch = false
-  }
-}
+["prettier"] = (Builtins.prettier) { batch = false }
 ```
 
 Replace `Builtins.check_byte_order_marker` and
@@ -66,12 +64,15 @@ steps {
 ```
 
 This creates implicit `check`, `fix`, and `pre-commit` hooks. Explicit hooks
-inherit these steps and override same-named entries. Use `enabled = false` to
-disable an implicit hook.
+inherit these steps and replace same-named entries entirely. Use
+`enabled = false` to disable an implicit hook.
 
 `pre-commit` fixes and stages by default. `hk fix` and every other hook leave
 changes unstaged unless `stage = true` or `--stage` is supplied. A step's
 `stage` patterns only filter paths after hook-level staging is enabled.
+
+See [hook defaults](/configuration#hook-defaults) for the exact behavior of the
+three materialized hook names and the settings required by custom hooks.
 
 ## Configuration files
 
@@ -83,6 +84,7 @@ changes unstaged unless `stage = true` or `--stage` is supplied. A step's
 | `--hkrc <PATH>` | the XDG or project-local path above |
 | `UserConfig.pkl` | `Config.pkl` |
 | `environment { ... }` | `env { ... }` |
+| `defaults { jobs = ... }` | move `jobs`, `skip_steps`, `skip_hooks`, `profiles`, and other settings to the top level |
 | `Types.Regex(...)` or `Config.Regex(...)` | Pkl's built-in `Regex(...)` |
 | `hk generate` | `hk init` |
 

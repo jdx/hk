@@ -103,9 +103,13 @@ flag --silent help="Suppress all output except errors, including warnings" globa
 }
 flag --trace help="Enable tracing spans and performance diagnostics" global=#true
 flag --json help="Output in JSON format" global=#true
+flag --hkrc help="Removed in hk v2; retained only to report migration guidance" global=#true hide=#true {
+    arg <PATH>
+}
 flag "-h --help" help="Print help" action=help builtin=#true
 flag "-V --version" help="Print version" action=version builtin=#true
 complete directory type=dir
+complete path type=path
 cmd agent help="Generate integration snippets for coding agents" effect=read subcommand_required=#true {
     flag "-h --help" help="Print help" action=help builtin=#true
     cmd hooks help="Print a hook configuration for an agent or editor" effect=read {
@@ -248,6 +252,9 @@ Runs each step's fix command to modify files in place. Passing `--check`, or set
     complete exclude type=path
     complete glob type=path
     complete path type=path
+}
+cmd generate hide=#true effect=read {
+    flag "-h --help" help="Print help" action=help builtin=#true
 }
 cmd init help="Generate a new hk.pkl file for a project" effect=write {
     flag "-f --force" help="Overwrite existing hk.pkl file"
