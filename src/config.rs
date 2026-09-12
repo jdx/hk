@@ -1577,11 +1577,11 @@ mod tests {
             assert!(root.implicit_default_hooks.contains(hook_name));
         }
         assert_eq!(root.hooks["check"].fix, Some(false));
-        assert_eq!(root.hooks["check"].stage, Some(false));
+        assert_eq!(root.hooks["check"].stage, None);
         assert_eq!(root.hooks["fix"].fix, Some(true));
-        assert_eq!(root.hooks["fix"].stage, Some(false));
+        assert_eq!(root.hooks["fix"].stage, None);
         assert_eq!(root.hooks["pre-commit"].fix, Some(true));
-        assert_eq!(root.hooks["pre-commit"].stage, Some(true));
+        assert_eq!(root.hooks["pre-commit"].stage, None);
         assert_eq!(
             root.hooks["pre-commit"].stash,
             Some(crate::hook::StashSetting::Method(

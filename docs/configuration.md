@@ -48,8 +48,8 @@ stashing so unstaged work is restored after the hook runs.
 An explicitly configured hook with one of those names keeps its hook-level
 settings and replaces same-named inherited steps; top-level steps still supply
 the remaining step names. Other hook names are custom hooks and must be declared
-explicitly under `hooks` with their own steps and explicit `fix` and `stage`
-settings.
+explicitly under `hooks` with their own steps. Configure `fix` or `stage` only
+when needed; custom hooks are unstaged by default.
 
 ### Config file paths
 
