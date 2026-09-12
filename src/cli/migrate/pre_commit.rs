@@ -341,13 +341,9 @@ impl PreCommit {
         // any manual or non-pre-commit steps.
         if let Some(pre_commit_steps) = steps_by_stage.get("pre-commit") {
             for (id, collection) in pre_commit_steps {
-                if let Some(step) = hk_config
-                    .step_collections
-                    .get(collection)
-                    .and_then(|steps| steps.get(id))
-                {
-                    hk_config.steps.insert(id.clone(), step.clone());
-                }
+                hk_config
+                    .step_references
+                    .insert(id.clone(), collection.clone());
             }
         }
 
