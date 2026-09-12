@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BTW59CAQ8X9JRXVJFBFE7N",
   "strategy": "manual-commit",
   "branch": "rebase-v2-remove-pkl-cli",
-  "checkpoints_count": 13,
+  "checkpoints_count": 17,
   "files_touched": [
     "docs/environment_variables.md"
   ],
@@ -30,6 +30,13 @@
       "compact_transcript": "/4/transcript.jsonl",
       "content_hash": "/4/content_hash.txt",
       "prompt": "/4/prompt.txt"
+    },
+    {
+      "metadata": "/5/metadata.json",
+      "transcript": "/5/full.jsonl",
+      "compact_transcript": "/5/transcript.jsonl",
+      "content_hash": "/5/content_hash.txt",
+      "prompt": "/5/prompt.txt"
     }
   ]
 }
