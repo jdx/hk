@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2BTF9276MWMSRRXPQ41J8T6",
   "session_id": "01a095ec-4f66-7290-931e-696d4fabbd74",
   "strategy": "manual-commit",
-  "created_at": "2026-09-12T22:11:17.572873Z",
+  "created_at": "2026-09-12T22:23:06.053776Z",
   "branch": "rebase-v2-remove-v1",
   "checkpoints_count": 1,
   "save_step_count": 1,
@@ -15,28 +15,28 @@
   "agent": "Codex",
   "model": "gpt-5.6-sol",
   "turn_id": "b6000869c5f7",
-  "checkpoint_transcript_start": 6574,
-  "transcript_lines_at_start": 6574,
-  "compact_transcript_start": 922,
+  "checkpoint_transcript_start": 6917,
+  "transcript_lines_at_start": 6917,
+  "compact_transcript_start": 973,
   "token_usage": {
-    "input_tokens": 3616,
+    "input_tokens": 15779,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 1086976,
-    "output_tokens": 861,
-    "api_call_count": 7
+    "cache_read_tokens": 4241280,
+    "output_tokens": 2304,
+    "api_call_count": 20
   },
   "session_metrics": {
     "turn_count": 1
   },
   "initial_attribution": {
-    "calculated_at": "2026-09-12T22:11:17.107369Z",
+    "calculated_at": "2026-09-12T22:23:05.546068Z",
     "agent_lines": 0,
     "agent_removed": 0,
-    "human_added": 2825,
+    "human_added": 2826,
     "human_modified": 1419,
     "human_removed": 0,
-    "total_committed": 2825,
-    "total_lines_changed": 4349,
+    "total_committed": 2826,
+    "total_lines_changed": 4350,
     "agent_percentage": 0,
     "metric_version": 2
   },
