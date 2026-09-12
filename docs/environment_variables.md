@@ -144,6 +144,14 @@ Default: `~/.local/state/hk/output.log`
 
 The file where hk writes the complete output of a failed command. An empty value uses the default location.
 
+## `HK_PKL_BACKEND` {#hk-pkl-backend}
+
+**Type:** `pklr` · **Default:** unset
+
+hk v2 always uses its built-in pklr evaluator. The value `pklr` is accepted as
+a compatibility no-op; `pkl` and other values fail with a link to the
+[v2 migration guide](/migration-v2).
+
 ## `HK_PKL_CACHE_DIR` {#hk-pkl-cache-dir}
 
 Type: `path`
