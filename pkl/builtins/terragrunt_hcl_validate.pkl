@@ -1,0 +1,87 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+/// `--log-level error` drops the per-dependency warning terragrunt logs for
+/// every `mock_outputs` block, which otherwise streams on successful runs.
+///
+/// `terragrunt hcl validate` has no per-file flag and validates every config
+/// below the working directory, so it runs once per selected directory to keep
+/// unrelated configs out of the result.
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Terragrunt HCL validator"
+}
+terragrunt_hcl_validate = new Config.Step {
+  glob = "**/*.hcl"
+  exclude = List("**/.terraform/**", "**/.terragrunt-cache/**")
+  check = new Config.CommandSpec {
+    command =
+      """
+      for f in {{ files }}; do dirname "$f"; done | sort -u | { code=0; while IFS= read -r dir; do
+      terragrunt hcl validate --show-config-path --log-level error --working-dir "$dir" || code=1
+      done; exit $code; }
+      """
+    effect = "read"
+  }
+  tests {
+    local const valid =
+      """
+      inputs = {
+        a = 1
+      }
+      """
+    local const undefinedReference =
+      """
+      inputs = {
+        a = local.undefined
+      }
+      """
+    ["check valid config"] {
+      run = "check"
+      tmpdir = true
+      write { ["terragrunt.hcl"] = valid }
+      files = List("terragrunt.hcl")
+      expect { code = 0 }
+    }
+    ["check unparseable config"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["terragrunt.hcl"] =
+          """
+          inputs = {
+            a = 1
+          """
+      }
+      files = List("terragrunt.hcl")
+      expect { code = 1 }
+    }
+    ["check undefined reference"] {
+      run = "check"
+      tmpdir = true
+      write { ["terragrunt.hcl"] = undefinedReference }
+      files = List("terragrunt.hcl")
+      expect { code = 1 }
+    }
+    ["check reports every selected directory"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["a/terragrunt.hcl"] = valid
+        ["b/terragrunt.hcl"] = undefinedReference
+      }
+      files = List("a/terragrunt.hcl", "b/terragrunt.hcl")
+      expect { code = 1 }
+    }
+    ["check ignores unselected directories"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["a/terragrunt.hcl"] = valid
+        ["b/terragrunt.hcl"] = undefinedReference
+      }
+      files = List("a/terragrunt.hcl")
+      expect { code = 0 }
+    }
+  }
+}

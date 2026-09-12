@@ -1,0 +1,109 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+/// `terragrunt hcl fmt` recursively rewrites every HCL file below the working
+/// directory, so it runs once per selected file via `--file` to leave unselected
+/// files untouched.
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Terragrunt HCL formatter"
+}
+terragrunt_hcl_fmt = new Config.Step {
+  glob = "**/*.hcl"
+  exclude = List("**/.terraform/**", "**/.terragrunt-cache/**")
+  check = new Config.CommandSpec {
+    command =
+      """
+      code=0; for f in {{ files }}; do
+      terragrunt hcl fmt --check --diff --file "$f" || code=1
+      done; exit $code
+      """
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command =
+      """
+      code=0; for f in {{ files }}; do
+      terragrunt hcl fmt --file "$f" || code=1
+      done; exit $code
+      """
+    effect = "write"
+  }
+  tests {
+    local const formatted =
+      """
+      inputs = {
+        a = 1
+      }
+
+      """
+    local const unformatted =
+      """
+      inputs   = {
+        a=1
+      }
+
+      """
+    ["check formatted file"] {
+      run = "check"
+      tmpdir = true
+      write { ["terragrunt.hcl"] = formatted }
+      files = List("terragrunt.hcl")
+      expect { code = 0 }
+    }
+    ["check unformatted file"] {
+      run = "check"
+      tmpdir = true
+      write { ["terragrunt.hcl"] = unformatted }
+      files = List("terragrunt.hcl")
+      expect { code = 1 }
+    }
+    ["check reports every selected file"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["a/terragrunt.hcl"] = formatted
+        ["b/terragrunt.hcl"] = unformatted
+      }
+      files = List("a/terragrunt.hcl", "b/terragrunt.hcl")
+      expect {
+        code = 1
+        stderr = "b/terragrunt.hcl"
+      }
+    }
+    ["check ignores unselected files"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["a/terragrunt.hcl"] = formatted
+        ["b/terragrunt.hcl"] = unformatted
+      }
+      files = List("a/terragrunt.hcl")
+      expect { code = 0 }
+    }
+    ["fix unformatted file"] {
+      run = "fix"
+      tmpdir = true
+      write { ["terragrunt.hcl"] = unformatted }
+      files = List("terragrunt.hcl")
+      expect {
+        files { ["terragrunt.hcl"] = formatted }
+      }
+    }
+    ["fix leaves unselected files alone"] {
+      run = "fix"
+      tmpdir = true
+      write {
+        ["a/terragrunt.hcl"] = unformatted
+        ["b/terragrunt.hcl"] = unformatted
+      }
+      files = List("a/terragrunt.hcl")
+      expect {
+        files {
+          ["a/terragrunt.hcl"] = formatted
+          ["b/terragrunt.hcl"] = unformatted
+        }
+      }
+    }
+  }
+}
