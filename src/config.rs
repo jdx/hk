@@ -426,6 +426,18 @@ impl Config {
                     // solely from project top-level steps. Keep the project
                     // steps and project-level environment authoritative while
                     // adopting those settings.
+                    for step_or_group in hkrc_hook.steps.values_mut() {
+                        match step_or_group {
+                            crate::hook::StepOrGroup::Step(step) => {
+                                step.env.retain(|key, _| !self.env.contains_key(key));
+                            }
+                            crate::hook::StepOrGroup::Group(group) => {
+                                for step in group.steps.values_mut() {
+                                    step.env.retain(|key, _| !self.env.contains_key(key));
+                                }
+                            }
+                        }
+                    }
                     hkrc_hook.env.retain(|key, _| !self.env.contains_key(key));
                     for (step_name, project_step) in std::mem::take(&mut project_hook.steps) {
                         hkrc_hook.steps.insert(step_name, project_step);
@@ -433,7 +445,23 @@ impl Config {
                     *project_hook = hkrc_hook;
                     project_hook.init(&hook_name)?;
                 } else if hkrc_hook.enabled {
-                    for (step_name, hkrc_step) in hkrc_hook.steps {
+                    for (step_name, mut hkrc_step) in hkrc_hook.steps {
+                        match &mut hkrc_step {
+                            crate::hook::StepOrGroup::Step(step) => {
+                                step.env.retain(|key, _| {
+                                    !self.env.contains_key(key)
+                                        && !project_hook.env.contains_key(key)
+                                });
+                            }
+                            crate::hook::StepOrGroup::Group(group) => {
+                                for step in group.steps.values_mut() {
+                                    step.env.retain(|key, _| {
+                                        !self.env.contains_key(key)
+                                            && !project_hook.env.contains_key(key)
+                                    });
+                                }
+                            }
+                        }
                         project_hook.steps.entry(step_name).or_insert(hkrc_step);
                     }
                     project_hook.init(&hook_name)?;

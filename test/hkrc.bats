@@ -66,6 +66,11 @@ hooks {
         report = "touch global-report"
     }
 }
+steps {
+    ["global"] {
+        check = "test \"\$HK_TEST_HOOK_ENV\" != global-hook && test \"\$HK_TEST_HOOK_ONLY\" = global-only"
+    }
+}
 EOF
     cat > hk.pkl <<EOF
 amends "$PKL_PATH/Config.pkl"
