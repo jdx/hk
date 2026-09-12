@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2AZBK1GG6MFAT4EXMMZYB33",
+  "session_id": "01a072cb-b323-7503-b97d-71e8265040d1",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-12T14:11:49.039953Z",
+  "branch": "rebase-v2-builtin-functions",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "README.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-5.6-sol",
+  "turn_id": "702b4e91aed1",
+  "checkpoint_transcript_start": 790,
+  "transcript_lines_at_start": 790,
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-12T14:11:49.03435Z",
+    "agent_lines": 72,
+    "agent_removed": 12,
+    "human_added": 100,
+    "human_modified": 7,
+    "human_removed": 0,
+    "total_committed": 179,
+    "total_lines_changed": 238,
+    "agent_percentage": 35.294117647058826,
+    "metric_version": 2
+  }
+}

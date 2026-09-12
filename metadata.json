@@ -1,0 +1,16 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2AZBK1GG6MFAT4EXMMZYB33",
+  "strategy": "manual-commit",
+  "branch": "rebase-v2-builtin-functions",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "README.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "prompt": ""
+    }
+  ]
+}
