@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2AZH4ZK6V4BBEKCTX54K8QP",
   "session_id": "01a0782d-b14f-7063-b66e-a09df81cb37d",
   "strategy": "manual-commit",
-  "created_at": "2026-09-12T14:14:51.286372Z",
+  "created_at": "2026-09-12T14:29:12.380895Z",
   "branch": "rebase-v2-remove-pkl-cli",
   "checkpoints_count": 1,
   "files_touched": [
@@ -18,15 +18,15 @@
     "turn_count": 32
   },
   "initial_attribution": {
-    "calculated_at": "2026-09-12T14:14:51.285605Z",
-    "agent_lines": 310,
+    "calculated_at": "2026-09-12T14:29:12.37925Z",
+    "agent_lines": 311,
     "agent_removed": 408,
     "human_added": 24,
-    "human_modified": 33,
+    "human_modified": 32,
     "human_removed": 0,
     "total_committed": 367,
     "total_lines_changed": 775,
-    "agent_percentage": 92.64516129032258,
+    "agent_percentage": 92.7741935483871,
     "metric_version": 2
   }
 }
