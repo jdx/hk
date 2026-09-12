@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2BTW59CAQ8X9JRXVJFBFE7N",
+  "session_id": "01a079fb-2b89-7c22-acf0-49ee2a3c0d33",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-12T22:12:43.623038Z",
+  "branch": "rebase-v2-remove-pkl-cli",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "docs/environment_variables.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "b2b85976dadf",
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-12T22:12:43.622277Z",
+    "agent_lines": 143,
+    "agent_removed": 146,
+    "human_added": 63,
+    "human_modified": 8,
+    "human_removed": 0,
+    "total_committed": 214,
+    "total_lines_changed": 366,
+    "agent_percentage": 78.96174863387978,
+    "metric_version": 2
+  }
+}
