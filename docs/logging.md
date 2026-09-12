@@ -45,14 +45,11 @@ hk config explain jobs
 
 Check for `hk.local.pkl`, a user config, Git settings, and `HK_*` environment variables. See [configuration precedence](/configuration#configuration-precedence).
 
-For evaluator or cache issues:
+For evaluator or cache issues, bypass the resolved configuration cache and enable debug logs:
 
 ```sh
-HK_CACHE=0 hk validate
-HK_PKL_BACKEND=pkl hk validate
+HK_CACHE=0 HK_LOG=debug hk validate
 ```
-
-The second command requires the Pkl CLI. See [Pkl evaluators](/pkl_introduction#evaluators).
 
 ## A command is missing
 

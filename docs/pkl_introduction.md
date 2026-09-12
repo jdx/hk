@@ -161,14 +161,7 @@ Use the [Pkl language reference](https://pkl-lang.org/main/current/language-refe
 
 ## Evaluators
 
-hk includes [pklr](https://github.com/jdx/pklr) and uses it by default. If a configuration uses a Pkl feature that pklr does not yet support, try the Pkl CLI backend:
-
-```sh
-mise use -g pkl
-HK_PKL_BACKEND=pkl hk validate
-```
-
-Set `HK_PKL_BACKEND=pkl` in the environment used by Git as well if your hooks need that backend.
+hk includes [pklr](https://github.com/jdx/pklr) and always uses it to evaluate project, local, and global configuration. The standalone Pkl CLI remains useful for inspecting modules, but it is not an hk runtime dependency or fallback evaluator.
 
 ## Caching
 
