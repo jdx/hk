@@ -41,7 +41,7 @@ hooks {
   ["check"] {
     steps {
       ["gitleaks"] = (Builtins.gitleaks) {
-        staged = true
+        scan = "staged"
       }
     }
   }
@@ -146,10 +146,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["shellcheck"] = (Builtins.shellcheck.step) {
+      ["shellcheck"] = (Builtins.shellcheck) {
         check = "echo shellcheck {{ files }}"
       }
-      ["shfmt"] = (Builtins.shfmt.step) {
+      ["shfmt"] = (Builtins.shfmt) {
         check = "echo shfmt {{ files }}"
       }
     }
@@ -180,10 +180,10 @@ import "$PKL_PATH/Builtins.pkl" as Builtins
 hooks {
   ["check"] {
     steps {
-      ["ruff"] = (Builtins.ruff.step) {
+      ["ruff"] = (Builtins.ruff) {
         check = "for f in {{ files }}; do echo ruff:\$f; done"
       }
-      ["ruff_format"] = (Builtins.ruff_format.step) {
+      ["ruff_format"] = (Builtins.ruff_format) {
         check = "for f in {{ files }}; do echo ruff_format:\$f; done"
       }
     }

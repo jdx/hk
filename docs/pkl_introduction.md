@@ -51,7 +51,7 @@ local eslint = new Step {
 Hooks and steps are mappings keyed by name:
 
 ```pkl
-local linters = new Mapping<String, StepDefinition> {
+local linters = new Mapping<String, Step> {
   ["eslint"] = Builtins.eslint
   ["prettier"] = Builtins.prettier
 }
@@ -70,7 +70,7 @@ A mapping entry uses `["name"] = value`. Each name must be unique within the map
 You can add entries to a new mapping with a spread:
 
 ```pkl
-local extended = new Mapping<String, StepDefinition> {
+local extended = new Mapping<String, Step> {
   ...linters
   ["shellcheck"] = Builtins.shellcheck
 }
@@ -81,12 +81,10 @@ local extended = new Mapping<String, StepDefinition> {
 Parentheses followed by an object body create a modified copy:
 
 ```pkl
-local linters = new Mapping<String, StepDefinition> {
+local linters = new Mapping<String, Step> {
 ["prettier"] = (Builtins.prettier) {
-    step {
-      glob = List("*.js", "*.ts")
-      exclude = List("**/generated/**")
-    }
+    glob = List("*.js", "*.ts")
+    exclude = List("**/generated/**")
 }
 }
 ```

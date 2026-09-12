@@ -31,7 +31,7 @@ This example uses hk’s built-in whitespace utilities, so it needs no additiona
 amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
-local linters = new Mapping<String, StepDefinition> {
+local linters = new Mapping<String, Step> {
   ["trailing-whitespace"] = Builtins.trailing_whitespace
   ["newlines"] = Builtins.newlines
 }

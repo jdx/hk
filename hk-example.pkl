@@ -26,7 +26,7 @@ local linters = new Mapping {
     batch = true
   }
   // linters can start from a builtin linter and be customized
-  ["prettier"] = (Builtins.prettier.step) {
+  ["prettier"] = (Builtins.prettier) {
     // providing a "check_list_files" command will be used to help the "check_first" method work more efficiently
     // rather than running fix against all the files that were checked, it only runs fix against the files returned by this command
     check_list_files = "prettier --list-different {{files}}"

@@ -67,7 +67,7 @@ EOF
     assert_file_exists group-ran.txt
 }
 
-@test "builtin factories support stable values, options, nested step overrides, and all" {
+@test "builtin step subclasses support stable values, options, direct overrides, and all" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl"
@@ -77,8 +77,8 @@ hooks {
         steps {
             ["prettier"] = Builtins.prettier
             ["gitleaks"] = (Builtins.gitleaks) {
-                staged = true
-                step { batch = false }
+                scan = "staged"
+                batch = false
             }
             ["editorconfig_checker_v3"] = (Builtins.editorconfig_checker) {
                 version = "3"

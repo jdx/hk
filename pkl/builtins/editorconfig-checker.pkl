@@ -6,10 +6,13 @@ import "./test/helpers.pkl"
   category = "EditorConfig"
   description = "Validate files against EditorConfig rules"
 }
-editorconfig_checker = new Config.Step {
+class EditorconfigCheckerStep extends Config.Step {
+  hidden version: "3" | "4" = "4"
   types = List("text")
   check = new Config.CommandSpec {
-    command = new Config.Command { argv = List("editorconfig-checker", "{{files}}") }
+    command = new Config.Command {
+      argv = List(if (version == "3") "ec" else "editorconfig-checker", "{{files}}")
+    }
     effect = "read"
   }
   tests {
@@ -36,3 +39,5 @@ editorconfig_checker = new Config.Step {
     ["check good file"] = testMaker.checkPass("insert final newline\n")
   }
 }
+
+editorconfig_checker = (new EditorconfigCheckerStep {}) as Config.Step

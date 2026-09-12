@@ -13,17 +13,15 @@ local frontend = new Group {
   dir = "frontend"
   steps {
     ["prettier"] = (Builtins.prettier) {
-      step { batch = true }
+      batch = true
     }
     ["eslint"] = (Builtins.eslint) {
-      step { batch = true }
+      batch = true
     }
     ["stylelint"] = (Builtins.stylelint) {
-      step {
-        // Override the group dir for a step that scans files from the repo root.
-        dir = "."
-        glob = List("frontend/**/*.css", "frontend/**/*.scss", "packages/design-system/**/*.scss")
-      }
+      // Override the group dir for a step that scans files from the repo root.
+      dir = "."
+      glob = List("frontend/**/*.css", "frontend/**/*.scss", "packages/design-system/**/*.scss")
     }
   }
 }
@@ -37,10 +35,8 @@ local backend = new Group {
     ["cargo_fmt"] = Builtins.cargo_fmt
     ["cargo_clippy"] = Builtins.cargo_clippy
     ["cargo_check"] = (Builtins.cargo_check) {
-      step {
-        // Enable explicitly with --profile slow.
-        profiles = List("slow")
-      }
+      // Enable explicitly with --profile slow.
+      profiles = List("slow")
     }
   }
 }
@@ -51,31 +47,25 @@ local infrastructure = new Group {
   exclude = List("**/.terraform/**")
   steps {
     ["terraform"] = (Builtins.terraform) {
-      step { glob = "**/*.tf" }
+      glob = "**/*.tf"
     }
     ["tflint"] = (Builtins.tf_lint) {
-      step {
-        glob = "**/*.tf"
-        // Child exclude replaces the group exclude, so repeat common exclusions.
-        exclude = List("**/.terraform/**", "modules/vendor/**")
-      }
+      glob = "**/*.tf"
+      // Child exclude replaces the group exclude, so repeat common exclusions.
+      exclude = List("**/.terraform/**", "modules/vendor/**")
     }
   }
 }
 
 // Shared linters (apply to all components)
-local shared = new Mapping<String, StepDefinition> {
+local shared = new Mapping<String, Step> {
   ["markdown"] = (Builtins.markdown_lint) {
-    step {
-      glob = List("**/*.md")
-      exclude = List("**/node_modules/**", "**/target/**")
-    }
+    glob = List("**/*.md")
+    exclude = List("**/node_modules/**", "**/target/**")
   }
   ["yaml"] = (Builtins.yamllint) {
-    step {
-      glob = List("**/*.yaml", "**/*.yml")
-      exclude = List("**/node_modules/**")
-    }
+    glob = List("**/*.yaml", "**/*.yml")
+    exclude = List("**/node_modules/**")
   }
 }
 

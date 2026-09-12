@@ -35,11 +35,9 @@ Amend a builtin to keep its defaults while changing specific properties:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  step {
-    glob = List("*.js", "*.ts", "*.json")
-    exclude = List("**/generated/**")
-    batch = false
-  }
+  glob = List("*.js", "*.ts", "*.json")
+  exclude = List("**/generated/**")
+  batch = false
 }
 ```
 
@@ -49,10 +47,10 @@ Use dependencies for ordering and profiles for optional checks:
 
 ```pkl
 ["prettier"] = (Builtins.prettier) {
-  step { depends = "eslint" }
+  depends = "eslint"
 }
 ["mypy"] = (Builtins.mypy) {
-  step { profiles = List("types") }
+  profiles = List("types")
 }
 ```
 
@@ -75,9 +73,7 @@ locally by aube, prefix its builtin with `aube exec`:
 
 ```pkl
 ["eslint"] = (Builtins.eslint) {
-  step {
-    prefix = List("aube", "exec")
-  }
+  prefix = List("aube", "exec")
 }
 ```
 

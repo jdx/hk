@@ -3,14 +3,14 @@ import "../Config.pkl"
 import "./test/helpers.pkl"
 
 class GitleaksStep extends Config.Step {
-  // Scan staged Git content instead of the repository working tree.
-  hidden staged: Boolean = false
+  // Select whether to scan the repository working tree or staged Git content.
+  hidden scan: "dir" | "staged" = "dir"
   // gitleaks dir accepts exactly one path. Passing multiple files makes it silently scan ".".
   // Reference: https://github.com/gitleaks/gitleaks/blob/v8.30.1/cmd/directory.go#L22-L30
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv =
-        if (staged)
+        if (scan == "staged")
           List(
             "gitleaks",
             "git",
@@ -26,7 +26,7 @@ class GitleaksStep extends Config.Step {
     effect = "read"
   }
   tests =
-    if (staged)
+    if (scan == "staged")
       new Mapping<String, Config.StepTest> {
         local const testMaker = new helpers.TestMaker {
           filename = "foo.txt"
@@ -86,4 +86,4 @@ class GitleaksStep extends Config.Step {
     new { file = ".gitleaks.toml" }
   }
 }
-gitleaks = new GitleaksStep {}
+gitleaks = (new GitleaksStep {}) as Config.Step
