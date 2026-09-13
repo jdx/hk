@@ -34,7 +34,7 @@ impl From<&str> for PrePushRefs {
     }
 }
 
-// Check that a string is a valid Git commit long hash (40 or 64 lowercase hexits)
+/// Check that a string is a valid Git commit long hash (40 or 64 lowercase hexits)
 fn is_valid_commit_hash(s: &str) -> bool {
     let length_is_valid = s.len() == 40 || s.len() == 64;
     let is_all_lowercase_hexits = s.chars().all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
@@ -46,8 +46,7 @@ fn is_valid_commit_hash(s: &str) -> bool {
     return is_valid;
 }
 
-// Check that a string is a valid four-part stdin line.
-// Silently ignores empty lines; prints warning for others.
+/// Check that a string is a valid four-part stdin line. Silently ignore empty lines; print warning for others.
 fn validate_input_line(line: &str) -> bool {
     if line.is_empty() {
         return false;
