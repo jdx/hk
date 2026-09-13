@@ -55,7 +55,7 @@ HK_CACHE=0 HK_LOG=debug hk validate
 
 Builtins do not install linters. Check that the named executable is available in the environment running hk.
 
-If it works in your terminal but fails from Git or an editor, install the launcher with `hk install --mise` when using mise. Git must still be able to find mise itself. For language package dependencies, expose the package’s executable directory. See [mise integration](/mise_integration).
+If it works in your terminal but fails from Git or an editor, use the recommended `hk install --global --mise` on Git 2.54+. mise must be on `PATH` during installation; the global launcher records its path, so Git does not need to find mise at runtime. For a repository-scoped installation on any supported Git version, use `hk install --mise`; this local launcher requires mise on Git’s runtime `PATH`. For language package dependencies, expose the package’s executable directory. See [mise integration](/mise_integration).
 
 ## A hook does not fire, or fires twice
 

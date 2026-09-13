@@ -116,9 +116,6 @@ hk = "latest"
 
 [env]
 HK_MISE = 1
-
-[hooks]
-postinstall = "hk install --mise"
 ```
 
 ```toml
@@ -132,6 +129,10 @@ node = "lts"
 [tools]
 rust = "stable"
 ```
+
+On Git 2.54+, prefer installing the mise-aware launcher once per developer
+machine with `hk install --global --mise`. For a repository-scoped installation
+on any supported Git version, use `hk install --mise`.
 
 When hk runs from the repo root, each subproject's hooks are merged in, scoped to
 its directory:

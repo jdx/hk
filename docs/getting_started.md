@@ -62,7 +62,7 @@ On Git 2.54+, hk uses Git’s configuration-based hooks. On older Git, a per-rep
 If hk is already installed globally, `hk install` skips the local installation and cleans up stale local hk hooks. `--force-local` overrides that behavior, but combining local and global hooks can cause duplicate runs.
 
 ::: tip Using mise tools in Git hooks
-Use `hk install --mise` or `hk install --global --mise` to launch hooks through `mise x`. This makes project tools available even when Git runs outside an activated shell, such as from an editor. mise itself must be on Git’s `PATH`.
+On Git 2.54+, use the recommended `hk install --global --mise` to launch hooks through `mise x`. The installer records mise’s path, so mise must be on `PATH` during installation but Git does not need it on its runtime `PATH`. For a repository-scoped installation on any supported Git version, use `hk install --mise`; this local launcher requires mise on Git’s runtime `PATH`.
 :::
 
 Commit `hk.pkl` so your team can share the configuration. Hook installation is local to each developer’s machine or clone.

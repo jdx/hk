@@ -30,19 +30,36 @@ Run the project’s package installation command before invoking hk. See [mise t
 
 ## Make tools available to Git
 
-Install hk’s hooks with mise integration:
-
-```sh
-hk install --mise
-```
-
-Or, on Git 2.54+, install globally:
+On Git 2.54+, install hk’s hooks once per developer machine with mise integration:
 
 ```sh
 hk install --global --mise
 ```
 
-The launcher uses `mise x` to prepare the project environment before running hk. Developers do not need an activated shell, but Git must be able to find `mise` itself.
+The global launcher is the recommended setup. It uses `mise x` to prepare each
+project environment before running hk, and repositories without an hk
+configuration are skipped. mise must be on `PATH` during installation; the
+global launcher records mise’s executable path so Git does not need to find it
+at hook runtime.
+
+For a repository-scoped setup on any supported Git version, install hooks
+separately in each repository:
+
+```sh
+hk install --mise
+```
+
+The local launcher also uses `mise x`, but it requires Git to find mise on its
+runtime `PATH`. Developers do not need an activated shell for either launcher.
+
+Use one installation scope at a time. When moving a repository from a local
+installation to the recommended global installation, remove the local hooks
+first:
+
+```sh
+hk uninstall
+hk install --global --mise
+```
 
 Setting `HK_MISE=1` makes `--mise` the default for later `hk init` and `hk install` commands. It does not rewrite an already-installed launcher until installation runs again.
 
@@ -50,23 +67,17 @@ Setting `HK_MISE=1` makes `--mise` the default for later `hk init` and `hk insta
 
 `hk init --mise` creates `hk.pkl` and, when absent, a `mise.toml` with hk configured and a `pre-commit` task.
 
+Run `hk init --mise`, then install the recommended global launcher on Git 2.54+:
+
 ```sh
 hk init --mise
-hk install --mise
+hk install --global --mise
 ```
+
+On older Git, or for a repository-scoped installation, use `hk install --mise`
+instead.
 
 Review the generated tools and tasks. Existing `mise.toml` files are preserved.
-
-## Install hooks when tools are installed
-
-Add a postinstall hook to the project’s `mise.toml`:
-
-```toml
-[hooks]
-postinstall = "hk install --mise"
-```
-
-This installs or updates hooks when mise installs tools. If hk hooks are already installed globally, hk skips the local installation and cleans up stale local hooks.
 
 ## Call a mise task from a step
 
