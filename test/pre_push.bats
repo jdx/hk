@@ -219,7 +219,7 @@ EOF
     run bash -c "printf 'refs/heads/main\n' | hk run pre-push origin example"
 
     assert_success
-    assert_output --partial "Ignoring malformed line from stdin"
+    assert_output --partial "Ignoring malformed stdin line \""
     refute_output --partial "panicked"
 }
 
@@ -242,6 +242,6 @@ EOF
     run bash -c "printf 'refs/heads/main abc refs/heads/main def\n' | hk run pre-push origin example"
 
     assert_success
-    assert_output --partial "not a valid full Git hash"
+    assert_output --partial "second and fourth parts must be 40 or 64 lowercase hexits"
     refute_output --partial "panicked"
 }
