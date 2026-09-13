@@ -34,7 +34,9 @@ impl From<&str> for PrePushRefs {
     }
 }
 
-/// Check that a string is a valid Git commit long hash (40 or 64 lowercase hexits)
+/// Check that a string is a valid Git commit long hash (40 or 64 lowercase hexits).
+/// This function is only called against the second and fourth parts of an input line,
+/// which must be full-length hashes (the first and third can be any commit-like expressions).
 fn is_valid_commit_hash(s: &str) -> bool {
     let length_is_valid = s.len() == 40 || s.len() == 64;
     let is_all_lowercase_hexits = s.chars().all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
