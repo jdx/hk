@@ -5,10 +5,7 @@
   "branch": "codex/docs-global-mise-install",
   "checkpoints_count": 1,
   "files_touched": [
-    "docs/getting_started.md",
-    "docs/logging.md",
-    "docs/mise_integration.md",
-    "docs/reference/examples/monorepo.md"
+    "docs/mise_integration.md"
   ],
   "sessions": [
     {
@@ -20,10 +17,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 31729,
+    "input_tokens": 15636,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 609152,
-    "output_tokens": 2536,
-    "api_call_count": 7
+    "cache_read_tokens": 615040,
+    "output_tokens": 1088,
+    "api_call_count": 5
   }
 }
