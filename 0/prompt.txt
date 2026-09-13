@@ -66,3 +66,7 @@ Scope: #1253, #1255, #1256, #1257, #1369. Same ground rules as before: do not me
 - Every bot thread on all five PRs answered or resolved.
 - PR bodies updated where behavior changed (item 1 changes #1257's "preserve global hook defaults" bullet).
 ```
+
+---
+
+merge the entire stack, then if everything looks good merge the relase pr
