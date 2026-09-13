@@ -87,6 +87,11 @@ three materialized hook names and the settings required by custom hooks.
 | `defaults { jobs = ... }` | move `jobs`, `skip_steps`, `skip_hooks`, `profiles`, and other settings to the top level |
 | `Types.Regex(...)` or `Config.Regex(...)` | Pkl's built-in `Regex(...)` |
 | `hk generate` | `hk init` |
+| `HK_PKL_BACKEND=pkl` | remove the variable; `pklr` remains an accepted compatibility no-op |
 
 Project, local, and XDG configuration files must all be Pkl. Global and project
 steps remain additive, with project definitions winning collisions.
+
+The hk runtime no longer invokes the pkl CLI, directly or through mise. The
+standalone pkl CLI remains useful for inspecting a Pkl module, but it is not an
+hk runtime dependency or fallback evaluator.

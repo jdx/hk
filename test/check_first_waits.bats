@@ -19,7 +19,7 @@ hooks {
         fix = true
         steps {
             ["a"] {
-                match_any = List(new { types = List("bash") })
+                match_any = List(new FileSelector { types = List("bash") })
                 stage = "*"
                 check_first = true
                 check = "echo 'start a' && sleep 0.1 && echo 'exit a' && exit 1"

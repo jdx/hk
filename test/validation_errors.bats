@@ -164,7 +164,7 @@ hooks {
         steps {
             ["test-step"] {
                 glob = "*.sh"
-                match_any = List(new { types = List("shell") })
+                match_any = List(new FileSelector { types = List("shell") })
                 check = "echo {{ files }}"
             }
         }
@@ -206,7 +206,7 @@ hooks {
     ["check"] {
         steps {
             ["test-step"] {
-                match_any = List(new {})
+                match_any = List(new FileSelector {})
                 check = "echo {{ files }}"
             }
         }
@@ -229,7 +229,7 @@ hooks {
             ["test-group"] = new Group {
                 steps {
                     ["test-step"] {
-                        match_any = List(new { glob = List() })
+                        match_any = List(new FileSelector { glob = List() })
                         check = "echo {{ files }}"
                     }
                 }

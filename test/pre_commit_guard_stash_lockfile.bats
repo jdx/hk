@@ -20,7 +20,7 @@ hooks {
   ["pre-commit"] {
     fix = true
     stash = "git"
-    steps = new Mapping {
+    steps = new Mapping<String, Step> {
       ["guard-lockfile-stashed"] {
         glob = "*"
         // Fail if pnpm-lock.yaml currently differs from index/worktree baseline.
