@@ -1,0 +1,5 @@
+investigate [https://github.com/jdx/hk/discussions/1356](https://github.com/jdx/hk/discussions/1356) note my v2 discussion
+
+---
+
+ok add it to that pr and leave a reply
