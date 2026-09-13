@@ -763,6 +763,9 @@ impl Config {
                     sub.path.display()
                 );
             }
+            if sub_hook_is_implicit && !self.hooks.contains_key(&hook_name) {
+                self.implicit_default_hooks.insert(hook_name.clone());
+            }
             let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| {
                 let mut hook = Hook {
                     name: hook_name.clone(),
@@ -1573,6 +1576,7 @@ mod tests {
                 panic!("expected step");
             };
             assert_eq!(lint.dir.as_deref(), Some("packages/web"));
+            assert!(root.implicit_default_hooks.contains(hook_name));
         }
         assert_eq!(root.hooks["check"].fix, Some(false));
         assert_eq!(root.hooks["check"].stage, Some(false));
