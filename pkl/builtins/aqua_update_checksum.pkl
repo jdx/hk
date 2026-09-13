@@ -59,7 +59,23 @@ const aqua_update_checksum = new Config.Step {
         ]
       }
       """
-    ["fix bad file"] = testMaker.fixPass("{}", good)
+    ["fix bad file"] = new Config.StepTest {
+      run = "fix"
+      tmpdir = true
+      write = new Mapping<String, String> {
+        [testMaker.filename] = "{}"
+        ...testMaker.extra_files
+      }
+      // aqua emits sha256 or sha512 for this registry depending on the platform.
+      after =
+        """
+        jq -e '
+          .checksums[0] |
+          (.algorithm == "sha256" and .checksum == "14BFA633212CF508D45DE47AD17CF666E009BCA351787E28F41D63FFD5B99D8B") or
+          (.algorithm == "sha512" and .checksum == "F5BD5D893B9901B0E0C267651154350D5C0F4A9D1DA0EB82103BF0A2AE28ACB42AFC2F83E32A1B8A2EE2EDE21D905ED71759C7AC08A33AD2129C53F86539FBBF")
+        ' aqua-checksums.json
+        """
+    }
     ["fix good file"] = testMaker.fixPass(good, good)
   }
 }
