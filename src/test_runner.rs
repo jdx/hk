@@ -17,7 +17,7 @@ pub struct TestResult {
     pub ok: bool,
     pub stdout: String,
     pub stderr: String,
-    pub code: i32,
+    pub code: Option<i32>,
     pub duration_ms: u128,
     pub reasons: Vec<String>,
 }
@@ -93,6 +93,40 @@ async fn execute_cmd(
         }
     };
     Ok((stdout, stderr, code))
+}
+
+/// The files a test's command runs against, or the reason none are left.
+#[derive(Debug, PartialEq, Eq)]
+enum TestFiles {
+    Selected(Vec<PathBuf>),
+    /// The step's file filters excluded every file the test wrote.
+    FiltersExcludedAll {
+        written: usize,
+    },
+}
+
+fn filters_excluded_all_reason(written: usize) -> String {
+    format!(
+        "the step's file filters excluded all {written} file(s) written by this test; set the test's `files` explicitly, or reset `tests` when overriding a builtin's `glob`"
+    )
+}
+
+/// Resolve which files a test runs against.
+///
+/// When a test sets `files` explicitly the list is used verbatim. Otherwise the files the test
+/// wrote are run through the step's filters, mirroring how a real run builds jobs. If the step has
+/// filters and they discard every written file, the command would run with no files at all and fail
+/// in a tool-specific way, so report the real cause instead.
+fn select_test_files(step: &Step, test: &StepTest, files: Vec<PathBuf>) -> Result<TestFiles> {
+    if test.files.is_some() {
+        return Ok(TestFiles::Selected(files));
+    }
+    let written = files.len();
+    let filtered = step.filter_files(&files)?;
+    if filtered.is_empty() && written > 0 && step.has_filters() {
+        return Ok(TestFiles::FiltersExcludedAll { written });
+    }
+    Ok(TestFiles::Selected(filtered))
 }
 
 fn check_exit_code(actual: i32, expected: i32) -> Option<String> {
@@ -174,7 +208,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
             )
         })
         .collect();
-    let mut files: Vec<PathBuf> = match &test.files {
+    let files: Vec<PathBuf> = match &test.files {
         Some(files) => files
             .iter()
             .map(|f| tera::render(f, &tctx).unwrap_or_else(|_| f.clone()))
@@ -190,9 +224,21 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         .tmpdir
         .unwrap_or_else(|| files.iter().any(|p| p.starts_with(&sandbox)));
 
-    if test.files.is_none() {
-        files = step.filter_files(&files)?;
-    }
+    let files = match select_test_files(step, test, files)? {
+        TestFiles::Selected(files) => files,
+        TestFiles::FiltersExcludedAll { written } => {
+            return Ok(TestResult {
+                step: step.name.clone(),
+                name: name.to_string(),
+                ok: false,
+                stdout: String::new(),
+                stderr: String::new(),
+                code: None,
+                duration_ms: started_at.elapsed().as_millis(),
+                reasons: vec![filters_excluded_all_reason(written)],
+            });
+        }
+    };
 
     let base_dir = if uses_sandbox {
         sandbox.to_path_buf()
@@ -274,7 +320,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
                 ok: false,
                 stdout,
                 stderr,
-                code,
+                code: Some(code),
                 duration_ms: started_at.elapsed().as_millis(),
                 reasons: vec![format!("before failed with code {}", code)],
             });
@@ -328,8 +374,102 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         ok: reasons.is_empty(),
         stdout: final_stdout,
         stderr: final_stderr,
-        code,
+        code: Some(code),
         duration_ms: started_at.elapsed().as_millis(),
         reasons,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::step::Pattern;
+
+    fn step_with_glob(glob: &str) -> Step {
+        Step {
+            glob: Some(Pattern::Globs(vec![glob.to_string()])),
+            ..Default::default()
+        }
+    }
+
+    fn test_writing(files: &[&str]) -> StepTest {
+        StepTest {
+            write: files
+                .iter()
+                .map(|f| (f.to_string(), String::new()))
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    fn paths(files: &[&str]) -> Vec<PathBuf> {
+        files.iter().map(PathBuf::from).collect()
+    }
+
+    #[test]
+    fn filters_excluding_every_written_file_are_reported() {
+        let step = step_with_glob("*.yaml");
+        let test = test_writing(&["main.tf"]);
+
+        assert_eq!(
+            select_test_files(&step, &test, paths(&["main.tf"])).unwrap(),
+            TestFiles::FiltersExcludedAll { written: 1 }
+        );
+    }
+
+    #[test]
+    fn explicit_files_bypass_filtering() {
+        let step = step_with_glob("*.yaml");
+        let test = StepTest {
+            files: Some(vec!["main.tf".to_string()]),
+            ..test_writing(&["main.tf"])
+        };
+
+        assert_eq!(
+            select_test_files(&step, &test, paths(&["main.tf"])).unwrap(),
+            TestFiles::Selected(paths(&["main.tf"]))
+        );
+    }
+
+    #[test]
+    fn step_without_filters_keeps_written_files() {
+        let step = Step::default();
+        let test = test_writing(&["main.tf"]);
+
+        assert!(!step.has_filters());
+        assert_eq!(
+            select_test_files(&step, &test, paths(&["main.tf"])).unwrap(),
+            TestFiles::Selected(paths(&["main.tf"]))
+        );
+    }
+
+    #[test]
+    fn test_writing_no_files_is_not_reported() {
+        let step = step_with_glob("*.yaml");
+        let test = StepTest::default();
+
+        assert_eq!(
+            select_test_files(&step, &test, vec![]).unwrap(),
+            TestFiles::Selected(vec![])
+        );
+    }
+
+    #[test]
+    fn matching_files_are_filtered_as_before() {
+        let step = step_with_glob("*.yaml");
+        let test = test_writing(&["a.yaml", "b.tf"]);
+
+        assert_eq!(
+            select_test_files(&step, &test, paths(&["a.yaml", "b.tf"])).unwrap(),
+            TestFiles::Selected(paths(&["a.yaml"]))
+        );
+    }
+
+    #[test]
+    fn reason_names_the_cause_and_the_fix() {
+        assert_eq!(
+            filters_excluded_all_reason(1),
+            "the step's file filters excluded all 1 file(s) written by this test; set the test's `files` explicitly, or reset `tests` when overriding a builtin's `glob`"
+        );
+    }
 }
