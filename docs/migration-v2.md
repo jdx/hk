@@ -55,7 +55,9 @@ Replace `Builtins.check_byte_order_marker` and
 
 ## Shared steps and staging
 
-Move steps repeated across `check`, `fix`, and `pre-commit` to the top level:
+Top-level `steps` is optional, not a migration requirement. Existing configurations that define steps only inside `hooks`, including shared `local linters` mappings, remain supported. You do not need to move those steps when upgrading.
+
+For new configurations, we recommend top-level `steps` when `check`, `fix`, and `pre-commit` should share the same linters:
 
 ```pkl
 steps {
@@ -63,7 +65,7 @@ steps {
 }
 ```
 
-This creates implicit `check`, `fix`, and `pre-commit` hooks. Explicit hooks
+When nonempty, this creates implicit `check`, `fix`, and `pre-commit` hooks. Without top-level steps, only explicitly declared hooks are available. Explicit hooks
 inherit these steps and replace same-named entries entirely. Use
 `enabled = false` to disable an implicit hook.
 
@@ -76,18 +78,18 @@ three materialized hook names and the settings required by custom hooks.
 
 ## Configuration files
 
-| Removed in v2 | Replacement |
-| --- | --- |
-| `hk.toml`, `hk.yaml`, `hk.yml`, `hk.json` | `hk.pkl` amending `Config.pkl` |
-| project `.hkrc.pkl` | `hk.local.pkl` |
-| home `~/.hkrc.pkl` | `~/.config/hk/config.pkl` |
-| `--hkrc <PATH>` | the XDG or project-local path above |
-| `UserConfig.pkl` | `Config.pkl` |
-| `UserConfig.pkl`'s `environment { ... }` | `Config.pkl`'s `env { ... }` |
-| `defaults { jobs = ... }` | move `jobs`, `skip_steps`, `skip_hooks`, `profiles`, and other settings to the top level |
-| `Types.Regex(...)` or `Config.Regex(...)` | Pkl's built-in `Regex(...)` |
-| `hk generate` | `hk init` |
-| `HK_PKL_BACKEND=pkl` | remove the variable; `pklr` remains an accepted compatibility no-op |
+| Removed in v2                             | Replacement                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `hk.toml`, `hk.yaml`, `hk.yml`, `hk.json` | `hk.pkl` amending `Config.pkl`                                                           |
+| project `.hkrc.pkl`                       | `hk.local.pkl`                                                                           |
+| home `~/.hkrc.pkl`                        | `~/.config/hk/config.pkl`                                                                |
+| `--hkrc <PATH>`                           | the XDG or project-local path above                                                      |
+| `UserConfig.pkl`                          | `Config.pkl`                                                                             |
+| `UserConfig.pkl`'s `environment { ... }`  | `Config.pkl`'s `env { ... }`                                                             |
+| `defaults { jobs = ... }`                 | move `jobs`, `skip_steps`, `skip_hooks`, `profiles`, and other settings to the top level |
+| `Types.Regex(...)` or `Config.Regex(...)` | Pkl's built-in `Regex(...)`                                                              |
+| `hk generate`                             | `hk init`                                                                                |
+| `HK_PKL_BACKEND=pkl`                      | remove the variable; `pklr` remains an accepted compatibility no-op                      |
 
 Project, local, and XDG configuration files must all be Pkl. Global and project
 steps remain additive, with project definitions winning collisions.

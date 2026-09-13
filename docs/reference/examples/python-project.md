@@ -30,16 +30,18 @@ Ruff’s formatter waits for Ruff’s lint fixes. mypy runs only when `types` is
 
 If you prefer Black, replace the `ruff-format` entry with `Builtins.black`. Choose one primary formatter to avoid conflicting formatting passes.
 
-For a push hook that always includes mypy, add a `pre-push` hook using an amended linter mapping and clear mypy’s profile requirement there:
+For a push hook that always includes mypy, add a `pre-push` hook that copies the top-level steps and clears mypy’s profile requirement there:
 
 ```pkl
-["pre-push"] {
-  steps = (linters) {
-    ["mypy"] = (Builtins.mypy) {
-      profiles = List()
+hooks {
+  ["pre-push"] {
+    steps = (module.steps) {
+      ["mypy"] = (Builtins.mypy) {
+        profiles = List()
+      }
     }
   }
 }
 ```
 
-Place this fragment inside `hooks`. Locally and in CI, `hk check --all --profile types` includes type checking without a separate hook.
+Add this block after the top-level `steps` block. `module.steps` refers to those shared steps. Locally and in CI, `hk check --all --profile types` includes type checking without a separate hook.

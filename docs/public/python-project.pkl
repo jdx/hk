@@ -3,25 +3,12 @@ amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pk
 
 import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+steps {
   ["ruff"] = Builtins.ruff
   ["ruff-format"] = (Builtins.ruff_format) {
     depends = "ruff"
   }
   ["mypy"] = (Builtins.mypy) {
     profiles = List("types")
-  }
-}
-
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps = linters
-  }
-  ["check"] { steps = linters }
-  ["fix"] {
-    fix = true
-    steps = linters
   }
 }
