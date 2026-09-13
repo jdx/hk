@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -14,73 +15,183 @@ PKL_DIR = (ROOT / "pkl").resolve()
 PACKAGE_ROOT = re.compile(
     r"package://github\.com/jdx/hk/releases/download/v[^/]+/hk@[^#]+#/"
 )
+REWRITTEN_PACKAGE_ROOT = re.compile(r"package://example\.com/v[^/]+/hk@[^#]+#/")
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z0-9_]+)\1")
+REDIRECT = re.compile(r"(>>|>)\s*(['\"]?)([^\s'\"]*\.pkl)\2")
+TEST = re.compile(r'^\s*@test\s+["\']([^"\']+)["\']\s*\{')
+FUNCTION = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\(\)\s*\{")
+SHELL_EXPANSIONS = {
+    "$first_effect": "read",
+    "$second_effect": "write",
+    "$oversized": "x",
+    "$stash_method": "git",
+    "$method": "git",
+    "$(pwd)": "/tmp/hk-apple-pkl",
+    "${version}": "1.58.1",
+    "$HK_REPORT_JSON": r"\$HK_REPORT_JSON",
+    "$NORMAL_INDEX": "/tmp/hk-apple-pkl/index",
+    "$WORKTREE_DIR": "/tmp/hk-apple-pkl/worktree",
+}
+
+# These fixtures deliberately exercise Pkl evaluation errors. The migration
+# fixtures import removed v1 shims; the others verify malformed-config errors.
+EXPECTED_FAILURES = {
+    ("config_error_handling.bats", "hk check fails on invalid config"),
+    ("config_error_handling.bats", "hk fix fails on invalid config"),
+    ("config_error_handling.bats", "hk run fails on invalid config"),
+    ("config_error_handling.bats", "hk config commands fail on invalid config"),
+    ("config_error_handling.bats", "hk util ignores invalid project and user config"),
+    ("config_error_handling.bats", "config error shows helpful details"),
+    ("pkl_config_errors.bats", "missing amends declaration shows helpful error"),
+    ("pkl_config_errors.bats", "invalid module URI shows helpful error"),
+    ("pkl_config_errors.bats", "pkl file with syntax errors shows original error"),
+    ("regex_patterns.bats", "Config.Regex fails with v2 migration guidance"),
+    ("regex_patterns.bats", "Types.Regex fails with v2 migration guidance"),
+    (
+        "v2_migration_errors.bats",
+        "removed byte-order-marker aliases have migration guidance",
+    ),
+    (
+        "v2_migration_errors.bats",
+        "removed fix byte-order-marker alias has migration guidance",
+    ),
+}
+
+
+@dataclass(frozen=True)
+class Heredoc:
+    line: int
+    scope: str
+    target: str
+    append: bool
+    source: str
+
+
+@dataclass(frozen=True)
+class Fixture:
+    name: str
+    source: str
+    expected_failure: bool
+    support: tuple[tuple[str, str], ...]
 
 
 def render(source: str) -> str:
     source = source.replace("$PKL_PATH", PKL_DIR.as_posix())
+    for expression, value in SHELL_EXPANSIONS.items():
+        source = re.sub(rf"(?<!\\){re.escape(expression)}", lambda _: value, source)
     source = source.replace(r"\$", "$")
-    return PACKAGE_ROOT.sub(f"{PKL_DIR.as_posix()}/", source)
+    source = PACKAGE_ROOT.sub(f"{PKL_DIR.as_posix()}/", source)
+    return REWRITTEN_PACKAGE_ROOT.sub(f"{PKL_DIR.as_posix()}/", source)
 
 
-def heredocs(path: Path) -> list[tuple[bool, str]]:
+def heredocs(path: Path) -> list[Heredoc]:
     lines = path.read_text().splitlines()
-    blocks: list[tuple[bool, str]] = []
+    blocks: list[Heredoc] = []
+    scope = "file"
     index = 0
     while index < len(lines):
         line = lines[index]
-        if "cat" not in line or "hk.pkl" not in line or "<<" not in line:
+        test_match = TEST.match(line)
+        function_match = FUNCTION.match(line)
+        if test_match:
+            scope = test_match.group(1)
+        elif function_match:
+            scope = function_match.group(1)
+
+        marker_match = HEREDOC.search(line)
+        redirect_match = REDIRECT.search(line)
+        if "cat" not in line or marker_match is None or redirect_match is None:
             index += 1
             continue
-        marker_match = re.search(r"<<'?([A-Za-z0-9_]+)'?", line)
-        if marker_match is None:
-            raise RuntimeError(f"cannot parse heredoc marker in {path}:{index + 1}")
-        marker = marker_match.group(1)
-        append = re.search(r">>\s*hk\.pkl", line) is not None
+
+        marker = marker_match.group(2)
         body: list[str] = []
+        start_line = index + 1
         index += 1
         while index < len(lines) and lines[index].strip() != marker:
             body.append(lines[index])
             index += 1
         if index == len(lines):
-            raise RuntimeError(f"unterminated heredoc in {path}")
-        blocks.append((append, "\n".join(body) + "\n"))
+            raise RuntimeError(f"unterminated heredoc in {path}:{start_line}")
+        blocks.append(
+            Heredoc(
+                line=start_line,
+                scope=scope,
+                target=redirect_match.group(3),
+                append=redirect_match.group(1) == ">>",
+                source="\n".join(body) + "\n",
+            )
+        )
         index += 1
     return blocks
 
 
-def bats_fixtures() -> list[tuple[str, str]]:
-    builtins = heredocs(ROOT / "test/builtins_tests.bats")
-    if len(builtins) != 8 or any(append for append, _ in builtins):
-        raise RuntimeError("unexpected builtins_tests.bats hk.pkl fixture layout")
+def bats_fixtures() -> list[Fixture]:
+    fixtures: list[Fixture] = []
+    found_expected_failures: set[tuple[str, str]] = set()
+    for path in sorted((ROOT / "test").glob("*.bats")):
+        blocks = heredocs(path)
+        support_by_scope: dict[str, list[tuple[str, str]]] = {}
+        for block in blocks:
+            if Path(block.target).name != "hk.pkl":
+                support_by_scope.setdefault(block.scope, []).append(
+                    (block.target, block.source)
+                )
+        latest: dict[str, str] = {}
+        for block in blocks:
+            if Path(block.target).name != "hk.pkl":
+                continue
+            source = block.source
+            if block.append:
+                try:
+                    source = latest[block.target] + source
+                except KeyError as error:
+                    raise RuntimeError(
+                        f"append without a preceding {block.target} fixture "
+                        f"in {path}:{block.line}"
+                    ) from error
+            else:
+                latest[block.target] = source
 
-    top_level = heredocs(ROOT / "test/top_level_steps.bats")
-    if len(top_level) != 4 or [append for append, _ in top_level] != [False, True, True, False]:
-        raise RuntimeError("unexpected top_level_steps.bats hk.pkl fixture layout")
-    base = top_level[0][1]
+            failure_key = (path.name, block.scope)
+            expected_failure = failure_key in EXPECTED_FAILURES
+            if expected_failure:
+                found_expected_failures.add(failure_key)
+            fixtures.append(
+                Fixture(
+                    name=f"{path.stem}-{block.line}.pkl",
+                    source=source,
+                    expected_failure=expected_failure,
+                    support=tuple(support_by_scope.get(block.scope, [])),
+                )
+            )
 
-    fixtures = [
-        (f"builtins-{index}.pkl", body)
-        for index, (_, body) in enumerate(builtins, start=1)
-    ]
-    fixtures.extend(
-        [
-            ("top-level-base.pkl", base),
-            ("top-level-explicit.pkl", base + top_level[1][1]),
-            ("top-level-disabled.pkl", base + top_level[2][1]),
-            ("top-level-all-builtins.pkl", top_level[3][1]),
-        ]
-    )
+    missing = EXPECTED_FAILURES - found_expected_failures
+    if missing:
+        raise RuntimeError(f"expected failing fixtures were not found: {sorted(missing)}")
     return fixtures
 
 
-def evaluate(path: Path) -> None:
-    subprocess.run(
+def evaluate(
+    path: Path, *, expected_failure: bool = False, label: str | Path | None = None
+) -> None:
+    result = subprocess.run(
         ["pkl", "eval", "--format", "json", str(path)],
         cwd=ROOT,
-        check=True,
+        check=False,
         stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
     )
-    print(path.relative_to(ROOT) if path.is_relative_to(ROOT) else path.name)
+    label = label or (path.relative_to(ROOT) if path.is_relative_to(ROOT) else path.name)
+    if expected_failure:
+        if result.returncode == 0:
+            raise RuntimeError(f"{label} unexpectedly evaluated successfully")
+        print(f"{label} (expected failure)")
+    elif result.returncode != 0:
+        raise RuntimeError(f"{label} failed Apple Pkl evaluation:\n{result.stderr}")
+    else:
+        print(label)
 
 
 def main() -> None:
@@ -91,10 +202,19 @@ def main() -> None:
             rendered = temp_dir / f"docs-{source.name}"
             rendered.write_text(render(source.read_text()))
             evaluate(rendered)
-        for name, source in bats_fixtures():
-            rendered = temp_dir / name
-            rendered.write_text(render(source))
-            evaluate(rendered)
+        for fixture in bats_fixtures():
+            fixture_dir = temp_dir / fixture.name.removesuffix(".pkl")
+            fixture_dir.mkdir()
+            for target, source in fixture.support:
+                support = fixture_dir / Path(target).name
+                support.write_text(render(source))
+            rendered = fixture_dir / "hk.pkl"
+            rendered.write_text(render(fixture.source))
+            evaluate(
+                rendered,
+                expected_failure=fixture.expected_failure,
+                label=fixture.name,
+            )
 
 
 if __name__ == "__main__":

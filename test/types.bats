@@ -215,8 +215,8 @@ hooks {
     steps {
       ["shell"] {
         match_any = List(
-          new { glob = List("**/*.bats") },
-          new { types = List("sh", "bash") }
+          new FileSelector { glob = List("**/*.bats") },
+          new FileSelector { types = List("sh", "bash") }
         )
         check = "echo {{ files }}"
       }
@@ -257,7 +257,7 @@ hooks {
     steps {
       ["python-in-src"] {
         match_any = List(
-          new {
+          new FileSelector {
             glob = "src/**/*"
             types = List("python")
           }
