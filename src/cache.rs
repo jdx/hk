@@ -56,14 +56,14 @@ impl CacheManagerBuilder {
         self
     }
 
-    pub fn with_content_fresh_files(mut self, paths: impl IntoIterator<Item = PathBuf>) -> Self {
-        self.fresh_files.extend(paths);
-        self.fresh_file_key_mode = FreshFileKeyMode::ContentOnly;
+    pub fn with_cache_key(mut self, key: impl Into<String>) -> Self {
+        self.cache_keys.push(key.into());
         self
     }
 
-    pub fn with_cache_key(mut self, key: String) -> Self {
-        self.cache_keys.push(key);
+    pub fn with_content_fresh_files(mut self, paths: impl IntoIterator<Item = PathBuf>) -> Self {
+        self.fresh_files.extend(paths);
+        self.fresh_file_key_mode = FreshFileKeyMode::ContentOnly;
         self
     }
 
@@ -221,5 +221,18 @@ mod tests {
         assert_eq!(val, &1);
         let val = cache.get_or_try_init(|| Ok(2)).unwrap();
         assert_eq!(val, &1);
+    }
+
+    #[test]
+    fn explicit_cache_keys_select_distinct_files() {
+        let base = env::HK_CACHE_DIR.join("cache-key-test.json");
+        let unset = CacheManagerBuilder::new(&base)
+            .with_cache_key("HK_PKL_HTTP_REWRITE=<unset>")
+            .build::<u8>();
+        let rewrite = CacheManagerBuilder::new(&base)
+            .with_cache_key("HK_PKL_HTTP_REWRITE=https://example.com/=https://mirror.example.com/")
+            .build::<u8>();
+
+        assert_ne!(unset.cache_file_path, rewrite.cache_file_path);
     }
 }
