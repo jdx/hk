@@ -3,7 +3,7 @@ amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pk
 
 import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+steps {
   ["whitespace"] = new Step {
     glob = List("*.txt", "*.md")
     check = "hk util trailing-whitespace {{files}}"
@@ -32,17 +32,4 @@ local linters = new Mapping<String, Step> {
     }
   }
   ["newlines"] = Builtins.newlines
-}
-
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps = linters
-  }
-  ["check"] { steps = linters }
-  ["fix"] {
-    fix = true
-    steps = linters
-  }
 }

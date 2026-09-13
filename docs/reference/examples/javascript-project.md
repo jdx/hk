@@ -26,7 +26,7 @@ hk fix
 
 ESLint and Prettier can both change JavaScript files. The dependency gives them a stable order; configure their rules to agree. TypeScript checking stays behind the `types` profile so it is opt-in.
 
-The same linter mapping powers `pre-commit`, `check`, and `fix`. The pre-commit hook saves unstaged work before fixing the staged versions.
+Top-level `steps` supplies the default `pre-commit`, `check`, and `fix` hooks. The pre-commit hook saves unstaged work before fixing and staging changes.
 
 ## Adapt it
 

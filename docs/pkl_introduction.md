@@ -48,7 +48,18 @@ local eslint = new Step {
 
 ## Reuse steps in mappings
 
-Hooks and steps are mappings keyed by name:
+Hooks and steps are mappings keyed by name. Prefer top-level `steps` for linters shared by `check`, `fix`, and `pre-commit`:
+
+```pkl
+steps {
+  ["eslint"] = Builtins.eslint
+  ["prettier"] = Builtins.prettier
+}
+```
+
+A mapping entry uses `["name"] = value`. Each name must be unique within the mapping.
+
+Top-level `steps` is optional. To share a mapping between selected explicit hooks instead, use a local helper:
 
 ```pkl
 local linters = new Mapping<String, Step> {
@@ -60,19 +71,11 @@ hooks {
   ["check"] { steps = linters }
   ["fix"] {
     fix = true
-    steps = linters
+    steps = new Mapping<String, Step> {
+      ...linters
+      ["shellcheck"] = Builtins.shellcheck
+    }
   }
-}
-```
-
-A mapping entry uses `["name"] = value`. Each name must be unique within the mapping.
-
-You can add entries to a new mapping with a spread:
-
-```pkl
-local extended = new Mapping<String, Step> {
-  ...linters
-  ["shellcheck"] = Builtins.shellcheck
 }
 ```
 
@@ -81,11 +84,11 @@ local extended = new Mapping<String, Step> {
 Parentheses followed by an object body create a modified copy:
 
 ```pkl
-local linters = new Mapping<String, Step> {
-["prettier"] = (Builtins.prettier) {
+steps {
+  ["prettier"] = (Builtins.prettier) {
     glob = List("*.js", "*.ts")
     exclude = List("**/generated/**")
-}
+  }
 }
 ```
 

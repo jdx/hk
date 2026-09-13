@@ -11,28 +11,15 @@ For a first setup, use [getting started](/getting_started). For complete configu
 
 ## `hk.pkl`
 
-A configuration amends hk’s [Pkl schema](/pkl_introduction) and defines named hooks:
+A configuration amends hk’s [Pkl schema](/pkl_introduction). For a shared set of linters, prefer top-level `steps`:
 
 ```pkl
 amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+steps {
   ["eslint"] = Builtins.eslint
   ["prettier"] = Builtins.prettier
-}
-
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps = linters
-  }
-  ["check"] { steps = linters }
-  ["fix"] {
-    fix = true
-    steps = linters
-  }
 }
 ```
 
@@ -40,7 +27,7 @@ hooks {
 
 ### Hook defaults {#hook-defaults}
 
-Top-level `steps` materialize the `check`, `fix`, and `pre-commit` hooks. `check`
+Top-level `steps` is optional. When nonempty, it creates the `check`, `fix`, and `pre-commit` hooks. `check`
 runs checks without fixing or staging. `fix` applies fixes without staging.
 `pre-commit` applies fixes, stages the resulting changes, and defaults to Git
 stashing so unstaged work is restored after the hook runs.
@@ -50,6 +37,28 @@ settings and replaces same-named inherited steps; top-level steps still supply
 the remaining step names. Other hook names are custom hooks and must be declared
 explicitly under `hooks` with their own steps. Configure `fix` or `stage` only
 when needed; custom hooks are unstaged by default.
+
+You can omit top-level `steps` and define steps only inside hooks. This is fully supported in v2 and is useful when each hook needs a different set of steps:
+
+```pkl
+hooks {
+  ["check"] {
+    steps {
+      ["eslint"] = Builtins.eslint
+    }
+  }
+  ["pre-commit"] {
+    fix = true
+    stage = true
+    stash = "git"
+    steps {
+      ["prettier"] = Builtins.prettier
+    }
+  }
+}
+```
+
+Without top-level steps, hk does not create the three default hooks. The example above declares only `check` and `pre-commit`; declare a `fix` hook too if you want `hk fix`. Existing typed mappings such as `local linters = new Mapping<String, Step> { ... }` and `steps = linters` remain supported.
 
 ### Config file paths
 
@@ -82,7 +91,7 @@ hooks {
 }
 ```
 
-Add `hk.local.pkl` to `.git/info/exclude` or the project’s `.gitignore`. This example preserves inherited steps and adds one. Assign a new mapping when you want to replace the step list:
+Add `hk.local.pkl` to `.git/info/exclude` or the project’s `.gitignore`. This example preserves inherited steps and adds one. Assign a new mapping when you want to replace the hook’s explicitly declared step list:
 
 ```pkl
 amends "./hk.pkl"
@@ -95,6 +104,8 @@ hooks {
   }
 }
 ```
+
+Top-level steps still supply missing names after a hook’s step mapping is replaced. To replace all shared steps for a local configuration, replace the top-level `steps` mapping too.
 
 ## Define a step
 

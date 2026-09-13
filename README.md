@@ -31,24 +31,13 @@ This example uses hk’s built-in whitespace utilities, so it needs no additiona
 amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+steps {
   ["trailing-whitespace"] = Builtins.trailing_whitespace
   ["newlines"] = Builtins.newlines
 }
-
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps = linters
-  }
-  ["check"] { steps = linters }
-  ["fix"] {
-    fix = true
-    steps = linters
-  }
-}
 ```
+
+Top-level `steps` is the recommended starting point: hk supplies `check`, `fix`, and `pre-commit` hooks using these steps. It is optional; you can also define steps only inside explicit hooks. See [hook defaults](https://hk.jdx.dev/configuration#hook-defaults).
 
 Add tools such as `Builtins.prettier`, `Builtins.eslint`, or `Builtins.ruff`, or [define your own steps](https://hk.jdx.dev/reference/examples/custom-linters).
 
@@ -62,7 +51,7 @@ Add tools such as `Builtins.prettier`, `Builtins.eslint`, or `Builtins.ruff`, or
 | `hk check --plan`         | Preview selected files and steps without running them |
 | `hk check --why prettier` | Explain why a step will run or be skipped             |
 
-By convention, checks do not modify files. Fixes may modify and stage files; review `git diff` and `git diff --cached`. Use `hk fix --no-stage` to leave fixes unstaged. The generated pre-commit hook stashes unstaged work before fixing staged files, then restores it afterward. [Learn about hooks and partial commits](https://hk.jdx.dev/hooks).
+By convention, checks do not modify files. `hk fix` leaves fixes unstaged unless you pass `--stage`. The default pre-commit hook stashes unstaged work, fixes and stages changes, then restores the unstaged work. Review `git diff` and `git diff --cached`. [Learn about hooks and partial commits](https://hk.jdx.dev/hooks).
 
 ## Why hk?
 

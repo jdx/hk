@@ -77,29 +77,18 @@ This complete example runs Prettier, ESLint, and Ruff. Install and configure tho
 amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
 import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+steps {
   ["prettier"] = Builtins.prettier
   ["eslint"] = Builtins.eslint
   ["ruff"] = Builtins.ruff
 }
-
-hooks {
-  ["pre-commit"] {
-    fix = true
-    stash = "git"
-    steps = linters
-  }
-  ["check"] { steps = linters }
-  ["fix"] {
-    fix = true
-    steps = linters
-  }
-}
 ```
 
-The `amends` line loads hk’s configuration schema. `Builtins` supplies reusable step definitions. The local `linters` mapping lets all three hooks use the same steps.
+The `amends` line loads hk’s configuration schema. `Builtins` supplies reusable step definitions. Top-level `steps` is the recommended starting point: hk creates `check`, `fix`, and `pre-commit` hooks that share these steps.
 
 In this configuration, `pre-commit` fixes staged files while unstaged work is stashed. `check` checks your working tree, and `fix` applies fixes to it. Steps whose file patterns do not match any selected files are skipped.
+
+Top-level `steps` is optional. You can instead define steps only inside explicit `hooks`, or use explicit hooks to customize the shared setup. See [hook defaults](/configuration#hook-defaults).
 
 Validate the configuration without running its linters:
 
@@ -119,7 +108,7 @@ hk check --step eslint
 
 With the configuration above, modified files include staged, unstaged, and untracked files. `--all` selects tracked files plus eligible untracked files; ignore rules and exclusions still apply. Hook settings and flags can change file selection.
 
-Check commands should be read-only. Fix commands may edit files, and some findings need a manual fix. Fixes may be staged automatically. Review `git diff` and `git diff --cached`, or use `hk fix --no-stage` to leave fixes unstaged.
+Check commands should be read-only. Fix commands may edit files, and some findings need a manual fix. `hk fix` leaves fixes unstaged by default; use `hk fix --stage` to stage them. The default `pre-commit` hook stages its fixes. Review `git diff` and `git diff --cached`.
 
 ## Preview a run
 
