@@ -1,0 +1,13 @@
+why did htis fail [https://github.com/jdx/hk/discussions/1367](https://github.com/jdx/hk/discussions/1367)
+
+---
+
+oh ok is there a draft release?
+
+---
+
+ok make an empty release that has notes and publish it
+
+---
+
+make better release notes than that
