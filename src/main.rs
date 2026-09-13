@@ -3,7 +3,12 @@ extern crate log;
 #[macro_use]
 mod output;
 
-use std::{panic, thread, time::Duration};
+use std::{
+    ffi::OsString,
+    io::{self, Write},
+    panic, thread,
+    time::Duration,
+};
 
 pub use eyre::Result;
 
@@ -49,6 +54,9 @@ use tokio::signal;
 use tokio::signal::unix::SignalKind;
 
 fn main() -> Result<()> {
+    if is_bare_builtins_invocation(std::env::args_os().skip(1)) {
+        return write_builtins(io::stdout().lock());
+    }
     let worker_threads = runtime_worker_threads(
         thread::available_parallelism()
             .map(|n| n.get())
@@ -59,6 +67,22 @@ fn main() -> Result<()> {
         .worker_threads(worker_threads)
         .build()?
         .block_on(async_main())
+}
+
+fn is_bare_builtins_invocation(mut args: impl Iterator<Item = OsString>) -> bool {
+    args.next().is_some_and(|arg| arg == "builtins") && args.next().is_none()
+}
+
+fn write_builtins(mut writer: impl Write) -> Result<()> {
+    for builtin in builtins::BUILTINS {
+        if let Err(err) = writeln!(writer, "{builtin}") {
+            if err.kind() == io::ErrorKind::BrokenPipe {
+                return Ok(());
+            }
+            return Err(err.into());
+        }
+    }
+    Ok(())
 }
 
 async fn async_main() -> Result<()> {
@@ -132,7 +156,37 @@ fn handle_panic() {
 
 #[cfg(test)]
 mod tests {
-    use super::runtime_worker_threads;
+    use super::{is_bare_builtins_invocation, runtime_worker_threads, write_builtins};
+    use std::ffi::OsString;
+    use std::io::{self, Write};
+
+    #[test]
+    fn bare_builtins_can_skip_runtime_and_command_tree_setup() {
+        assert!(is_bare_builtins_invocation(
+            ["builtins"].into_iter().map(OsString::from)
+        ));
+        assert!(!is_bare_builtins_invocation(
+            ["builtins", "--quiet"].into_iter().map(OsString::from)
+        ));
+    }
+
+    struct FailingWriter(io::ErrorKind);
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::from(self.0))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn bare_builtins_treats_broken_pipe_as_success() {
+        write_builtins(FailingWriter(io::ErrorKind::BrokenPipe)).unwrap();
+        assert!(write_builtins(FailingWriter(io::ErrorKind::Other)).is_err());
+    }
 
     #[test]
     fn runtime_workers_are_bounded() {

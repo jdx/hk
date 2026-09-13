@@ -23,6 +23,7 @@ impl Config {
     fn load() -> Result<Self> {
         let mut config = Self::load_project_config()?;
         config.load_subprojects()?;
+        config.materialize_default_hooks()?;
         config.apply_hkrc()?;
         config.validate()?;
         Ok(config)
@@ -151,7 +152,7 @@ impl Config {
         let paths = Self::project_config_search_paths();
         if let Some(path) = Self::find_project_config(&paths) {
             let mut config = Self::load_config_cached(path)?;
-            config.apply_implicit_root_dir();
+            config.apply_implicit_root_dir()?;
             return Ok(config);
         }
         debug!("No config file found, using default");
@@ -170,9 +171,10 @@ impl Config {
     /// this config (before `load_subprojects` merges anything else in) a
     /// default `dir` for the offset from the work tree root to this config's
     /// own directory, the same way a subproject's steps get scoped to it.
-    fn apply_implicit_root_dir(&mut self) {
+    fn apply_implicit_root_dir(&mut self) -> Result<()> {
+        self.materialize_default_hooks()?;
         let Some(subdir) = Self::implicit_root_dir(&self.path) else {
-            return;
+            return Ok(());
         };
         for hook in self.hooks.values_mut() {
             for step_or_group in hook.steps.values_mut() {
@@ -189,6 +191,7 @@ impl Config {
                 }
             }
         }
+        Ok(())
     }
 
     /// The path from the git work tree root to the directory containing
@@ -481,6 +484,7 @@ impl Config {
                 let mut hkrc_config: Config = serde_json::from_value(json_value)
                     .wrap_err("failed to parse hkrc as Config")?;
                 hkrc_config.init(&path, true)?;
+                hkrc_config.materialize_default_hooks()?;
                 self.merge_from_hkrc(hkrc_config);
             }
         }
@@ -517,9 +521,17 @@ impl Config {
         self.terminal_progress = self.terminal_progress.or(hkrc.terminal_progress);
         self.walk_ignore = self.walk_ignore.or(hkrc.walk_ignore);
 
+        // Top-level steps are additive, with project definitions winning.
+        for (step_name, hkrc_step) in hkrc.steps {
+            self.steps.entry(step_name).or_insert(hkrc_step);
+        }
+
         // Hooks: additive, project wins on same-named step collision
         for (hook_name, hkrc_hook) in hkrc.hooks {
             if let Some(project_hook) = self.hooks.get_mut(&hook_name) {
+                if !hkrc_hook.enabled {
+                    continue;
+                }
                 for (step_name, hkrc_step) in hkrc_hook.steps {
                     project_hook.steps.entry(step_name).or_insert(hkrc_step);
                 }
@@ -722,6 +734,7 @@ impl Config {
         root_offset: Option<&str>,
         mut sub: Config,
     ) -> Result<()> {
+        sub.materialize_default_hooks()?;
         if sub.subprojects.as_ref().is_some_and(|s| !s.is_empty()) {
             warn!(
                 "subprojects: nested `subprojects` in {} is ignored (only one level is supported)",
@@ -734,14 +747,36 @@ impl Config {
         };
         let sub_env = std::mem::take(&mut sub.env);
         for (hook_name, sub_hook) in std::mem::take(&mut sub.hooks) {
-            let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| Hook {
-                name: hook_name.clone(),
-                fix: sub_hook.fix,
-                stash: sub_hook.stash.clone(),
-                stage: sub_hook.stage,
-                fail_on_fix: sub_hook.fail_on_fix,
-                report: sub_hook.report.clone(),
-                ..Default::default()
+            if !sub_hook.enabled {
+                continue;
+            }
+            let sub_hook_is_implicit = sub.implicit_default_hooks.contains(&hook_name);
+            if !sub_hook_is_implicit
+                && (sub_hook.fix.is_some()
+                    || sub_hook.stash.is_some()
+                    || sub_hook.stage.is_some()
+                    || sub_hook.fail_on_fix
+                    || sub_hook.report.is_some())
+            {
+                debug!(
+                    "subprojects: ignoring hook-level settings for '{hook_name}' in {}",
+                    sub.path.display()
+                );
+            }
+            if sub_hook_is_implicit && !self.hooks.contains_key(&hook_name) {
+                self.implicit_default_hooks.insert(hook_name.clone());
+            }
+            let root_hook = self.hooks.entry(hook_name.clone()).or_insert_with(|| {
+                let mut hook = Hook {
+                    name: hook_name.clone(),
+                    ..Default::default()
+                };
+                if sub_hook_is_implicit {
+                    hook.fix = sub_hook.fix;
+                    hook.stage = sub_hook.stage;
+                    hook.stash = sub_hook.stash.clone();
+                }
+                hook
             });
             // Names of the subproject hook's steps and groups, for rewriting
             // `depends` references to their scoped names.
@@ -1064,6 +1099,14 @@ fn failed_pkl_config_error(path: &Path, code: Option<&str>, stderr: &str) -> eyr
 pub struct Config {
     pub min_hk_version: Option<String>,
     #[serde(default)]
+    pub steps: IndexMap<String, crate::hook::StepOrGroup>,
+    #[serde(skip)]
+    #[serde(default)]
+    default_hooks_materialized: bool,
+    #[serde(skip)]
+    #[serde(default)]
+    implicit_default_hooks: IndexSet<String>,
+    #[serde(default)]
     pub hooks: IndexMap<String, Hook>,
     /// Preferred default branch to compare against (e.g. "main"). If not set, hk will detect it.
     pub default_branch: Option<String>,
@@ -1097,6 +1140,40 @@ impl std::fmt::Display for Config {
 }
 
 impl Config {
+    fn materialize_default_hooks(&mut self) -> Result<()> {
+        if self.default_hooks_materialized || self.steps.is_empty() {
+            return Ok(());
+        }
+
+        for (name, fix, stage, stash) in [
+            ("check", Some(false), Some(false), None),
+            ("fix", Some(true), Some(false), None),
+            (
+                "pre-commit",
+                Some(true),
+                Some(true),
+                Some(crate::hook::StashSetting::Method(
+                    crate::git::StashMethod::Git,
+                )),
+            ),
+        ] {
+            let is_implicit = !self.hooks.contains_key(name);
+            let hook = self.hooks.entry(name.to_string()).or_default();
+            if is_implicit {
+                self.implicit_default_hooks.insert(name.to_string());
+            }
+            let explicit_steps = std::mem::take(&mut hook.steps);
+            hook.steps = self.steps.clone();
+            hook.steps.extend(explicit_steps);
+            hook.fix = hook.fix.or(fix);
+            hook.stage = hook.stage.or(stage);
+            hook.stash = hook.stash.clone().or(stash);
+            hook.init(name)?;
+        }
+        self.default_hooks_materialized = true;
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<()> {
         for (hook_name, hook) in &self.hooks {
             for (step_name, step_or_group) in &hook.steps {
@@ -1298,6 +1375,147 @@ mod tests {
     }
 
     #[test]
+    fn top_level_steps_create_default_hooks_with_explicit_overrides() {
+        let mut config = Config::default();
+        config.steps.insert(
+            "shared".to_string(),
+            StepOrGroup::Step(Box::new(step("shared"))),
+        );
+        let mut check = hook("check");
+        check.steps.insert(
+            "shared".to_string(),
+            StepOrGroup::Step(Box::new(Step {
+                env: IndexMap::from([("SOURCE".to_string(), "explicit".to_string())]),
+                ..Default::default()
+            })),
+        );
+        config.hooks.insert("check".to_string(), check);
+
+        config.materialize_default_hooks().unwrap();
+
+        assert_eq!(
+            config.hooks.keys().collect::<Vec<_>>(),
+            ["check", "fix", "pre-commit"]
+        );
+        let check = config.hooks.get("check").unwrap();
+        let StepOrGroup::Step(shared) = check.steps.get("shared").unwrap() else {
+            panic!("expected step");
+        };
+        assert_eq!(
+            shared.env.get("SOURCE").map(String::as_str),
+            Some("explicit")
+        );
+        assert_eq!(check.fix, Some(false));
+        assert_eq!(check.stage, Some(false));
+        assert_eq!(config.hooks["fix"].fix, Some(true));
+        assert_eq!(config.hooks["fix"].stage, Some(false));
+        assert_eq!(config.hooks["pre-commit"].fix, Some(true));
+        assert_eq!(config.hooks["pre-commit"].stage, Some(true));
+        assert_eq!(
+            config.hooks["pre-commit"].stash,
+            Some(crate::hook::StashSetting::Method(
+                crate::git::StashMethod::Git
+            ))
+        );
+    }
+
+    #[test]
+    fn implicit_root_dir_scopes_materialized_top_level_steps() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join(".git")).unwrap();
+        let project_dir = tmp.path().join("packages/web");
+        std::fs::create_dir_all(&project_dir).unwrap();
+
+        let mut config = Config {
+            path: project_dir.join("hk.pkl"),
+            ..Default::default()
+        };
+        config.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+
+        config.apply_implicit_root_dir().unwrap();
+
+        for hook_name in ["check", "fix", "pre-commit"] {
+            let StepOrGroup::Step(lint) = &config.hooks[hook_name].steps["lint"] else {
+                panic!("expected step");
+            };
+            assert_eq!(lint.dir.as_deref(), Some("packages/web"));
+        }
+    }
+
+    #[test]
+    fn hkrc_top_level_steps_are_additive_and_project_wins() {
+        let mut project = Config::default();
+        project.steps.insert(
+            "shared".to_string(),
+            StepOrGroup::Step(Box::new(Step {
+                env: IndexMap::from([("SOURCE".to_string(), "project".to_string())]),
+                ..Default::default()
+            })),
+        );
+        let mut user = Config::default();
+        user.steps.insert(
+            "shared".to_string(),
+            StepOrGroup::Step(Box::new(step("user"))),
+        );
+        user.steps.insert(
+            "user-only".to_string(),
+            StepOrGroup::Step(Box::new(step("user-only"))),
+        );
+        let mut user_check = hook("check");
+        user_check.steps.insert(
+            "shared".to_string(),
+            StepOrGroup::Step(Box::new(Step {
+                env: IndexMap::from([("SOURCE".to_string(), "user-hook".to_string())]),
+                ..Default::default()
+            })),
+        );
+        user.hooks.insert("check".to_string(), user_check);
+
+        project.materialize_default_hooks().unwrap();
+        user.materialize_default_hooks().unwrap();
+        project.merge_from_hkrc(user);
+
+        let StepOrGroup::Step(shared) = &project.hooks["check"].steps["shared"] else {
+            panic!("expected step");
+        };
+        assert_eq!(
+            shared.env.get("SOURCE").map(String::as_str),
+            Some("project")
+        );
+        assert!(project.hooks["check"].steps.contains_key("user-only"));
+    }
+
+    #[test]
+    fn hkrc_disabled_hook_does_not_add_steps_to_enabled_project_hook() {
+        let mut project = Config::default();
+        let mut project_check = hook("check");
+        project_check.steps.insert(
+            "project".to_string(),
+            StepOrGroup::Step(Box::new(step("project"))),
+        );
+        project.hooks.insert("check".to_string(), project_check);
+
+        let mut user = Config::default();
+        let mut user_check = hook("check");
+        user_check.enabled = false;
+        user_check.steps.insert(
+            "user".to_string(),
+            StepOrGroup::Step(Box::new(step("user"))),
+        );
+        user.hooks.insert("check".to_string(), user_check);
+
+        project.merge_from_hkrc(user);
+
+        let check = &project.hooks["check"];
+        assert!(check.enabled);
+        assert!(check.steps.contains_key("project"));
+        assert!(!check.steps.contains_key("user"));
+    }
+
+    #[test]
     fn merge_subproject_scopes_flat_steps() {
         let mut root = Config::default();
         let mut sub = Config::default();
@@ -1340,6 +1558,109 @@ mod tests {
         assert_eq!(fmt.dir.as_deref(), Some("packages/web/nested"));
         // step env wins over subproject config env
         assert_eq!(fmt.env.get("FOO").map(String::as_str), Some("from-step"));
+    }
+
+    #[test]
+    fn merge_subproject_materializes_top_level_steps() {
+        let mut root = Config::default();
+        let mut sub = Config::default();
+        sub.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+
+        root.merge_subproject("packages/web", None, sub).unwrap();
+
+        for hook_name in ["check", "fix", "pre-commit"] {
+            let StepOrGroup::Step(lint) = &root.hooks[hook_name].steps["packages/web:lint"] else {
+                panic!("expected step");
+            };
+            assert_eq!(lint.dir.as_deref(), Some("packages/web"));
+            assert!(root.implicit_default_hooks.contains(hook_name));
+        }
+        assert_eq!(root.hooks["check"].fix, Some(false));
+        assert_eq!(root.hooks["check"].stage, Some(false));
+        assert_eq!(root.hooks["fix"].fix, Some(true));
+        assert_eq!(root.hooks["fix"].stage, Some(false));
+        assert_eq!(root.hooks["pre-commit"].fix, Some(true));
+        assert_eq!(root.hooks["pre-commit"].stage, Some(true));
+        assert_eq!(
+            root.hooks["pre-commit"].stash,
+            Some(crate::hook::StashSetting::Method(
+                crate::git::StashMethod::Git
+            ))
+        );
+    }
+
+    #[test]
+    fn subproject_hook_settings_are_ignored_before_root_hook_materialization() {
+        let mut root = Config::default();
+        root.steps.insert(
+            "root".to_string(),
+            StepOrGroup::Step(Box::new(step("root"))),
+        );
+
+        let mut sub = Config::default();
+        sub.path = PathBuf::from("packages/web/hk.pkl");
+        let mut sub_check = hook("check");
+        sub_check.fix = Some(true);
+        sub_check.stage = Some(true);
+        sub_check.stash = Some(crate::hook::StashSetting::Method(
+            crate::git::StashMethod::Git,
+        ));
+        sub_check.fail_on_fix = true;
+        sub_check.report = Some("echo report".parse().unwrap());
+        sub_check
+            .steps
+            .insert("sub".to_string(), StepOrGroup::Step(Box::new(step("sub"))));
+        sub.hooks.insert("check".to_string(), sub_check);
+
+        root.merge_subproject("packages/web", None, sub).unwrap();
+        root.materialize_default_hooks().unwrap();
+
+        let check = &root.hooks["check"];
+        assert_eq!(check.fix, Some(false));
+        assert_eq!(check.stage, Some(false));
+        assert_eq!(check.stash, None);
+        assert!(!check.fail_on_fix);
+        assert_eq!(check.report, None);
+        assert!(check.steps.contains_key("root"));
+        assert!(check.steps.contains_key("packages/web:sub"));
+    }
+
+    #[test]
+    fn rematerializing_does_not_apply_root_hook_env_to_subproject_steps() {
+        let mut root = Config::default();
+        root.steps.insert(
+            "root".to_string(),
+            StepOrGroup::Step(Box::new(step("root"))),
+        );
+        let mut root_check = hook("check");
+        root_check
+            .env
+            .insert("ROOT_ONLY".to_string(), "root".to_string());
+        root.hooks.insert("check".to_string(), root_check);
+        root.materialize_default_hooks().unwrap();
+
+        let mut sub = Config::default();
+        sub.env
+            .insert("SUB_ONLY".to_string(), "subproject".to_string());
+        sub.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        root.merge_subproject("packages/web", None, sub).unwrap();
+
+        root.materialize_default_hooks().unwrap();
+
+        let StepOrGroup::Step(lint) = &root.hooks["check"].steps["packages/web:lint"] else {
+            panic!("expected step");
+        };
+        assert_eq!(
+            lint.env.get("SUB_ONLY").map(String::as_str),
+            Some("subproject")
+        );
+        assert!(!lint.env.contains_key("ROOT_ONLY"));
     }
 
     #[test]
@@ -1437,6 +1758,23 @@ mod tests {
 
         let err = root.merge_subproject("sub", None, sub).unwrap_err();
         assert!(err.to_string().contains("duplicate step name 'sub:lint'"));
+    }
+
+    #[test]
+    fn merge_subproject_ignores_disabled_hooks() {
+        let mut root = Config::default();
+        let mut sub = Config::default();
+        let mut disabled = hook("pre-commit");
+        disabled.enabled = false;
+        disabled.steps.insert(
+            "lint".to_string(),
+            StepOrGroup::Step(Box::new(step("lint"))),
+        );
+        sub.hooks.insert("pre-commit".to_string(), disabled);
+
+        root.merge_subproject("sub", None, sub).unwrap();
+
+        assert!(!root.hooks.contains_key("pre-commit"));
     }
 
     #[test]

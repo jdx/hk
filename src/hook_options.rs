@@ -233,6 +233,19 @@ impl HookOptions {
         }
         match config.hooks.get(name) {
             Some(hook) => {
+                if !hook.enabled {
+                    warn!("hook '{name}' is disabled by hooks[\"{name}\"].enabled = false");
+                    crate::structured_output::emit_noop_run(
+                        Settings::cli_output_format(),
+                        name,
+                        chrono::Utc::now().to_rfc3339(),
+                        0,
+                        vec![],
+                        "hook disabled by configuration",
+                        self.sarif.as_deref(),
+                    )?;
+                    return Ok(());
+                }
                 if self.stats {
                     hook.stats(self, name).await?;
                 } else if self.plan || self.why.is_some() {
