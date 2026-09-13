@@ -39,7 +39,7 @@ TS
 export const schema = 'changed'
 TS
 
-    run hk fix -v
+    run hk fix --stage -v
     assert_success
 
     run git status --porcelain -- fooment/schemas/generated.proto config/logging/generated/frontend_schema.ts

@@ -1145,12 +1145,11 @@ impl Config {
             return Ok(());
         }
 
-        for (name, fix, stage, stash) in [
-            ("check", Some(false), Some(false), None),
-            ("fix", Some(true), Some(false), None),
+        for (name, fix, stash) in [
+            ("check", Some(false), None),
+            ("fix", Some(true), None),
             (
                 "pre-commit",
-                Some(true),
                 Some(true),
                 Some(crate::hook::StashSetting::Method(
                     crate::git::StashMethod::Git,
@@ -1166,7 +1165,6 @@ impl Config {
             hook.steps = self.steps.clone();
             hook.steps.extend(explicit_steps);
             hook.fix = hook.fix.or(fix);
-            hook.stage = hook.stage.or(stage);
             hook.stash = hook.stash.clone().or(stash);
             hook.init(name)?;
         }
@@ -1406,11 +1404,11 @@ mod tests {
             Some("explicit")
         );
         assert_eq!(check.fix, Some(false));
-        assert_eq!(check.stage, Some(false));
+        assert_eq!(check.stage, None);
         assert_eq!(config.hooks["fix"].fix, Some(true));
-        assert_eq!(config.hooks["fix"].stage, Some(false));
+        assert_eq!(config.hooks["fix"].stage, None);
         assert_eq!(config.hooks["pre-commit"].fix, Some(true));
-        assert_eq!(config.hooks["pre-commit"].stage, Some(true));
+        assert_eq!(config.hooks["pre-commit"].stage, None);
         assert_eq!(
             config.hooks["pre-commit"].stash,
             Some(crate::hook::StashSetting::Method(
@@ -1579,11 +1577,11 @@ mod tests {
             assert!(root.implicit_default_hooks.contains(hook_name));
         }
         assert_eq!(root.hooks["check"].fix, Some(false));
-        assert_eq!(root.hooks["check"].stage, Some(false));
+        assert_eq!(root.hooks["check"].stage, None);
         assert_eq!(root.hooks["fix"].fix, Some(true));
-        assert_eq!(root.hooks["fix"].stage, Some(false));
+        assert_eq!(root.hooks["fix"].stage, None);
         assert_eq!(root.hooks["pre-commit"].fix, Some(true));
-        assert_eq!(root.hooks["pre-commit"].stage, Some(true));
+        assert_eq!(root.hooks["pre-commit"].stage, None);
         assert_eq!(
             root.hooks["pre-commit"].stash,
             Some(crate::hook::StashSetting::Method(
@@ -1620,7 +1618,7 @@ mod tests {
 
         let check = &root.hooks["check"];
         assert_eq!(check.fix, Some(false));
-        assert_eq!(check.stage, Some(false));
+        assert_eq!(check.stage, None);
         assert_eq!(check.stash, None);
         assert!(!check.fail_on_fix);
         assert_eq!(check.report, None);

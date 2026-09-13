@@ -38,6 +38,19 @@ hooks {
 
 `pre-commit` applies fixes to staged files while unstaged work is saved. The `check` and `fix` hooks provide the local commands. They are hooks, not individual steps.
 
+### Hook defaults {#hook-defaults}
+
+Top-level `steps` materialize the `check`, `fix`, and `pre-commit` hooks. `check`
+runs checks without fixing or staging. `fix` applies fixes without staging.
+`pre-commit` applies fixes, stages the resulting changes, and defaults to Git
+stashing so unstaged work is restored after the hook runs.
+
+An explicitly configured hook with one of those names keeps its hook-level
+settings and replaces same-named inherited steps; top-level steps still supply
+the remaining step names. Other hook names are custom hooks and must be declared
+explicitly under `hooks` with their own steps. Configure `fix` or `stage` only
+when needed; custom hooks are unstaged by default.
+
 ### Config file paths
 
 Starting in the current directory, hk walks upward. At each directory it checks these paths in order, using the first match:

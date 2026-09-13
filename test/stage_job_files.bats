@@ -67,7 +67,7 @@ EOF
   # Modify the tracked shell script (with "bad" formatting that check will detect)
   printf 'echo "modified"\nNEEDS_FORMATTING\n' >> src/script.sh
 
-  run hk fix -v
+  run hk fix --stage -v
   assert_success
 
   # src/script.sh should be staged (tracked modified file processed by check_list_files)
@@ -132,7 +132,7 @@ EOF
   printf 'export const baz = 3;\n' >> src/with_todo.ts
   printf 'export const qux = 4;\n' >> src/without_todo.ts
 
-  run hk fix -v
+  run hk fix --stage -v
   assert_success
 
   # Only with_todo.ts should be staged (it had TODO and was processed)
@@ -176,7 +176,7 @@ PKL
   # Modify input
   printf 'export const modified = 2;\n' >> src/input.ts
 
-  run hk fix -v
+  run hk fix --stage -v
   assert_success
 
   # Both input.ts and generated.ts should be staged
