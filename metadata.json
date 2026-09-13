@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2D7XTTZWN8RBMKMA4Y6T3V8",
   "strategy": "manual-commit",
   "branch": "codex/docs-prefer-top-level-steps",
-  "checkpoints_count": 1,
+  "checkpoints_count": 2,
   "files_touched": [
     "README.md",
     "docs/configuration.md",
@@ -18,6 +18,10 @@
   "sessions": [
     {
       "metadata": "/0/metadata.json",
+      "prompt": ""
+    },
+    {
+      "metadata": "/1/metadata.json",
       "prompt": ""
     }
   ]
