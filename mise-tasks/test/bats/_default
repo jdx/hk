@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE alias="tb"
-#MISE depends=["build"]
+#MISE depends=["build", "test:bats:setup"]
 #USAGE arg "<test>..." default="test"
 
 set -eu

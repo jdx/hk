@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE tools = { java = "21", node = "latest" }
+
+set -eu
+
+# Runtime provisioning happens before Bats starts parallel test execution.
+:

@@ -21,7 +21,7 @@ hooks {
 }
 PKL
 
-    # CI preinstalls the runtimes before the parallel Bats suite starts.
+    # The Bats task preinstalls runtimes before parallel test execution starts.
     export JAVA_HOME="$(mise where java@21)"
     # Prepend so stub-pinned tools take precedence over any ambient tools
     # preinstalled on the runner (e.g. ubuntu-latest ships a global tsc).
