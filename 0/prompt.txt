@@ -1,0 +1,9 @@
+what does this say [https://github.com/jdx/hk/discussions/1375](https://github.com/jdx/hk/discussions/1375)
+
+---
+
+\--global should be the golden path
+
+---
+
+make a pr, post a reply

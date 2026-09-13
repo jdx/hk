@@ -1,0 +1,29 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2DM0XDCWJ60YVCC7RZ2CC3C",
+  "strategy": "manual-commit",
+  "branch": "codex/docs-global-mise-install",
+  "checkpoints_count": 2,
+  "files_touched": [
+    "docs/getting_started.md",
+    "docs/logging.md",
+    "docs/mise_integration.md",
+    "docs/reference/examples/monorepo.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 55239,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 718720,
+    "output_tokens": 3801,
+    "api_call_count": 18
+  }
+}
