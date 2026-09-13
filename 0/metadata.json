@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2CBA20AT2C08JSPYD5FNR4N",
   "session_id": "01a095ec-4f66-7290-931e-696d4fabbd74",
   "strategy": "manual-commit",
-  "created_at": "2026-09-13T03:00:30.941963Z",
+  "created_at": "2026-09-13T03:15:47.179749Z",
   "branch": "rebase-v2-contextual-staging",
   "checkpoints_count": 1,
   "save_step_count": 6,
@@ -11,15 +11,15 @@
   "agent": "Codex",
   "model": "gpt-5.6-sol",
   "turn_id": "89c374b230d0",
-  "checkpoint_transcript_start": 12461,
-  "transcript_lines_at_start": 12461,
-  "compact_transcript_start": 1799,
+  "checkpoint_transcript_start": 12475,
+  "transcript_lines_at_start": 12475,
+  "compact_transcript_start": 1801,
   "token_usage": {
-    "input_tokens": 1125,
+    "input_tokens": 44107,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 246016,
-    "output_tokens": 331,
-    "api_call_count": 2
+    "cache_read_tokens": 5139968,
+    "output_tokens": 5627,
+    "api_call_count": 38
   },
   "session_metrics": {
     "turn_count": 6
