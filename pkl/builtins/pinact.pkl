@@ -145,4 +145,6 @@ class PinactStep extends Config.Step {
   category = "Infrastructure"
   description = "Pin GitHub Actions to commit SHA for security"
 }
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
 const pinact = (new PinactStep {}) as Config.Step

@@ -40,4 +40,6 @@ class EditorconfigCheckerStep extends Config.Step {
   category = "EditorConfig"
   description = "Validate files against EditorConfig rules"
 }
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
 editorconfig_checker = (new EditorconfigCheckerStep {}) as Config.Step

@@ -21,8 +21,7 @@ hooks {
 }
 PKL
 
-    # ktlint requires a JVM, which is not preinstalled on macOS runners.
-    mise install java@21
+    # CI preinstalls the runtimes before the parallel Bats suite starts.
     export JAVA_HOME="$(mise where java@21)"
     # Prepend so stub-pinned tools take precedence over any ambient tools
     # preinstalled on the runner (e.g. ubuntu-latest ships a global tsc).
@@ -132,7 +131,6 @@ hooks {
 }
 PKL
 
-    mise install node@latest
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$(mise where node@latest)/bin:$PATH"
     run hk test --step knip_strict
     assert_success

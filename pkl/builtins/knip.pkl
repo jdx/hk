@@ -111,4 +111,6 @@ class KnipStep extends Config.Step {
     new { file = "package.json"; contains = "\"knip\"" }
   }
 }
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
 knip = (new KnipStep {}) as Config.Step

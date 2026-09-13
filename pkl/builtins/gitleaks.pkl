@@ -86,4 +86,6 @@ class GitleaksStep extends Config.Step {
     new { file = ".gitleaks.toml" }
   }
 }
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
 gitleaks = (new GitleaksStep {}) as Config.Step
