@@ -1,0 +1,24 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2D7XTTZWN8RBMKMA4Y6T3V8",
+  "strategy": "manual-commit",
+  "branch": "codex/docs-prefer-top-level-steps",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "README.md",
+    "docs/configuration.md",
+    "docs/getting_started.md",
+    "docs/pkl_introduction.md",
+    "docs/public/custom-linters.pkl",
+    "docs/public/javascript-project.pkl",
+    "docs/public/python-project.pkl",
+    "docs/reference/examples/javascript-project.md",
+    "docs/reference/examples/python-project.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "prompt": ""
+    }
+  ]
+}
