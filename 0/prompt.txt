@@ -1,5 +1,1 @@
-i don't think we need to mention the race issue, it's an edge case
-
----
-
 address pr feedback
