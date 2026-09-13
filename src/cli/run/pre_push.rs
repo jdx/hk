@@ -127,11 +127,11 @@ impl PrePush {
                         Ok(()) => true,
                         Err(reason) => {
                             if reason == RejectionReason::Empty {
-                                // use different format so we don't print "Skipping line : empty"
-                                eprintln!("Skipping empty line");
+                                // use different format so we don't print "Ignoring malformed line : empty"
+                                eprintln!("Ignoring empty stdin line");
                             } else {
                                 let reason_str = format_rejection_reason(reason);
-                                eprintln!("Skipping line {line}: {reason_str}");
+                                eprintln!("Ignoring malformed stdin line \"{line}\": {reason_str}");
                             }
                             false
                         },
