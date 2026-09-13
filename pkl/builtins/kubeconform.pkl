@@ -1,34 +1,31 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
 
-/// Scoped to the conventional Kubernetes manifest directories because
-/// kubeconform fails on any YAML without a `kind`, which would reject ordinary
-/// files such as `.github/workflows/*.yml` and `docker-compose.yml`. A
-/// directory-based default therefore misses manifests in unconventional
-/// locations rather than failing on every repository that holds other YAML.
-/// Override `glob` for other layouts, and add `-schema-location` to validate
-/// custom resources.
+/// Scoped to conventional manifest directories because kubeconform fails on any
+/// YAML without a `kind`, which would reject ordinary files such as
+/// `.github/workflows/*.yml`. Set `dirs` for other layouts, or `dirs = List()`
+/// to select every YAML file.
 ///
 /// Not batched: kubeconform already validates concurrently via `-n`, and one
 /// process keeps `-summary` to a single line instead of one per batch.
-@Builtins.meta {
-  category = "Infrastructure"
-  description = "Kubernetes manifest validator"
-}
-kubeconform = new Config.Step {
+class KubeconformStep extends Config.Step {
+  /// Directory names that hold plain manifests. Empty selects every YAML file.
+  hidden dirs: List<String> = List("k8s", "kubernetes", "manifests", "deploy", "deployments")
+
+  /// Path prefix the tests below write into. It must be selected by `glob`, so
+  /// set it when replacing `glob` outright; otherwise `glob` filters every file
+  /// the tests write away and they stop testing anything.
+  hidden test_dir: String = if (dirs.isEmpty) "" else "\(dirs.first)/"
+
+  /// Patterns appended to the defaults below. Prefer this over setting
+  /// `exclude`, which replaces them and re-admits Helm and kustomize files.
+  hidden extra_excludes: List<String> = List()
+
   glob =
-    List(
-      "**/k8s/**/*.yaml",
-      "**/k8s/**/*.yml",
-      "**/kubernetes/**/*.yaml",
-      "**/kubernetes/**/*.yml",
-      "**/manifests/**/*.yaml",
-      "**/manifests/**/*.yml",
-      "**/deploy/**/*.yaml",
-      "**/deploy/**/*.yml",
-      "**/deployments/**/*.yaml",
-      "**/deployments/**/*.yml",
-    )
+    if (dirs.isEmpty)
+      List("**/*.yaml", "**/*.yml")
+    else
+      dirs.flatMap((d) -> List("**/\(d)/**/*.yaml", "**/\(d)/**/*.yml"))
   exclude =
     List(
       "**/templates/**",
@@ -36,7 +33,7 @@ kubeconform = new Config.Step {
       "**/values.yml",
       "**/kustomization.yaml",
       "**/kustomization.yml",
-    )
+    ) + extra_excludes
   check = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("kubeconform", "-summary", "-strict", "-ignore-missing-schemas", "{{files}}")
@@ -47,37 +44,39 @@ kubeconform = new Config.Step {
     ["check manifest without kind"] {
       run = "check"
       tmpdir = true
-      write { ["k8s/resource.yaml"] = "key: value\n" }
+      write { ["\(test_dir)resource.yaml"] = "key: value\n" }
       expect { code = 1 }
     }
     ["check manifest without apiVersion"] {
       run = "check"
       tmpdir = true
-      write { ["manifests/resource.yaml"] = "kind: ConfigMap\n" }
+      write { ["\(test_dir)resource.yaml"] = "kind: ConfigMap\n" }
       expect { code = 1 }
     }
     ["check file with no resources"] {
       run = "check"
       tmpdir = true
-      write { ["kubernetes/resource.yaml"] = "# no resources here\n" }
+      write { ["\(test_dir)resource.yaml"] = "# no resources here\n" }
       expect { code = 0 }
-    }
-    ["check deploy directory manifest"] {
-      run = "check"
-      tmpdir = true
-      write { ["deploy/deployment.yaml"] = "key: value\n" }
-      expect { code = 1 }
     }
     ["check skips helm values and kustomization"] {
       run = "check"
       tmpdir = true
       write {
-        ["k8s/resource.yaml"] = "# no resources here\n"
-        ["k8s/values.yaml"] = "replicaCount: 2\n"
-        ["k8s/kustomization.yaml"] = "resources:\n  - deployment.yaml\n"
-        ["k8s/templates/deployment.yaml"] = "{{- if .Values.enabled }}\n"
+        ["\(test_dir)resource.yaml"] = "# no resources here\n"
+        ["\(test_dir)values.yaml"] = "replicaCount: 2\n"
+        ["\(test_dir)kustomization.yaml"] = "resources:\n  - deployment.yaml\n"
+        ["\(test_dir)templates/deployment.yaml"] = "{{- if .Values.enabled }}\n"
       }
       expect { code = 0 }
     }
   }
 }
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Kubernetes manifest validator"
+}
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
+kubeconform = (new KubeconformStep {}) as Config.Step
