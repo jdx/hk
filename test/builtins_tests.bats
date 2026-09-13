@@ -181,6 +181,40 @@ PKL
     assert_output --partial "ok - kubeconform_gitops :: check manifest without kind"
 }
 
+@test "kubeconform extra_excludes adds to the default excludes" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["kubeconform_extra"] = (Builtins.kubeconform) {
+        extra_excludes = List("**/custom.yaml")
+        tests {
+          ["check skips extra and default excludes"] {
+            run = "check"
+            tmpdir = true
+            write {
+              ["k8s/resource.yaml"] = "# no resources here\n"
+              ["k8s/custom.yaml"] = "key: value\n"
+              ["k8s/values.yaml"] = "key: value\n"
+              ["k8s/kustomization.yaml"] = "key: value\n"
+            }
+            expect { code = 0 }
+          }
+        }
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step kubeconform_extra
+    assert_success
+    assert_output --partial "ok - kubeconform_extra :: check skips extra and default excludes"
+}
+
 @test "shell builtins select extensionless sh scripts but not fish" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
