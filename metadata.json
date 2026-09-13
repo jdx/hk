@@ -13,14 +13,14 @@
       "transcript": "/0/full.jsonl",
       "compact_transcript": "/0/transcript.jsonl",
       "content_hash": "/0/content_hash.txt",
-      "prompt": "/0/prompt.txt"
+      "prompt": ""
     }
   ],
   "token_usage": {
-    "input_tokens": 14179,
+    "input_tokens": 5738,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 704256,
-    "output_tokens": 1109,
-    "api_call_count": 5
+    "cache_read_tokens": 1196928,
+    "output_tokens": 1343,
+    "api_call_count": 8
   }
 }
