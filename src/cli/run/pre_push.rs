@@ -71,7 +71,6 @@ fn validate_input_line(line: &str) -> Result<(), RejectionReason> {
     }
     // Check that the line splits into four parts of which the second and fourth are commit hashes.
     let parts: Vec<&str> = line.split_whitespace().collect();
-    eprintln!("{line} splits as {parts:?}");
     if parts.len() != 4 {
         return Err(RejectionReason::NotFourParts);
     }
