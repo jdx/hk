@@ -3,41 +3,39 @@
   "checkpoint_id": "01M2DM0XDCWJ60YVCC7RZ2CC3C",
   "session_id": "01a09b3c-68ac-7c50-ad44-5cba57d13420",
   "strategy": "manual-commit",
-  "created_at": "2026-09-13T14:54:01.547501Z",
+  "created_at": "2026-09-13T14:54:59.01986Z",
   "branch": "codex/docs-global-mise-install",
   "checkpoints_count": 1,
   "files_touched": [
-    "docs/getting_started.md",
-    "docs/logging.md",
     "docs/mise_integration.md",
     "docs/reference/examples/monorepo.md"
   ],
   "agent": "Codex",
   "model": "gpt-5.6-sol",
-  "turn_id": "6db79e21d148",
-  "checkpoint_transcript_start": 196,
-  "transcript_lines_at_start": 196,
-  "compact_transcript_start": 29,
+  "turn_id": "1beaefcc9f2f",
+  "checkpoint_transcript_start": 228,
+  "transcript_lines_at_start": 228,
+  "compact_transcript_start": 34,
   "token_usage": {
-    "input_tokens": 1998,
+    "input_tokens": 4917,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 176896,
-    "output_tokens": 1237,
-    "api_call_count": 3
+    "cache_read_tokens": 429824,
+    "output_tokens": 1406,
+    "api_call_count": 7
   },
   "session_metrics": {
     "turn_count": 3
   },
   "initial_attribution": {
-    "calculated_at": "2026-09-13T14:54:01.523925Z",
-    "agent_lines": 9,
-    "agent_removed": 7,
-    "human_added": 0,
+    "calculated_at": "2026-09-13T14:54:58.995803Z",
+    "agent_lines": 1,
+    "agent_removed": 14,
+    "human_added": 2,
     "human_modified": 0,
     "human_removed": 0,
-    "total_committed": 9,
-    "total_lines_changed": 16,
-    "agent_percentage": 100,
+    "total_committed": 3,
+    "total_lines_changed": 19,
+    "agent_percentage": 78.94736842105263,
     "metric_version": 2
   },
   "prompt_attributions": [
