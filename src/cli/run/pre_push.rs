@@ -40,28 +40,56 @@ impl From<&str> for PrePushRefs {
 fn is_valid_commit_hash(s: &str) -> bool {
     let length_is_valid = s.len() == 40 || s.len() == 64;
     let is_all_lowercase_hexits = s.chars().all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
-    let is_valid = length_is_valid && is_all_lowercase_hexits;
-    if !is_valid {
-        eprintln!("Warning: \"{}\" is not a valid full Git hash (must be exactly 40 or 64 lowercase hexits)", s);
-        return false;
-    }
-    return is_valid;
+    return length_is_valid && is_all_lowercase_hexits;
 }
 
-/// Check that a string is a valid four-part stdin line. Silently ignore empty lines; print warning for others.
-fn validate_input_line(line: &str) -> bool {
+#[derive(Debug,Eq,PartialEq)]
+enum RejectionReason {
+    Empty,
+    NotFourParts,
+    FirstHashInvalid,
+    SecondHashInvalid,
+    BothHashesInvalid
+}
+
+fn format_rejection_reason(reason: RejectionReason) -> &'static str {
+    match reason {
+        RejectionReason::Empty => "empty",
+        RejectionReason::NotFourParts => "must be four whitespace-separated parts",
+        RejectionReason::FirstHashInvalid => "second part must be 40 or 64 lowercase hexits",
+        RejectionReason::SecondHashInvalid => "fourth part must be 40 or 64 lowercase hexits",
+        RejectionReason::BothHashesInvalid => "second and fourth parts must be 40 or 64 lowercase hexits",
+    }
+}
+
+/// Check that a string is a valid four-part stdin line. Return Ok(()) for a pass, Err(RejectionReason)
+/// with an error message for a failure.
+fn validate_input_line(line: &str) -> Result<(), RejectionReason> {
+    let line = line.trim();
     if line.is_empty() {
-        return false;
+        return Err(RejectionReason::Empty);
     }
     // Check that the line splits into four parts of which the second and fourth are commit hashes.
     let parts: Vec<&str> = line.split_whitespace().collect();
-    let is_valid = parts.len() == 4
-        && is_valid_commit_hash(parts[1])
-        && is_valid_commit_hash(parts[3]);
-    if !is_valid {
-        eprintln!("Ignoring malformed line from stdin: {}", line);
+    eprintln!("{line} splits as {parts:?}");
+    if parts.len() != 4 {
+        return Err(RejectionReason::NotFourParts);
     }
-    return is_valid;
+    let first_hash_is_valid = is_valid_commit_hash(parts[1]);
+    let second_hash_is_valid = is_valid_commit_hash(parts[3]);
+    if first_hash_is_valid {
+        if second_hash_is_valid {
+            return Ok(());
+        } else {
+            return Err(RejectionReason::SecondHashInvalid);
+        }
+    } else {
+        if second_hash_is_valid {
+            return Err(RejectionReason::FirstHashInvalid)
+        } else {
+            return Err(RejectionReason::BothHashesInvalid)
+        }
+    }
 }
 
 impl PrePush {
@@ -94,7 +122,22 @@ impl PrePush {
             // unrelated files.
             input
                 .lines()
-                .filter(|line| validate_input_line(&line))
+                .filter(|line| {
+                    let result = validate_input_line(&line);
+                    match result {
+                        Ok(()) => true,
+                        Err(reason) => {
+                            if reason == RejectionReason::Empty {
+                                // use different format so we don't print "Skipping line : empty"
+                                eprintln!("Skipping empty line");
+                            } else {
+                                let reason_str = format_rejection_reason(reason);
+                                eprintln!("Skipping line {line}: {reason_str}");
+                            }
+                            false
+                        },
+                    }
+                })
                 .map(PrePushRefs::from)
                 .collect::<Vec<_>>()
         };
@@ -161,6 +204,7 @@ mod tests {
     const SHA1: &str = "0123456789abcdef0123456789abcdef01234567";
     const SHA256: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const ZERO_SHA1: &str = "0000000000000000000000000000000000000000";
+    const OK: Result<(), RejectionReason> = Ok(());
 
     #[test]
     fn test_accepts_sha1_hash() {
@@ -199,43 +243,64 @@ mod tests {
     #[test]
     fn test_accepts_well_formed_line() {
         let line = format!("refs/heads/main {SHA1} refs/heads/main {SHA1}");
-        assert!(validate_input_line(&line));
+        assert_eq!(validate_input_line(&line), OK);
     }
 
     #[test]
     fn test_accepts_deletion_line() {
         // git sends the all-zeros local sha when deleting a remote branch.
         let line = format!("(delete) {ZERO_SHA1} refs/heads/gone {SHA1}");
-        assert!(validate_input_line(&line));
+        assert_eq!(validate_input_line(&line), OK);
     }
 
     #[test]
     fn test_rejects_line_with_too_few_fields() {
         // The crash case: PrePushRefs::from indexes parts[3] unconditionally,
         // so a short line used to panic instead of being skipped.
-        assert!(!validate_input_line("refs/heads/main"));
-        assert!(!validate_input_line(&format!("refs/heads/main {SHA1}")));
-        assert!(!validate_input_line(&format!(
-            "refs/heads/main {SHA1} refs/heads/main"
-        )));
+        assert_eq!(
+            validate_input_line("refs/heads/main"),
+            Err(RejectionReason::NotFourParts)
+        );
+        assert_eq!(
+            validate_input_line(&format!("refs/heads/main {SHA1}")),
+            Err(RejectionReason::NotFourParts)
+        );
+        assert_eq!(
+            validate_input_line(&format!("refs/heads/main {SHA1} refs/heads/main")),
+            Err(RejectionReason::NotFourParts)
+        );
     }
 
     #[test]
     fn test_rejects_line_with_too_many_fields() {
         let line = format!("refs/heads/main {SHA1} refs/heads/main {SHA1} extra");
-        assert!(!validate_input_line(&line));
+        assert!(validate_input_line(&line) == Err(RejectionReason::NotFourParts));
     }
 
     #[test]
     fn test_rejects_line_with_abbreviated_hashes() {
-        assert!(!validate_input_line("refs/heads/main abc refs/heads/main def"));
+        let first_invalid_line = format!("refs/heads/main abc refs/heads/main {SHA1}");
+        let second_invalid_line = format!("refs/heads/main {SHA1} refs/heads/main def");
+        let both_invalid_line = "refs/heads/main abc refs/heads/main def";
+        assert_eq!(
+            validate_input_line(&first_invalid_line),
+            Err(RejectionReason::FirstHashInvalid)
+        );
+        assert_eq!(
+            validate_input_line(&second_invalid_line),
+            Err(RejectionReason::SecondHashInvalid)
+        );
+        assert_eq!(
+            validate_input_line(both_invalid_line),
+            Err(RejectionReason::BothHashesInvalid)
+        );
     }
 
     #[test]
     fn test_rejects_blank_lines() {
-        assert!(!validate_input_line(""));
-        assert!(!validate_input_line("   "));
-        assert!(!validate_input_line("\t"));
+        assert_eq!(validate_input_line(""), Err(RejectionReason::Empty));
+        assert_eq!(validate_input_line("   "), Err(RejectionReason::Empty));
+        assert_eq!(validate_input_line("\t"), Err(RejectionReason::Empty));
     }
 
     #[test]
@@ -244,7 +309,7 @@ mod tests {
         // accepts is handed straight to PrePushRefs::from, which indexes
         // parts[0..=3] without bounds checks.
         let line = format!("refs/heads/main {SHA1} refs/heads/main {ZERO_SHA1}");
-        assert!(validate_input_line(&line));
+        assert!(validate_input_line(&line) == Ok(()));
         let refs = PrePushRefs::from(line.as_str());
         assert_eq!(refs.to, ("refs/heads/main".to_string(), SHA1.to_string()));
         assert_eq!(
