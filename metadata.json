@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2D7XTTZWN8RBMKMA4Y6T3V8",
   "strategy": "manual-commit",
   "branch": "codex/docs-prefer-top-level-steps",
-  "checkpoints_count": 17,
+  "checkpoints_count": 43,
   "files_touched": [
     "README.md",
     "docs/configuration.md",
@@ -45,6 +45,20 @@
       "compact_transcript": "/5/transcript.jsonl",
       "content_hash": "/5/content_hash.txt",
       "prompt": "/5/prompt.txt"
+    },
+    {
+      "metadata": "/6/metadata.json",
+      "transcript": "/6/full.jsonl",
+      "compact_transcript": "/6/transcript.jsonl",
+      "content_hash": "/6/content_hash.txt",
+      "prompt": "/6/prompt.txt"
     }
-  ]
+  ],
+  "token_usage": {
+    "input_tokens": 477918,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 46893568,
+    "output_tokens": 36278,
+    "api_call_count": 269
+  }
 }
