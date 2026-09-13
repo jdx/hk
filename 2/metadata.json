@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.10.5",
+  "checkpoint_id": "01M2D7XTTZWN8RBMKMA4Y6T3V8",
+  "session_id": "01a079fb-2b89-7c22-acf0-49ee2a3c0d33",
+  "strategy": "manual-commit",
+  "created_at": "2026-09-13T11:20:04.383402Z",
+  "branch": "codex/docs-prefer-top-level-steps",
+  "checkpoints_count": 3,
+  "files_touched": [
+    "README.md",
+    "docs/configuration.md",
+    "docs/getting_started.md",
+    "docs/pkl_introduction.md",
+    "docs/public/custom-linters.pkl",
+    "docs/public/javascript-project.pkl",
+    "docs/public/python-project.pkl",
+    "docs/reference/examples/javascript-project.md",
+    "docs/reference/examples/python-project.md"
+  ],
+  "agent": "Codex",
+  "model": "gpt-6-astra",
+  "turn_id": "b2b85976dadf",
+  "session_metrics": {
+    "turn_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-09-13T11:20:04.38245Z",
+    "agent_lines": 404,
+    "agent_removed": 807,
+    "human_added": 141,
+    "human_modified": 136,
+    "human_removed": 0,
+    "total_committed": 681,
+    "total_lines_changed": 1502,
+    "agent_percentage": 80.62583222370174,
+    "metric_version": 2
+  }
+}
