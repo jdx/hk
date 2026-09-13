@@ -1,12 +1,19 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
 
-/// `--log-level error` drops the per-dependency warning terragrunt logs for
-/// every `mock_outputs` block, which otherwise streams on successful runs.
+/// Requires terragrunt 1.0.8+.
 ///
-/// `terragrunt hcl validate` has no per-file flag and validates every config
-/// below the working directory, so it runs once per selected directory to keep
-/// unrelated configs out of the result.
+/// `hcl validate` validates every unit below the working directory, so each
+/// selected file adds two `--filter`s: its directory (if it is a unit config)
+/// and `reading=` (units that read it). Non-matching filters are ignored, so no
+/// naming convention is assumed.
+///
+/// `reading=` parses every unit, so an unparseable shared file fails the run
+/// even when the selection points elsewhere.
+///
+/// `--log-level error` drops the per-dependency `mock_outputs` warning.
+///
+/// Not `xargs`: GNU xargs reports 123 for exit 1-125.
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terragrunt HCL validator"
@@ -17,9 +24,13 @@ terragrunt_hcl_validate = new Config.Step {
   check = new Config.CommandSpec {
     command =
       """
-      for f in {{ files }}; do dirname "$f"; done | sort -u | { code=0; while IFS= read -r dir; do
-      terragrunt hcl validate --show-config-path --log-level error --working-dir "$dir" || code=1
-      done; exit $code; }
+      set --
+      for f in {{ files }}; do
+      case "$f" in */*) d="./${f%/*}" ;; *) d="." ;; esac
+      set -- "$@" "--filter=$d" "--filter=reading=./$f"
+      done
+      if [ "$#" -eq 0 ]; then exit 0; fi
+      terragrunt hcl validate --show-config-path --log-level error "$@"
       """
     effect = "read"
   }
@@ -34,6 +45,16 @@ terragrunt_hcl_validate = new Config.Step {
       """
       inputs = {
         a = local.undefined
+      }
+      """
+    local const readsShared =
+      """
+      locals {
+        shared = read_terragrunt_config(find_in_parent_folders("shared.hcl"))
+      }
+
+      inputs = {
+        a = local.shared.locals.a
       }
       """
     ["check valid config"] {
@@ -81,6 +102,27 @@ terragrunt_hcl_validate = new Config.Step {
         ["b/terragrunt.hcl"] = undefinedReference
       }
       files = List("a/terragrunt.hcl")
+      expect { code = 0 }
+    }
+    ["check reports an included file the selection reads"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["shared.hcl"] = "locals {\n  a = local.undefined\n}\n"
+        ["a/terragrunt.hcl"] = readsShared
+      }
+      files = List("shared.hcl")
+      expect { code = 1 }
+    }
+    ["check ignores an included file no unit reads"] {
+      run = "check"
+      tmpdir = true
+      write {
+        ["shared.hcl"] = "locals {\n  a = 1\n}\n"
+        ["other.hcl"] = "locals {\n  b = 1\n}\n"
+        ["a/terragrunt.hcl"] = readsShared
+      }
+      files = List("other.hcl")
       expect { code = 0 }
     }
   }
