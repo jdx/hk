@@ -340,6 +340,10 @@ jobs:
     steps:
       - name: Check CI job results
         run: |
+          if [ "${{ needs.apple-pkl.result }}" != "success" ]; then
+            echo "apple-pkl failed or was skipped"
+            exit 1
+          fi
           if [ "${{ needs.build.result }}" != "success" ]; then
             echo "build failed or was skipped"
             exit 1
