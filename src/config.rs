@@ -385,6 +385,8 @@ impl Config {
 
     /// Merge Config-format user settings as fallbacks while preserving project values.
     fn merge_from_hkrc(&mut self, hkrc: Config) -> Result<()> {
+        let project_env_keys: IndexSet<String> = self.env.keys().cloned().collect();
+
         // Environment: project wins. hkrc values are set only if not defined by project.
         // set_var is unsafe in Rust 2024 but required so child processes inherit these.
         for (key, value) in hkrc.env {
@@ -429,16 +431,18 @@ impl Config {
                     for step_or_group in hkrc_hook.steps.values_mut() {
                         match step_or_group {
                             crate::hook::StepOrGroup::Step(step) => {
-                                step.env.retain(|key, _| !self.env.contains_key(key));
+                                step.env.retain(|key, _| !project_env_keys.contains(key));
                             }
                             crate::hook::StepOrGroup::Group(group) => {
                                 for step in group.steps.values_mut() {
-                                    step.env.retain(|key, _| !self.env.contains_key(key));
+                                    step.env.retain(|key, _| !project_env_keys.contains(key));
                                 }
                             }
                         }
                     }
-                    hkrc_hook.env.retain(|key, _| !self.env.contains_key(key));
+                    hkrc_hook
+                        .env
+                        .retain(|key, _| !project_env_keys.contains(key));
                     for (step_name, project_step) in std::mem::take(&mut project_hook.steps) {
                         hkrc_hook.steps.insert(step_name, project_step);
                     }
@@ -449,14 +453,14 @@ impl Config {
                         match &mut hkrc_step {
                             crate::hook::StepOrGroup::Step(step) => {
                                 step.env.retain(|key, _| {
-                                    !self.env.contains_key(key)
+                                    !project_env_keys.contains(key)
                                         && !project_hook.env.contains_key(key)
                                 });
                             }
                             crate::hook::StepOrGroup::Group(group) => {
                                 for step in group.steps.values_mut() {
                                     step.env.retain(|key, _| {
-                                        !self.env.contains_key(key)
+                                        !project_env_keys.contains(key)
                                             && !project_hook.env.contains_key(key)
                                     });
                                 }
@@ -470,16 +474,18 @@ impl Config {
                 for step_or_group in hkrc_hook.steps.values_mut() {
                     match step_or_group {
                         crate::hook::StepOrGroup::Step(step) => {
-                            step.env.retain(|key, _| !self.env.contains_key(key));
+                            step.env.retain(|key, _| !project_env_keys.contains(key));
                         }
                         crate::hook::StepOrGroup::Group(group) => {
                             for step in group.steps.values_mut() {
-                                step.env.retain(|key, _| !self.env.contains_key(key));
+                                step.env.retain(|key, _| !project_env_keys.contains(key));
                             }
                         }
                     }
                 }
-                hkrc_hook.env.retain(|key, _| !self.env.contains_key(key));
+                hkrc_hook
+                    .env
+                    .retain(|key, _| !project_env_keys.contains(key));
                 self.hooks.insert(hook_name, hkrc_hook);
             }
         }

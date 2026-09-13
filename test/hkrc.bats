@@ -57,6 +57,7 @@ EOF
     mkdir -p "$HOME/.config/hk"
     cat > "$HOME/.config/hk/config.pkl" <<EOF
 amends "$PKL_PATH/Config.pkl"
+env { ["HK_TEST_HOOK_ONLY"] = "global-config" }
 hooks {
     ["check"] {
         env {
@@ -123,13 +124,20 @@ EOF
     mkdir -p "$HOME/.config/hk"
     cat > "$HOME/.config/hk/config.pkl" <<EOF
 amends "$PKL_PATH/Config.pkl"
+env { ["HK_TEST_XDG_LAYER"] = "global-config" }
 hooks {
     ["custom"] {
-        env { ["HK_TEST_PRECEDENCE"] = "global-hook" }
+        env {
+            ["HK_TEST_PRECEDENCE"] = "global-hook"
+            ["HK_TEST_XDG_LAYER"] = "global-hook"
+        }
         steps {
             ["global-hook"] {
-                env { ["HK_TEST_PRECEDENCE"] = "global-step" }
-                check = "echo custom-\$HK_TEST_PRECEDENCE"
+                env {
+                    ["HK_TEST_PRECEDENCE"] = "global-step"
+                    ["HK_TEST_XDG_LAYER"] = "global-step"
+                }
+                check = "test \"\$HK_TEST_PRECEDENCE\" = project && echo custom-\$HK_TEST_XDG_LAYER"
             }
         }
     }
@@ -138,7 +146,7 @@ EOF
 
     run hk run custom --all
     assert_success
-    assert_output --partial "custom-project"
+    assert_output --partial "custom-global-step"
 }
 
 @test "XDG Config.pkl provides scalar settings" {

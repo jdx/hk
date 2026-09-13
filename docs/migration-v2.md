@@ -83,7 +83,7 @@ three materialized hook names and the settings required by custom hooks.
 | home `~/.hkrc.pkl` | `~/.config/hk/config.pkl` |
 | `--hkrc <PATH>` | the XDG or project-local path above |
 | `UserConfig.pkl` | `Config.pkl` |
-| `environment { ... }` | `env { ... }` |
+| `UserConfig.pkl`'s `environment { ... }` | `Config.pkl`'s `env { ... }` |
 | `defaults { jobs = ... }` | move `jobs`, `skip_steps`, `skip_hooks`, `profiles`, and other settings to the top level |
 | `Types.Regex(...)` or `Config.Regex(...)` | Pkl's built-in `Regex(...)` |
 | `hk generate` | `hk init` |
