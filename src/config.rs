@@ -424,64 +424,41 @@ impl Config {
         for (hook_name, mut hkrc_hook) in hkrc.hooks {
             if let Some(project_hook) = self.hooks.get_mut(&hook_name) {
                 if self.implicit_default_hooks.contains(&hook_name) {
-                    // Hook-level global settings are defaults for hooks created
-                    // solely from project top-level steps. Keep the project
-                    // steps and project-level environment authoritative while
-                    // adopting those settings.
+                    // Hooks materialized from project top-level steps keep all
+                    // of their execution settings. The global hook may only add
+                    // environment, a missing report, and non-conflicting steps.
+                    let project_hook_env_keys =
+                        project_hook.env.keys().cloned().collect::<IndexSet<_>>();
                     for step_or_group in hkrc_hook.steps.values_mut() {
-                        match step_or_group {
-                            crate::hook::StepOrGroup::Step(step) => {
-                                step.env.retain(|key, _| !project_env_keys.contains(key));
-                            }
-                            crate::hook::StepOrGroup::Group(group) => {
-                                for step in group.steps.values_mut() {
-                                    step.env.retain(|key, _| !project_env_keys.contains(key));
-                                }
-                            }
-                        }
+                        Self::retain_step_env(step_or_group, |key| {
+                            !project_env_keys.contains(key) && !project_hook_env_keys.contains(key)
+                        });
                     }
                     hkrc_hook
                         .env
                         .retain(|key, _| !project_env_keys.contains(key));
-                    for (step_name, project_step) in std::mem::take(&mut project_hook.steps) {
-                        hkrc_hook.steps.insert(step_name, project_step);
+                    for (key, value) in hkrc_hook.env {
+                        project_hook.env.entry(key).or_insert(value);
                     }
-                    *project_hook = hkrc_hook;
+                    if project_hook.report.is_none() {
+                        project_hook.report = hkrc_hook.report;
+                    }
+                    for (step_name, hkrc_step) in hkrc_hook.steps {
+                        project_hook.steps.entry(step_name).or_insert(hkrc_step);
+                    }
                     project_hook.init(&hook_name)?;
                 } else if hkrc_hook.enabled {
                     for (step_name, mut hkrc_step) in hkrc_hook.steps {
-                        match &mut hkrc_step {
-                            crate::hook::StepOrGroup::Step(step) => {
-                                step.env.retain(|key, _| {
-                                    !project_env_keys.contains(key)
-                                        && !project_hook.env.contains_key(key)
-                                });
-                            }
-                            crate::hook::StepOrGroup::Group(group) => {
-                                for step in group.steps.values_mut() {
-                                    step.env.retain(|key, _| {
-                                        !project_env_keys.contains(key)
-                                            && !project_hook.env.contains_key(key)
-                                    });
-                                }
-                            }
-                        }
+                        Self::retain_step_env(&mut hkrc_step, |key| {
+                            !project_env_keys.contains(key) && !project_hook.env.contains_key(key)
+                        });
                         project_hook.steps.entry(step_name).or_insert(hkrc_step);
                     }
                     project_hook.init(&hook_name)?;
                 }
             } else {
                 for step_or_group in hkrc_hook.steps.values_mut() {
-                    match step_or_group {
-                        crate::hook::StepOrGroup::Step(step) => {
-                            step.env.retain(|key, _| !project_env_keys.contains(key));
-                        }
-                        crate::hook::StepOrGroup::Group(group) => {
-                            for step in group.steps.values_mut() {
-                                step.env.retain(|key, _| !project_env_keys.contains(key));
-                            }
-                        }
-                    }
+                    Self::retain_step_env(step_or_group, |key| !project_env_keys.contains(key));
                 }
                 hkrc_hook
                     .env
@@ -490,6 +467,22 @@ impl Config {
             }
         }
         Ok(())
+    }
+
+    fn retain_step_env(
+        step_or_group: &mut crate::hook::StepOrGroup,
+        retain: impl Fn(&str) -> bool,
+    ) {
+        match step_or_group {
+            crate::hook::StepOrGroup::Step(step) => {
+                step.env.retain(|key, _| retain(key));
+            }
+            crate::hook::StepOrGroup::Group(group) => {
+                for step in group.steps.values_mut() {
+                    step.env.retain(|key, _| retain(key));
+                }
+            }
+        }
     }
 
     /// Load configs from `subprojects` directories and merge their hooks into

@@ -105,6 +105,59 @@ EOF
     [ ! -f global-report ]
 }
 
+@test "XDG hooks only add to project hooks materialized from top-level steps" {
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        enabled = false
+        fix = false
+        stash = "none"
+        stage = false
+        fail_on_fix = true
+        report = "touch global-report"
+    }
+}
+EOF
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+steps {
+    ["normalize"] {
+        glob = "file.txt"
+        check = "grep -q good {{files}}"
+        fix = "./fix.sh {{files}}"
+    }
+}
+EOF
+    cat > fix.sh <<'EOF'
+#!/bin/sh
+set -eu
+test "$(tail -n 1 file.txt)" = staged
+sed 's/bad/good/' file.txt > file.txt.new
+mv file.txt.new file.txt
+EOF
+    chmod +x fix.sh
+    printf 'bad\nbase\n' > file.txt
+    git add hk.pkl fix.sh file.txt
+    git commit -m "initial config"
+    hk install
+
+    printf 'bad\nstaged\n' > staged-file
+    staged_blob=$(git hash-object -w staged-file)
+    git update-index --cacheinfo 100644 "$staged_blob" file.txt
+    printf 'bad\nstaged\nunstaged\n' > file.txt
+    rm staged-file
+
+    run git commit -m "exercise implicit pre-commit"
+    assert_success
+    [ -f global-report ]
+    run git show HEAD:file.txt
+    assert_output $'good\nstaged'
+    run cat file.txt
+    assert_output $'good\nstaged\nunstaged'
+}
+
 @test "project top-level step wins an XDG name collision" {
     write_project_config
     mkdir -p "$HOME/.config/hk"
