@@ -1,0 +1,27 @@
+let's work on the v2 stack, rebase it, tell me what is in it, read the discussion, propose what we should do
+
+---
+
+keep addressing pr feedback until it settles and pr chekcs pass
+
+---
+
+# Files pasted by the user:
+
+## "# hk v2 stack: revision brief Scope: PRs #1253, #1255, #1256, #1257, #1270 in j…": /Users/jdx/.codex/attachments/b00ae3f8-4c06-467f-94c7-0b0f39d18ee4/pasted-text.txt
+
+Pasted text contains the user's request.
+
+## My request:
+
+---
+
+also address merge conflicts if any
+
+---
+
+make a replacement pr
+
+---
+
+what's the final v2 migration md content?
