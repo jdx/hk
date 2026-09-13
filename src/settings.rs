@@ -33,7 +33,6 @@ use crate::settings::generated::merge::SettingSource;
 
 #[derive(Debug, Clone, Default)]
 pub struct CliSnapshot {
-    pub hkrc: Option<PathBuf>,
     pub jobs: Option<usize>,
     pub profiles: Vec<String>,
     pub slow: bool,
@@ -77,14 +76,6 @@ impl Settings {
     pub fn set_cli_snapshot(snapshot: CliSnapshot) {
         let mut guard = CLI_SNAPSHOT.lock().unwrap();
         *guard = Some(snapshot);
-    }
-
-    pub fn cli_user_config_path() -> Option<PathBuf> {
-        CLI_SNAPSHOT
-            .lock()
-            .unwrap()
-            .as_ref()
-            .and_then(|s| s.hkrc.clone())
     }
 
     /// Returns true if the user passed --trace at the top level.
@@ -527,9 +518,6 @@ impl Settings {
     fn collect_cli_map() -> SourceMap {
         let mut map: SourceMap = SourceMap::new();
         if let Some(snapshot) = CLI_SNAPSHOT.lock().unwrap().clone() {
-            if let Some(p) = snapshot.hkrc {
-                map.insert("hkrc", SettingValue::Path(p));
-            }
             if let Some(j) = snapshot.jobs {
                 map.insert("jobs", SettingValue::Usize(j));
             }
@@ -785,10 +773,7 @@ mod tests {
 
     #[test]
     fn test_settings_builder_fluent_api() {
-        Settings::set_cli_snapshot(CliSnapshot {
-            hkrc: None,
-            ..Default::default()
-        });
+        Settings::set_cli_snapshot(CliSnapshot::default());
         // Test that the fluent API works correctly
         let settings = Settings::get();
 
@@ -798,10 +783,7 @@ mod tests {
 
     #[test]
     fn test_settings_snapshot_caching() {
-        Settings::set_cli_snapshot(CliSnapshot {
-            hkrc: None,
-            ..Default::default()
-        });
+        Settings::set_cli_snapshot(CliSnapshot::default());
         // Get multiple snapshots - they should be the same Arc
         let snapshot1 = Settings::get_snapshot().unwrap();
         let snapshot2 = Settings::get_snapshot().unwrap();
@@ -812,10 +794,7 @@ mod tests {
 
     #[test]
     fn test_settings_from_config() {
-        Settings::set_cli_snapshot(CliSnapshot {
-            hkrc: None,
-            ..Default::default()
-        });
+        Settings::set_cli_snapshot(CliSnapshot::default());
         // Backwards-compatible behavior validated at higher level; smoke test get()
         let _settings = Settings::get();
     }

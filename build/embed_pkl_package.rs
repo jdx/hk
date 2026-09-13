@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 /// Modules that must be present to stand in for the released archive. A partial
 /// package would poison the cache instead of falling back to the network.
-const REQUIRED_MODULES: &[&str] = &["Builtins.pkl", "Config.pkl", "Types.pkl", "UserConfig.pkl"];
+const REQUIRED_MODULES: &[&str] = &["Builtins.pkl", "Config.pkl"];
 
 /// Files `pkl project package` keeps out of the published archive.
 const EXCLUDED: &[&str] = &["PklProject", "PklProject.deps.json", ".gitignore"];

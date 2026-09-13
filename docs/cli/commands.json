@@ -1521,6 +1521,36 @@
           }
         }
       },
+      "generate": {
+        "full_cmd": ["generate"],
+        "usage": "generate",
+        "subcommands": {},
+        "args": [],
+        "flags": [
+          {
+            "name": "help",
+            "usage": "-h --help",
+            "help": "Print help",
+            "help_first_line": "Print help",
+            "short": ["h"],
+            "long": ["help"],
+            "hide": false,
+            "global": false,
+            "action": "help",
+            "builtin": true
+          }
+        ],
+        "mounts": [],
+        "effect": "read",
+        "unknown_flags": null,
+        "hide": true,
+        "args_override_self": true,
+        "name": "generate",
+        "aliases": [],
+        "hidden_aliases": [],
+        "examples": [],
+        "headings": []
+      },
       "init": {
         "full_cmd": ["init"],
         "usage": "init [FLAGS]",
@@ -1578,7 +1608,7 @@
         "args_override_self": true,
         "help": "Generate a new hk.pkl file for a project",
         "name": "init",
-        "aliases": ["generate"],
+        "aliases": [],
         "hidden_aliases": [],
         "examples": [],
         "headings": []
@@ -7854,23 +7884,6 @@
         "default": ["human"]
       },
       {
-        "name": "hkrc",
-        "usage": "--hkrc <PATH>",
-        "help": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
-        "help_first_line": "Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)",
-        "short": [],
-        "long": ["hkrc"],
-        "hide": true,
-        "global": true,
-        "arg": {
-          "name": "PATH",
-          "usage": "<PATH>",
-          "required": true,
-          "double_dash": "Optional",
-          "hide": false
-        }
-      },
-      {
         "name": "jobs",
         "usage": "-j --jobs <JOBS>",
         "help": "Number of jobs to run in parallel",
@@ -7981,6 +7994,23 @@
         "global": true
       },
       {
+        "name": "hkrc",
+        "usage": "--hkrc <PATH>",
+        "help": "Removed in hk v2; retained only to report migration guidance",
+        "help_first_line": "Removed in hk v2; retained only to report migration guidance",
+        "short": [],
+        "long": ["hkrc"],
+        "hide": true,
+        "global": true,
+        "arg": {
+          "name": "PATH",
+          "usage": "<PATH>",
+          "required": true,
+          "double_dash": "Optional",
+          "hide": false
+        }
+      },
+      {
         "name": "help",
         "usage": "-h --help",
         "help": "Print help",
@@ -8027,6 +8057,10 @@
     "directory": {
       "name": "directory",
       "type_": "dir"
+    },
+    "path": {
+      "name": "path",
+      "type_": "path"
     }
   },
   "min_usage_version": "4.0",

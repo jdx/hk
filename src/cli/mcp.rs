@@ -1359,17 +1359,17 @@ mod tests {
     }
 
     #[test]
-    fn project_config_detection_matches_nested_and_legacy_discovery() {
+    fn project_config_detection_excludes_removed_formats() {
         let directory = tempfile::tempdir().unwrap();
         let child = directory.path().join("nested");
         std::fs::create_dir_all(&child).unwrap();
         std::fs::write(directory.path().join("hk.yaml"), "hooks: {}\n").unwrap();
 
-        assert!(Config::project_config_exists_from(&child));
+        assert!(!Config::project_config_exists_from(&child));
 
         std::fs::remove_file(directory.path().join("hk.yaml")).unwrap();
         std::fs::create_dir(directory.path().join("hk.yaml")).unwrap();
-        assert!(Config::project_config_exists_from(&child));
+        assert!(!Config::project_config_exists_from(&child));
     }
 
     #[tokio::test]

@@ -1,8 +1,5 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-mod output;
-
 use std::{
     ffi::OsString,
     io::{self, Write},

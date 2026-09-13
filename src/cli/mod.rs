@@ -42,9 +42,6 @@ struct Cli {
         default = "human"
     )]
     format: crate::structured_output::OutputFormat,
-    /// Path to user configuration file (deprecated: use ~/.config/hk/config.pkl or hk.local.pkl)
-    #[usage(long, global, value_name = "PATH", hide)]
-    hkrc: Option<PathBuf>,
     /// Number of jobs to run in parallel
     #[usage(short, long, global)]
     jobs: Option<NonZero<usize>>,
@@ -72,6 +69,9 @@ struct Cli {
     /// Output in JSON format
     #[usage(long, global)]
     json: bool,
+    /// Removed in hk v2; retained only to report migration guidance
+    #[usage(long, global, hide, value_name = "PATH", value_hint = ValueHint::FilePath)]
+    hkrc: Option<PathBuf>,
     #[usage(subcommand)]
     command: Commands,
 }
@@ -132,7 +132,8 @@ enum Commands {
     Config(Box<config::Config>),
     #[usage(alias = "f")]
     Fix(Box<fix::Fix>),
-    #[usage(alias = "generate")]
+    #[usage(hide)]
+    Generate(Box<RemovedGenerate>),
     Init(Box<init::Init>),
     #[usage(alias = "i")]
     Install(Box<install::Install>),
@@ -150,6 +151,10 @@ enum Commands {
     Version(Box<version::Version>),
 }
 
+#[derive(Debug, usage_rs::Args)]
+#[usage(effect = "read")]
+struct RemovedGenerate {}
+
 impl Commands {
     fn output_format(&self) -> Option<crate::structured_output::OutputFormat> {
         match self {
@@ -163,6 +168,19 @@ impl Commands {
 
 pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     let args = Cli::parse();
+    if args.hkrc.is_some() {
+        return Err(eyre::eyre!(
+            "--hkrc was removed in hk v2; use {}/config.pkl for global config or hk.local.pkl for project overrides\n\nSee {}",
+            env::HK_CONFIG_DIR.display(),
+            crate::config::V2_MIGRATION_URL
+        ));
+    }
+    if matches!(args.command, Commands::Generate(_)) {
+        return Err(eyre::eyre!(
+            "`hk generate` was removed in hk v2; use `hk init`\n\nSee {}",
+            crate::config::V2_MIGRATION_URL
+        ));
+    }
     if let Some(cd) = &args.cd {
         return reexec_for_cd(cd).map(Some);
     }
@@ -173,7 +191,6 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
     let mut level: Option<log::LevelFilter> = None;
     // Derive verbosity overrides first
     Settings::set_cli_snapshot(crate::settings::CliSnapshot {
-        hkrc: args.hkrc,
         jobs: args.jobs.map(|n| n.get()),
         profiles: args.profile.clone(),
         slow: args.slow,
@@ -269,6 +286,7 @@ pub async fn run() -> Result<Option<std::process::ExitStatus>> {
         Commands::Completion(cmd) => cmd.run().await,
         Commands::Config(cmd) => cmd.run().await,
         Commands::Fix(cmd) => cmd.hook.run("fix").await,
+        Commands::Generate(_) => unreachable!("removed command handled after parsing"),
         Commands::Init(cmd) => cmd.run().await,
         Commands::Install(cmd) => cmd.run().await,
         Commands::Mcp(cmd) => cmd.run().await,

@@ -189,7 +189,7 @@ EOF
     ! echo "$output" | grep -q "STEP3 RAN"
 }
 
-@test "user config (.hkrc.pkl) skip configuration" {
+@test "XDG config skip configuration" {
     cat > hk.pkl << EOF
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -206,11 +206,10 @@ hooks {
 }
 EOF
 
-    cat > ~/.hkrc.pkl << EOF
-amends "$PKL_PATH/UserConfig.pkl"
-defaults {
-    skip_steps = List("step1")
-}
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" << EOF
+amends "$PKL_PATH/Config.pkl"
+skip_steps = List("step1")
 EOF
 
     run hk check --all
