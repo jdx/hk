@@ -1,0 +1,68 @@
+let's work on the v2 stack, rebase it, tell me what is in it, read the discussion, propose what we should do
+
+---
+
+keep addressing pr feedback until it settles and pr chekcs pass
+
+---
+
+# Files pasted by the user:
+
+## "# hk v2 stack: revision brief Scope: PRs #1253, #1255, #1256, #1257, #1270 in j…": /Users/jdx/.codex/attachments/b00ae3f8-4c06-467f-94c7-0b0f39d18ee4/pasted-text.txt
+
+Pasted text contains the user's request.
+
+## My request:
+
+---
+
+also address merge conflicts if any
+
+---
+
+make a replacement pr
+
+---
+
+what's the final v2 migration md content?
+
+---
+
+why was environment changed to env
+
+---
+
+One, and it decides how item 1 gets fixed.
+
+That was the only open decision. The follow-up brief is attached above with your answer folded in, and the text is below for pasting.
+```markdown
+# hk v2 stack: follow-up after review
+
+Scope: #1253, #1255, #1256, #1257, #1369. Same ground rules as before: do not merge any PR, keep the five stacked PRs rebased and green, jdx merges.
+
+## Must fix
+
+1. **Global config must not replace project implicit hooks** (`merge_from_hkrc`, `src/config.rs`, #1255/#1257).
+   Decision: additive only. When the project hook was materialized from top-level steps and the global config declares the same hook name, the global block may only add `env`, `report` (if the project has none), and steps that the project does not define. `fix`, `stash`, `stage`, `fail_on_fix`, and `enabled` keep the project's materialized values. Delete the `*project_hook = hkrc_hook` replacement path.
+   Regression test: global config with no top-level `steps` and `hooks { ["pre-commit"] { report = "touch r" } }`, project with top-level `steps` only. Assert pre-commit still runs fixes, still stashes, and the report runs. Also assert a global `enabled = false` on that hook does not disable it.
+   While there: extract the three copies of the env-retention filtering into one helper.
+
+2. **Make the Apple Pkl validator scan, not count** (`scripts/validate-apple-pkl.py`, #1369).
+   Remove the hardcoded 8 and 4 heredoc counts and the append-pattern check. Discover every `hk.pkl` heredoc in `test/*.bats`, concatenate `>>` appends onto the preceding fixture in the same test, and evaluate each. Keep an explicit allowlist of fixtures that are meant to fail (the ones in `v2_migration_errors.bats` and `regex_patterns.bats` that reference removed modules) and assert those fail. The job must not break when someone adds a bats test.
+
+## Answer or fix
+
+3. **Perf job on #1256** failed before the comparison ran and the log is not retrievable. Re-run it; if it fails again, find the failing step and report it.
+
+4. **`as Config.Step` casts** on every subclass export (`gitleaks`, `knip`, `pinact`, `pinact_update`, `editorconfig_checker`). Add a comment stating the concrete reason the cast is required, or remove it if nothing breaks under both pklr and Apple Pkl.
+
+5. **libgit2 CI timeout 20 to 30 minutes.** Explain what got slower. Move `mise install java@21` and `mise install node@latest` out of `test/builtins_tests.bats` and into CI setup or tool stubs, then try restoring the 20 minute limit.
+
+6. **Root `implicit_default_hooks` misses hooks first created by a subproject merge**, so global additive merging will not apply to them. Either record them as implicit when the subproject hook was implicit, or document that limitation in a comment. The branch in `merge_subproject` that copies `fix`, `stage`, `stash` from implicit sub hooks is redundant now that root materialization sets the same constants; remove it if the tests still pass.
+
+## Before requesting review again
+
+- Full bats run on both git backends at the stack tip, in CI if not locally.
+- Every bot thread on all five PRs answered or resolved.
+- PR bodies updated where behavior changed (item 1 changes #1257's "preserve global hook defaults" bullet).
+```
