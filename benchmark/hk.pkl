@@ -3,7 +3,7 @@ amends "../pkl/Config.pkl"
 import "../pkl/Builtins.pkl"
 
 // defines what happens during git pre-commit hook
-local linters = new Mapping<String, Step> {}
+local linters = new Mapping {}
 
 hooks = new {
   ["pre-commit"] {

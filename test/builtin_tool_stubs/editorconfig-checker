@@ -1,0 +1,4 @@
+#!/usr/bin/env -S mise tool-stub
+
+version = "4.0.1"
+tool = "github:editorconfig-checker/editorconfig-checker"

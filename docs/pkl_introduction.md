@@ -82,10 +82,10 @@ Parentheses followed by an object body create a modified copy:
 
 ```pkl
 local linters = new Mapping<String, Step> {
-  ["prettier"] = (Builtins.prettier) {
+["prettier"] = (Builtins.prettier) {
     glob = List("*.js", "*.ts")
     exclude = List("**/generated/**")
-  }
+}
 }
 ```
 

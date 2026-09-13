@@ -87,7 +87,7 @@ terragrunt_hcl_fmt = new Config.Step {
       write { ["terragrunt.hcl"] = unformatted }
       files = List("terragrunt.hcl")
       expect {
-        files { ["terragrunt.hcl"] = formatted }
+        files = new Mapping<String, String> { ["terragrunt.hcl"] = formatted }
       }
     }
     ["fix leaves unselected files alone"] {
@@ -99,7 +99,7 @@ terragrunt_hcl_fmt = new Config.Step {
       }
       files = List("a/terragrunt.hcl")
       expect {
-        files {
+        files = new Mapping<String, String> {
           ["a/terragrunt.hcl"] = formatted
           ["b/terragrunt.hcl"] = unformatted
         }

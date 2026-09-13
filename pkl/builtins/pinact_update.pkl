@@ -1,33 +1,45 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
 
-@Builtins.meta {
-  category = "Infrastructure"
-  description = "Pin GitHub Actions to update actions to latest versions"
-}
-const pinact_update = new Config.Step {
+class PinactUpdateStep extends Config.Step {
+  hidden version: "3" | "4" = "4"
   glob = List(".github/workflows/*", "**/action.*")
   types = List("yaml")
   // `verify-comment` verifies pairs of commit SHA and version comments are correct
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv =
-        List(
-          "pinact",
-          "run",
-          "--update",
-          "--verify-comment",
-          "--check",
-          "{{files}}",
-        )
+        if (version == "3")
+          List("pinact", "run", "--update", "--verify", "--check", "{{files}}")
+        else
+          List(
+            "pinact",
+            "run",
+            "--update",
+            "--verify-comment",
+            "--check",
+            "{{files}}",
+          )
     }
     effect = "read"
   }
   fix = new Config.CommandSpec {
     command = new Config.Command {
-      argv = List("pinact", "run", "--update", "--verify-comment", "{{files}}")
+      argv =
+        if (version == "3")
+          List("pinact", "run", "--update", "--verify", "{{files}}")
+        else
+          List("pinact", "run", "--update", "--verify-comment", "{{files}}")
     }
     effect = "write"
   }
   // Tests removed: they check against live GitHub Action versions, making them flaky
 }
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Pin GitHub Actions to update actions to latest versions"
+}
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
+const pinact_update = (new PinactUpdateStep {}) as Config.Step

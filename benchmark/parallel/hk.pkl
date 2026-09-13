@@ -2,7 +2,7 @@ amends "../../pkl/Config.pkl"
 
 import "../../pkl/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   // Python: black and ruff_format both have check_diff and touch **/*.py
   // ruff check is read-only so it can run concurrently with both
   ["black"] = Builtins.black

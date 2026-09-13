@@ -230,11 +230,12 @@ impl StepGroup {
                 Ok(Ok(())) => {}
                 Ok(Err(err)) => {
                     if ctx.fail_fast {
-                        ctx.hook_ctx.failed.cancel();
-                        // Mark remaining steps as aborted
+                        // Mark remaining steps before cancelling their commands so a
+                        // woken runner cannot record cancellation as a command failure.
                         for step_ctx in ctx.hook_ctx.step_contexts.lock().unwrap().values() {
                             step_ctx.status_aborted();
                         }
+                        ctx.hook_ctx.failed.cancel();
                         return Err(err);
                     } else if result.is_ok() {
                         result = Err(err);

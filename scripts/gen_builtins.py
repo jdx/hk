@@ -71,7 +71,7 @@ def validate_effect_coverage():
         text=True,
         check=True,
     )
-    builtins = json.loads(result.stdout)
+    builtins = json.loads(result.stdout)["all"]
     missing = []
     for name, step in builtins.items():
         if not isinstance(step, dict):
@@ -102,6 +102,16 @@ def main():
                 continue
             f.write(f'{identifier} = Builtins["builtins/{filename}.pkl"].{identifier}\n')
 
+        f.write("\n// Internal inventory used by builtin tests and documentation generation.\n")
+        f.write("all = new Mapping<String, Config.Step> {\n")
+        for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
+            filename = os.path.splitext(os.path.basename(filepath))[0]
+            identifier = filename.replace("-", "_")
+            if identifier in skip:
+                continue
+            f.write(f'  ["{identifier}"] = {identifier}\n')
+        f.write("}\n")
+
         for alias, canonical, since, message in DEPRECATED_ALIASES:
             f.write("\n")
             f.write("@Deprecated {\n")
@@ -124,6 +134,9 @@ def main():
     entries = []
     for filepath in sorted(glob.glob("pkl/builtins/*.pkl")):
         filename = os.path.splitext(os.path.basename(filepath))[0]
+        identifier = filename.replace("-", "_")
+        if identifier in skip:
+            continue
 
         # Use pkl reflection to extract metadata
         try:

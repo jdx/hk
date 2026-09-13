@@ -31,6 +31,9 @@ PRECOMMIT
     assert_output --partial "Builtins.eslint"
     assert_output --partial 'hooks {'
     assert_output --partial '["pre-commit"]'
+
+    run hk validate
+    assert_success
 }
 
 @test "migrate precommit - with exclude" {

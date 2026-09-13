@@ -44,7 +44,7 @@ pub struct HkConfig {
 }
 
 /// Represents a single step in hk configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct HkStep {
     /// The builtin to use, if any (e.g., "Builtins.yamllint")
     pub builtin: Option<String>,
@@ -148,7 +148,7 @@ impl HkConfig {
                 continue;
             }
 
-            output.push_str(&format!("local {} = new Mapping<String, Step> {{\n", name));
+            output.push_str(&format!("local {} = new Mapping {{\n", name));
             for (id, step) in steps {
                 output.push_str(&self.format_step(id, step, 1));
             }
@@ -198,7 +198,6 @@ impl HkConfig {
                 return output;
             }
 
-            // Builtin with customization
             output.push_str(&format!(" = ({}) {{\n", builtin));
         } else {
             // Custom step
@@ -306,6 +305,51 @@ impl HkConfig {
 
         output.push_str(&format!("{}}}\n", indent));
         output
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builtin_overrides_are_amended_directly() {
+        let mut config = HkConfig::default();
+        let mut steps = IndexMap::new();
+        steps.insert(
+            "prettier".into(),
+            HkStep {
+                builtin: Some("Builtins.prettier".into()),
+                exclude: Some("^vendor/".into()),
+                ..Default::default()
+            },
+        );
+        config.step_collections.insert("linters".into(), steps);
+
+        let pkl = config.to_pkl();
+        assert!(pkl.contains(
+            "[\"prettier\"] = (Builtins.prettier) {\n        exclude = Regex(\"^vendor/\")"
+        ));
+    }
+
+    #[test]
+    fn imported_step_overrides_are_amended_directly() {
+        let mut config = HkConfig::default();
+        let mut steps = IndexMap::new();
+        steps.insert(
+            "remove-crlf".into(),
+            HkStep {
+                builtin: Some("Vendors.remove_crlf".into()),
+                exclude: Some("^\\.hk/".into()),
+                ..Default::default()
+            },
+        );
+        config.step_collections.insert("linters".into(), steps);
+
+        let pkl = config.to_pkl();
+        assert!(pkl.contains(
+            "[\"remove-crlf\"] = (Vendors.remove_crlf) {\n        exclude = Regex(#\"^\\.hk/\"#)"
+        ));
     }
 }
 

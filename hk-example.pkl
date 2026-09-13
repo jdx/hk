@@ -2,7 +2,7 @@ amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.
 
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
-local linters = new Mapping<String, Step> {
+local linters = new Mapping {
   // some linters are built into hk
   ["actionlint"] = Builtins.actionlint
   // linters can be manually defined

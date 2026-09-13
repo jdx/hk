@@ -34,7 +34,7 @@ gomod_tidy = new Config.Step {
     ["check tidy module"] {
       run = "check"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         ["go.mod"] = "module example.com/test\n\ngo 1.21\n"
         ["main.go"] = "package main\n\nfunc main() {}\n"
       }
@@ -43,7 +43,7 @@ gomod_tidy = new Config.Step {
     ["check untidy module"] {
       run = "check"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         // Nothing imports this module, so tidy drops the require.
         ["go.mod"] = "module example.com/test\n\ngo 1.21\n\nrequire example.com/unused v1.0.0\n"
         ["main.go"] = "package main\n\nfunc main() {}\n"
@@ -53,13 +53,13 @@ gomod_tidy = new Config.Step {
     ["fix untidy module"] {
       run = "fix"
       tmpdir = true
-      write {
+      write = new Mapping<String, String> {
         ["go.mod"] = "module example.com/test\n\ngo 1.21\n\nrequire example.com/unused v1.0.0\n"
         ["main.go"] = "package main\n\nfunc main() {}\n"
       }
       expect {
         code = 0
-        files {
+        files = new Mapping<String, String> {
           ["go.mod"] = "module example.com/test\n\ngo 1.21\n"
         }
       }

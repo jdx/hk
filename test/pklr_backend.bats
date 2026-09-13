@@ -67,6 +67,37 @@ EOF
     assert_file_exists group-ran.txt
 }
 
+@test "builtin step subclasses support stable values, options, direct overrides, and all" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+
+hooks {
+    ["check"] {
+        steps {
+            ["prettier"] = Builtins.prettier
+            ["gitleaks"] = (Builtins.gitleaks) {
+                scan = "staged"
+                batch = false
+            }
+            ["editorconfig_checker_v3"] = (Builtins.editorconfig_checker) {
+                version = "3"
+            }
+            ["all"] = new Group {
+                steps = Builtins.all
+            }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_success
+
+    run env HK_PKL_BACKEND=pkl hk validate
+    assert_success
+}
+
 @test "pkl CLI backend can still be selected" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

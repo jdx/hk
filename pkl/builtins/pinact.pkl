@@ -2,85 +2,149 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
-@Builtins.meta {
-  category = "Infrastructure"
-  description = "Pin GitHub Actions to commit SHA for security"
-}
-const pinact = new Config.Step {
+class PinactStep extends Config.Step {
+  hidden version: "3" | "4" = "4"
   glob = List(".github/workflows/*", "**/action.*")
   types = List("yaml")
   // `verify-comment` verifies pairs of commit SHA and version comments are correct
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
-      argv = List("pinact", "run", "--verify-comment", "--check", "{{files}}")
+      argv =
+        if (version == "3")
+          List("pinact", "run", "--verify", "--check", "{{files}}")
+        else
+          List("pinact", "run", "--verify-comment", "--check", "{{files}}")
     }
     effect = "read"
   }
   fix = new Config.CommandSpec {
     command = new Config.Command {
-      argv = List("pinact", "run", "--verify-comment", "{{files}}")
+      argv =
+        if (version == "3")
+          List("pinact", "run", "--verify", "{{files}}")
+        else
+          List("pinact", "run", "--verify-comment", "{{files}}")
     }
     effect = "write"
   }
-  tests {
-    local const bad =
-      """
-      name: pinact test
-      on:
-        push:
-      jobs:
-        test:
-          runs-on: ubuntu-latest
-          steps:
-            - uses: actions/checkout@v6.0.1
+  // pinact v3 can fix the SHA while leaving a mismatched version comment.
+  // Re-run its check after a fix so that partial repair still fails.
+  check =
+    if (version == "3")
+      new Config.CommandSpec {
+        command = new Config.Command {
+          argv = List("pinact", "run", "--verify", "--check", "{{files}}")
+        }
+        effect = "read"
+      }
+    else
+      null
+  check_after_diff = version == "3"
+  tests =
+    if (version == "3")
+      new Mapping<String, Config.StepTest> {
+        local const testMaker = new helpers.TestMaker {
+          before = "pinact init"
+          filename = ".github/workflows/test.yml"
+        }
+        // Unlike v4, v3 reports a mismatched version comment but does not repair it.
+        ["fix bad file and mismatched version comment"] =
+          testMaker.fixFail(
+            """
+            name: pinact test
+            on:
+              push:
+            jobs:
+              build:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v6.0.1
+                  - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
 
-      """
-    local const good =
-      """
-      name: pinact test
-      on:
-        push:
-      jobs:
-        test:
-          runs-on: ubuntu-latest
-          steps:
-            - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+            """,
+            """
+            name: pinact test
+            on:
+              push:
+            jobs:
+              build:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+                  - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
 
-      """
-    local const testMaker = new helpers.TestMaker {
-      before = "pinact init" // create the pinact configuration file
-      filename = ".github/workflows/test.yml"
-    }
-    ["check bad file"] = testMaker.checkFail(bad, 1)
-    ["check good file"] = testMaker.checkPass(good)
-    ["fix bad file and mismatched version comment"] =
-      testMaker.fixPass(
-        """
-        name: pinact test
-        on:
-          push:
-        jobs:
-          build:
-            runs-on: ubuntu-latest
-            steps:
-              - uses: actions/checkout@v6.0.1
-              - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
+            """,
+            1,
+          )
+      }
+    else
+      new Mapping<String, Config.StepTest> {
+        local const bad =
+          """
+          name: pinact test
+          on:
+            push:
+          jobs:
+            test:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v6.0.1
 
-        """,
-        """
-        name: pinact test
-        on:
-          push:
-        jobs:
-          build:
-            runs-on: ubuntu-latest
-            steps:
-              - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-              - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.0
+          """
+        local const good =
+          """
+          name: pinact test
+          on:
+            push:
+          jobs:
+            test:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
-        """,
-      )
-    ["fix bad file all violations are fixed"] = testMaker.fixPass(bad, good)
-    ["fix good file"] = testMaker.fixPass(good, good)
-  }
+          """
+        local const testMaker = new helpers.TestMaker {
+          before = "pinact init" // create the pinact configuration file
+          filename = ".github/workflows/test.yml"
+        }
+        ["check bad file"] = testMaker.checkFail(bad, 1)
+        ["check good file"] = testMaker.checkPass(good)
+        ["fix bad file and mismatched version comment"] =
+          testMaker.fixPass(
+            """
+            name: pinact test
+            on:
+              push:
+            jobs:
+              build:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@v6.0.1
+                  - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.1
+
+            """,
+            """
+            name: pinact test
+            on:
+              push:
+            jobs:
+              build:
+                runs-on: ubuntu-latest
+                steps:
+                  - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+                  - uses: jdx/mise-action@d16887ba50704baed7de72bd1e82e04391e4457a # v3.5.0
+
+            """,
+          )
+        ["fix bad file all violations are fixed"] = testMaker.fixPass(bad, good)
+        ["fix good file"] = testMaker.fixPass(good, good)
+      }
 }
+
+@Builtins.meta {
+  category = "Infrastructure"
+  description = "Pin GitHub Actions to commit SHA for security"
+}
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
+const pinact = (new PinactStep {}) as Config.Step

@@ -14,7 +14,7 @@ import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/B
     ));
 
     // Generate linters section (always define, even if empty)
-    output.push_str("local linters = new Mapping<String, Step> {\n");
+    output.push_str("local linters = new Mapping {\n");
     for meta in builtins {
         output.push_str(&format!(
             "    [\"{}\"] = Builtins.{}\n",
@@ -79,7 +79,7 @@ pub fn generate_default_template(version: &str) -> String {
 import "package://github.com/jdx/hk/releases/download/v{version}/hk@{version}#/Builtins.pkl"
 // Using a coding agent? See https://hk.jdx.dev/agents
 
-local linters = new Mapping<String, Step> {{
+local linters = new Mapping {{
     // Add linters here. Examples:
     // ["prettier"] = Builtins.prettier
     // ["eslint"] = Builtins.eslint
@@ -133,6 +133,14 @@ mod tests {
         assert!(pkl.contains("Builtins.prettier"));
         assert!(pkl.contains("[\"pre-commit\"]"));
         assert!(pkl.contains("[\"check\"]"));
+    }
+
+    #[test]
+    fn test_generate_pkl_with_builtin_options() {
+        let gitleaks = BUILTINS_META.iter().find(|b| b.name == "gitleaks").unwrap();
+        let pkl = generate_pkl(&[gitleaks], &["check".to_string()], "1.34.0");
+
+        assert!(pkl.contains("Builtins.gitleaks"));
     }
 
     #[test]

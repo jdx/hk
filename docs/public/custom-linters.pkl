@@ -4,7 +4,7 @@ amends "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Config.
 import "package://github.com/jdx/hk/releases/download/v1.58.1/hk@1.58.1#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
-  ["whitespace"] {
+  ["whitespace"] = new Step {
     glob = List("*.txt", "*.md")
     check = "hk util trailing-whitespace {{files}}"
     fix = "hk util trailing-whitespace --fix {{files}}"

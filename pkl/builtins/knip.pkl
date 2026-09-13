@@ -2,6 +2,108 @@ import "../Builtins.pkl"
 import "../Config.pkl"
 import "./test/helpers.pkl"
 
+class KnipStep extends Config.Step {
+  hidden strict: Boolean = false
+  workspace_indicator = "package.json"
+  // https://knip.dev/explanations/entry-files
+  types = List("javascript", "typescript")
+  check = new Config.CommandSpec {
+    command =
+      if (strict)
+        "knip --strict --no-progress --directory {{workspace}}"
+      else
+        "knip --no-progress --directory {{workspace}}"
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command =
+      if (strict)
+        "knip --fix --strict --no-progress --directory {{workspace}}"
+      else
+        "knip --fix --no-progress --directory {{workspace}}"
+    effect = "write"
+  }
+  tests =
+    if (strict)
+      new Mapping<String, Config.StepTest> {
+        local const bad =
+          """
+          {
+            "dependencies": {
+              "express": "^4.18.0",
+              "zod": "^3.22.0"
+            }
+          }
+          """
+        local const good =
+          """
+          {
+            "dependencies": {
+              "zod": "^3.22.0"
+            }
+          }
+          """
+        local const testMaker = new helpers.TestMaker {
+          filename = "package.json"
+          extra_files = new Mapping<String, String> {
+            ["src/index.ts"] =
+              """
+              import type { Request, Response } from "express";
+              import { z } from "zod";
+
+              const UserSchema = z.object({
+                name: z.string(),
+                email: z.string().email(),
+              });
+
+              export function handleRequest(req: Request): Response {
+                const user = UserSchema.parse(req.body);
+                console.log(user);
+
+                console.log(req.body);
+                return {} as Response;
+              }
+
+              """
+          }
+        }
+        ["check bad file"] = testMaker.checkFail(bad, 1)
+        ["check good file"] = testMaker.checkPass(good)
+        ["fix bad file"] = testMaker.fixPass(bad, good)
+        ["fix good file"] = testMaker.fixPass(good, good)
+      }
+    else
+      new Mapping<String, Config.StepTest> {
+        local const bad =
+          """
+          const foo = 1
+          const bar = 2
+
+          export { foo,  bar }
+
+          """
+        local const good =
+          """
+          const foo = 1
+          const bar = 2
+
+          export { foo,   }
+
+          """
+        local const testMaker = new helpers.TestMaker {
+          filename = "src/export.ts"
+          extra_files = new Mapping<String, String> {
+            ["package.json"] = "{}"
+            ["src/index.ts"] = "import { foo } from './export';"
+          }
+        }
+        ["check bad file"] = testMaker.checkFail(bad, 1)
+        ["check good file"] = testMaker.checkPass(good)
+        ["fix bad file"] = testMaker.fixPass(bad, good)
+        ["fix good file"] = testMaker.fixPass(good, good)
+      }
+}
+
 @Builtins.meta {
   category = "JavaScript/TypeScript"
   description = "Find unused files, dependencies, and exports"
@@ -9,45 +111,6 @@ import "./test/helpers.pkl"
     new { file = "package.json"; contains = "\"knip\"" }
   }
 }
-knip = new Config.Step {
-  workspace_indicator = "package.json"
-  // https://knip.dev/explanations/entry-files
-  types = List("javascript", "typescript")
-  check = new Config.CommandSpec {
-    command = "knip --no-progress --directory {{workspace}}"
-    effect = "read"
-  }
-  fix = new Config.CommandSpec {
-    command = "knip --fix --no-progress --directory {{workspace}}"
-    effect = "write"
-  }
-  tests {
-    local const bad =
-      """
-      const foo = 1
-      const bar = 2
-
-      export { foo,  bar }
-
-      """
-    local const good =
-      """
-      const foo = 1
-      const bar = 2
-
-      export { foo,   }
-
-      """
-    local const testMaker = new helpers.TestMaker {
-      filename = "src/export.ts"
-      extra_files = new Mapping<String, String> {
-        ["package.json"] = "{}"
-        ["src/index.ts"] = "import { foo } from './export';"
-      }
-    }
-    ["check bad file"] = testMaker.checkFail(bad, 1)
-    ["check good file"] = testMaker.checkPass(good)
-    ["fix bad file"] = testMaker.fixPass(bad, good)
-    ["fix good file"] = testMaker.fixPass(good, good)
-  }
-}
+// Keep the exported type exactly Config.Step: pklr rejects a concrete subclass
+// instance when it is inserted into Mapping<String, Config.Step>.
+knip = (new KnipStep {}) as Config.Step
