@@ -31,6 +31,7 @@
 
 ### 🔍 Other Changes
 
+- **(ci)** bump packslip to v1.1.1 by [@jdx](https://github.com/jdx) in [#1335](https://github.com/jdx/hk/pull/1335)
 - **(ci)** use self-repository workflow references by [@jdx](https://github.com/jdx) in [#1353](https://github.com/jdx/hk/pull/1353)
 - **(release)** publish native completions in packslip by [@jdx](https://github.com/jdx) in [#1336](https://github.com/jdx/hk/pull/1336)
 - remove pr.md stray draft accidentally committed in #997 by [@sahidvelji](https://github.com/sahidvelji) in [#1341](https://github.com/jdx/hk/pull/1341)
@@ -58,10 +59,6 @@
 ### 📚 Documentation
 
 - generate page-specific social preview images by [@jdx](https://github.com/jdx) in [#1333](https://github.com/jdx/hk/pull/1333)
-
-### 🔍 Other Changes
-
-- **(ci)** bump packslip to v1.1.1 by [@jdx](https://github.com/jdx) in [#1335](https://github.com/jdx/hk/pull/1335)
 
 ## [1.58.0](https://github.com/jdx/hk/compare/v1.57.0..v1.58.0) - 2026-09-05
 
