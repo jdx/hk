@@ -70,3 +70,7 @@ Scope: #1253, #1255, #1256, #1257, #1369. Same ground rules as before: do not me
 ---
 
 merge the entire stack, then if everything looks good merge the relase pr
+
+---
+
+merged, i think the v2 docs aren't clear that top-level steps aren't required. i think we should also modify our docs such as on [https://hk.jdx.dev/getting\_started.html](https://hk.jdx.dev/getting_started.html) to prefer top-level steps
