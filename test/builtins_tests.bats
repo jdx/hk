@@ -137,6 +137,84 @@ PKL
     assert_output --partial "ok - knip_strict :: check bad file"
 }
 
+@test "kubeconform dirs option retargets the glob and its tests" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["kubeconform_apps"] = (Builtins.kubeconform) {
+        dirs = List("apps")
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step kubeconform_apps
+    assert_success
+    assert_output --partial "ok - kubeconform_apps :: check manifest without kind"
+    assert_output --partial "ok - kubeconform_apps :: check skips helm values and kustomization"
+}
+
+@test "kubeconform test_dir keeps the tests valid when glob is replaced" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["kubeconform_gitops"] = (Builtins.kubeconform) {
+        glob = Regex(#"^gitops/apps/[^/]+/[^/]+\.yaml$"#)
+        test_dir = "gitops/apps/demo/"
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step kubeconform_gitops
+    assert_success
+    assert_output --partial "ok - kubeconform_gitops :: check manifest without kind"
+}
+
+@test "kubeconform extra_excludes adds to the default excludes" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["kubeconform_extra"] = (Builtins.kubeconform) {
+        extra_excludes = List("**/custom.yaml")
+        tests {
+          ["check skips extra and default excludes"] {
+            run = "check"
+            tmpdir = true
+            write {
+              ["k8s/resource.yaml"] = "# no resources here\n"
+              ["k8s/custom.yaml"] = "key: value\n"
+              ["k8s/values.yaml"] = "key: value\n"
+              ["k8s/kustomization.yaml"] = "key: value\n"
+            }
+            expect { code = 0 }
+          }
+        }
+      }
+    }
+  }
+}
+PKL
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk test --step kubeconform_extra
+    assert_success
+    assert_output --partial "ok - kubeconform_extra :: check skips extra and default excludes"
+}
+
 @test "shell builtins select extensionless sh scripts but not fish" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
