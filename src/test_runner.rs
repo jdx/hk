@@ -17,7 +17,7 @@ pub struct TestResult {
     pub ok: bool,
     pub stdout: String,
     pub stderr: String,
-    pub code: i32,
+    pub code: Option<i32>,
     pub duration_ms: u128,
     pub reasons: Vec<String>,
 }
@@ -233,7 +233,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
                 ok: false,
                 stdout: String::new(),
                 stderr: String::new(),
-                code: 0,
+                code: None,
                 duration_ms: started_at.elapsed().as_millis(),
                 reasons: vec![filters_excluded_all_reason(written)],
             });
@@ -320,7 +320,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
                 ok: false,
                 stdout,
                 stderr,
-                code,
+                code: Some(code),
                 duration_ms: started_at.elapsed().as_millis(),
                 reasons: vec![format!("before failed with code {}", code)],
             });
@@ -374,7 +374,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
         ok: reasons.is_empty(),
         stdout: final_stdout,
         stderr: final_stderr,
-        code,
+        code: Some(code),
         duration_ms: started_at.elapsed().as_millis(),
         reasons,
     })

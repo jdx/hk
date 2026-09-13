@@ -85,9 +85,9 @@ impl Test {
                 Ok(r) => {
                     failures += 1;
                     eyre::ensure!(!r.reasons.is_empty(), "reasons are empty");
+                    let code = r.code.map(|c| format!("code={c}; ")).unwrap_or_default();
                     eprintln!(
-                        "not ok - {step_name} :: {test_name} (code={}; {}ms)\n  reasons: {}",
-                        r.code,
+                        "not ok - {step_name} :: {test_name} ({code}{}ms)\n  reasons: {}",
                         r.duration_ms,
                         r.reasons.join(", ")
                     );

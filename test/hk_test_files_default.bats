@@ -69,6 +69,32 @@ PKL
     assert_failure
     assert_output --partial "the step's file filters excluded all 1 file(s) written by this test"
     assert_output --partial "set the test's \`files\` explicitly"
+    refute_output --partial "code="
+}
+
+@test "hk test reports the exit code when a command did run" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["check"] {
+    steps {
+      ["demo"] {
+        check = "exit 3"
+        tests {
+          ["command fails"] {
+            run = "check"
+            expect { code = 0 }
+          }
+        }
+      }
+    }
+  }
+}
+PKL
+
+    run hk test --step demo
+    assert_failure
+    assert_output --partial "(code=3;"
 }
 
 @test "hk test still runs a step without filters whose test writes files" {
