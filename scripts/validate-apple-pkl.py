@@ -70,6 +70,7 @@ class Heredoc:
 @dataclass(frozen=True)
 class Fixture:
     name: str
+    target: str
     source: str
     expected_failure: bool
     support: tuple[tuple[str, str], ...]
@@ -160,6 +161,7 @@ def bats_fixtures() -> list[Fixture]:
             fixtures.append(
                 Fixture(
                     name=f"{path.stem}-{block.line}.pkl",
+                    target=block.target,
                     source=source,
                     expected_failure=expected_failure,
                     support=tuple(support_by_scope.get(block.scope, [])),
@@ -170,6 +172,14 @@ def bats_fixtures() -> list[Fixture]:
     if missing:
         raise RuntimeError(f"expected failing fixtures were not found: {sorted(missing)}")
     return fixtures
+
+
+def sandbox_path(root: Path, target: str) -> Path:
+    relative = re.sub(r"^\$([A-Za-z_][A-Za-z0-9_]*)/", r"\1/", target)
+    path = Path(relative)
+    if path.is_absolute() or ".." in path.parts:
+        raise RuntimeError(f"unsafe fixture target: {target}")
+    return root / path
 
 
 def evaluate(
@@ -206,9 +216,11 @@ def main() -> None:
             fixture_dir = temp_dir / fixture.name.removesuffix(".pkl")
             fixture_dir.mkdir()
             for target, source in fixture.support:
-                support = fixture_dir / Path(target).name
+                support = sandbox_path(fixture_dir, target)
+                support.parent.mkdir(parents=True, exist_ok=True)
                 support.write_text(render(source))
-            rendered = fixture_dir / "hk.pkl"
+            rendered = sandbox_path(fixture_dir, fixture.target)
+            rendered.parent.mkdir(parents=True, exist_ok=True)
             rendered.write_text(render(fixture.source))
             evaluate(
                 rendered,
