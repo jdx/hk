@@ -1,9 +1,13 @@
 import "../Builtins.pkl"
 import "../Config.pkl"
 
-/// `terragrunt hcl fmt` recursively rewrites every HCL file below the working
-/// directory, so it runs once per selected file via `--file` to leave unselected
-/// files untouched.
+/// Requires terragrunt 1.0.8+.
+///
+/// `hcl fmt` rewrites every HCL file below the working directory, so `--filter`
+/// confines one process to the selected files. Here it takes file paths, not
+/// units.
+///
+/// Not `xargs`: GNU xargs reports 123 for exit 1-125.
 @Builtins.meta {
   category = "Infrastructure"
   description = "Terragrunt HCL formatter"
@@ -14,18 +18,20 @@ terragrunt_hcl_fmt = new Config.Step {
   check = new Config.CommandSpec {
     command =
       """
-      code=0; for f in {{ files }}; do
-      terragrunt hcl fmt --check --diff --file "$f" || code=1
-      done; exit $code
+      set --
+      for f in {{ files }}; do set -- "$@" "--filter=./$f"; done
+      if [ "$#" -eq 0 ]; then exit 0; fi
+      terragrunt hcl fmt --check --diff "$@"
       """
     effect = "read"
   }
   fix = new Config.CommandSpec {
     command =
       """
-      code=0; for f in {{ files }}; do
-      terragrunt hcl fmt --file "$f" || code=1
-      done; exit $code
+      set --
+      for f in {{ files }}; do set -- "$@" "--filter=./$f"; done
+      if [ "$#" -eq 0 ]; then exit 0; fi
+      terragrunt hcl fmt "$@"
       """
     effect = "write"
   }
