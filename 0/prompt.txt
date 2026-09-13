@@ -1,1 +1,5 @@
 make a pr, post a reply
+
+---
+
+\--global is the golden path but they can still use the local install

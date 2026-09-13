@@ -3,7 +3,7 @@
   "checkpoint_id": "01M2DM0XDCWJ60YVCC7RZ2CC3C",
   "strategy": "manual-commit",
   "branch": "codex/docs-global-mise-install",
-  "checkpoints_count": 2,
+  "checkpoints_count": 1,
   "files_touched": [
     "docs/getting_started.md",
     "docs/logging.md",
@@ -20,10 +20,10 @@
     }
   ],
   "token_usage": {
-    "input_tokens": 55239,
+    "input_tokens": 1998,
     "cache_creation_tokens": 0,
-    "cache_read_tokens": 718720,
-    "output_tokens": 3801,
-    "api_call_count": 18
+    "cache_read_tokens": 176896,
+    "output_tokens": 1237,
+    "api_call_count": 3
   }
 }
