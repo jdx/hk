@@ -327,11 +327,12 @@ Example: `HK_PROFILE=ci,slow hk check --all` enables both profiles. A profile na
 type = "bool"
 default = false
 sources.cli = ["--quiet", "-q"]
+sources.env = ["HK_QUIET"]
 docs = """
 Suppresses non-essential output (info messages, progress indicators).
 
-When enabled, only warnings and errors will be displayed.
-Useful for scripting or when you only care about the exit code.
+Warnings, errors, and failed-step diagnostics are still shown.
+Set `HK_QUIET=1` to also suppress non-essential output from Git hooks without changing their commands.
 """
 
 [silent]
