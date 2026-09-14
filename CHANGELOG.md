@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.0.1](https://github.com/jdx/hk/compare/v2.0.0..v2.0.1) - 2026-09-14
+
+### 🐛 Bug Fixes
+
+- **(builtins)** catch terragrunt errors in shared HCL includes by [@sassdavid](https://github.com/sassdavid) in [#1371](https://github.com/jdx/hk/pull/1371)
+- **(test)** report when a step's filters exclude a test's files by [@sassdavid](https://github.com/sassdavid) in [#1373](https://github.com/jdx/hk/pull/1373)
+
+### 🚜 Refactor
+
+- **(builtins)** keep kubeconform's tests valid when it is customized by [@sassdavid](https://github.com/sassdavid) in [#1372](https://github.com/jdx/hk/pull/1372)
+
+### 📚 Documentation
+
+- **(mise)** recommend global hook installation by [@jdx](https://github.com/jdx) in [#1376](https://github.com/jdx/hk/pull/1376)
+- prefer optional top-level steps in v2 examples by [@jdx](https://github.com/jdx) in [#1370](https://github.com/jdx/hk/pull/1370)
+
+### 📦️ Dependency Updates
+
+- lock file maintenance by [@renovate[bot]](https://github.com/renovate[bot]) in [#1377](https://github.com/jdx/hk/pull/1377)
+- bump pklr to 2.0.3 by [@jdx](https://github.com/jdx) in [#1380](https://github.com/jdx/hk/pull/1380)
+- update rust crate pklr to v2.0.4 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1381](https://github.com/jdx/hk/pull/1381)
+- bump mbx to 1.11.1 by [@jdx](https://github.com/jdx) in [ce9a22a](https://github.com/jdx/hk/commit/ce9a22aed4400672aee61b249da2d55ccf6d34f5)
+
 ## [2.0.0](https://github.com/jdx/hk/compare/v1.58.1..v2.0.0) - 2026-09-13
 
 ### 🚀 Features
@@ -31,7 +54,6 @@
 
 ### 🔍 Other Changes
 
-- **(ci)** bump packslip to v1.1.1 by [@jdx](https://github.com/jdx) in [#1335](https://github.com/jdx/hk/pull/1335)
 - **(ci)** use self-repository workflow references by [@jdx](https://github.com/jdx) in [#1353](https://github.com/jdx/hk/pull/1353)
 - **(release)** publish native completions in packslip by [@jdx](https://github.com/jdx) in [#1336](https://github.com/jdx/hk/pull/1336)
 - remove pr.md stray draft accidentally committed in #997 by [@sahidvelji](https://github.com/sahidvelji) in [#1341](https://github.com/jdx/hk/pull/1341)
@@ -59,6 +81,10 @@
 ### 📚 Documentation
 
 - generate page-specific social preview images by [@jdx](https://github.com/jdx) in [#1333](https://github.com/jdx/hk/pull/1333)
+
+### 🔍 Other Changes
+
+- **(ci)** bump packslip to v1.1.1 by [@jdx](https://github.com/jdx) in [#1335](https://github.com/jdx/hk/pull/1335)
 
 ## [1.58.0](https://github.com/jdx/hk/compare/v1.57.0..v1.58.0) - 2026-09-05
 
