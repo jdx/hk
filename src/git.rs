@@ -705,6 +705,32 @@ impl Git {
         }
     }
 
+    /// True when the repository has an operation in progress (merge,
+    /// cherry-pick, revert, rebase, …) whose state files under $GIT_DIR
+    /// would be deleted by the hard reset inside `git stash push` /
+    /// libgit2's stash_save.
+    fn operation_in_progress(&self) -> bool {
+        if let Some(repo) = &self.repo {
+            return repo.state() != git2::RepositoryState::Clean;
+        }
+        // Shell fallback: mirror libgit2's repository-state detection.
+        let Ok(git_dir) = git_cmd(["rev-parse", "--git-dir"]).read() else {
+            return false;
+        };
+        let git_dir = PathBuf::from(git_dir.trim());
+        [
+            "MERGE_HEAD",
+            "CHERRY_PICK_HEAD",
+            "REVERT_HEAD",
+            "BISECT_LOG",
+            "rebase-merge",
+            "rebase-apply",
+            "sequencer",
+        ]
+        .iter()
+        .any(|state| git_dir.join(state).exists())
+    }
+
     #[tracing::instrument(level = "info", name = "git.stash.push", skip_all)]
     pub fn stash_unstaged(
         &mut self,
@@ -719,6 +745,19 @@ impl Git {
         if let Some(repo) = &self.repo
             && repo.head().is_err()
         {
+            return Ok(());
+        }
+        // A full `git stash push` (and libgit2's stash_save) hard-resets the
+        // worktree, which deletes in-progress operation state — MERGE_HEAD,
+        // MERGE_MSG, CHERRY_PICK_HEAD, rebase state, etc. Stashing while e.g.
+        // a merge is being committed corrupts the merge: the commit either
+        // fails ("could not open MERGE_HEAD") or silently lands as a
+        // single-parent commit with the merged changes squashed in. Skip
+        // stashing instead; steps run against the worktree as-is.
+        if self.operation_in_progress() {
+            job.set_body("{{spinner()}} stash – {{message}}");
+            job.prop("message", "Skipped – merge/rebase/cherry-pick in progress");
+            job.set_status(ProgressStatus::Done);
             return Ok(());
         }
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
