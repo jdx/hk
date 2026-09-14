@@ -338,11 +338,13 @@ Useful for scripting or when you only care about the exit code.
 type = "bool"
 default = false
 sources.cli = ["--silent"]
+sources.env = ["HK_SILENT"]
 docs = """
 Suppresses all output including warnings. Only errors are shown.
 
 More extreme than `quiet` - progress indicators, info messages, and
 warnings are all hidden. Useful when only the exit code matters.
+Set `HK_SILENT=1` to apply this behavior to Git hooks without changing their commands.
 """
 
 [skip_hooks]
