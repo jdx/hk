@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   aube-lock:
-    uses: jdx/renovate-config/.github/workflows/aube-lock.yml@8cabc2edc8a57962ced923dc1a376ec9bf760e5a # main
+    uses: jdx/renovate-config/.github/workflows/aube-lock.yml@653969079190b3aa7969d3896b8da3bd08cf807f # main
     with:
       post_update_task: renovate:post-update
       post_update_paths: src/cli/mcp_dashboard.html
