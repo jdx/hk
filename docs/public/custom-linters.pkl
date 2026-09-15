@@ -1,7 +1,7 @@
 /// A custom step using hk's whitespace utility, including check and fix tests.
-amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.0.2/hk@2.0.2#/Config.pkl"
 
-import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Builtins.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.0.2/hk@2.0.2#/Builtins.pkl"
 
 steps {
   ["whitespace"] = new Step {

@@ -28,8 +28,8 @@ You can also install hk with `brew install hk` or `cargo install hk --locked`. T
 This example uses hk’s built-in whitespace utilities, so it needs no additional linter:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.0.2/hk@2.0.2#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.0.2/hk@2.0.2#/Builtins.pkl"
 
 steps {
   ["trailing-whitespace"] = Builtins.trailing_whitespace

@@ -1,6 +1,16 @@
 # Changelog
 
-## [2.0.1](https://github.com/jdx/hk/compare/v2.0.0..v2.0.1) - 2026-09-14
+## [2.0.2](https://github.com/jdx/hk/compare/v2.0.1..v2.0.2) - 2026-09-15
+
+### 🔍 Other Changes
+
+- re-pin aube-lock reusable workflow to current renovate-config main by [@jdx](https://github.com/jdx) in [#1388](https://github.com/jdx/hk/pull/1388)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action action to v1.0.217 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1382](https://github.com/jdx/hk/pull/1382)
+
+## [2.0.1](https://github.com/jdx/hk/compare/v2.0.0..v2.0.1) - 2026-09-15
 
 ### 🐛 Bug Fixes
 
