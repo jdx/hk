@@ -33,7 +33,7 @@ clx                = "3"
 console            = "0.16"
 dashmap            = "6"
 demand             = "2"
-dirs               = "6"
+dirs               = "7"
 ensembler          = "1"
 expr-lang          = { version = "2", features = ["serde"] }
 eyre               = "0.6"
