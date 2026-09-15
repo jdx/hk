@@ -1,0 +1,31 @@
+name: mise-lock
+
+# Regenerates mise.lock on Renovate branches. Renovate's mise manager bumps the
+# tool version but leaves the per-platform URLs and checksums behind, so
+# mise-action's `mise install --locked` fails on every job — a tool bump to
+# aube 2.2.17 kept the 2.2.15 checksums and broke all of #1383. The hosted Mend
+# app this org uses does not run postUpgradeTasks, so the regeneration has to
+# happen here rather than in Renovate's own config. This is the mise sibling of
+# aube-lock.yml. See jdx/renovate-config for the workflow implementation.
+
+on:
+  push:
+    branches: ["renovate/**"]
+
+permissions: {}
+
+jobs:
+  mise-lock:
+    permissions:
+      # Pushes the regenerated lockfile back onto the Renovate branch. The
+      # shared workflow gates itself on the sender being renovate[bot], so our
+      # own fix-up push cannot re-enter it.
+      contents: write # commit mise.lock
+    uses: jdx/renovate-config/.github/workflows/mise-lock.yml@653969079190b3aa7969d3896b8da3bd08cf807f # main
+    # No post_update_task: nothing hk generates is derived from a mise-managed
+    # tool version. The usage CLI that renders hk.usage.kdl is pinned in
+    # mise-tasks/build-usage and installed from Cargo.lock, and the JavaScript
+    # side is already covered by aube-lock.yml.
+    secrets:
+      MISE_LOCK_APP_ID: ${{ secrets.MISE_LOCK_APP_ID }}
+      MISE_LOCK_APP_PRIVATE_KEY: ${{ secrets.MISE_LOCK_APP_PRIVATE_KEY }}
