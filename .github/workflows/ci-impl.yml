@@ -149,7 +149,11 @@ jobs:
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
-          max_attempts: 3
+          # Two attempts, not three: the job budget covers setup, the build and
+          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
+          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
+          # build, so the retry is here for genuine flakes.
+          max_attempts: 2
           command: mise run test:bats:libgit2
       - name: Publish builtin test timings
         if: always()
@@ -183,7 +187,7 @@ jobs:
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -207,7 +211,11 @@ jobs:
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
-          max_attempts: 3
+          # Two attempts, not three: the job budget covers setup, the build and
+          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
+          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
+          # build, so the retry is here for genuine flakes.
+          max_attempts: 2
           command: mise run test:bats:nolibgit2
       - name: Publish builtin test timings
         if: always()
@@ -241,7 +249,7 @@ jobs:
     # "does not have an executable named X" on fresh installs, and
     # asdf:swiftlint binaries SIGILL on namespace's linux image).
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -265,7 +273,11 @@ jobs:
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
-          max_attempts: 3
+          # Two attempts, not three: the job budget covers setup, the build and
+          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
+          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
+          # build, so the retry is here for genuine flakes.
+          max_attempts: 2
           command: mise run test:bats:nogit
       - name: Publish builtin test timings
         if: always()
