@@ -817,7 +817,6 @@ hooks {
         steps {
             ["fmt"] {
                 check_diff = "cat changes.patch; exit 1"
-                ${1:-}
             }
         }
     }
@@ -847,7 +846,21 @@ EOF_CONFIG
     case "$OSTYPE" in
         msys*|cygwin*|win*) skip "requires Unix directory permissions" ;;
     esac
-    _setup_structural_diff_fixture 'fix = "./verify-original.sh"'
+    _setup_structural_diff_fixture
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                check_diff = "cat changes.patch; exit 1"
+                fix = "./verify-original.sh"
+            }
+        }
+    }
+}
+EOF_CONFIG
     chmod 0555 locked
     if touch locked/write-probe 2>/dev/null; then
         skip "directory permissions do not prevent writes for this user"

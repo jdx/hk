@@ -531,7 +531,11 @@ mod apply_diff_tests {
         let patch = patch();
         let backup = DiffBackup::create(&patch, &base, "-p1").unwrap();
         assert!(git_apply(&patch, &base, &["-p1"]).unwrap().status.success());
-        assert_eq!(fs::read(base.join("file.txt")).unwrap(), b"after\n");
+        // Git honors core.autocrlf; restoration must still recover the exact LF original.
+        assert!(matches!(
+            fs::read(base.join("file.txt")).unwrap().as_slice(),
+            b"after\n" | b"after\r\n"
+        ));
         backup.restore().unwrap();
         assert_eq!(fs::read(base.join("file.txt")).unwrap(), b"before\n");
     }
@@ -552,7 +556,11 @@ mod apply_diff_tests {
             vec![PathBuf::from("new.txt")]
         );
         assert!(git_apply(&patch, &base, &["-p0"]).unwrap().status.success());
-        assert_eq!(fs::read(base.join("new.txt")).unwrap(), b"after\n");
+        // Git honors core.autocrlf even when applying outside a repository.
+        assert!(matches!(
+            fs::read(base.join("new.txt")).unwrap().as_slice(),
+            b"after\n" | b"after\r\n"
+        ));
         backup.restore().unwrap();
         assert_eq!(fs::read(base.join("old.txt")).unwrap(), b"before\n");
         assert_eq!(fs::read(base.join("new.txt")).unwrap(), b"before\n");
