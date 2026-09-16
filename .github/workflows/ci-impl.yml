@@ -141,12 +141,34 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
+      # Build outside the retry window: the bats tasks depend on `build`, so
+      # a cold first attempt spends ~160s compiling against its 10-minute
+      # budget and times out on macOS before the suite finishes.
+      - run: mise run build
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
           command: mise run test:bats:libgit2
+      - name: Publish builtin test timings
+        if: always()
+        run: |
+          f=target/test-timings/builtins-all.tsv
+          [ -f "$f" ] || exit 0
+          {
+            echo "### Slowest builtin test cases (libgit2, ${{ matrix.os }})"
+            echo
+            echo "| ms | case |"
+            echo "| ---: | --- |"
+            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-timings-libgit2-${{ matrix.os }}
+          path: target/test-timings/
+          if-no-files-found: ignore
   ci-nolibgit2:
     name: ci-nolibgit2 (${{ matrix.os }})
     needs: build
@@ -177,12 +199,34 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
+      # Build outside the retry window: the bats tasks depend on `build`, so
+      # a cold first attempt spends ~160s compiling against its 10-minute
+      # budget and times out on macOS before the suite finishes.
+      - run: mise run build
       - name: mise run test:bats:nolibgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
           command: mise run test:bats:nolibgit2
+      - name: Publish builtin test timings
+        if: always()
+        run: |
+          f=target/test-timings/builtins-all.tsv
+          [ -f "$f" ] || exit 0
+          {
+            echo "### Slowest builtin test cases (nolibgit2, ${{ matrix.os }})"
+            echo
+            echo "| ms | case |"
+            echo "| ---: | --- |"
+            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-timings-nolibgit2-${{ matrix.os }}
+          path: target/test-timings/
+          if-no-files-found: ignore
   ci-nogit:
     needs: build
     permissions:
@@ -213,12 +257,34 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
+      # Build outside the retry window: the bats tasks depend on `build`, so
+      # a cold first attempt spends ~160s compiling against its 10-minute
+      # budget and times out on macOS before the suite finishes.
+      - run: mise run build
       - name: mise run test:bats:nogit
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
           max_attempts: 3
           command: mise run test:bats:nogit
+      - name: Publish builtin test timings
+        if: always()
+        run: |
+          f=target/test-timings/builtins-all.tsv
+          [ -f "$f" ] || exit 0
+          {
+            echo "### Slowest builtin test cases (nogit, ${{ matrix.os }})"
+            echo
+            echo "| ms | case |"
+            echo "| ---: | --- |"
+            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-timings-nogit-${{ matrix.os }}
+          path: target/test-timings/
+          if-no-files-found: ignore
   ci-other:
     name: ci-other (${{ matrix.os }})
     strategy:
