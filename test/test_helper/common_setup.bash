@@ -66,8 +66,19 @@ _record_test_timings() {
     local name=$1
     local dir="$PROJECT_ROOT/target/test-timings"
     mkdir -p "$dir" || return 0
+    # awk, not sed: BSD sed (macOS) writes a literal "t" for \t in a
+    # replacement, which would collapse both columns on the platform these
+    # timings matter most for.
     printf '%s\n' "$output" \
-        | sed -n 's/^ok - \(.*\) (\([0-9]*\)ms)$/\2\t\1/p' \
+        | awk '/^ok - .* \([0-9]+ms\)$/ {
+                 name = $0
+                 sub(/^ok - /, "", name)
+                 ms = name
+                 sub(/^.*\(/, "", ms)
+                 sub(/ms\)$/, "", ms)
+                 sub(/ \([0-9]+ms\)$/, "", name)
+                 printf "%s\t%s\n", ms, name
+               }' \
         | sort -rn > "$dir/$name.tsv" || true
 }
 
