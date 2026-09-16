@@ -11,7 +11,7 @@ typos = new Config.Step {
   check_diff = new Config.CommandSpec {
     command =
       """
-      output=$(typos --force-exclude --diff {{files}})
+      output=$(typos --force-exclude --diff {{files}}) || exit $?
       [ -z "$output" ] && exit 0
       printf "%s" "$output"
       exit 1
@@ -29,6 +29,12 @@ typos = new Config.Step {
         ["typos.toml"] = "[files]\nextend-exclude = [\"excluded.txt\"]\n"
       }
     }
+    local const invalidConfig = new helpers.TestMaker {
+      filename = "test.txt"
+      extra_files { ["typos.toml"] = "[invalid TOML\n" }
+    }
+    ["check rejects invalid config"] = invalidConfig.checkFail("correct\n", 78)
+    ["fix rejects invalid config"] = invalidConfig.fixFail("correct\n", "correct\n", 78)
     local const before = "maintainance\n"
     local const after = "maintenance\n"
     ["check bad file"] = testMaker.checkFail(before, 1)
