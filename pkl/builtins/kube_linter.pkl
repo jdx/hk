@@ -34,6 +34,8 @@ kube_linter = new Config.Step {
       "**/templates/**",
       "**/values.yaml",
       "**/values.yml",
+      "**/values-*.yaml",
+      "**/values-*.yml",
       "**/kustomization.yaml",
       "**/kustomization.yml",
     )
@@ -103,6 +105,7 @@ kube_linter = new Config.Step {
       write = new Mapping<String, String> {
         ["k8s/good.yaml"] = good
         ["k8s/values.yaml"] = bad
+        ["k8s/values-production.yaml"] = bad
         ["k8s/kustomization.yaml"] = bad
         ["k8s/templates/pod.yaml"] = bad
         [".github/workflows/ci.yml"] = bad
