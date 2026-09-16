@@ -207,8 +207,8 @@ impl Step {
                                 {
                                     // Apply where the check_diff command ran.
                                     let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                    match step.apply_diff_output(stdout, dir.as_deref()) {
-                                        Ok(true) => {
+                                    match step.apply_diff_output(stdout, dir.as_deref())? {
+                                        true => {
                                             let applied_files = job.files.clone();
                                             if step.check_after_diff {
                                                 debug!(
@@ -226,13 +226,9 @@ impl Step {
                                             ctx.hook_ctx.inc_completed_jobs(1);
                                             return Ok(applied_files);
                                         }
-                                        Ok(false) => {
+                                        false => {
                                             // Diff application failed - fall through to run fixer
                                             debug!("{step}: diff application failed, falling back to fixer");
-                                        }
-                                        Err(err) => {
-                                            // Unexpected error - fall through to run fixer
-                                            warn!("{step}: unexpected error applying diff: {err}");
                                         }
                                     }
                                 }
