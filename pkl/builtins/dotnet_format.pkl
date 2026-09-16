@@ -1,0 +1,129 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = ".NET"
+  description = "Format C# and Visual Basic with the .NET SDK"
+  project_indicators {
+    new { glob = "*.csproj" }
+    new { glob = "*.vbproj" }
+    new { glob = "*.sln" }
+    new { glob = "*.slnx" }
+  }
+}
+// Requires the .NET SDK (6+). Uses dotnet's project/solution discovery in the
+// working directory. Set `dir` for a nested solution or standalone project;
+// use separate steps for independent directories. Ambiguous roots fail rather
+// than silently selecting a project. hk rebases {{files}} when dir is set.
+// dotnet format can restore, compile, and run project analyzers: trusted code only.
+dotnet_format = new Config.Step {
+  glob = List("**/*.cs", "**/*.vb")
+  // Restore/build can touch shared project state beyond the selected source files.
+  // Do not batch or allow concurrent steps while this command is running.
+  exclusive = true
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("dotnet", "format", "--verify-no-changes", "--include", "{{files}}")
+    }
+    // Verification preserves source, but implicit restore may write obj/.
+    effect = "write"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("dotnet", "format", "--include", "{{files}}")
+    }
+    effect = "write"
+  }
+  tests {
+    local const project =
+      """
+      <Project Sdk="Microsoft.NET.Sdk">
+        <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+      </Project>
+      """
+    local const editorconfig =
+      """
+      root = true
+      [*]
+      indent_style = space
+      indent_size = 4
+      end_of_line = lf
+      insert_final_newline = true
+      """
+    local const unformatted = "class C{void M(){int x=1;System.Console.WriteLine(x);}}\n"
+    local const formatted = "class C { void M() { int x = 1; System.Console.WriteLine(x); } }\n"
+    local const testMaker = new helpers.TestMaker {
+      filename = "Code.cs"
+      files = List("Code.cs")
+      extra_files = new Mapping<String, String> {
+        ["Test.csproj"] = project
+        [".editorconfig"] = editorconfig
+      }
+    }
+    ["check bad file"] = testMaker.checkFail(unformatted, 2)
+    ["check good file"] = testMaker.checkPass(formatted)
+    ["fix bad file"] = testMaker.fixPass(unformatted, formatted)
+    ["fix good file"] = testMaker.fixPass(formatted, formatted)
+    local const vbTestMaker = new helpers.TestMaker {
+      filename = "Code.vb"
+      files = List("Code.vb")
+      extra_files = new Mapping<String, String> {
+        ["Test.vbproj"] = project
+        [".editorconfig"] = editorconfig
+      }
+    }
+    local const vbUnformatted =
+      "Class C\nSub M()\nDim x=1\nSystem.Console.WriteLine(x)\nEnd Sub\nEnd Class\n"
+    local const vbFormatted =
+      "Class C\n    Sub M()\n        Dim x = 1\n        System.Console.WriteLine(x)\n    End Sub\nEnd Class\n"
+    ["check bad Visual Basic file"] = vbTestMaker.checkFail(vbUnformatted, 2)
+    ["fix Visual Basic file"] = vbTestMaker.fixPass(vbUnformatted, vbFormatted)
+    ["check good Visual Basic file"] = vbTestMaker.checkPass(vbFormatted)
+    ["missing project fails"] =
+      (
+        new helpers.TestMaker {
+          filename = "Code.cs"
+          files = List("Code.cs")
+        }
+      ).checkFail(unformatted, 1)
+    ["fix only selected file"] = new Config.StepTest {
+      run = "fix"
+      tmpdir = true
+      files = List("Code.cs")
+      write = new Mapping<String, String> {
+        ["Test.csproj"] = project
+        [".editorconfig"] = editorconfig
+        ["Code.cs"] = unformatted
+        ["Other.cs"] = "class Other{void M(){}}\n"
+      }
+      expect = new Config.StepTestExpect {
+        files = new Mapping<String, String> {
+          ["Code.cs"] = formatted
+          ["Other.cs"] = "class Other{void M(){}}\n"
+        }
+      }
+      after = "dotnet format --verify-no-changes --include Code.cs"
+    }
+    ["fix selected nested file with spaces through solution"] = new Config.StepTest {
+      run = "fix"
+      tmpdir = true
+      files = List("nested project/Code File.cs")
+      write = new Mapping<String, String> {
+        ["Test.slnx"] =
+          "<Solution><Project Path=\"nested project/Test.csproj\" /><Project Path=\"other/Other.csproj\" /></Solution>\n"
+        ["nested project/Test.csproj"] = project
+        ["other/Other.csproj"] = project
+        [".editorconfig"] = editorconfig
+        ["nested project/Code File.cs"] = unformatted
+        ["other/Other.cs"] = "class Other{void M(){}}\n"
+      }
+      expect = new Config.StepTestExpect {
+        files = new Mapping<String, String> {
+          ["nested project/Code File.cs"] = formatted
+          ["other/Other.cs"] = "class Other{void M(){}}\n"
+        }
+      }
+    }
+  }
+}
