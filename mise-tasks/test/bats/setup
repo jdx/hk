@@ -40,7 +40,11 @@ if [ -z "$specs" ]; then
     exit 1
 fi
 
-mapfile -t tools <<<"$specs"
+# Not `mapfile`: macOS ships bash 3.2, which does not have it.
+tools=()
+while IFS= read -r spec; do
+    tools+=("$spec")
+done <<<"$specs"
 
 # Best effort: mise attempts every tool in the batch and names the ones it could
 # not install, so a tool that is unavailable on this machine (no ruby for the
