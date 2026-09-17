@@ -53,6 +53,35 @@ _common_setup() {
     _enable_test_cache
 }
 
+# Record `hk test` per-case durations from $output to a file under target/.
+#
+# `hk test` prints "ok - <step> :: <case> (<n>ms)", but callers wrap it in
+# `run ... ; assert_success`, so bats only dumps those lines when the test
+# FAILS. That left the suite's timing data invisible on green runs. CI uploads
+# this directory so slow cases can be tracked without waiting for a failure.
+#
+# The durations are wall-clock per case and include any tool install the case
+# triggers, so concurrent cases sharing one install each report its full cost.
+_record_test_timings() {
+    local name=$1
+    local dir="$PROJECT_ROOT/target/test-timings"
+    mkdir -p "$dir" || return 0
+    # awk, not sed: BSD sed (macOS) writes a literal "t" for \t in a
+    # replacement, which would collapse both columns on the platform these
+    # timings matter most for.
+    printf '%s\n' "$output" \
+        | awk '/^ok - .* \([0-9]+ms\)$/ {
+                 name = $0
+                 sub(/^ok - /, "", name)
+                 ms = name
+                 sub(/^.*\(/, "", ms)
+                 sub(/ms\)$/, "", ms)
+                 sub(/ \([0-9]+ms\)$/, "", name)
+                 printf "%s\t%s\n", ms, name
+               }' \
+        | sort -rn > "$dir/$name.tsv" || true
+}
+
 _common_teardown() {
     chmod -R u+w "$TEST_TEMP_DIR"
     temp_del "$TEST_TEMP_DIR"
