@@ -116,3 +116,21 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.prettier"
     assert_file_contains hk.pkl "Builtins.cargo_clippy"
 }
+
+@test "hk init detects nested source files" {
+    mkdir -p src/scripts
+    echo 'echo ok' > src/scripts/check.sh
+    run hk init
+    assert_success
+    assert_file_contains hk.pkl "Builtins.shellcheck"
+}
+
+@test "hk init ignores ignored source files" {
+    echo 'ignored/' > .gitignore
+    mkdir -p ignored
+    echo 'echo no' > ignored/check.sh
+    run hk init
+    assert_success
+    run grep 'Builtins.shellcheck' hk.pkl
+    assert_failure
+}

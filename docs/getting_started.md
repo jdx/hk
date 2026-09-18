@@ -42,7 +42,7 @@ From the root of your repository, generate a configuration:
 hk init
 ```
 
-hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`.
+hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`. Source-file indicators are discovered recursively with ignore rules and without following symlinks; `.gitignore` applies inside Git repositories and `.ignore` also works outside Git. Exact manifest and configuration indicators remain root-level, so nested workspaces are not implicitly activated.
 
 ::: tip Make the linters available
 Builtins configure commands; they do not install the tools they invoke. Install the selected linters with your project’s package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`.

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::builtins::{BUILTINS_META, BuiltinMeta};
 
@@ -13,6 +13,7 @@ pub struct Detection {
 pub fn detect_builtins(project_root: &Path) -> Vec<Detection> {
     let mut detections = Vec::new();
 
+    let source_files = collect_source_files(project_root);
     for meta in BUILTINS_META {
         // Skip builtins without project indicators
         if meta.project_indicators.is_empty() {
@@ -21,7 +22,7 @@ pub fn detect_builtins(project_root: &Path) -> Vec<Detection> {
 
         // Check if any indicator matches
         for indicator in meta.project_indicators {
-            if let Some(reason) = matches_indicator(project_root, indicator) {
+            if let Some(reason) = matches_indicator(project_root, indicator, &source_files) {
                 detections.push(Detection {
                     builtin: meta,
                     reason,
@@ -34,47 +35,74 @@ pub fn detect_builtins(project_root: &Path) -> Vec<Detection> {
     detections
 }
 
-/// Check if a project indicator matches and return the reason if it does
+/// Collect real source files recursively, honoring repository ignore rules.
+fn collect_source_files(project_root: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let walker = ignore::WalkBuilder::new(project_root)
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .parents(true)
+        .ignore(true)
+        .follow_links(false)
+        .filter_entry(|entry| entry.file_name() != ".git")
+        .build();
+    for entry in walker {
+        match entry {
+            Ok(entry) if entry.file_type().is_some_and(|kind| kind.is_file()) => {
+                files.push(entry.into_path())
+            }
+            Ok(_) => {}
+            Err(error) => warn!("Unable to inspect project file: {error}"),
+        }
+    }
+    files
+}
+
+/// Check if a project indicator matches and return the reason if it does.
 fn matches_indicator(
     project_root: &Path,
     indicator: &crate::builtins::ProjectIndicator,
+    source_files: &[PathBuf],
 ) -> Option<String> {
-    // Handle file indicator (exact file or directory match)
     if let Some(file) = indicator.file {
         let path = project_root.join(file);
         if !path.exists() {
             return None;
         }
-
-        // If contains is specified, grep the file
         if let Some(pattern) = indicator.contains {
             if path.is_file()
-                && let Ok(content) = std::fs::read_to_string(&path)
-                && content.contains(pattern)
+                && std::fs::read_to_string(&path).is_ok_and(|content| content.contains(pattern))
             {
                 return Some(format!("{} contains {}", file, pattern));
             }
             return None;
         }
-
         return Some(file.to_string());
     }
-
-    // Handle glob indicator
-    if let Some(glob_pattern) = indicator.glob
-        && let Some(ext) = glob_pattern.strip_prefix("*.")
-        && let Ok(entries) = std::fs::read_dir(project_root)
-    {
-        for entry in entries.flatten() {
-            if let Some(file_ext) = entry.path().extension()
-                && file_ext == ext
-            {
-                return Some(format!("{} files", glob_pattern));
-            }
+    let pattern = indicator.glob?;
+    let pattern = if pattern.starts_with("*.") {
+        format!("**/{pattern}")
+    } else {
+        pattern.to_string()
+    };
+    let matcher = match globset::Glob::new(&pattern) {
+        Ok(glob) => glob.compile_matcher(),
+        Err(error) => {
+            warn!("Invalid project indicator glob {pattern:?}: {error}");
+            return None;
         }
+    };
+    if source_files.iter().any(|path| {
+        path.strip_prefix(project_root)
+            .ok()
+            .is_some_and(|relative| matcher.is_match(relative))
+    }) {
+        Some(format!("{} files", indicator.glob.unwrap()))
+    } else {
+        None
     }
-
-    None
 }
 
 #[cfg(test)]
@@ -135,6 +163,123 @@ mod tests {
 
         let names: Vec<_> = detections.iter().map(|d| d.builtin.name).collect();
         assert!(!names.contains(&"eslint"));
+    }
+
+    #[test]
+    fn test_detect_git_only_scripts() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".git/objects")).unwrap();
+        std::fs::write(tmp.path().join(".git/objects/internal.sh"), "echo no").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(!names.contains(&"shellcheck"));
+    }
+
+    #[test]
+    fn test_detect_ignore_file_outside_git() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".ignore"), "ignored/\n").unwrap();
+        std::fs::create_dir(tmp.path().join("ignored")).unwrap();
+        std::fs::write(tmp.path().join("ignored/skip.sh"), "echo no").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(!names.contains(&"shellcheck"));
+    }
+
+    #[test]
+    fn test_nested_manifest_does_not_activate_root_indicator() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(tmp.path().join("nested")).unwrap();
+        std::fs::write(tmp.path().join("nested/Cargo.toml"), "[package]").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(!names.contains(&"cargo_clippy"));
+    }
+
+    #[test]
+    fn test_detect_nested_shell_script_but_not_ignored_or_git_files() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("src/bin")).unwrap();
+        std::fs::write(tmp.path().join("src/bin/check.sh"), "echo ok").unwrap();
+        std::fs::create_dir_all(tmp.path().join("ignored")).unwrap();
+        std::fs::write(tmp.path().join("ignored/.gitignore"), "*.sh\n").unwrap();
+        std::fs::write(tmp.path().join("ignored/skip.sh"), "echo no").unwrap();
+        std::fs::create_dir_all(tmp.path().join(".git/objects")).unwrap();
+        std::fs::write(tmp.path().join(".git/objects/internal.sh"), "echo no").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(names.contains(&"shellcheck"));
+    }
+
+    #[test]
+    fn test_detect_ignored_only_scripts() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".gitignore"), "ignored/\n").unwrap();
+        std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(tmp.path())
+            .status()
+            .unwrap();
+        std::fs::create_dir(tmp.path().join("ignored")).unwrap();
+        std::fs::write(tmp.path().join("ignored/skip.sh"), "echo no").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(!names.contains(&"shellcheck"));
+    }
+
+    #[test]
+    fn test_detect_hidden_source_and_not_source_named_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".hidden-check.sh"), "echo ok").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(names.contains(&"shellcheck"));
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir(dir.path().join("fake.sh")).unwrap();
+        let names: Vec<_> = detect_builtins(dir.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(!names.contains(&"shellcheck"));
+    }
+
+    #[test]
+    fn test_detect_nested_build_bazel() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("nested")).unwrap();
+        std::fs::write(tmp.path().join("nested/BUILD.bazel"), "").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(names.contains(&"buildifier_lint"));
+        assert!(names.contains(&"buildifier_format"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_detect_does_not_follow_symlink() {
+        let tmp = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("outside.sh"), "echo no").unwrap();
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("linked")).unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(!names.contains(&"shellcheck"));
     }
 
     #[test]
