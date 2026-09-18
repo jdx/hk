@@ -116,3 +116,175 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.prettier"
     assert_file_contains hk.pkl "Builtins.cargo_clippy"
 }
+
+@test "hk init mise fills missing entries and preserves existing task" {
+    cat > mise.toml <<'TOML'
+# keep this comment
+[tools]
+hk = "3.0"
+[ tasks.pre-commit ]
+run = "custom-hook"
+TOML
+    run hk init --mise
+    assert_success
+    assert_file_contains mise.toml "# keep this comment"
+    assert_file_contains mise.toml 'hk = "3.0"'
+    assert_file_contains mise.toml 'pkl = "latest"'
+    assert_file_contains mise.toml 'run = "custom-hook"'
+}
+
+@test "hk init mise rejects malformed config without creating hk.pkl" {
+    echo '[tools' > mise.toml
+    run hk init --mise
+    assert_failure
+    run test -e hk.pkl
+    assert_failure
+}
+
+@test "hk init mise force does not reset mise config" {
+    echo 'custom = true' > mise.toml
+    echo 'old' > hk.pkl
+    run hk init --mise --force
+    assert_success
+    assert_file_contains mise.toml 'custom = true'
+    assert_file_contains mise.toml 'hk = "latest"'
+    run grep old hk.pkl
+    assert_failure
+}
+
+@test "hk init mise preserves string and inline task forms" {
+    cat > mise.toml <<'TOML'
+[tools]
+hk = "3.1"
+prettier = "latest"
+[tasks]
+pre-commit = "custom-command"
+check = { run = "custom-check" }
+TOML
+    run hk init --mise
+    assert_success
+    assert_file_contains mise.toml 'pre-commit = "custom-command"'
+    assert_file_contains mise.toml 'check = { run = "custom-check" }'
+    assert_file_contains mise.toml 'pkl = "latest"'
+}
+
+@test "hk init mise is byte-identical on repeated force" {
+    run hk init --mise --force
+    assert_success
+    cp mise.toml mise.before
+    run hk init --mise --force
+    assert_success
+    cmp mise.before mise.toml
+}
+
+@test "hk init mise preserves qualified hk tool key" {
+    cat > mise.toml <<'TOML'
+[tools]
+"aqua:jdx/hk" = "1.0"
+TOML
+    run hk init --mise
+    assert_success
+    assert_file_contains mise.toml '"aqua:jdx/hk" = "1.0"'
+    run grep '^hk = ' mise.toml
+    assert_failure
+}
+
+@test "hk init mise rejects unsupported tools without changing files" {
+    echo 'tools = "custom"' > mise.toml
+    echo old > hk.pkl
+    cp mise.toml mise.before
+    run hk init --mise --force
+    assert_failure
+    cmp mise.before mise.toml
+    assert_file_contains hk.pkl old
+}
+
+@test "hk init mise merges inline tools and tasks" {
+    cat > mise.toml <<'TOML'
+tools = { hk = "3.1" }
+tasks = { check = "custom" }
+TOML
+    run hk init --mise --force
+    assert_success
+    assert_file_contains mise.toml 'hk = "3.1"'
+    assert_file_contains mise.toml 'pkl = "latest"'
+    assert_file_contains mise.toml 'check = "custom"'
+    assert_file_contains mise.toml 'pre-commit'
+    cp mise.toml mise.before
+    run hk init --mise --force
+    assert_success
+    cmp mise.before mise.toml
+}
+
+@test "hk init mise rejects scalar tasks without changing files" {
+    cat > mise.toml <<'TOML'
+tools = { hk = "3.1" }
+tasks = "custom"
+TOML
+    echo sentinel > hk.pkl
+    cp mise.toml mise.before
+    run hk init --mise --force
+    assert_failure
+    cmp mise.before mise.toml
+    assert_file_contains hk.pkl sentinel
+}
+
+@test "hk init mise preserves dependencies-only pre-commit task" {
+    cat > mise.toml <<'TOML'
+[tasks.pre-commit]
+depends = ["check"]
+TOML
+    run hk init --mise
+    assert_success
+    run grep '^run = ' mise.toml
+    assert_failure
+    run grep -F 'depends = ["check"]' mise.toml
+    assert_success
+}
+
+@test "hk init mise malformed config preserves existing hk.pkl" {
+    echo '[tools' > mise.toml
+    echo sentinel > hk.pkl
+    cp mise.toml mise.before
+    run hk init --mise --force
+    assert_failure
+    cmp mise.before mise.toml
+    assert_file_contains hk.pkl sentinel
+}
+
+@test "hk init mise preserves existing file task" {
+    mkdir -p mise-tasks
+    echo '#!/bin/sh' > mise-tasks/pre-commit
+    chmod +x mise-tasks/pre-commit
+    run hk init --mise
+    assert_success
+    run grep -F 'pre-commit' mise.toml
+    assert_failure
+}
+
+@test "hk init mise preserves included task configuration" {
+    cat > mise.toml <<'TOML'
+[tools]
+hk = "latest"
+[task_config]
+includes = ["custom-tasks"]
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F 'pre-commit' mise.toml
+    assert_failure
+    run grep -F 'includes = ["custom-tasks"]' mise.toml
+    assert_success
+}
+
+@test "hk init mise recognizes qualified pkl tool" {
+    cat > mise.toml <<'TOML'
+[tools]
+"github:apple/pkl" = "0.26"
+TOML
+    run hk init --mise
+    assert_success
+    run grep '^pkl = ' mise.toml
+    assert_failure
+    assert_file_contains mise.toml '"github:apple/pkl" = "0.26"'
+}
