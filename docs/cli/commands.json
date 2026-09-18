@@ -1578,6 +1578,26 @@
             "global": false
           },
           {
+            "name": "preset",
+            "usage": "--preset <PRESET>",
+            "help": "Choose the curated tool setup (fast or ecosystem)",
+            "help_first_line": "Choose the curated tool setup (fast or ecosystem)",
+            "short": [],
+            "long": ["preset"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PRESET",
+              "usage": "<PRESET>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false,
+              "choices": {
+                "choices": ["fast", "ecosystem"]
+              }
+            }
+          },
+          {
             "name": "mise",
             "usage": "--mise",
             "help": "Generate a mise.toml file with hk configured",

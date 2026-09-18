@@ -42,7 +42,14 @@ From the root of your repository, generate a configuration:
 hk init
 ```
 
-hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`.
+hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`. For a repository-wide
+preference, `hk init --preset fast` prefers Biome, while `hk init --preset ecosystem`
+prefers ESLint and Prettier. Existing native configuration and dependencies take precedence.
+Presets configure hk steps only; they do not install tools or create native tool configuration.
+
+Preset note: `--preset` currently recommends JavaScript/TypeScript tools only. Detection is
+limited to files and tool configuration at the project root; it does not infer tools recursively
+across monorepo workspaces. Other language detections remain in the generated configuration.
 
 ::: tip Make the linters available
 Builtins configure commands; they do not install the tools they invoke. Install the selected linters with your project’s package manager or [mise](/mise_integration), and make sure hk can find them on `PATH`.

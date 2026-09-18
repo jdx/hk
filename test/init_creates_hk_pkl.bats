@@ -116,3 +116,39 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.prettier"
     assert_file_contains hk.pkl "Builtins.cargo_clippy"
 }
+
+@test "hk init fast preset recommends Biome" {
+    echo '{"name":"test"}' > package.json
+    run hk init --preset fast
+    assert_success
+    assert_output --partial "Recommended (fast): biome"
+    assert_output --partial "configure hk only"
+    assert_file_contains hk.pkl "Builtins.biome"
+    run grep 'Builtins.prettier' hk.pkl
+    assert_failure
+}
+
+@test "hk init ecosystem preset retains non-JS detections" {
+    echo '{}' > package.json
+    echo '[package]' > Cargo.toml
+    run hk init --preset ecosystem
+    assert_success
+    assert_file_contains hk.pkl "Builtins.eslint"
+    assert_file_contains hk.pkl "Builtins.prettier"
+    assert_file_contains hk.pkl "Builtins.cargo_clippy"
+}
+
+@test "hk init preset preserves configured Biome and ESLint" {
+    echo '{"devDependencies":{"@biomejs/biome":"latest","eslint":"latest"}}' > package.json
+    run hk init --preset ecosystem
+    assert_success
+    assert_file_contains hk.pkl "Builtins.biome"
+    assert_file_contains hk.pkl "Builtins.eslint"
+    run grep 'Builtins.prettier' hk.pkl
+    assert_failure
+}
+
+@test "hk init rejects an unknown preset" {
+    run hk init --preset unknown
+    assert_failure
+}

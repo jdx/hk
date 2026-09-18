@@ -16,6 +16,10 @@ Generate a new hk.pkl file for a project
 
 - **`-f --force`** — Overwrite existing hk.pkl file
 - **`-i --interactive`** — Interactive mode: select linters and hooks manually
+- **`--preset <PRESET>`** — Choose the curated tool setup (fast or ecosystem)
+
+  **Choices:** `fast`, `ecosystem`
+
 - **`--mise`** — Generate a mise.toml file with hk configured
 
   Set HK_MISE=1 to make this the default behavior.
