@@ -163,7 +163,6 @@ mod tests {
             ".eslintrc.yml",
             ".eslintrc.js",
             ".eslintrc.cjs",
-            ".eslintrc.mjs",
         ] {
             let tmp = tempfile::tempdir().unwrap();
             std::fs::write(tmp.path().join(filename), "{}").unwrap();

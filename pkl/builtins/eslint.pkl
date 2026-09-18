@@ -18,7 +18,6 @@ import "../Config.pkl"
     new { file = ".eslintrc.yml" }
     new { file = ".eslintrc.js" }
     new { file = ".eslintrc.cjs" }
-    new { file = ".eslintrc.mjs" }
   }
 }
 eslint = new Config.Step {
