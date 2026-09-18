@@ -6,6 +6,19 @@ import "../Config.pkl"
   description = "Pluggable JavaScript linter"
   project_indicators {
     new { file = "package.json"; contains = "\"eslint\"" }
+    new { file = "eslint.config.js" }
+    new { file = "eslint.config.mjs" }
+    new { file = "eslint.config.cjs" }
+    new { file = "eslint.config.ts" }
+    new { file = "eslint.config.mts" }
+    new { file = "eslint.config.cts" }
+    new { file = ".eslintrc" }
+    new { file = ".eslintrc.json" }
+    new { file = ".eslintrc.yaml" }
+    new { file = ".eslintrc.yml" }
+    new { file = ".eslintrc.js" }
+    new { file = ".eslintrc.cjs" }
+    new { file = ".eslintrc.mjs" }
   }
 }
 eslint = new Config.Step {
