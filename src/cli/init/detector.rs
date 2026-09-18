@@ -158,10 +158,11 @@ pub(crate) fn preset_tool_names(project_root: &Path, preset: &str) -> Vec<&'stat
         ]
         .iter()
         .any(|n| project_root.join(n).exists());
-    let has_other_formatter = dep("oxfmt")
-        || dep("deno")
+    let has_deno = dep("deno")
         || project_root.join("deno.json").exists()
-        || project_root.join("deno.jsonc").exists()
+        || project_root.join("deno.jsonc").exists();
+    let has_other_formatter = dep("oxfmt")
+        || has_deno
         || project_root.join(".oxfmtrc.json").exists()
         || project_root.join(".oxfmtrc.jsonc").exists()
         || project_root.join("oxfmt.config.ts").exists();
@@ -177,6 +178,9 @@ pub(crate) fn preset_tool_names(project_root: &Path, preset: &str) -> Vec<&'stat
     }
     if has_prettier {
         names.push("prettier");
+    }
+    if has_deno {
+        names.push("deno");
     }
     if names.is_empty() && !has_other_formatter {
         let defaults: &[&str] = match preset {
@@ -335,6 +339,67 @@ mod tests {
         )
         .unwrap();
         assert_eq!(preset_tool_names(tmp.path(), "ecosystem"), vec!["biome"]);
+    }
+
+    #[test]
+    fn preset_preserves_deno_json_without_adding_defaults() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("deno.json"), "{}").unwrap();
+        assert_eq!(preset_tool_names(tmp.path(), "fast"), vec!["deno"]);
+        assert_eq!(preset_tool_names(tmp.path(), "ecosystem"), vec!["deno"]);
+
+        let detections = detect_builtins(tmp.path());
+        let selected = preset_builtins_with_detections(tmp.path(), &detections, "fast");
+        assert_eq!(
+            selected.iter().map(|meta| meta.name).collect::<Vec<_>>(),
+            vec!["deno"]
+        );
+    }
+
+    #[test]
+    fn preset_preserves_deno_jsonc_without_adding_defaults() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("deno.jsonc"), "{}").unwrap();
+        assert_eq!(preset_tool_names(tmp.path(), "fast"), vec!["deno"]);
+        assert_eq!(preset_tool_names(tmp.path(), "ecosystem"), vec!["deno"]);
+
+        let detections = detect_builtins(tmp.path());
+        let selected = preset_builtins_with_detections(tmp.path(), &detections, "ecosystem");
+        assert_eq!(
+            selected.iter().map(|meta| meta.name).collect::<Vec<_>>(),
+            vec!["deno"]
+        );
+    }
+
+    #[test]
+    fn preset_preserves_deno_dependency_through_selection() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r#"{"dependencies":{"deno":"latest"}}"#,
+        )
+        .unwrap();
+        let detections = detect_builtins(tmp.path());
+        let selected = preset_builtins_with_detections(tmp.path(), &detections, "fast");
+        assert_eq!(
+            selected.iter().map(|meta| meta.name).collect::<Vec<_>>(),
+            vec!["deno"]
+        );
+    }
+
+    #[test]
+    fn preset_keeps_deno_with_explicit_javascript_tools() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("deno.json"), "{}").unwrap();
+        std::fs::write(
+            tmp.path().join("package.json"),
+            r#"{"devDependencies":{"@biomejs/biome":"latest","eslint":"latest","prettier":"latest"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            preset_tool_names(tmp.path(), "ecosystem"),
+            vec!["biome", "eslint", "prettier", "deno"]
+        );
     }
     #[test]
     fn preset_preserves_biome_config_without_source_files() {
