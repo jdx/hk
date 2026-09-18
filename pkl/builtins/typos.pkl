@@ -11,8 +11,9 @@ typos = new Config.Step {
   check_diff = new Config.CommandSpec {
     command =
       """
-      output=$(typos --force-exclude --diff {{files}}) || exit $?
-      [ -z "$output" ] && exit 0
+      status=0
+      output=$(typos --force-exclude --diff {{files}}) || status=$?
+      [ -z "$output" ] && exit "$status"
       printf "%s" "$output"
       exit 1
       """

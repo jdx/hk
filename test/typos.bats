@@ -46,6 +46,40 @@ PKL
     done
 }
 
+@test "typos preserves captured diffs with custom shells" {
+    mkdir bin
+    cat > bin/typos <<'SH'
+#!/bin/sh
+case "$*" in
+    *--diff*)
+        printf '%s\n' '--- test.txt' '+++ test.txt' '@@ -1 +1 @@' '-maintainance' '+maintenance'
+        exit 1
+        ;;
+    *--write-changes*)
+        touch fallback-used
+        exit 99
+        ;;
+esac
+SH
+    chmod +x bin/typos
+    export PATH="$PWD/bin:$PATH"
+    for shell in "sh -o errexit -c" "sh -c"; do
+        cat > hk.pkl <<PKL
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+steps { ["typos"] = (Builtins.typos) { shell = "$shell" } }
+PKL
+        printf 'maintainance\n' > test.txt
+        HK_OUTPUT_FILE="$PWD/output.log" run hk -v check --check test.txt
+        assert_failure
+        assert_output --partial "maintainance"
+        run hk fix --no-stage test.txt
+        assert_success
+        assert_equal "maintenance" "$(cat test.txt)"
+        assert_file_not_exist fallback-used
+    done
+}
+
 @test "typos rejects invalid native configuration" {
     printf 'correct\n' > test.txt
     printf '[invalid TOML\n' > typos.toml
