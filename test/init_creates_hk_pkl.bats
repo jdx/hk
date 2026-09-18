@@ -253,28 +253,45 @@ TOML
 }
 
 @test "hk init mise preserves existing file task" {
+    cat > mise.toml <<'TOML'
+[tools]
+hk = "3.1"
+pkl = "0.26"
+TOML
+    cp mise.toml mise.before
     mkdir -p mise-tasks
     echo '#!/bin/sh' > mise-tasks/pre-commit
     chmod +x mise-tasks/pre-commit
     run hk init --mise
     assert_success
-    run grep -F 'pre-commit' mise.toml
-    assert_failure
+    cmp mise.before mise.toml
 }
 
 @test "hk init mise preserves included task configuration" {
     cat > mise.toml <<'TOML'
 [tools]
 hk = "latest"
+pkl = "0.26"
 [task_config]
 includes = ["custom-tasks"]
 TOML
+    cp mise.toml mise.before
     run hk init --mise
     assert_success
-    run grep -F 'pre-commit' mise.toml
-    assert_failure
-    run grep -F 'includes = ["custom-tasks"]' mise.toml
+    cmp mise.before mise.toml
+}
+
+@test "hk init mise still inserts pre-commit without external task configuration" {
+    cat > mise.toml <<'TOML'
+[tools]
+hk = "3.1"
+pkl = "0.26"
+TOML
+    run hk init --mise
     assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_success
+    assert_file_contains mise.toml 'run = "hk run pre-commit"'
 }
 
 @test "hk init mise recognizes qualified pkl tool" {

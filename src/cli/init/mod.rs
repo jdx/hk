@@ -185,23 +185,31 @@ fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
     if !has_pkl {
         tools.insert("pkl", value("latest"));
     }
-    if document.get("tasks").is_none() {
-        document["tasks"] = Item::Table(Table::new());
-    }
+    let has_pre_commit = match document.get("tasks") {
+        Some(item) => item
+            .as_table_like()
+            .ok_or_else(|| eyre!("unsupported mise.toml: [tasks] must be a table"))?
+            .get("pre-commit")
+            .is_some(),
+        None => false,
+    };
     let includes = document
         .get("task_config")
         .and_then(Item::as_table_like)
         .and_then(|table| table.get("includes"))
         .is_some();
-    let tasks = document["tasks"]
-        .as_table_like_mut()
-        .ok_or_else(|| eyre!("unsupported mise.toml: [tasks] must be a table"))?;
-    if tasks.get("pre-commit").is_none() && !external_pre_commit && !includes {
+    if !has_pre_commit && !external_pre_commit && !includes {
+        if document.get("tasks").is_none() {
+            document["tasks"] = Item::Table(Table::new());
+        }
+        let tasks = document["tasks"]
+            .as_table_like_mut()
+            .expect("tasks was validated or created as a table");
         tasks.insert(
             "pre-commit",
             Item::Table(Table::from_iter([("run", value("hk run pre-commit"))])),
         );
-    } else if tasks.get("pre-commit").is_none() && (external_pre_commit || includes) {
+    } else if !has_pre_commit && (external_pre_commit || includes) {
         warn!(
             "Preserving external mise task configuration for pre-commit; wire hk manually if needed"
         );
