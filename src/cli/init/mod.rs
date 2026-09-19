@@ -5,6 +5,8 @@ mod picker;
 use std::path::PathBuf;
 
 use crate::{Result, env};
+use eyre::eyre;
+use toml_edit::{DocumentMut, Item, Table, value};
 
 /// Default hooks to configure when none are specified
 pub(crate) const DEFAULT_HOOKS: &[&str] = &["pre-commit"];
@@ -117,20 +119,100 @@ impl Init {
     }
 
     fn write_mise_toml(&self) -> Result<()> {
-        let mise_toml = PathBuf::from("mise.toml");
-        let mise_content = r#"[tools]
-hk = "latest"
-pkl = "latest"
-
-[tasks.pre-commit]
-run = "hk run pre-commit"
-"#;
-        if mise_toml.exists() && !self.force {
-            warn!("mise.toml already exists, run with --force to overwrite");
+        let mise_file = PathBuf::from("mise.toml");
+        let original = mise_file
+            .exists()
+            .then(|| std::fs::read_to_string(&mise_file))
+            .transpose()?;
+        let has_file_task = existing_pre_commit_file_task(&std::env::current_dir()?);
+        let content = merge_mise_config(original.as_deref().unwrap_or(""), has_file_task)?;
+        if original.as_deref() != Some(content.as_str()) {
+            xx::file::write(&mise_file, content)?;
+            info!("Updated mise.toml");
         } else {
-            xx::file::write(mise_toml, mise_content)?;
-            info!("Generated mise.toml");
+            info!("mise.toml already contains hk configuration");
         }
         Ok(())
     }
+}
+
+/// Detect conventional mise file-task locations for pre-commit.
+fn existing_pre_commit_file_task(root: &std::path::Path) -> bool {
+    [
+        "mise-tasks",
+        ".mise-tasks",
+        "mise/tasks",
+        ".mise/tasks",
+        ".config/mise/tasks",
+    ]
+    .iter()
+    .any(|dir| {
+        let base = root.join(dir).join("pre-commit");
+        base.is_file() || base.join("_default").is_file()
+    })
+}
+
+/// Merge hk's minimal mise entries without replacing user configuration.
+fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
+    let mut document = if input.is_empty() {
+        DocumentMut::new()
+    } else {
+        input
+            .parse::<DocumentMut>()
+            .map_err(|error| eyre!("invalid mise.toml: {error}"))?
+    };
+    if document.get("tools").is_none() {
+        document["tools"] = Item::Table(Table::new());
+    }
+    let tools = document["tools"]
+        .as_table_like_mut()
+        .ok_or_else(|| eyre!("unsupported mise.toml: [tools] must be a table"))?;
+    let has_hk = tools.iter().any(|(key, _)| {
+        matches!(
+            key,
+            "hk" | "aqua:jdx/hk" | "aqua:hk" | "ubi:jdx/hk" | "cargo:hk" | "github:jdx/hk"
+        )
+    });
+    if !has_hk {
+        tools.insert("hk", value("latest"));
+    }
+    let has_pkl = tools.iter().any(|(key, _)| {
+        matches!(
+            key,
+            "pkl" | "aqua:pkl" | "aqua:apple/pkl" | "ubi:apple/pkl" | "github:apple/pkl"
+        )
+    });
+    if !has_pkl {
+        tools.insert("pkl", value("latest"));
+    }
+    let has_pre_commit = match document.get("tasks") {
+        Some(item) => item
+            .as_table_like()
+            .ok_or_else(|| eyre!("unsupported mise.toml: [tasks] must be a table"))?
+            .get("pre-commit")
+            .is_some(),
+        None => false,
+    };
+    let includes = document
+        .get("task_config")
+        .and_then(Item::as_table_like)
+        .and_then(|table| table.get("includes"))
+        .is_some();
+    if !has_pre_commit && !external_pre_commit && !includes {
+        if document.get("tasks").is_none() {
+            document["tasks"] = Item::Table(Table::new());
+        }
+        let tasks = document["tasks"]
+            .as_table_like_mut()
+            .expect("tasks was validated or created as a table");
+        tasks.insert(
+            "pre-commit",
+            Item::Table(Table::from_iter([("run", value("hk run pre-commit"))])),
+        );
+    } else if !has_pre_commit && (external_pre_commit || includes) {
+        warn!(
+            "Preserving external mise task configuration for pre-commit; wire hk manually if needed"
+        );
+    }
+    Ok(document.to_string())
 }
