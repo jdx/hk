@@ -164,8 +164,8 @@ jobs:
       # Restore-only: the cache benchmark's main-branch pushes seed this entry.
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
-          version: ${{ inputs.mbx_ref == '' && '1.8.1' || '' }}
-          cache-generation: ci-v1
+          version: ${{ inputs.mbx_ref == '' && '1.14.0' || '' }}
+          cache-generation: ci-v2
       - name: Build
         if: runner.os != 'Windows'
         shell: bash

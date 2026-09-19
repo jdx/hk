@@ -36,8 +36,7 @@ jobs:
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
       - name: Build with VitePress
