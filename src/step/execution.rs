@@ -207,30 +207,25 @@ impl Step {
                                 {
                                     // Apply where the check_diff command ran.
                                     let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                    match step.apply_diff_output(stdout, dir.as_deref())? {
-                                        true => {
-                                            let applied_files = job.files.clone();
-                                            if step.check_after_diff {
-                                                debug!(
-                                                    "{step}: diff applied successfully, rerunning check on original files"
-                                                );
-                                                job.files = original_job_files.clone();
-                                                job.run_type = RunType::Check;
-                                                job.check_first = false;
-                                                step.run(&ctx, &mut job).await?;
-                                            } else {
-                                                debug!(
-                                                    "{step}: diff applied successfully, skipping fixer"
-                                                );
-                                            }
-                                            ctx.hook_ctx.inc_completed_jobs(1);
-                                            return Ok(applied_files);
+                                    if step.apply_diff_output(stdout, dir.as_deref())? {
+                                        let applied_files = job.files.clone();
+                                        if step.check_after_diff {
+                                            debug!(
+                                                "{step}: diff applied successfully, rerunning check on original files"
+                                            );
+                                            job.files = original_job_files.clone();
+                                            job.run_type = RunType::Check;
+                                            job.check_first = false;
+                                            step.run(&ctx, &mut job).await?;
+                                        } else {
+                                            debug!(
+                                                "{step}: diff applied successfully, skipping fixer"
+                                            );
                                         }
-                                        false => {
-                                            // Diff application failed - fall through to run fixer
-                                            debug!("{step}: diff application failed, falling back to fixer");
-                                        }
+                                        ctx.hook_ctx.inc_completed_jobs(1);
+                                        return Ok(applied_files);
                                     }
+                                    debug!("{step}: diff application failed, falling back to fixer");
                                 }
                             }
                             // For regular check commands that fail: fall through to run fixer

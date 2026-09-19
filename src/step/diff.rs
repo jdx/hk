@@ -100,8 +100,8 @@ impl DiffBackup {
         // of renames/copies; forward stats include their destination. A preflight
         // rejects invalid patches, but cannot replace rollback for write errors.
         for args in [
-            vec![strip, "--numstat", "-z", "--check"],
-            vec![strip, "--numstat", "-z", "--reverse"],
+            [strip, "--numstat", "-z", "--check"],
+            [strip, "--numstat", "-z", "--reverse"],
         ] {
             let output = git_apply(patch, base, &args)?;
             if !output.status.success() {
@@ -759,6 +759,10 @@ mod apply_diff_tests {
         assert!(err.to_string().contains("refusing to run fixer"));
         assert!(err.to_string().contains(&saved.display().to_string()));
         assert_eq!(fs::read(base.join("other.txt")).unwrap(), b"before\n");
+        assert_eq!(
+            fs::read(base.join("file.txt/unrelated")).unwrap(),
+            b"keep me"
+        );
         for name in ["file.txt", "other.txt"] {
             assert_eq!(
                 fs::read(saved.join("files").join(name)).unwrap(),
