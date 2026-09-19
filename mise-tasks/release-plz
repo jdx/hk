@@ -44,7 +44,9 @@ PR_BODY="$(git cliff --bump --unreleased --strip all | tail -n +3)"
 # cost every mise install a ~2 minute compile.
 sed -i.bak "/^\[package\]/,/^\[/ s/^\(version[[:space:]]*=[[:space:]]*\)\"[^\"]*\"/\1\"${version#v}\"/" Cargo.toml
 rm Cargo.toml.bak
-cargo update --workspace
+# Resolving the workspace syncs hk's own Cargo.lock entry without upgrading
+# any dependency, the same lockfile effect `cargo set-version` had.
+cargo metadata --format-version 1 >/dev/null
 # sed succeeds even when nothing matched; refuse to release a stale version.
 new_version="$(cargo pkgid hk | cut -d# -f2 | cut -d@ -f2)"
 if [ "$new_version" != "${version#v}" ]; then
