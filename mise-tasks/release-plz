@@ -39,7 +39,12 @@ git cliff --bump -o CHANGELOG.md
 # Strip version header since PR title already has version
 PR_BODY="$(git cliff --bump --unreleased --strip all | tail -n +3)"
 
-cargo set-version --package hk "${version#v}"
+# Bump [package].version and refresh hk's own Cargo.lock entry. Plain sed
+# instead of cargo-edit's `cargo set-version`, which has no prebuilt binary and
+# cost every mise install a ~2 minute compile.
+sed -i.bak "/^\[package\]/,/^\[/ s/^version = \".*\"/version = \"${version#v}\"/" Cargo.toml
+rm Cargo.toml.bak
+cargo update --workspace
 
 git config user.name mise-en-dev
 git config user.email 123107610+mise-en-dev@users.noreply.github.com
