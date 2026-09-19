@@ -20,4 +20,5 @@ mise wraps `cargo` with [mbx](https://mr-boxington.jdx.dev), so compiled work is
 shared across checkouts. `mise run` tasks and `mise exec -- cargo …` use the
 wrapper; plain `cargo` does too once mise is [activated in your
 shell](https://mise.jdx.dev/getting-started.html#activate-mise). Builds that set
-`MBX_DISABLE=1` skip the cache.
+`MBX_DISABLE=1` skip the cache, except `mise run perf:build`, which calls `mbx`
+directly to reuse the perf cache.
