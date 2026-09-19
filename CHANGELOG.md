@@ -1,6 +1,53 @@
 # Changelog
 
-## [2.0.1](https://github.com/jdx/hk/compare/v2.0.0..v2.0.1) - 2026-09-14
+## [2.1.0](https://github.com/jdx/hk/compare/v2.0.1..v2.1.0) - 2026-09-19
+
+### 🚀 Features
+
+- **(builtins)** add kube-linter for plain Kubernetes manifests by [@zeitlinger](https://github.com/zeitlinger) in [#1394](https://github.com/jdx/hk/pull/1394)
+- **(builtins)** add fix for editorconfig-checker by [@lucacome](https://github.com/lucacome) in [#1397](https://github.com/jdx/hk/pull/1397)
+- **(builtins)** add dotnet formatting for C# and Visual Basic by [@zeitlinger](https://github.com/zeitlinger) in [#1393](https://github.com/jdx/hk/pull/1393)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** preserve typos errors with custom shells by [@zeitlinger](https://github.com/zeitlinger) in [#1398](https://github.com/jdx/hk/pull/1398)
+
+### 🧪 Testing
+
+- **(bats)** preinstall builtin tool stubs to stop spurious symlink failures by [@jdx](https://github.com/jdx) in [#1396](https://github.com/jdx/hk/pull/1396)
+
+### 🛡️ Security
+
+- add entire trail runners by [@jdx](https://github.com/jdx) in [#1399](https://github.com/jdx/hk/pull/1399)
+
+### 🔍 Other Changes
+
+- re-pin aube-lock reusable workflow to current renovate-config main by [@jdx](https://github.com/jdx) in [#1388](https://github.com/jdx/hk/pull/1388)
+- regenerate mise.lock on renovate branches so tool bumps stop failing every job by [@jdx](https://github.com/jdx) in [#1389](https://github.com/jdx/hk/pull/1389)
+- fix macOS bats attempt-1 timeouts and publish builtin test timings by [@jdx](https://github.com/jdx) in [#1395](https://github.com/jdx/hk/pull/1395)
+- remove entire and codex agent hooks by [@jdx](https://github.com/jdx) in [b23b605](https://github.com/jdx/hk/commit/b23b6058eae053a06a065e1e37770db3c2971698)
+- re-pin renovate-config reusable workflows to current main by [@jdx](https://github.com/jdx) in [#1408](https://github.com/jdx/hk/pull/1408)
+- stop compiling cargo-edit and rebuilding hk in every CI job by [@jdx](https://github.com/jdx) in [#1410](https://github.com/jdx/hk/pull/1410)
+
+### 📦️ Dependency Updates
+
+- update anthropics/claude-code-action action to v1.0.217 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1382](https://github.com/jdx/hk/pull/1382)
+- update dependency github:jdx/tak to v0.0.10 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1384](https://github.com/jdx/hk/pull/1384)
+- update rust crate dirs to v7 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1386](https://github.com/jdx/hk/pull/1386)
+- update dependency @modelcontextprotocol/ext-apps to v2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1387](https://github.com/jdx/hk/pull/1387)
+- update anthropics/claude-code-action action to v1.0.219 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1391](https://github.com/jdx/hk/pull/1391)
+- update dependency vitest to v5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1385](https://github.com/jdx/hk/pull/1385)
+- update dependency aube to latest by [@renovate[bot]](https://github.com/renovate[bot]) in [#1383](https://github.com/jdx/hk/pull/1383)
+- update rust crate xx to v2.6.2 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1406](https://github.com/jdx/hk/pull/1406)
+- update rust crate pklr to v2.0.5 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1407](https://github.com/jdx/hk/pull/1407)
+- bump mr-boxington to 1.14.0 and drop the mbx fallback docs by [@jdx](https://github.com/jdx) in [#1409](https://github.com/jdx/hk/pull/1409)
+
+### New Contributors
+
+- @zeitlinger made their first contribution in [#1398](https://github.com/jdx/hk/pull/1398)
+- @lucacome made their first contribution in [#1397](https://github.com/jdx/hk/pull/1397)
+
+## [2.0.1](https://github.com/jdx/hk/compare/v2.0.0..v2.0.1) - 2026-09-15
 
 ### 🐛 Bug Fixes
 
