@@ -116,3 +116,12 @@ teardown() {
     assert_file_contains hk.pkl "Builtins.prettier"
     assert_file_contains hk.pkl "Builtins.cargo_clippy"
 }
+
+@test "hk init detects native Biome and ESLint configs" {
+    echo '{}' > biome.jsonc
+    echo 'export default []' > eslint.config.mjs
+    run hk init
+    assert_success
+    assert_file_contains hk.pkl "Builtins.biome"
+    assert_file_contains hk.pkl "Builtins.eslint"
+}

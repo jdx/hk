@@ -138,6 +138,46 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_biome_jsonc() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("biome.jsonc"), "{}").unwrap();
+        let names: Vec<_> = detect_builtins(tmp.path())
+            .iter()
+            .map(|d| d.builtin.name)
+            .collect();
+        assert!(names.contains(&"biome"));
+    }
+
+    #[test]
+    fn test_detect_eslint_config_files() {
+        for filename in [
+            "eslint.config.js",
+            "eslint.config.mjs",
+            "eslint.config.cjs",
+            "eslint.config.ts",
+            "eslint.config.mts",
+            "eslint.config.cts",
+            ".eslintrc",
+            ".eslintrc.json",
+            ".eslintrc.yaml",
+            ".eslintrc.yml",
+            ".eslintrc.js",
+            ".eslintrc.cjs",
+        ] {
+            let tmp = tempfile::tempdir().unwrap();
+            std::fs::write(tmp.path().join(filename), "{}").unwrap();
+            let names: Vec<_> = detect_builtins(tmp.path())
+                .iter()
+                .map(|d| d.builtin.name)
+                .collect();
+            assert!(
+                names.contains(&"eslint"),
+                "expected detection for {filename}"
+            );
+        }
+    }
+
+    #[test]
     fn test_detect_shell_scripts() {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::write(tmp.path().join("test.sh"), "#!/bin/bash\necho hello").unwrap();
