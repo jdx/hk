@@ -41,7 +41,7 @@ fn is_valid_commit_hash(s: &str) -> bool {
     let length_is_valid = s.len() == 40 || s.len() == 64;
     let is_all_lowercase_hexits = s
         .chars()
-        .all(|c| ('0'..='9').contains(&c) || ('a'..='f').contains(&c));
+        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
     length_is_valid && is_all_lowercase_hexits
 }
 
