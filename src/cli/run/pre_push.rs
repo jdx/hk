@@ -312,7 +312,7 @@ mod tests {
         // accepts is handed straight to PrePushRefs::from, which indexes
         // parts[0..=3] without bounds checks.
         let line = format!("refs/heads/main {SHA1} refs/heads/main {ZERO_SHA1}");
-        assert!(validate_input_line(&line) == Ok(()));
+        assert_eq!(validate_input_line(&line), OK);
         let refs = PrePushRefs::from(line.as_str());
         assert_eq!(refs.to, ("refs/heads/main".to_string(), SHA1.to_string()));
         assert_eq!(
