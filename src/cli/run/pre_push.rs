@@ -205,6 +205,14 @@ mod tests {
     use super::*;
 
     const SHA1: &str = "0123456789abcdef0123456789abcdef01234567";
+    const SHA1_WITH_UPPERCASE: &str = "A123456789abcdef0123456789abcdef01234567";
+    // backtick and lowercase g bookend the range of ASCII lowercase letters a..f
+    const SHA1_WITH_BACKTICK: &str = "`123456789abcdef0123456789abcdef01234567";
+    const SHA1_WITH_G: &str = "g123456789abcdef0123456789abcdef01234567";
+    // slash and colon bookend the range of ASCII digits
+    const SHA1_WITH_SLASH: &str = "/123456789abcdef0123456789abcdef01234567";
+    const SHA1_WITH_COLON: &str = ":123456789abcdef0123456789abcdef01234567";
+
     const SHA256: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     const ZERO_SHA1: &str = "0000000000000000000000000000000000000000";
     const OK: Result<(), RejectionReason> = Ok(());
@@ -212,6 +220,31 @@ mod tests {
     #[test]
     fn test_accepts_sha1_hash() {
         assert!(is_valid_commit_hash(SHA1));
+    }
+
+    #[test]
+    fn test_rejects_sha1_hash_with_uppercase() {
+        assert!(!is_valid_commit_hash(SHA1_WITH_UPPERCASE));
+    }
+
+    #[test]
+    fn test_rejects_sha1_hash_with_backtick() {
+        assert!(!is_valid_commit_hash(SHA1_WITH_BACKTICK));
+    }
+
+    #[test]
+    fn test_rejects_sha1_hash_with_g() {
+        assert!(!is_valid_commit_hash(SHA1_WITH_G));
+    }
+
+    #[test]
+    fn test_rejects_sha1_hash_with_slash() {
+        assert!(!is_valid_commit_hash(SHA1_WITH_SLASH));
+    }
+
+    #[test]
+    fn test_rejects_sha1_hash_with_colon() {
+        assert!(!is_valid_commit_hash(SHA1_WITH_COLON));
     }
 
     #[test]
