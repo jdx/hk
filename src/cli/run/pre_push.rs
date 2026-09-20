@@ -39,17 +39,19 @@ impl From<&str> for PrePushRefs {
 /// which must be full-length hashes (the first and third can be any commit-like expressions).
 fn is_valid_commit_hash(s: &str) -> bool {
     let length_is_valid = s.len() == 40 || s.len() == 64;
-    let is_all_lowercase_hexits = s.chars().all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
+    let is_all_lowercase_hexits = s
+        .chars()
+        .all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
     return length_is_valid && is_all_lowercase_hexits;
 }
 
-#[derive(Debug,Eq,PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 enum RejectionReason {
     Empty,
     NotFourParts,
     FirstHashInvalid,
     SecondHashInvalid,
-    BothHashesInvalid
+    BothHashesInvalid,
 }
 
 fn format_rejection_reason(reason: RejectionReason) -> &'static str {
@@ -58,7 +60,9 @@ fn format_rejection_reason(reason: RejectionReason) -> &'static str {
         RejectionReason::NotFourParts => "must be four whitespace-separated parts",
         RejectionReason::FirstHashInvalid => "second part must be 40 or 64 lowercase hexits",
         RejectionReason::SecondHashInvalid => "fourth part must be 40 or 64 lowercase hexits",
-        RejectionReason::BothHashesInvalid => "second and fourth parts must be 40 or 64 lowercase hexits",
+        RejectionReason::BothHashesInvalid => {
+            "second and fourth parts must be 40 or 64 lowercase hexits"
+        }
     }
 }
 
@@ -84,9 +88,9 @@ fn validate_input_line(line: &str) -> Result<(), RejectionReason> {
         }
     } else {
         if second_hash_is_valid {
-            return Err(RejectionReason::FirstHashInvalid)
+            return Err(RejectionReason::FirstHashInvalid);
         } else {
-            return Err(RejectionReason::BothHashesInvalid)
+            return Err(RejectionReason::BothHashesInvalid);
         }
     }
 }
@@ -134,7 +138,7 @@ impl PrePush {
                                 eprintln!("Ignoring malformed stdin line \"{line}\": {reason_str}");
                             }
                             false
-                        },
+                        }
                     }
                 })
                 .map(PrePushRefs::from)
