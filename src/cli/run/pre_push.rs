@@ -41,8 +41,8 @@ fn is_valid_commit_hash(s: &str) -> bool {
     let length_is_valid = s.len() == 40 || s.len() == 64;
     let is_all_lowercase_hexits = s
         .chars()
-        .all(|c| ('0' <= c && c <= '9') || ('a' <= c && c <= 'f'));
-    return length_is_valid && is_all_lowercase_hexits;
+        .all(|c| ('0'..='9').contains(&c) || ('a'..='f').contains(&c));
+    length_is_valid && is_all_lowercase_hexits
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -82,15 +82,15 @@ fn validate_input_line(line: &str) -> Result<(), RejectionReason> {
     let second_hash_is_valid = is_valid_commit_hash(parts[3]);
     if first_hash_is_valid {
         if second_hash_is_valid {
-            return Ok(());
+            Ok(())
         } else {
-            return Err(RejectionReason::SecondHashInvalid);
+            Err(RejectionReason::SecondHashInvalid)
         }
     } else {
         if second_hash_is_valid {
-            return Err(RejectionReason::FirstHashInvalid);
+            Err(RejectionReason::FirstHashInvalid)
         } else {
-            return Err(RejectionReason::BothHashesInvalid);
+            Err(RejectionReason::BothHashesInvalid)
         }
     }
 }
@@ -126,7 +126,7 @@ impl PrePush {
             input
                 .lines()
                 .filter(|line| {
-                    let result = validate_input_line(&line);
+                    let result = validate_input_line(line);
                     match result {
                         Ok(()) => true,
                         Err(reason) => {
