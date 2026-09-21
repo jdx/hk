@@ -112,8 +112,9 @@ EOF
     echo "hello" > test.txt
 
     # Run fix - should fall back to fixer since diff is invalid
-    run hk fix test.txt
+    run env HK_LOG_LEVEL=warn hk fix test.txt
     assert_success
+    refute_output --partial "cannot safely apply diff"
 
     # The fixer should have run and added "FIXED"
     run cat test.txt
@@ -715,6 +716,41 @@ exec "$REAL_GIT" "$@"
 SCRIPT
     chmod +x mock-bin/git
     export PATH="$PWD/mock-bin:$PATH"
+}
+
+@test "check_diff warns on backup preparation I/O failures and still falls back" {
+    case "$OSTYPE" in
+        msys*|cygwin*|win*) skip "requires a Unix executable shim" ;;
+    esac
+    _setup_partial_apply_fixture
+    export REAL_GIT
+    REAL_GIT=$(command -v git)
+    mkdir mock-bin backups
+    export TMPDIR="$PWD/backups"
+    cat <<'SCRIPT' > mock-bin/git
+#!/bin/sh
+if [ "$1" = apply ]; then
+    case " $* " in
+        *" --reverse "*)
+            "$REAL_GIT" "$@" || exit
+            # The patch is already open. Make the subsequent backup creation fail.
+            mv "$TMPDIR" "$TMPDIR-unavailable"
+            exit 0
+            ;;
+    esac
+fi
+exec "$REAL_GIT" "$@"
+SCRIPT
+    chmod +x mock-bin/git
+    export PATH="$PWD/mock-bin:$PATH"
+
+    run env HK_LOG_LEVEL=warn hk fix locked/skill.md 'writable file.md'
+    assert_success
+    assert_file_exists fixer-ran
+    assert_dir_exists "$TMPDIR-unavailable"
+    assert_output --partial 'cannot safely apply diff'
+    cmp expected.md locked/skill.md
+    cmp expected.md 'writable file.md'
 }
 
 @test "check_diff restores modified and deleted files before fallback" {

@@ -91,11 +91,13 @@ struct DiffBackup {
     dir: tempfile::TempDir,
     root: PathBuf,
     entries: BTreeMap<PathBuf, FileState>,
+    targets: BTreeSet<PathBuf>,
 }
 
 impl DiffBackup {
     fn create(patch: &tempfile::NamedTempFile, base: &Path, strip: &str) -> Result<Self> {
         let mut paths = BTreeSet::new();
+        let mut targets = BTreeSet::new();
         // Let git parse names and strip levels. Reverse stats include the source
         // of renames/copies; forward stats include their destination. A preflight
         // rejects invalid patches, but cannot replace rollback for write errors.
@@ -123,6 +125,7 @@ impl DiffBackup {
                         _ => bail!("unsafe diff path"),
                     }
                 }
+                targets.insert(path.clone());
                 // Git may remove empty parents on deletion, or create parents
                 // for new files. Capture those too, including file/dir changes.
                 for ancestor in path.ancestors().filter(|p| !p.as_os_str().is_empty()) {
@@ -148,6 +151,7 @@ impl DiffBackup {
                 .tempdir()?,
             root,
             entries: BTreeMap::new(),
+            targets,
         };
         fs::create_dir(backup.dir.path().join("files"))?;
         // Path ordering visits parents before children. Never follow an original
@@ -228,14 +232,19 @@ impl DiffBackup {
 
     fn restore(self) -> Result<()> {
         let mut errors = Vec::new();
+        let mut failed_removals = BTreeSet::new();
         // Remove newly created children before parents, and clear type changes.
         // Never recursively remove directories: unrelated files must survive.
         for (path, state) in self.entries.iter().rev() {
             if let Err(err) = self.remove_created(path, state) {
+                failed_removals.insert(path);
                 errors.push(format!("{}: {err:#}", self.root.join(path).display()));
             }
         }
         for (path, state) in &self.entries {
+            if failed_removals.contains(path) {
+                continue;
+            }
             if let Err(err) = self.restore_entry(path, state) {
                 errors.push(format!("{}: {err:#}", self.root.join(path).display()));
             }
@@ -243,6 +252,9 @@ impl DiffBackup {
         // Restore directory permissions last, after recreating their children.
         for (path, state) in self.entries.iter().rev() {
             if let FileState::Directory(permissions) = state {
+                if failed_removals.contains(path) {
+                    continue;
+                }
                 let result = (|| -> Result<()> {
                     if !self.parents_are_directories(path)? {
                         bail!("parent directory has not been restored");
@@ -290,7 +302,15 @@ impl DiffBackup {
         };
         if remove {
             if metadata.is_dir() {
-                fs::remove_dir(dest)?;
+                match fs::remove_dir(dest) {
+                    // Another job may have populated an incidental parent after
+                    // capture. Leave its files intact once our children are gone.
+                    Err(err)
+                        if err.kind() == std::io::ErrorKind::DirectoryNotEmpty
+                            && matches!(state, FileState::Absent)
+                            && !self.targets.contains(path) => {}
+                    result => result?,
+                }
             } else {
                 remove_file_or_symlink(&dest)?;
             }
@@ -429,7 +449,11 @@ impl Step {
         let (patch, backup) = match prepared {
             Ok(prepared) => prepared,
             Err(err) => {
-                debug!("{}: cannot safely apply diff: {err:#}", self.name);
+                if err.downcast_ref::<std::io::Error>().is_some() {
+                    warn!("{}: cannot safely apply diff: {err:#}", self.name);
+                } else {
+                    debug!("{}: cannot safely apply diff: {err:#}", self.name);
+                }
                 return Ok(false);
             }
         };
@@ -740,6 +764,50 @@ mod apply_diff_tests {
     }
 
     #[test]
+    fn restoration_preserves_other_jobs_files_in_new_parent_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path().canonicalize().unwrap();
+        let mut patch = tempfile::NamedTempFile::new().unwrap();
+        patch
+            .write_all(b"--- /dev/null\n+++ generated/nested/a.txt\n@@ -0,0 +1 @@\n+new\n")
+            .unwrap();
+        let backup = DiffBackup::create(&patch, &base, "-p0").unwrap();
+        let saved = backup.dir.path().to_path_buf();
+        assert!(git_apply(&patch, &base, &["-p0"]).unwrap().status.success());
+        // Deterministically model another job writing after our backup was taken.
+        fs::write(base.join("generated/nested/b.txt"), b"other job\n").unwrap();
+        backup.restore().unwrap();
+        assert!(!base.join("generated/nested/a.txt").exists());
+        assert_eq!(
+            fs::read(base.join("generated/nested/b.txt")).unwrap(),
+            b"other job\n"
+        );
+        assert!(!saved.exists());
+    }
+
+    #[test]
+    fn restoration_still_rejects_nonempty_directories_at_new_file_targets() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path().canonicalize().unwrap();
+        let mut patch = tempfile::NamedTempFile::new().unwrap();
+        patch
+            .write_all(b"--- /dev/null\n+++ generated/a.txt\n@@ -0,0 +1 @@\n+new\n")
+            .unwrap();
+        let backup = DiffBackup::create(&patch, &base, "-p0").unwrap();
+        let saved = backup.dir.path().to_path_buf();
+        fs::create_dir_all(base.join("generated/a.txt")).unwrap();
+        fs::write(base.join("generated/a.txt/keep"), b"unrelated\n").unwrap();
+        let err = backup.restore().unwrap_err();
+        assert!(err.to_string().contains("refusing to run fixer"));
+        assert_eq!(
+            fs::read(base.join("generated/a.txt/keep")).unwrap(),
+            b"unrelated\n"
+        );
+        assert!(saved.exists());
+        fs::remove_dir_all(saved).unwrap();
+    }
+
+    #[test]
     fn failed_restoration_keeps_backups_and_restores_remaining_files() {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path().canonicalize().unwrap();
@@ -757,6 +825,7 @@ mod apply_diff_tests {
         fs::remove_file(base.join("other.txt")).unwrap();
         let err = backup.restore().unwrap_err();
         assert!(err.to_string().contains("refusing to run fixer"));
+        assert_eq!(err.to_string().matches("file.txt:").count(), 1);
         assert!(err.to_string().contains(&saved.display().to_string()));
         assert_eq!(fs::read(base.join("other.txt")).unwrap(), b"before\n");
         assert_eq!(
