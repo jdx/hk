@@ -946,17 +946,38 @@ PATCH
 @@ -0,0 +1 @@
 +B
 PATCH
-    cat <<'SCRIPT' > wait-for-apply.sh
+    cat <<'SCRIPT' > check-a.sh
 #!/bin/sh
-# Bounded rendezvous: a correctly serialized transaction cannot start until
-# this command finishes. Without coordination, A starts and B writes during it.
+# Ensure B is running a command before A requests exclusive diff access.
 i=0
-while [ ! -e a-applying ] && [ "$i" -lt 100 ]; do
+while [ ! -e b-command-started ] && [ "$i" -lt 200 ]; do
     sleep 0.01
     i=$((i + 1))
 done
+if [ ! -e b-command-started ]; then
+    touch startup-timed-out
+    exit 1
+fi
+cat a.patch
+exit 1
 SCRIPT
-    chmod +x wait-for-apply.sh
+    cat <<'SCRIPT' > wait-for-apply.sh
+#!/bin/sh
+touch b-command-started
+# Expiry is expected: A cannot apply while this command holds shared access.
+# Record it so the test rejects an unintended overlap rather than silently passing.
+i=0
+while [ ! -e a-applying ] && [ "$i" -lt 200 ]; do
+    sleep 0.01
+    i=$((i + 1))
+done
+if [ -e a-applying ]; then
+    echo observed > b-wait-result
+else
+    echo timed-out > b-wait-result
+fi
+SCRIPT
+    chmod +x check-a.sh wait-for-apply.sh
     export REAL_GIT
     REAL_GIT=$(command -v git)
     mkdir mock-bin
@@ -965,18 +986,31 @@ SCRIPT
 if [ "$1" != apply ]; then
     exec "$REAL_GIT" "$@"
 fi
-case " $* " in
-    *" --numstat "*|*" --check "*) exec "$REAL_GIT" "$@" ;;
-esac
 patch=$(cat)
+case " $* " in
+    *" --numstat "*|*" --check "*)
+        printf '%s\n' "$patch" | "$REAL_GIT" "$@"
+        result=$?
+        if [ "$result" -ne 0 ] && printf '%s\n' "$patch" | grep -q '^+A$'; then
+            touch a-preflight-rejected
+        fi
+        exit "$result"
+        ;;
+esac
 if printf '%s\n' "$patch" | grep -q '^+A$'; then
     printf 'partial\n' > a-side.txt
     touch a-applying
     i=0
-    while [ ! -e b-written ] && [ "$i" -lt 100 ]; do
+    while [ ! -e b-written ] && [ "$i" -lt 200 ]; do
         sleep 0.01
         i=$((i + 1))
     done
+    # B must remain blocked throughout A's transaction, including rollback.
+    if [ -e b-written ]; then
+        echo observed > a-wait-result
+    else
+        echo timed-out > a-wait-result
+    fi
     echo 'injected A write-time failure' >&2
     exit 1
 fi
@@ -1003,7 +1037,7 @@ hooks {
         steps {
             ["a"] {
                 glob = "a.in"
-                check_diff = "cat a.patch; exit 1"
+                check_diff = "./check-a.sh"
                 fix = "touch a-fixer-ran"
             }
             ["b"] {
@@ -1016,6 +1050,10 @@ hooks {
 EOF_CONFIG
     _run_concurrent_fix
     assert_success
+    assert_file_not_exists startup-timed-out
+    assert_file_contains b-wait-result '^timed-out$'
+    assert_file_contains a-wait-result '^timed-out$'
+    assert_file_not_exists a-preflight-rejected
     assert_file_exists a-applying
     assert_file_exists a-fixer-ran
     assert_file_not_exists a-side.txt
@@ -1033,7 +1071,7 @@ hooks {
         steps {
             ["a"] {
                 glob = "a.in"
-                check_diff = "cat a.patch; exit 1"
+                check_diff = "./check-a.sh"
                 fix = "touch a-fixer-ran"
             }
             ["b"] {
@@ -1046,6 +1084,13 @@ hooks {
 EOF_CONFIG
     _run_concurrent_fix
     assert_success
+    assert_file_not_exists startup-timed-out
+    assert_file_contains b-wait-result '^timed-out$'
+    # B finishes before A can prepare its backup. Its new file makes A's
+    # creation patch fail preflight, so partial apply must never start here.
+    assert_file_exists a-preflight-rejected
+    assert_file_not_exists a-applying
+    assert_file_not_exists a-wait-result
     assert_file_exists a-fixer-ran
     assert_file_not_exists a-side.txt
     assert_file_contains b-written B
