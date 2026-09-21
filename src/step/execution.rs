@@ -207,7 +207,11 @@ impl Step {
                                 {
                                     // Apply where the check_diff command ran.
                                     let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                    if step.apply_diff_output(stdout, dir.as_deref())? {
+                                    let applied = {
+                                        let _diff_guard = job.lock_diff(&ctx).await?;
+                                        step.apply_diff_output(stdout, dir.as_deref())?
+                                    };
+                                    if applied {
                                         let applied_files = job.files.clone();
                                         if step.check_after_diff {
                                             debug!(

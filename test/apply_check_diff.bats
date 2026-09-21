@@ -923,3 +923,171 @@ EOF_CONFIG
     run ./verify-original.sh
     assert_success
 }
+
+_setup_concurrent_diff_fixture() {
+    case "$OSTYPE" in
+        msys*|cygwin*|win*) skip "requires a Unix executable shim" ;;
+    esac
+    printf 'input\n' > a.in
+    printf 'input\n' > b.in
+    cat <<'PATCH' > a.patch
+--- /dev/null
++++ shared.txt
+@@ -0,0 +1 @@
++A
+--- /dev/null
++++ a-side.txt
+@@ -0,0 +1 @@
++partial
+PATCH
+    cat <<'PATCH' > b.patch
+--- /dev/null
++++ shared.txt
+@@ -0,0 +1 @@
++B
+PATCH
+    cat <<'SCRIPT' > wait-for-apply.sh
+#!/bin/sh
+# Bounded rendezvous: a correctly serialized transaction cannot start until
+# this command finishes. Without coordination, A starts and B writes during it.
+i=0
+while [ ! -e a-applying ] && [ "$i" -lt 100 ]; do
+    sleep 0.01
+    i=$((i + 1))
+done
+SCRIPT
+    chmod +x wait-for-apply.sh
+    export REAL_GIT
+    REAL_GIT=$(command -v git)
+    mkdir mock-bin
+    cat <<'SCRIPT' > mock-bin/git
+#!/bin/sh
+if [ "$1" != apply ]; then
+    exec "$REAL_GIT" "$@"
+fi
+case " $* " in
+    *" --numstat "*|*" --check "*) exec "$REAL_GIT" "$@" ;;
+esac
+patch=$(cat)
+if printf '%s\n' "$patch" | grep -q '^+A$'; then
+    printf 'partial\n' > a-side.txt
+    touch a-applying
+    i=0
+    while [ ! -e b-written ] && [ "$i" -lt 100 ]; do
+        sleep 0.01
+        i=$((i + 1))
+    done
+    echo 'injected A write-time failure' >&2
+    exit 1
+fi
+printf '%s\n' "$patch" | "$REAL_GIT" "$@" || exit
+# Preserve evidence that B succeeded even if A subsequently deletes its output.
+cp shared.txt b-written
+SCRIPT
+    chmod +x mock-bin/git
+    export PATH="$PWD/mock-bin:$PATH"
+}
+
+_run_concurrent_fix() {
+    # Bound lock-ordering regressions rather than hanging the integration suite.
+    run python3 -c 'import subprocess, sys; sys.exit(subprocess.run(["hk", "fix", "a.in", "b.in"], timeout=15).returncode)'
+}
+
+@test "check_diff rollback preserves another patch job's new target" {
+    _setup_concurrent_diff_fixture
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                check_diff = "cat a.patch; exit 1"
+                fix = "touch a-fixer-ran"
+            }
+            ["b"] {
+                glob = "b.in"
+                check_diff = "./wait-for-apply.sh; cat b.patch; exit 1"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix
+    assert_success
+    assert_file_exists a-applying
+    assert_file_exists a-fixer-ran
+    assert_file_not_exists a-side.txt
+    assert_file_contains b-written B
+    assert_file_contains shared.txt B
+}
+
+@test "check_diff backup and rollback exclude ordinary fixer writes" {
+    _setup_concurrent_diff_fixture
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                check_diff = "cat a.patch; exit 1"
+                fix = "touch a-fixer-ran"
+            }
+            ["b"] {
+                glob = "b.in"
+                fix = "./wait-for-apply.sh; echo B > shared.txt; cp shared.txt b-written"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix
+    assert_success
+    assert_file_exists a-fixer-ran
+    assert_file_not_exists a-side.txt
+    assert_file_contains b-written B
+    assert_file_contains shared.txt B
+}
+
+@test "ordinary fixers on disjoint inputs still run concurrently" {
+    _setup_concurrent_diff_fixture
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/sh
+set -eu
+file="$1"
+touch "$file-started"
+i=0
+while [ ! -e a.in-started ] || [ ! -e b.in-started ]; do
+    i=$((i + 1))
+    test "$i" -lt 200 || exit 1
+    sleep 0.01
+done
+printf 'fixed\n' > "$file"
+SCRIPT
+    chmod +x fixer.sh
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                fix = "./fixer.sh {{files}}"
+            }
+            ["b"] {
+                glob = "b.in"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix
+    assert_success
+    assert_file_contains a.in fixed
+    assert_file_contains b.in fixed
+}
