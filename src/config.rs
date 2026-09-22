@@ -108,6 +108,28 @@ impl Config {
             .any(|keyword| Self::references_untracked_module(&source, keyword))
     }
 
+    /// Skip whitespace and pkl comments, which may sit between a module keyword
+    /// and its URI: `import(/* why */ "https://…")`.
+    fn skip_pkl_trivia(source: &str) -> &str {
+        let mut rest = source.trim_start();
+        loop {
+            rest = if let Some(after) = rest.strip_prefix("//") {
+                match after.find('\n') {
+                    Some(end) => &after[end + 1..],
+                    None => "",
+                }
+            } else if let Some(after) = rest.strip_prefix("/*") {
+                match after.find("*/") {
+                    Some(end) => &after[end + 2..],
+                    None => "",
+                }
+            } else {
+                return rest;
+            }
+            .trim_start();
+        }
+    }
+
     fn references_untracked_module(source: &str, keyword: &str) -> bool {
         source.match_indices(keyword).any(|(start, _)| {
             let follows_identifier = source[..start]
@@ -119,10 +141,11 @@ impl Config {
             }
             // `import*` as well as `import`, then the URI: either written
             // directly, or as the argument of the expression form. Whitespace
-            // here spans newlines, so a wrapped expression still matches.
+            // and comments here span newlines, so a wrapped or annotated
+            // expression still matches.
             let rest = source[start + keyword.len()..].trim_start_matches('*');
-            let rest = rest.trim_start();
-            let rest = rest.strip_prefix('(').unwrap_or(rest).trim_start();
+            let rest = Self::skip_pkl_trivia(rest);
+            let rest = Self::skip_pkl_trivia(rest.strip_prefix('(').unwrap_or(rest));
             // Plain or custom-delimited (`#"..."#`) string literal.
             let Some(uri) = rest.trim_start_matches('#').strip_prefix('"') else {
                 return false;
@@ -1188,6 +1211,10 @@ mod tests {
             "local remote = import(\n    \"https://example.com/Step.pkl\"\n)",
             "import*(\n  \"package://example.com/pkg@1#/steps/*.pkl\"\n)",
             "amends\n  \"https://example.com/Config.pkl\"",
+            // Comments may sit between the keyword and its URI.
+            r#"a = import(/* reason */ "https://example.com/Step.pkl").check"#,
+            "b = import( // reason\n  \"https://example.com/Step.pkl\").check",
+            r#"import /* why */ "https://example.com/Step.pkl" as Step"#,
         ];
         for source in untracked {
             assert!(
