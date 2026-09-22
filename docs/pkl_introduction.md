@@ -149,11 +149,13 @@ This is a local amendment of an existing project configuration. Save it as `hk.l
 
 `import*` matches a glob and evaluates every module it finds, which suits generated or templated step definitions. It returns a mapping from each matched path — relative to the file holding the import — to that module's value.
 
-An imported module is not itself a `Step`, so give each file a typed property to read back:
+An imported module is not itself a `Step`, so give each file a typed property to read back, plus the step name it should take:
 
 ```pkl
 // generated/prettier.pkl
 import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+
+name = "prettier"
 
 step: Config.Step = new {
   glob = List("*.md")
@@ -168,15 +170,15 @@ local generated = import*("generated/*.pkl")
 hooks {
   ["check"] {
     steps {
-      for (path, mod in generated) {
-        [path.split("/").last.split(".").first] = mod.step
+      for (_, mod in generated) {
+        [mod.name] = mod.step
       }
     }
   }
 }
 ```
 
-With `generated/prettier.pkl` and `generated/shellcheck.pkl` on disk, that defines the `prettier` and `shellcheck` steps — each key is the file's base name without its extension. A pattern matching nothing produces an empty mapping, and the file holding the import is skipped when the pattern would match it. `import*` also works as a module-level declaration, `import* "generated/*.pkl" as Generated`.
+With `generated/prettier.pkl` and `generated/shellcheck.pkl` on disk, that defines the `prettier` and `shellcheck` steps. Naming each step in its own file keeps the key independent of the file name, so `eslint.react.pkl` and `eslint.vue.pkl` do not have to be reduced to a key by string surgery. A pattern matching nothing produces an empty mapping, and the file holding the import is skipped when the pattern would match it. `import*` also works as a module-level declaration, `import* "generated/*.pkl" as Generated`.
 
 hk tracks the matched files as configuration dependencies, so editing one invalidates the cached configuration. Adding a *new* file that the pattern matches does not: hk caches the import list against `hk.pkl` itself, so run [`hk cache clear`](/cli/cache/clear) or edit `hk.pkl` after adding a file.
 

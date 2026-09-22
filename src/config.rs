@@ -89,36 +89,47 @@ impl Config {
         Ok(false)
     }
 
-    fn source_may_reference_untracked_import(source: &str) -> bool {
-        source.lines().map(str::trim_start).any(|line| {
-            !line.starts_with("//")
-                && ["\"http://", "\"https://", "\"package://"]
-                    .iter()
-                    .any(|scheme| line.contains(scheme))
-                && ["amends", "extends", "import"]
-                    .iter()
-                    .any(|keyword| Self::line_references_module(line, keyword))
-        })
-    }
-
-    /// Whether `line` uses `keyword` to reference a module.
+    /// Whether a pkl source may pull in a module hk cannot hash: a remote URI
+    /// reached through `amends`, `extends`, `import`, or `import*`.
     ///
     /// `import` and `import*` are expressions as well as module declarations, so
-    /// the keyword can sit anywhere on the line rather than only at its start.
-    /// This is a conservative scan: a false positive only costs cache sharing.
-    fn line_references_module(line: &str, keyword: &str) -> bool {
-        line.match_indices(keyword).any(|(start, _)| {
-            let follows_identifier = line[..start]
+    /// the keyword can appear anywhere rather than only at the start of a line,
+    /// and its URI can sit on a later line. Each keyword is therefore matched to
+    /// the string literal that follows it across the whole source. This is a
+    /// conservative scan: a false positive only costs cache sharing.
+    fn source_may_reference_untracked_import(source: &str) -> bool {
+        let source = source
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        ["amends", "extends", "import"]
+            .iter()
+            .any(|keyword| Self::references_untracked_module(&source, keyword))
+    }
+
+    fn references_untracked_module(source: &str, keyword: &str) -> bool {
+        source.match_indices(keyword).any(|(start, _)| {
+            let follows_identifier = source[..start]
                 .chars()
                 .next_back()
                 .is_some_and(|c| c.is_alphanumeric() || c == '_');
             if follows_identifier {
                 return false;
             }
-            // `import*` as well as `import`, then the URI as a plain string, a
-            // custom-delimited string, or a parenthesized expression argument.
-            let rest = line[start + keyword.len()..].trim_start_matches('*');
-            matches!(rest.trim_start().chars().next(), Some('"' | '(' | '#'))
+            // `import*` as well as `import`, then the URI: either written
+            // directly, or as the argument of the expression form. Whitespace
+            // here spans newlines, so a wrapped expression still matches.
+            let rest = source[start + keyword.len()..].trim_start_matches('*');
+            let rest = rest.trim_start();
+            let rest = rest.strip_prefix('(').unwrap_or(rest).trim_start();
+            // Plain or custom-delimited (`#"..."#`) string literal.
+            let Some(uri) = rest.trim_start_matches('#').strip_prefix('"') else {
+                return false;
+            };
+            ["http://", "https://", "package://"]
+                .iter()
+                .any(|scheme| uri.starts_with(scheme))
         })
     }
 
@@ -1173,6 +1184,10 @@ mod tests {
             r#"value = import("http://example.com/Step.pkl").check"#,
             r#"steps = import*("package://example.com/pkg@1#/steps/*.pkl")"#,
             r##"  local remote = import(#"https://example.com/Step.pkl"#)"##,
+            // The URI may sit on a later line than the keyword.
+            "local remote = import(\n    \"https://example.com/Step.pkl\"\n)",
+            "import*(\n  \"package://example.com/pkg@1#/steps/*.pkl\"\n)",
+            "amends\n  \"https://example.com/Config.pkl\"",
         ];
         for source in untracked {
             assert!(
@@ -1190,6 +1205,8 @@ mod tests {
             r#"myimport = "https://example.com/Step.pkl""#,
             // A remote URL that is not reached through a module reference.
             r#"check = "curl https://example.com/lint.sh""#,
+            // A remote URI that is not the module reference's own argument.
+            "import \"steps/lint.pkl\" as Lint\ncheck = \"https://example.com\"",
         ];
         for source in tracked {
             assert!(

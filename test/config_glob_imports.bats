@@ -8,10 +8,14 @@ teardown() {
     _common_teardown
 }
 
+# A generated step module: a name for the mapping key and a typed Step.
+# The dotted file name also guards against deriving the key from the path.
 _write_generated_step() {
     mkdir -p generated
-    cat <<EOF > generated/one.pkl
+    cat <<EOF > generated/one.step.pkl
 import "$PKL_PATH/Config.pkl"
+
+name = "one"
 
 step: Config.Step = new {
     glob = List("*.js")
@@ -30,8 +34,8 @@ local generated = import*("generated/*.pkl")
 hooks {
     ["check"] {
         steps {
-            for (path, mod in generated) {
-                [path.split("/").last.split(".").first] = mod.step
+            for (_, mod in generated) {
+                [mod.name] = mod.step
             }
         }
     }
@@ -57,8 +61,8 @@ import* "generated/*.pkl" as Generated
 hooks {
     ["check"] {
         steps {
-            for (path, mod in Generated) {
-                [path.split("/").last.split(".").first] = mod.step
+            for (_, mod in Generated) {
+                [mod.name] = mod.step
             }
         }
     }
@@ -84,8 +88,8 @@ local generated = import*("generated/*.pkl")
 hooks {
     ["check"] {
         steps {
-            for (path, mod in generated) {
-                [path.split("/").last.split(".").first] = mod.step
+            for (_, mod in generated) {
+                [mod.name] = mod.step
             }
         }
     }
@@ -115,8 +119,8 @@ local generated = import*("generated/*.pkl")
 hooks {
     ["check"] {
         steps {
-            for (path, mod in generated) {
-                [path.split("/").last.split(".").first] = mod.step
+            for (_, mod in generated) {
+                [mod.name] = mod.step
             }
         }
     }
