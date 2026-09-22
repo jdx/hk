@@ -4,6 +4,25 @@ import "./test/helpers.pkl"
 
 class EditorconfigCheckerStep extends Config.Step {
   hidden version: "3" | "4" = "4"
+  hidden testMaker = new helpers.TestMaker {
+    filename = "test.txt"
+    extra_files = new Mapping<String, String> {
+      [".editorconfig"] =
+        """
+        root = true
+
+        [*]
+        indent_style = space
+        indent_size = 2
+        tab_width = 4
+        end_of_line = lf
+        charset = utf-8
+        trim_trailing_whitespace = true
+        insert_final_newline = true
+
+        """
+    }
+  }
   types = List("text")
   check = new Config.CommandSpec {
     command = new Config.Command {
@@ -11,28 +30,26 @@ class EditorconfigCheckerStep extends Config.Step {
     }
     effect = "read"
   }
-  tests {
-    local const testMaker = new helpers.TestMaker {
-      filename = "test.txt"
-      extra_files = new Mapping<String, String> {
-        [".editorconfig"] =
-          """
-          root = true
-
-          [*]
-          indent_style = space
-          indent_size = 2
-          tab_width = 4
-          end_of_line = lf
-          charset = utf-8
-          trim_trailing_whitespace = true
-          insert_final_newline = true
-
-          """
+  fix =
+    if (version == "3")
+      null
+    else
+      new Config.CommandSpec {
+        command = new Config.Command {
+          argv = List("editorconfig-checker", "--fix", "{{files}}")
+        }
+        effect = "write"
       }
-    }
+  tests = new Mapping<String, Config.StepTest> {
     ["check bad file"] = testMaker.checkFail("insert final newline", 1)
     ["check good file"] = testMaker.checkPass("insert final newline\n")
+    ...if (version == "4")
+      new Mapping<String, Config.StepTest> {
+        ["fix bad file"] = testMaker.fixPass("insert final newline", "insert final newline\n")
+        ["fix good file"] = testMaker.fixPass("insert final newline\n", "insert final newline\n")
+      }
+    else
+      new Mapping<String, Config.StepTest> {}
   }
 }
 

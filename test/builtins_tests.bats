@@ -28,6 +28,7 @@ PKL
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$JAVA_HOME/bin:$PATH"
     run hk test
     assert_success
+    _record_test_timings builtins-all
     # At least the newlines builtin has a test
     assert_output --partial "ok - newlines :: fix bad file"
 }

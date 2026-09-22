@@ -87,8 +87,7 @@ jobs:
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -106,8 +105,7 @@ jobs:
           cache: false
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - name: Build
         run: mbx build --features git2/vendored-libgit2,git2/vendored-openssl
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -141,12 +139,42 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
+      # The downloaded artifact is this commit's hk, so the bats task runs with
+      # --skip-deps instead of recompiling it (a cold cargo build here cost
+      # 77-183s per job). Its other dependencies run up front, outside the
+      # retry window: the generated pkl files the tests read, and the builtin
+      # tool-stub preinstall.
+      - run: |
+          mise run pkl:gen
+          mise run test:bats:setup
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
-          max_attempts: 3
-          command: mise run test:bats:libgit2
+          # Two attempts, not three: the job budget covers setup, the build and
+          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
+          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
+          # build, so the retry is here for genuine flakes.
+          max_attempts: 2
+          command: mise run --skip-deps test:bats:libgit2
+      - name: Publish builtin test timings
+        if: always()
+        run: |
+          f=target/test-timings/builtins-all.tsv
+          [ -f "$f" ] || exit 0
+          {
+            echo "### Slowest builtin test cases (libgit2, ${{ matrix.os }})"
+            echo
+            echo "| ms | case |"
+            echo "| ---: | --- |"
+            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-timings-libgit2-${{ matrix.os }}
+          path: target/test-timings/
+          if-no-files-found: ignore
   ci-nolibgit2:
     name: ci-nolibgit2 (${{ matrix.os }})
     needs: build
@@ -161,7 +189,7 @@ jobs:
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -177,12 +205,42 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
+      # The downloaded artifact is this commit's hk, so the bats task runs with
+      # --skip-deps instead of recompiling it (a cold cargo build here cost
+      # 77-183s per job). Its other dependencies run up front, outside the
+      # retry window: the generated pkl files the tests read, and the builtin
+      # tool-stub preinstall.
+      - run: |
+          mise run pkl:gen
+          mise run test:bats:setup
       - name: mise run test:bats:nolibgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
-          max_attempts: 3
-          command: mise run test:bats:nolibgit2
+          # Two attempts, not three: the job budget covers setup, the build and
+          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
+          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
+          # build, so the retry is here for genuine flakes.
+          max_attempts: 2
+          command: mise run --skip-deps test:bats:nolibgit2
+      - name: Publish builtin test timings
+        if: always()
+        run: |
+          f=target/test-timings/builtins-all.tsv
+          [ -f "$f" ] || exit 0
+          {
+            echo "### Slowest builtin test cases (nolibgit2, ${{ matrix.os }})"
+            echo
+            echo "| ms | case |"
+            echo "| ---: | --- |"
+            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-timings-nolibgit2-${{ matrix.os }}
+          path: target/test-timings/
+          if-no-files-found: ignore
   ci-nogit:
     needs: build
     permissions:
@@ -197,7 +255,7 @@ jobs:
     # "does not have an executable named X" on fresh installs, and
     # asdf:swiftlint binaries SIGILL on namespace's linux image).
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -213,12 +271,42 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
+      # The downloaded artifact is this commit's hk, so the bats task runs with
+      # --skip-deps instead of recompiling it (a cold cargo build here cost
+      # 77-183s per job). Its other dependencies run up front, outside the
+      # retry window: the generated pkl files the tests read, and the builtin
+      # tool-stub preinstall.
+      - run: |
+          mise run pkl:gen
+          mise run test:bats:setup
       - name: mise run test:bats:nogit
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
           timeout_minutes: 10
-          max_attempts: 3
-          command: mise run test:bats:nogit
+          # Two attempts, not three: the job budget covers setup, the build and
+          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
+          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
+          # build, so the retry is here for genuine flakes.
+          max_attempts: 2
+          command: mise run --skip-deps test:bats:nogit
+      - name: Publish builtin test timings
+        if: always()
+        run: |
+          f=target/test-timings/builtins-all.tsv
+          [ -f "$f" ] || exit 0
+          {
+            echo "### Slowest builtin test cases (nogit, ${{ matrix.os }})"
+            echo
+            echo "| ms | case |"
+            echo "| ---: | --- |"
+            head -25 "$f" | awk -F'\t' '{print "| " $1 " | " $2 " |"}'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: test-timings-nogit-${{ matrix.os }}
+          path: target/test-timings/
+          if-no-files-found: ignore
   ci-other:
     name: ci-other (${{ matrix.os }})
     strategy:
@@ -248,8 +336,7 @@ jobs:
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
@@ -283,8 +370,7 @@ jobs:
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - run: mise run msrv
   ci-windows:
     needs: build-windows
@@ -299,8 +385,7 @@ jobs:
           cache: false
       - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
         with:
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-windows-latest

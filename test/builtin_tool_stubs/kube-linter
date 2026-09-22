@@ -1,0 +1,3 @@
+#!/usr/bin/env -S mise tool-stub
+version = "0.8.3"
+tool = "aqua:stackrox/kube-linter"

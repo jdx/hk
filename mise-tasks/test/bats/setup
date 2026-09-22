@@ -1,7 +1,56 @@
 #!/usr/bin/env bash
-#MISE tools = { java = "21", node = "latest" }
+#MISE tools = { java = "21" }
 
-set -eu
+set -euo pipefail
 
 # Runtime provisioning happens before Bats starts parallel test execution.
-:
+#
+# Every builtin test invokes its tool through a `mise tool-stub` in
+# one of the test/builtin_tool_stubs*/ directories, and the bats tasks run
+# with `--jobs 16`. Installing a tool lazily inside a test makes that mise process
+# rewrite the runtime symlinks (`4`, `4.1`, `latest`, ...) in installs/<tool>/
+# while another mise process is reading or rewriting the same directory. Those
+# rewrites are not atomic across processes, so the loser reports "failed to
+# rebuild runtime symlinks" and the builtin test fails for a reason that has
+# nothing to do with the linter. pinact hits it most often because two tests
+# install two versions of it at once, but any tool two concurrent tests install is
+# exposed.
+#
+# Installing every stub's tool here, in one mise process before bats starts,
+# leaves the parallel tests with a fully populated installs directory and nothing
+# to write.
+
+cd "${MISE_PROJECT_ROOT:-$(dirname "$0")/../../..}"
+
+specs=$(
+    for stub in test/builtin_tool_stubs*/*; do
+        [ -f "$stub" ] || continue
+        tool=$(sed -n 's/^tool *= *"\(.*\)"$/\1/p' "$stub" | head -1)
+        version=$(sed -n 's/^version *= *"\(.*\)"$/\1/p' "$stub" | head -1)
+        if [ -z "$tool" ] || [ -z "$version" ]; then
+            echo "error: $stub does not declare both tool and version" >&2
+            exit 1
+        fi
+        echo "$tool@$version"
+    done | sort -u
+)
+
+if [ -z "$specs" ]; then
+    echo "error: no tool stubs found under test/builtin_tool_stubs*/" >&2
+    exit 1
+fi
+
+# Not `mapfile`: macOS ships bash 3.2, which does not have it.
+tools=()
+while IFS= read -r spec; do
+    tools+=("$spec")
+done <<<"$specs"
+
+# Best effort: mise attempts every tool in the batch and names the ones it could
+# not install, so a tool that is unavailable on this machine (no ruby for the
+# `gem:` backend, say) costs only its own builtin test, exactly as it does today.
+# Failing the whole task here would take the unrelated .bats files down with it.
+if ! mise install "${tools[@]}"; then
+    echo "warning: some builtin tool stubs could not be preinstalled (see above);" >&2
+    echo "         their tests will install them lazily and may flake under parallelism" >&2
+fi
