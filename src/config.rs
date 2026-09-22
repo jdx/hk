@@ -72,13 +72,34 @@ impl Config {
         // matches here to cover the expression form too.
         local_paths.extend(glob_matches.iter().cloned());
         let has_untracked_imports = Self::has_untracked_imports_in_pkl_sources(path, &local_paths)?;
+        let sources_digest = Self::sources_digest(path, &local_paths);
 
         Ok(ImportAnalysis {
             local_paths,
             has_untracked_imports,
             glob_imports,
             glob_matches,
+            sources_digest,
         })
+    }
+
+    /// Digest the contents of every source in the module graph.
+    ///
+    /// The imports cache is keyed on the root config file alone, so without
+    /// this an imported module could change its own imports — gaining a glob
+    /// pattern, or importing a new file — and the recorded module graph would
+    /// keep describing the config as it used to be.
+    fn sources_digest(path: &Path, local_paths: &IndexSet<PathBuf>) -> String {
+        let mut entries: Vec<String> = std::iter::once(path)
+            .chain(local_paths.iter().map(PathBuf::as_path))
+            .map(|path| match std::fs::read(path) {
+                Ok(contents) => format!("{}:{}", path.display(), hash::hash_to_str(&contents)),
+                Err(_) => format!("{}:<missing>", path.display()),
+            })
+            .collect();
+        entries.sort();
+        entries.dedup();
+        hash::hash_to_str(&entries)
     }
 
     /// Walk the module graph rooted at `path` and collect every local glob
@@ -369,12 +390,12 @@ impl Config {
             let mut import_analysis = imports_cache_mgr
                 .get_or_try_init(|| Self::analyze_imports(&path))?
                 .clone();
-            // The imports cache is keyed on the config file alone, so a glob
-            // import that now matches a different set of files has to be
-            // re-analyzed even though hk.pkl itself is unchanged. Configs
-            // without glob imports skip this entirely.
-            if import_analysis.glob_matches_are_stale() {
-                tracing::event!(tracing::Level::INFO, "cache.glob_imports_changed");
+            // The imports cache is keyed on the config file alone, so an edit
+            // anywhere else in the module graph — or a glob that now matches a
+            // different set of files — has to be re-analyzed even though
+            // hk.pkl itself is unchanged.
+            if import_analysis.is_stale(&path) {
+                tracing::event!(tracing::Level::INFO, "cache.imports_changed");
                 import_analysis = Self::analyze_imports(&path)?;
                 if let Err(err) = imports_cache_mgr.write(&import_analysis) {
                     warn!("failed to write imports cache file: {err:#}");
@@ -1243,16 +1264,25 @@ struct ImportAnalysis {
     /// What `glob_imports` expanded to when this analysis ran.
     #[serde(default)]
     glob_matches: Vec<PathBuf>,
+    /// Digest of every source in the module graph when this analysis ran.
+    #[serde(default)]
+    sources_digest: String,
 }
 
 impl ImportAnalysis {
-    /// True when re-expanding the recorded glob imports no longer produces the
-    /// recorded matches, i.e. a matching file was added, removed or renamed.
-    fn glob_matches_are_stale(&self) -> bool {
-        if self.glob_imports.is_empty() {
-            return false;
+    /// True when this cached analysis no longer describes what is on disk, so
+    /// the module graph has to be walked again.
+    ///
+    /// Two things can go stale without the root config file changing: a source
+    /// somewhere in the graph edited its own imports, and a glob pattern now
+    /// matches a different set of files. Both checks only re-read what the
+    /// analysis already recorded.
+    fn is_stale(&self, path: &Path) -> bool {
+        if self.sources_digest != Config::sources_digest(path, &self.local_paths) {
+            return true;
         }
-        Config::expand_glob_imports(&self.glob_imports) != self.glob_matches
+        !self.glob_imports.is_empty()
+            && Config::expand_glob_imports(&self.glob_imports) != self.glob_matches
     }
 }
 
@@ -1786,9 +1816,26 @@ mod tests {
         );
     }
 
+    /// Build an analysis describing `root` plus `local_paths` as they are on
+    /// disk right now, the way a fresh `analyze_imports` would record them.
+    fn analysis(root: &Path, local_paths: &[PathBuf], globs: Vec<GlobImport>) -> ImportAnalysis {
+        let mut local_paths: IndexSet<PathBuf> = local_paths.iter().cloned().collect();
+        let glob_matches = Config::expand_glob_imports(&globs);
+        local_paths.extend(glob_matches.iter().cloned());
+        ImportAnalysis {
+            sources_digest: Config::sources_digest(root, &local_paths),
+            local_paths,
+            has_untracked_imports: false,
+            glob_imports: globs,
+            glob_matches,
+        }
+    }
+
     #[test]
-    fn glob_matches_are_stale_tracks_files_appearing_and_disappearing() {
+    fn is_stale_tracks_glob_matches_appearing_and_disappearing() {
         let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hk.pkl");
+        std::fs::write(&root, "").unwrap();
         let generated = dir.path().join("generated");
         std::fs::create_dir(&generated).unwrap();
         std::fs::write(generated.join("one.pkl"), "").unwrap();
@@ -1797,37 +1844,57 @@ mod tests {
             base: dir.path().to_path_buf(),
             pattern: "generated/*.pkl".to_string(),
         };
-        let mut analysis = ImportAnalysis {
-            local_paths: IndexSet::new(),
-            has_untracked_imports: false,
-            glob_matches: Config::expand_glob_imports(std::slice::from_ref(&glob)),
-            glob_imports: vec![glob],
-        };
-        assert_eq!(analysis.glob_matches.len(), 1);
-        assert!(!analysis.glob_matches_are_stale());
+        let mut a = analysis(&root, &[], vec![glob]);
+        assert_eq!(a.glob_matches.len(), 1);
+        assert!(!a.is_stale(&root));
 
         std::fs::write(generated.join("two.pkl"), "").unwrap();
-        assert!(analysis.glob_matches_are_stale());
+        assert!(a.is_stale(&root));
 
-        analysis.glob_matches = Config::expand_glob_imports(&analysis.glob_imports);
-        assert!(!analysis.glob_matches_are_stale());
+        a = analysis(&root, &[], a.glob_imports);
+        assert!(!a.is_stale(&root));
 
         // A file that does not match the pattern is ignored.
         std::fs::write(generated.join("three.txt"), "").unwrap();
-        assert!(!analysis.glob_matches_are_stale());
+        assert!(!a.is_stale(&root));
 
         std::fs::remove_file(generated.join("two.pkl")).unwrap();
-        assert!(analysis.glob_matches_are_stale());
+        assert!(a.is_stale(&root));
     }
 
     #[test]
-    fn analysis_without_glob_imports_is_never_stale() {
-        let analysis = ImportAnalysis {
-            local_paths: IndexSet::new(),
-            has_untracked_imports: false,
-            glob_imports: vec![],
-            glob_matches: vec![],
-        };
-        assert!(!analysis.glob_matches_are_stale());
+    fn is_stale_tracks_edits_to_transitive_sources() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hk.pkl");
+        let other = dir.path().join("other.pkl");
+        std::fs::write(&root, "import \"./other.pkl\"\n").unwrap();
+        std::fs::write(&other, "STEPS = 1\n").unwrap();
+
+        let a = analysis(&root, std::slice::from_ref(&other), vec![]);
+        assert!(!a.is_stale(&root));
+
+        // An imported module that edits its own imports — here gaining a glob
+        // the analysis never recorded — must re-run the walk.
+        std::fs::write(&other, "import* \"generated/*.pkl\" as g\n").unwrap();
+        assert!(a.is_stale(&root));
+
+        // So must the root, and a source disappearing entirely.
+        let a = analysis(&root, std::slice::from_ref(&other), vec![]);
+        std::fs::write(&root, "import \"./other.pkl\"\n// changed\n").unwrap();
+        assert!(a.is_stale(&root));
+
+        let a = analysis(&root, std::slice::from_ref(&other), vec![]);
+        std::fs::remove_file(&other).unwrap();
+        assert!(a.is_stale(&root));
+    }
+
+    #[test]
+    fn unchanged_analysis_without_glob_imports_is_not_stale() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hk.pkl");
+        std::fs::write(&root, "amends \"./base.pkl\"\n").unwrap();
+
+        let a = analysis(&root, &[], vec![]);
+        assert!(!a.is_stale(&root));
     }
 }

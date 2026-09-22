@@ -245,7 +245,7 @@ EOF
     assert_success
     assert_output --partial "checking one"
     assert_output --partial "checking two"
-    assert_output --partial "cache.glob_imports_changed"
+    assert_output --partial "cache.imports_changed"
 
     # ...and the refreshed config is itself cached
     run hk check -vv test.txt
@@ -259,6 +259,123 @@ EOF
     assert_success
     assert_output --partial "checking one"
     refute_output --partial "checking two"
+}
+
+@test "cache invalidates when an imported module gains a glob import" {
+    export HK_CACHE=1
+    mkdir generated
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "./other.pkl"
+hooks {
+    ["check"] { steps = other.STEPS }
+}
+EOF
+
+    # other.pkl starts without any glob import
+    cat <<EOF > other.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["plain"] { check = "echo checking plain" }
+}
+EOF
+
+    cat <<EOF > generated/one.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["one"] { check = "echo checking one" }
+}
+EOF
+
+    echo "test" > test.txt
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking plain"
+
+    # other.pkl gains a glob import; hk.pkl is never touched, so the imports
+    # cache (keyed on hk.pkl alone) has to notice the edit on its own
+    cat <<EOF > other.pkl
+import "$PKL_PATH/Config.pkl"
+import* "generated/*.pkl" as generated
+STEPS: Mapping<String, Config.Step> = new {
+    for (_, mod in generated) {
+        ...mod.STEPS
+    }
+}
+EOF
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking one"
+    refute_output --partial "checking plain"
+
+    # ...and a file added under that newly discovered pattern must be picked up
+    cat <<EOF > generated/two.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["two"] { check = "echo checking two" }
+}
+EOF
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking one"
+    assert_output --partial "checking two"
+}
+
+@test "cache invalidates when an imported module gains a new import" {
+    export HK_CACHE=1
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "./other.pkl"
+hooks {
+    ["check"] { steps = other.STEPS }
+}
+EOF
+    cat <<EOF > other.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["plain"] { check = "echo checking plain" }
+}
+EOF
+
+    echo "test" > test.txt
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking plain"
+
+    # other.pkl starts importing a file the recorded module graph never saw
+    cat <<EOF > third.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["third"] { check = "echo checking third" }
+}
+EOF
+    cat <<EOF > other.pkl
+import "$PKL_PATH/Config.pkl"
+import "./third.pkl"
+STEPS = third.STEPS
+EOF
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking third"
+
+    # editing that newly imported file must now invalidate the cache
+    cat <<EOF > third.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["third"] { check = "echo checking third edited" }
+}
+EOF
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking third edited"
 }
 
 @test "resolved config cache is shared across identical local configs" {
