@@ -145,6 +145,28 @@ hooks {
 
 This is a local amendment of an existing project configuration. Save it as `hk.local.pkl` and keep it out of version control. The selected file amends `hk.pkl`; hk does not independently merge those two project files. See [local overrides](/configuration#hk-local-pkl).
 
+## Import many files at once
+
+`import*` matches a glob and evaluates every module it finds, which suits generated or templated step definitions. It returns a mapping from each matched path — relative to the file holding the import — to that module's value:
+
+```pkl
+local generated = import*("generated/*.pkl")
+
+hooks {
+  ["check"] {
+    steps {
+      for (path, step in generated) {
+        [path.replaceAll("generated/", "").replaceAll(".pkl", "")] = step
+      }
+    }
+  }
+}
+```
+
+With `generated/prettier.pkl` and `generated/shellcheck.pkl` on disk, that defines the `prettier` and `shellcheck` steps. A pattern matching nothing produces an empty mapping, and the file holding the import is skipped when the pattern would match it. `import*` also works as a module-level declaration, `import* "generated/*.pkl" as Generated`.
+
+hk tracks the matched files as configuration dependencies, so editing one invalidates the cached configuration. Adding a *new* file that the pattern matches does not: hk caches the import list against `hk.pkl` itself, so run [`hk cache clear`](/cli/cache/clear) or edit `hk.pkl` after adding a file.
+
 ## Validate and inspect
 
 ```sh
