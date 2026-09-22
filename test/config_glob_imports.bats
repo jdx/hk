@@ -8,12 +8,20 @@ teardown() {
     _common_teardown
 }
 
-_write_glob_config() {
+_write_generated_step() {
     mkdir -p generated
     cat <<EOF > generated/one.pkl
-glob = List("*.js")
-check = "echo one {{files}}"
+import "$PKL_PATH/Config.pkl"
+
+step: Config.Step = new {
+    glob = List("*.js")
+    check = "echo $1 {{files}}"
+}
 EOF
+}
+
+@test "glob import expression defines steps" {
+    _write_generated_step one
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 
@@ -22,8 +30,8 @@ local generated = import*("generated/*.pkl")
 hooks {
     ["check"] {
         steps {
-            for (path, step in generated) {
-                [path.split("/").last.split(".").first] = step
+            for (path, mod in generated) {
+                [path.split("/").last.split(".").first] = mod.step
             }
         }
     }
@@ -33,21 +41,14 @@ EOF
     git init
     git add .
     git commit -m "initial commit"
-}
 
-@test "glob import expression defines steps" {
-    _write_glob_config
     run hk check --all
     assert_success
     assert_output --partial "one test.js"
 }
 
 @test "glob import declaration defines steps" {
-    mkdir -p generated
-    cat <<EOF > generated/one.pkl
-glob = List("*.js")
-check = "echo one {{files}}"
-EOF
+    _write_generated_step one
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 
@@ -56,8 +57,8 @@ import* "generated/*.pkl" as Generated
 hooks {
     ["check"] {
         steps {
-            for (path, step in Generated) {
-                [path.split("/").last.split(".").first] = step
+            for (path, mod in Generated) {
+                [path.split("/").last.split(".").first] = mod.step
             }
         }
     }
@@ -74,15 +75,32 @@ EOF
 }
 
 @test "editing a glob-imported file invalidates the config cache" {
-    _write_glob_config
+    _write_generated_step one
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+
+local generated = import*("generated/*.pkl")
+
+hooks {
+    ["check"] {
+        steps {
+            for (path, mod in generated) {
+                [path.split("/").last.split(".").first] = mod.step
+            }
+        }
+    }
+}
+EOF
+    echo "test" > test.js
+    git init
+    git add .
+    git commit -m "initial commit"
+
     run hk check --all
     assert_success
     assert_output --partial "one test.js"
 
-    cat <<EOF > generated/one.pkl
-glob = List("*.js")
-check = "echo edited {{files}}"
-EOF
+    _write_generated_step edited
     run hk check --all
     assert_success
     assert_output --partial "edited test.js"
@@ -97,8 +115,8 @@ local generated = import*("generated/*.pkl")
 hooks {
     ["check"] {
         steps {
-            for (path, step in generated) {
-                [path.split("/").last.split(".").first] = step
+            for (path, mod in generated) {
+                [path.split("/").last.split(".").first] = mod.step
             }
         }
     }

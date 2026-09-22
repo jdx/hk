@@ -147,16 +147,29 @@ This is a local amendment of an existing project configuration. Save it as `hk.l
 
 ## Import many files at once
 
-`import*` matches a glob and evaluates every module it finds, which suits generated or templated step definitions. It returns a mapping from each matched path — relative to the file holding the import — to that module's value:
+`import*` matches a glob and evaluates every module it finds, which suits generated or templated step definitions. It returns a mapping from each matched path — relative to the file holding the import — to that module's value.
+
+An imported module is not itself a `Step`, so give each file a typed property to read back:
 
 ```pkl
+// generated/prettier.pkl
+import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+
+step: Config.Step = new {
+  glob = List("*.md")
+  check = "prettier --check {{files}}"
+}
+```
+
+```pkl
+// hk.pkl
 local generated = import*("generated/*.pkl")
 
 hooks {
   ["check"] {
     steps {
-      for (path, step in generated) {
-        [path.split("/").last.split(".").first] = step
+      for (path, mod in generated) {
+        [path.split("/").last.split(".").first] = mod.step
       }
     }
   }
