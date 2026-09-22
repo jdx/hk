@@ -92,12 +92,33 @@ impl Config {
     fn source_may_reference_untracked_import(source: &str) -> bool {
         source.lines().map(str::trim_start).any(|line| {
             !line.starts_with("//")
-                && ["amends", "extends", "import", "import*"]
-                    .iter()
-                    .any(|keyword| line.starts_with(keyword))
                 && ["\"http://", "\"https://", "\"package://"]
                     .iter()
                     .any(|scheme| line.contains(scheme))
+                && ["amends", "extends", "import"]
+                    .iter()
+                    .any(|keyword| Self::line_references_module(line, keyword))
+        })
+    }
+
+    /// Whether `line` uses `keyword` to reference a module.
+    ///
+    /// `import` and `import*` are expressions as well as module declarations, so
+    /// the keyword can sit anywhere on the line rather than only at its start.
+    /// This is a conservative scan: a false positive only costs cache sharing.
+    fn line_references_module(line: &str, keyword: &str) -> bool {
+        line.match_indices(keyword).any(|(start, _)| {
+            let follows_identifier = line[..start]
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphanumeric() || c == '_');
+            if follows_identifier {
+                return false;
+            }
+            // `import*` as well as `import`, then the URI as a plain string, a
+            // custom-delimited string, or a parenthesized expression argument.
+            let rest = line[start + keyword.len()..].trim_start_matches('*');
+            matches!(rest.trim_start().chars().next(), Some('"' | '(' | '#'))
         })
     }
 
@@ -1139,6 +1160,44 @@ mod tests {
     use crate::hook::{Hook, StepOrGroup};
     use crate::step::Step;
     use crate::step_group::StepGroup;
+
+    #[test]
+    fn untracked_import_detection_covers_declarations_and_expressions() {
+        let untracked = [
+            r#"amends "https://example.com/Config.pkl""#,
+            r#"extends "package://example.com/pkg@1#/Base.pkl""#,
+            r#"import "https://example.com/Step.pkl" as Step"#,
+            r#"import* "https://example.com/steps/*.pkl" as Steps"#,
+            // Expression forms, which pklr allows anywhere an expression is allowed.
+            r#"local remote = import("https://example.com/Step.pkl")"#,
+            r#"value = import("http://example.com/Step.pkl").check"#,
+            r#"steps = import*("package://example.com/pkg@1#/steps/*.pkl")"#,
+            r##"  local remote = import(#"https://example.com/Step.pkl"#)"##,
+        ];
+        for source in untracked {
+            assert!(
+                Config::source_may_reference_untracked_import(source),
+                "expected untracked import in {source:?}"
+            );
+        }
+
+        let tracked = [
+            r#"amends "./Config.pkl""#,
+            r#"import "steps/lint.pkl" as Lint"#,
+            r#"local generated = import*("generated/*.pkl")"#,
+            r#"// amends "https://example.com/Config.pkl""#,
+            // A property whose name merely ends in the keyword.
+            r#"myimport = "https://example.com/Step.pkl""#,
+            // A remote URL that is not reached through a module reference.
+            r#"check = "curl https://example.com/lint.sh""#,
+        ];
+        for source in tracked {
+            assert!(
+                !Config::source_may_reference_untracked_import(source),
+                "expected no untracked import in {source:?}"
+            );
+        }
+    }
 
     fn step(name: &str) -> Step {
         Step {

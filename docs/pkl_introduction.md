@@ -156,14 +156,14 @@ hooks {
   ["check"] {
     steps {
       for (path, step in generated) {
-        [path.replaceAll("generated/", "").replaceAll(".pkl", "")] = step
+        [path.split("/").last.split(".").first] = step
       }
     }
   }
 }
 ```
 
-With `generated/prettier.pkl` and `generated/shellcheck.pkl` on disk, that defines the `prettier` and `shellcheck` steps. A pattern matching nothing produces an empty mapping, and the file holding the import is skipped when the pattern would match it. `import*` also works as a module-level declaration, `import* "generated/*.pkl" as Generated`.
+With `generated/prettier.pkl` and `generated/shellcheck.pkl` on disk, that defines the `prettier` and `shellcheck` steps — each key is the file's base name without its extension. A pattern matching nothing produces an empty mapping, and the file holding the import is skipped when the pattern would match it. `import*` also works as a module-level declaration, `import* "generated/*.pkl" as Generated`.
 
 hk tracks the matched files as configuration dependencies, so editing one invalidates the cached configuration. Adding a *new* file that the pattern matches does not: hk caches the import list against `hk.pkl` itself, so run [`hk cache clear`](/cli/cache/clear) or edit `hk.pkl` after adding a file.
 
