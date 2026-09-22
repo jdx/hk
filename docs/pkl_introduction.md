@@ -147,40 +147,57 @@ This is a local amendment of an existing project configuration. Save it as `hk.l
 
 ## Import many files at once
 
-`import*` matches a glob and evaluates every module it finds, which suits generated or templated step definitions. It returns a mapping from each matched path — relative to the file holding the import — to that module's value.
-
-An imported module is not itself a `Step`, so give each file a typed property to read back, plus the step name it should take:
-
-```pkl
-// generated/prettier.pkl
-import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
-
-name = "prettier"
-
-step: Config.Step = new {
-  glob = List("*.md")
-  check = "prettier --check {{files}}"
-}
-```
+`import*` is a glob import: it binds every file matching the pattern, keyed by
+its path relative to the importing module.
 
 ```pkl
-// hk.pkl
-local generated = import*("generated/*.pkl")
+amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+
+import* "generated/*.pkl" as generated
 
 hooks {
   ["check"] {
-    steps {
+    steps = new Mapping<String, Step> {
       for (_, mod in generated) {
-        [mod.name] = mod.step
+        ...mod.STEPS
       }
     }
   }
 }
 ```
 
-With `generated/prettier.pkl` and `generated/shellcheck.pkl` on disk, that defines the `prettier` and `shellcheck` steps. Naming each step in its own file keeps the key independent of the file name, so `eslint.react.pkl` and `eslint.vue.pkl` do not have to be reduced to a key by string surgery. A pattern matching nothing produces an empty mapping, and the file holding the import is skipped when the pattern would match it. `import*` also works as a module-level declaration, `import* "generated/*.pkl" as Generated`.
+Each `generated/*.pkl` file contributes its own `STEPS`, so a build script can
+add or remove step definitions without editing `hk.pkl`:
 
-hk tracks the matched files as configuration dependencies, so editing one invalidates the cached configuration. Adding a *new* file that the pattern matches does not: hk caches the import list against `hk.pkl` itself, so run [`hk cache clear`](/cli/cache/clear) or edit `hk.pkl` after adding a file.
+```pkl
+// generated/prettier.pkl
+import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+
+STEPS: Mapping<String, Config.Step> = new {
+  ["prettier"] {
+    glob = List("*.md")
+    check = "prettier --check {{files}}"
+  }
+}
+```
+
+Letting each file name its own steps keeps the keys independent of the file
+names. An imported module is not itself a `Step`, so read a typed property such
+as `STEPS` back out rather than assigning the module into `steps` directly.
+
+`import*` also works as an expression, which binds the mapping to a local
+instead of a module-level name:
+
+```pkl
+local generated = import*("generated/*.pkl")
+```
+
+A pattern matching nothing produces an empty mapping, and the file holding the
+import is skipped when the pattern would match it.
+
+The pattern is resolved against the filesystem on every run: adding, removing,
+or renaming a file the pattern matches takes effect on the next hk command, with
+no need to touch `hk.pkl` or run `hk cache clear`.
 
 ## Validate and inspect
 

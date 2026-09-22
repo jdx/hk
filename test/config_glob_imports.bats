@@ -8,18 +8,18 @@ teardown() {
     _common_teardown
 }
 
-# A generated step module: a name for the mapping key and a typed Step.
-# The dotted file name also guards against deriving the key from the path.
+# A generated step module contributing its own STEPS mapping. The dotted file
+# name guards against deriving the step key from the path.
 _write_generated_step() {
     mkdir -p generated
     cat <<EOF > generated/one.step.pkl
 import "$PKL_PATH/Config.pkl"
 
-name = "one"
-
-step: Config.Step = new {
-    glob = List("*.js")
-    check = "echo $1 {{files}}"
+STEPS: Mapping<String, Config.Step> = new {
+    ["one"] {
+        glob = List("*.js")
+        check = "echo $1 {{files}}"
+    }
 }
 EOF
 }
@@ -33,9 +33,9 @@ local generated = import*("generated/*.pkl")
 
 hooks {
     ["check"] {
-        steps {
+        steps = new Mapping<String, Step> {
             for (_, mod in generated) {
-                [mod.name] = mod.step
+                ...mod.STEPS
             }
         }
     }
@@ -60,9 +60,9 @@ import* "generated/*.pkl" as Generated
 
 hooks {
     ["check"] {
-        steps {
+        steps = new Mapping<String, Step> {
             for (_, mod in Generated) {
-                [mod.name] = mod.step
+                ...mod.STEPS
             }
         }
     }
@@ -87,9 +87,9 @@ local generated = import*("generated/*.pkl")
 
 hooks {
     ["check"] {
-        steps {
+        steps = new Mapping<String, Step> {
             for (_, mod in generated) {
-                [mod.name] = mod.step
+                ...mod.STEPS
             }
         }
     }
@@ -118,9 +118,9 @@ local generated = import*("generated/*.pkl")
 
 hooks {
     ["check"] {
-        steps {
+        steps = new Mapping<String, Step> {
             for (_, mod in generated) {
-                [mod.name] = mod.step
+                ...mod.STEPS
             }
         }
     }
