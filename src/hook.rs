@@ -1140,6 +1140,11 @@ impl Hook {
         let output_format = Settings::cli_output_format();
         let machine_output = output_format != crate::structured_output::OutputFormat::Human;
         let sarif_path = opts.sarif.clone();
+        let junit_path = opts.junit_xml.clone();
+        let reports = crate::structured_output::ReportPaths {
+            sarif: sarif_path.as_deref(),
+            junit: junit_path.as_deref(),
+        };
         let run_started = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
         crate::structured_output::emit_run_started(output_format, &self.name, &started_at)?;
@@ -1165,7 +1170,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 vec![],
                 "hook disabled by HK_SKIP_HOOK",
-                sarif_path.as_deref(),
+                reports,
             )?;
             return Ok(());
         }
@@ -1189,7 +1194,7 @@ impl Hook {
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                    sarif_path.as_deref(),
+                    reports,
                 )
                 .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
                 return Err(err);
@@ -1210,7 +1215,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 vec![],
                 "no configured steps",
-                sarif_path.as_deref(),
+                reports,
             )?;
             return Ok(());
         }
@@ -1229,7 +1234,7 @@ impl Hook {
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                    sarif_path.as_deref(),
+                    reports,
                 )
                 .wrap_err_with(|| format!("git status collection also failed: {err}"))?;
                 return Err(err);
@@ -1253,7 +1258,7 @@ impl Hook {
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                    sarif_path.as_deref(),
+                    reports,
                 )
                 .wrap_err_with(|| format!("file selection also failed: {err}"))?;
                 return Err(err);
@@ -1275,7 +1280,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 noop_steps,
                 "no matching files",
-                sarif_path.as_deref(),
+                reports,
             )?;
             return Ok(());
         }
@@ -1293,7 +1298,7 @@ impl Hook {
                 started_at,
                 run_started.elapsed().as_millis(),
                 err.to_string(),
-                sarif_path.as_deref(),
+                reports,
             )
             .wrap_err_with(|| format!("safe command validation also failed: {err}"))?;
             return Err(err);
@@ -1641,7 +1646,7 @@ impl Hook {
             run_started.elapsed().as_millis(),
             &hook_ctx,
             failure,
-            sarif_path.as_deref(),
+            reports,
         ) {
             if let Err(run_err) = &result {
                 error!("failed to emit result after hook also failed: {emit_err}");

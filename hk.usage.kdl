@@ -43,6 +43,9 @@ flagset hook-options {
     flag --from-ref help="Select files changed since this reference; optionally pair with --to-ref" {
         arg <FROM_REF>
     }
+    flag --junit-xml help="Write step results as a JUnit XML report" {
+        arg <PATH>
+    }
     flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)" overrides=--fail-fast
     flag --no-stage help="Disable auto-staging of fixed files" overrides=--stage
     flag --pr help="Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)" {
