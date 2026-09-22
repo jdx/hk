@@ -146,10 +146,13 @@ impl Config {
             let rest = source[start + keyword.len()..].trim_start_matches('*');
             let rest = Self::skip_pkl_trivia(rest);
             let rest = Self::skip_pkl_trivia(rest.strip_prefix('(').unwrap_or(rest));
-            // Plain or custom-delimited (`#"..."#`) string literal.
+            // Plain, custom-delimited (`#"..."#`), or multiline (`"""`) string
+            // literal. Apple Pkl rejects a multiline URI, but pklr parses one,
+            // so treat it as a module reference rather than miss it.
             let Some(uri) = rest.trim_start_matches('#').strip_prefix('"') else {
                 return false;
             };
+            let uri = uri.trim_start_matches('"').trim_start();
             ["http://", "https://", "package://"]
                 .iter()
                 .any(|scheme| uri.starts_with(scheme))
@@ -1215,6 +1218,8 @@ mod tests {
             r#"a = import(/* reason */ "https://example.com/Step.pkl").check"#,
             "b = import( // reason\n  \"https://example.com/Step.pkl\").check",
             r#"import /* why */ "https://example.com/Step.pkl" as Step"#,
+            // pklr parses a multiline URI even though Apple Pkl rejects one.
+            "a = import(\"\"\"\n  https://example.com/Step.pkl\n  \"\"\")",
         ];
         for source in untracked {
             assert!(
