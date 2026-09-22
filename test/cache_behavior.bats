@@ -195,6 +195,72 @@ EOF
     assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
 }
 
+@test "cache invalidates when a glob import matches a new file" {
+    export HK_CACHE=1
+    mkdir generated
+
+    cat <<EOF > generated/one.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["one"] { check = "echo checking one" }
+}
+EOF
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import* "generated/*.pkl" as generated
+hooks {
+    ["check"] {
+        steps = new Mapping<String, Step> {
+            for (_, mod in generated) {
+                ...mod.STEPS
+            }
+        }
+    }
+}
+EOF
+
+    echo "test" > test.txt
+
+    # First run - creates cache
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking one"
+
+    # Unchanged config still uses the cache
+    run hk check -vv test.txt
+    assert_success
+    refute_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
+
+    # A brand new file matching the glob must be picked up without touching
+    # hk.pkl or clearing the cache
+    cat <<EOF > generated/two.pkl
+import "$PKL_PATH/Config.pkl"
+STEPS: Mapping<String, Config.Step> = new {
+    ["two"] { check = "echo checking two" }
+}
+EOF
+
+    run hk check -vv test.txt
+    assert_success
+    assert_output --partial "checking one"
+    assert_output --partial "checking two"
+    assert_output --partial "cache.glob_imports_changed"
+
+    # ...and the refreshed config is itself cached
+    run hk check -vv test.txt
+    assert_success
+    assert_output --partial "checking two"
+    refute_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
+
+    # Removing a matched file invalidates the cache too
+    rm generated/two.pkl
+    run hk check test.txt
+    assert_success
+    assert_output --partial "checking one"
+    refute_output --partial "checking two"
+}
+
 @test "resolved config cache is shared across identical local configs" {
     export HK_CACHE=1
 

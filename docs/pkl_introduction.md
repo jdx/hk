@@ -145,6 +145,34 @@ hooks {
 
 This is a local amendment of an existing project configuration. Save it as `hk.local.pkl` and keep it out of version control. The selected file amends `hk.pkl`; hk does not independently merge those two project files. See [local overrides](/configuration#hk-local-pkl).
 
+## Import many files at once
+
+`import*` is a glob import: it binds every file matching the pattern, keyed by
+its path relative to the importing module.
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+
+import* "generated/*.pkl" as generated
+
+hooks {
+  ["check"] {
+    steps = new Mapping<String, Step> {
+      for (_, mod in generated) {
+        ...mod.STEPS
+      }
+    }
+  }
+}
+```
+
+Each `generated/*.pkl` file contributes its own `STEPS`, so a build script can
+add or remove step definitions without editing `hk.pkl`.
+
+The pattern is resolved against the filesystem on every run: adding, removing,
+or renaming a file the pattern matches takes effect on the next hk command, with
+no need to touch `hk.pkl` or run `hk cache clear`.
+
 ## Validate and inspect
 
 ```sh
