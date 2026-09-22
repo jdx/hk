@@ -133,5 +133,8 @@ EOF
 
     run hk check --all
     assert_success
+    # An empty steps mapping means hk has nothing to run at all, which is a
+    # stronger claim than the generated step merely being absent.
+    assert_output --partial "no steps to run"
     refute_output --partial "one test.js"
 }
