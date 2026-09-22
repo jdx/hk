@@ -124,8 +124,13 @@ impl Init {
             .exists()
             .then(|| std::fs::read_to_string(&mise_file))
             .transpose()?;
-        let has_file_task = existing_pre_commit_file_task(&std::env::current_dir()?);
-        let content = merge_mise_config(original.as_deref().unwrap_or(""), has_file_task)?;
+        let root = std::env::current_dir()?;
+        let input = original.as_deref().unwrap_or("");
+        let suppress_pre_commit = match included_pre_commit(&root, input)? {
+            Some(value) => value,
+            None => existing_pre_commit_file_task(&root),
+        };
+        let content = merge_mise_config(input, suppress_pre_commit)?;
         if original.as_deref() != Some(content.as_str()) {
             xx::file::write(&mise_file, content)?;
             if original.is_none() {
@@ -154,6 +159,79 @@ fn existing_pre_commit_file_task(root: &std::path::Path) -> bool {
         let base = root.join(dir).join("pre-commit");
         base.is_file() || base.join("_default").is_file()
     })
+}
+
+/// Return whether explicit task includes should suppress root task insertion.
+/// `None` means no includes were configured, so conventional defaults apply.
+fn included_pre_commit(root: &std::path::Path, input: &str) -> Result<Option<bool>> {
+    let document = if input.is_empty() {
+        DocumentMut::new()
+    } else {
+        input
+            .parse::<DocumentMut>()
+            .map_err(|error| eyre!("invalid mise.toml: {error}"))?
+    };
+    let Some(includes) = document
+        .get("task_config")
+        .and_then(Item::as_table_like)
+        .and_then(|table| table.get("includes"))
+    else {
+        return Ok(None);
+    };
+    let Some(includes) = includes.as_array() else {
+        warn!("Unable to inspect mise task includes; preserving external task configuration");
+        return Ok(Some(true));
+    };
+    for include in includes {
+        let Some(path) = include.as_str() else {
+            warn!("Unable to inspect mise task includes; preserving external task configuration");
+            return Ok(Some(true));
+        };
+        if path.contains("://") || path.contains(['$', '{', '}', '*', '?', '[', ']', '~']) {
+            warn!("Unable to inspect mise task includes; preserving external task configuration");
+            return Ok(Some(true));
+        }
+        let path = root.join(path);
+        if path.is_dir() {
+            let task = path.join("pre-commit");
+            for candidate in [task.clone(), task.join("_default")] {
+                match std::fs::metadata(candidate) {
+                    Ok(metadata) if metadata.is_file() => return Ok(Some(true)),
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(_) => {
+                        warn!(
+                            "Unable to inspect mise task includes; preserving external task configuration"
+                        );
+                        return Ok(Some(true));
+                    }
+                }
+            }
+            continue;
+        }
+        let content = match std::fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(_) => {
+                warn!(
+                    "Unable to inspect mise task includes; preserving external task configuration"
+                );
+                return Ok(Some(true));
+            }
+        };
+        let document = match content.parse::<DocumentMut>() {
+            Ok(document) => document,
+            Err(_) => {
+                warn!(
+                    "Unable to inspect mise task includes; preserving external task configuration"
+                );
+                return Ok(Some(true));
+            }
+        };
+        if document.get("pre-commit").is_some() {
+            return Ok(Some(true));
+        }
+    }
+    Ok(Some(false))
 }
 
 /// Merge hk's minimal mise entries without replacing user configuration.

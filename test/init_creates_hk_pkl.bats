@@ -273,6 +273,10 @@ hk = "latest"
 [task_config]
 includes = ["custom-tasks"]
 TOML
+    cat > custom-tasks <<'TOML'
+[build]
+run = "echo build"
+TOML
     run hk init --mise
     assert_success
     run grep -F 'includes = ["custom-tasks"]' mise.toml
@@ -305,4 +309,111 @@ TOML
     run grep '^pkl = ' mise.toml
     assert_failure
     assert_file_contains mise.toml '"github:apple/pkl" = "0.26"'
+}
+
+@test "hk init mise preserves included pre-commit task" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks.toml"]
+TOML
+    cat > tasks.toml <<'TOML'
+[pre-commit]
+run = "echo included"
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise inserts with unrelated included task file" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks.toml"]
+TOML
+    cat > tasks.toml <<'TOML'
+[build]
+run = "echo build"
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_success
+}
+
+@test "hk init mise preserves included task directory" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks"]
+TOML
+    mkdir -p tasks/pre-commit
+    touch tasks/pre-commit/_default
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise suppresses insertion for unreadable include" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["missing.toml"]
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise suppresses insertion for dynamic include" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["{root}/tasks.toml"]
+TOML
+    run hk init --mise
+    assert_success
+    assert_output --partial "Unable to inspect mise task includes"
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise suppresses insertion for malformed include" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks.toml"]
+TOML
+    printf '[broken\n' > tasks.toml
+    run hk init --mise
+    assert_success
+    assert_output --partial "Unable to inspect mise task includes"
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise includes replace conventional task defaults" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks.toml"]
+TOML
+    cat > tasks.toml <<'TOML'
+[build]
+run = "echo build"
+TOML
+    mkdir -p mise-tasks
+    touch mise-tasks/pre-commit
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_success
+}
+
+@test "hk init mise allows empty includes" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = []
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_success
 }
