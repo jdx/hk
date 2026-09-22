@@ -102,6 +102,8 @@ teardown() {
     assert_success
     assert_file_exists mise.toml
     assert_file_contains mise.toml "hk = \"latest\""
+    run grep -E '(^|:)pkl[" ]*=' mise.toml
+    assert_failure
 }
 
 @test "hk init detects multiple project types" {
@@ -129,7 +131,6 @@ TOML
     assert_success
     assert_file_contains mise.toml "# keep this comment"
     assert_file_contains mise.toml 'hk = "3.0"'
-    assert_file_contains mise.toml 'pkl = "latest"'
     assert_file_contains mise.toml 'run = "custom-hook"'
 }
 
@@ -165,7 +166,6 @@ TOML
     assert_success
     assert_file_contains mise.toml 'pre-commit = "custom-command"'
     assert_file_contains mise.toml 'check = { run = "custom-check" }'
-    assert_file_contains mise.toml 'pkl = "latest"'
 }
 
 @test "hk init mise is byte-identical on repeated force" {
@@ -207,7 +207,6 @@ TOML
     run hk init --mise --force
     assert_success
     assert_file_contains mise.toml 'hk = "3.1"'
-    assert_file_contains mise.toml 'pkl = "latest"'
     assert_file_contains mise.toml 'check = "custom"'
     assert_file_contains mise.toml 'pre-commit'
     cp mise.toml mise.before
@@ -267,25 +266,27 @@ TOML
     cmp mise.before mise.toml
 }
 
-@test "hk init mise preserves included task configuration" {
+@test "hk init mise inserts pre-commit with included task configuration" {
     cat > mise.toml <<'TOML'
 [tools]
 hk = "latest"
-pkl = "0.26"
 [task_config]
 includes = ["custom-tasks"]
 TOML
-    cp mise.toml mise.before
     run hk init --mise
     assert_success
-    cmp mise.before mise.toml
+    run grep -F 'includes = ["custom-tasks"]' mise.toml
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_success
+    run grep -F 'run = "hk run pre-commit"' mise.toml
+    assert_success
 }
 
 @test "hk init mise still inserts pre-commit without external task configuration" {
     cat > mise.toml <<'TOML'
 [tools]
 hk = "3.1"
-pkl = "0.26"
 TOML
     run hk init --mise
     assert_success

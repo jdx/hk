@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use crate::{Result, env};
 use eyre::eyre;
-use toml_edit::{DocumentMut, Item, Table, value};
+use toml_edit::{DocumentMut, Item, Table, TableLike, value};
 
 /// Default hooks to configure when none are specified
 pub(crate) const DEFAULT_HOOKS: &[&str] = &["pre-commit"];
@@ -128,7 +128,11 @@ impl Init {
         let content = merge_mise_config(original.as_deref().unwrap_or(""), has_file_task)?;
         if original.as_deref() != Some(content.as_str()) {
             xx::file::write(&mise_file, content)?;
-            info!("Updated mise.toml");
+            if original.is_none() {
+                info!("Generated mise.toml");
+            } else {
+                info!("Updated mise.toml");
+            }
         } else {
             info!("mise.toml already contains hk configuration");
         }
@@ -167,23 +171,9 @@ fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
     let tools = document["tools"]
         .as_table_like_mut()
         .ok_or_else(|| eyre!("unsupported mise.toml: [tools] must be a table"))?;
-    let has_hk = tools.iter().any(|(key, _)| {
-        matches!(
-            key,
-            "hk" | "aqua:jdx/hk" | "aqua:hk" | "ubi:jdx/hk" | "cargo:hk" | "github:jdx/hk"
-        )
-    });
+    let has_hk = has_tool(tools, &["hk", "jdx/hk"]);
     if !has_hk {
         tools.insert("hk", value("latest"));
-    }
-    let has_pkl = tools.iter().any(|(key, _)| {
-        matches!(
-            key,
-            "pkl" | "aqua:pkl" | "aqua:apple/pkl" | "ubi:apple/pkl" | "github:apple/pkl"
-        )
-    });
-    if !has_pkl {
-        tools.insert("pkl", value("latest"));
     }
     let has_pre_commit = match document.get("tasks") {
         Some(item) => item
@@ -193,26 +183,83 @@ fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
             .is_some(),
         None => false,
     };
-    let includes = document
-        .get("task_config")
-        .and_then(Item::as_table_like)
-        .and_then(|table| table.get("includes"))
-        .is_some();
-    if !has_pre_commit && !external_pre_commit && !includes {
-        if document.get("tasks").is_none() {
-            document["tasks"] = Item::Table(Table::new());
+    if !has_pre_commit {
+        if external_pre_commit {
+            warn!(
+                "Preserving external mise task configuration for pre-commit; wire hk manually if needed"
+            );
+        } else {
+            if document.get("tasks").is_none() {
+                let mut tasks = Table::new();
+                tasks.set_implicit(true);
+                document["tasks"] = Item::Table(tasks);
+            }
+            let tasks = document["tasks"]
+                .as_table_like_mut()
+                .expect("tasks was validated or created as a table");
+            tasks.insert(
+                "pre-commit",
+                Item::Table(Table::from_iter([("run", value("hk run pre-commit"))])),
+            );
         }
-        let tasks = document["tasks"]
-            .as_table_like_mut()
-            .expect("tasks was validated or created as a table");
-        tasks.insert(
-            "pre-commit",
-            Item::Table(Table::from_iter([("run", value("hk run pre-commit"))])),
-        );
-    } else if !has_pre_commit && (external_pre_commit || includes) {
-        warn!(
-            "Preserving external mise task configuration for pre-commit; wire hk manually if needed"
-        );
     }
     Ok(document.to_string())
+}
+
+fn has_tool(tools: &dyn TableLike, suffixes: &[&str]) -> bool {
+    tools.iter().any(|(key, _)| {
+        suffixes.iter().any(|suffix| {
+            key == *suffix || key.split_once(':').is_some_and(|(_, tool)| tool == *suffix)
+        })
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_config_has_stable_output() {
+        assert_eq!(
+            merge_mise_config("", false).unwrap(),
+            "[tools]\nhk = \"latest\"\n\n[tasks.pre-commit]\nrun = \"hk run pre-commit\"\n"
+        );
+    }
+
+    #[test]
+    fn dotted_tools_and_implicit_tasks_have_stable_output() {
+        assert_eq!(
+            merge_mise_config("tools.node = \"20\"\n", false).unwrap(),
+            "tools.node = \"20\"\ntools.hk = \"latest\"\n\n[tasks.pre-commit]\nrun = \"hk run pre-commit\"\n"
+        );
+    }
+
+    #[test]
+    fn inline_tables_have_stable_output() {
+        assert_eq!(
+            merge_mise_config(
+                "tools = { node = \"20\" }\ntasks = { check = \"custom\" }\n",
+                false,
+            )
+            .unwrap(),
+            "tools = { node = \"20\" , hk = \"latest\" }\ntasks = { check = \"custom\" , pre-commit = { run = \"hk run pre-commit\" } }\n"
+        );
+    }
+
+    #[test]
+    fn scalar_tasks_are_rejected() {
+        assert!(merge_mise_config("tasks = \"custom\"\n", false).is_err());
+    }
+
+    #[test]
+    fn backend_qualified_hk_is_recognized() {
+        let output = merge_mise_config(
+            "[tools]\n\"asdf:hk\" = \"1\"\n\"vfox:jdx/hk\" = \"2\"\n\"asdf:other\" = \"3\"\n",
+            false,
+        )
+        .unwrap();
+        assert!(output.contains("\"asdf:hk\" = \"1\""));
+        assert!(output.contains("\"vfox:jdx/hk\" = \"2\""));
+        assert!(!output.contains("\nhk = \"latest\""));
+    }
 }

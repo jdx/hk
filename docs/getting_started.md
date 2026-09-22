@@ -44,7 +44,7 @@ hk init
 
 hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`.
 
-When `hk init --mise` is used, hk merges only missing `hk`, `pkl`, and (when absent)
+When `hk init --mise` is used, hk merges only missing `hk` and (when absent)
 `pre-commit` entries into an existing `mise.toml`; existing pins, comments, tools, and tasks are preserved.
 `--force` controls `hk.pkl` and does not reset `mise.toml`.
 
