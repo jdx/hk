@@ -24,6 +24,9 @@ class ProjectIndicator {
   /// Glob pattern to match any file
   glob: String?
 
+  /// Whether the glob should match files below the project root
+  recursive: Boolean?
+
   /// Content pattern to grep for (requires file to be set)
   contains: String?
 }

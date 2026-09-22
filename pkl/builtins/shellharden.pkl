@@ -6,8 +6,8 @@ import "./test/helpers.pkl"
   category = "Shell"
   description = "The corrective bash syntax highlighter"
   project_indicators {
-    new { glob = "*.sh" }
-    new { glob = "*.bash" }
+    new { glob = "*.sh"; recursive = true }
+    new { glob = "*.bash"; recursive = true }
   }
 }
 shellharden = new Config.Step {

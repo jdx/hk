@@ -6,7 +6,7 @@ import "./test/helpers.pkl"
   category = "Shell"
   description = "Shell formatter"
   project_indicators {
-    new { glob = "*.sh" }
+    new { glob = "*.sh"; recursive = true }
   }
 }
 shfmt = new Config.Step {

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::builtins::{BUILTINS_META, BuiltinMeta};
 
@@ -11,9 +11,9 @@ pub struct Detection {
 
 /// Detect relevant builtins for the current project based on project_indicators
 pub fn detect_builtins(project_root: &Path) -> Vec<Detection> {
-    let mut detections = Vec::new();
+    let mut recursive_indicators = Vec::new();
+    let mut root_matches = Vec::new();
 
-    let source_files = collect_source_files(project_root);
     for meta in BUILTINS_META {
         // Skip builtins without project indicators
         if meta.project_indicators.is_empty() {
@@ -21,23 +21,31 @@ pub fn detect_builtins(project_root: &Path) -> Vec<Detection> {
         }
 
         // Check if any indicator matches
-        for indicator in meta.project_indicators {
-            if let Some(reason) = matches_indicator(project_root, indicator, &source_files) {
-                detections.push(Detection {
-                    builtin: meta,
-                    reason,
-                });
-                break; // Only add each builtin once
+        for (indicator_index, indicator) in meta.project_indicators.iter().enumerate() {
+            let recursive = indicator.recursive
+                || indicator
+                    .glob
+                    .is_some_and(|pattern| pattern.starts_with("**/"));
+            if recursive {
+                if let Some(pattern) = indicator.glob {
+                    match compile_indicator(pattern, true) {
+                        Some(matcher) => {
+                            recursive_indicators.push((meta, indicator_index, indicator, matcher))
+                        }
+                        None => continue,
+                    }
+                }
+                continue;
+            }
+            if let Some(reason) = matches_root_indicator(project_root, indicator) {
+                root_matches.push((meta, indicator_index, reason));
             }
         }
     }
 
-    detections
-}
-
-/// Collect real source files recursively, honoring repository ignore rules.
-fn collect_source_files(project_root: &Path) -> Vec<PathBuf> {
-    let mut files = Vec::new();
+    // Match recursive source indicators as files are visited. Do not retain the
+    // whole tree: once an indicator is satisfied it no longer needs matching.
+    let mut satisfied = vec![false; recursive_indicators.len()];
     let walker = ignore::WalkBuilder::new(project_root)
         .hidden(false)
         .git_ignore(true)
@@ -49,22 +57,79 @@ fn collect_source_files(project_root: &Path) -> Vec<PathBuf> {
         .filter_entry(|entry| entry.file_name() != ".git")
         .build();
     for entry in walker {
-        match entry {
-            Ok(entry) if entry.file_type().is_some_and(|kind| kind.is_file()) => {
-                files.push(entry.into_path())
+        let Ok(entry) = entry else {
+            if let Err(error) = entry {
+                warn!("Unable to inspect project file: {error}");
             }
-            Ok(_) => {}
-            Err(error) => warn!("Unable to inspect project file: {error}"),
+            continue;
+        };
+        if !entry.file_type().is_some_and(|kind| kind.is_file()) {
+            continue;
+        }
+        let Some(relative) = entry.path().strip_prefix(project_root).ok() else {
+            continue;
+        };
+        for (index, (_, _, _, matcher)) in recursive_indicators.iter().enumerate() {
+            if !satisfied[index] && matcher.is_match(relative) {
+                satisfied[index] = true;
+            }
+        }
+        if satisfied.iter().all(|matched| *matched) {
+            break;
         }
     }
-    files
+    // Select the first matching indicator for each builtin, preserving the
+    // declaration order when a builtin has multiple indicators.
+    let mut detections = Vec::new();
+    for meta in BUILTINS_META {
+        for (indicator_index, indicator) in meta.project_indicators.iter().enumerate() {
+            if let Some((_, _, reason)) = root_matches.iter().find(|(candidate, index, _)| {
+                std::ptr::eq(*candidate, meta) && *index == indicator_index
+            }) {
+                detections.push(Detection {
+                    builtin: meta,
+                    reason: reason.clone(),
+                });
+                break;
+            }
+            if recursive_indicators.iter().enumerate().any(
+                |(recursive_index, (candidate, index, _, _))| {
+                    std::ptr::eq(*candidate, meta)
+                        && *index == indicator_index
+                        && satisfied[recursive_index]
+                },
+            ) {
+                detections.push(Detection {
+                    builtin: meta,
+                    reason: format!("{} files", indicator.glob.unwrap()),
+                });
+                break;
+            }
+        }
+    }
+
+    detections
 }
 
-/// Check if a project indicator matches and return the reason if it does.
-fn matches_indicator(
+fn compile_indicator(pattern: &str, recursive: bool) -> Option<globset::GlobMatcher> {
+    let pattern = if recursive && pattern.starts_with("*.") {
+        format!("**/{pattern}")
+    } else {
+        pattern.to_string()
+    };
+    match globset::Glob::new(&pattern) {
+        Ok(glob) => Some(glob.compile_matcher()),
+        Err(error) => {
+            warn!("Invalid project indicator glob {pattern:?}: {error}");
+            None
+        }
+    }
+}
+
+/// Check a root-only project indicator.
+fn matches_root_indicator(
     project_root: &Path,
     indicator: &crate::builtins::ProjectIndicator,
-    source_files: &[PathBuf],
 ) -> Option<String> {
     if let Some(file) = indicator.file {
         let path = project_root.join(file);
@@ -82,22 +147,12 @@ fn matches_indicator(
         return Some(file.to_string());
     }
     let pattern = indicator.glob?;
-    let pattern = if pattern.starts_with("*.") {
-        format!("**/{pattern}")
-    } else {
-        pattern.to_string()
-    };
-    let matcher = match globset::Glob::new(&pattern) {
-        Ok(glob) => glob.compile_matcher(),
-        Err(error) => {
-            warn!("Invalid project indicator glob {pattern:?}: {error}");
-            return None;
-        }
-    };
-    if source_files.iter().any(|path| {
-        path.strip_prefix(project_root)
-            .ok()
-            .is_some_and(|relative| matcher.is_match(relative))
+    let matcher = compile_indicator(pattern, false)?;
+    if std::fs::read_dir(project_root).is_ok_and(|entries| {
+        entries.flatten().any(|entry| {
+            entry.file_type().is_ok_and(|kind| kind.is_file())
+                && matcher.is_match(entry.file_name())
+        })
     }) {
         Some(format!("{} files", indicator.glob.unwrap()))
     } else {
@@ -207,6 +262,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(tmp.path().join("src/bin")).unwrap();
         std::fs::write(tmp.path().join("src/bin/check.sh"), "echo ok").unwrap();
+        std::fs::write(tmp.path().join("src/bin/check.bash"), "echo ok").unwrap();
         std::fs::create_dir_all(tmp.path().join("ignored")).unwrap();
         std::fs::write(tmp.path().join("ignored/.gitignore"), "*.sh\n").unwrap();
         std::fs::write(tmp.path().join("ignored/skip.sh"), "echo no").unwrap();
@@ -217,6 +273,16 @@ mod tests {
             .map(|d| d.builtin.name)
             .collect();
         assert!(names.contains(&"shellcheck"));
+        assert!(names.contains(&"shellharden"));
+        assert_eq!(
+            names.iter().filter(|name| **name == "shellharden").count(),
+            1
+        );
+        let shellharden = detect_builtins(tmp.path())
+            .into_iter()
+            .find(|detection| detection.builtin.name == "shellharden")
+            .unwrap();
+        assert_eq!(shellharden.reason, "*.sh files");
     }
 
     #[test]
@@ -266,6 +332,32 @@ mod tests {
             .collect();
         assert!(names.contains(&"buildifier_lint"));
         assert!(names.contains(&"buildifier_format"));
+    }
+
+    #[test]
+    fn test_dotnet_manifests_are_root_only_for_all_extensions() {
+        for extension in ["csproj", "vbproj", "sln", "slnx"] {
+            let root = tempfile::tempdir().unwrap();
+            std::fs::write(root.path().join(format!("project.{extension}")), "").unwrap();
+            let names: Vec<_> = detect_builtins(root.path())
+                .iter()
+                .map(|d| d.builtin.name)
+                .collect();
+            assert!(names.contains(&"dotnet_format"), "root .{extension}");
+
+            let nested = tempfile::tempdir().unwrap();
+            std::fs::create_dir(nested.path().join("nested")).unwrap();
+            std::fs::write(
+                nested.path().join(format!("nested/project.{extension}")),
+                "",
+            )
+            .unwrap();
+            let names: Vec<_> = detect_builtins(nested.path())
+                .iter()
+                .map(|d| d.builtin.name)
+                .collect();
+            assert!(!names.contains(&"dotnet_format"), "nested .{extension}");
+        }
     }
 
     #[cfg(unix)]
