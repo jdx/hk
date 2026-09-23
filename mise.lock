@@ -135,7 +135,7 @@ url = "https://github.com/aubepkg/aube/releases/download/v2.2.17/aube-v2.2.17-x8
 signer = "sigstore-oidc:https://github.com/aubepkg/aube/.github/workflows/release-plz.yml"
 
 [[tools.communique]]
-version = "1.4.0"
+version = "1.4.1"
 backend = "github:jdx/communique"
 specifiers = ["latest"]
 
