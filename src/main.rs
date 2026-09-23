@@ -163,8 +163,8 @@ fn handle_panic() {
 
 /// Whether a panic message is std's report of a print macro writing to a closed pipe.
 ///
-/// Compared against the rendered `EPIPE` rather than a literal, because that text comes from
-/// the platform's `strerror` and differs between platforms.
+/// Compared against the rendered OS errors rather than a literal, because that text comes
+/// from the platform's `strerror` and differs between platforms.
 fn is_broken_pipe_print(message: &str) -> bool {
     let Some(error) = ["failed printing to stdout: ", "failed printing to stderr: "]
         .iter()
@@ -172,17 +172,18 @@ fn is_broken_pipe_print(message: &str) -> bool {
     else {
         return false;
     };
-    error == broken_pipe_error().to_string()
+    broken_pipe_errors().any(|broken_pipe| error == broken_pipe.to_string())
 }
 
-/// The OS error a write to a closed pipe fails with, as std renders it in a print panic.
-fn broken_pipe_error() -> io::Error {
+/// The OS errors a write to a closed pipe fails with, as std renders them in a print panic.
+fn broken_pipe_errors() -> impl Iterator<Item = io::Error> {
     #[cfg(unix)]
-    let code = libc::EPIPE;
-    // ERROR_NO_DATA, which std maps to `ErrorKind::BrokenPipe`.
+    let codes = [libc::EPIPE];
+    // ERROR_BROKEN_PIPE, which a write to an anonymous pipe whose reader closed reports, and
+    // ERROR_NO_DATA, for a named pipe being closed. std maps both to `ErrorKind::BrokenPipe`.
     #[cfg(windows)]
-    let code = 232;
-    io::Error::from_raw_os_error(code)
+    let codes = [109, 232];
+    codes.into_iter().map(io::Error::from_raw_os_error)
 }
 
 /// Terminate as if killed by SIGPIPE: no panic report, no core dump, and a status (141 in a
@@ -202,7 +203,7 @@ fn exit_on_broken_pipe() -> ! {
 #[cfg(test)]
 mod tests {
     use super::{
-        broken_pipe_error, is_bare_builtins_invocation, is_broken_pipe_print,
+        broken_pipe_errors, is_bare_builtins_invocation, is_broken_pipe_print,
         runtime_worker_threads, write_builtins,
     };
     use std::ffi::OsString;
@@ -238,19 +239,28 @@ mod tests {
 
     #[test]
     fn recognizes_only_broken_pipe_print_panics() {
-        let epipe = broken_pipe_error();
-        assert_eq!(epipe.kind(), io::ErrorKind::BrokenPipe);
-        assert!(is_broken_pipe_print(&format!(
-            "failed printing to stdout: {epipe}"
-        )));
-        assert!(is_broken_pipe_print(&format!(
-            "failed printing to stderr: {epipe}"
-        )));
+        #[cfg(unix)]
+        let expected_codes = vec![libc::EPIPE];
+        #[cfg(windows)]
+        let expected_codes = vec![109, 232];
+        let codes: Vec<_> = broken_pipe_errors()
+            .map(|error| error.raw_os_error().unwrap())
+            .collect();
+        assert_eq!(codes, expected_codes);
+        for broken_pipe in broken_pipe_errors() {
+            assert_eq!(broken_pipe.kind(), io::ErrorKind::BrokenPipe);
+            assert!(is_broken_pipe_print(&format!(
+                "failed printing to stdout: {broken_pipe}"
+            )));
+            assert!(is_broken_pipe_print(&format!(
+                "failed printing to stderr: {broken_pipe}"
+            )));
+            assert!(!is_broken_pipe_print(&format!("{broken_pipe}")));
+        }
         let other = io::Error::from_raw_os_error(28);
         assert!(!is_broken_pipe_print(&format!(
             "failed printing to stdout: {other}"
         )));
-        assert!(!is_broken_pipe_print(&format!("{epipe}")));
     }
 
     #[test]
