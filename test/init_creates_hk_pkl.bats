@@ -9,6 +9,39 @@ teardown() {
     _common_teardown
 }
 
+@test "hk init detects nested source files" {
+    mkdir -p src/scripts
+    echo 'echo ok' > src/scripts/check.sh
+    run hk init
+    assert_success
+    assert_file_contains hk.pkl "Builtins.shellcheck"
+}
+
+@test "hk init ignores ignored source files" {
+    echo 'ignored/' > .gitignore
+    mkdir -p ignored
+    echo 'echo no' > ignored/check.sh
+    run hk init
+    assert_success
+    run grep 'Builtins.shellcheck' hk.pkl
+    assert_failure
+}
+
+@test "hk init keeps .NET project indicators at the root" {
+    mkdir -p nested
+    touch nested/project.csproj
+    run hk init
+    assert_success
+    run grep 'Builtins.dotnet_format' hk.pkl
+    assert_failure
+
+    touch project.csproj
+    run hk init --force
+    assert_success
+    assert_output --partial "dotnet_format (*.csproj files)"
+    assert_file_contains hk.pkl "Builtins.dotnet_format"
+}
+
 @test "hk init creates hk.pkl" {
     hk init
     assert_file_contains hk.pkl "steps {"
@@ -506,37 +539,4 @@ TOML
     assert_success
     run grep -F '[tasks.pre-commit]' mise.toml
     assert_success
-}
-
-@test "hk init detects nested source files" {
-    mkdir -p src/scripts
-    echo 'echo ok' > src/scripts/check.sh
-    run hk init
-    assert_success
-    assert_file_contains hk.pkl "Builtins.shellcheck"
-}
-
-@test "hk init ignores ignored source files" {
-    echo 'ignored/' > .gitignore
-    mkdir -p ignored
-    echo 'echo no' > ignored/check.sh
-    run hk init
-    assert_success
-    run grep 'Builtins.shellcheck' hk.pkl
-    assert_failure
-}
-
-@test "hk init keeps .NET project indicators at the root" {
-    mkdir -p nested
-    touch nested/project.csproj
-    run hk init
-    assert_success
-    run grep 'Builtins.dotnet_format' hk.pkl
-    assert_failure
-
-    touch project.csproj
-    run hk init --force
-    assert_success
-    assert_output --partial "dotnet_format (*.csproj files)"
-    assert_file_contains hk.pkl "Builtins.dotnet_format"
 }
