@@ -167,7 +167,33 @@ hooks {
 ```
 
 Each `generated/*.pkl` file contributes its own `STEPS`, so a build script can
-add or remove step definitions without editing `hk.pkl`.
+add or remove step definitions without editing `hk.pkl`:
+
+```pkl
+// generated/prettier.pkl
+import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+
+STEPS: Mapping<String, Config.Step> = new {
+  ["prettier"] {
+    glob = List("*.md")
+    check = "prettier --check {{files}}"
+  }
+}
+```
+
+Letting each file name its own steps keeps the keys independent of the file
+names. An imported module is not itself a `Step`, so read a typed property such
+as `STEPS` back out rather than assigning the module into `steps` directly.
+
+`import*` also works as an expression, which binds the mapping to a local
+instead of a module-level name:
+
+```pkl
+local generated = import*("generated/*.pkl")
+```
+
+A pattern matching nothing produces an empty mapping, and the file holding the
+import is skipped when the pattern would match it.
 
 The pattern is resolved against the filesystem on every run: adding, removing,
 or renaming a file the pattern matches takes effect on the next hk command, with
