@@ -25,16 +25,13 @@ onUnmounted(() => clearTimeout(copyTimer));
   <div class="hk-home">
     <section class="hk-hero" aria-labelledby="hero-title">
       <div class="hk-hero-copy">
-        <p class="hk-eyebrow">
-          <img src="/logo-small.png" width="32" height="32" alt="" /> Git hooks
-          · linting · formatting
-        </p>
         <h1 id="hero-title">
-          Your checks.<br /><span>In parallel.</span><br />Before you commit.
+          Git hooks for linters and formatters
         </h1>
         <p class="hk-intro">
-          hk runs your linters and formatters together, coordinating access to
-          each file so fixes don’t overwrite one another.
+          Configure your checks once and run them before commits, while you work,
+          or in CI. hk runs independent steps in parallel and coordinates changes
+          to shared files.
         </p>
         <div class="hk-actions">
           <a class="hk-button hk-button-primary" href="/getting_started"
@@ -104,7 +101,9 @@ hooks {
               ><span class="hk-lane-fix">fix</span>
             </div>
           </div>
-          <p>Reads can overlap. Writes wait for access to the same file.</p>
+          <p>
+            Checks can read a file concurrently; fixes wait for exclusive access.
+          </p>
         </div>
         <a
           class="hk-preview-link"
@@ -116,10 +115,7 @@ hooks {
 
     <section class="hk-principles" aria-label="How hk works">
       <article>
-        <span class="hk-section-number" aria-hidden="true"
-          >01 / CONCURRENCY</span
-        >
-        <h2>Keep your tools busy.</h2>
+        <h2>Parallel execution</h2>
         <p>
           Read/write locks coordinate overlapping steps. Diff and file-list
           checks let hk narrow the work that needs an exclusive lock.
@@ -127,10 +123,7 @@ hooks {
         <a href="/why-hk">How execution works →</a>
       </article>
       <article>
-        <span class="hk-section-number" aria-hidden="true"
-          >02 / STAGED CHANGES</span
-        >
-        <h2>Keep partial commits useful.</h2>
+        <h2>Partial commits</h2>
         <p>
           Stash unstaged work before fixing the staged version of a file, then
           restore it after the hook finishes.
@@ -138,10 +131,7 @@ hooks {
         <a href="/hooks#stashing-and-partial-commits">Understand stashing →</a>
       </article>
       <article>
-        <span class="hk-section-number" aria-hidden="true"
-          >03 / YOUR TOOLCHAIN</span
-        >
-        <h2>Bring the linters you use.</h2>
+        <h2>Linter configuration</h2>
         <p>
           Start with built-in configurations or write a shell command. Use mise
           or your existing package manager to provide the tools.
@@ -152,8 +142,7 @@ hooks {
 
     <section class="hk-workflow" aria-labelledby="workflow-title">
       <div>
-        <p class="hk-eyebrow">From your editor to CI</p>
-        <h2 id="workflow-title">A familiar command.<br />At every step.</h2>
+        <h2 id="workflow-title">Run checks locally and in CI</h2>
         <p>
           Define your steps once in Pkl. Reuse them when you check a change, fix
           your working tree, or validate the whole repository.
@@ -183,7 +172,7 @@ hooks {
     </section>
 
     <section class="hk-doc-links" aria-labelledby="docs-title">
-      <h2 id="docs-title">Make it fit your project.</h2>
+      <h2 id="docs-title">Configuration and reference</h2>
       <div>
         <a href="/configuration"
           ><strong>Configuration <span aria-hidden="true">↗</span></strong

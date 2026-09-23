@@ -576,6 +576,23 @@
             }
           },
           {
+            "name": "junit-xml",
+            "usage": "--junit-xml <PATH>",
+            "help": "Write step results as a JUnit XML report",
+            "help_first_line": "Write step results as a JUnit XML report",
+            "short": [],
+            "long": ["junit-xml"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
             "name": "no-fail-fast",
             "usage": "--no-fail-fast",
             "help": "Continue on failures (opposite of --fail-fast)",
@@ -1299,6 +1316,23 @@
             "arg": {
               "name": "FROM_REF",
               "usage": "<FROM_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "junit-xml",
+            "usage": "--junit-xml <PATH>",
+            "help": "Write step results as a JUnit XML report",
+            "help_first_line": "Write step results as a JUnit XML report",
+            "short": [],
+            "long": ["junit-xml"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
               "required": true,
               "double_dash": "Optional",
               "hide": false
@@ -2127,6 +2161,23 @@
                 }
               },
               {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
                 "help": "Continue on failures (opposite of --fail-fast)",
@@ -2615,6 +2666,23 @@
                 }
               },
               {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
                 "help": "Continue on failures (opposite of --fail-fast)",
@@ -3070,6 +3138,23 @@
                 "arg": {
                   "name": "FROM_REF",
                   "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -3546,6 +3631,23 @@
                 }
               },
               {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
                 "help": "Continue on failures (opposite of --fail-fast)",
@@ -4016,6 +4118,23 @@
                 }
               },
               {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
                 "help": "Continue on failures (opposite of --fail-fast)",
@@ -4471,6 +4590,23 @@
                 "arg": {
                   "name": "FROM_REF",
                   "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -4956,6 +5092,23 @@
                 }
               },
               {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
                 "help": "Continue on failures (opposite of --fail-fast)",
@@ -5429,6 +5582,23 @@
                 "arg": {
                   "name": "FROM_REF",
                   "usage": "<FROM_REF>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
                   "required": true,
                   "double_dash": "Optional",
                   "hide": false
@@ -5923,6 +6093,23 @@
                 }
               },
               {
+                "name": "junit-xml",
+                "usage": "--junit-xml <PATH>",
+                "help": "Write step results as a JUnit XML report",
+                "help_first_line": "Write step results as a JUnit XML report",
+                "short": [],
+                "long": ["junit-xml"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "PATH",
+                  "usage": "<PATH>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false
+                }
+              },
+              {
                 "name": "no-fail-fast",
                 "usage": "--no-fail-fast",
                 "help": "Continue on failures (opposite of --fail-fast)",
@@ -6382,6 +6569,23 @@
             "arg": {
               "name": "FROM_REF",
               "usage": "<FROM_REF>",
+              "required": true,
+              "double_dash": "Optional",
+              "hide": false
+            }
+          },
+          {
+            "name": "junit-xml",
+            "usage": "--junit-xml <PATH>",
+            "help": "Write step results as a JUnit XML report",
+            "help_first_line": "Write step results as a JUnit XML report",
+            "short": [],
+            "long": ["junit-xml"],
+            "hide": false,
+            "global": false,
+            "arg": {
+              "name": "PATH",
+              "usage": "<PATH>",
               "required": true,
               "double_dash": "Optional",
               "hide": false
@@ -8051,7 +8255,7 @@
     "sources": {},
     "files": []
   },
-  "version": "2.0.1",
+  "version": "2.1.0",
   "usage": "",
   "complete": {
     "directory": {

@@ -2,7 +2,7 @@
 min_usage_version "4.0"
 name hk
 bin hk
-version "2.0.1"
+version "2.1.0"
 unknown_flags error
 subcommand_required #true
 flagset hook-options {
@@ -42,6 +42,9 @@ flagset hook-options {
     flag --from-hook help="Invoked by an installed git hook — gracefully exit 0 when no hk.pkl is present or the event isn't defined. Set automatically by `hk install`." hide=#true
     flag --from-ref help="Select files changed since this reference; optionally pair with --to-ref" {
         arg <FROM_REF>
+    }
+    flag --junit-xml help="Write step results as a JUnit XML report" {
+        arg <PATH>
     }
     flag --no-fail-fast help="Continue on failures (opposite of --fail-fast)" overrides=--fail-fast
     flag --no-stage help="Disable auto-staging of fixed files" overrides=--stage

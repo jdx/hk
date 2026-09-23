@@ -16,23 +16,9 @@ PR titles must use Conventional Commits; use the same format for intermediate co
 
 ## mbx build cache
 
-`mise install` installs [mbx](https://mr-boxington.jdx.dev). The normal
-`mise run build`, `mise run test:cargo`, and `mise run lint` workflows activate
-its transparent Cargo wrapper and therefore use the cache while invoking Cargo
-normally. Standalone Cargo commands require an activated mise shell. To bypass
-mbx without skipping or weakening a check, prefix the
-equivalent Cargo command with `MBX_DISABLE=1`:
-
-```sh
-MBX_DISABLE=1 cargo build
-MBX_DISABLE=1 cargo test --all --all-features
-MBX_DISABLE=1 cargo clippy --manifest-path Cargo.toml --quiet -- -D warnings
-CARGO_BUILD_WARNINGS=deny MBX_DISABLE=1 cargo check --quiet
-```
-
-If bypassed Cargo succeeds where the wrapper fails, or mbx introduces a papercut, please start a
-[mr-boxington Discussion](https://github.com/jdx/mr-boxington/discussions).
-Include the repository and commit, operating system, `mbx --version`,
-`mbx doctor`, and both commands and their output. Before posting, redact
-secrets, absolute cache paths, remote URLs, namespaces, and other sensitive or
-identifying details.
+mise wraps `cargo` with [mbx](https://mr-boxington.jdx.dev), so compiled work is
+shared across checkouts. `mise run` tasks and `mise exec -- cargo …` use the
+wrapper; plain `cargo` does too once mise is [activated in your
+shell](https://mise.jdx.dev/getting-started.html#activate-mise). Builds that set
+`MBX_DISABLE=1` skip the cache, except `mise run perf:build`, which calls `mbx`
+directly to reuse the perf cache.

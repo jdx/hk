@@ -61,15 +61,130 @@ impl Config {
     /// Returns local file paths that the config depends on and whether the
     /// module graph contains imports whose bytes hk cannot hash.
     fn analyze_imports(path: &Path) -> Result<ImportAnalysis> {
-        let local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
+        let mut local_paths: IndexSet<PathBuf> = block_on_pklr(pklr::analyze_imports_async(path))?
             .map(|v| v.into_iter().collect())
             .map_err(|e| eyre::eyre!("{e}"))?;
+        // Glob imports expand to whatever matched at analysis time, so the
+        // patterns themselves have to be recorded to notice later additions.
+        let glob_imports = Self::collect_glob_imports(path, &local_paths);
+        let glob_matches = Self::expand_glob_imports(&glob_imports);
+        // pklr only expands globs written as import declarations, so add the
+        // matches here to cover the expression form too.
+        local_paths.extend(glob_matches.iter().cloned());
         let has_untracked_imports = Self::has_untracked_imports_in_pkl_sources(path, &local_paths)?;
+        let sources_digest = Self::sources_digest(path, &local_paths);
 
         Ok(ImportAnalysis {
             local_paths,
             has_untracked_imports,
+            glob_imports,
+            glob_matches,
+            sources_digest,
         })
+    }
+
+    /// Digest the contents of every source in the module graph.
+    ///
+    /// The imports cache is keyed on the root config file alone, so without
+    /// this an imported module could change its own imports — gaining a glob
+    /// pattern, or importing a new file — and the recorded module graph would
+    /// keep describing the config as it used to be.
+    fn sources_digest(path: &Path, local_paths: &IndexSet<PathBuf>) -> String {
+        let mut entries: Vec<String> = std::iter::once(path)
+            .chain(local_paths.iter().map(PathBuf::as_path))
+            .map(|path| match std::fs::read(path) {
+                Ok(contents) => format!("{}:{}", path.display(), hash::hash_to_str(&contents)),
+                Err(_) => format!("{}:<missing>", path.display()),
+            })
+            .collect();
+        entries.sort();
+        entries.dedup();
+        hash::hash_to_str(&entries)
+    }
+
+    /// Walk the module graph rooted at `path` and collect every local glob
+    /// import, as a (directory the pattern resolves against, pattern) pair.
+    ///
+    /// `known_paths` seeds the walk with what pklr already resolved; the walk
+    /// still follows imports itself so globs reached only through an
+    /// expression-form glob import are found too.
+    fn collect_glob_imports(path: &Path, known_paths: &IndexSet<PathBuf>) -> Vec<GlobImport> {
+        let mut globs: IndexSet<GlobImport> = IndexSet::new();
+        let mut visited: IndexSet<PathBuf> = IndexSet::new();
+        let mut queue: Vec<PathBuf> = std::iter::once(path.to_path_buf())
+            .chain(known_paths.iter().cloned())
+            .collect();
+
+        while let Some(path) = queue.pop() {
+            let key = path.canonicalize().unwrap_or_else(|_| path.clone());
+            if !visited.insert(key) {
+                continue;
+            }
+            let Some(uris) = Self::collect_import_uris(&path) else {
+                continue;
+            };
+            let base = path.parent().unwrap_or(Path::new(".")).to_path_buf();
+            for uri in uris {
+                if uri.contains("://") {
+                    continue;
+                }
+                if uri.contains('*') {
+                    let glob = GlobImport {
+                        base: base.clone(),
+                        pattern: uri,
+                    };
+                    queue.extend(glob.expand());
+                    globs.insert(glob);
+                } else {
+                    let import_path = base.join(&uri);
+                    if import_path.is_file() {
+                        queue.push(import_path);
+                    }
+                }
+            }
+        }
+
+        globs.into_iter().collect()
+    }
+
+    /// Read a pkl file and return the URIs of its `amends`/`import`/`import*`
+    /// clauses, or `None` if it cannot be read or lexed. A file hk cannot lex
+    /// is left to the evaluator to report; for cache freshness it is skipped.
+    fn collect_import_uris(path: &Path) -> Option<Vec<String>> {
+        use pklr::lexer::TokenKind;
+
+        let source = std::fs::read_to_string(path).ok()?;
+        let tokens = pklr::lexer::lex_named(&source, &path.display().to_string()).ok()?;
+        let mut uris = Vec::new();
+        let mut i = 0;
+        while i < tokens.len() {
+            if !matches!(
+                tokens[i].kind,
+                TokenKind::KwAmends | TokenKind::KwImport | TokenKind::KwImportStar
+            ) {
+                i += 1;
+                continue;
+            }
+            // Both `import* "glob"` and the expression form `import*("glob")`.
+            let mut j = i + 1;
+            if matches!(tokens.get(j).map(|t| &t.kind), Some(TokenKind::LParen)) {
+                j += 1;
+            }
+            if let Some(TokenKind::StringLit(uri)) = tokens.get(j).map(|t| &t.kind) {
+                uris.push(uri.clone());
+            }
+            i = j + 1;
+        }
+        Some(uris)
+    }
+
+    /// Expand every glob import against the filesystem, sorted and deduplicated
+    /// so the result can be compared against a previously recorded expansion.
+    fn expand_glob_imports(globs: &[GlobImport]) -> Vec<PathBuf> {
+        let mut matches: Vec<PathBuf> = globs.iter().flat_map(GlobImport::expand).collect();
+        matches.sort();
+        matches.dedup();
+        matches
     }
 
     fn has_untracked_imports_in_pkl_sources(
@@ -89,15 +204,73 @@ impl Config {
         Ok(false)
     }
 
+    /// Whether a pkl source may pull in a module hk cannot hash: a remote URI
+    /// reached through `amends`, `extends`, `import`, or `import*`.
+    ///
+    /// `import` and `import*` are expressions as well as module declarations, so
+    /// the keyword can appear anywhere rather than only at the start of a line,
+    /// and its URI can sit on a later line. Each keyword is therefore matched to
+    /// the string literal that follows it across the whole source. This is a
+    /// conservative scan: a false positive only costs cache sharing.
     fn source_may_reference_untracked_import(source: &str) -> bool {
-        source.lines().map(str::trim_start).any(|line| {
-            !line.starts_with("//")
-                && ["amends", "extends", "import", "import*"]
-                    .iter()
-                    .any(|keyword| line.starts_with(keyword))
-                && ["\"http://", "\"https://", "\"package://"]
-                    .iter()
-                    .any(|scheme| line.contains(scheme))
+        let source = source
+            .lines()
+            .filter(|line| !line.trim_start().starts_with("//"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        ["amends", "extends", "import"]
+            .iter()
+            .any(|keyword| Self::references_untracked_module(&source, keyword))
+    }
+
+    /// Skip whitespace and pkl comments, which may sit between a module keyword
+    /// and its URI: `import(/* why */ "https://…")`.
+    fn skip_pkl_trivia(source: &str) -> &str {
+        let mut rest = source.trim_start();
+        loop {
+            rest = if let Some(after) = rest.strip_prefix("//") {
+                match after.find('\n') {
+                    Some(end) => &after[end + 1..],
+                    None => "",
+                }
+            } else if let Some(after) = rest.strip_prefix("/*") {
+                match after.find("*/") {
+                    Some(end) => &after[end + 2..],
+                    None => "",
+                }
+            } else {
+                return rest;
+            }
+            .trim_start();
+        }
+    }
+
+    fn references_untracked_module(source: &str, keyword: &str) -> bool {
+        source.match_indices(keyword).any(|(start, _)| {
+            let follows_identifier = source[..start]
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphanumeric() || c == '_');
+            if follows_identifier {
+                return false;
+            }
+            // `import*` as well as `import`, then the URI: either written
+            // directly, or as the argument of the expression form. Whitespace
+            // and comments here span newlines, so a wrapped or annotated
+            // expression still matches.
+            let rest = source[start + keyword.len()..].trim_start_matches('*');
+            let rest = Self::skip_pkl_trivia(rest);
+            let rest = Self::skip_pkl_trivia(rest.strip_prefix('(').unwrap_or(rest));
+            // Plain, custom-delimited (`#"..."#`), or multiline (`"""`) string
+            // literal. Apple Pkl rejects a multiline URI, but pklr parses one,
+            // so treat it as a module reference rather than miss it.
+            let Some(uri) = rest.trim_start_matches('#').strip_prefix('"') else {
+                return false;
+            };
+            let uri = uri.trim_start_matches('"').trim_start();
+            ["http://", "https://", "package://"]
+                .iter()
+                .any(|scheme| uri.starts_with(scheme))
         })
     }
 
@@ -272,9 +445,20 @@ impl Config {
                 .with_fresh_files(vec![path.clone()])
                 .build::<ImportAnalysis>();
 
-            let import_analysis = imports_cache_mgr
+            let mut import_analysis = imports_cache_mgr
                 .get_or_try_init(|| Self::analyze_imports(&path))?
                 .clone();
+            // The imports cache is keyed on the config file alone, so an edit
+            // anywhere else in the module graph — or a glob that now matches a
+            // different set of files — has to be re-analyzed even though
+            // hk.pkl itself is unchanged.
+            if import_analysis.is_stale(&path) {
+                tracing::event!(tracing::Level::INFO, "cache.imports_changed");
+                import_analysis = Self::analyze_imports(&path)?;
+                if let Err(err) = imports_cache_mgr.write(&import_analysis) {
+                    warn!("failed to write imports cache file: {err:#}");
+                }
+            }
             let has_untracked_imports = import_analysis.has_untracked_imports
                 || Self::has_untracked_imports_in_pkl_sources(&path, &import_analysis.local_paths)?;
 
@@ -1131,6 +1315,47 @@ impl IntoIterator for StringOrList {
 struct ImportAnalysis {
     local_paths: IndexSet<PathBuf>,
     has_untracked_imports: bool,
+    /// Glob imports found anywhere in the module graph, kept so a later run can
+    /// re-expand them and notice files that were added or removed since.
+    #[serde(default)]
+    glob_imports: Vec<GlobImport>,
+    /// What `glob_imports` expanded to when this analysis ran.
+    #[serde(default)]
+    glob_matches: Vec<PathBuf>,
+    /// Digest of every source in the module graph when this analysis ran.
+    #[serde(default)]
+    sources_digest: String,
+}
+
+impl ImportAnalysis {
+    /// True when this cached analysis no longer describes what is on disk, so
+    /// the module graph has to be walked again.
+    ///
+    /// Two things can go stale without the root config file changing: a source
+    /// somewhere in the graph edited its own imports, and a glob pattern now
+    /// matches a different set of files. Both checks only re-read what the
+    /// analysis already recorded.
+    fn is_stale(&self, path: &Path) -> bool {
+        if self.sources_digest != Config::sources_digest(path, &self.local_paths) {
+            return true;
+        }
+        !self.glob_imports.is_empty()
+            && Config::expand_glob_imports(&self.glob_imports) != self.glob_matches
+    }
+}
+
+/// An `import*` glob pattern together with the directory it resolves against
+/// (the importing module's directory).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+struct GlobImport {
+    base: PathBuf,
+    pattern: String,
+}
+
+impl GlobImport {
+    fn expand(&self) -> Vec<PathBuf> {
+        pklr::eval::expand_glob(&self.base, &self.pattern).unwrap_or_default()
+    }
 }
 
 #[cfg(test)]
@@ -1139,6 +1364,56 @@ mod tests {
     use crate::hook::{Hook, StepOrGroup};
     use crate::step::Step;
     use crate::step_group::StepGroup;
+
+    #[test]
+    fn untracked_import_detection_covers_declarations_and_expressions() {
+        let untracked = [
+            r#"amends "https://example.com/Config.pkl""#,
+            r#"extends "package://example.com/pkg@1#/Base.pkl""#,
+            r#"import "https://example.com/Step.pkl" as Step"#,
+            r#"import* "https://example.com/steps/*.pkl" as Steps"#,
+            // Expression forms, which pklr allows anywhere an expression is allowed.
+            r#"local remote = import("https://example.com/Step.pkl")"#,
+            r#"value = import("http://example.com/Step.pkl").check"#,
+            r#"steps = import*("package://example.com/pkg@1#/steps/*.pkl")"#,
+            r##"  local remote = import(#"https://example.com/Step.pkl"#)"##,
+            // The URI may sit on a later line than the keyword.
+            "local remote = import(\n    \"https://example.com/Step.pkl\"\n)",
+            "import*(\n  \"package://example.com/pkg@1#/steps/*.pkl\"\n)",
+            "amends\n  \"https://example.com/Config.pkl\"",
+            // Comments may sit between the keyword and its URI.
+            r#"a = import(/* reason */ "https://example.com/Step.pkl").check"#,
+            "b = import( // reason\n  \"https://example.com/Step.pkl\").check",
+            r#"import /* why */ "https://example.com/Step.pkl" as Step"#,
+            // pklr parses a multiline URI even though Apple Pkl rejects one.
+            "a = import(\"\"\"\n  https://example.com/Step.pkl\n  \"\"\")",
+        ];
+        for source in untracked {
+            assert!(
+                Config::source_may_reference_untracked_import(source),
+                "expected untracked import in {source:?}"
+            );
+        }
+
+        let tracked = [
+            r#"amends "./Config.pkl""#,
+            r#"import "steps/lint.pkl" as Lint"#,
+            r#"local generated = import*("generated/*.pkl")"#,
+            r#"// amends "https://example.com/Config.pkl""#,
+            // A property whose name merely ends in the keyword.
+            r#"myimport = "https://example.com/Step.pkl""#,
+            // A remote URL that is not reached through a module reference.
+            r#"check = "curl https://example.com/lint.sh""#,
+            // A remote URI that is not the module reference's own argument.
+            "import \"steps/lint.pkl\" as Lint\ncheck = \"https://example.com\"",
+        ];
+        for source in tracked {
+            assert!(
+                !Config::source_may_reference_untracked_import(source),
+                "expected no untracked import in {source:?}"
+            );
+        }
+    }
 
     fn step(name: &str) -> Step {
         Step {
@@ -1619,5 +1894,115 @@ mod tests {
         assert_eq!(found[0].1, base.join("sub/hk.pkl"));
 
         std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn collect_import_uris_reads_declaration_and_expression_glob_imports() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("hk.pkl");
+        std::fs::write(
+            &path,
+            concat!(
+                "amends \"./base.pkl\"\n",
+                "import \"package://example.com/pkg@1.0.0#/Builtins.pkl\"\n",
+                "import \"./other.pkl\"\n",
+                "import* \"generated/*.pkl\" as generated\n",
+                "local extra = import*(\"extra/**/*.pkl\")\n",
+            ),
+        )
+        .unwrap();
+
+        assert_eq!(
+            Config::collect_import_uris(&path).unwrap(),
+            [
+                "./base.pkl",
+                "package://example.com/pkg@1.0.0#/Builtins.pkl",
+                "./other.pkl",
+                "generated/*.pkl",
+                "extra/**/*.pkl",
+            ]
+        );
+    }
+
+    /// Build an analysis describing `root` plus `local_paths` as they are on
+    /// disk right now, the way a fresh `analyze_imports` would record them.
+    fn analysis(root: &Path, local_paths: &[PathBuf], globs: Vec<GlobImport>) -> ImportAnalysis {
+        let mut local_paths: IndexSet<PathBuf> = local_paths.iter().cloned().collect();
+        let glob_matches = Config::expand_glob_imports(&globs);
+        local_paths.extend(glob_matches.iter().cloned());
+        ImportAnalysis {
+            sources_digest: Config::sources_digest(root, &local_paths),
+            local_paths,
+            has_untracked_imports: false,
+            glob_imports: globs,
+            glob_matches,
+        }
+    }
+
+    #[test]
+    fn is_stale_tracks_glob_matches_appearing_and_disappearing() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hk.pkl");
+        std::fs::write(&root, "").unwrap();
+        let generated = dir.path().join("generated");
+        std::fs::create_dir(&generated).unwrap();
+        std::fs::write(generated.join("one.pkl"), "").unwrap();
+
+        let glob = GlobImport {
+            base: dir.path().to_path_buf(),
+            pattern: "generated/*.pkl".to_string(),
+        };
+        let mut a = analysis(&root, &[], vec![glob]);
+        assert_eq!(a.glob_matches.len(), 1);
+        assert!(!a.is_stale(&root));
+
+        std::fs::write(generated.join("two.pkl"), "").unwrap();
+        assert!(a.is_stale(&root));
+
+        a = analysis(&root, &[], a.glob_imports);
+        assert!(!a.is_stale(&root));
+
+        // A file that does not match the pattern is ignored.
+        std::fs::write(generated.join("three.txt"), "").unwrap();
+        assert!(!a.is_stale(&root));
+
+        std::fs::remove_file(generated.join("two.pkl")).unwrap();
+        assert!(a.is_stale(&root));
+    }
+
+    #[test]
+    fn is_stale_tracks_edits_to_transitive_sources() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hk.pkl");
+        let other = dir.path().join("other.pkl");
+        std::fs::write(&root, "import \"./other.pkl\"\n").unwrap();
+        std::fs::write(&other, "STEPS = 1\n").unwrap();
+
+        let a = analysis(&root, std::slice::from_ref(&other), vec![]);
+        assert!(!a.is_stale(&root));
+
+        // An imported module that edits its own imports — here gaining a glob
+        // the analysis never recorded — must re-run the walk.
+        std::fs::write(&other, "import* \"generated/*.pkl\" as g\n").unwrap();
+        assert!(a.is_stale(&root));
+
+        // So must the root, and a source disappearing entirely.
+        let a = analysis(&root, std::slice::from_ref(&other), vec![]);
+        std::fs::write(&root, "import \"./other.pkl\"\n// changed\n").unwrap();
+        assert!(a.is_stale(&root));
+
+        let a = analysis(&root, std::slice::from_ref(&other), vec![]);
+        std::fs::remove_file(&other).unwrap();
+        assert!(a.is_stale(&root));
+    }
+
+    #[test]
+    fn unchanged_analysis_without_glob_imports_is_not_stale() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hk.pkl");
+        std::fs::write(&root, "amends \"./base.pkl\"\n").unwrap();
+
+        let a = analysis(&root, &[], vec![]);
+        assert!(!a.is_stale(&root));
     }
 }

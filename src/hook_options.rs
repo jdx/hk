@@ -58,6 +58,9 @@ pub(crate) struct HookOptions {
     /// Select files changed since this reference; optionally pair with --to-ref
     #[usage(long)]
     pub from_ref: Option<String>,
+    /// Write step results as a JUnit XML report
+    #[usage(long, value_name = "PATH", value_hint = ValueHint::FilePath)]
+    pub junit_xml: Option<PathBuf>,
     /// Continue on failures (opposite of --fail-fast)
     #[usage(long, overrides = "--fail-fast")]
     pub no_fail_fast: bool,
@@ -204,7 +207,10 @@ impl HookOptions {
                 0,
                 vec![],
                 "no project configuration found for installed hook",
-                self.sarif.as_deref(),
+                crate::structured_output::ReportPaths {
+                    sarif: self.sarif.as_deref(),
+                    junit: self.junit_xml.as_deref(),
+                },
             )?;
             return Ok(());
         }
@@ -243,7 +249,10 @@ impl HookOptions {
                         0,
                         vec![],
                         "hook disabled by configuration",
-                        self.sarif.as_deref(),
+                        crate::structured_output::ReportPaths {
+                            sarif: self.sarif.as_deref(),
+                            junit: self.junit_xml.as_deref(),
+                        },
                     )?;
                     return Ok(());
                 }
@@ -269,7 +278,10 @@ impl HookOptions {
                         0,
                         vec![],
                         "hook not defined in project configuration",
-                        self.sarif.as_deref(),
+                        crate::structured_output::ReportPaths {
+                            sarif: self.sarif.as_deref(),
+                            junit: self.junit_xml.as_deref(),
+                        },
                     )?;
                     return Ok(());
                 }
