@@ -117,14 +117,19 @@ teardown() {
     cat > mise.toml <<'TOML'
 [tools]
 custom = "latest"
+hk = "latest"
 
 [tasks.custom]
 run = "custom-command"
+
+[tasks.pre-commit]
+run = "hk run pre-commit"
 TOML
+    cp mise.toml mise.before
     run hk init --mise
     assert_success
-    assert_file_contains mise.toml 'custom = "latest"'
-    assert_file_contains mise.toml 'run = "custom-command"'
+    run cmp mise.before mise.toml
+    assert_success
 }
 
 @test "hk init detects multiple project types" {
