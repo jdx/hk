@@ -27,6 +27,8 @@ mise run build
 
 The build task generates the builtin registry before compiling hk. Development tasks put the local debug binary on `PATH`.
 
+This repository tracks mise package-manager sidecars under `.mise/locks/`. If mise reports a missing dependency sidecar and suggests `mise lock`, run `mise lock <tool>` from the repository root (for example, `mise lock npm:prettier`) and include the generated `.mise/locks/` updates in your change. Then retry the failed mise command.
+
 ## Run focused checks
 
 | Task                   | Command                              |
