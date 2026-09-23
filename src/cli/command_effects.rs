@@ -155,7 +155,7 @@ mod tests {
                     .find(|command| command.cmd.name == segment)
                     .unwrap_or_else(|| panic!("no `hk {path}`"));
             }
-            assert_eq!(cmd.effect, Some(effect), "wrong effect for `hk {path}`");
+            assert_eq!(cmd.extra.effect, Some(effect), "wrong effect for `hk {path}`");
         }
         // Anything in UNCLASSIFIED must be left unset, not defaulted.
         let root = Cli::spec().root;
@@ -164,7 +164,7 @@ mod tests {
                 .iter()
                 .find(|command| command.cmd.name == "check")
                 .expect("check")
-                .effect,
+                .extra.effect,
             None
         );
         assert_eq!(
@@ -172,7 +172,7 @@ mod tests {
                 .iter()
                 .find(|command| command.cmd.name == "fix")
                 .expect("fix")
-                .effect,
+                .extra.effect,
             None
         );
     }
@@ -223,7 +223,7 @@ mod tests {
             .iter()
             .find(|command| command.cmd.name == "completion")
             .expect("completion");
-        assert_eq!(completion.effect, Some(Read));
+        assert_eq!(completion.extra.effect, Some(Read));
         let flag = |name: &str| {
             completion
                 .flags
@@ -231,10 +231,10 @@ mod tests {
                 .find(|f| f.flag.name == name)
                 .unwrap_or_else(|| panic!("`hk completion` has no --{name}"))
         };
-        assert_eq!(flag("install").effect, Some(Write));
+        assert_eq!(flag("install").extra.effect, Some(Write));
         // `--force` only widens which file an install may replace, so it writes for that reason
         // rather than one of its own.
-        assert_eq!(flag("force").effect, Some(Write));
+        assert_eq!(flag("force").extra.effect, Some(Write));
     }
 
     #[test]
