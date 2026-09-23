@@ -9,6 +9,15 @@ teardown() {
     _common_teardown
 }
 
+@test "hk init detects native Biome and ESLint configs" {
+    echo '{}' > biome.jsonc
+    echo 'export default []' > eslint.config.mjs
+    run hk init
+    assert_success
+    assert_file_contains hk.pkl "Builtins.biome"
+    assert_file_contains hk.pkl "Builtins.eslint"
+}
+
 @test "hk init creates hk.pkl" {
     hk init
     assert_file_contains hk.pkl "steps {"
@@ -104,6 +113,25 @@ teardown() {
     assert_file_contains mise.toml "hk = \"latest\""
     run grep -E '(^|:)pkl[" ]*=' mise.toml
     assert_failure
+}
+
+@test "hk init --mise preserves existing mise.toml" {
+    cat > mise.toml <<'TOML'
+[tools]
+custom = "latest"
+hk = "latest"
+
+[tasks.custom]
+run = "custom-command"
+
+[tasks.pre-commit]
+run = "hk run pre-commit"
+TOML
+    cp mise.toml mise.before
+    run hk init --mise
+    assert_success
+    run cmp mise.before mise.toml
+    assert_success
 }
 
 @test "hk init detects multiple project types" {
