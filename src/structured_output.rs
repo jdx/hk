@@ -160,6 +160,14 @@ pub fn emit_step_completed(format: OutputFormat, name: &str, status: &str) -> Re
     )
 }
 
+/// File-based report formats to write alongside the primary structured
+/// output, keyed by CLI flag (`--sarif`, `--junit-xml`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ReportPaths<'a> {
+    pub sarif: Option<&'a Path>,
+    pub junit: Option<&'a Path>,
+}
+
 pub fn emit_run(
     format: OutputFormat,
     hook: &str,
@@ -167,7 +175,7 @@ pub fn emit_run(
     duration_ms: u128,
     ctx: &HookContext,
     failure: Option<String>,
-    sarif_path: Option<&Path>,
+    reports: ReportPaths,
 ) -> Result<()> {
     let failed = ctx.failed_steps.lock().unwrap();
     let allowed_failures = ctx.allowed_failure_steps.lock().unwrap();
@@ -273,13 +281,16 @@ pub fn emit_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = sarif_path {
+    if let Some(path) = reports.sarif {
         let diagnostics = result
             .steps
             .iter()
             .flat_map(|step| step.diagnostics.iter().cloned())
             .collect::<Vec<_>>();
         diagnostics::write_sarif(path, &diagnostics)?;
+    }
+    if let Some(path) = reports.junit {
+        write_junit(path, &result)?;
     }
     Ok(())
 }
@@ -293,7 +304,7 @@ pub fn emit_noop_run(
     duration_ms: u128,
     steps: Vec<(String, String)>,
     reason: &str,
-    sarif_path: Option<&Path>,
+    reports: ReportPaths,
 ) -> Result<()> {
     let result = RunResult {
         schema_version: 1,
@@ -323,8 +334,11 @@ pub fn emit_noop_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = sarif_path {
+    if let Some(path) = reports.sarif {
         diagnostics::write_sarif(path, &[])?;
+    }
+    if let Some(path) = reports.junit {
+        write_junit(path, &result)?;
     }
     Ok(())
 }
@@ -335,7 +349,7 @@ pub fn emit_error_run(
     started_at: String,
     duration_ms: u128,
     failure: String,
-    sarif_path: Option<&Path>,
+    reports: ReportPaths,
 ) -> Result<()> {
     let result = RunResult {
         schema_version: 1,
@@ -351,8 +365,11 @@ pub fn emit_error_run(
     if format != OutputFormat::Human {
         emit_result(format, &result)?;
     }
-    if let Some(path) = sarif_path {
+    if let Some(path) = reports.sarif {
         diagnostics::write_sarif(path, &[])?;
+    }
+    if let Some(path) = reports.junit {
+        write_junit(path, &result)?;
     }
     Ok(())
 }
@@ -395,6 +412,151 @@ fn write_event(writer: &mut impl Write, event: &impl Serialize) -> Result<()> {
     Ok(())
 }
 
+/// Write the run result as a JUnit XML report, treating each hk step as a
+/// single test case. This deliberately does not parse tool-specific output —
+/// it only reports the status, duration, and captured stdout/stderr that hk
+/// already tracks for every step. See
+/// <https://github.com/jdx/hk/discussions/1215>.
+fn write_junit(path: &Path, run: &RunResult) -> Result<()> {
+    use std::fmt::Write as _;
+
+    let classname = format!("hk.{}", run.hook);
+    let mut cases = String::new();
+    let mut failures = 0usize;
+    let mut errors = 0usize;
+    let mut skipped = 0usize;
+
+    for step in &run.steps {
+        let time = step.duration_ms as f64 / 1000.0;
+        writeln!(
+            cases,
+            "    <testcase name=\"{}\" classname=\"{}\" time=\"{:.3}\">",
+            xml_escape(&step.name),
+            xml_escape(&classname),
+            time,
+        )
+        .unwrap();
+        if step.failure_allowed {
+            cases.push_str(
+                "      <properties><property name=\"failure_allowed\" value=\"true\"/></properties>\n",
+            );
+        }
+        match step.status {
+            // hk treats an allowed failure as accepted and the run succeeds
+            // despite it, but JUnit has no such concept: any <failure> makes
+            // standard consumers report the run failed regardless of the
+            // failure_allowed property, so this must not count as a failure.
+            "failed" if step.failure_allowed => {
+                if let Some(output) = step.output.as_deref().filter(|o| !o.is_empty()) {
+                    writeln!(
+                        cases,
+                        "      <system-out>{}</system-out>",
+                        xml_escape(output)
+                    )
+                    .unwrap();
+                }
+            }
+            "failed" => {
+                failures += 1;
+                writeln!(
+                    cases,
+                    "      <failure message=\"step failed\">{}</failure>",
+                    xml_escape(step.output.as_deref().unwrap_or_default()),
+                )
+                .unwrap();
+            }
+            "cancelled" => {
+                skipped += 1;
+                writeln!(
+                    cases,
+                    "      <skipped message=\"run cancelled before step completed\"/>",
+                )
+                .unwrap();
+            }
+            "skipped" => {
+                skipped += 1;
+                writeln!(
+                    cases,
+                    "      <skipped message=\"{}\"/>",
+                    xml_escape(step.skip_reason.as_deref().unwrap_or("skipped")),
+                )
+                .unwrap();
+            }
+            _ => {
+                if let Some(output) = step.output.as_deref().filter(|o| !o.is_empty()) {
+                    writeln!(
+                        cases,
+                        "      <system-out>{}</system-out>",
+                        xml_escape(output)
+                    )
+                    .unwrap();
+                }
+            }
+        }
+        cases.push_str("    </testcase>\n");
+    }
+
+    // A run can fail without any step reporting it: before any step is
+    // planned (for example, `git status` failing during setup), or after
+    // every step finishes (for example, `fail_on_fix` rejecting a fix that
+    // modified files, or a stash restore failing). Without a synthetic test
+    // case here, a JUnit consumer would see zero failures/errors and treat
+    // the report as passing, hiding a real failure.
+    let mut tests = run.steps.len();
+    if failures == 0
+        && let Some(failure) = &run.failure
+    {
+        tests += 1;
+        errors += 1;
+        writeln!(
+            cases,
+            "    <testcase name=\"{}\" classname=\"hk\" time=\"{:.3}\">\n      <error message=\"{}\"/>\n    </testcase>",
+            xml_escape(&run.hook),
+            run.duration_ms as f64 / 1000.0,
+            xml_escape(failure),
+        )
+        .unwrap();
+    }
+
+    let time = run.duration_ms as f64 / 1000.0;
+    let mut xml = String::new();
+    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    writeln!(
+        xml,
+        "<testsuites name=\"hk\" tests=\"{tests}\" failures=\"{failures}\" errors=\"{errors}\" skipped=\"{skipped}\" time=\"{time:.3}\">"
+    )
+    .unwrap();
+    writeln!(
+        xml,
+        "  <testsuite name=\"{}\" tests=\"{tests}\" failures=\"{failures}\" errors=\"{errors}\" skipped=\"{skipped}\" time=\"{time:.3}\" timestamp=\"{}\">",
+        xml_escape(&run.hook),
+        xml_escape(&run.started_at),
+    )
+    .unwrap();
+    xml.push_str(&cases);
+    xml.push_str("  </testsuite>\n</testsuites>\n");
+
+    xx::file::write(path, xml.as_bytes())?;
+    Ok(())
+}
+
+fn xml_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&apos;"),
+            // Strip control characters that are not valid in XML 1.0 text.
+            c if (c as u32) < 0x20 && c != '\n' && c != '\t' && c != '\r' => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 fn run_status(failure: Option<&str>, cancelled: bool) -> &'static str {
     if failure.is_some() {
         "failed"
@@ -407,12 +569,134 @@ fn run_status(failure: Option<&str>, cancelled: bool) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::run_status;
+    use super::*;
 
     #[test]
     fn cancellation_is_a_top_level_terminal_status() {
         assert_eq!(run_status(None, true), "cancelled");
         assert_eq!(run_status(Some("step failed"), true), "failed");
         assert_eq!(run_status(None, false), "passed");
+    }
+
+    fn step(name: &str, status: &'static str) -> StepResult {
+        StepResult {
+            name: name.to_string(),
+            status,
+            failure_allowed: false,
+            duration_ms: 10,
+            effects: vec![],
+            diagnostics: vec![],
+            parse_warnings: vec![],
+            output_kind: None,
+            output: None,
+            skip_reason: None,
+        }
+    }
+
+    #[test]
+    fn junit_report_counts_each_step_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("junit.xml");
+        let mut failed = step("lint", "failed");
+        failed.output = Some("boom <bad>".to_string());
+        let mut skipped = step("format", "skipped");
+        skipped.skip_reason = Some("no matching files".to_string());
+        let cancelled = step("clippy", "cancelled");
+        let run = RunResult {
+            schema_version: 1,
+            kind: "run_result",
+            hook: "check".to_string(),
+            status: "failed",
+            started_at: "2024-01-01T00:00:00Z".to_string(),
+            duration_ms: 250,
+            failure: Some("step failed".to_string()),
+            reason: None,
+            steps: vec![step("build", "passed"), failed, skipped, cancelled],
+        };
+        write_junit(&path, &run).unwrap();
+        let xml = std::fs::read_to_string(&path).unwrap();
+
+        assert!(xml.contains(
+            "<testsuite name=\"check\" tests=\"4\" failures=\"1\" errors=\"0\" skipped=\"2\""
+        ));
+        assert!(xml.contains("<testcase name=\"lint\""));
+        // The captured output is XML-escaped rather than injected raw.
+        assert!(xml.contains("boom &lt;bad&gt;"));
+        assert!(xml.contains("<skipped message=\"no matching files\"/>"));
+        // A step cancelled because a sibling failed never ran to completion,
+        // so it's reported as skipped rather than as a failure/error.
+        assert!(xml.contains("<skipped message=\"run cancelled before step completed\"/>"));
+    }
+
+    #[test]
+    fn junit_report_adds_synthetic_case_for_setup_failures() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("junit.xml");
+        let run = RunResult {
+            schema_version: 1,
+            kind: "run_result",
+            hook: "check".to_string(),
+            status: "failed",
+            started_at: "2024-01-01T00:00:00Z".to_string(),
+            duration_ms: 5,
+            failure: Some("git status failed".to_string()),
+            reason: None,
+            steps: vec![],
+        };
+        write_junit(&path, &run).unwrap();
+        let xml = std::fs::read_to_string(&path).unwrap();
+
+        assert!(xml.contains("tests=\"1\" failures=\"0\" errors=\"1\""));
+        assert!(xml.contains("<error message=\"git status failed\"/>"));
+    }
+
+    #[test]
+    fn junit_report_adds_synthetic_case_for_post_step_failures() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("junit.xml");
+        let run = RunResult {
+            schema_version: 1,
+            kind: "run_result",
+            hook: "fix".to_string(),
+            status: "failed",
+            started_at: "2024-01-01T00:00:00Z".to_string(),
+            duration_ms: 20,
+            // e.g. `fail_on_fix` rejecting a fix, or a stash restore failing
+            // after every step already finished successfully.
+            failure: Some("fix modified files, aborting".to_string()),
+            reason: None,
+            steps: vec![step("format", "passed")],
+        };
+        write_junit(&path, &run).unwrap();
+        let xml = std::fs::read_to_string(&path).unwrap();
+
+        assert!(xml.contains("tests=\"2\" failures=\"0\" errors=\"1\""));
+        assert!(xml.contains("<error message=\"fix modified files, aborting\"/>"));
+    }
+
+    #[test]
+    fn junit_report_does_not_count_allowed_failures() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("junit.xml");
+        let mut allowed = step("flaky", "failed");
+        allowed.failure_allowed = true;
+        allowed.output = Some("transient error".to_string());
+        let run = RunResult {
+            schema_version: 1,
+            kind: "run_result",
+            hook: "check".to_string(),
+            status: "passed",
+            started_at: "2024-01-01T00:00:00Z".to_string(),
+            duration_ms: 10,
+            failure: None,
+            reason: None,
+            steps: vec![allowed],
+        };
+        write_junit(&path, &run).unwrap();
+        let xml = std::fs::read_to_string(&path).unwrap();
+
+        assert!(xml.contains("tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\""));
+        assert!(xml.contains("<system-out>transient error</system-out>"));
+        assert!(!xml.contains("<failure"));
     }
 }

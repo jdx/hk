@@ -1,8 +1,8 @@
 ---
 layout: page
 sidebar: false
-title: Git hooks and checks that run together
-description: Run linters and formatters in parallel with file locking, staged-change stashing, reusable Pkl configuration, and mise integration.
+title: Git hooks for linters and formatters
+description: Run linters and formatters before commits, while you work, and in CI. hk runs independent steps in parallel and coordinates changes to shared files.
 ---
 
 <HomePage />
