@@ -9,6 +9,15 @@ teardown() {
     _common_teardown
 }
 
+@test "hk init detects native Biome and ESLint configs" {
+    echo '{}' > biome.jsonc
+    echo 'export default []' > eslint.config.mjs
+    run hk init
+    assert_success
+    assert_file_contains hk.pkl "Builtins.biome"
+    assert_file_contains hk.pkl "Builtins.eslint"
+}
+
 @test "hk init creates hk.pkl" {
     hk init
     assert_file_contains hk.pkl "steps {"
