@@ -155,7 +155,11 @@ mod tests {
                     .find(|command| command.cmd.name == segment)
                     .unwrap_or_else(|| panic!("no `hk {path}`"));
             }
-            assert_eq!(cmd.extra.effect, Some(effect), "wrong effect for `hk {path}`");
+            assert_eq!(
+                cmd.extra.effect,
+                Some(effect),
+                "wrong effect for `hk {path}`"
+            );
         }
         // Anything in UNCLASSIFIED must be left unset, not defaulted.
         let root = Cli::spec().root;
@@ -164,7 +168,8 @@ mod tests {
                 .iter()
                 .find(|command| command.cmd.name == "check")
                 .expect("check")
-                .extra.effect,
+                .extra
+                .effect,
             None
         );
         assert_eq!(
@@ -172,7 +177,8 @@ mod tests {
                 .iter()
                 .find(|command| command.cmd.name == "fix")
                 .expect("fix")
-                .extra.effect,
+                .extra
+                .effect,
             None
         );
     }
