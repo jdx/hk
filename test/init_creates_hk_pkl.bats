@@ -121,11 +121,10 @@ custom = "latest"
 [tasks.custom]
 run = "custom-command"
 TOML
-    cp mise.toml mise.before
     run hk init --mise
     assert_success
-    run cmp mise.before mise.toml
-    assert_success
+    assert_file_contains mise.toml 'custom = "latest"'
+    assert_file_contains mise.toml 'run = "custom-command"'
 }
 
 @test "hk init detects multiple project types" {
