@@ -354,17 +354,78 @@ TOML
     assert_failure
 }
 
-@test "hk init mise preserves included pre-commit toml task" {
+@test "hk init mise inserts with unrelated included toml" {
     cat > mise.toml <<'TOML'
 [task_config]
 includes = ["tasks"]
 TOML
     mkdir -p tasks
     cat > tasks/pre-commit.toml <<'TOML'
+[build]
+run = "echo build"
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_success
+}
+
+@test "hk init mise preserves pre-commit in included task map" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks"]
+TOML
+    mkdir -p tasks
+    cat > tasks/hooks.toml <<'TOML'
+[pre-commit]
 run = "echo included"
 TOML
     run hk init --mise
     assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise preserves nested included task map" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks"]
+TOML
+    mkdir -p tasks/nested
+    cat > tasks/nested/hooks.toml <<'TOML'
+[pre-commit]
+run = "echo included"
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise warns for malformed included task map" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks"]
+TOML
+    mkdir -p tasks
+    printf '[broken\n' > tasks/hooks.toml
+    run hk init --mise
+    assert_success
+    assert_output --partial "Unable to inspect mise task includes"
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
+@test "hk init mise warns for symlinked included task" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks"]
+TOML
+    mkdir -p real-tasks tasks
+    ln -s "../real-tasks" tasks/link
+    run hk init --mise
+    assert_success
+    assert_output --partial "Unable to inspect mise task includes"
     run grep -F '[tasks.pre-commit]' mise.toml
     assert_failure
 }

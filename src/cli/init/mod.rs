@@ -196,11 +196,7 @@ fn included_pre_commit(root: &std::path::Path, input: &str) -> Result<Option<boo
         let path = root.join(path);
         if path.is_dir() {
             let task = path.join("pre-commit");
-            for candidate in [
-                task.clone(),
-                task.join("_default"),
-                path.join("pre-commit.toml"),
-            ] {
+            for candidate in [task.clone(), task.join("_default")] {
                 match std::fs::metadata(candidate) {
                     Ok(metadata) if metadata.is_file() => return Ok(Some(true)),
                     Ok(_) => {}
@@ -211,6 +207,16 @@ fn included_pre_commit(root: &std::path::Path, input: &str) -> Result<Option<boo
                         );
                         return Ok(Some(true));
                     }
+                }
+            }
+            match scan_included_task_dir(&path) {
+                Ok(true) => return Ok(Some(true)),
+                Ok(false) => {}
+                Err(_) => {
+                    warn!(
+                        "Unable to inspect mise task includes; preserving external task configuration"
+                    );
+                    return Ok(Some(true));
                 }
             }
             continue;
@@ -238,6 +244,44 @@ fn included_pre_commit(root: &std::path::Path, input: &str) -> Result<Option<boo
         }
     }
     Ok(Some(false))
+}
+
+fn scan_included_task_dir(path: &std::path::Path) -> std::io::Result<bool> {
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let path = entry.path();
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let metadata = std::fs::symlink_metadata(&path)?;
+        if metadata.file_type().is_symlink() {
+            return Err(std::io::Error::other("symlinked mise task include"));
+        }
+        if metadata.is_dir() {
+            if scan_included_task_dir(&path)? {
+                return Ok(true);
+            }
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("toml") {
+            let filename = name.to_string_lossy();
+            if filename == "mise.toml"
+                || (filename.starts_with("mise.") && filename.ends_with(".toml"))
+            {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "mise config in task include",
+                ));
+            }
+            let content = std::fs::read_to_string(&path)?;
+            let document = content.parse::<DocumentMut>().map_err(|error| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string())
+            })?;
+            if document.get("pre-commit").is_some() {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// Merge hk's minimal mise entries without replacing user configuration.
