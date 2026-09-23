@@ -8,13 +8,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[allow(deprecated)]
+use rmcp::model::ServerInfo;
 use rmcp::{
     ErrorData, Peer, RoleServer, ServerHandler, ServiceExt,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolResult, ContentBlock, Implementation, ListResourcesResult, MetaObject,
         PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerConfig,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -879,8 +881,9 @@ impl HkMcpServer {
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for HkMcpServer {
-    fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(
+    #[allow(deprecated)]
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
