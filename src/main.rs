@@ -146,14 +146,65 @@ fn handle_epipe() {
 fn handle_panic() {
     let default_panic = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
+        // `print!`/`eprint!` panic when the reader has gone away (`hk --version | true`, a
+        // cancelled completion). Release builds abort on panic, so without this every closed
+        // pipe dumps core. Leave the way a process killed by SIGPIPE would instead, and before
+        // flushing progress, which would write to the same closed pipe.
+        if panic_info
+            .payload_as_str()
+            .is_some_and(is_broken_pipe_print)
+        {
+            exit_on_broken_pipe();
+        }
         clx::progress::flush();
         default_panic(panic_info);
     }));
 }
 
+/// Whether a panic message is std's report of a print macro writing to a closed pipe.
+///
+/// Compared against the rendered `EPIPE` rather than a literal, because that text comes from
+/// the platform's `strerror` and differs between platforms.
+fn is_broken_pipe_print(message: &str) -> bool {
+    let Some(error) = ["failed printing to stdout: ", "failed printing to stderr: "]
+        .iter()
+        .find_map(|prefix| message.strip_prefix(prefix))
+    else {
+        return false;
+    };
+    error == broken_pipe_error().to_string()
+}
+
+/// The OS error a write to a closed pipe fails with, as std renders it in a print panic.
+fn broken_pipe_error() -> io::Error {
+    #[cfg(unix)]
+    let code = libc::EPIPE;
+    // ERROR_NO_DATA, which std maps to `ErrorKind::BrokenPipe`.
+    #[cfg(windows)]
+    let code = 232;
+    io::Error::from_raw_os_error(code)
+}
+
+/// Terminate as if killed by SIGPIPE: no panic report, no core dump, and a status (141 in a
+/// shell) that does not read as success, since a check may have been failing when the pipe
+/// closed.
+fn exit_on_broken_pipe() -> ! {
+    #[cfg(unix)]
+    // SAFETY: restoring the default disposition and raising a signal on the current process
+    // have no memory-safety preconditions.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+        libc::raise(libc::SIGPIPE);
+    }
+    std::process::exit(128 + 13);
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_bare_builtins_invocation, runtime_worker_threads, write_builtins};
+    use super::{
+        broken_pipe_error, is_bare_builtins_invocation, is_broken_pipe_print,
+        runtime_worker_threads, write_builtins,
+    };
     use std::ffi::OsString;
     use std::io::{self, Write};
 
@@ -183,6 +234,23 @@ mod tests {
     fn bare_builtins_treats_broken_pipe_as_success() {
         write_builtins(FailingWriter(io::ErrorKind::BrokenPipe)).unwrap();
         assert!(write_builtins(FailingWriter(io::ErrorKind::Other)).is_err());
+    }
+
+    #[test]
+    fn recognizes_only_broken_pipe_print_panics() {
+        let epipe = broken_pipe_error();
+        assert_eq!(epipe.kind(), io::ErrorKind::BrokenPipe);
+        assert!(is_broken_pipe_print(&format!(
+            "failed printing to stdout: {epipe}"
+        )));
+        assert!(is_broken_pipe_print(&format!(
+            "failed printing to stderr: {epipe}"
+        )));
+        let other = io::Error::from_raw_os_error(28);
+        assert!(!is_broken_pipe_print(&format!(
+            "failed printing to stdout: {other}"
+        )));
+        assert!(!is_broken_pipe_print(&format!("{epipe}")));
     }
 
     #[test]
