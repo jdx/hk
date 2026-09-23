@@ -354,6 +354,21 @@ TOML
     assert_failure
 }
 
+@test "hk init mise preserves included pre-commit toml task" {
+    cat > mise.toml <<'TOML'
+[task_config]
+includes = ["tasks"]
+TOML
+    mkdir -p tasks
+    cat > tasks/pre-commit.toml <<'TOML'
+run = "echo included"
+TOML
+    run hk init --mise
+    assert_success
+    run grep -F '[tasks.pre-commit]' mise.toml
+    assert_failure
+}
+
 @test "hk init mise suppresses insertion for unreadable include" {
     cat > mise.toml <<'TOML'
 [task_config]
@@ -361,8 +376,22 @@ includes = ["missing.toml"]
 TOML
     run hk init --mise
     assert_success
+    assert_output --partial "Unable to inspect mise task includes"
     run grep -F '[tasks.pre-commit]' mise.toml
     assert_failure
+}
+
+@test "hk init mise rejects scalar task_config before force writes" {
+    cat > mise.toml <<'TOML'
+task_config = "invalid"
+TOML
+    echo sentinel > hk.pkl
+    cp mise.toml mise.before
+    run hk init --mise --force
+    assert_failure
+    assert_output --partial "unsupported mise.toml: [task_config] must be a table"
+    cmp mise.before mise.toml
+    assert_file_contains hk.pkl sentinel
 }
 
 @test "hk init mise suppresses insertion for dynamic include" {

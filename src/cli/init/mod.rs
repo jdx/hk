@@ -171,11 +171,13 @@ fn included_pre_commit(root: &std::path::Path, input: &str) -> Result<Option<boo
             .parse::<DocumentMut>()
             .map_err(|error| eyre!("invalid mise.toml: {error}"))?
     };
-    let Some(includes) = document
-        .get("task_config")
-        .and_then(Item::as_table_like)
-        .and_then(|table| table.get("includes"))
-    else {
+    let Some(task_config) = document.get("task_config") else {
+        return Ok(None);
+    };
+    let task_config = task_config
+        .as_table_like()
+        .ok_or_else(|| eyre!("unsupported mise.toml: [task_config] must be a table"))?;
+    let Some(includes) = task_config.get("includes") else {
         return Ok(None);
     };
     let Some(includes) = includes.as_array() else {
@@ -194,7 +196,11 @@ fn included_pre_commit(root: &std::path::Path, input: &str) -> Result<Option<boo
         let path = root.join(path);
         if path.is_dir() {
             let task = path.join("pre-commit");
-            for candidate in [task.clone(), task.join("_default")] {
+            for candidate in [
+                task.clone(),
+                task.join("_default"),
+                path.join("pre-commit.toml"),
+            ] {
                 match std::fs::metadata(candidate) {
                     Ok(metadata) if metadata.is_file() => return Ok(Some(true)),
                     Ok(_) => {}
