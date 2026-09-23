@@ -13,8 +13,8 @@ Pkl evaluates configuration. hk then runs the commands that configuration define
 Every project configuration should amend hk’s base schema:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Builtins.pkl"
 ```
 
 `amends` supplies the allowed properties and classes, such as `Step`, `Hook`, and `Group`. `import` makes another module available under its name, here `Builtins`.
@@ -144,6 +144,60 @@ hooks {
 ```
 
 This is a local amendment of an existing project configuration. Save it as `hk.local.pkl` and keep it out of version control. The selected file amends `hk.pkl`; hk does not independently merge those two project files. See [local overrides](/configuration#hk-local-pkl).
+
+## Import many files at once
+
+`import*` is a glob import: it binds every file matching the pattern, keyed by
+its path relative to the importing module.
+
+```pkl
+amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+
+import* "generated/*.pkl" as generated
+
+hooks {
+  ["check"] {
+    steps = new Mapping<String, Step> {
+      for (_, mod in generated) {
+        ...mod.STEPS
+      }
+    }
+  }
+}
+```
+
+Each `generated/*.pkl` file contributes its own `STEPS`, so a build script can
+add or remove step definitions without editing `hk.pkl`:
+
+```pkl
+// generated/prettier.pkl
+import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+
+STEPS: Mapping<String, Config.Step> = new {
+  ["prettier"] {
+    glob = List("*.md")
+    check = "prettier --check {{files}}"
+  }
+}
+```
+
+Letting each file name its own steps keeps the keys independent of the file
+names. An imported module is not itself a `Step`, so read a typed property such
+as `STEPS` back out rather than assigning the module into `steps` directly.
+
+`import*` also works as an expression, which binds the mapping to a local
+instead of a module-level name:
+
+```pkl
+local generated = import*("generated/*.pkl")
+```
+
+A pattern matching nothing produces an empty mapping, and the file holding the
+import is skipped when the pattern would match it.
+
+The pattern is resolved against the filesystem on every run: adding, removing,
+or renaming a file the pattern matches takes effect on the next hk command, with
+no need to touch `hk.pkl` or run `hk cache clear`.
 
 ## Validate and inspect
 

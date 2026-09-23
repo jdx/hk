@@ -81,14 +81,13 @@ jobs:
           cache: false
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
-        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
+        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - run: mise run build
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -104,10 +103,9 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
         with:
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - name: Build
         run: mbx build --features git2/vendored-libgit2,git2/vendored-openssl
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -141,10 +139,14 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
-      # Build outside the retry window: the bats tasks depend on `build`, so
-      # a cold first attempt spends ~160s compiling against its 10-minute
-      # budget and times out on macOS before the suite finishes.
-      - run: mise run build
+      # The downloaded artifact is this commit's hk, so the bats task runs with
+      # --skip-deps instead of recompiling it (a cold cargo build here cost
+      # 77-183s per job). Its other dependencies run up front, outside the
+      # retry window: the generated pkl files the tests read, and the builtin
+      # tool-stub preinstall.
+      - run: |
+          mise run pkl:gen
+          mise run test:bats:setup
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -154,7 +156,7 @@ jobs:
           # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
           # build, so the retry is here for genuine flakes.
           max_attempts: 2
-          command: mise run test:bats:libgit2
+          command: mise run --skip-deps test:bats:libgit2
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -203,10 +205,14 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
-      # Build outside the retry window: the bats tasks depend on `build`, so
-      # a cold first attempt spends ~160s compiling against its 10-minute
-      # budget and times out on macOS before the suite finishes.
-      - run: mise run build
+      # The downloaded artifact is this commit's hk, so the bats task runs with
+      # --skip-deps instead of recompiling it (a cold cargo build here cost
+      # 77-183s per job). Its other dependencies run up front, outside the
+      # retry window: the generated pkl files the tests read, and the builtin
+      # tool-stub preinstall.
+      - run: |
+          mise run pkl:gen
+          mise run test:bats:setup
       - name: mise run test:bats:nolibgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -216,7 +222,7 @@ jobs:
           # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
           # build, so the retry is here for genuine flakes.
           max_attempts: 2
-          command: mise run test:bats:nolibgit2
+          command: mise run --skip-deps test:bats:nolibgit2
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -265,10 +271,14 @@ jobs:
           path: target/debug
       - run: chmod +x target/debug/hk
       - run: mise x -- aube install
-      # Build outside the retry window: the bats tasks depend on `build`, so
-      # a cold first attempt spends ~160s compiling against its 10-minute
-      # budget and times out on macOS before the suite finishes.
-      - run: mise run build
+      # The downloaded artifact is this commit's hk, so the bats task runs with
+      # --skip-deps instead of recompiling it (a cold cargo build here cost
+      # 77-183s per job). Its other dependencies run up front, outside the
+      # retry window: the generated pkl files the tests read, and the builtin
+      # tool-stub preinstall.
+      - run: |
+          mise run pkl:gen
+          mise run test:bats:setup
       - name: mise run test:bats:nogit
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -278,7 +288,7 @@ jobs:
           # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
           # build, so the retry is here for genuine flakes.
           max_attempts: 2
-          command: mise run test:bats:nogit
+          command: mise run --skip-deps test:bats:nogit
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -320,14 +330,13 @@ jobs:
           cache: false
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
-        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
+        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - run: mise x -- aube install
       - name: mise run test:cargo
         run: mise run test:cargo
@@ -355,14 +364,13 @@ jobs:
           cache: false
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
-        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547 # v1.6.1
+        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
         with:
           path: ${{ runner.os == 'macOS' && '~/Library/Caches/mbx' || '~/.cache/mbx' }}
-      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
         with:
           backend: ${{ inputs.trusted && 'local' || 'github' }}
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - run: mise run msrv
   ci-windows:
     needs: build-windows
@@ -375,10 +383,9 @@ jobs:
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
-      - uses: jdx/mr-boxington-action@7234d3dd1a6ca8f6c381eea8e4dfb03f18fcf777 # v1.3.0
+      - uses: jdx/mr-boxington-action@867fc530102eec5b756075d70d850dc8330d2272 # v1.4.0
         with:
-          version: 1.8.1
-          cache-generation: ci-v1
+          cache-generation: ci-v2
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: hk-windows-latest

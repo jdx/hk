@@ -25,7 +25,7 @@ mise install
 mise run build
 ```
 
-The build task generates the builtin registry before compiling hk. See the [build cache guidance](https://github.com/jdx/hk/blob/main/CONTRIBUTING.md#mbx-build-cache) if the Cargo wrapper needs diagnosis. Development tasks put the local debug binary on `PATH`.
+The build task generates the builtin registry before compiling hk. Development tasks put the local debug binary on `PATH`.
 
 ## Run focused checks
 
