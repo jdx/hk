@@ -11,6 +11,8 @@ struct ProjectIndicator {
     #[serde(default)]
     glob: Option<String>,
     #[serde(default)]
+    recursive: Option<bool>,
+    #[serde(default)]
     contains: Option<String>,
 }
 
@@ -122,9 +124,13 @@ fn generate_builtins_meta(meta: &[BuiltinMeta], all_names: &BTreeSet<String>) ->
                     .as_ref()
                     .map(|s| format!("Some(\"{}\")", escape_string(s)))
                     .unwrap_or_else(|| "None".to_string());
+                let recursive = ind
+                    .recursive
+                    .map(|value| if value { "true" } else { "false" })
+                    .unwrap_or("false");
                 format!(
-                    "ProjectIndicator {{ file: {}, glob: {}, contains: {} }}",
-                    file, glob, contains
+                    "ProjectIndicator {{ file: {}, glob: {}, contains: {}, recursive: {} }}",
+                    file, glob, contains, recursive
                 )
             })
             .collect();
@@ -155,6 +161,8 @@ pub struct ProjectIndicator {{
     pub glob: Option<&'static str>,
     /// Content to grep for in the file (requires file to be set)
     pub contains: Option<&'static str>,
+    /// Whether the glob should match files below the project root
+    pub recursive: bool,
 }}
 
 /// Metadata for a builtin configuration

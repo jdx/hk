@@ -42,7 +42,7 @@ From the root of your repository, generate a configuration:
 hk init
 ```
 
-hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`.
+hk detects tools from project files and creates `hk.pkl`. Review its steps before running them. To select tools and hooks yourself, use `hk init --interactive`. Source-file indicators are discovered recursively with ignore rules and without following symlinks; `.gitignore` applies inside Git repositories and `.ignore` also works outside Git. .NET manifest globs and configuration indicators remain root-level, so nested workspaces are not implicitly activated.
 
 When `hk init --mise` is used, hk merges only missing `hk` and (when absent)
 `pre-commit` entries into an existing `mise.toml`; existing pins, comments, tools, and tasks are preserved.

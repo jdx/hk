@@ -6,7 +6,7 @@ import "./test/helpers.pkl"
   category = "Shell"
   description = "Shell script analyzer"
   project_indicators {
-    new { glob = "*.sh" }
+    new { glob = "*.sh"; recursive = true }
   }
 }
 shellcheck = new Config.Step {
