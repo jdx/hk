@@ -635,57 +635,57 @@ url = "https://github.com/jdx/mr-boxington/releases/download/v1.14.0/mbx-x86_64-
 signer = "sigstore-oidc:https://github.com/jdx/mr-boxington/.github/workflows/release.yml"
 
 [[tools.node]]
-version = "26.8.2"
+version = "26.9.0"
 backend = "core:node"
 specifiers = ["latest"]
 
 [tools.node."platforms.linux-arm64"]
-checksum = "sha256:746cdbf21565b4ea06f77642bb0e85466de8bb722242be2c5e006f272c361c63"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-linux-arm64.tar.gz"
+checksum = "sha256:d5077591aa38b48d90bf9b3ac10da8d2f40dce289b20294913c58c19f153eb12"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-linux-arm64.tar.gz"
 
 [tools.node."platforms.linux-arm64-musl"]
-checksum = "sha256:125437a0b59d69592b8f4bb813a47245337afac8c973d15ab7720f0ec55d182d"
-url = "https://unofficial-builds.nodejs.org/download/release/v26.8.2/node-v26.8.2-linux-arm64-musl.tar.gz"
+checksum = "sha256:b52b747e86ef6d18068f02f43f508a608358c974dc5da8ef270bc823ba4710ca"
+url = "https://unofficial-builds.nodejs.org/download/release/v26.9.0/node-v26.9.0-linux-arm64-musl.tar.gz"
 
 [tools.node."platforms.linux-x64"]
-checksum = "sha256:badb3fe6a61b85e1352ca6564dc56b8b7bd5ecd5c474c52acc21dd0cdd586f35"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-linux-x64.tar.gz"
+checksum = "sha256:03d9104fc4f19652e74480fed11c023d75981464b7292f21a601c3f95ce7d90d"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-linux-x64.tar.gz"
 
 [tools.node."platforms.linux-x64-baseline"]
-checksum = "sha256:badb3fe6a61b85e1352ca6564dc56b8b7bd5ecd5c474c52acc21dd0cdd586f35"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-linux-x64.tar.gz"
+checksum = "sha256:03d9104fc4f19652e74480fed11c023d75981464b7292f21a601c3f95ce7d90d"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-linux-x64.tar.gz"
 
 [tools.node."platforms.linux-x64-musl"]
-checksum = "sha256:696eb0180248a06c9893f3f07bcc4e2680891c83118c73aaf1de330efd053910"
-url = "https://unofficial-builds.nodejs.org/download/release/v26.8.2/node-v26.8.2-linux-x64-musl.tar.gz"
+checksum = "sha256:669dd67ec374f7315dbac9e119641d0e4f371519e00c4b692f1f81e7a04b747c"
+url = "https://unofficial-builds.nodejs.org/download/release/v26.9.0/node-v26.9.0-linux-x64-musl.tar.gz"
 
 [tools.node."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:696eb0180248a06c9893f3f07bcc4e2680891c83118c73aaf1de330efd053910"
-url = "https://unofficial-builds.nodejs.org/download/release/v26.8.2/node-v26.8.2-linux-x64-musl.tar.gz"
+checksum = "sha256:669dd67ec374f7315dbac9e119641d0e4f371519e00c4b692f1f81e7a04b747c"
+url = "https://unofficial-builds.nodejs.org/download/release/v26.9.0/node-v26.9.0-linux-x64-musl.tar.gz"
 
 [tools.node."platforms.macos-arm64"]
-checksum = "sha256:974b6d5fb2fc7c33ff2354db0902b4e91c2de01ec8acc6de48e543c97e18c9e1"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-darwin-arm64.tar.gz"
+checksum = "sha256:6f3de7ed853ee283b4bf24b6e426618f1d357401ce5815db1866eb85eb4b05d9"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-darwin-arm64.tar.gz"
 
 [tools.node."platforms.macos-x64"]
-checksum = "sha256:adb8feb2d4987df3d72d2ec46f4fc4b58039c859b8c3f0e3cc2d3c6cbaf8629c"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-darwin-x64.tar.gz"
+checksum = "sha256:06b2e742ed9025dc84adc830243b3f731956eac9c321bccd0ede384209af02a8"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-darwin-x64.tar.gz"
 
 [tools.node."platforms.macos-x64-baseline"]
-checksum = "sha256:adb8feb2d4987df3d72d2ec46f4fc4b58039c859b8c3f0e3cc2d3c6cbaf8629c"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-darwin-x64.tar.gz"
+checksum = "sha256:06b2e742ed9025dc84adc830243b3f731956eac9c321bccd0ede384209af02a8"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-darwin-x64.tar.gz"
 
 [tools.node."platforms.windows-arm64"]
-checksum = "sha256:a4e8362e268f1fcf1735f046e0adb088b28eeb400fb1c33fe5cc94d1a3d42570"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-win-arm64.zip"
+checksum = "sha256:b70e4557d1b3829e45c0afc19ac9376ccbd4a8661235377ffce90b39fc7227ba"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-win-arm64.zip"
 
 [tools.node."platforms.windows-x64"]
-checksum = "sha256:cf02f5d0c06c794b84f277177d5cf3743d0924ca49f6641cd435dd7cb6ee9085"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-win-x64.zip"
+checksum = "sha256:c8af870b5b3e9789a6cbdb30270e7c212e12d76a7afa7fc7f21b6b21cc22a71b"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-win-x64.zip"
 
 [tools.node."platforms.windows-x64-baseline"]
-checksum = "sha256:cf02f5d0c06c794b84f277177d5cf3743d0924ca49f6641cd435dd7cb6ee9085"
-url = "https://nodejs.org/dist/v26.8.2/node-v26.8.2-win-x64.zip"
+checksum = "sha256:c8af870b5b3e9789a6cbdb30270e7c212e12d76a7afa7fc7f21b6b21cc22a71b"
+url = "https://nodejs.org/dist/v26.9.0/node-v26.9.0-win-x64.zip"
 
 [[tools."npm:prettier"]]
 version = "3.9.6"
