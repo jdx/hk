@@ -358,7 +358,7 @@ jobs:
       # than against a key this project would have to hold. The Pkl package
       # is not an artifact anyone installs a binary from, so it stays out.
       # See https://packslip.dev.
-      - uses: jdx/packslip@a0d434ad57571c62dbd0ab5095b4eff607a71fd3 # v1.1.1
+      - uses: jdx/packslip@74c75db7d611b36dd5a157999ec16cf823ccf80c # v1.2.0
         with:
           tag: ${{ inputs.version != '' && format('v{0}', inputs.version) || github.ref_name }}
           artifacts: release-assets/hk-*.tar.gz release-assets/hk-*.tar.xz release-assets/hk-*.zip
