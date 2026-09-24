@@ -256,21 +256,19 @@ fn batch_counts(sizes: &[usize], jobs: usize) -> Vec<usize> {
                 .max(usize::from(size > 0))
         })
         .collect();
-    // Hand out the jobs rounding down left over, largest remainder first.
-    let mut order: Vec<usize> = (0..sizes.len()).collect();
-    order.sort_by_key(|&i| std::cmp::Reverse((sizes[i] * jobs) % total.max(1)));
+    // Hand out the jobs left over by rounding down, one at a time, to the
+    // group furthest below its proportional share `size * jobs / total`
+    // (compared as `size * jobs - count * total` to stay in integers). This
+    // accounts for the batch a small group was given above its share.
+    let total = total.max(1);
     let mut left = jobs.saturating_sub(counts.iter().sum());
     while left > 0 {
-        let before = left;
-        for &i in &order {
-            if left > 0 && counts[i] < cap(sizes[i]) {
-                counts[i] += 1;
-                left -= 1;
-            }
-        }
-        if left == before {
-            break;
-        }
+        let next = (0..sizes.len())
+            .filter(|&i| counts[i] < cap(sizes[i]))
+            .max_by_key(|&i| (sizes[i] * jobs) as i128 - (counts[i] * total) as i128);
+        let Some(i) = next else { break };
+        counts[i] += 1;
+        left -= 1;
     }
     counts
 }
@@ -343,6 +341,10 @@ mod batch_tests {
         assert_eq!(batch_counts(&[50, 50], 3).iter().sum::<usize>(), 3);
         // An empty workspace gets no batches.
         assert_eq!(batch_counts(&[20, 0], 4), vec![4, 0]);
+        // A small workspace already given a batch above its share (0.84 of 6
+        // jobs) doesn't win the leftover job; the 30-file one, furthest below
+        // its 1.8, does.
+        assert_eq!(batch_counts(&[14, 30, 56], 6), vec![1, 2, 3]);
     }
 
     #[test]
