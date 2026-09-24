@@ -50,7 +50,7 @@ ln -sfn "$WORK" "$BENCH/.work"
 # counts (NUM_* in generate-project.sh) have changed.
 inputs=$({
     cat "$BENCH/generate-project.sh" "$BENCH"/lib/*.sh "$BENCH/mise.toml"
-    env | grep '^NUM_' | sort
+    env | grep '^NUM_' | sort || true # none set is the default
 } | sha256sum | cut -c1-16)
 if [ "${REGENERATE:-0}" != "0" ] || [ "$(cat "$WORK/fixture.inputs" 2>/dev/null)" != "$inputs" ]; then
     "$BENCH/generate-project.sh" "$WORK/fixture"
