@@ -87,10 +87,11 @@ hooks {
 ```
 
 The `pre-commit` hook enables staging, and the step-level allowlist includes
-both the manifest edit and the generated snapshot. For a custom hook, set
-`stage = true` on the hook; for a manual run, use `hk fix --stage`. Prefer
-declaring generated outputs on the step rather than running `git add` inside
-the command.
+both the manifest edit and the generated snapshot. When `fail_on_fix` is not
+`true`, enable staging for a custom hook with `stage = true` or for a manual
+run with `hk fix --stage`. When `fail_on_fix = true`, hk does not stage fix
+output. Prefer declaring generated outputs on the step rather than running
+`git add` inside the command.
 
 ### Config file paths
 
