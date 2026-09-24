@@ -83,14 +83,21 @@ hooks {
           """
       }
       // Keeps rewriting the JSON files at their staged size, so git must hash
-      // their contents to tell whether they changed.
+      // their contents to tell whether they changed. It stops once "fast" has
+      // staged (only possible without locking) or after a few seconds (with
+      // locking, "fast" cannot stage until this step finishes writing).
       ["slow"] {
         glob = "*.json"
         fix = """
           touch ../slow-started
-          for _ in \$(seq 20); do
-            for f in {{files}}; do yes y | head -c 200000 > "\$f"; done
-          done
+          end=\$((\$(date +%s) + 3))
+          rewrite() {
+            while [ "\$(git show :a.txt)" != fixed ] && [ \$(date +%s) -lt \$end ]; do
+              for f in {{files}}; do yes y | head -c 200000 > "\$f"; done
+            done
+          }
+          rewrite & rewrite
+          wait
           for f in {{files}}; do echo '{}' > "\$f"; done
           """
       }
