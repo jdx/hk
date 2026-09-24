@@ -45,7 +45,7 @@ Request check commands instead of fix commands. This setting wins when both `HK_
 
 **Type:** boolean · **Default:** true
 
-Allow steps that set `check_first = true` to run their check before fixing when steps overlap, and skip the fix when the check passes. Steps don't check first unless they opt in, so this only turns the optimization off for those that do.
+Allow steps to run their check before fixing and skip the fix when the check passes. Steps do this when they set `check_first = true` (and another step writes the same files), and always when their `check` and `fix` are the same command, as in steps migrated from pre-commit. Setting this to `false` turns it off for both; such a migrated fixer then fails whenever it fixes something, because it exits 1 after fixing.
 
 ## `HK_CONFIG_DIR` {#hk-config-dir}
 
