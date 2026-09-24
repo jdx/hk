@@ -18,7 +18,7 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 use std::collections::BTreeSet;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::OwnedSemaphorePermit;
 
@@ -145,17 +145,16 @@ impl Step {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check;
                     let check_first_cmd = step.check_first_cmd();
-                    // When check and fix are the same command, the check may fix
-                    // files. If this hook stages, remember their content so only
-                    // the files it changed go to staging.
-                    let before = (step.check_is_fix() && ctx.hook_ctx.should_stage)
-                        .then(|| content_hashes(&job.files));
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
                             ctx.hook_ctx.inc_completed_jobs(1);
-                            if let Some(before) = before {
-                                return Ok(changed_files(before));
+                            // When check and fix are the same command (a
+                            // pre-commit-style fixer), this run was the fix: its
+                            // files go to staging like any fixer's.
+                            if step.check_is_fix() && !matches!(job.status, StepJobStatus::Pending)
+                            {
+                                return Ok(job.files.clone());
                             }
                             return Ok(vec![]);
                         }
@@ -613,69 +612,5 @@ fn push_stage_globs(globs: &mut Vec<String>, roots: &[String], pat: &str) {
         } else {
             globs.push(format!("{root}/{pat}"));
         }
-    }
-}
-
-/// Each file with a hash of what git would store for it: a symlink's target
-/// path, otherwise the file's content. `None` for a file that can't be read.
-fn content_hashes(files: &[PathBuf]) -> Vec<(PathBuf, Option<u64>)> {
-    files.iter().map(|f| (f.clone(), content_hash(f))).collect()
-}
-
-fn content_hash(file: &Path) -> Option<u64> {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    if std::fs::symlink_metadata(file)
-        .ok()?
-        .file_type()
-        .is_symlink()
-    {
-        std::fs::read_link(file).ok()?.hash(&mut hasher);
-    } else {
-        std::fs::read(file).ok()?.hash(&mut hasher);
-    }
-    Some(hasher.finish())
-}
-
-/// The files from [`content_hashes`] whose hash has changed since, including
-/// files created or deleted since.
-fn changed_files(before: Vec<(PathBuf, Option<u64>)>) -> Vec<PathBuf> {
-    before
-        .into_iter()
-        .filter(|(f, hash)| content_hash(f) != *hash)
-        .map(|(f, _)| f)
-        .collect()
-}
-
-#[cfg(test)]
-mod content_hash_tests {
-    use super::*;
-
-    #[test]
-    fn only_changed_files_are_reported_even_after_one_is_deleted() {
-        let dir = tempfile::tempdir().unwrap();
-        let [a, b, c] = ["a", "b", "c"].map(|n| dir.path().join(n));
-        for f in [&a, &b, &c] {
-            std::fs::write(f, "same").unwrap();
-        }
-        let before = content_hashes(&[a.clone(), b.clone(), c.clone()]);
-        std::fs::remove_file(&a).unwrap();
-        std::fs::write(&c, "changed").unwrap();
-        // The deletion doesn't shift the comparison onto b.
-        assert_eq!(changed_files(before), vec![a, c]);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_retargeted_symlink_is_reported() {
-        let dir = tempfile::tempdir().unwrap();
-        let [one, two, link] = ["one", "two", "link"].map(|n| dir.path().join(n));
-        std::fs::write(&one, "same").unwrap();
-        std::fs::write(&two, "same").unwrap();
-        std::os::unix::fs::symlink("one", &link).unwrap();
-        let before = content_hashes(std::slice::from_ref(&link));
-        std::fs::remove_file(&link).unwrap();
-        std::os::unix::fs::symlink("two", &link).unwrap();
-        assert_eq!(changed_files(before), vec![link]);
     }
 }

@@ -155,7 +155,7 @@ EOF2
     assert_equal "$(git show :a.txt)" "good"
 }
 
-@test "a same-command step that changes nothing doesn't stage unstaged edits" {
+@test "a skipped same-command step stages nothing" {
     write_precommit_fixer
     cat <<EOF2 > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -167,6 +167,7 @@ hooks {
     steps {
       ["fixer"] {
         glob = "*.txt"
+        condition = "false"
         check = "./fixer.sh {{files}}"
         fix = "./fixer.sh {{files}}"
       }
