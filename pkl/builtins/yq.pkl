@@ -8,6 +8,8 @@ import "./test/helpers.pkl"
 }
 yq = new Config.Step {
   glob = List("**/*.yaml", "**/*.yml")
+  // The commands run one process per file, so split the files across jobs.
+  batch = true
   check_diff = new Config.CommandSpec {
     command =
       """

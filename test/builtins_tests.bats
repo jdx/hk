@@ -284,3 +284,44 @@ SCRIPT
     assert_output --partial "ruff_format:test.py"
     refute_output --partial "test.js"
 }
+
+@test "black check_list_files limits a contended fix to files black would change" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["black"] = Builtins.black
+      // A second fixer on the same files makes hk run check_list_files first.
+      ["other"] {
+        glob = "**/*.py"
+        check = "true"
+        fix = "true"
+      }
+    }
+  }
+}
+PKL
+    mkdir "a b"
+    printf 'x=1\n' > "a b/bad.py"
+    printf 'y = 2\n' > good.py
+    git add -A
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    HK_LOG=debug run hk fix --all
+    assert_success
+    assert_output --partial "DEBUG $ black a b/bad.py"
+    refute_output --partial "DEBUG $ black a b/bad.py good.py"
+    assert_equal "$(cat "a b/bad.py")" "x = 1"
+
+    # A file black cannot parse is passed on to the fixer, which reports it.
+    printf 'def(\n' > broken.py
+    printf 'z=3\n' > bad2.py
+    git add -A
+    run hk fix --all
+    assert_failure
+    assert_output --partial "error: cannot format broken.py"
+    assert_equal "$(cat bad2.py)" "z = 3"
+}
