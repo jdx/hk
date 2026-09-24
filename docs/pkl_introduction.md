@@ -224,7 +224,7 @@ hk includes [pklr](https://github.com/jdx/pklr) and always uses it to evaluate p
 
 The built-in evaluator persists downloaded packages and seeds the cache with the Pkl package matching the running hk version. Use [`HK_PKL_OFFLINE`](/environment_variables#hk-pkl-offline) to require cached or embedded packages without network access.
 
-Release builds cache evaluated configuration; debug builds disable this cache by default. The values of environment variables the configuration reads with `read("env:NAME")` or `read?("env:NAME")` are part of the cache key, so changing one re-evaluates the configuration. Files read as resources, such as `read("data.txt")`, are not tracked. When diagnosing an unexpected result after changing an import or evaluation input, bypass or clear the cache:
+Release builds cache evaluated configuration; debug builds disable this cache by default. The values of environment variables the configuration reads with `read("env:NAME")` or `read?("env:NAME")` are part of the cache key. hk re-evaluates the configuration only when no cache entry exists for the current values; returning a variable to an earlier value reuses that entry. Files read as resources, such as `read("data.txt")`, are not tracked. When diagnosing an unexpected result after changing an import or evaluation input, bypass or clear the cache:
 
 ```sh
 HK_CACHE=0 hk validate
