@@ -556,6 +556,8 @@ open class Step {
   ///
   /// If true, hk will run the linter on batches of files instead of all files at once.
   /// This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
+  /// Files are split evenly across `--jobs` batches, with at least 4 files in each, so a
+  /// handful of files doesn't start one process per file and pay the tool's startup cost each time.
   ///
   /// ```pkl
   /// local linters = new Mapping {
