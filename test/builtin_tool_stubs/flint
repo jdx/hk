@@ -1,4 +1,4 @@
 #!/usr/bin/env -S mise tool-stub
 
 version = "0.22.13"
-tool = "packslip:github.com/grafana/flint@0.22.13"
+tool = "packslip:github.com/grafana/flint"

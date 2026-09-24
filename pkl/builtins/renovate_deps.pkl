@@ -4,7 +4,8 @@ import "./test/helpers.pkl"
 
 @Builtins.meta {
   category = "Special Purpose"
-  description = "Flint's repository-aware dependency check (requires flint and renovate)"
+  description =
+    "Flint's repository-aware dependency check (requires flint and renovate). See https://github.com/grafana/flint/blob/main/docs/linters/renovate-deps.md"
 }
 renovate_deps = new Config.Step {
   glob = List("**/*")
