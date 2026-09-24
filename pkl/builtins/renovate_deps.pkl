@@ -9,6 +9,7 @@ import "./test/helpers.pkl"
 }
 renovate_deps = new Config.Step {
   glob = List("**/*")
+  stage = List(".github/renovate-tracked-deps.json")
   stdin = "{{ files_list | join(sep='\n') }}"
   check = new Config.CommandSpec {
     command = new Config.Command {
