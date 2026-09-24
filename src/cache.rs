@@ -12,7 +12,7 @@ use std::sync::LazyLock as Lazy;
 
 use crate::hash::hash_to_str;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CacheManagerBuilder {
     cache_file_path: PathBuf,
     cache_keys: Vec<String>,
@@ -71,28 +71,31 @@ impl CacheManagerBuilder {
         hash_to_str(&self.cache_keys)
     }
 
-    pub fn build<T>(mut self) -> CacheManager<T>
+    /// Key on the fresh files' contents as they are now, including in
+    /// builders cloned from this one.
+    pub fn hash_fresh_files(mut self) -> Self {
+        let mode = self.fresh_file_key_mode;
+        self.cache_keys
+            .extend(self.fresh_files.drain(..).unique().map(|path| match mode {
+                FreshFileKeyMode::PathAndContent => fresh_file_cache_key(&path),
+                FreshFileKeyMode::ContentOnly => fresh_file_content_cache_key(&path),
+            }));
+        self
+    }
+
+    pub fn build<T>(self) -> CacheManager<T>
     where
         T: Serialize + DeserializeOwned,
     {
-        self.cache_keys
-            .extend(
-                self.fresh_files
-                    .iter()
-                    .unique()
-                    .map(|path| match self.fresh_file_key_mode {
-                        FreshFileKeyMode::PathAndContent => fresh_file_cache_key(path),
-                        FreshFileKeyMode::ContentOnly => fresh_file_content_cache_key(path),
-                    }),
-            );
-        let key = self.cache_key();
-        let (base, ext) = split_file_name(&self.cache_file_path);
-        let mut cache_file_path = self.cache_file_path;
+        let this = self.hash_fresh_files();
+        let key = this.cache_key();
+        let (base, ext) = split_file_name(&this.cache_file_path);
+        let mut cache_file_path = this.cache_file_path;
         cache_file_path.set_file_name(format!("{base}-{key}.{ext}"));
         CacheManager {
             cache_file_path,
             cache: Box::new(OnceCell::new()),
-            fresh_duration: self.fresh_duration,
+            fresh_duration: this.fresh_duration,
         }
     }
 }
@@ -128,7 +131,7 @@ where
         F: FnOnce() -> Result<T>,
     {
         let val = self.cache.get_or_try_init(|| {
-            if let Some(val) = self.read_fresh() {
+            if let Some(val) = self.get() {
                 return Ok::<_, eyre::Report>(val);
             }
             let path = &self.cache_file_path;
@@ -146,10 +149,6 @@ where
     /// choose the key to write under after computing the value.
     #[tracing::instrument(level = "info", name = "cache.get", skip_all, fields(path = %self.cache_file_path.display()))]
     pub fn get(&self) -> Option<T> {
-        self.read_fresh()
-    }
-
-    fn read_fresh(&self) -> Option<T> {
         let path = &self.cache_file_path;
         if self.is_fresh() && *crate::env::HK_CACHE {
             match self.parse() {

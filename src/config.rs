@@ -39,17 +39,10 @@ impl Config {
         Ok(config)
     }
 
-    fn read(path: &Path, apply_env: bool) -> Result<Self> {
-        Ok(Self::read_tracking_env(path, apply_env)?.0)
-    }
-
-    /// Like `read`, also returning every environment variable the evaluation
-    /// read with the value it saw.
+    /// Also returns every environment variable the evaluation read, with the
+    /// value it saw.
     #[tracing::instrument(level = "info", name = "config.read", skip_all, fields(path = %path.display()))]
-    fn read_tracking_env(
-        path: &Path,
-        apply_env: bool,
-    ) -> Result<(Self, BTreeMap<String, Option<String>>)> {
+    fn read(path: &Path, apply_env: bool) -> Result<(Self, BTreeMap<String, Option<String>>)> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
         let (mut config, env_reads): (Config, _) = match ext {
             "pkl" => eval_pklr(path)?,
@@ -315,7 +308,7 @@ impl Config {
         if env::HK_FILE.is_none()
             && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
         {
-            return Self::read(&path, true);
+            return Ok(Self::read(&path, true)?.0);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
@@ -496,16 +489,19 @@ impl Config {
         } else {
             cache_dir.join("resolved-config.json")
         };
+        let config_cache_builder = CacheManagerBuilder::new(config_cache_path)
+            .with_cache_key(pkl_http_rewrite_cache_key());
+        let config_cache_builder = if has_untracked_imports {
+            config_cache_builder.with_fresh_files(fresh_files)
+        } else {
+            config_cache_builder.with_content_fresh_files(fresh_files)
+        }
+        .hash_fresh_files();
         let config_cache_mgr = |env: &BTreeMap<String, Option<String>>| {
-            let builder = CacheManagerBuilder::new(&config_cache_path)
-                .with_cache_key(pkl_http_rewrite_cache_key())
-                .with_cache_key(env_cache_key(env));
-            if has_untracked_imports {
-                builder.with_fresh_files(fresh_files.clone())
-            } else {
-                builder.with_content_fresh_files(fresh_files.clone())
-            }
-            .build::<Config>()
+            config_cache_builder
+                .clone()
+                .with_cache_key(env_cache_key(env))
+                .build::<Config>()
         };
         // Read the way pklr reads them, and before evaluation: a root config
         // exports its `env` during `read`, overwriting what the evaluation saw.
@@ -520,7 +516,7 @@ impl Config {
         let mut config = match config_cache_mgr(&env_values).get() {
             Some(config) => config,
             None => {
-                let (config, env_reads) = Self::read_tracking_env(&path, is_root)
+                let (config, env_reads) = Self::read(&path, is_root)
                     .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))?;
                 // Keyed on every variable the evaluation read, so a later lookup
                 // hits only while all of them keep these values.
@@ -564,7 +560,7 @@ impl Config {
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
-            let json_value: serde_json::Value = run_pklr(&path)?;
+            let (json_value, _): (serde_json::Value, _) = eval_pklr(&path)?;
 
             if json_value.get("environment").is_some() || json_value.get("defaults").is_some() {
                 bail!(
@@ -1002,10 +998,6 @@ static EMBEDDED_PKL_PACKAGE: &[u8] =
 fn embedded_pkl_package_url() -> String {
     let version = version::version();
     format!("https://github.com/jdx/hk/releases/download/v{version}/hk@{version}.zip")
-}
-
-fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    Ok(eval_pklr(path)?.0)
 }
 
 /// Evaluate `path`, also returning every environment variable the evaluation
