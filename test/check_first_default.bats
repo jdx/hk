@@ -1,0 +1,129 @@
+#!/usr/bin/env bats
+
+setup() {
+    load 'test_helper/common_setup'
+    _common_setup
+}
+
+teardown() {
+    _common_teardown
+}
+
+# A pre-commit-style fixer: rewrites "bad" to "good" and exits 1 when it
+# changed anything, like the hooks `hk migrate pre-commit` generates.
+write_precommit_fixer() {
+    cat <<'EOF' > fixer.sh
+#!/bin/sh
+status=0
+for f; do
+    if grep -q bad "$f"; then
+        sed -i.bak 's/bad/good/' "$f" && rm -f "$f.bak"
+        status=1
+    fi
+done
+exit $status
+EOF
+    chmod +x fixer.sh
+}
+
+@test "a step whose check and fix are the same command passes after fixing, even alone" {
+    write_precommit_fixer
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["fixer"] {
+        glob = "*.txt"
+        check = "./fixer.sh {{files}}"
+        fix = "./fixer.sh {{files}}"
+      }
+    }
+  }
+}
+EOF
+    echo bad > a.txt
+    git add -A
+
+    run hk fix --all
+    assert_success
+    assert_equal "$(cat a.txt)" "good"
+}
+
+@test "an overlapping fixer runs only its fix by default" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["a"] {
+        glob = "*.txt"
+        check = "echo check-a {{files}}"
+        fix = "echo fix-a {{files}}"
+      }
+      ["b"] {
+        glob = "*.txt"
+        check = "echo check-b {{files}}"
+        fix = "echo fix-b {{files}}"
+      }
+    }
+  }
+}
+EOF
+    echo x > a.txt
+    git add -A
+
+    HK_LOG=debug run hk fix --all
+    assert_success
+    assert_output --partial "fix-a a.txt"
+    refute_output --partial "check-a a.txt"
+}
+
+@test "a staging hook narrows a listing step to the files it would change" {
+    cat <<'EOF' > list.sh
+#!/bin/sh
+status=0
+for f; do
+    if grep -q bad "$f"; then
+        echo "$f"
+        status=1
+    fi
+done
+exit $status
+EOF
+    chmod +x list.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stage = true
+    steps {
+      ["lister"] {
+        glob = "*.txt"
+        check = "./list.sh {{files}}"
+        check_list_files = "./list.sh {{files}}"
+        fix = "sed -i.bak s/bad/good/ {{files}} && rm -f *.bak"
+      }
+      ["other"] {
+        glob = "*.txt"
+        check = "true"
+        fix = "true"
+      }
+    }
+  }
+}
+EOF
+    echo bad > bad.txt
+    echo fine > good.txt
+    git add -A
+
+    HK_LOG=debug run hk run pre-commit
+    assert_success
+    assert_output --partial "DEBUG $ ./list.sh"
+    assert_output --partial "DEBUG $ sed -i.bak s/bad/good/ bad.txt"
+    refute_output --partial "s/bad/good/ bad.txt good.txt"
+    assert_equal "$(git show :bad.txt)" "good"
+}

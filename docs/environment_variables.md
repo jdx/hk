@@ -45,7 +45,7 @@ Request check commands instead of fix commands. This setting wins when both `HK_
 
 **Type:** boolean · **Default:** true
 
-Allow steps that set `check_first = true` to run a read-only check before fixing when steps overlap. A passing check can avoid a write lock. Steps don't check first unless they opt in, so this only turns the optimization off for those that do.
+Allow steps that set `check_first = true` to run their check before fixing when steps overlap, and skip the fix when the check passes. Steps don't check first unless they opt in, so this only turns the optimization off for those that do.
 
 ## `HK_CONFIG_DIR` {#hk-config-dir}
 
