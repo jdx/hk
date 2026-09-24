@@ -47,7 +47,7 @@
 - [install](https://hk.jdx.dev/cli/install.html): Set up git hooks to run hk.
 - [mcp](https://hk.jdx.dev/cli/mcp.html): Run an MCP server for coding agents over standard input/output
 - [migrate](https://hk.jdx.dev/cli/migrate.html): Migrate from other hook managers to hk
-- [migrate pre-commit](https://hk.jdx.dev/cli/migrate/pre-commit.html): Migrate from pre-commit to hk
+- [migrate pre-commit](https://hk.jdx.dev/cli/migrate/pre-commit.html): Migrate from pre-commit (or prek) to hk
 - [run](https://hk.jdx.dev/cli/run.html): Run a hook
 - [run commit-msg](https://hk.jdx.dev/cli/run/commit-msg.html): Run the commit-msg hook
 - [run post-checkout](https://hk.jdx.dev/cli/run/post-checkout.html): Run the post-checkout hook

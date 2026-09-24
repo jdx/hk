@@ -8,730 +8,375 @@ teardown() {
     _common_teardown
 }
 
-@test "migrate precommit - basic config" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
+migrate() {
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH" "$@"
+}
+
+@test "migrate precommit - known hooks become builtins" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
+fail_fast: true
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
+    rev: v5.0.0
     hooks:
-    -   id: prettier
-    -   id: eslint
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+-   repo: https://github.com/astral-sh/ruff-pre-commit.git
+    rev: v0.6.9
+    hooks:
+    -   id: ruff
+        args: [--fix]
+    -   id: ruff-format
+-   repo: meta
+    hooks:
+    -   id: check-useless-excludes
 PRECOMMIT
 
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate
     assert_success
-    assert_output --partial "Successfully migrated to hk.pkl"
+    assert_output --partial "4 builtins, 0 commands, 0 run through"
 
-    # Verify hk.pkl was created
-    [ -f hk.pkl ]
-
-    # Verify it contains expected content
     run cat hk.pkl
-    assert_output --partial "Builtins.prettier"
-    assert_output --partial "Builtins.eslint"
-    assert_output --partial 'steps {'
-    assert_output --partial '["prettier"] = linters["prettier"]'
-    assert_output --partial '["eslint"] = linters["eslint"]'
-    refute_output --partial '["pre-commit"]'
+    assert_output --partial '["trailing-whitespace"] = Builtins.trailing_whitespace'
+    assert_output --partial '["end-of-file-fixer"] = Builtins.newlines'
+    assert_output --partial '["ruff"] = Builtins.ruff'
+    assert_output --partial '["ruff-format"] = Builtins.ruff_format'
+    refute_output --partial 'check-useless-excludes'
+    refute_output --partial 'precommit('
+    refute_output --partial 'fail_fast'
+    refute_output --partial 'hooks {'
 
     run hk validate
     assert_success
 }
 
-@test "migrate precommit - with exclude" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
+@test "migrate precommit - hooks run through the runner when hk has no equivalent" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
 repos:
--   repo: https://github.com/asottile/reorder-python-imports
-    rev: v3.15.0
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
     hooks:
-    -   id: reorder-python-imports
-        exclude: ^(pre_commit/resources/)
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    # Verify exclude is preserved (as regex)
-    run cat hk.pkl
-    assert_output --partial 'exclude = Regex'
-    assert_output --partial 'pre_commit/resources'
-}
-
-@test "migrate precommit - with args" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/asottile/pyupgrade
-    rev: v3.20.0
+    -   id: codespell
+-   repo: https://github.com/psf/black
+    rev: 24.8.0
     hooks:
-    -   id: pyupgrade
-        args: [--py39-plus]
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    # Verify args are noted in comments
-    # The hook is unknown so it goes to custom_steps
-    run cat hk.pkl
-    assert_output --partial "custom_steps"
-    assert_output --partial "pyupgrade"
-}
-
-@test "migrate precommit - with additional_dependencies and mise x" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/pre-commit/mirrors-mypy
+    -   id: black
+        args: [--line-length, 100]
+-   repo: https://github.com/example/hooks
     rev: v1.0.0
     hooks:
-    -   id: mypy
-        additional_dependencies: [types-pyyaml, types-requests]
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    # Verify additional_dependencies are handled with mise x
-    run cat hk.pkl
-    assert_output --partial "additional_dependencies: types-pyyaml, types-requests"
-    assert_output --partial 'prefix = "mise x mypy@latest --"'
-}
-
-@test "migrate precommit - terraform hooks resolve to mise tool names" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.96.0
+    -   id: black
+-   repo: local
     hooks:
-    -   id: terraform_docs
-        additional_dependencies: [terraform-docs]
-    -   id: terraform_validate
-        additional_dependencies: [terraform]
-    -   id: terraform_tflint
-        additional_dependencies: [tflint]
-    -   id: terragrunt_fmt
-        additional_dependencies: [terragrunt]
+    -   id: lint-py
+        name: lint
+        entry: python scripts/lint.py
+        language: python
+        additional_dependencies: [requests]
 PRECOMMIT
 
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate --runner pre-commit
     assert_success
+    assert_output --partial "0 builtins, 0 commands, 3 run through pre-commit"
+    assert_output --partial "Keep .pre-commit-config.yaml and pre-commit installed for: codespell, black, lint-py"
 
-    # Scope each assertion to its own hook block so swapped mappings still fail
-    run awk '/\["terraform_docs"\]/,/prefix = /' hk.pkl
-    assert_output --partial 'prefix = "mise x terraform-docs@latest --"'
-    run awk '/\["terraform_validate"\]/,/prefix = /' hk.pkl
-    assert_output --partial 'prefix = "mise x terraform@latest --"'
-    run awk '/\["terraform_tflint"\]/,/prefix = /' hk.pkl
-    assert_output --partial 'prefix = "mise x tflint@latest --"'
-    run awk '/\["terragrunt_fmt"\]/,/prefix = /' hk.pkl
-    assert_output --partial 'prefix = "mise x terragrunt@latest --"'
-}
-
-@test "migrate precommit - with types and type filtering" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-        types: [javascript, typescript]
-        exclude_types: [markdown]
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    # Verify type filtering is documented
     run cat hk.pkl
-    assert_output --partial "types (AND): javascript, typescript"
-    assert_output --partial "exclude_types: markdown"
+    assert_output --partial 'check = "pre-commit run --hook-stage \(stage) \(hook) "'
+    assert_output --partial '// no hk builtin for codespell from https://github.com/codespell-project/codespell'
+    assert_output --partial '["codespell"] = precommit("codespell", "pre-commit")'
+    assert_output --partial "// Builtins.black does not support this hook's args (--line-length 100)"
+    assert_output --partial '// pre-commit sets up a python environment for this hook'
+    assert_output --partial '["lint-py"] = precommit("lint-py", "pre-commit")'
+    # `pre-commit run black` runs both black entries, so there is one step
+    run grep -c '"black"' hk.pkl
+    assert_output "1"
+
+    # The step calls the runner with the hook id and hk's files
+    mkdir -p bin
+    cat <<'SH' > bin/pre-commit
+#!/usr/bin/env bash
+echo "$*" >> "$(dirname "$0")/../calls.txt"
+SH
+    chmod +x bin/pre-commit
+    echo "hello" > README.md
+    git add README.md
+    PATH="$PWD/bin:$PATH" run hk check --all --step codespell
+    assert_success
+    run cat calls.txt
+    assert_output --partial "run --hook-stage pre-commit codespell --files"
+    assert_output --partial "README.md"
 }
 
-@test "migrate precommit - with stages" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
+@test "migrate precommit - custom config path is passed to the runner" {
+    mkdir -p config
+    cat <<'PRECOMMIT' > config/pre-commit.yaml
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
+-   repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
     hooks:
-    -   id: prettier
-        stages: [pre-push]
-    -   id: eslint
-        stages: [pre-commit]
+    -   id: codespell
 PRECOMMIT
 
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate --config config/pre-commit.yaml --runner prek
     assert_success
-
-    # Pre-commit is implicit from top-level steps; other stages stay explicit.
     run cat hk.pkl
-    assert_output --partial '["pre-push"]'
-    assert_output --partial 'steps {'
-    refute_output --partial '["pre-commit"]'
+    assert_output --partial 'check = "prek run --config config/pre-commit.yaml --hook-stage'
+    run hk validate
+    assert_success
 }
 
-@test "migrate precommit - local repo" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
+@test "migrate precommit - local system hooks become commands" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
 repos:
 -   repo: local
     hooks:
-    -   id: my-local-check
-        name: My Local Check
-        entry: ./scripts/check.sh
+    -   id: pytest
+        name: pytest
+        entry: uv run pytest
         language: system
-        files: \.py$
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    # Verify local hooks are generated with check command
-    run cat hk.pkl
-    assert_output --partial "local_hooks"
-    assert_output --partial "my-local-check"
-    assert_output --partial 'check = "./scripts/check.sh {{files}}"'
-}
-
-@test "migrate precommit - local hook with pass_filenames false" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: local
-    hooks:
-    -   id: test
-        name: Run tests
-        entry: cargo test
-        language: system
-        files: '\.rs$'
+        types: [file, python]
+        args: [-k, "not slow"]
+    -   id: no-rej
+        name: no .rej files
+        entry: Remove .rej files
+        language: fail
+        files: \.rej$
+    -   id: generate
+        name: generate
+        entry: ./scripts/generate.sh
+        language: script
+        always_run: true
         pass_filenames: false
 PRECOMMIT
 
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate
+    assert_success
+    assert_output --partial "0 builtins, 3 commands, 0 run through"
+
+    run cat hk.pkl
+    assert_output --partial "types = List(\"python\")"
+    assert_output --partial "check = \"uv run pytest -k 'not slow' {{files}}\""
+    assert_output --partial 'glob = Regex(#"\.rej$"#)'
+    assert_output --partial 'check = "./scripts/generate.sh"'
+
+    run hk validate
     assert_success
 
-    # Verify local hook without {{files}}
-    run cat hk.pkl
-    assert_output --partial "local_hooks"
-    assert_output --partial 'check = "cargo test"'
-    refute_output --partial "{{files}}"
-    assert_output --partial "pass_filenames was false"
-}
-
-@test "migrate precommit - meta repo is skipped" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: meta
-    hooks:
-    -   id: check-hooks-apply
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    # Verify meta hooks are not included
-    run cat hk.pkl
-    refute_output --partial "check-hooks-apply"
-    assert_output --partial "Builtins.prettier"
-}
-
-@test "migrate precommit - unknown hook" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/some/unknown-hook
-    rev: v1.0.0
-    hooks:
-    -   id: unknown-linter
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    # Verify unknown hooks are in custom_steps with TODO
-    run cat hk.pkl
-    assert_output --partial "custom_steps"
-    assert_output --partial "TODO: Configure check and/or fix commands"
-    assert_output --partial "Repo: https://github.com/some/unknown-hook @ v1.0.0"
-}
-
-@test "migrate precommit - force overwrite" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: black
-PRECOMMIT
-
-    # Create existing hk.pkl
-    echo "existing content" > hk.pkl
-
-    # Try without force - should fail
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    touch patch.rej
+    git add patch.rej
+    run hk check --all --step no-rej
     assert_failure
-    assert_output --partial "already exists"
-
-    # Try with force - should succeed
-    run hk migrate pre-commit --force
-    assert_success
-
-    run cat hk.pkl
-    assert_output --partial "Builtins.black"
+    assert_output --partial "Remove .rej files"
+    assert_output --partial "patch.rej"
 }
 
-@test "migrate precommit - custom config path" {
-    cat <<PRECOMMIT > custom-precommit.yaml
+@test "migrate precommit - filters hk cannot express are delegated" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
+-   repo: local
     hooks:
-    -   id: shellcheck
+    -   id: lookahead
+        name: lookahead
+        entry: echo
+        language: system
+        files: ^(?!vendor/).*\.py$
+    -   id: exclude-types
+        name: exclude types
+        entry: echo
+        language: system
+        exclude_types: [markdown]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: trailing-whitespace
+        files: ^src/
 PRECOMMIT
 
-    run hk migrate pre-commit --config custom-precommit.yaml --output custom-hk.pkl
+    migrate
+    assert_success
+    run cat hk.pkl
+    assert_output --partial "// its \`files\` regex uses syntax hk's regex engine does not support"
+    assert_output --partial '// `exclude_types` has no hk equivalent'
+    assert_output --partial "// Builtins.trailing_whitespace does not support this hook's \`files\`"
+    run hk validate
+    assert_success
+}
+
+@test "migrate precommit - top-level and hook excludes are combined" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
+exclude: |
+    (?x)^(
+        vendor/.*|  # third party code
+        dist/.*
+    )$
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+        exclude: \.snap$
+PRECOMMIT
+
+    migrate
+    assert_success
+    run cat hk.pkl
+    assert_output --partial 'local excluded = Regex("""'
+    assert_output --partial 'exclude = excluded'
+    assert_output --partial '(?:\.snap$)|(?:(?x)^('
+
+    run hk validate
     assert_success
 
-    # Verify custom output was created
-    [ -f custom-hk.pkl ]
-
-    run cat custom-hk.pkl
-    assert_output --partial "Builtins.shellcheck"
+    mkdir -p vendor src
+    printf 'trailing   \n' > vendor/lib.txt
+    printf 'clean\n' > src/app.txt
+    printf 'snapshot' > src/app.snap
+    git add vendor src
+    run hk check --all
+    assert_success
 }
 
-@test "migrate precommit - missing config file" {
-    run hk migrate pre-commit --config nonexistent.yaml
-    assert_failure
-    assert_output --partial "does not exist"
-}
-
-@test "migrate precommit - mixed known and unknown hooks" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
+@test "migrate precommit - stages map to hk hooks" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
+default_install_hook_types: [pre-commit, commit-msg, pre-merge-commit]
+default_stages: [pre-commit, pre-push, pre-merge-commit]
 repos:
--   repo: https://github.com/psf/black
-    rev: 23.0.0
+-   repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
     hooks:
-    -   id: black
+    -   id: conventional-pre-commit
+-   repo: local
+    hooks:
+    -   id: no-wip
+        name: no wip
+        entry: sh -c '! grep -qi wip "$1"' --
+        language: system
+        stages: [commit-msg]
+    -   id: default
+        name: default
+        entry: echo default
+        language: system
+    -   id: legacy
+        name: legacy
+        entry: echo legacy
+        language: system
+        stages: [commit, push]
+    -   id: docs
+        name: docs
+        entry: echo docs
+        language: system
+        stages: [manual]
+PRECOMMIT
+
+    migrate
+    assert_success
+    assert_output --partial "hk has no pre-merge-commit hook, so these hooks will not run at that stage: default"
+
+    run cat hk.pkl
+    assert_output --partial '["conventional-pre-commit"] = Builtins.check_conventional_commit'
+    assert_output --partial "check = #\"sh -c '! grep -qi wip \"\$1\"' -- {{commit_msg_file}}\"#"
+    assert_output --partial '["pre-push"]'
+    assert_output --partial 'local manual_steps = new Mapping<String, Step> {'
+    assert_output --partial '["check"] { steps { ...manual_steps } }'
+    assert_output --partial '["fix"] { steps { ...manual_steps } }'
+    # default_stages only apply to hook types pre-commit installs
+    run grep -c '"default"' hk.pkl
+    assert_output "1"
+
+    run hk validate
+    assert_success
+
+    echo "feat: add thing" > msg
+    run hk run commit-msg msg
+    assert_success
+    echo "feat: WIP thing" > msg
+    run hk run commit-msg msg
+    assert_failure
+    echo "not conventional" > msg
+    run hk run commit-msg msg
+    assert_failure
+}
+
+@test "migrate precommit - keeps pre-commit's run-every-hook behavior" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+    -   id: trailing-whitespace
+PRECOMMIT
+
+    migrate
+    assert_success
+    run cat hk.pkl
+    assert_output --partial 'fail_fast = false'
+}
+
+@test "migrate precommit - numeric args are accepted" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
+repos:
 -   repo: https://github.com/PyCQA/flake8
     rev: 7.0.0
     hooks:
     -   id: flake8
--   repo: https://github.com/custom/my-linter
-    rev: v1.0.0
-    hooks:
-    -   id: my-custom-linter
+        args: [--max-line-length, 100]
 PRECOMMIT
 
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate
     assert_success
-
     run cat hk.pkl
-    # Verify known hooks
-    assert_output --partial "Builtins.black"
-    assert_output --partial "Builtins.flake8"
-    # Verify unknown hooks
-    assert_output --partial "custom_steps"
-    assert_output --partial "my-custom-linter"
-    # Verify both are used in hooks
-    assert_output --partial "...linters"
-    assert_output --partial "...custom_steps"
+    assert_output --partial "does not support this hook's args (--max-line-length 100)"
 }
 
-@test "migrate precommit - fail_fast config" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-fail_fast: true
+@test "migrate precommit - refuses to overwrite without --force" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
+    rev: v5.0.0
     hooks:
-    -   id: black
+    -   id: trailing-whitespace
 PRECOMMIT
+    echo "existing" > hk.pkl
 
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate
+    assert_failure
+    assert_output --partial "already exists"
+
+    migrate --force
     assert_success
-
     run cat hk.pkl
-    assert_output --partial "fail_fast"
-    assert_output --partial "hk uses --fail-fast"
+    assert_output --partial "Builtins.trailing_whitespace"
 }
 
-@test "migrate precommit - default_language_version" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-default_language_version:
-    python: python3.11
-    node: 18.0.0
+@test "migrate precommit - custom output path" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
+    rev: v5.0.0
     hooks:
-    -   id: black
+    -   id: trailing-whitespace
 PRECOMMIT
 
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate --output hk.migrated.pkl
     assert_success
-
-    run cat hk.pkl
-    assert_output --partial "default_language_version"
-    assert_output --partial "python: python3.11"
-    assert_output --partial "node: 18.0.0"
-    assert_output --partial "mise use python@3.11"
-    assert_output --partial "mise use node@18.0.0"
+    [ -f hk.migrated.pkl ]
+    [ ! -f hk.pkl ]
 }
 
-@test "migrate precommit - always_run flag" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-        always_run: true
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    run cat hk.pkl
-    assert_output --partial "always_run: true"
-}
-
-@test "migrate precommit - pass_filenames false" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: black
-        pass_filenames: false
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    run cat hk.pkl
-    assert_output --partial "pass_filenames: false"
-    assert_output --partial "not use {{files}}"
-}
-
-@test "migrate precommit - generates check and fix hooks" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-
-    run cat hk.pkl
-    # Pre-commit is implicit from top-level steps; check and fix add the full set.
-    assert_output --partial 'steps {'
-    refute_output --partial '["pre-commit"]'
-    assert_output --partial '["check"]'
-    assert_output --partial '["fix"]'
+@test "migrate precommit - missing config file" {
+    migrate
+    assert_failure
+    assert_output --partial ".pre-commit-config.yaml does not exist"
 }
 
 @test "migrate precommit - apache airflow real-world config" {
-    # Test with actual Apache Airflow pre-commit config
-    if ! command -v curl &> /dev/null; then
-        skip "curl not available"
-    fi
+    command -v curl &> /dev/null || skip "curl not available"
+    curl -sfo .pre-commit-config.yaml https://raw.githubusercontent.com/apache/airflow/main/.pre-commit-config.yaml ||
+        skip "Failed to download Airflow config"
 
-    curl -s -o .pre-commit-config.yaml https://raw.githubusercontent.com/apache/airflow/main/.pre-commit-config.yaml || skip "Failed to download Airflow config"
-
-    # Verify we downloaded something
-    [ -f .pre-commit-config.yaml ]
-    [ -s .pre-commit-config.yaml ]
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    migrate
     assert_success
-    assert_output --partial "Successfully migrated to hk.pkl"
-
-    # Verify hk.pkl was created
-    [ -f hk.pkl ]
-
-    # Verify basic structure
-    run cat hk.pkl
-    # When using --hk-pkl-root with a local path, it should use local imports
-    assert_output --partial 'import "'
-    assert_output --partial 'Builtins.pkl'
-    assert_output --partial 'hooks {'
-
-    # Apache Airflow uses several common pre-commit hooks
-    # These may change over time, so we just check for some basic patterns
-    # rather than specific hooks
-    assert_output --regexp 'Builtins\.(yamllint|check_merge_conflict|mixed_line_ending|trailing_whitespace|detect_private_key|newlines|python_debug_statements|check_executables_have_shebangs)'
-
-    # Pre-commit is implicit from top-level steps; pre-push remains explicit.
-    assert_output --partial 'steps {'
-    refute_output --partial '["pre-commit"]'
-    assert_output --partial '["pre-push"]'
-
-    # Verify it has local hooks section
-    assert_output --partial 'local local_hooks'
-
-    # Verify it has custom steps for unmapped hooks
-    assert_output --partial 'local custom_steps'
-}
-
-@test "migrate precommit - vendor external repo hooks" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/Lucas-C/pre-commit-hooks
-    rev: v1.5.5
-    hooks:
-    -   id: remove-crlf
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    run hk validate
     assert_success
-    assert_output --partial "Successfully migrated to hk.pkl"
-
-    # Verify .hk directory was created with vendored repo
-    [ -d .hk/vendors ]
-    [ -d .hk/vendors/Lucas-C-pre-commit-hooks ]
-    [ -f .hk/vendors/Lucas-C-pre-commit-hooks/.pre-commit-hooks.yaml ]
-
-    # Verify .git directory was removed
-    [ ! -d .hk/vendors/Lucas-C-pre-commit-hooks/.git ]
-
-    # Verify hk.pkl references vendored hooks
-    run cat hk.pkl
-    assert_output --partial 'import ".hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl"'
-    assert_output --partial "remove-crlf"
-    assert_output --partial "Builtins.prettier"
-
-    # Verify vendored PKL file was created
-    [ -f .hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl ]
-
-    # Verify the generated PKL file has correct structure
-    run cat .hk/vendors/Lucas-C-pre-commit-hooks/hooks.pkl
-    assert_output --partial "remove_crlf"
-
-    # Verify hooks use the vendored scripts and are in linters
-    run cat hk.pkl
-    assert_output --partial "local linters"
-    assert_output --partial "Vendors_Lucas_C_pre_commit_hooks.remove_crlf"
-    refute_output --partial "custom_steps"
-
-    # Create a test file with CRLF line endings to test the vendored hook
-    printf "line1\r\nline2\r\n" > test.txt
-    git add test.txt
-
-    # Dependencies will be installed automatically when the hook runs
-
-    # Run hk fix - should install dependencies and remove CRLF
-    run hk fix
-    assert_success
-
-    # Verify CRLF was removed - check file directly for \r bytes
-    run od -c test.txt
-    refute_output --partial '\r'
-}
-
-@test "migrate precommit - vendor node hooks (doctoc)" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/thlorenz/doctoc
-    rev: v2.2.0
-    hooks:
-    -   id: doctoc
-        args: [--maxlevel=3]
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-    assert_output --partial "Successfully migrated to hk.pkl"
-
-    # Verify .hk directory was created with vendored repo
-    [ -d .hk/vendors ]
-    [ -d .hk/vendors/thlorenz-doctoc ]
-    [ -f .hk/vendors/thlorenz-doctoc/.pre-commit-hooks.yaml ]
-
-    # Verify .git directory was removed
-    [ ! -d .hk/vendors/thlorenz-doctoc/.git ]
-
-    # Verify package.json exists in the vendored repo
-    [ -f .hk/vendors/thlorenz-doctoc/package.json ]
-
-    # Verify hk.pkl references vendored hooks
-    run cat hk.pkl
-    assert_output --partial 'import ".hk/vendors/thlorenz-doctoc/hooks.pkl"'
-    assert_output --partial "doctoc"
-    assert_output --partial "Builtins.prettier"
-
-    # Verify vendored PKL file was created
-    [ -f .hk/vendors/thlorenz-doctoc/hooks.pkl ]
-
-    # Verify the generated PKL file has correct structure for Node.js
-    run cat .hk/vendors/thlorenz-doctoc/hooks.pkl
-    assert_output --partial "doctoc"
-    assert_output --partial "node_modules"
-    assert_output --partial "npm install"
-    assert_output --partial "npx --prefix .hk/vendors/thlorenz-doctoc doctoc"
-
-    # Verify hooks use the vendored scripts and are in linters
-    run cat hk.pkl
-    assert_output --partial "local linters"
-    assert_output --partial "Vendors_thlorenz_doctoc.doctoc"
-    refute_output --partial "custom_steps"
-
-    # Create a test markdown file without TOC to test the vendored hook
-    cat <<'MARKDOWN' > README.md
-# Test Document
-
-This is a test document for doctoc.
-
-## Section One
-
-Some content here.
-
-### Subsection 1.1
-
-More content.
-
-## Section Two
-
-Final section.
-MARKDOWN
-    git add README.md
-
-    # Dependencies will be installed automatically when the hook runs
-
-    # Run hk fix - should install dependencies and add TOC to README.md
-    run hk fix
-    assert_success
-
-    # Verify TOC was added to the markdown file
-    run cat README.md
-    assert_output --partial "<!-- START doctoc"
-    assert_output --partial "<!-- END doctoc"
-    assert_output --partial "Section One"
-    assert_output --partial "Section Two"
-}
-
-@test "migrate precommit - vendor golang hooks (buf)" {
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/bufbuild/buf
-    rev: v1.47.2
-    hooks:
-    -   id: buf-format
-    -   id: buf-lint
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-    assert_output --partial "Successfully migrated to hk.pkl"
-
-    # Verify .hk directory was created with vendored repo
-    [ -d .hk/vendors ]
-    [ -d .hk/vendors/bufbuild-buf ]
-    [ -f .hk/vendors/bufbuild-buf/.pre-commit-hooks.yaml ]
-
-    # Verify .git directory was removed
-    [ ! -d .hk/vendors/bufbuild-buf/.git ]
-
-    # Verify go.mod exists (buf is a Go project)
-    [ -f .hk/vendors/bufbuild-buf/go.mod ]
-
-    # Verify hk.pkl references vendored hooks
-    run cat hk.pkl
-    assert_output --partial 'import ".hk/vendors/bufbuild-buf/hooks.pkl"'
-    assert_output --partial "buf-format"
-    assert_output --partial "buf-lint"
-    assert_output --partial "Builtins.prettier"
-
-    # Verify vendored PKL file was created
-    [ -f .hk/vendors/bufbuild-buf/hooks.pkl ]
-
-    # Verify the generated PKL file has correct structure for language: golang
-    run cat .hk/vendors/bufbuild-buf/hooks.pkl
-    assert_output --partial "buf_format"
-    assert_output --partial "buf_lint"
-    assert_output --partial ".gopath/bin"
-    assert_output --partial "go install ./..."
-    assert_output --partial "export GOPATH"
-
-    # Verify hooks use the vendored Go binaries and are in linters
-    run cat hk.pkl
-    assert_output --partial "local linters"
-    assert_output --partial "Vendors_bufbuild_buf.buf_format"
-    assert_output --partial "Vendors_bufbuild_buf.buf_lint"
-    refute_output --partial "custom_steps"
-
-    # Note: buf uses language: golang so it will install via go install
-    # The actual buf commands would require Go and proto files to test
-}
-
-@test "migrate precommit - vendor swift hooks (swift-format)" {
-    if ! command -v swift &> /dev/null; then
-        skip "swift not available"
-    fi
-
-    cat <<PRECOMMIT > .pre-commit-config.yaml
-repos:
--   repo: https://github.com/swiftlang/swift-format
-    rev: main
-    hooks:
-    -   id: swift-format
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.0.0
-    hooks:
-    -   id: prettier
-PRECOMMIT
-
-    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
-    assert_success
-    assert_output --partial "Successfully migrated to hk.pkl"
-
-    # Verify .hk directory was created with vendored repo
-    [ -d .hk/vendors ]
-    [ -d .hk/vendors/swiftlang-swift-format ]
-    [ -f .hk/vendors/swiftlang-swift-format/.pre-commit-hooks.yaml ]
-
-    # Verify .git directory was removed
-    [ ! -d .hk/vendors/swiftlang-swift-format/.git ]
-
-    # Verify Package.swift exists (swift-format is a Swift package)
-    [ -f .hk/vendors/swiftlang-swift-format/Package.swift ]
-
-    # Verify hk.pkl references vendored hooks
-    run cat hk.pkl
-    assert_output --partial 'import ".hk/vendors/swiftlang-swift-format/hooks.pkl"'
-    assert_output --partial "swift-format"
-    assert_output --partial "Builtins.prettier"
-
-    # Verify vendored PKL file was created
-    [ -f .hk/vendors/swiftlang-swift-format/hooks.pkl ]
-
-    # Verify the generated PKL file has correct structure for language: swift
-    run cat .hk/vendors/swiftlang-swift-format/hooks.pkl
-    assert_output --partial "swift_format ="
-    assert_output --partial ".swift_env/.build/release"
-    assert_output --partial "swift build"
-    assert_output --partial "format --in-place --recursive --parallel"
-
-    # Verify hooks use the vendored Swift binaries and are in linters
-    run cat hk.pkl
-    assert_output --partial "local linters"
-    assert_output --partial "Vendors_swiftlang_swift_format.swift_format"
-    refute_output --partial "custom_steps"
-
-    # Note: swift uses language: swift so it will build via swift build
-    # The actual swift-format execution would require Swift to be installed
-    # and takes ~3 minutes to build, so we only verify the vendoring structure
 }

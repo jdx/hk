@@ -67,6 +67,6 @@ The tradeoffs are a configuration language to learn and responsibility for provi
 
 You can evaluate hk on a branch before changing your team’s setup. Create a configuration, run `hk check --all --plan`, then compare the checks and fixes with your existing workflow.
 
-For a pre-commit configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Review the generated steps, tool versions, file filters, and any unsupported hooks before installing hk’s Git hooks.
+For a pre-commit or prek configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Known hooks become hk builtins and local shell hooks become hk steps. Everything else keeps running through prek or pre-commit, so you can switch now and convert the rest later.
 
 [Get started](/getting_started) or browse the [configuration examples](/reference/examples/).
