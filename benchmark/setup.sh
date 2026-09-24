@@ -46,8 +46,12 @@ mkdir -p "$WORK"
 ln -sfn "$WORK" "$BENCH/.work"
 
 # The fixture takes a couple of minutes to normalise, so reuse it unless the
-# scripts that build it or the tools that normalise it have changed.
-inputs=$(cat "$BENCH/generate-project.sh" "$BENCH"/lib/*.sh "$BENCH/mise.toml" | sha256sum | cut -c1-16)
+# scripts that build it, the tools that normalise it or the requested file
+# counts (NUM_* in generate-project.sh) have changed.
+inputs=$({
+    cat "$BENCH/generate-project.sh" "$BENCH"/lib/*.sh "$BENCH/mise.toml"
+    env | grep '^NUM_' | sort
+} | sha256sum | cut -c1-16)
 if [ "${REGENERATE:-0}" != "0" ] || [ "$(cat "$WORK/fixture.inputs" 2>/dev/null)" != "$inputs" ]; then
     "$BENCH/generate-project.sh" "$WORK/fixture"
     echo "$inputs" >"$WORK/fixture.inputs"

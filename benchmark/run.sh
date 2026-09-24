@@ -8,6 +8,9 @@
 #   4. report.py    results.json, marked publishable only if the run is sound
 #
 # Usage: benchmark/run.sh [tak run flags...]   e.g. --bench fix-staged --runs 3
+#
+# A run narrowed with --bench is for diagnosis: it verifies and times only the
+# named benchmarks, and results.json records that it is not publishable.
 # Environment:
 #   HK_BIN   hk binary to measure (default: target/release/hk, built first)
 #   TRIALS   verification trials per subject (default: 5)
@@ -26,8 +29,17 @@ echo "Measuring $("$HK_BIN" --version) at $HK_BIN"
 "$BENCH/setup.sh"
 
 cd "$BENCH"
+# Verify the same benchmarks tak will time.
+benches=()
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+    case "${args[i]}" in
+    --bench) benches+=(--bench "${args[i + 1]}") ;;
+    --bench=*) benches+=(--bench "${args[i]#--bench=}") ;;
+    esac
+done
 echo "Verifying..."
-./verify.py --trials "${TRIALS:-5}" || true
+./verify.py --trials "${TRIALS:-5}" "${benches[@]}" || true
 
 echo "Timing..."
 # tak drops a failing subject, keeps measuring the rest and exits non-zero;

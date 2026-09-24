@@ -138,7 +138,12 @@ def main():
 
     problems = []
     scenarios = []
+    # A run narrowed with `--bench` is a diagnostic: never publishable, but
+    # not a failure either.
+    skipped = [b for b in config["bench"] if not any(k[0] == b for k in samples)]
     for bname, bench in config["bench"].items():
+        if bname in skipped:
+            continue
         results = {}
         for sname in bench["subject"]:
             meta = SUBJECTS.get(sname)
@@ -171,11 +176,13 @@ def main():
         scenarios.append({"key": bname, **SCENARIOS.get(bname, {"title": bname, "summary": ""}), "results": results})
 
     repo = ROOT.parent
+    # `problems` holds what went wrong in the benchmarks that ran.
+    unpublishable = ([f"partial run, not timed: {', '.join(skipped)}"] if skipped else []) + problems
     data = {
         "schema": SCHEMA,
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "passed": not problems,
-        "problems": problems,
+        "passed": not unpublishable,
+        "problems": unpublishable,
         "commit": out("git", "rev-parse", "HEAD", cwd=repo),
         "workflow_run": os.environ.get("BENCH_WORKFLOW_RUN") or None,
         "machine": machine(),
@@ -186,9 +193,10 @@ def main():
     }
     Path(args.out).write_text(json.dumps(data, indent=2) + "\n")
     print(f"wrote {args.out}")
-    for p in problems:
+    for p in unpublishable:
         print(f"  not publishable: {p}", file=sys.stderr)
-    return 0 if not problems else 1
+    # Exit non-zero only when something that ran was wrong.
+    return 1 if problems else 0
 
 
 if __name__ == "__main__":

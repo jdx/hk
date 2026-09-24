@@ -10,7 +10,8 @@
 # generate-project.sh). Each subject has its own clone of it under .work/,
 # created by setup.sh. tak takes one sample of every subject per round, in a new
 # random order each round, so machine drift is shared rather than blamed on
-# whichever tool happened to be running.
+# whichever tool happened to be running. Every subject of a benchmark gets the
+# same number of samples, so ranges on the page compare like with like.
 #
 # Wall time says nothing about whether a run produced the right files, so
 # verify.py runs every subject in every scenario again and checks the result
@@ -37,23 +38,20 @@ cmd = ["./lib/allow-fixes", "hk", "fix", "--all"]
 dir = ".work/hk"
 
 [bench.fix-all.subject.lefthook]
-cmd  = ["./lib/allow-fixes", "lefthook", "run", "fix", "--all-files", "--force", "--no-tty", "--no-auto-install"]
-dir  = ".work/lefthook"
-runs = 5
+cmd = ["./lib/allow-fixes", "lefthook", "run", "fix", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+dir = ".work/lefthook"
 
 [bench.fix-all.subject.lefthook-parallel]
 cmd = ["./lib/allow-fixes", "lefthook", "run", "fix", "--all-files", "--force", "--no-tty", "--no-auto-install"]
 dir = ".work/lefthook-parallel"
 
 [bench.fix-all.subject.pre-commit]
-cmd  = ["./lib/allow-fixes", "pre-commit", "run", "--all-files"]
-dir  = ".work/pre-commit"
-runs = 5
+cmd = ["./lib/allow-fixes", "pre-commit", "run", "--all-files"]
+dir = ".work/pre-commit"
 
 [bench.fix-all.subject.prek]
-cmd  = ["./lib/allow-fixes", "prek", "run", "--all-files"]
-dir  = ".work/prek"
-runs = 5
+cmd = ["./lib/allow-fixes", "prek", "run", "--all-files"]
+dir = ".work/prek"
 
 [bench.fix-all.subject.prek-parallel]
 cmd = ["./lib/allow-fixes", "prek", "run", "--all-files"]
@@ -82,14 +80,12 @@ cmd = ["lefthook", "run", "check", "--all-files", "--force", "--no-tty", "--no-a
 dir = ".work/lefthook-parallel"
 
 [bench.check-all.subject.pre-commit]
-cmd  = ["pre-commit", "run", "--all-files", "--hook-stage", "manual"]
-dir  = ".work/pre-commit"
-runs = 5
+cmd = ["pre-commit", "run", "--all-files", "--hook-stage", "manual"]
+dir = ".work/pre-commit"
 
 [bench.check-all.subject.prek]
-cmd  = ["prek", "run", "--all-files", "--hook-stage", "manual"]
-dir  = ".work/prek"
-runs = 5
+cmd = ["prek", "run", "--all-files", "--hook-stage", "manual"]
+dir = ".work/prek"
 
 [bench.check-all.subject.prek-parallel]
 cmd = ["prek", "run", "--all-files", "--hook-stage", "manual"]

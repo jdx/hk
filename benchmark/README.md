@@ -6,7 +6,7 @@ explains the method for readers; this file is for maintainers.
 
 ```sh
 mise run benchmark                                  # everything
-mise run benchmark -- --bench fix-staged --runs 5   # extra flags go to `tak run`
+mise run benchmark -- --bench fix-staged --runs 5   # diagnose one scenario (flags go to `tak run`)
 HK_BIN=~/Downloads/hk mise run benchmark            # measure a specific binary
 ```
 

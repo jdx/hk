@@ -56,4 +56,4 @@ The benchmark runs on Linux (its scripts use GNU sed) and needs [mise](https://m
 mise run benchmark
 ```
 
-This builds hk, generates the project (outside the repository, in `~/.cache/hk-bench`), verifies every tool, times every scenario, and writes `benchmark/results.json`, which this page renders. Pass tak flags to narrow a run, for example `mise run benchmark -- --bench fix-staged --runs 5`. To measure a released hk, set `HK_BIN` to its path. See [`benchmark/README.md`](https://github.com/jdx/hk/blob/main/benchmark/README.md) for how the pieces fit together.
+This builds hk, generates the project (outside the repository, in `~/.cache/hk-bench`), verifies every tool, times every scenario, and writes `benchmark/results.json`, which this page renders. Pass tak flags to narrow a run for diagnosis, for example `mise run benchmark -- --bench fix-staged --runs 5`; such a run is never marked publishable. To measure a released hk, set `HK_BIN` to its path. See [`benchmark/README.md`](https://github.com/jdx/hk/blob/main/benchmark/README.md) for how the pieces fit together.
