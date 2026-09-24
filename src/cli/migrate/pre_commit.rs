@@ -34,7 +34,7 @@ pub struct PreCommit {
     #[usage(short, long, default = "hk.pkl")]
     output: PathBuf,
     /// Tool that runs hooks hk cannot convert.
-    /// Defaults to prek when it is on PATH, otherwise pre-commit.
+    /// Defaults to pre-commit when only pre-commit is on PATH, otherwise prek.
     #[usage(long, choices("prek", "pre-commit"), verbatim_doc_comment)]
     runner: Option<String>,
     /// Root path for hk pkl files (e.g. "pkl" for a local checkout, or a package URL prefix).

@@ -1834,7 +1834,7 @@
               {
                 "name": "runner",
                 "usage": "--runner <RUNNER>",
-                "help": "Tool that runs hooks hk cannot convert.\nDefaults to prek when it is on PATH, otherwise pre-commit.",
+                "help": "Tool that runs hooks hk cannot convert.\nDefaults to pre-commit when only pre-commit is on PATH, otherwise prek.",
                 "help_first_line": "Tool that runs hooks hk cannot convert.",
                 "short": [],
                 "long": ["runner"],
