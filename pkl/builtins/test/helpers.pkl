@@ -13,6 +13,9 @@ class TestMaker {
   /// Extra files to include in the sandbox, useful for config files.
   extra_files: Mapping<String, String> = new Mapping {}
 
+  /// Extra environment variables for the test.
+  env: Mapping<String, String> = new Mapping {}
+
   /// (Copied to the test)
   before: String?
 
@@ -26,6 +29,7 @@ class TestMaker {
     run = runType
     files = outer.files
     before = outer.before
+    env = outer.env
     tmpdir = true
     write = new Mapping<String, String> {
       [filename] = contentBefore
