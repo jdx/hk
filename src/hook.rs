@@ -1786,54 +1786,63 @@ impl Hook {
             all_excludes.extend(cli_excludes.iter().cloned());
         }
 
-        if !all_excludes.is_empty() {
-            // Process excludes - handle both directory patterns and glob patterns
-            debug!(
-                "files.exclude: patterns from settings/CLI: {:?}",
-                all_excludes
-            );
+        if !all_excludes.is_empty() || !opts.exclude_regexes.is_empty() {
+            // Excludes match repo-relative paths, so relativize absolute paths
+            // passed as arguments. hk runs from the repo root.
+            let cwd = std::env::current_dir().ok();
+            let relative = |f: &PathBuf| -> PathBuf {
+                let Some(cwd) = cwd.as_deref().filter(|_| f.is_absolute()) else {
+                    return f.clone();
+                };
+                f.strip_prefix(cwd)
+                    .ok()
+                    .map(Path::to_path_buf)
+                    .or_else(|| {
+                        let canonical = f.canonicalize().ok()?;
+                        Some(canonical.strip_prefix(cwd).ok()?.to_path_buf())
+                    })
+                    .unwrap_or_else(|| f.clone())
+            };
+            let match_paths = files.iter().map(relative).collect::<Vec<_>>();
             let files_before = files.len();
-            let mut expanded_excludes = Vec::new();
-            for exclude in &all_excludes {
-                expanded_excludes.push(exclude.clone());
-                // If the pattern doesn't contain glob characters, also add patterns for directory contents
-                if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
-                    expanded_excludes.push(format!("{}/*", exclude));
-                    expanded_excludes.push(format!("{}/**", exclude));
-                }
-            }
-            debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
+            let mut exclude_files = HashSet::new();
 
-            let f = files.iter().collect::<Vec<_>>();
-            let exclude_files = glob::get_matches(&expanded_excludes, &f)?
-                .into_iter()
-                .collect::<HashSet<_>>();
+            if !all_excludes.is_empty() {
+                // Process excludes - handle both directory patterns and glob patterns
+                debug!(
+                    "files.exclude: patterns from settings/CLI: {:?}",
+                    all_excludes
+                );
+                let mut expanded_excludes = Vec::new();
+                for exclude in &all_excludes {
+                    expanded_excludes.push(exclude.clone());
+                    // If the pattern doesn't contain glob characters, also add patterns for directory contents
+                    if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
+                        expanded_excludes.push(format!("{}/*", exclude));
+                        expanded_excludes.push(format!("{}/**", exclude));
+                    }
+                }
+                debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
+                exclude_files.extend(glob::get_matches(&expanded_excludes, &match_paths)?);
+            }
+
+            // Regexes from the top-level config `exclude` use step-level regex semantics
+            for pattern in &opts.exclude_regexes {
+                debug!("files.exclude: regex from config: {pattern:?}");
+                let regex = crate::step::Pattern::Regex {
+                    _type: "regex".to_string(),
+                    pattern: pattern.clone(),
+                };
+                exclude_files.extend(glob::get_pattern_matches(&regex, &match_paths, None)?);
+            }
+
             debug!(
                 "files.exclude: matched and will exclude {} file(s)",
                 exclude_files.len()
             );
-            files.retain(|f| !exclude_files.contains(f));
+            files.retain(|f| !exclude_files.contains(&relative(f)));
             debug!(
                 "files.exclude: filtered files from {} to {}",
-                files_before,
-                files.len()
-            );
-        }
-
-        // Regexes from the top-level config `exclude` use step-level regex semantics
-        for pattern in &opts.exclude_regexes {
-            let files_before = files.len();
-            let regex = crate::step::Pattern::Regex {
-                _type: "regex".to_string(),
-                pattern: pattern.clone(),
-            };
-            let f = files.iter().collect::<Vec<_>>();
-            let exclude_files = glob::get_pattern_matches(&regex, &f, None)?
-                .into_iter()
-                .collect::<HashSet<_>>();
-            files.retain(|f| !exclude_files.contains(f));
-            debug!(
-                "files.exclude: regex {pattern:?} filtered files from {} to {}",
                 files_before,
                 files.len()
             );

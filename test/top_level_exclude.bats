@@ -272,3 +272,28 @@ EOF
     assert_failure
     assert_output --partial "invalid regex in top-level 'exclude'"
 }
+
+@test "top-level exclude - applies to absolute file arguments" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/"#)
+steps {
+    ["list"] {
+        check = "echo checking: {{files}}"
+    }
+}
+EOF
+    mkdir -p vendor dist
+    echo "a" > vendor/lib.js
+    echo "b" > dist/out.js
+    echo "c" > main.js
+    git add -A
+    git commit -m "initial commit"
+    git config hk.exclude dist
+
+    run hk check "$PWD/vendor/lib.js" "$PWD/dist/out.js" "$PWD/main.js"
+    assert_success
+    assert_output --partial 'main.js'
+    refute_output --partial 'vendor/lib.js'
+    refute_output --partial 'dist/out.js'
+}

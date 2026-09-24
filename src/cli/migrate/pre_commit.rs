@@ -203,10 +203,26 @@ impl PreCommit {
             hk_config.header_comments.push("".to_string());
         }
         // pre-commit's default top-level exclude `^$` matches nothing.
-        hk_config.exclude = config
+        if let Some(exclude) = config
             .exclude
             .clone()
-            .filter(|exclude| !exclude.trim().is_empty() && exclude.trim() != "^$");
+            .filter(|exclude| !exclude.trim().is_empty() && exclude.trim() != "^$")
+        {
+            // pre-commit uses Python regexes. Keep ones Rust cannot compile, such
+            // as lookarounds, out of the config so it still loads.
+            if regex::Regex::new(&exclude).is_ok() {
+                hk_config.exclude = Some(exclude);
+            } else {
+                hk_config.header_comments.push(
+                    "TODO: Convert pre-commit's top-level exclude to Rust regex syntax and set `exclude`:"
+                        .to_string(),
+                );
+                for line in exclude.lines() {
+                    hk_config.header_comments.push(format!("  {line}"));
+                }
+                hk_config.header_comments.push("".to_string());
+            }
+        }
 
         if config.fail_fast {
             hk_config
