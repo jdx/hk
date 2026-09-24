@@ -1,6 +1,6 @@
 use crate::Result;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -41,7 +41,7 @@ impl FileRwLocks {
         }
     }
 
-    fn try_read_locks(&self, files: &[PathBuf]) -> Result<Flocks> {
+    fn try_read_locks(&self, files: &BTreeSet<&PathBuf>) -> Result<Flocks> {
         let mut locks = self.locks.lock().unwrap();
         let mut read_locks = Vec::new();
         for file in files {
@@ -57,15 +57,20 @@ impl FileRwLocks {
         })
     }
 
+    /// Acquire read locks on `files`, waiting for any writers to finish.
+    ///
+    /// Locks are taken in sorted order (see [`lock_order`]) so callers cannot
+    /// deadlock against each other.
     pub async fn read_locks(&self, files: &[PathBuf]) -> Flocks {
-        match self.try_read_locks(files) {
+        let files = lock_order(files);
+        match self.try_read_locks(&files) {
             Ok(flocks) => return flocks,
             Err(e) => {
                 debug!("failed to get read locks: {e:?}");
             }
         }
         let mut read_locks = Vec::new();
-        for file in files {
+        for file in &files {
             let lock = self.get_or_create_lock(&mut self.locks.lock().unwrap(), file);
             read_locks.push(lock.read_owned().await);
         }
@@ -75,7 +80,7 @@ impl FileRwLocks {
         }
     }
 
-    fn try_write_locks(&self, files: &[PathBuf]) -> Result<Flocks> {
+    fn try_write_locks(&self, files: &BTreeSet<&PathBuf>) -> Result<Flocks> {
         let mut locks = self.locks.lock().unwrap();
         let mut write_locks = Vec::new();
         for file in files {
@@ -91,15 +96,18 @@ impl FileRwLocks {
         })
     }
 
+    /// Acquire write locks on `files`, waiting for any readers or writers to
+    /// finish. Locks are taken in sorted order (see [`lock_order`]).
     pub async fn write_locks(&self, files: &[PathBuf]) -> Flocks {
-        match self.try_write_locks(files) {
+        let files = lock_order(files);
+        match self.try_write_locks(&files) {
             Ok(flocks) => return flocks,
             Err(e) => {
                 debug!("failed to get write locks: {e:?}");
             }
         }
         let mut write_locks = Vec::new();
-        for file in files {
+        for file in &files {
             let lock = self.get_or_create_lock(&mut self.locks.lock().unwrap(), file);
             write_locks.push(lock.write_owned().await);
         }
@@ -123,4 +131,11 @@ impl FileRwLocks {
         }
         .clone()
     }
+}
+
+/// Sort and deduplicate `files` so every caller acquires locks in the same
+/// order. Waiting on locks one at a time in inconsistent orders can deadlock,
+/// and locking the same path twice for writing would deadlock on itself.
+fn lock_order(files: &[PathBuf]) -> BTreeSet<&PathBuf> {
+    files.iter().collect()
 }

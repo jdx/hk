@@ -544,6 +544,11 @@ impl Step {
                 // Only stage matched files when staging is enabled for this hook.
                 // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
                 if ctx.hook_ctx.should_stage {
+                    // Other steps may still be fixing these files. Hold read locks
+                    // while adding so the index never receives a partially written
+                    // file (or libgit2 fails because it changed mid-read). Take the
+                    // file locks before the git mutex so neither waits on the other.
+                    let _flocks = ctx.hook_ctx.file_locks.read_locks(&filtered).await;
                     ctx.hook_ctx.git.lock().await.add(&filtered)?;
                 }
                 // Classify staged files using pre-staging untracked snapshot
