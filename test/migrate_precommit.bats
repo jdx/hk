@@ -57,6 +57,39 @@ PRECOMMIT
     assert_output --partial 'pre_commit/resources'
 }
 
+@test "migrate precommit - top-level exclude" {
+    cat <<PRECOMMIT > .pre-commit-config.yaml
+exclude: ^vendor/
+repos:
+-   repo: local
+    hooks:
+    -   id: list-files
+        name: List files
+        entry: "echo checking:"
+        language: system
+PRECOMMIT
+
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    assert_success
+
+    run cat hk.pkl
+    assert_output --partial 'exclude = Regex("^vendor/")'
+
+    mkdir -p vendor
+    echo a > vendor/lib.txt
+    echo b > main.txt
+    git add -A
+    git commit -m "initial commit"
+
+    run hk validate
+    assert_success
+
+    run hk check --all
+    assert_success
+    assert_output --partial 'main.txt'
+    refute_output --partial 'vendor/lib.txt'
+}
+
 @test "migrate precommit - with args" {
     cat <<PRECOMMIT > .pre-commit-config.yaml
 repos:

@@ -495,13 +495,15 @@ impl Settings {
                         (typ, serde_json::Value::Array(arr)) if typ.starts_with("list<string>") => {
                             let strings: IndexSet<String> = arr
                                 .iter()
+                                // Non-string elements, such as top-level `exclude`
+                                // regexes, are not settings; hooks read them from config.
                                 .filter_map(|v| v.as_str())
                                 .map(|s| s.to_string())
                                 .collect();
                             map.insert(setting_name, SettingValue::StringList(strings));
                         }
                         (typ, serde_json::Value::String(s)) if typ.starts_with("list<string>") => {
-                            // Handle StringOrList serialized as a single string
+                            // Handle a list setting serialized as a single string
                             let strings: IndexSet<String> = IndexSet::from([s.clone()]);
                             map.insert(setting_name, SettingValue::StringList(strings));
                         }

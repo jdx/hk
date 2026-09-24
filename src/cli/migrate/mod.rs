@@ -37,6 +37,8 @@ pub struct HkConfig {
     pub vendor_imports: Vec<(String, String)>,
     /// Comments at the top of the file
     pub header_comments: Vec<String>,
+    /// Top-level exclude regex, applied to every hook and step
+    pub exclude: Option<String>,
     /// Named step collections (e.g., "linters", "local_hooks", "custom_steps")
     pub step_collections: IndexMap<String, IndexMap<String, HkStep>>,
     /// Top-level steps that reference their canonical generated collection.
@@ -144,6 +146,13 @@ impl HkConfig {
                 }
             }
             output.push('\n');
+        }
+
+        if let Some(ref exclude) = self.exclude {
+            output.push_str(&format!(
+                "exclude = Regex({})\n\n",
+                format_pkl_string(exclude)
+            ));
         }
 
         // Step collections
@@ -326,6 +335,19 @@ impl HkConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn top_level_exclude_is_a_regex() {
+        let config = HkConfig {
+            exclude: Some("^(vendor/|docs/)".into()),
+            ..Default::default()
+        };
+        assert!(
+            config
+                .to_pkl()
+                .contains("\nexclude = Regex(\"^(vendor/|docs/)\")\n")
+        );
+    }
 
     #[test]
     fn builtin_overrides_are_amended_directly() {

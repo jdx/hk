@@ -37,6 +37,8 @@ struct PreCommitConfig {
     default_language_version: HashMap<String, String>,
     #[serde(default)]
     default_stages: Vec<String>,
+    #[serde(default)]
+    exclude: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,6 +202,12 @@ impl PreCommit {
             );
             hk_config.header_comments.push("".to_string());
         }
+        // pre-commit's default top-level exclude `^$` matches nothing.
+        hk_config.exclude = config
+            .exclude
+            .clone()
+            .filter(|exclude| !exclude.trim().is_empty() && exclude.trim() != "^$");
+
         if config.fail_fast {
             hk_config
                 .header_comments

@@ -1819,6 +1819,25 @@ impl Hook {
                 files.len()
             );
         }
+
+        // Regexes from the top-level config `exclude` use step-level regex semantics
+        for pattern in &opts.exclude_regexes {
+            let files_before = files.len();
+            let regex = crate::step::Pattern::Regex {
+                _type: "regex".to_string(),
+                pattern: pattern.clone(),
+            };
+            let f = files.iter().collect::<Vec<_>>();
+            let exclude_files = glob::get_pattern_matches(&regex, &f, None)?
+                .into_iter()
+                .collect::<HashSet<_>>();
+            files.retain(|f| !exclude_files.contains(f));
+            debug!(
+                "files.exclude: regex {pattern:?} filtered files from {} to {}",
+                files_before,
+                files.len()
+            );
+        }
         file_progress.prop("files", &files.len());
         file_progress.set_status(ProgressStatus::Done);
         debug!("files: {files:?}");

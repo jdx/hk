@@ -99,7 +99,7 @@ Examples:
 - Exclude specific directories: `node_modules,dist`
 - Exclude using glob patterns: `**/*.min.js,**/*.map`
 
-All exclude patterns from different sources are combined.
+All exclude patterns from different sources are combined. The Pkl `exclude` setting also accepts a `Regex`; regexes apply alongside these glob patterns but are not listed by `hk config get exclude`.
 """
 
 [fail_fast]

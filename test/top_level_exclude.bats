@@ -197,3 +197,78 @@ EOF
     refute_output --partial 'dist/test4.js'
     assert_output --partial '[warn] Code style issues found in 2 files.'
 }
+
+@test "top-level exclude - regex pattern" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/|\.gen\."#)
+hooks {
+    ["check"] {
+        steps {
+            ["list"] {
+                glob = "**/*.js"
+                check = "echo checking: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    mkdir -p vendor src/vendor src/nested
+    echo "a" > vendor/lib.js
+    echo "b" > src/vendor/kept.js
+    echo "c" > src/nested/types.gen.js
+    echo "d" > src/main.js
+    git add -A
+    git commit -m "initial commit"
+
+    run hk validate
+    assert_success
+
+    run hk check --all
+    assert_success
+    # Regexes search repo-relative paths: `^vendor/` is anchored at the repo
+    # root, and `\.gen\.` matches anywhere in the path.
+    assert_output --partial 'checking: src/main.js src/vendor/kept.js'
+    refute_output --partial 'vendor/lib.js'
+    refute_output --partial 'types.gen.js'
+}
+
+@test "top-level exclude - regex unions with CLI excludes" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/"#)
+hooks {
+    ["check"] {
+        steps {
+            ["list"] {
+                glob = "**/*.js"
+                check = "echo checking: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    mkdir -p vendor dist
+    echo "a" > vendor/lib.js
+    echo "b" > dist/out.js
+    echo "c" > main.js
+    git add -A
+    git commit -m "initial commit"
+
+    run hk check --all --exclude dist
+    assert_success
+    assert_output --partial 'checking: main.js'
+    refute_output --partial 'vendor/lib.js'
+    refute_output --partial 'dist/out.js'
+}
+
+@test "top-level exclude - invalid regex fails validation" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"vendor/("#)
+EOF
+
+    run hk validate
+    assert_failure
+    assert_output --partial "invalid regex in top-level 'exclude'"
+}
