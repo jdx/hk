@@ -64,6 +64,7 @@ EOF
     # Should succeed using cache when content is unchanged.
     run hk validate -vv
     assert_success
+    assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.hit"
     assert_output --partial "config.load:config.load_project:cache.get: cache.hit"
 
     # Content changes should invalidate the cache even if mtime is spoofed.
@@ -493,9 +494,10 @@ EOF
     assert_output --partial "config.load:config.load_project:cache.get: cache.hit"
 
     # An empty value is not the same as an unset one
-    HK_TEST_VAR= run hk check test.txt
+    HK_TEST_VAR= run hk check -vv test.txt
     assert_success
     assert_output --partial "value=[]"
+    assert_output --partial "config.load:config.load_project: cache.write"
 
     run hk check -vv test.txt
     assert_success

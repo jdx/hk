@@ -131,12 +131,11 @@ where
         F: FnOnce() -> Result<T>,
     {
         let val = self.cache.get_or_try_init(|| {
-            if let Some(val) = self.get() {
+            if let Some(val) = self.read_fresh() {
                 return Ok::<_, eyre::Report>(val);
             }
             let path = &self.cache_file_path;
             let val = (fetch)()?;
-            tracing::info!(path = %path.display(), "cache.write");
             if let Err(err) = self.write(&val) {
                 warn!("failed to write cache file: {} {:#}", path.display(), err);
             }
@@ -149,6 +148,10 @@ where
     /// choose the key to write under after computing the value.
     #[tracing::instrument(level = "info", name = "cache.get", skip_all, fields(path = %self.cache_file_path.display()))]
     pub fn get(&self) -> Option<T> {
+        self.read_fresh()
+    }
+
+    fn read_fresh(&self) -> Option<T> {
         let path = &self.cache_file_path;
         if self.is_fresh() && *crate::env::HK_CACHE {
             match self.parse() {
@@ -174,7 +177,7 @@ where
     }
 
     pub fn write(&self, val: &T) -> Result<()> {
-        trace!("writing {}", self.cache_file_path.display());
+        tracing::info!(path = %self.cache_file_path.display(), "cache.write");
         if let Some(parent) = self.cache_file_path.parent() {
             xx::file::create_dir_all(parent)?;
         }
