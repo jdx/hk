@@ -127,7 +127,7 @@ impl Step {
             let mut files = files.clone();
             // Compute chunk size from total file count so the total number of
             // jobs across all workspaces stays ~jobs_count, not per-workspace.
-            let chunk_size = (files.len() / Settings::get().jobs().get()).max(1);
+            let chunk_size = batch_chunk_size(files.len(), Settings::get().jobs().get());
 
             workspace_indicators
                 // Sort the files in reverse so the longest directory can take files in their directories
@@ -162,7 +162,7 @@ impl Step {
                 .collect()
         } else if self.batch {
             files
-                .chunks((files.len() / Settings::get().jobs().get()).max(1))
+                .chunks(batch_chunk_size(files.len(), Settings::get().jobs().get()))
                 .map(|chunk| StepJob::new(shared_step.clone(), chunk.to_vec(), run_type))
                 .collect()
         } else {
@@ -218,5 +218,45 @@ impl Step {
             }
         }
         Ok(jobs)
+    }
+}
+
+/// Fewest files a `batch` step hands to one process.
+///
+/// Each process pays the tool's startup cost (hundreds of milliseconds for a
+/// Node or Python tool), so splitting a handful of files one per process costs
+/// more than it saves. pre-commit and prek use the same floor.
+const MIN_BATCH_FILES: usize = 4;
+
+/// Files per job for a `batch` step: the files spread over `jobs` processes,
+/// but never fewer than [`MIN_BATCH_FILES`] per process.
+fn batch_chunk_size(files: usize, jobs: usize) -> usize {
+    files.div_ceil(jobs.max(1)).max(MIN_BATCH_FILES)
+}
+
+#[cfg(test)]
+mod batch_chunk_size_tests {
+    use super::*;
+
+    #[test]
+    fn a_few_files_share_one_process() {
+        // 5 files on 8 jobs used to start 5 processes, each paying the tool's
+        // startup cost.
+        assert_eq!(batch_chunk_size(5, 8), MIN_BATCH_FILES);
+        assert_eq!(5_usize.div_ceil(batch_chunk_size(5, 8)), 2);
+        assert_eq!(batch_chunk_size(1, 8), MIN_BATCH_FILES);
+    }
+
+    #[test]
+    fn many_files_spread_over_every_job() {
+        // Rounding up keeps the number of chunks at `jobs`, not `jobs + 1`.
+        assert_eq!(batch_chunk_size(4000, 8), 500);
+        assert_eq!(4001_usize.div_ceil(batch_chunk_size(4001, 8)), 8);
+        assert_eq!(batch_chunk_size(8, 2), 4);
+    }
+
+    #[test]
+    fn zero_jobs_is_treated_as_one() {
+        assert_eq!(batch_chunk_size(10, 0), 10);
     }
 }
