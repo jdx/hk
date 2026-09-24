@@ -560,7 +560,7 @@ impl Config {
 
         if let Some(path) = hkrc_path {
             // Parse pkl output as raw JSON for format detection
-            let (json_value, _): (serde_json::Value, _) = eval_pklr(&path)?;
+            let json_value: serde_json::Value = run_pklr(&path)?;
 
             if json_value.get("environment").is_some() || json_value.get("defaults").is_some() {
                 bail!(
@@ -998,6 +998,10 @@ static EMBEDDED_PKL_PACKAGE: &[u8] =
 fn embedded_pkl_package_url() -> String {
     let version = version::version();
     format!("https://github.com/jdx/hk/releases/download/v{version}/hk@{version}.zip")
+}
+
+fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    Ok(eval_pklr(path)?.0)
 }
 
 /// Evaluate `path`, also returning every environment variable the evaluation
