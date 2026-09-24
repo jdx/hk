@@ -24,6 +24,6 @@ PKL
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
     run hk test --step renovate_deps
     assert_success
-    assert_output --partial "ok - renovate_deps :: check ignores irrelevant files"
-    assert_output --partial "ok - renovate_deps :: fix ignores irrelevant files"
+    assert_output --partial "ok - renovate_deps :: check detects stale snapshot"
+    assert_output --partial "ok - renovate_deps :: fix regenerates snapshot"
 }
