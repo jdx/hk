@@ -64,6 +64,60 @@ PKL
   assert_output "$(printf 'A  a.txt\nA  data.json')"
 }
 
+@test "git status during staging waits for a concurrent fixer" {
+  export HK_JOBS=4
+  cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "none"
+    steps {
+      // Stages only its own file, but staging scans the whole worktree status.
+      ["fast"] {
+        glob = "*.txt"
+        fix = """
+          for _ in \$(seq 100); do test -e ../slow-started && break; sleep 0.05; done
+          test -e ../slow-started || { echo 'slow never started' >&2; exit 1; }
+          echo fixed > {{files}}
+          """
+      }
+      // Keeps rewriting the JSON files at their staged size, so git must hash
+      // their contents to tell whether they changed.
+      ["slow"] {
+        glob = "*.json"
+        fix = """
+          touch ../slow-started
+          for _ in \$(seq 20); do
+            for f in {{files}}; do yes y | head -c 200000 > "\$f"; done
+          done
+          for f in {{files}}; do echo '{}' > "\$f"; done
+          """
+      }
+    }
+  }
+}
+PKL
+  git add hk.pkl
+  git commit -qm "init hk"
+
+  printf 'broken\n' > a.txt
+  for i in $(seq 1 40); do
+    yes x | head -c 200000 > "data$i.json"
+  done
+  git add .
+
+  run hk run pre-commit
+  assert_success
+
+  run git show :a.txt
+  assert_output 'fixed'
+  for i in $(seq 1 40); do
+    run git show ":data$i.json"
+    assert_output '{}'
+  done
+}
+
 @test "overlapping fixers leave every file fixed and staged" {
   export HK_JOBS=8
   cat <<PKL > hk.pkl

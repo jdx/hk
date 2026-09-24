@@ -454,6 +454,18 @@ impl Step {
         let stage_pathspecs: Vec<OsString> =
             stage_globs.iter().cloned().map(OsString::from).collect();
         if !stage_pathspecs.is_empty() || stage_only_job_files {
+            // Other steps may still be fixing files that `status` hashes and `add`
+            // reads. Hold read locks on everything the status query can inspect
+            // until the add finishes, so git never reads a partially written file
+            // (both libgit2 and the git CLI fail when a file changes mid-read).
+            // Take the file locks before the git mutex so neither waits on the other.
+            let hook_files = ctx.hook_ctx.files();
+            let lock_files = if stage_only_job_files {
+                hook_files
+            } else {
+                glob::get_matches(&stage_globs, &hook_files)?
+            };
+            let _flocks = ctx.hook_ctx.file_locks.read_locks(&lock_files).await;
             let status = if stage_only_job_files {
                 // For {{job_files}}, get status of all files (no pathspec filtering)
                 ctx.hook_ctx.git.lock().await.status(None)?
@@ -544,11 +556,6 @@ impl Step {
                 // Only stage matched files when staging is enabled for this hook.
                 // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
                 if ctx.hook_ctx.should_stage {
-                    // Other steps may still be fixing these files. Hold read locks
-                    // while adding so the index never receives a partially written
-                    // file (or libgit2 fails because it changed mid-read). Take the
-                    // file locks before the git mutex so neither waits on the other.
-                    let _flocks = ctx.hook_ctx.file_locks.read_locks(&filtered).await;
                     ctx.hook_ctx.git.lock().await.add(&filtered)?;
                 }
                 // Classify staged files using pre-staging untracked snapshot
