@@ -64,7 +64,7 @@ EOF
     # Should succeed using cache when content is unchanged.
     run hk validate -vv
     assert_success
-    assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.hit"
+    assert_output --partial "config.load:config.load_project:cache.get: cache.hit"
 
     # Content changes should invalidate the cache even if mtime is spoofed.
     echo "BROKEN SYNTAX" > hk.pkl
@@ -192,7 +192,7 @@ EOF
     run hk check -vv test.txt
     assert_success
     assert_output --partial "checking modified"
-    assert_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
+    assert_output --partial "config.load:config.load_project:cache.get: cache.miss"
 }
 
 @test "cache invalidates when a glob import matches a new file" {
@@ -230,7 +230,7 @@ EOF
     # Unchanged config still uses the cache
     run hk check -vv test.txt
     assert_success
-    refute_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
+    refute_output --partial "config.load:config.load_project:cache.get: cache.miss"
 
     # A brand new file matching the glob must be picked up without touching
     # hk.pkl or clearing the cache
@@ -251,7 +251,7 @@ EOF
     run hk check -vv test.txt
     assert_success
     assert_output --partial "checking two"
-    refute_output --partial "config.load:config.load_project:cache.get_or_try_init: cache.miss"
+    refute_output --partial "config.load:config.load_project:cache.get: cache.miss"
 
     # Removing a matched file invalidates the cache too
     rm generated/two.pkl
@@ -463,4 +463,263 @@ EOF
     run hk validate -vv
     assert_success
     assert_output --partial "cache.miss"
+}
+
+@test "config cache is keyed on the env vars the config reads" {
+    export HK_CACHE=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["env"] { check = "echo value=[\(read?("env:HK_TEST_VAR") ?? "unset")]" }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "value=[unset]"
+
+    HK_TEST_VAR=one run hk check test.txt
+    assert_success
+    assert_output --partial "value=[one]"
+
+    HK_TEST_VAR=one run hk check -vv test.txt
+    assert_success
+    assert_output --partial "value=[one]"
+    assert_output --partial "config.load:config.load_project:cache.get: cache.hit"
+
+    # An empty value is not the same as an unset one
+    HK_TEST_VAR= run hk check test.txt
+    assert_success
+    assert_output --partial "value=[]"
+
+    run hk check -vv test.txt
+    assert_success
+    assert_output --partial "value=[unset]"
+    assert_output --partial "config.load:config.load_project:cache.get: cache.hit"
+}
+
+@test "config cache tracks env vars read by imported and amended modules" {
+    export HK_CACHE=1
+    cat <<EOF > base.pkl
+amends "$PKL_PATH/Config.pkl"
+import "./other.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["env"] {
+                check = "echo base=[\(read?("env:HK_TEST_BASE") ?? "unset")] other=[\(other.VALUE)]"
+            }
+        }
+    }
+}
+EOF
+    cat <<EOF > other.pkl
+VALUE = read?("env:HK_TEST_OTHER") ?? "unset"
+EOF
+    cat <<EOF > hk.pkl
+amends "./base.pkl"
+EOF
+    echo "test" > test.txt
+
+    HK_TEST_BASE=one HK_TEST_OTHER=two run hk check test.txt
+    assert_success
+    assert_output --partial "base=[one] other=[two]"
+
+    HK_TEST_OTHER=two run hk check test.txt
+    assert_success
+    assert_output --partial "base=[unset] other=[two]"
+
+    HK_TEST_BASE=one run hk check test.txt
+    assert_success
+    assert_output --partial "base=[one] other=[unset]"
+}
+
+@test "config cache follows env vars that only some evaluations read" {
+    export HK_CACHE=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+local mode = read?("env:HK_TEST_MODE") ?? "plain"
+local value = if (mode == "env") read?("env:HK_TEST_VAR") ?? "unset" else "plain"
+hooks {
+    ["check"] {
+        steps {
+            ["env"] { check = "echo value=[\(value)]" }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+
+    HK_TEST_VAR=one run hk check test.txt
+    assert_success
+    assert_output --partial "value=[plain]"
+
+    HK_TEST_MODE=env HK_TEST_VAR=one run hk check test.txt
+    assert_success
+    assert_output --partial "value=[one]"
+
+    HK_TEST_MODE=env HK_TEST_VAR=two run hk check test.txt
+    assert_success
+    assert_output --partial "value=[two]"
+
+    HK_TEST_VAR=two run hk check test.txt
+    assert_success
+    assert_output --partial "value=[plain]"
+
+    HK_TEST_MODE=env HK_TEST_VAR=one run hk check -vv test.txt
+    assert_success
+    assert_output --partial "value=[one]"
+    assert_output --partial "config.load:config.load_project:cache.get: cache.hit"
+}
+
+@test "config cache keys a read of an env var the config exports on the value read" {
+    export HK_CACHE=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+env {
+    ["HK_TEST_VAR"] = "exported"
+}
+hooks {
+    ["check"] {
+        steps {
+            ["env"] { check = "echo value=[\(read?("env:HK_TEST_VAR") ?? "unset")]" }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "value=[unset]"
+
+    # Exporting the var must not file the entry above under its exported value
+    HK_TEST_VAR=exported run hk check test.txt
+    assert_success
+    assert_output --partial "value=[exported]"
+}
+
+@test "subproject config sees env vars exported by the root config" {
+    export HK_CACHE=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+subprojects = List("sub")
+env {
+    ["HK_TEST_VAR"] = "exported"
+}
+hooks {
+    ["check"] {}
+}
+EOF
+    mkdir sub
+    cat <<EOF > sub/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+steps {
+    ["env"] { check = "echo value=[\(read?("env:HK_TEST_VAR") ?? "unset")]" }
+}
+EOF
+    echo "test" > sub/test.txt
+
+    run hk check sub/test.txt
+    assert_success
+    assert_output --partial "value=[exported]"
+
+    HK_TEST_VAR=other run hk check sub/test.txt
+    assert_success
+    assert_output --partial "value=[exported]"
+}
+
+@test "hk.local.pkl env reads key the config cache" {
+    export HK_CACHE=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+EOF
+    cat <<EOF > hk.local.pkl
+amends "./hk.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["env"] { check = "echo value=[\(read?("env:HK_TEST_VAR") ?? "unset")]" }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+
+    HK_TEST_VAR=one run hk check test.txt
+    assert_success
+    assert_output --partial "value=[one]"
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "value=[unset]"
+}
+
+@test "config cache stays correct when the recorded env var names are lost" {
+    export HK_CACHE=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["env"] { check = "echo value=[\(read?("env:HK_TEST_VAR") ?? "unset")]" }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+
+    HK_TEST_VAR=one run hk check test.txt
+    assert_success
+    run hk check test.txt
+    assert_success
+
+    find "$HK_CACHE_DIR/configs" -name "*-imports-*.json" -delete
+
+    HK_TEST_VAR=one run hk check test.txt
+    assert_success
+    assert_output --partial "value=[one]"
+
+    run hk check test.txt
+    assert_success
+    assert_output --partial "value=[unset]"
+}
+
+@test "config cache keeps env var names across re-analysis of imports" {
+    export HK_CACHE=1
+    mkdir generated
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import* "generated/*.pkl" as generated
+hooks {
+    ["check"] {
+        steps {
+            ["env"] { check = "echo value=[\(read?("env:HK_TEST_VAR") ?? "unset")] count=\(generated.length)" }
+        }
+    }
+}
+EOF
+    echo "test" > test.txt
+
+    HK_TEST_VAR=one run hk check test.txt
+    assert_success
+    assert_output --partial "value=[one] count=0"
+
+    touch generated/one.pkl
+    HK_TEST_VAR=one run hk check -vv test.txt
+    assert_success
+    assert_output --partial "value=[one] count=1"
+    assert_output --partial "cache.imports_changed"
+
+    # Back to the first module graph: its entry is still keyed on HK_TEST_VAR
+    rm generated/one.pkl
+    HK_TEST_VAR=one run hk check -vv test.txt
+    assert_success
+    assert_output --partial "value=[one] count=0"
+    assert_output --partial "config.load:config.load_project:cache.get: cache.hit"
 }
