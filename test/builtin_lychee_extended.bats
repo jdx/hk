@@ -25,4 +25,5 @@ PKL
     run hk test --step lychee_extended
     assert_success
     assert_output --partial "ok - lychee_extended :: check markdown without links"
+    assert_output --partial "ok - lychee_extended :: remap same-repository PR links"
 }
