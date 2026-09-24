@@ -65,5 +65,20 @@ lychee_extended = new Config.Step {
         }
       }
     }
+    ["fail on broken local links"] = new Config.StepTest {
+      files = List("README.md")
+      tmpdir = true
+      write = new Mapping<String, String> {
+        ["README.md"] = "# Notes\n\n[missing page](missing.md)\n"
+        ["lychee.toml"] = "max_concurrency = 1\n"
+        [".github/config/lychee.toml"] = "max_concurrency = 1\n"
+      }
+      env = new Mapping<String, String> {
+        ["GITHUB_TOKEN"] = "test-token"
+      }
+      expect = new Config.StepTestExpect {
+        code = 1
+      }
+    }
   }
 }

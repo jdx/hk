@@ -26,4 +26,5 @@ PKL
     assert_success
     assert_output --partial "ok - lychee_extended :: check markdown without links"
     assert_output --partial "ok - lychee_extended :: remap same-repository PR links"
+    assert_output --partial "ok - lychee_extended :: fail on broken local links"
 }
