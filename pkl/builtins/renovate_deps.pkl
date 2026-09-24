@@ -1,0 +1,32 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+import "./test/helpers.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description = "Flint's repository-aware dependency check (requires flint and renovate)"
+}
+renovate_deps = new Config.Step {
+  glob = List("**/*")
+  stdin = "{{ files_list | join(sep='\n') }}"
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("flint", "checker", "renovate-deps", "--files-from", "-")
+    }
+    effect = "read"
+  }
+  fix = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("flint", "checker", "renovate-deps", "--fix", "--files-from", "-")
+    }
+    effect = "write"
+  }
+  tests {
+    local const maker = new helpers.TestMaker {
+      filename = "README.md"
+      files = List("README.md")
+    }
+    ["check ignores irrelevant files"] = maker.checkPass("# Notes\n")
+    ["fix ignores irrelevant files"] = maker.fixPass("# Notes\n", "# Notes\n")
+  }
+}
