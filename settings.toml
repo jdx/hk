@@ -62,7 +62,7 @@ sources.git = ["hk.checkFirst"]
 docs = """
 Allows steps that set `check_first = true` to run their check command before fixing, when another step writes the same files. The fix runs only if the check fails, so files that already pass aren't rewritten.
 
-Steps don't check first unless they set `check_first = true`: when files need fixing, the tool runs twice. Set this to `false` to turn the optimization off for every step.
+Steps don't check first unless they set `check_first = true`, because checking first runs the tool twice whenever files need fixing. A step whose `check` and `fix` are the same command, as in steps migrated from pre-commit, always checks first. Set this to `false` to turn the optimization off for steps that opt in.
 """
 
 [display_skip_reasons]

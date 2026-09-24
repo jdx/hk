@@ -127,3 +127,30 @@ EOF
     refute_output --partial "s/bad/good/ bad.txt good.txt"
     assert_equal "$(git show :bad.txt)" "good"
 }
+
+@test "files fixed by a same-command step whose check passes are staged" {
+    cat <<EOF2 > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stage = true
+    steps {
+      // Fixes and exits 0, so the check hk runs first already did the fix.
+      ["fixer"] {
+        glob = "*.txt"
+        check = "sed -i.bak s/bad/good/ {{files}} && rm -f *.bak"
+        fix = "sed -i.bak s/bad/good/ {{files}} && rm -f *.bak"
+      }
+    }
+  }
+}
+EOF2
+    echo bad > a.txt
+    git add -A
+
+    run hk run pre-commit
+    assert_success
+    assert_equal "$(cat a.txt)" "good"
+    assert_equal "$(git show :a.txt)" "good"
+}

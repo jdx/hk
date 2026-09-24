@@ -149,6 +149,12 @@ impl Step {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
                             ctx.hook_ctx.inc_completed_jobs(1);
+                            // When check and fix are the same command, the check
+                            // may have fixed files; hand them to staging, which
+                            // keeps only those that changed.
+                            if step.check_is_fix() {
+                                return Ok(job.files.clone());
+                            }
                             return Ok(vec![]);
                         }
                         Err(e) => {
