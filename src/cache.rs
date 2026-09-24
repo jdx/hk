@@ -68,7 +68,7 @@ impl CacheManagerBuilder {
     }
 
     fn cache_key(&self) -> String {
-        hash_to_str(&self.cache_keys).chars().take(5).collect()
+        hash_to_str(&self.cache_keys)
     }
 
     pub fn build<T>(mut self) -> CacheManager<T>
@@ -234,5 +234,24 @@ mod tests {
             .build::<u8>();
 
         assert_ne!(unset.cache_file_path, rewrite.cache_file_path);
+    }
+
+    #[test]
+    fn cache_keys_sharing_a_hash_prefix_select_distinct_files() {
+        let base = env::HK_CACHE_DIR.join("cache-key-prefix-test.json");
+        let builder = |key: &str| CacheManagerBuilder::new(&base).with_cache_key(key);
+        let mut seen = std::collections::HashMap::new();
+        let (a, b) = (0..)
+            .map(|i| format!("key-{i}"))
+            .find_map(|key| {
+                let prefix: String = builder(&key).cache_key().chars().take(5).collect();
+                seen.insert(prefix, key.clone()).map(|other| (other, key))
+            })
+            .unwrap();
+
+        assert_ne!(
+            builder(&a).build::<u8>().cache_file_path,
+            builder(&b).build::<u8>().cache_file_path
+        );
     }
 }
