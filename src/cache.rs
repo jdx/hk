@@ -71,31 +71,36 @@ impl CacheManagerBuilder {
         hash_to_str(&self.cache_keys)
     }
 
-    /// Key on the fresh files' contents as they are now, including in
-    /// builders cloned from this one.
+    /// Key on the fresh files' contents as they are now, so builders cloned
+    /// from this one do not read them again.
     pub fn hash_fresh_files(mut self) -> Self {
+        self.key_fresh_files();
+        self
+    }
+
+    /// Draining the fresh files makes a second call a no-op.
+    fn key_fresh_files(&mut self) {
         let mode = self.fresh_file_key_mode;
         self.cache_keys
             .extend(self.fresh_files.drain(..).unique().map(|path| match mode {
                 FreshFileKeyMode::PathAndContent => fresh_file_cache_key(&path),
                 FreshFileKeyMode::ContentOnly => fresh_file_content_cache_key(&path),
             }));
-        self
     }
 
-    pub fn build<T>(self) -> CacheManager<T>
+    pub fn build<T>(mut self) -> CacheManager<T>
     where
         T: Serialize + DeserializeOwned,
     {
-        let this = self.hash_fresh_files();
-        let key = this.cache_key();
-        let (base, ext) = split_file_name(&this.cache_file_path);
-        let mut cache_file_path = this.cache_file_path;
+        self.key_fresh_files();
+        let key = self.cache_key();
+        let (base, ext) = split_file_name(&self.cache_file_path);
+        let mut cache_file_path = self.cache_file_path;
         cache_file_path.set_file_name(format!("{base}-{key}.{ext}"));
         CacheManager {
             cache_file_path,
             cache: Box::new(OnceCell::new()),
-            fresh_duration: this.fresh_duration,
+            fresh_duration: self.fresh_duration,
         }
     }
 }
