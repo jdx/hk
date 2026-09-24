@@ -16,8 +16,9 @@ steps {
   ["eslint"] = Builtins.eslint
   ["jq"] = Builtins.jq
   ["yq"] = (Builtins.yq) {
-    // The builtin passes every file to one `yq -i`, which writes them all into
-    // the first file. Fix one file at a time, as the other subjects do.
+    // hk 2.1.0 and earlier pass every file to one `yq -i`, which writes them
+    // all into the first file (fixed in #1452). The refresh workflow measures
+    // released hk, so fix one file at a time until a release includes the fix.
     fix {
       command = "for f in {{ files }}; do yq -iP \"$f\"; done"
     }
