@@ -99,17 +99,20 @@ echo "$*" >> "$(dirname "$0")/../calls.txt"
 SH
     chmod +x bin/pre-commit
     echo "hello" > README.md
-    git add README.md
+    printf '\x89PNG\r\n\x1a\n\x00\x00' > logo.png
+    git add README.md logo.png
     PATH="$PWD/bin:$PATH" run hk check --all --step codespell
     assert_success
     run cat calls.txt
     assert_output --partial "run --hook-stage pre-commit codespell --files"
     assert_output --partial "README.md"
+    # The runner applies the hook's own filters, so binaries reach it too
+    assert_output --partial "logo.png"
 }
 
 @test "migrate precommit - custom config path is passed to the runner" {
     mkdir -p config
-    cat <<'PRECOMMIT' > config/pre-commit.yaml
+    cat <<'PRECOMMIT' > "config/team's pre-commit.yaml"
 repos:
 -   repo: https://github.com/codespell-project/codespell
     rev: v2.3.0
@@ -117,10 +120,10 @@ repos:
     -   id: codespell
 PRECOMMIT
 
-    migrate --config config/pre-commit.yaml --runner prek
+    migrate --config "config/team's pre-commit.yaml" --runner prek
     assert_success
     run cat hk.pkl
-    assert_output --partial 'check = "prek run --config config/pre-commit.yaml --hook-stage'
+    assert_output --partial "check = \"prek run --config 'config/team'\\\\''s pre-commit.yaml' --hook-stage"
     run hk validate
     assert_success
 }

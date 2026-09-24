@@ -491,6 +491,8 @@ impl PreCommit {
                 )
                 .unwrap();
             }
+            // Spliced into a plain Pkl string below.
+            let run = run.replace('\\', "\\\\").replace('"', "\\\"");
             writeln!(
                 out,
                 "\n// Steps using precommit() still run through {runner}, which reads {}.",
@@ -518,6 +520,9 @@ impl PreCommit {
             writeln!(out, "  // pre-commit hooks may modify files in either mode").unwrap();
             writeln!(out, "  fix = check").unwrap();
             writeln!(out, "  check_first = false").unwrap();
+            writeln!(out, "  // {runner} applies the hook's own file filters").unwrap();
+            writeln!(out, "  allow_binary = true").unwrap();
+            writeln!(out, "  allow_symlinks = true").unwrap();
             writeln!(out, "}}").unwrap();
         }
 
@@ -645,25 +650,26 @@ fn convert(config: &PreCommitConfig) -> Migration {
         }
         for hook in &repo.hooks {
             // Stages the hook asks for explicitly always count. Defaults only
-            // apply to installed git hooks that run on changed files; at other
-            // stages pre-commit gives file hooks nothing to check.
+            // apply to installed git hooks, and without `default_stages` only
+            // to those that pass changed files: elsewhere pre-commit gives
+            // file hooks nothing to check.
+            let manifest = manifest_stage(&hook.id).filter(|_| repo.repo != "local");
             let mut stages: IndexSet<&str> = if !hook.stages.is_empty() {
                 hook.stages.iter().map(|s| normalize_stage(s)).collect()
-            } else if let Some(stage) = manifest_stage(&hook.id) {
+            } else if let Some(stage) = manifest {
                 IndexSet::from([stage])
+            } else if !config.default_stages.is_empty() {
+                config
+                    .default_stages
+                    .iter()
+                    .map(|s| normalize_stage(s))
+                    .filter(|s| installed.contains(s))
+                    .collect()
             } else {
-                let defaults: Vec<&str> = if config.default_stages.is_empty() {
-                    installed.iter().copied().collect()
-                } else {
-                    config
-                        .default_stages
-                        .iter()
-                        .map(|s| normalize_stage(s))
-                        .collect()
-                };
-                defaults
-                    .into_iter()
-                    .filter(|s| installed.contains(s) && FILE_STAGES.contains(s))
+                installed
+                    .iter()
+                    .copied()
+                    .filter(|s| FILE_STAGES.contains(s))
                     .collect()
             };
             stages.retain(|stage| {
@@ -1144,6 +1150,38 @@ repos:
         );
         assert!(m.stages["pre-commit"].contains_key("trailing-whitespace"));
         assert!(m.stages["pre-push"].contains_key("trailing-whitespace"));
+        assert!(!m.stages.contains_key("commit-msg"));
+    }
+
+    #[test]
+    fn stage_defaults() {
+        let m = migrate(
+            r#"
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [commit-msg]
+repos:
+- repo: local
+  hooks:
+  - id: commitlint
+    entry: lint-msg
+    language: system
+"#,
+        );
+        // explicit default_stages are kept, and hook ids don't imply stages for local hooks
+        assert!(m.stages["commit-msg"].contains_key("commitlint"));
+        assert!(!m.stages.contains_key("pre-commit"));
+
+        let m = migrate(
+            r#"
+repos:
+- repo: local
+  hooks:
+  - id: commitlint
+    entry: lint-files
+    language: system
+"#,
+        );
+        assert!(m.stages["pre-commit"].contains_key("commitlint"));
         assert!(!m.stages.contains_key("commit-msg"));
     }
 
