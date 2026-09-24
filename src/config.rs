@@ -42,7 +42,7 @@ impl Config {
     /// Also returns every environment variable the evaluation read, with the
     /// value it saw.
     #[tracing::instrument(level = "info", name = "config.read", skip_all, fields(path = %path.display()))]
-    fn read(path: &Path, apply_env: bool) -> Result<(Self, BTreeMap<String, Option<String>>)> {
+    fn read(path: &Path, apply_env: bool) -> Result<(Self, EnvReads)> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
         let (mut config, env_reads): (Config, _) = match ext {
             "pkl" => eval_pklr(path)?,
@@ -440,7 +440,7 @@ impl Config {
         // For pkl files, we need to track all transitive imports for cache invalidation
         let is_pkl = path.extension().is_some_and(|ext| ext == "pkl");
 
-        let (fresh_files, has_untracked_imports, imports) = if is_pkl {
+        let (fresh_files, has_untracked_imports, imports_cache) = if is_pkl {
             // First, get the imports (cached separately, invalidated only by the main config file)
             let imports_cache_path =
                 cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
@@ -483,7 +483,8 @@ impl Config {
             (vec![path.clone()], false, None)
         };
 
-        // Build the config cache with all fresh files (imports + main config)
+        // Key the config cache on all fresh files (imports + main config) and
+        // on the env vars the config reads
         let config_cache_path = if has_untracked_imports || !is_root {
             cache_dir.join(hash_key)
         } else {
@@ -497,7 +498,7 @@ impl Config {
             config_cache_builder.with_content_fresh_files(fresh_files)
         }
         .hash_fresh_files();
-        let config_cache_mgr = |env: &BTreeMap<String, Option<String>>| {
+        let build_config_cache_mgr = |env: &EnvReads| {
             config_cache_builder
                 .clone()
                 .with_cache_key(env_cache_key(env))
@@ -505,15 +506,15 @@ impl Config {
         };
         // Read the way pklr reads them, and before evaluation: a root config
         // exports its `env` during `read`, overwriting what the evaluation saw.
-        let mut env_values: BTreeMap<String, Option<String>> = imports
+        let mut env_values: EnvReads = imports_cache
             .iter()
-            .flat_map(|(_, analysis)| &analysis.env_names)
+            .flat_map(|(_, import_analysis)| &import_analysis.env_names)
             .map(|name| (name.clone(), std::env::var(name).ok()))
             .collect();
 
         // Load from cache if fresh; otherwise read from disk. In both cases, run init
         // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
-        let mut config = match config_cache_mgr(&env_values).get() {
+        let mut config = match build_config_cache_mgr(&env_values).get() {
             Some(config) => config,
             None => {
                 let (config, env_reads) = Self::read(&path, is_root)
@@ -521,14 +522,14 @@ impl Config {
                 // Keyed on every variable the evaluation read, so a later lookup
                 // hits only while all of them keep these values.
                 env_values.extend(env_reads);
-                if let Err(err) = config_cache_mgr(&env_values).write(&config) {
+                if let Err(err) = build_config_cache_mgr(&env_values).write(&config) {
                     warn!("failed to write config cache file: {err:#}");
                 }
-                if let Some((imports_cache_mgr, mut analysis)) = imports
-                    && env_values.len() > analysis.env_names.len()
+                if let Some((imports_cache_mgr, mut import_analysis)) = imports_cache
+                    && env_values.len() > import_analysis.env_names.len()
                 {
-                    analysis.env_names = env_values.into_keys().collect();
-                    if let Err(err) = imports_cache_mgr.write(&analysis) {
+                    import_analysis.env_names = env_values.into_keys().collect();
+                    if let Err(err) = imports_cache_mgr.write(&import_analysis) {
                         warn!("failed to write imports cache file: {err:#}");
                     }
                 }
@@ -1004,9 +1005,11 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
     Ok(eval_pklr(path)?.0)
 }
 
-/// Evaluate `path`, also returning every environment variable the evaluation
-/// read with the value it saw, `None` when unset.
-fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, BTreeMap<String, Option<String>>)> {
+/// Environment variables an evaluation read, with the value it saw; `None`
+/// when unset.
+type EnvReads = BTreeMap<String, Option<String>>;
+
+fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
     let client = build_pklr_http_client()?;
     let http_rewrites = env::HK_PKL_HTTP_REWRITE
         .as_deref()
@@ -1032,7 +1035,7 @@ fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, BTreeMap<String, Op
 
 /// Keeps an unset variable distinct from an empty one. The values only ever
 /// reach the cache file name as part of its hash.
-fn env_cache_key(env: &BTreeMap<String, Option<String>>) -> String {
+fn env_cache_key(env: &EnvReads) -> String {
     env.iter()
         .map(|(name, value)| format!("env:{name}={value:?}"))
         .collect::<Vec<_>>()
