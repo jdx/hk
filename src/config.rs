@@ -2075,12 +2075,10 @@ mod tests {
     fn eval_pklr_reports_env_values_read_including_misses() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("env.pkl");
+        let unset = format!("HK_TEST_UNSET_{}", std::process::id());
         std::fs::write(
             &path,
-            concat!(
-                "path = read(\"env:PATH\")\n",
-                "missing = read?(\"env:HK_TEST_UNSET_VAR\")\n",
-            ),
+            format!("path = read(\"env:PATH\")\nmissing = read?(\"env:{unset}\")\n"),
         )
         .unwrap();
 
@@ -2088,7 +2086,7 @@ mod tests {
         assert_eq!(
             env_reads,
             BTreeMap::from([
-                ("HK_TEST_UNSET_VAR".to_string(), None),
+                (unset, None),
                 ("PATH".to_string(), std::env::var("PATH").ok()),
             ])
         );

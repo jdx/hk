@@ -5,6 +5,7 @@
 setup() {
     load 'test_helper/common_setup'
     _common_setup
+    unset HK_TEST_VAR HK_TEST_BASE HK_TEST_OTHER HK_TEST_MODE
 }
 
 teardown() {
@@ -631,9 +632,10 @@ EOF
     assert_success
     assert_output --partial "value=[exported]"
 
-    HK_TEST_VAR=other run hk check sub/test.txt
+    HK_TEST_VAR=other run hk check -vv sub/test.txt
     assert_success
     assert_output --partial "value=[exported]"
+    assert_output --partial "config.load:cache.get: cache.hit"
 }
 
 @test "hk.local.pkl env reads key the config cache" {
