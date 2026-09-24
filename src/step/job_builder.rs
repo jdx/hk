@@ -222,9 +222,10 @@ impl Step {
                 // Always run check_first when we need to filter files for stage=<JOB_FILES>
                 // or when we can apply the diff directly or focus a check
                 job.check_first = true;
-            } else if job.check_first {
+            } else if job.check_first && !self.check_is_fix() {
                 // Only adjust check_first for jobs where it was already enabled from config
                 // Default behavior: only set check_first if there are any files in contention
+                // (a step whose check and fix are the same command needs it regardless)
                 job.check_first = job.files.iter().any(|f| files_in_contention.contains(f));
             }
         }

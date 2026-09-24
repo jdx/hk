@@ -293,8 +293,9 @@ hooks {
   ["fix"] {
     fix = true
     steps {
-      ["black"] = Builtins.black
-      // A second fixer on the same files makes hk run check_list_files first.
+      // check_first is opt-in; with a second fixer on the same files it makes
+      // hk run check_list_files first.
+      ["black"] = (Builtins.black) { check_first = true }
       ["other"] {
         glob = "**/*.py"
         check = "true"
@@ -335,7 +336,7 @@ hooks {
   ["fix"] {
     fix = true
     steps {
-      ["black"] = (Builtins.black) { dir = "ui" }
+      ["black"] = (Builtins.black) { dir = "ui"; check_first = true }
       ["other"] {
         glob = "**/*.py"
         check = "true"

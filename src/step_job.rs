@@ -45,7 +45,7 @@ impl StepJob {
             requested_run_type: run_type,
             workspace_indicator: None,
             check_first: *env::HK_CHECK_FIRST
-                && step.check_first
+                && step.check_first()
                 && (step.fix.is_some() || step.check_diff.is_some())
                 && (step.check.is_some()
                     || step.check_diff.is_some()

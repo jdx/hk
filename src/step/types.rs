@@ -233,7 +233,8 @@ pub struct Step {
     /// Expression that must evaluate to true for step to run
     pub step_condition: Option<String>,
 
-    /// Run check command before fix to identify files needing changes
+    /// Run check command before fix to identify files needing changes. See
+    /// [`Step::check_first`] for the effective value.
     #[serde(default)]
     pub check_first: bool,
 
@@ -456,6 +457,14 @@ pub(crate) enum RenderedCommand {
 }
 
 impl Command {
+    /// The command itself, without a [`CommandSpec`]'s declared effect.
+    fn without_effect(&self) -> &Command {
+        match self {
+            Self::Spec(spec) => spec.command.without_effect(),
+            other => other,
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Spec(spec) => spec.command.is_empty(),
@@ -884,5 +893,23 @@ mod tests {
 
         assert_eq!(script.to_string(), "");
         assert!(script.to_string().trim().is_empty());
+    }
+}
+
+impl Step {
+    /// Whether this step runs its check before its fix: when it sets
+    /// `check_first` (and another step writes the same files), and always when
+    /// its `check` and `fix` are the same command.
+    pub fn check_first(&self) -> bool {
+        self.check_first || self.check_is_fix()
+    }
+
+    /// Whether `check` and `fix` are the same command, as `hk migrate
+    /// pre-commit` writes pre-commit fixers. Such a fixer exits 1 after
+    /// fixing, and running it again is what lets it pass, so it always checks
+    /// first, whether or not another step writes the same files.
+    pub fn check_is_fix(&self) -> bool {
+        matches!((&self.check, &self.fix),
+            (Some(check), Some(fix)) if check.without_effect() == fix.without_effect())
     }
 }

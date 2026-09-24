@@ -166,7 +166,7 @@ impl StepGroup {
             .collect();
         *ctx.hook_ctx.files_in_contention.lock().unwrap() =
             self.files_in_contention_for(&ctx.hook_ctx.files(), ctx.hook_ctx.run_type)?;
-        if self.steps.values().any(|j| j.check_first) {
+        if self.steps.values().any(|j| j.check_first()) {
         } else {
             *ctx.hook_ctx.files_in_contention.lock().unwrap() = Default::default();
         }
@@ -263,7 +263,7 @@ impl StepGroup {
         files: &[PathBuf],
         run_type: RunType,
     ) -> Result<HashSet<PathBuf>> {
-        if run_type != RunType::Fix || !self.steps.values().any(|j| j.check_first) {
+        if run_type != RunType::Fix || !self.steps.values().any(|j| j.check_first()) {
             return Ok(Default::default());
         }
         let step_map: HashMap<&str, &Step> = self
