@@ -18,7 +18,7 @@ impl PreRebase {
             Some(b) => format!("{} {}", self.upstream, b),
             None => self.upstream.clone(),
         };
-        self.hook.tctx.insert("hook_args", &args);
+        self.hook.insert_hook_var("hook_args", &args);
         self.hook.run("pre-rebase").await
     }
 }

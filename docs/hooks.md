@@ -167,6 +167,21 @@ hk has dedicated handlers for these events:
 
 Dedicated handlers also expose their raw arguments as `hook_args`. See the [run reference](/cli/run) for argument details. Custom hooks can be invoked by name; hooks without a dedicated handler receive an empty `hook_args` value.
 
+These variables are also available in `condition` and `step_condition` expressions. For example, to run a `post-checkout` step only on branch checkouts and report it as skipped on file checkouts:
+
+```pkl
+hooks {
+  ["post-checkout"] {
+    steps {
+      ["install-deps"] {
+        step_condition = "is_branch_checkout"
+        check = "mise install"
+      }
+    }
+  }
+}
+```
+
 ## Skip a hook or step
 
 ```sh

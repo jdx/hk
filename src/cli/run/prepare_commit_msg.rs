@@ -21,10 +21,9 @@ impl PrepareCommitMsg {
     pub async fn run(mut self) -> Result<()> {
         let resolved = git_util::resolve_git_relative_path(&self.commit_msg_file)?;
         self.hook
-            .tctx
-            .insert("commit_msg_file", &resolved.to_string_lossy());
-        self.hook.tctx.insert("source", &self.source);
-        self.hook.tctx.insert("sha", &self.sha.as_ref());
+            .insert_hook_var("commit_msg_file", &resolved.to_string_lossy());
+        self.hook.insert_hook_var("source", &self.source);
+        self.hook.insert_hook_var("sha", &self.sha.as_ref());
         let hook_args = match (&self.source, &self.sha) {
             (Some(source), Some(sha)) => {
                 format!("{} {} {}", resolved.to_string_lossy(), source, sha)
@@ -32,7 +31,7 @@ impl PrepareCommitMsg {
             (Some(source), None) => format!("{} {}", resolved.to_string_lossy(), source),
             _ => resolved.to_string_lossy().to_string(),
         };
-        self.hook.tctx.insert("hook_args", &hook_args);
+        self.hook.insert_hook_var("hook_args", &hook_args);
         self.hook.run("prepare-commit-msg").await
     }
 }
