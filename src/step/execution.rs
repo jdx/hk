@@ -145,15 +145,15 @@ impl Step {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check;
                     let check_first_cmd = step.check_first_cmd();
+                    // When check and fix are the same command, the check may fix
+                    // files; remember their content to hand only those to staging.
+                    let before = step.check_is_fix().then(|| content_hashes(&job.files));
                     match step.run(&ctx, &mut job).await {
                         Ok(()) => {
                             debug!("{step}: successfully ran check step first");
                             ctx.hook_ctx.inc_completed_jobs(1);
-                            // When check and fix are the same command, the check
-                            // may have fixed files; hand them to staging, which
-                            // keeps only those that changed.
-                            if step.check_is_fix() {
-                                return Ok(job.files.clone());
+                            if let Some(before) = before {
+                                return Ok(changed_files(&job.files, &before));
                             }
                             return Ok(vec![]);
                         }
@@ -612,4 +612,31 @@ fn push_stage_globs(globs: &mut Vec<String>, roots: &[String], pat: &str) {
             globs.push(format!("{root}/{pat}"));
         }
     }
+}
+
+/// Hash of each file's content, `None` for one that can't be read.
+fn content_hashes(files: &[PathBuf]) -> Vec<Option<u64>> {
+    use std::hash::{Hash, Hasher};
+    files
+        .iter()
+        .map(|f| {
+            std::fs::read(f).ok().map(|bytes| {
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                bytes.hash(&mut hasher);
+                hasher.finish()
+            })
+        })
+        .collect()
+}
+
+/// The files whose content differs from `before` (from [`content_hashes`]),
+/// including files created or deleted since.
+fn changed_files(files: &[PathBuf], before: &[Option<u64>]) -> Vec<PathBuf> {
+    files
+        .iter()
+        .zip(content_hashes(files))
+        .zip(before)
+        .filter(|((_, after), before)| after != *before)
+        .map(|((f, _), _)| f.clone())
+        .collect()
 }
