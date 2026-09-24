@@ -172,8 +172,10 @@ fn detect_shebang(path: &Path) -> Option<HashSet<String>> {
 fn detect_by_content(path: &Path) -> Option<HashSet<String>> {
     let mut types = HashSet::new();
 
-    // Try magic number detection first
-    if let Ok(Some(kind)) = infer::get_from_path(path) {
+    // Try magic number detection first. infer also sniffs a few text formats
+    // (HTML, XML, shebang scripts); those fall through to the null-byte scan.
+    let kind = infer::get_from_path(path).ok().flatten();
+    if let Some(kind) = kind.filter(|k| k.matcher_type() != infer::MatcherType::Text) {
         types.insert("binary".to_string());
 
         // Map infer's MIME types to our type tags
@@ -228,6 +230,11 @@ fn detect_by_content(path: &Path) -> Option<HashSet<String>> {
         types.insert("binary".to_string());
     } else {
         types.insert("text".to_string());
+        // Only the XML prolog is specific enough to tag. HTML sniffing also
+        // matches Svelte, Vue, and other templates that open with a tag.
+        if kind.is_some_and(|k| k.mime_type() == "text/xml") {
+            types.insert("xml".to_string());
+        }
     }
 
     Some(types)
@@ -710,5 +717,99 @@ mod tests {
         // Should match python type filter even though it's a symlink
         assert!(matches_types(&link_path, &["python".to_string()]));
         assert!(matches_types(&link_path, &["symlink".to_string()]));
+    }
+
+    #[test]
+    fn test_svelte_component_is_text() {
+        // Svelte components start with `<script`, which HTML sniffing matches
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("Component.svelte");
+        std::fs::write(
+            &path,
+            b"<script lang=\"ts\">\n  let name = 'world';\n</script>\n\n<h1>Hello {name}!</h1>\n",
+        )
+        .unwrap();
+
+        let types = get_file_types(&path);
+        assert!(types.contains("text"), "got {types:?}");
+        assert!(!types.contains("binary"), "got {types:?}");
+    }
+
+    #[test]
+    fn test_unknown_extension_with_html_like_content_is_text() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        for (name, content) in [
+            (
+                "script.tmpl",
+                "<script lang=\"ts\">\n  let n = 1;\n</script>\n",
+            ),
+            ("comment.tmpl", "<!-- header partial -->\n<nav></nav>\n"),
+            ("div.tmpl", "<div>\n  {{ content }}\n</div>\n"),
+        ] {
+            let path = temp_dir.path().join(name);
+            std::fs::write(&path, content).unwrap();
+
+            let types = get_file_types(&path);
+            assert!(types.contains("text"), "{name}: got {types:?}");
+            assert!(!types.contains("binary"), "{name}: got {types:?}");
+            assert!(!types.contains("html"), "{name}: got {types:?}");
+        }
+    }
+
+    #[test]
+    fn test_unknown_extension_with_xml_prolog_is_xml() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("App.csproj");
+        std::fs::write(
+            &path,
+            b"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Project Sdk=\"Microsoft.NET.Sdk\" />\n",
+        )
+        .unwrap();
+
+        let types = get_file_types(&path);
+        assert!(types.contains("text"), "got {types:?}");
+        assert!(types.contains("xml"), "got {types:?}");
+        assert!(!types.contains("binary"), "got {types:?}");
+    }
+
+    #[test]
+    fn test_text_signature_with_null_byte_is_binary() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        for (name, content) in [
+            (
+                "script.tmpl",
+                "<script lang=\"ts\">\n\0let n = 1;\n</script>\n",
+            ),
+            (
+                "App.csproj",
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\0<Project />\n",
+            ),
+        ] {
+            let path = temp_dir.path().join(name);
+            std::fs::write(&path, content).unwrap();
+
+            // Ensure the fixture reaches the text-matcher null-byte fallback.
+            let kind = infer::get_from_path(&path).unwrap().unwrap();
+            assert_eq!(kind.matcher_type(), infer::MatcherType::Text, "{name}");
+
+            let types = get_file_types(&path);
+            assert!(types.contains("binary"), "{name}: got {types:?}");
+            for tag in ["text", "html", "xml"] {
+                assert!(!types.contains(tag), "{name}: got {types:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_png_content_without_extension_is_binary() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let path = temp_dir.path().join("image");
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR").unwrap();
+
+        let types = get_file_types(&path);
+        assert!(types.contains("binary"), "got {types:?}");
+        assert!(types.contains("image"), "got {types:?}");
+        assert!(types.contains("png"), "got {types:?}");
+        assert!(!types.contains("text"), "got {types:?}");
     }
 }
