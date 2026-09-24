@@ -278,6 +278,9 @@ const STAGES: &[&str] = &[
     "manual",
 ];
 
+/// Git hooks where pre-commit passes changed files to hooks.
+const FILE_STAGES: &[&str] = &["pre-commit", "pre-merge-commit", "pre-push"];
+
 fn normalize_stage(stage: &str) -> &str {
     match stage {
         "commit" => "pre-commit",
@@ -642,20 +645,26 @@ fn convert(config: &PreCommitConfig) -> Migration {
         }
         for hook in &repo.hooks {
             // Stages the hook asks for explicitly always count. Defaults only
-            // apply to the git hooks pre-commit installs.
+            // apply to installed git hooks that run on changed files; at other
+            // stages pre-commit gives file hooks nothing to check.
             let mut stages: IndexSet<&str> = if !hook.stages.is_empty() {
                 hook.stages.iter().map(|s| normalize_stage(s)).collect()
             } else if let Some(stage) = manifest_stage(&hook.id) {
                 IndexSet::from([stage])
-            } else if !config.default_stages.is_empty() {
-                config
-                    .default_stages
-                    .iter()
-                    .map(|s| normalize_stage(s))
-                    .filter(|s| installed.contains(s))
-                    .collect()
             } else {
-                installed.clone()
+                let defaults: Vec<&str> = if config.default_stages.is_empty() {
+                    installed.iter().copied().collect()
+                } else {
+                    config
+                        .default_stages
+                        .iter()
+                        .map(|s| normalize_stage(s))
+                        .collect()
+                };
+                defaults
+                    .into_iter()
+                    .filter(|s| installed.contains(s) && FILE_STAGES.contains(s))
+                    .collect()
             };
             stages.retain(|stage| {
                 let supported = STAGES.contains(stage);
@@ -805,7 +814,11 @@ fn convert_hook(
             );
         }
         let pass_filenames = hook.pass_filenames.unwrap_or(true);
-        if hook.always_run && !pass_filenames {
+        if hook.always_run && pass_filenames {
+            // hk skips a step when no files match; pre-commit runs it anyway
+            return delegate("`always_run` with filenames has no hk equivalent".into());
+        }
+        if hook.always_run {
             glob = None;
             types.clear();
         }
@@ -1115,6 +1128,53 @@ repos:
         assert!(m.stages.contains_key("pre-push"));
         assert!(m.stages.contains_key("manual"));
         assert!(!m.stages.contains_key("commit-msg"));
+    }
+
+    #[test]
+    fn default_stages_skip_message_hooks() {
+        let m = migrate(
+            r#"
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: trailing-whitespace
+"#,
+        );
+        assert!(m.stages["pre-commit"].contains_key("trailing-whitespace"));
+        assert!(m.stages["pre-push"].contains_key("trailing-whitespace"));
+        assert!(!m.stages.contains_key("commit-msg"));
+    }
+
+    #[test]
+    fn always_run_with_filenames_is_delegated() {
+        let m = migrate(
+            r#"
+repos:
+- repo: local
+  hooks:
+  - id: a
+    entry: a
+    language: system
+    always_run: true
+  - id: b
+    entry: b
+    language: system
+    files: \.py$
+    always_run: true
+    pass_filenames: false
+"#,
+        );
+        assert!(matches!(
+            step(&m, "pre-commit", "a").action,
+            Action::Delegate(_)
+        ));
+        let Action::Command { glob, check, .. } = &step(&m, "pre-commit", "b").action else {
+            panic!("expected command");
+        };
+        assert_eq!(glob, &None);
+        assert_eq!(check, "b");
     }
 
     #[test]
