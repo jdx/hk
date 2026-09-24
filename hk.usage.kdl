@@ -319,13 +319,37 @@ cmd mcp help="Run an MCP server for coding agents over standard input/output" {
 }
 cmd migrate help="Migrate from other hook managers to hk" effect=read subcommand_required=#true {
     flag "-h --help" help="Print help" action=help builtin=#true
-    cmd pre-commit help="Migrate from pre-commit to hk" effect=write {
+    cmd pre-commit help="Migrate from pre-commit (or prek) to hk" effect=write {
+        long_help #"""
+Migrate from pre-commit (or prek) to hk
+
+Reads a .pre-commit-config.yaml and writes an hk.pkl that runs the same hooks at the same git stages:
+
+- Hooks from well-known repositories become hk builtins, for example
+  `ruff` from astral-sh/ruff-pre-commit becomes `Builtins.ruff`.
+- Local `system`, `script`, and `fail` hooks become native hk steps with
+  the same command and file filters.
+- Every other hook keeps running through prek or pre-commit, which reads
+  the original config. This includes hooks whose `args`,
+  `additional_dependencies`, or filters a builtin cannot reproduce.
+  Each of these steps has a comment explaining why it was not converted.
+
+`manual` hooks run only with `hk check` and `hk fix`.
+"""#
         flag "-c --config" help="Path to .pre-commit-config.yaml" default=.pre-commit-config.yaml {
             arg <CONFIG>
         }
         flag "-f --force" help="Overwrite existing hk.pkl file"
         flag "-o --output" help="Output path for hk.pkl" default=hk.pkl {
             arg <OUTPUT>
+        }
+        flag --runner help=#"""
+Tool that runs hooks hk cannot convert.
+Defaults to pre-commit when only pre-commit is on PATH, otherwise prek.
+"""# {
+            arg <RUNNER> {
+                choices prek pre-commit
+            }
         }
         flag --hk-pkl-root help="Root path for hk pkl files (e.g. \"pkl\" for a local checkout, or a package URL prefix). If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl" {
             arg <HK_PKL_ROOT>

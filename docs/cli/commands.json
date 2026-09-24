@@ -1832,6 +1832,26 @@
                 "default": ["hk.pkl"]
               },
               {
+                "name": "runner",
+                "usage": "--runner <RUNNER>",
+                "help": "Tool that runs hooks hk cannot convert.\nDefaults to pre-commit when only pre-commit is on PATH, otherwise prek.",
+                "help_first_line": "Tool that runs hooks hk cannot convert.",
+                "short": [],
+                "long": ["runner"],
+                "hide": false,
+                "global": false,
+                "arg": {
+                  "name": "RUNNER",
+                  "usage": "<RUNNER>",
+                  "required": true,
+                  "double_dash": "Optional",
+                  "hide": false,
+                  "choices": {
+                    "choices": ["prek", "pre-commit"]
+                  }
+                }
+              },
+              {
                 "name": "hk-pkl-root",
                 "usage": "--hk-pkl-root <HK_PKL_ROOT>",
                 "help": "Root path for hk pkl files (e.g. \"pkl\" for a local checkout, or a package URL prefix). If set, the generated config uses {root}/Config.pkl and {root}/Builtins.pkl",
@@ -1866,7 +1886,8 @@
             "unknown_flags": null,
             "hide": false,
             "args_override_self": true,
-            "help": "Migrate from pre-commit to hk",
+            "help": "Migrate from pre-commit (or prek) to hk",
+            "help_long": "Migrate from pre-commit (or prek) to hk\n\nReads a .pre-commit-config.yaml and writes an hk.pkl that runs the same hooks at the same git stages:\n\n- Hooks from well-known repositories become hk builtins, for example\n  `ruff` from astral-sh/ruff-pre-commit becomes `Builtins.ruff`.\n- Local `system`, `script`, and `fail` hooks become native hk steps with\n  the same command and file filters.\n- Every other hook keeps running through prek or pre-commit, which reads\n  the original config. This includes hooks whose `args`,\n  `additional_dependencies`, or filters a builtin cannot reproduce.\n  Each of these steps has a comment explaining why it was not converted.\n\n`manual` hooks run only with `hk check` and `hk fix`.",
             "name": "pre-commit",
             "aliases": [],
             "hidden_aliases": [],
