@@ -38,6 +38,9 @@ for ((i = 0; i < ${#args[@]}; i++)); do
     --bench=*) benches+=(--bench "${args[i]#--bench=}") ;;
     esac
 done
+# .work outlives the run; never let report.py pair these timings with an
+# earlier run's verification (or vice versa) if a step fails before writing.
+rm -f .work/verify.json .work/tak.json
 echo "Verifying..."
 ./verify.py --trials "${TRIALS:-5}" "${benches[@]}" || true
 
