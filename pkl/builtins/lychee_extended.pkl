@@ -73,6 +73,7 @@ lychee_extended = new Config.Step {
         ["lychee.toml"] = "max_concurrency = 1\n"
         [".github/config/lychee.toml"] = "max_concurrency = 1\n"
       }
+      before = "git init . && git add README.md"
       env = new Mapping<String, String> {
         ["GITHUB_TOKEN"] = "test-token"
       }
