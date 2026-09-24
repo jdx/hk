@@ -168,7 +168,7 @@ jobs:
             echo "::error::unexpected artifact contents"
             exit 1
           fi
-          jq -e '.schema == 1 and .passed == true and .versions.hk == env.RELEASE' results.json >/dev/null
+          jq -e '.schema == 2 and .passed == true and .versions.hk == env.RELEASE' results.json >/dev/null
           cp results.json "$GITHUB_WORKSPACE/benchmark/results.json"
       - name: Push the benchmark-refresh branch and open a pull request
         env:
@@ -195,7 +195,7 @@ jobs:
           table=$(jq -r '
             .scenarios[] as $s
             | "| \($s.title) | " + ([ $s.results | to_entries[]
-                | "\(.key) \(.value.median * 1000 | round) ms\(if .value.correct.passed < .value.correct.trials then " (wrong \(.value.correct.trials - .value.correct.passed)/\(.value.correct.trials))" else "" end)"
+                | "\(.key) \(.value.median * 1000 | round) ms\(if .value.correct.passed < .value.correct.total then " (wrong \(.value.correct.total - .value.correct.passed)/\(.value.correct.total))" else "" end)"
               ] | join("<br>")) + " |"' benchmark/results.json)
           cat > "$RUNNER_TEMP/body.md" <<EOF
           Re-measured hk against lefthook, pre-commit and prek for hk v${RELEASE} (previously ${MEASURED:-none}) on the jdx-perf-v1 runner. Merging updates the numbers on https://hk.jdx.dev/benchmarks.
@@ -204,7 +204,7 @@ jobs:
           | --- | --- |
           ${table}
 
-          Every tool that is safe by design produced the right files in every verification trial; otherwise this pull request would not exist. Check the numbers against the previous release before merging.
+          Every tool that is safe by design produced the right files in every timed sample; otherwise this pull request would not exist. Check the numbers against the previous release before merging.
 
           Workflow run: ${RUN_URL}
           EOF

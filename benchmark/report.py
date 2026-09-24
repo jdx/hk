@@ -1,27 +1,29 @@
 #!/usr/bin/env python3
-"""Combines a tak run and its verification into benchmark/results.json.
+"""Turns a tak run into benchmark/results.json.
 
 The docs page (docs/benchmarks.md) renders this file. It refuses to render
 numbers unless `passed` is true, and this script only sets it when the run can
 be trusted:
 
-- every subject of every benchmark in tak.toml was both timed and verified;
-- every subject that is safe by design produced the clean tree in every trial.
-  A sequential tool getting it wrong means the harness is broken (or the tool
-  has a bug worth reporting), not that parallelism is hard.
+- every subject of every scenario in tak.toml was timed, and every timed
+  sample was checked against the fixture's clean commit;
+- every subject that is safe by design passed every check. A sequential tool
+  getting it wrong means the harness is broken (or the tool has a bug worth
+  reporting), not that parallelism is hard;
+- every subject reported failure on the dirty tree in the check-detects sanity
+  benchmark. A read-only check that ran nothing would also pass on a clean tree.
 
 Subjects configured to run fixers concurrently without coordination
-(lefthook-parallel, prek-parallel) are allowed to fail verification. That is
-the finding the page exists to show, so their pass rate is published next to
+(lefthook-parallel, prek-parallel) are allowed to fail checks. That is the
+finding the page exists to show, so their pass rate is published next to
 their time.
 
-Usage: report.py <tak-export.json> <verify.json> [--out PATH]
+Usage: report.py <tak-export.json> [--out PATH]
 """
 
 import argparse
 import json
 import os
-import platform
 import re
 import subprocess
 import sys
@@ -30,7 +32,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-SCHEMA = 1
+SCHEMA = 2
+
+# Benchmarks in tak.toml that guard the run but aren't shown as scenarios.
+SANITY = {"check-detects"}
 
 # Display metadata. `safe` marks configurations that cannot race by design.
 SUBJECTS = {
@@ -57,13 +62,9 @@ SCENARIOS = {
     },
 }
 
-# Command whose output contains each tool's version.
-VERSIONS = {
-    "hk": ["hk", "--version"],
-    "lefthook": ["lefthook", "version"],
-    "pre-commit": ["pre-commit", "--version"],
-    "prek": ["prek", "--version"],
-    "tak": ["tak", "--version"],
+# The workload's own tools. The hook managers' versions come from tak's export
+# (`version_cmd` in tak.toml).
+LINTERS = {
     "black": ["black", "--version"],
     "ruff": ["ruff", "--version"],
     "prettier": ["prettier", "--version"],
@@ -84,32 +85,9 @@ def out(*cmd, cwd=None):
         return ""
 
 
-def version(cmd):
-    m = re.search(r"\d+\.\d+(\.\d+)?([-+.][0-9A-Za-z.+-]+)?", out(*cmd))
+def semver(text):
+    m = re.search(r"\d+\.\d+(\.\d+)?([-+.][0-9A-Za-z.+-]+)?", text or "")
     return m.group(0) if m else None
-
-
-def machine():
-    cpu = ""
-    for line in out("lscpu").splitlines():
-        if line.startswith("Model name:"):
-            cpu = line.split(":", 1)[1].strip()
-    mem_kb = 0
-    try:
-        for line in Path("/proc/meminfo").read_text().splitlines():
-            if line.startswith("MemTotal:"):
-                mem_kb = int(line.split()[1])
-    except OSError:
-        pass
-    return {
-        "runner": os.environ.get("BENCH_RUNNER", "local"),
-        "os": f"{platform.system()} {platform.release()}",
-        "arch": platform.machine(),
-        "cpu": cpu,
-        # The CPUs this process may run on, which is what every subject sees.
-        "cpus": len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count(),
-        "memory_gb": round(mem_kb / 1024 / 1024),
-    }
 
 
 def workload():
@@ -128,42 +106,53 @@ def workload():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("tak_json")
-    ap.add_argument("verify_json")
     ap.add_argument("--out", default=str(ROOT / "results.json"))
     args = ap.parse_args()
 
     config = tomllib.loads((ROOT / "tak.toml").read_text())
-    samples = {(r["bench"], r["subject"]): r for r in json.loads(Path(args.tak_json).read_text())["results"]}
-    verified = json.loads(Path(args.verify_json).read_text())
+    export = json.loads(Path(args.tak_json).read_text())
+    samples = {(r["bench"], r["subject"]): r for r in export["results"]}
 
-    problems = []
-    scenarios = []
-    # A run narrowed with `--bench` is a diagnostic: never publishable, but
-    # not a failure either.
+    def subjects_of(bench):
+        b = config["bench"][bench]
+        return b.get("subjects") or list(b.get("subject", {}))
+
+    # A run narrowed with `--bench` is a diagnostic: never publishable, but not
+    # a failure either. `problems` holds what went wrong in what did run.
     skipped = [b for b in config["bench"] if not any(k[0] == b for k in samples)]
-    for bname, bench in config["bench"].items():
-        if bname in skipped:
+    problems = []
+
+    for bname in SANITY - set(skipped):
+        for sname in subjects_of(bname):
+            if (bname, sname) not in samples:
+                problems.append(f"{sname}: its check passed on the dirty tree, or it could not run")
+
+    versions = {}
+    scenarios = []
+    for bname in config["bench"]:
+        if bname in SANITY or bname in skipped:
             continue
         results = {}
-        for sname in bench["subject"]:
+        for sname in subjects_of(bname):
             meta = SUBJECTS.get(sname)
             t = samples.get((bname, sname))
-            v = verified.get(bname, {}).get(sname)
             if meta is None:
                 problems.append(f"{sname}: no display metadata in report.py")
                 continue
             if t is None:
-                problems.append(f"{bname}/{sname}: not timed")
+                problems.append(f"{bname}/{sname}: dropped by tak (it failed to run or exited with an unexpected code)")
                 continue
-            if v is None:
-                problems.append(f"{bname}/{sname}: not verified")
+            checks = t.get("checks")
+            if not checks or checks["total"] != len(t["times"]):
+                problems.append(f"{bname}/{sname}: not every sample was checked")
                 continue
-            correct = v["passed"] == v["trials"]
-            if meta["safe"] and not correct:
+            if meta["safe"] and checks["passed"] != checks["total"]:
                 problems.append(
-                    f"{bname}/{sname}: produced the wrong files in {v['trials'] - v['passed']}/{v['trials']} trials"
-                    f" (up to {v['max_wrong_files']}, e.g. {', '.join(v['example_wrong_files']) or 'exit status'})"
+                    f"{bname}/{sname}: produced the wrong files in "
+                    f"{checks['total'] - checks['passed']}/{checks['total']} samples"
                 )
+            if t.get("version"):
+                versions.setdefault(meta["tool"], semver(t["version"]))
             results[sname] = {
                 "mean": round(t["mean"], 4),
                 "median": round(t["median"], 4),
@@ -171,22 +160,33 @@ def main():
                 "min": round(t["min"], 4),
                 "max": round(t["max"], 4),
                 "runs": len(t["times"]),
-                "correct": {"passed": v["passed"], "trials": v["trials"], "max_wrong_files": v["max_wrong_files"]},
+                "correct": {"passed": checks["passed"], "total": checks["total"]},
             }
         scenarios.append({"key": bname, **SCENARIOS.get(bname, {"title": bname, "summary": ""}), "results": results})
 
-    repo = ROOT.parent
-    # `problems` holds what went wrong in the benchmarks that ran.
+    versions["tak"] = semver(export.get("tak_version"))
+    versions.update({name: semver(out(*cmd)) for name, cmd in LINTERS.items()})
+
+    machine = export.get("machine") or {}
     unpublishable = ([f"partial run, not timed: {', '.join(skipped)}"] if skipped else []) + problems
     data = {
         "schema": SCHEMA,
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "passed": not unpublishable,
         "problems": unpublishable,
-        "commit": out("git", "rev-parse", "HEAD", cwd=repo),
+        "commit": out("git", "rev-parse", "HEAD", cwd=ROOT.parent),
         "workflow_run": os.environ.get("BENCH_WORKFLOW_RUN") or None,
-        "machine": machine(),
-        "versions": {name: version(cmd) for name, cmd in VERSIONS.items()},
+        "seed": export.get("seed"),
+        "machine": {
+            "runner": os.environ.get("BENCH_RUNNER") or export.get("runner") or "local",
+            "os": machine.get("os_version") or machine.get("os"),
+            "kernel": machine.get("kernel"),
+            "arch": machine.get("arch"),
+            "cpu": machine.get("cpu"),
+            "cpus": machine.get("cpus"),
+            "memory_gb": round(machine["memory_bytes"] / 2**30) if machine.get("memory_bytes") else None,
+        },
+        "versions": versions,
         "workload": workload(),
         "subjects": SUBJECTS,
         "scenarios": scenarios,

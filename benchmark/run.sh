@@ -3,17 +3,16 @@
 # which docs/benchmarks.md renders.
 #
 #   1. setup.sh     fixture and one clone per subject
-#   2. verify.py    did each subject produce the right files?
-#   3. tak run      wall time, subjects interleaved
-#   4. report.py    results.json, marked publishable only if the run is sound
+#   2. tak run      wall time, subjects interleaved, every sample checked
+#                   against the fixture's clean commit
+#   3. report.py    results.json, marked publishable only if the run is sound
 #
 # Usage: benchmark/run.sh [tak run flags...]   e.g. --bench fix-staged --runs 3
 #
-# A run narrowed with --bench is for diagnosis: it verifies and times only the
-# named benchmarks, and results.json records that it is not publishable.
+# A run narrowed with --bench is for diagnosis: results.json records that it is
+# not publishable.
 # Environment:
 #   HK_BIN   hk binary to measure (default: target/release/hk, built first)
-#   TRIALS   verification trials per subject (default: 5)
 #   BENCH_RUNNER, BENCH_WORKFLOW_RUN   provenance recorded in results.json
 set -euo pipefail
 
@@ -29,26 +28,15 @@ echo "Measuring $("$HK_BIN" --version) at $HK_BIN"
 "$BENCH/setup.sh"
 
 cd "$BENCH"
-# Verify the same benchmarks tak will time.
-benches=()
-args=("$@")
-for ((i = 0; i < ${#args[@]}; i++)); do
-    case "${args[i]}" in
-    --bench) benches+=(--bench "${args[i + 1]}") ;;
-    --bench=*) benches+=(--bench "${args[i]#--bench=}") ;;
-    esac
-done
-# .work outlives the run; never let report.py pair these timings with an
-# earlier run's verification (or vice versa) if a step fails before writing.
-rm -f .work/verify.json .work/tak.json
-echo "Verifying..."
-./verify.py --trials "${TRIALS:-5}" "${benches[@]}" || true
+# .work outlives the run; never let report.py read an earlier run's export if
+# tak fails before writing this one.
+rm -f .work/tak.json
 
-echo "Timing..."
-# tak drops a failing subject, keeps measuring the rest and exits non-zero;
-# report.py then names what is missing instead of the run stopping here.
+# tak drops a subject that fails to run, keeps measuring the rest and exits
+# non-zero; report.py then names what is missing instead of the run stopping
+# here.
 status=0
-tak run --no-counters --export-json .work/tak.json "$@" || status=$?
+tak run --config tak.toml --no-counters --export-json .work/tak.json "$@" || status=$?
 
-./report.py .work/tak.json .work/verify.json || status=$?
+./report.py .work/tak.json || status=$?
 exit "$status"

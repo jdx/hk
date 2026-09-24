@@ -21,23 +21,22 @@ HK_BIN=~/Downloads/hk mise run benchmark            # measure a specific binary
 | `lib/inject-defects.sh` | Breaks a quarter of the files so that two or three fixers must write each one.                           |
 | `subjects/`             | Each tool's configuration.                                                                               |
 | `setup.sh`              | One clone of the fixture per subject in `~/.cache/hk-bench` (`.work` links to it).                       |
-| `tak.toml`              | The scenarios and the command each subject runs. Timing is done by [tak](https://github.com/jdx/tak).    |
-| `verify.py`             | Runs every subject again as `tak.toml` declares it and checks the resulting tree against `clean`.        |
-| `report.py`             | Writes `results.json`, and marks it publishable only if every safe-by-design subject was always correct. |
-| `lib/allow-fixes`       | Treats exit 1 as success, because pre-commit and prek exit 1 whenever they fix a file.                   |
+| `tak.toml`              | Scenarios, commands and the per-sample `check`, timed by [tak](https://github.com/jdx/tak) 0.0.13.       |
+| `report.py`             | Writes `results.json` from tak's export, publishable only if every safe-by-design subject always passed. |
 
 This `tak.toml` is separate from the repository root's. The root one records
 hk's instruction counts on every push to main, while this one compares wall
-time against other programs. tak uses the nearest `tak.toml`, so run it from
-this directory.
+time against other programs. `run.sh` passes it to tak with `--config`.
 
 ## Adding a tool or scenario
 
 1. Add the configuration under `subjects/<name>/` and map it in `setup.sh`.
-2. Add `[bench.<scenario>.subject.<name>]` entries to `tak.toml`.
+2. In `tak.toml`, add a shared `[subject.<name>]` with its `version_cmd`, list
+   it in each benchmark's `subjects`, and give each benchmark a
+   `[bench.<scenario>.subject.<name>]` with the command for that scenario.
 3. Add display metadata to `SUBJECTS` in `report.py`. Mark it `safe` only if
    the configuration cannot race by design.
-4. Pin the tool in `mise.toml`, and add it to `VERSIONS` in `report.py`.
+4. Pin the tool in `mise.toml`.
 
 The workload's yq fixer also formats each tool's own YAML configuration, so
 `setup.sh` normalizes those files with `yq -P` before committing them into the

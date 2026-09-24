@@ -8,7 +8,7 @@ const results = data;
 const fmt = (s: number) =>
   s >= 10 ? `${s.toFixed(1)} s` : s >= 1 ? `${s.toFixed(2)} s` : `${Math.round(s * 1000)} ms`;
 
-const correct = (st: Stats) => st.correct.passed === st.correct.trials;
+const correct = (st: Stats) => st.correct.passed === st.correct.total;
 
 // Two tools only differ when the gap between their medians is larger than
 // either one's own spread across samples. Otherwise the page calls it level.
@@ -104,7 +104,7 @@ const measured = computed(() =>
           <span class="bench-value">{{ fmt(r.stats.median) }}</span>
           <span v-if="r.ok" class="bench-ok">✓ correct</span>
           <span v-else class="bench-bad">
-            ✗ wrong files in {{ r.stats.correct.trials - r.stats.correct.passed }}/{{ r.stats.correct.trials }} runs
+            ✗ wrong files in {{ r.stats.correct.total - r.stats.correct.passed }}/{{ r.stats.correct.total }} runs
           </span>
         </li>
       </ul>
@@ -126,8 +126,7 @@ const measured = computed(() =>
               <td>{{ fmt(r.stats.min) }}–{{ fmt(r.stats.max) }}</td>
               <td>{{ r.stats.runs }}</td>
               <td>
-                {{ r.stats.correct.passed }}/{{ r.stats.correct.trials }}
-                <template v-if="!r.ok">(up to {{ r.stats.correct.max_wrong_files }} files wrong)</template>
+                {{ r.stats.correct.passed }}/{{ r.stats.correct.total }}
               </td>
             </tr>
           </tbody>

@@ -5,7 +5,7 @@
 # workload, not the subject, so they are pinned too — a faster ruff would make
 # every tool look faster and shrink the gaps the page reports.
 [tools]
-"github:jdx/tak" = "v0.0.11"
+"github:jdx/tak" = "v0.0.13"
 jq               = "1.8.2"
 lefthook         = "2.1.14"
 node             = "26.10.0"

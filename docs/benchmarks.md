@@ -12,7 +12,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 
 **The project.** A generated repository of about 6,000 files: 4,000 Python, 500 JavaScript and TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown. Every tool runs the same ten fixers over it: black, ruff format, ruff check, Prettier, ESLint, jq, yq, shfmt, trailing whitespace, and final newline. The whitespace fixers apply to every file, so every file is written by at least two of them.
 
-**Correct output.** The generator commits a `clean` state, which is the result of running the ten fixers one after another, then a `dirty` state in which a quarter of the files have formatting defects. Each defective file needs a language fixer _and_ a whitespace fixer to write it. After fixing `dirty`, a tool is correct only if the tree is byte-for-byte identical to `clean`. Every tool gets several trials in every scenario, and the page reports how many were correct.
+**Correct output.** The generator commits a `clean` state, which is the result of running the ten fixers one after another, then a `dirty` state in which a quarter of the files have formatting defects. Each defective file needs a language fixer _and_ a whitespace fixer to write it. After fixing `dirty`, a tool is correct only if the tree is byte-for-byte identical to `clean`. tak checks this after every timed sample, so the page reports, for each tool, how many of the very runs it timed were correct.
 
 **Scenarios.**
 
@@ -39,7 +39,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 - **Same starting state.** Each tool has its own clone of the project. Before every sample, an untimed step resets the clone to the scenario's starting state. Tool caches such as ruff's and black's are left warm, as they would be on a developer's machine.
 - **Hermetic Git.** Global and system Git configuration is disabled, so the benchmark host's hooks, signing, and filesystem monitor stay out of the measurements.
 - **Wins must beat the noise.** A tool is called faster only when the gap between medians is larger than both tools' ranges across samples. A configuration that produced wrong files is never the benchmark hk is compared against.
-- **No partial results.** The page shows a run only if hk and every configuration that is safe by design produced the right files in every trial. Otherwise the harness is broken or a tool has a bug, and neither should be published as a timing.
+- **No partial results.** The page shows a run only if hk and every configuration that is safe by design produced the right files in every timed sample. Otherwise the harness is broken or a tool has a bug, and neither should be published as a timing.
 
 ## What this does not measure
 

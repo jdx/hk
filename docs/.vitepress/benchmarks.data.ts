@@ -13,7 +13,7 @@ export interface Stats {
   min: number;
   max: number;
   runs: number;
-  correct: { passed: number; trials: number; max_wrong_files: number };
+  correct: { passed: number; total: number };
 }
 
 export interface Subject {
@@ -31,18 +31,20 @@ export interface Scenario {
 }
 
 export interface BenchmarkResults {
-  schema: 1;
+  schema: 2;
   generated: string;
   passed: boolean;
   commit: string;
   workflow_run: string | null;
+  seed: string | null;
   machine: {
     runner: string;
-    os: string;
-    arch: string;
-    cpu: string;
-    cpus: number;
-    memory_gb: number;
+    os: string | null;
+    kernel: string | null;
+    arch: string | null;
+    cpu: string | null;
+    cpus: number | null;
+    memory_gb: number | null;
   };
   versions: Record<string, string | null>;
   workload: {
@@ -64,7 +66,7 @@ export default {
     if (!existsSync(resultsPath)) return null;
     const results = JSON.parse(readFileSync(resultsPath, "utf8"));
     // An unverified or failed run must never render as if it were sound.
-    if (results.schema !== 1 || results.passed !== true) return null;
+    if (results.schema !== 2 || results.passed !== true) return null;
     return results;
   },
 };
