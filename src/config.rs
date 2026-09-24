@@ -2,6 +2,7 @@ use indexmap::IndexMap;
 use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 
@@ -961,6 +962,12 @@ fn embedded_pkl_package_url() -> String {
 }
 
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    Ok(eval_pklr(path)?.0)
+}
+
+/// Evaluate `path`, also returning every environment variable the evaluation
+/// read with the value it saw, `None` when unset.
+fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, BTreeMap<String, Option<String>>)> {
     let client = build_pklr_http_client()?;
     let http_rewrites = env::HK_PKL_HTTP_REWRITE
         .as_deref()
@@ -977,9 +984,20 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let json = block_on_pklr(evaluator.eval_to_json(path))?
+    let outcome = block_on_pklr(evaluator.eval(path))?
         .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
-    serde_json::from_value(json).map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))
+    let value = serde_json::from_value(outcome.json)
+        .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))?;
+    Ok((value, outcome.env_reads))
+}
+
+/// Keeps an unset variable distinct from an empty one. The values only ever
+/// reach the cache file name as part of its hash.
+fn env_cache_key(env: &BTreeMap<String, Option<String>>) -> String {
+    env.iter()
+        .map(|(name, value)| format!("env:{name}={value:?}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn pkl_http_rewrite_cache_key() -> String {
@@ -2004,5 +2022,41 @@ mod tests {
 
         let a = analysis(&root, &[], vec![]);
         assert!(!a.is_stale(&root));
+    }
+
+    #[test]
+    fn eval_pklr_reports_env_values_read_including_misses() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env.pkl");
+        std::fs::write(
+            &path,
+            concat!(
+                "path = read(\"env:PATH\")\n",
+                "missing = read?(\"env:HK_TEST_UNSET_VAR\")\n",
+            ),
+        )
+        .unwrap();
+
+        let (_, env_reads): (serde_json::Value, _) = eval_pklr(&path).unwrap();
+        assert_eq!(
+            env_reads,
+            BTreeMap::from([
+                ("HK_TEST_UNSET_VAR".to_string(), None),
+                ("PATH".to_string(), std::env::var("PATH").ok()),
+            ])
+        );
+    }
+
+    #[test]
+    fn env_cache_key_distinguishes_values_and_unset_from_empty() {
+        let key = |value: Option<&str>| {
+            env_cache_key(&BTreeMap::from([(
+                "HK_TEST_VAR".to_string(),
+                value.map(String::from),
+            )]))
+        };
+        assert_eq!(key(Some("a")), key(Some("a")));
+        assert_ne!(key(Some("a")), key(Some("b")));
+        assert_ne!(key(None), key(Some("")));
     }
 }
