@@ -28,6 +28,21 @@ PKL
     assert_output --partial "ok - renovate_deps :: fix regenerates snapshot"
 }
 
+@test "fake Renovate extraction reflects the package manifest" {
+    cat <<'JSON' > package.json
+{"dependencies":{"content-dependent-fixture":"^1.0.0"}}
+JSON
+    mkdir -p "$TEST_TEMP_DIR/.github"
+    printf '{}\n' > "$TEST_TEMP_DIR/.github/renovate.json5"
+    export RENOVATE_CONFIG_FILE="$TEST_TEMP_DIR/.github/renovate.json5"
+    PATH="$PROJECT_ROOT/test/builtin_tool_fake_bins:$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+
+    run renovate --platform=local --dry-run=extract
+    assert_success
+    assert_output --partial '"depName":"content-dependent-fixture"'
+    refute_output --partial '"depName":"express"'
+}
+
 @test "renovate_deps fix stages its regenerated snapshot" {
     mkdir -p .github "$TEST_TEMP_DIR/bin"
     cat <<PKL > hk.pkl

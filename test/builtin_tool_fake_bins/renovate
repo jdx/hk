@@ -12,4 +12,35 @@ case " $* " in
   *) echo "expected an extract or lookup dry run" >&2; exit 2 ;;
 esac
 test -n "${RENOVATE_CONFIG_FILE:-}" && test -f "$RENOVATE_CONFIG_FILE"
-printf '%s\n' '{"msg":"Extracted dependencies","packageFiles":{"mise":[{"packageFile":"mise.toml","deps":[{"depName":"npm:renovate"}]}],"npm":[{"packageFile":"package.json","deps":[{"depName":"express"},{"depName":"lodash"}]}]}}'
+
+node <<'JS'
+const fs = require("node:fs");
+
+const packageFiles = {};
+
+if (fs.existsSync("mise.toml")) {
+  const deps = [...fs.readFileSync("mise.toml", "utf8").matchAll(/^\s*"?([^"=\s]+)"?\s*=/gm)]
+    .map(([, depName]) => ({ depName }));
+  if (deps.length > 0) {
+    packageFiles.mise = [{ packageFile: "mise.toml", deps }];
+  }
+}
+
+if (fs.existsSync("package.json")) {
+  const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+  const dependencySections = [
+    pkg.dependencies,
+    pkg.devDependencies,
+    pkg.optionalDependencies,
+    pkg.peerDependencies,
+  ];
+  const deps = [...new Set(dependencySections.flatMap((section) => Object.keys(section ?? {})))]
+    .sort()
+    .map((depName) => ({ depName }));
+  if (deps.length > 0) {
+    packageFiles.npm = [{ packageFile: "package.json", deps }];
+  }
+}
+
+console.log(JSON.stringify({ msg: "Extracted dependencies", packageFiles }));
+JS
