@@ -319,3 +319,26 @@ EOF
     assert_output --partial 'main.js'
     refute_output --partial 'lib.js'
 }
+
+@test "top-level exclude - resolves .. after a symlinked directory on disk" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^main\.js$"#)
+steps {
+    ["list"] {
+        check = "echo checking: {{files}}"
+    }
+}
+EOF
+    mkdir -p other/subdir
+    echo "a" > main.js
+    echo "b" > other/main.js
+    ln -s other/subdir link
+    git add -A
+    git commit -m "initial commit"
+
+    # link/../main.js opens other/main.js, which the exclude does not match
+    run hk check link/../main.js
+    assert_success
+    assert_output --partial 'checking: link/../main.js'
+}

@@ -8,7 +8,7 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     ffi::OsString,
     fmt,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{
         Arc, Mutex as StdMutex,
         atomic::{AtomicBool, Ordering},
@@ -1806,23 +1806,42 @@ impl Hook {
         }
 
         if !all_excludes.is_empty() || !opts.exclude_regexes.is_empty() {
-            // Excludes match normalized repo-relative paths, so relativize absolute
-            // paths and resolve `.`/`..` in file arguments. hk runs from the repo root.
+            // Excludes match repo-relative paths, so relativize absolute paths and
+            // resolve `.`/`..` in file arguments. hk runs from the repo root.
             let cwd = std::env::current_dir().ok();
+            let canonical_cwd = cwd.as_deref().and_then(|cwd| cwd.canonicalize().ok());
             let relative = |f: &PathBuf| -> PathBuf {
-                let normalized = normalize_lexically(f);
-                let Some(cwd) = cwd.as_deref().filter(|_| normalized.is_absolute()) else {
-                    return normalized;
-                };
-                normalized
-                    .strip_prefix(cwd)
-                    .ok()
-                    .map(Path::to_path_buf)
-                    .or_else(|| {
-                        let canonical = f.canonicalize().ok()?;
-                        Some(canonical.strip_prefix(cwd).ok()?.to_path_buf())
-                    })
-                    .unwrap_or(normalized)
+                let has_parent_dir = f.components().any(|c| c == Component::ParentDir);
+                if !has_parent_dir && !f.is_absolute() {
+                    return normalize_lexically(f);
+                }
+                if !has_parent_dir
+                    && let Some(rel) = cwd.as_deref().and_then(|cwd| f.strip_prefix(cwd).ok())
+                {
+                    return normalize_lexically(rel);
+                }
+                // `..` after a symlinked directory leaves the symlink's target, so
+                // resolve the parent directory on disk. The file name is kept, so a
+                // symlinked file matches by its own path.
+                let resolved = f.file_name().and_then(|name| {
+                    let parent = f.parent().filter(|p| !p.as_os_str().is_empty());
+                    let parent = parent.unwrap_or(Path::new(".")).canonicalize().ok()?;
+                    Some(parent.join(name))
+                });
+                match (resolved, canonical_cwd.as_deref()) {
+                    (Some(resolved), Some(cwd)) => resolved
+                        .strip_prefix(cwd)
+                        .map(Path::to_path_buf)
+                        .unwrap_or(resolved),
+                    // The file no longer exists, so its path can only be resolved lexically
+                    _ => {
+                        let normalized = normalize_lexically(f);
+                        cwd.as_deref()
+                            .and_then(|cwd| normalized.strip_prefix(cwd).ok())
+                            .map(Path::to_path_buf)
+                            .unwrap_or(normalized)
+                    }
+                }
             };
             let match_paths = files.iter().map(relative).collect::<Vec<_>>();
             let files_before = files.len();
@@ -1933,7 +1952,6 @@ fn watch_for_ctrl_c(cancel: CancellationToken) {
 /// Remove `.` components and resolve `..` against preceding components without
 /// touching the filesystem. Leading `..` components of a relative path are kept.
 fn normalize_lexically(path: &Path) -> PathBuf {
-    use std::path::Component;
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
