@@ -19,20 +19,24 @@ black = new Config.Step {
     effect = "read"
   }
   // Lists the files that `black --check` reports on stderr, including files it
-  // cannot format so that the fixer reports their errors.
+  // cannot format so that the fixer reports their errors. The script needs a
+  // POSIX shell; on Windows hk falls back to `check` before fixing.
   check_list_files = new Config.CommandSpec {
-    command =
-      #"""
-      out=$(black --check {{ files }} 2>&1) && exit 0
-      status=$?
-      printf '%s\n' "$out" | while IFS= read -r line; do
-      case "$line" in
-      "would reformat "*) printf '%s\n' "${line#would reformat }" ;;
-      "error: cannot format "*) line=${line#error: cannot format }; printf '%s\n' "${line%%: *}" ;;
-      esac
-      done
-      exit $status
-      """#
+    command = new Config.Script {
+      windows = ""
+      other =
+        #"""
+        out=$(black --check {{ files }} 2>&1) && exit 0
+        status=$?
+        printf '%s\n' "$out" | while IFS= read -r line; do
+        case "$line" in
+        "would reformat "*) printf '%s\n' "${line#would reformat }" ;;
+        "error: cannot format "*) line=${line#error: cannot format }; printf '%s\n' "${line%%: *}" ;;
+        esac
+        done
+        exit $status
+        """#
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
