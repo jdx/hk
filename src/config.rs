@@ -601,7 +601,12 @@ impl Config {
             .or(hkrc.display_skip_reasons);
         self.hide_warnings = self.hide_warnings.take().or(hkrc.hide_warnings);
         self.warnings = self.warnings.take().or(hkrc.warnings);
-        self.exclude = self.exclude.take().or(hkrc.exclude);
+        // Exclude patterns are unioned, like every other exclude source.
+        match (&mut self.exclude, hkrc.exclude) {
+            (Some(exclude), Some(hkrc_exclude)) => exclude.union(hkrc_exclude),
+            (exclude @ None, hkrc_exclude) => *exclude = hkrc_exclude,
+            (Some(_), None) => {}
+        }
         self.profiles = self.profiles.take().or(hkrc.profiles);
         self.skip_hooks = self.skip_hooks.take().or(hkrc.skip_hooks);
         self.skip_steps = self.skip_steps.take().or(hkrc.skip_steps);
@@ -1214,7 +1219,7 @@ pub struct Config {
     pub hide_warnings: Option<Vec<String>>,
     pub warnings: Option<Vec<String>>,
     /// Global file patterns to exclude from all steps
-    pub exclude: Option<StringOrList>,
+    pub exclude: Option<Exclude>,
     pub stage: Option<bool>,
     pub profiles: Option<Vec<String>>,
     pub skip_hooks: Option<Vec<String>>,
@@ -1267,6 +1272,10 @@ impl Config {
     }
 
     pub fn validate(&self) -> Result<()> {
+        for pattern in self.exclude.iter().flat_map(|e| &e.regexes) {
+            regex::Regex::new(pattern)
+                .wrap_err_with(|| format!("invalid regex in top-level 'exclude': {pattern}"))?;
+        }
         for (hook_name, hook) in &self.hooks {
             for (step_name, step_or_group) in &hook.steps {
                 match step_or_group {
@@ -1352,22 +1361,88 @@ fn validate_step(step: &crate::step::Step, step_name: &str, location: &str) -> R
     Ok(())
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(untagged)]
-pub enum StringOrList {
-    String(String),
-    List(Vec<String>),
+/// Top-level `exclude` patterns.
+///
+/// Pkl accepts a glob string, a list of globs, or a `Regex`. Patterns from the
+/// project config and the user config are unioned, so one value can hold both
+/// globs and regexes. It serializes as a list of glob strings followed by
+/// `{"_type": "regex", "pattern": ...}` objects, which it also deserializes.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Exclude {
+    pub globs: Vec<String>,
+    pub regexes: Vec<String>,
 }
 
-impl IntoIterator for StringOrList {
-    type Item = String;
-    type IntoIter = std::vec::IntoIter<String>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        match self {
-            StringOrList::String(s) => vec![s].into_iter(),
-            StringOrList::List(list) => list.into_iter(),
+impl Exclude {
+    /// Add the other value's patterns that this one does not already have.
+    fn union(&mut self, other: Exclude) {
+        for glob in other.globs {
+            if !self.globs.contains(&glob) {
+                self.globs.push(glob);
+            }
         }
+        for regex in other.regexes {
+            if !self.regexes.contains(&regex) {
+                self.regexes.push(regex);
+            }
+        }
+    }
+
+    fn add_value<E: serde::de::Error>(&mut self, value: serde_json::Value) -> Result<(), E> {
+        use serde_json::Value;
+        match value {
+            Value::String(glob) => self.globs.push(glob),
+            Value::Object(mut map) if map.get("_type").and_then(Value::as_str) == Some("regex") => {
+                let Some(Value::String(pattern)) = map.remove("pattern") else {
+                    return Err(E::custom("exclude Regex is missing its pattern"));
+                };
+                self.regexes.push(pattern);
+            }
+            _ => {
+                return Err(E::custom(
+                    "exclude must be a string, a list of strings, or a Regex",
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'de> Deserialize<'de> for Exclude {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut exclude = Exclude::default();
+        match serde_json::Value::deserialize(deserializer)? {
+            serde_json::Value::Array(values) => {
+                for value in values {
+                    exclude.add_value(value)?;
+                }
+            }
+            value => exclude.add_value(value)?,
+        }
+        Ok(exclude)
+    }
+}
+
+impl Serialize for Exclude {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeSeq;
+        let mut seq = serializer.serialize_seq(Some(self.globs.len() + self.regexes.len()))?;
+        for glob in &self.globs {
+            seq.serialize_element(glob)?;
+        }
+        for pattern in &self.regexes {
+            seq.serialize_element(&crate::step::Pattern::Regex {
+                _type: "regex".to_string(),
+                pattern: pattern.clone(),
+            })?;
+        }
+        seq.end()
     }
 }
 
@@ -1428,6 +1503,105 @@ mod tests {
     use crate::hook::{Hook, StepOrGroup};
     use crate::step::Step;
     use crate::step_group::StepGroup;
+
+    fn exclude_from(value: serde_json::Value) -> Exclude {
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn exclude_deserializes_string_list_and_regex() {
+        assert_eq!(
+            exclude_from(serde_json::json!("dist")),
+            Exclude {
+                globs: vec!["dist".into()],
+                regexes: vec![],
+            }
+        );
+        assert_eq!(
+            exclude_from(serde_json::json!(["dist", "**/*.map"])),
+            Exclude {
+                globs: vec!["dist".into(), "**/*.map".into()],
+                regexes: vec![],
+            }
+        );
+        assert_eq!(
+            exclude_from(serde_json::json!({"_type": "regex", "pattern": "^vendor/"})),
+            Exclude {
+                globs: vec![],
+                regexes: vec!["^vendor/".into()],
+            }
+        );
+        assert!(serde_json::from_value::<Exclude>(serde_json::json!(1)).is_err());
+        assert!(serde_json::from_value::<Exclude>(serde_json::json!({"_type": "regex"})).is_err());
+    }
+
+    #[test]
+    fn exclude_serialization_round_trips_and_keeps_globs_as_strings() {
+        let exclude = Exclude {
+            globs: vec!["dist".into()],
+            regexes: vec!["^vendor/".into()],
+        };
+        let value = serde_json::to_value(&exclude).unwrap();
+        // Settings read string elements as glob excludes and skip the regex object.
+        assert_eq!(
+            value,
+            serde_json::json!(["dist", {"_type": "regex", "pattern": "^vendor/"}])
+        );
+        assert_eq!(exclude_from(value), exclude);
+    }
+
+    #[test]
+    fn hkrc_exclude_unions_with_project_exclude() {
+        let mut project = Config {
+            exclude: Some(Exclude {
+                globs: vec!["dist".into()],
+                regexes: vec!["^vendor/".into()],
+            }),
+            ..Default::default()
+        };
+        let hkrc = Config {
+            exclude: Some(Exclude {
+                globs: vec!["dist".into(), "build".into()],
+                regexes: vec![r"\.gen\.".into()],
+            }),
+            ..Default::default()
+        };
+        project.merge_from_hkrc(hkrc).unwrap();
+        assert_eq!(
+            project.exclude,
+            Some(Exclude {
+                globs: vec!["dist".into(), "build".into()],
+                regexes: vec!["^vendor/".into(), r"\.gen\.".into()],
+            })
+        );
+
+        let mut project = Config::default();
+        let hkrc = Config {
+            exclude: Some(Exclude {
+                globs: vec![],
+                regexes: vec!["^vendor/".into()],
+            }),
+            ..Default::default()
+        };
+        project.merge_from_hkrc(hkrc).unwrap();
+        assert_eq!(
+            project.exclude.map(|e| e.regexes),
+            Some(vec!["^vendor/".to_string()])
+        );
+    }
+
+    #[test]
+    fn validate_rejects_invalid_exclude_regex() {
+        let config = Config {
+            exclude: Some(Exclude {
+                globs: vec![],
+                regexes: vec!["vendor/(".into()],
+            }),
+            ..Default::default()
+        };
+        let err = config.validate().unwrap_err();
+        assert!(format!("{err:#}").contains("invalid regex in top-level 'exclude'"));
+    }
 
     #[test]
     fn untracked_import_detection_covers_declarations_and_expressions() {

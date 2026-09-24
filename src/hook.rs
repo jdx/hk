@@ -8,7 +8,7 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     ffi::OsString,
     fmt,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{
         Arc, Mutex as StdMutex,
         atomic::{AtomicBool, Ordering},
@@ -227,6 +227,31 @@ impl StepOrGroup {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn normalize_lexically_resolves_dot_segments() {
+        let cases = [
+            ("src/../vendor/lib.js", "vendor/lib.js"),
+            ("./vendor/./lib.js", "vendor/lib.js"),
+            ("../outside.js", "../outside.js"),
+            ("a/../../outside.js", "../outside.js"),
+            ("/repo/src/../vendor/lib.js", "/repo/vendor/lib.js"),
+            ("/../lib.js", "/lib.js"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                normalize_lexically(Path::new(input)),
+                PathBuf::from(expected),
+                "{input}"
+            );
+        }
+    }
+
+    #[test]
+    fn exclude_match_paths_use_forward_slashes() {
+        let path = with_forward_slashes(normalize_lexically(Path::new("src/../vendor/lib.js")));
+        assert_eq!(path.to_str(), Some("vendor/lib.js"));
+    }
 
     #[test]
     fn step_or_group_serializes_flat_step_for_cache_round_trip() {
@@ -1786,33 +1811,83 @@ impl Hook {
             all_excludes.extend(cli_excludes.iter().cloned());
         }
 
-        if !all_excludes.is_empty() {
-            // Process excludes - handle both directory patterns and glob patterns
-            debug!(
-                "files.exclude: patterns from settings/CLI: {:?}",
-                all_excludes
-            );
-            let files_before = files.len();
-            let mut expanded_excludes = Vec::new();
-            for exclude in &all_excludes {
-                expanded_excludes.push(exclude.clone());
-                // If the pattern doesn't contain glob characters, also add patterns for directory contents
-                if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
-                    expanded_excludes.push(format!("{}/*", exclude));
-                    expanded_excludes.push(format!("{}/**", exclude));
+        if !all_excludes.is_empty() || !opts.exclude_regexes.is_empty() {
+            // Excludes match repo-relative paths, so relativize absolute paths and
+            // resolve `.`/`..` in file arguments. hk runs from the repo root.
+            let cwd = std::env::current_dir().ok();
+            let canonical_cwd = cwd.as_deref().and_then(|cwd| cwd.canonicalize().ok());
+            let resolve = |f: &PathBuf| -> PathBuf {
+                let has_parent_dir = f.components().any(|c| c == Component::ParentDir);
+                if !has_parent_dir && !f.is_absolute() {
+                    return normalize_lexically(f);
                 }
-            }
-            debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
+                if !has_parent_dir
+                    && let Some(rel) = cwd.as_deref().and_then(|cwd| f.strip_prefix(cwd).ok())
+                {
+                    return normalize_lexically(rel);
+                }
+                // `..` after a symlinked directory leaves the symlink's target, so
+                // resolve the parent directory on disk. The file name is kept, so a
+                // symlinked file matches by its own path.
+                let resolved = f.file_name().and_then(|name| {
+                    let parent = f.parent().filter(|p| !p.as_os_str().is_empty());
+                    let parent = parent.unwrap_or(Path::new(".")).canonicalize().ok()?;
+                    Some(parent.join(name))
+                });
+                match (resolved, canonical_cwd.as_deref()) {
+                    (Some(resolved), Some(cwd)) => resolved
+                        .strip_prefix(cwd)
+                        .map(Path::to_path_buf)
+                        .unwrap_or(resolved),
+                    // The file no longer exists, so its path can only be resolved lexically
+                    _ => {
+                        let normalized = normalize_lexically(f);
+                        cwd.as_deref()
+                            .and_then(|cwd| normalized.strip_prefix(cwd).ok())
+                            .map(Path::to_path_buf)
+                            .unwrap_or(normalized)
+                    }
+                }
+            };
+            let relative = |f: &PathBuf| with_forward_slashes(resolve(f));
+            let match_paths = files.iter().map(relative).collect::<Vec<_>>();
+            let files_before = files.len();
+            let mut exclude_files = HashSet::new();
 
-            let f = files.iter().collect::<Vec<_>>();
-            let exclude_files = glob::get_matches(&expanded_excludes, &f)?
-                .into_iter()
-                .collect::<HashSet<_>>();
+            if !all_excludes.is_empty() {
+                // Process excludes - handle both directory patterns and glob patterns
+                debug!(
+                    "files.exclude: patterns from settings/CLI: {:?}",
+                    all_excludes
+                );
+                let mut expanded_excludes = Vec::new();
+                for exclude in &all_excludes {
+                    expanded_excludes.push(exclude.clone());
+                    // If the pattern doesn't contain glob characters, also add patterns for directory contents
+                    if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
+                        expanded_excludes.push(format!("{}/*", exclude));
+                        expanded_excludes.push(format!("{}/**", exclude));
+                    }
+                }
+                debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
+                exclude_files.extend(glob::get_matches(&expanded_excludes, &match_paths)?);
+            }
+
+            // Regexes from the top-level config `exclude` use step-level regex semantics
+            for pattern in &opts.exclude_regexes {
+                debug!("files.exclude: regex from config: {pattern:?}");
+                let regex = crate::step::Pattern::Regex {
+                    _type: "regex".to_string(),
+                    pattern: pattern.clone(),
+                };
+                exclude_files.extend(glob::get_pattern_matches(&regex, &match_paths, None)?);
+            }
+
             debug!(
                 "files.exclude: matched and will exclude {} file(s)",
                 exclude_files.len()
             );
-            files.retain(|f| !exclude_files.contains(f));
+            files.retain(|f| !exclude_files.contains(&relative(f)));
             debug!(
                 "files.exclude: filtered files from {} to {}",
                 files_before,
@@ -1879,6 +1954,37 @@ fn watch_for_ctrl_c(cancel: CancellationToken) {
         });
         cancel.cancel();
     });
+}
+
+/// Use `/` separators, as git paths and exclude patterns do. Rebuilding a path
+/// from components on Windows joins them with `\`, which regexes would not match.
+fn with_forward_slashes(path: PathBuf) -> PathBuf {
+    if cfg!(windows)
+        && let Some(s) = path.to_str()
+    {
+        return PathBuf::from(s.replace('\\', "/"));
+    }
+    path
+}
+
+/// Remove `.` components and resolve `..` against preceding components without
+/// touching the filesystem. Leading `..` components of a relative path are kept.
+fn normalize_lexically(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => match normalized.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    normalized.pop();
+                }
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => normalized.push(".."),
+            },
+            c => normalized.push(c),
+        }
+    }
+    normalized
 }
 
 fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {

@@ -297,3 +297,28 @@ EOF
     assert_output --partial "Missing 'amends' declaration"
     assert_output --partial "$HOME/.config/hk/config.pkl"
 }
+
+@test "XDG Config.pkl exclude unions with project exclude" {
+    cat > hk.pkl <<EOF
+amends "$PKL_PATH/Config.pkl"
+exclude = "dist"
+steps { ["list"] { glob = "**/*.js"; check = "echo checking: {{files}}" } }
+EOF
+    mkdir -p "$HOME/.config/hk"
+    cat > "$HOME/.config/hk/config.pkl" <<EOF
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/"#)
+EOF
+    mkdir -p vendor dist
+    echo "a" > vendor/lib.js
+    echo "b" > dist/out.js
+    echo "c" > main.js
+    git add -A
+    git commit -m "initial commit"
+
+    run hk check --all
+    assert_success
+    assert_output --partial 'checking: main.js'
+    refute_output --partial 'vendor/lib.js'
+    refute_output --partial 'dist/out.js'
+}

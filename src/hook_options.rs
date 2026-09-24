@@ -127,6 +127,10 @@ pub(crate) struct HookOptions {
     /// command templates and condition expressions
     #[usage(skip)]
     pub hook_vars: indexmap::IndexMap<String, serde_json::Value>,
+    /// Regexes from the top-level `exclude` config, matched against
+    /// repo-relative paths. Glob excludes arrive through `Settings::exclude`.
+    #[usage(skip)]
+    pub exclude_regexes: Vec<String>,
 }
 
 impl HookOptions {
@@ -227,6 +231,9 @@ impl HookOptions {
             return Ok(());
         }
         let config = Config::get()?;
+        if let Some(exclude) = &config.exclude {
+            self.exclude_regexes = exclude.regexes.clone();
+        }
         if self.pr {
             let repo = Git::new()?;
             let default_branch = config

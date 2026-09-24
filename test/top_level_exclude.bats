@@ -197,3 +197,148 @@ EOF
     refute_output --partial 'dist/test4.js'
     assert_output --partial '[warn] Code style issues found in 2 files.'
 }
+
+@test "top-level exclude - regex pattern" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/|\.gen\."#)
+hooks {
+    ["check"] {
+        steps {
+            ["list"] {
+                glob = "**/*.js"
+                check = "echo checking: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    mkdir -p vendor src/vendor src/nested
+    echo "a" > vendor/lib.js
+    echo "b" > src/vendor/kept.js
+    echo "c" > src/nested/types.gen.js
+    echo "d" > src/main.js
+    git add -A
+    git commit -m "initial commit"
+
+    run hk validate
+    assert_success
+
+    run hk check --all
+    assert_success
+    # Regexes search repo-relative paths: `^vendor/` is anchored at the repo
+    # root, and `\.gen\.` matches anywhere in the path.
+    assert_output --partial 'checking: src/main.js src/vendor/kept.js'
+    refute_output --partial 'vendor/lib.js'
+    refute_output --partial 'types.gen.js'
+}
+
+@test "top-level exclude - regex unions with CLI excludes" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/"#)
+hooks {
+    ["check"] {
+        steps {
+            ["list"] {
+                glob = "**/*.js"
+                check = "echo checking: {{files}}"
+            }
+        }
+    }
+}
+EOF
+    mkdir -p vendor dist
+    echo "a" > vendor/lib.js
+    echo "b" > dist/out.js
+    echo "c" > main.js
+    git add -A
+    git commit -m "initial commit"
+
+    run hk check --all --exclude dist
+    assert_success
+    assert_output --partial 'checking: main.js'
+    refute_output --partial 'vendor/lib.js'
+    refute_output --partial 'dist/out.js'
+}
+
+@test "top-level exclude - invalid regex fails validation" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"vendor/("#)
+EOF
+
+    run hk validate
+    assert_failure
+    assert_output --partial "invalid regex in top-level 'exclude'"
+}
+
+@test "top-level exclude - applies to absolute file arguments" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/"#)
+steps {
+    ["list"] {
+        check = "echo checking: {{files}}"
+    }
+}
+EOF
+    mkdir -p vendor dist
+    echo "a" > vendor/lib.js
+    echo "b" > dist/out.js
+    echo "c" > main.js
+    git add -A
+    git commit -m "initial commit"
+    git config hk.exclude dist
+
+    run hk check "$PWD/vendor/lib.js" "$PWD/dist/out.js" "$PWD/main.js"
+    assert_success
+    assert_output --partial 'main.js'
+    refute_output --partial 'vendor/lib.js'
+    refute_output --partial 'dist/out.js'
+}
+
+@test "top-level exclude - normalizes dot segments in file arguments" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/"#)
+steps {
+    ["list"] {
+        check = "echo checking: {{files}}"
+    }
+}
+EOF
+    mkdir -p vendor src
+    echo "a" > vendor/lib.js
+    echo "b" > src/main.js
+    git add -A
+    git commit -m "initial commit"
+
+    run hk check src/../vendor/lib.js ./src/main.js
+    assert_success
+    assert_output --partial 'main.js'
+    refute_output --partial 'lib.js'
+}
+
+@test "top-level exclude - resolves .. after a symlinked directory on disk" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^main\.js$"#)
+steps {
+    ["list"] {
+        check = "echo checking: {{files}}"
+    }
+}
+EOF
+    mkdir -p other/subdir
+    echo "a" > main.js
+    echo "b" > other/main.js
+    ln -s other/subdir link
+    git add -A
+    git commit -m "initial commit"
+
+    # link/../main.js opens other/main.js, which the exclude does not match
+    run hk check link/../main.js
+    assert_success
+    assert_output --partial 'checking: link/../main.js'
+}

@@ -99,11 +99,14 @@ env: Mapping<String, String> = new Mapping<String, String> {}
 ///
 /// Notes:
 ///
-/// - Patterns from all configuration sources are unioned together
+/// - Patterns from all configuration sources are unioned together: the project
+///   config, the user config, git config, `HK_EXCLUDE`, and `--exclude`
 /// - Simple directory names automatically match their contents
 ///   (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
 /// - Can be overridden per-step with `<STEP>.exclude`
-/// - Regex patterns use Rust regex syntax and match against full file paths
+/// - Regex patterns use Rust regex syntax and search repo-relative paths, like
+///   step-level regex excludes; anchor with `^` to match from the repo root
+///   (e.g., `Regex(#"^vendor/"#)`)
 exclude: (String | List<String> | Regex)?
 
 /// Default: `true`
