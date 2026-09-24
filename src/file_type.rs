@@ -687,6 +687,34 @@ mod tests {
     }
 
     #[test]
+    fn test_text_signature_with_null_byte_is_binary() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        for (name, content) in [
+            (
+                "script.tmpl",
+                "<script lang=\"ts\">\n\0let n = 1;\n</script>\n",
+            ),
+            (
+                "App.csproj",
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n\0<Project />\n",
+            ),
+        ] {
+            let path = temp_dir.path().join(name);
+            std::fs::write(&path, content).unwrap();
+
+            // Ensure the fixture reaches the text-matcher null-byte fallback.
+            let kind = infer::get_from_path(&path).unwrap().unwrap();
+            assert_eq!(kind.matcher_type(), infer::MatcherType::Text, "{name}");
+
+            let types = get_file_types(&path);
+            assert!(types.contains("binary"), "{name}: got {types:?}");
+            for tag in ["text", "html", "xml"] {
+                assert!(!types.contains(tag), "{name}: got {types:?}");
+            }
+        }
+    }
+
+    #[test]
     fn test_png_content_without_extension_is_binary() {
         let temp_dir = tempfile::tempdir().unwrap();
         let path = temp_dir.path().join("image");
