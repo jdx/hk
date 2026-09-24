@@ -1,0 +1,85 @@
+import "../Builtins.pkl"
+import "../Config.pkl"
+
+@Builtins.meta {
+  category = "Special Purpose"
+  description =
+    "Flint's repository-aware link check (requires flint and lychee). See https://github.com/grafana/flint/blob/main/docs/linters/lychee.md"
+}
+lychee_extended = new Config.Step {
+  types = List("text")
+  stdin = "{{ files_list | join(sep='\n') }}"
+  check = new Config.CommandSpec {
+    command = new Config.Command {
+      argv = List("flint", "checker", "lychee", "--files-from", "-")
+    }
+    effect = "read"
+  }
+  tests {
+    ["check markdown without links"] = new Config.StepTest {
+      files = List("README.md")
+      tmpdir = true
+      write = new Mapping<String, String> {
+        ["README.md"] = "# Notes\n"
+        ["lychee.toml"] = "max_concurrency = 1\n"
+        [".github/config/lychee.toml"] = "max_concurrency = 1\n"
+      }
+      before = "git init . && git add README.md"
+      env = new Mapping<String, String> {
+        ["GITHUB_TOKEN"] = "test-token"
+        ["GITHUB_REPOSITORY"] = "jdx/hk"
+        ["GITHUB_BASE_REF"] = "main"
+        ["GITHUB_HEAD_REF"] = "feature/link-check"
+        ["PR_HEAD_REPO"] = "jdx/hk"
+      }
+      expect = new Config.StepTestExpect {
+        code = 0
+        files = new Mapping<String, String> {
+          ["README.md"] = "# Notes\n"
+        }
+      }
+    }
+    ["remap same-repository PR links"] = new Config.StepTest {
+      files = List("README.md")
+      tmpdir = true
+      write = new Mapping<String, String> {
+        ["README.md"] = "# Notes\n\n[local target](https://github.com/jdx/hk/blob/main/target.md)\n"
+        ["target.md"] = "# Target\n"
+        ["lychee.toml"] = "max_concurrency = 1\n"
+        [".github/config/lychee.toml"] = "max_concurrency = 1\n"
+      }
+      before = "git init . && git add README.md target.md"
+      env = new Mapping<String, String> {
+        ["GITHUB_TOKEN"] = "test-token"
+        ["GITHUB_REPOSITORY"] = "jdx/hk"
+        ["GITHUB_BASE_REF"] = "main"
+        ["GITHUB_HEAD_REF"] = "feature/link-check"
+        ["PR_HEAD_REPO"] = "jdx/hk"
+      }
+      expect = new Config.StepTestExpect {
+        code = 0
+        files = new Mapping<String, String> {
+          ["README.md"] =
+            "# Notes\n\n[local target](https://github.com/jdx/hk/blob/main/target.md)\n"
+          ["target.md"] = "# Target\n"
+        }
+      }
+    }
+    ["fail on broken local links"] = new Config.StepTest {
+      files = List("README.md")
+      tmpdir = true
+      write = new Mapping<String, String> {
+        ["README.md"] = "# Notes\n\n[missing page](missing.md)\n"
+        ["lychee.toml"] = "max_concurrency = 1\n"
+        [".github/config/lychee.toml"] = "max_concurrency = 1\n"
+      }
+      before = "git init . && git add README.md"
+      env = new Mapping<String, String> {
+        ["GITHUB_TOKEN"] = "test-token"
+      }
+      expect = new Config.StepTestExpect {
+        code = 1
+      }
+    }
+  }
+}
