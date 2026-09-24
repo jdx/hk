@@ -708,7 +708,7 @@ impl Hook {
             validate_safe_commands(&groups, &files, run_type, &skip_steps)?;
         }
 
-        let expr_ctx = build_expr_ctx(&git_status);
+        let expr_ctx = build_expr_ctx(&git_status, &opts.hook_vars);
 
         let mut plan = Plan::new(self.name.clone(), run_type.as_str().to_string())
             .with_profiles(settings.enabled_profiles().iter().cloned().collect());
@@ -1309,7 +1309,7 @@ impl Hook {
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
         tctx.insert("hook", &self.name);
-        let expr_ctx = build_expr_ctx(&git_status_for_ctx);
+        let expr_ctx = build_expr_ctx(&git_status_for_ctx, &opts.hook_vars);
         let hook_ctx = Arc::new(HookContext::new(
             files,
             repo.clone(),
@@ -1963,8 +1963,16 @@ fn validate_safe_commands(
     Ok(())
 }
 
-fn build_expr_ctx(git_status: &GitStatus) -> expr::Context {
+fn build_expr_ctx(
+    git_status: &GitStatus,
+    hook_vars: &IndexMap<String, serde_json::Value>,
+) -> expr::Context {
     let mut expr_ctx = EXPR_CTX.clone();
+    for (key, val) in hook_vars {
+        if let Ok(val) = expr::to_value(val) {
+            expr_ctx.insert(key.clone(), val);
+        }
+    }
     if let Ok(val) = expr::to_value(git_status) {
         expr_ctx.insert("git", val);
     }

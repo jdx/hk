@@ -355,6 +355,10 @@ Available lists include `staged_files`, `unstaged_files`, `untracked_files`, and
 
 These paths are repository-relative. Git status lists are also available to command templates, for example `{{ git.staged_files }}`.
 
+Git hook arguments such as `hook_args`, `commit_msg_file`, and `is_branch_checkout` are also available as condition variables. See [Other Git events](/hooks#other-git-events) for the variables each hook provides.
+
+Conditions are expr-lang expressions, not Tera templates. Reference variables directly, as in `is_branch_checkout`, rather than `{{ is_branch_checkout }}`.
+
 ## Configuration precedence
 
 Runtime settings resolve from lowest to highest precedence:
