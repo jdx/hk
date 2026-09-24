@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+# Avoid downloading Renovate in tests; only dependency extraction output matters
+# to Flint's checker integration here.
+case " $* " in
+  *" --platform=local "*) ;;
+  *) echo "expected --platform=local" >&2; exit 2 ;;
+esac
+case " $* " in
+  *" --dry-run=extract "*|*" --dry-run=lookup "*) ;;
+  *) echo "expected an extract or lookup dry run" >&2; exit 2 ;;
+esac
+test -n "${RENOVATE_CONFIG_FILE:-}" && test -f "$RENOVATE_CONFIG_FILE"
+printf '%s\n' '{"msg":"Extracted dependencies","packageFiles":{"mise":[{"packageFile":"mise.toml","deps":[{"depName":"npm:renovate"}]}],"npm":[{"packageFile":"package.json","deps":[{"depName":"express"},{"depName":"lodash"}]}]}}'
