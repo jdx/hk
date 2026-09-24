@@ -176,3 +176,36 @@ EOF
     assert_success
     assert_output --partial "workspace=. indicator=tsconfig.json"
 }
+
+@test "subprojects work with check_list_files returning paths relative to subproject" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+subprojects = List("frontend")
+hooks {
+    ["fix"] {}
+}
+EOF
+    mkdir -p frontend/src
+    cat <<EOF > frontend/hk.pkl
+amends "$PKL_PATH/Config.pkl"
+steps {
+    ["linter"] {
+        glob = List("**/*.ts")
+        stage = "<JOB_FILES>"
+        check_list_files = "echo src/App.ts; exit 1"
+        fix = "echo fixed >> {{files}}"
+    }
+}
+EOF
+    echo "original" > frontend/src/App.ts
+    echo "other" > frontend/src/Other.ts
+    git add .
+    git commit -m "initial commit"
+
+    run hk fix --all -vv
+    assert_success
+    refute_output --partial "file in check output not found in original files"
+    refute_output --partial "check_list_files failed with no files in output"
+    assert_file_contains frontend/src/App.ts "fixed"
+    assert_file_not_contains frontend/src/Other.ts "fixed"
+}
