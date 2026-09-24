@@ -81,7 +81,7 @@ PRECOMMIT
     assert_output --partial "Keep .pre-commit-config.yaml and pre-commit installed for: codespell, black, lint-py"
 
     run cat hk.pkl
-    assert_output --partial 'check = "pre-commit run --hook-stage \(stage) \(hook) "'
+    assert_output --partial 'check = "pre-commit run --hook-stage \(stage) \(hook)"'
     assert_output --partial '// no hk builtin for codespell from https://github.com/codespell-project/codespell'
     assert_output --partial '["codespell"] = precommit("codespell", "pre-commit")'
     assert_output --partial "// Builtins.black does not support this hook's args (--line-length 100)"

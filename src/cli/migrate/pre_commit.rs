@@ -511,12 +511,22 @@ impl PreCommit {
             .unwrap();
             writeln!(
                 out,
-                "  check = \"{run} --hook-stage \\(stage) \\(hook) \" + (if (stage == \"commit-msg\" || stage == \"prepare-commit-msg\")"
+                "  check = \"{run} --hook-stage \\(stage) \\(hook)\" + (if (stage == \"commit-msg\" || stage == \"prepare-commit-msg\")"
             )
             .unwrap();
-            writeln!(out, "    \"--commit-msg-filename {{{{commit_msg_file}}}}\"").unwrap();
+            writeln!(
+                out,
+                "    \" --commit-msg-filename {{{{commit_msg_file}}}}\""
+            )
+            .unwrap();
+            writeln!(
+                out,
+                "  else if (stage == \"pre-commit\" || stage == \"pre-push\" || stage == \"manual\")"
+            )
+            .unwrap();
+            writeln!(out, "    \" --files {{{{files}}}}\"").unwrap();
             writeln!(out, "  else").unwrap();
-            writeln!(out, "    \"--files {{{{files}}}}\")").unwrap();
+            writeln!(out, "    \"\")").unwrap();
             writeln!(out, "  // pre-commit hooks may modify files in either mode").unwrap();
             writeln!(out, "  fix = check").unwrap();
             writeln!(out, "  check_first = false").unwrap();
@@ -687,12 +697,24 @@ fn convert(config: &PreCommitConfig) -> Migration {
             for stage in stages {
                 // Message hooks receive the commit message file, not staged files.
                 let message_hook = matches!(stage, "commit-msg" | "prepare-commit-msg");
+                // At post-* and pre-rebase, pre-commit passes no files, so only
+                // `always_run` hooks run. Remote hooks may set it in their
+                // manifest, so the runner decides for those.
+                let fileless = !message_hook && stage != "manual" && !FILE_STAGES.contains(&stage);
+                if fileless && !hook.always_run && !matches!(action, Action::Delegate(_)) {
+                    continue;
+                }
                 let action = match &action {
                     Action::Builtin(b) => Action::Builtin(b),
                     Action::Command { check, .. } if message_hook => Action::Command {
                         glob: None,
                         types: vec![],
                         check: check.replace("{{files}}", "{{commit_msg_file}}"),
+                    },
+                    Action::Command { check, .. } if fileless => Action::Command {
+                        glob: None,
+                        types: vec![],
+                        check: check.replace(" {{files}}", ""),
                     },
                     Action::Command { glob, types, check } => Action::Command {
                         glob: glob.clone(),
@@ -704,7 +726,11 @@ fn convert(config: &PreCommitConfig) -> Migration {
                 pending.entry(stage.to_string()).or_default().push(Step {
                     hook_id: hook.id.clone(),
                     action,
-                    exclude: if message_hook { None } else { exclude.clone() },
+                    exclude: if message_hook || fileless {
+                        None
+                    } else {
+                        exclude.clone()
+                    },
                 });
             }
         }
@@ -1151,6 +1177,40 @@ repos:
         assert!(m.stages["pre-commit"].contains_key("trailing-whitespace"));
         assert!(m.stages["pre-push"].contains_key("trailing-whitespace"));
         assert!(!m.stages.contains_key("commit-msg"));
+    }
+
+    #[test]
+    fn post_stages_only_keep_always_run_hooks() {
+        let m = migrate(
+            r#"
+default_install_hook_types: [pre-commit, post-checkout]
+default_stages: [pre-commit, post-checkout]
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks:
+  - id: trailing-whitespace
+- repo: local
+  hooks:
+  - id: lint
+    entry: lint
+    language: system
+  - id: sync
+    entry: ./sync.sh
+    language: script
+    files: \.lock$
+    always_run: true
+    pass_filenames: false
+"#,
+        );
+        let post = &m.stages["post-checkout"];
+        assert_eq!(post.keys().collect::<Vec<_>>(), vec!["sync"]);
+        let Action::Command { glob, check, .. } = &post["sync"].action else {
+            panic!("expected command");
+        };
+        assert_eq!(glob, &None);
+        assert_eq!(check, "./sync.sh");
+        assert!(m.stages["pre-commit"].contains_key("lint"));
     }
 
     #[test]
