@@ -8,6 +8,8 @@ import "./test/helpers.pkl"
 }
 jq = new Config.Step {
   glob = "**/*.json"
+  // The commands run one process per file, so split the files across jobs.
+  batch = true
   check_diff = new Config.CommandSpec {
     command =
       """
