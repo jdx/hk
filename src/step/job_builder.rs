@@ -125,9 +125,10 @@ impl Step {
         }
         let mut jobs = if let Some(workspace_indicators) = self.workspaces_for_files(&files)? {
             let mut files = files.clone();
-            // Compute chunk size from total file count so the total number of
-            // jobs across all workspaces stays ~jobs_count, not per-workspace.
-            let chunk_size = batch_chunk_size(files.len(), Settings::get().jobs().get());
+            // Size each workspace's batches from the total file count, so the
+            // number of jobs across all workspaces stays ~jobs, not per-workspace.
+            let total = files.len();
+            let jobs = Settings::get().jobs().get();
 
             workspace_indicators
                 // Sort the files in reverse so the longest directory can take files in their directories
@@ -145,10 +146,11 @@ impl Step {
 
                     if self.batch {
                         let shared_step = shared_step.clone();
-                        workspace_files
-                            .chunks(chunk_size)
+                        let count = batch_count(workspace_files.len(), total, jobs);
+                        split_evenly(workspace_files, count)
+                            .into_iter()
                             .map(|chunk| {
-                                StepJob::new(shared_step.clone(), chunk.to_vec(), run_type)
+                                StepJob::new(shared_step.clone(), chunk, run_type)
                                     .with_workspace_indicator(workspace_indicator.clone())
                             })
                             .collect::<Vec<_>>()
@@ -161,9 +163,10 @@ impl Step {
                 })
                 .collect()
         } else if self.batch {
-            files
-                .chunks(batch_chunk_size(files.len(), Settings::get().jobs().get()))
-                .map(|chunk| StepJob::new(shared_step.clone(), chunk.to_vec(), run_type))
+            let count = batch_count(files.len(), files.len(), Settings::get().jobs().get());
+            split_evenly(files.clone(), count)
+                .into_iter()
+                .map(|chunk| StepJob::new(shared_step.clone(), chunk, run_type))
                 .collect()
         } else {
             vec![StepJob::new(shared_step, files.clone(), run_type)]
@@ -228,35 +231,88 @@ impl Step {
 /// more than it saves. pre-commit and prek use the same floor.
 const MIN_BATCH_FILES: usize = 4;
 
-/// Files per job for a `batch` step: the files spread over `jobs` processes,
-/// but never fewer than [`MIN_BATCH_FILES`] per process.
-fn batch_chunk_size(files: usize, jobs: usize) -> usize {
-    files.div_ceil(jobs.max(1)).max(MIN_BATCH_FILES)
+/// How many batches to split a group of `group` files into, out of `total`
+/// files spread over `jobs` processes: its share of `jobs`, but never so many
+/// that a batch gets fewer than [`MIN_BATCH_FILES`] files, and at least one.
+fn batch_count(group: usize, total: usize, jobs: usize) -> usize {
+    let share = (group * jobs.max(1)) / total.max(1);
+    share.min(group / MIN_BATCH_FILES).max(1)
+}
+
+/// Split `files` into `count` batches whose sizes differ by at most one, so no
+/// batch is left with a short remainder. No files make no batches, so the step
+/// is reported as having nothing to process.
+fn split_evenly<T>(files: Vec<T>, count: usize) -> Vec<Vec<T>> {
+    if files.is_empty() {
+        return vec![];
+    }
+    let count = count.clamp(1, files.len());
+    let (base, extra) = (files.len() / count, files.len() % count);
+    let mut files = files.into_iter();
+    (0..count)
+        .map(|i| files.by_ref().take(base + usize::from(i < extra)).collect())
+        .collect()
 }
 
 #[cfg(test)]
-mod batch_chunk_size_tests {
+mod batch_tests {
     use super::*;
+
+    fn sizes(files: usize, jobs: usize) -> Vec<usize> {
+        let count = batch_count(files, files, jobs);
+        split_evenly((0..files).collect::<Vec<_>>(), count)
+            .iter()
+            .map(Vec::len)
+            .collect()
+    }
 
     #[test]
     fn a_few_files_share_one_process() {
         // 5 files on 8 jobs used to start 5 processes, each paying the tool's
-        // startup cost.
-        assert_eq!(batch_chunk_size(5, 8), MIN_BATCH_FILES);
-        assert_eq!(5_usize.div_ceil(batch_chunk_size(5, 8)), 2);
-        assert_eq!(batch_chunk_size(1, 8), MIN_BATCH_FILES);
+        // startup cost; a floor-sized chunk would still leave a 1-file batch.
+        assert_eq!(sizes(5, 8), vec![5]);
+        assert_eq!(sizes(1, 8), vec![1]);
+        assert_eq!(sizes(9, 8), vec![5, 4]);
+    }
+
+    #[test]
+    fn every_batch_gets_at_least_the_minimum() {
+        for files in MIN_BATCH_FILES..200 {
+            for jobs in 1..=16 {
+                let sizes = sizes(files, jobs);
+                assert!(sizes.len() <= jobs, "{files} files, {jobs} jobs: {sizes:?}");
+                assert!(
+                    sizes.iter().all(|&n| n >= MIN_BATCH_FILES),
+                    "{files} files, {jobs} jobs: {sizes:?}"
+                );
+                assert_eq!(sizes.iter().sum::<usize>(), files);
+            }
+        }
     }
 
     #[test]
     fn many_files_spread_over_every_job() {
-        // Rounding up keeps the number of chunks at `jobs`, not `jobs + 1`.
-        assert_eq!(batch_chunk_size(4000, 8), 500);
-        assert_eq!(4001_usize.div_ceil(batch_chunk_size(4001, 8)), 8);
-        assert_eq!(batch_chunk_size(8, 2), 4);
+        assert_eq!(sizes(4000, 8), vec![500; 8]);
+        assert_eq!(sizes(4001, 8).len(), 8);
+        assert_eq!(sizes(8, 2), vec![4, 4]);
+    }
+
+    #[test]
+    fn workspaces_share_the_job_count() {
+        // 8 jobs over 400 files: a 300-file workspace gets 6, a 100-file one 2.
+        assert_eq!(batch_count(300, 400, 8), 6);
+        assert_eq!(batch_count(100, 400, 8), 2);
+        // A small workspace still gets one batch.
+        assert_eq!(batch_count(3, 400, 8), 1);
+    }
+
+    #[test]
+    fn no_files_make_no_batches() {
+        assert!(split_evenly(Vec::<u8>::new(), batch_count(0, 0, 8)).is_empty());
     }
 
     #[test]
     fn zero_jobs_is_treated_as_one() {
-        assert_eq!(batch_chunk_size(10, 0), 10);
+        assert_eq!(sizes(10, 0), vec![10]);
     }
 }
