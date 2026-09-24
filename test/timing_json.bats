@@ -21,11 +21,9 @@ hooks {
     } } }
 }
 EOF
-    # create multiple files to trigger batching into exactly 2 jobs (with HK_JOBS=2)
-    echo "1" > f1.txt
-    echo "2" > f2.txt
-    echo "3" > f3.txt
-    echo "4" > f4.txt
+    # create enough files to trigger batching into exactly 2 jobs (with HK_JOBS=2):
+    # a batch holds at least 4 files
+    for i in 1 2 3 4 5 6 7 8; do echo "$i" > "f$i.txt"; done
 
     timing_file="$TEST_TEMP_DIR/timing.json"
     export HK_TIMING_JSON="$timing_file"
