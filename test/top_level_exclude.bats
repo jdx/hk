@@ -297,3 +297,25 @@ EOF
     refute_output --partial 'vendor/lib.js'
     refute_output --partial 'dist/out.js'
 }
+
+@test "top-level exclude - normalizes dot segments in file arguments" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+exclude = Regex(#"^vendor/"#)
+steps {
+    ["list"] {
+        check = "echo checking: {{files}}"
+    }
+}
+EOF
+    mkdir -p vendor src
+    echo "a" > vendor/lib.js
+    echo "b" > src/main.js
+    git add -A
+    git commit -m "initial commit"
+
+    run hk check src/../vendor/lib.js ./src/main.js
+    assert_success
+    assert_output --partial 'main.js'
+    refute_output --partial 'lib.js'
+}

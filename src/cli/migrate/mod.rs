@@ -151,7 +151,7 @@ impl HkConfig {
         if let Some(ref exclude) = self.exclude {
             output.push_str(&format!(
                 "exclude = Regex({})\n\n",
-                format_pkl_string(exclude)
+                format_pkl_exact_string(exclude)
             ));
         }
 
@@ -345,7 +345,21 @@ mod tests {
         assert!(
             config
                 .to_pkl()
-                .contains("\nexclude = Regex(\"^(vendor/|docs/)\")\n")
+                .contains("\nexclude = Regex(#\"^(vendor/|docs/)\"#)\n")
+        );
+    }
+
+    #[test]
+    fn exact_pkl_strings_keep_the_value_unchanged() {
+        assert_eq!(format_pkl_exact_string("^vendor/ "), r##"#"^vendor/ "#"##);
+        assert_eq!(
+            format_pkl_exact_string(r##"docs/"#draft"##),
+            r###"##"docs/"#draft"##"###
+        );
+        assert_eq!(format_pkl_exact_string(r"a\#b"), r###"##"a\#b"##"###);
+        assert_eq!(
+            format_pkl_exact_string("(?x)\n  ^vendor/\t\"x\\\n"),
+            r#""(?x)\n  ^vendor/\t\"x\\\n""#
         );
     }
 
@@ -512,6 +526,34 @@ fn is_regex_pattern(pattern: &str) -> bool {
 }
 
 /// Format a string value for Pkl, using custom delimiters if needed
+/// Format a string as a Pkl literal that evaluates to exactly `value`.
+///
+/// Uses a custom-delimited string with enough `#`s that the value can neither
+/// close it nor start an escape; values with control characters are escaped.
+pub fn format_pkl_exact_string(value: &str) -> String {
+    if value.chars().any(char::is_control) {
+        let mut escaped = String::from("\"");
+        for c in value.chars() {
+            match c {
+                '\\' => escaped.push_str(r"\\"),
+                '"' => escaped.push_str(r#"\""#),
+                '\n' => escaped.push_str(r"\n"),
+                '\r' => escaped.push_str(r"\r"),
+                '\t' => escaped.push_str(r"\t"),
+                c if c.is_control() => escaped.push_str(&format!(r"\u{{{:x}}}", c as u32)),
+                c => escaped.push(c),
+            }
+        }
+        escaped.push('"');
+        return escaped;
+    }
+    let mut hashes = String::from("#");
+    while value.contains(&format!("\"{hashes}")) || value.contains(&format!("\\{hashes}")) {
+        hashes.push('#');
+    }
+    format!("{hashes}\"{value}\"{hashes}")
+}
+
 pub fn format_pkl_string(value: &str) -> String {
     let trimmed = value.trim();
 

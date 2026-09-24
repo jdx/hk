@@ -229,6 +229,25 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn normalize_lexically_resolves_dot_segments() {
+        let cases = [
+            ("src/../vendor/lib.js", "vendor/lib.js"),
+            ("./vendor/./lib.js", "vendor/lib.js"),
+            ("../outside.js", "../outside.js"),
+            ("a/../../outside.js", "../outside.js"),
+            ("/repo/src/../vendor/lib.js", "/repo/vendor/lib.js"),
+            ("/../lib.js", "/lib.js"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                normalize_lexically(Path::new(input)),
+                PathBuf::from(expected),
+                "{input}"
+            );
+        }
+    }
+
+    #[test]
     fn step_or_group_serializes_flat_step_for_cache_round_trip() {
         let original: StepOrGroup =
             serde_json::from_value(json!({"_type": "step", "check": "echo ok"})).unwrap();
@@ -1787,21 +1806,23 @@ impl Hook {
         }
 
         if !all_excludes.is_empty() || !opts.exclude_regexes.is_empty() {
-            // Excludes match repo-relative paths, so relativize absolute paths
-            // passed as arguments. hk runs from the repo root.
+            // Excludes match normalized repo-relative paths, so relativize absolute
+            // paths and resolve `.`/`..` in file arguments. hk runs from the repo root.
             let cwd = std::env::current_dir().ok();
             let relative = |f: &PathBuf| -> PathBuf {
-                let Some(cwd) = cwd.as_deref().filter(|_| f.is_absolute()) else {
-                    return f.clone();
+                let normalized = normalize_lexically(f);
+                let Some(cwd) = cwd.as_deref().filter(|_| normalized.is_absolute()) else {
+                    return normalized;
                 };
-                f.strip_prefix(cwd)
+                normalized
+                    .strip_prefix(cwd)
                     .ok()
                     .map(Path::to_path_buf)
                     .or_else(|| {
                         let canonical = f.canonicalize().ok()?;
                         Some(canonical.strip_prefix(cwd).ok()?.to_path_buf())
                     })
-                    .unwrap_or_else(|| f.clone())
+                    .unwrap_or(normalized)
             };
             let match_paths = files.iter().map(relative).collect::<Vec<_>>();
             let files_before = files.len();
@@ -1907,6 +1928,27 @@ fn watch_for_ctrl_c(cancel: CancellationToken) {
         });
         cancel.cancel();
     });
+}
+
+/// Remove `.` components and resolve `..` against preceding components without
+/// touching the filesystem. Leading `..` components of a relative path are kept.
+fn normalize_lexically(path: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => match normalized.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    normalized.pop();
+                }
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => normalized.push(".."),
+            },
+            c => normalized.push(c),
+        }
+    }
+    normalized
 }
 
 fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {

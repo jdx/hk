@@ -73,7 +73,7 @@ PRECOMMIT
     assert_success
 
     run cat hk.pkl
-    assert_output --partial 'exclude = Regex("^vendor/")'
+    assert_output --partial 'exclude = Regex(#"^vendor/"#)'
 
     mkdir -p vendor
     echo a > vendor/lib.txt
@@ -88,6 +88,28 @@ PRECOMMIT
     assert_success
     assert_output --partial 'main.txt'
     refute_output --partial 'vendor/lib.txt'
+}
+
+@test "migrate precommit - top-level exclude keeps the exact pattern" {
+    cat <<'PRECOMMIT' > .pre-commit-config.yaml
+exclude: 'docs/"#draft|^vendor/ '
+repos:
+-   repo: local
+    hooks:
+    -   id: list-files
+        name: List files
+        entry: "echo checking:"
+        language: system
+PRECOMMIT
+
+    run hk migrate pre-commit --hk-pkl-root "$PKL_PATH"
+    assert_success
+
+    run cat hk.pkl
+    assert_output --partial 'exclude = Regex(##"docs/"#draft|^vendor/ "##)'
+
+    run hk validate
+    assert_success
 }
 
 @test "migrate precommit - top-level exclude Rust cannot compile" {
