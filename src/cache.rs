@@ -128,19 +128,10 @@ where
         F: FnOnce() -> Result<T>,
     {
         let val = self.cache.get_or_try_init(|| {
-            let path = &self.cache_file_path;
-            if self.is_fresh() && *crate::env::HK_CACHE {
-                match self.parse() {
-                    Ok(val) => {
-                        tracing::event!(tracing::Level::INFO, "cache.hit");
-                        return Ok::<_, eyre::Report>(val);
-                    }
-                    Err(err) => {
-                        warn!("failed to parse cache file: {} {:#}", path.display(), err);
-                    }
-                }
+            if let Some(val) = self.read_fresh() {
+                return Ok::<_, eyre::Report>(val);
             }
-            tracing::event!(tracing::Level::INFO, "cache.miss");
+            let path = &self.cache_file_path;
             let val = (fetch)()?;
             tracing::info!(path = %path.display(), "cache.write");
             if let Err(err) = self.write(&val) {
@@ -149,6 +140,30 @@ where
             Ok(val)
         })?;
         Ok(val)
+    }
+
+    /// Unlike `get_or_try_init`, a miss writes nothing, so the caller can
+    /// choose the key to write under after computing the value.
+    #[tracing::instrument(level = "info", name = "cache.get", skip_all, fields(path = %self.cache_file_path.display()))]
+    pub fn get(&self) -> Option<T> {
+        self.read_fresh()
+    }
+
+    fn read_fresh(&self) -> Option<T> {
+        let path = &self.cache_file_path;
+        if self.is_fresh() && *crate::env::HK_CACHE {
+            match self.parse() {
+                Ok(val) => {
+                    tracing::event!(tracing::Level::INFO, "cache.hit");
+                    return Some(val);
+                }
+                Err(err) => {
+                    warn!("failed to parse cache file: {} {:#}", path.display(), err);
+                }
+            }
+        }
+        tracing::event!(tracing::Level::INFO, "cache.miss");
+        None
     }
 
     fn parse(&self) -> Result<T> {
@@ -221,6 +236,23 @@ mod tests {
         assert_eq!(val, &1);
         let val = cache.get_or_try_init(|| Ok(2)).unwrap();
         assert_eq!(val, &1);
+    }
+
+    #[test]
+    fn get_does_not_write_on_a_miss() {
+        let cache =
+            CacheManagerBuilder::new(env::HK_CACHE_DIR.join("get-miss-test.json")).build::<u8>();
+        cache.clear().unwrap();
+        assert_eq!(cache.get(), None);
+        assert!(!cache.cache_file_path.exists());
+    }
+
+    #[test]
+    fn get_reads_an_entry_only_when_caching_is_enabled() {
+        let cache =
+            CacheManagerBuilder::new(env::HK_CACHE_DIR.join("get-hit-test.json")).build::<u8>();
+        cache.write(&1).unwrap();
+        assert_eq!(cache.get(), env::HK_CACHE.then_some(1));
     }
 
     #[test]
