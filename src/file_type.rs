@@ -634,6 +634,44 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn test_symlink_to_python_file() {
+        use std::os::unix::fs::symlink;
+
+        // Create target Python file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let target_path = temp_dir.path().join("target.py");
+        std::fs::write(&target_path, b"print('hello')").unwrap();
+
+        // Create a symlink to the Python file
+        let link_path = temp_dir.path().join("link_to_script");
+        symlink(&target_path, &link_path).unwrap();
+
+        let types = get_file_types(&link_path);
+        assert!(types.contains("symlink"), "Should contain symlink type");
+        assert!(types.contains("python"), "Should contain python type");
+        assert!(types.contains("text"), "Should contain text type");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_symlink_matches_target_type() {
+        use std::os::unix::fs::symlink;
+
+        // Create target Python file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let target_path = temp_dir.path().join("script.py");
+        std::fs::write(&target_path, b"print('hello')").unwrap();
+
+        let link_path = temp_dir.path().join("link_to_script");
+        symlink(&target_path, &link_path).unwrap();
+
+        // Should match python type filter even though it's a symlink
+        assert!(matches_types(&link_path, &["python".to_string()]));
+        assert!(matches_types(&link_path, &["symlink".to_string()]));
+    }
+
+    #[test]
     fn test_svelte_component_is_text() {
         // Svelte components start with `<script`, which HTML sniffing matches
         let temp_dir = tempfile::tempdir().unwrap();
@@ -725,43 +763,5 @@ mod tests {
         assert!(types.contains("image"), "got {types:?}");
         assert!(types.contains("png"), "got {types:?}");
         assert!(!types.contains("text"), "got {types:?}");
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_symlink_to_python_file() {
-        use std::os::unix::fs::symlink;
-
-        // Create target Python file
-        let temp_dir = tempfile::tempdir().unwrap();
-        let target_path = temp_dir.path().join("target.py");
-        std::fs::write(&target_path, b"print('hello')").unwrap();
-
-        // Create a symlink to the Python file
-        let link_path = temp_dir.path().join("link_to_script");
-        symlink(&target_path, &link_path).unwrap();
-
-        let types = get_file_types(&link_path);
-        assert!(types.contains("symlink"), "Should contain symlink type");
-        assert!(types.contains("python"), "Should contain python type");
-        assert!(types.contains("text"), "Should contain text type");
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn test_symlink_matches_target_type() {
-        use std::os::unix::fs::symlink;
-
-        // Create target Python file
-        let temp_dir = tempfile::tempdir().unwrap();
-        let target_path = temp_dir.path().join("script.py");
-        std::fs::write(&target_path, b"print('hello')").unwrap();
-
-        let link_path = temp_dir.path().join("link_to_script");
-        symlink(&target_path, &link_path).unwrap();
-
-        // Should match python type filter even though it's a symlink
-        assert!(matches_types(&link_path, &["python".to_string()]));
-        assert!(matches_types(&link_path, &["symlink".to_string()]));
     }
 }
