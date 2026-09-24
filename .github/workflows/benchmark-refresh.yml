@@ -1,0 +1,217 @@
+name: benchmark-refresh
+
+# Re-measures hk against lefthook, pre-commit and prek (benchmark/) for the
+# latest hk release, and proposes the new benchmark/results.json as a pull
+# request. docs/benchmarks.md renders that file once it is merged.
+#
+# The measuring job has no write access. It uploads the result, and a separate
+# job with write access validates it and opens the pull request.
+
+on:
+  schedule:
+    # Weekly, Tuesday 05:17 UTC. Only does work when a release has shipped
+    # since the last refresh (see the `check` job).
+    - cron: "17 5 * * 2"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Re-measure even if results.json already covers the latest release
+        type: boolean
+        default: false
+
+permissions: {}
+
+# One refresh at a time: they all push the same branch.
+concurrency:
+  group: benchmark-refresh
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check for a new release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      drift: ${{ steps.drift.outputs.drift }}
+      release: ${{ steps.drift.outputs.release }}
+      measured: ${{ steps.drift.outputs.measured }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compare the latest release with results.json
+        id: drift
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+        run: |
+          RELEASE=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName | ltrimstr("v")')
+          MEASURED=$(jq -r '.versions.hk // empty' benchmark/results.json 2>/dev/null || true)
+          echo "latest release: $RELEASE, measured: ${MEASURED:-<none>}, force: $FORCE"
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "measured=$MEASURED" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE" = "true" ] || [ "$RELEASE" != "$MEASURED" ]; then
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  measure:
+    name: Measure
+    needs: check
+    if: needs.check.outputs.drift == 'true'
+    # The same pinned runner class and image as perf.yml, so results are
+    # comparable from one refresh to the next.
+    runs-on: [self-hosted, jdx-perf-v1]
+    container:
+      image: ghcr.io/jdx/perf-runner@sha256:5263c143b12ce2234e7b0b21d3d6501c2ed05837b42937d0eaeaa191cd5c8e68
+      options: --cpuset-cpus 0-7
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      artifact: ${{ steps.result.outputs.artifact }}
+    env:
+      MISE_LOCKED: "1"
+      RELEASE: ${{ needs.check.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          cache: false
+          working_directory: benchmark
+      - name: Download the released hk
+        id: hk
+        run: |
+          dest="$RUNNER_TEMP/hk-release"
+          mkdir -p "$dest"
+          curl --fail --location --retry 3 --output "$dest/hk.tar.gz" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${RELEASE}/hk-x86_64-unknown-linux-gnu.tar.gz"
+          tar -xzf "$dest/hk.tar.gz" -C "$dest"
+          bin=$(find "$dest" -type f -name hk -perm -u+x | head -n1)
+          actual=$("$bin" --version | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+          if [ "$actual" != "$RELEASE" ]; then
+            echo "::error::downloaded hk $actual, expected $RELEASE"
+            exit 1
+          fi
+          echo "bin=$bin" >> "$GITHUB_OUTPUT"
+      - name: Runner metadata
+        run: |
+          {
+            echo '### Runner'
+            echo '```text'
+            uname -a
+            lscpu
+            echo "affinity: $(nproc) CPUs"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Run the benchmark
+        env:
+          HK_BIN: ${{ steps.hk.outputs.bin }}
+          # Import the released configuration schema, not main's.
+          HK_PKL: package://github.com/jdx/hk/releases/download/v${{ needs.check.outputs.release }}/hk@${{ needs.check.outputs.release }}#
+          BENCH_RUNNER: jdx-perf-v1 (8 CPUs)
+          BENCH_WORKFLOW_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: benchmark/run.sh
+      - name: Summarize
+        if: always()
+        run: |
+          if [ -f benchmark/results.json ]; then
+            jq -r '"passed: \(.passed)", (.problems[] | "- \(.)")' benchmark/results.json >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Package results
+        id: result
+        run: |
+          jq -e '.passed == true and .versions.hk == env.RELEASE' benchmark/results.json >/dev/null
+          changed=$(git status --porcelain --untracked-files=all | awk '{print $2}')
+          if [ "$changed" != "benchmark/results.json" ]; then
+            echo "::error::the benchmark changed files other than benchmark/results.json:"
+            echo "$changed"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/out"
+          cp benchmark/results.json "$RUNNER_TEMP/out/results.json"
+          echo "artifact=benchmark-results-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ steps.result.outputs.artifact }}
+          path: ${{ runner.temp }}/out
+          if-no-files-found: error
+          retention-days: 1
+
+  propose:
+    name: Propose results
+    needs: [check, measure]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ needs.measure.outputs.artifact }}
+          path: ${{ runner.temp }}/in
+      - name: Validate and stage
+        env:
+          RELEASE: ${{ needs.check.outputs.release }}
+        run: |
+          cd "$RUNNER_TEMP/in"
+          if [ "$(find . -mindepth 1 -printf '%P\n')" != "results.json" ] || [ -L results.json ]; then
+            echo "::error::unexpected artifact contents"
+            exit 1
+          fi
+          jq -e '.schema == 2 and .passed == true and .versions.hk == env.RELEASE' results.json >/dev/null
+          cp results.json "$GITHUB_WORKSPACE/benchmark/results.json"
+      - name: Push the benchmark-refresh branch and open a pull request
+        env:
+          GITHUB_TOKEN: ${{ secrets.HK_GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.HK_GH_TOKEN }}
+          RELEASE: ${{ needs.check.outputs.release }}
+          MEASURED: ${{ needs.check.outputs.measured }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Stage first: the first refresh adds results.json rather than
+          # modifying it, and an untracked file is invisible to `git diff`.
+          git add benchmark/results.json
+          if git diff --cached --quiet -- benchmark/results.json; then
+            echo "results.json is unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config core.hooksPath /dev/null
+          git checkout -B benchmark-refresh
+          git commit -m "docs: refresh competitor benchmark for v${RELEASE}"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/benchmark-refresh
+
+          table=$(jq -r '
+            .scenarios[] as $s
+            | "| \($s.title) | " + ([ $s.results | to_entries[]
+                | "\(.key) \(.value.median * 1000 | round) ms\(if .value.correct.passed < .value.correct.total then " (wrong \(.value.correct.total - .value.correct.passed)/\(.value.correct.total))" else "" end)"
+              ] | join("<br>")) + " |"' benchmark/results.json)
+          cat > "$RUNNER_TEMP/body.md" <<EOF
+          Re-measured hk against lefthook, pre-commit and prek for hk v${RELEASE} (previously ${MEASURED:-none}) on the jdx-perf-v1 runner. Merging updates the numbers on https://hk.jdx.dev/benchmarks.
+
+          | Scenario | Median wall time |
+          | --- | --- |
+          ${table}
+
+          Every tool that is safe by design produced the right files in every timed sample; otherwise this pull request would not exist. Check the numbers against the previous release before merging.
+
+          Workflow run: ${RUN_URL}
+          EOF
+          existing=$(gh pr list --head benchmark-refresh --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "docs: refresh competitor benchmark for v${RELEASE}" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base main --head benchmark-refresh \
+              --title "docs: refresh competitor benchmark for v${RELEASE}" --body-file "$RUNNER_TEMP/body.md"
+          fi

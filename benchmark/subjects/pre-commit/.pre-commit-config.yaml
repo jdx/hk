@@ -1,0 +1,158 @@
+# pre-commit (and prek, which reads the same file). Hooks run one at a time;
+# within a hook, both tools split the files into batches across CPUs.
+#
+# Fix hooks run at the pre-commit stage. The check hooks are the same tools in
+# read-only mode, run with `--hook-stage manual`.
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: black --quiet
+        language: system
+        types:
+          - python
+        stages:
+          - pre-commit
+      - id: ruff-format
+        name: ruff-format
+        entry: ruff format --quiet --force-exclude
+        language: system
+        types:
+          - python
+        stages:
+          - pre-commit
+      - id: ruff
+        name: ruff
+        entry: ruff check --quiet --force-exclude --fix
+        language: system
+        types:
+          - python
+        stages:
+          - pre-commit
+      - id: prettier
+        name: prettier
+        entry: prettier --write --log-level warn
+        language: system
+        files: \.(js|ts|css|md)$
+        stages:
+          - pre-commit
+      - id: eslint
+        name: eslint
+        entry: eslint --fix
+        language: system
+        files: \.(js|ts)$
+        stages:
+          - pre-commit
+      - id: jq
+        name: jq
+        entry: sh -c 'for f; do t=$(mktemp) && jq -S . "$f" >"$t" && mv "$t" "$f"; done' _
+        language: system
+        files: \.json$
+        stages:
+          - pre-commit
+      - id: yq
+        name: yq
+        entry: sh -c 'for f; do yq -iP "$f"; done' _
+        language: system
+        files: \.ya?ml$
+        stages:
+          - pre-commit
+      - id: shfmt
+        name: shfmt
+        entry: shfmt -w
+        language: system
+        files: \.sh$
+        stages:
+          - pre-commit
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        entry: sed -i 's/[[:space:]]*$//'
+        language: system
+        types:
+          - text
+        stages:
+          - pre-commit
+      - id: newlines
+        name: newlines
+        entry: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && echo >>"$f"; done; true' _
+        language: system
+        types:
+          - text
+        stages:
+          - pre-commit
+      - id: black-check
+        name: black (check)
+        entry: black --quiet --check
+        language: system
+        types:
+          - python
+        stages:
+          - manual
+      - id: ruff-format-check
+        name: ruff-format (check)
+        entry: ruff format --quiet --force-exclude --check
+        language: system
+        types:
+          - python
+        stages:
+          - manual
+      - id: ruff-check
+        name: ruff (check)
+        entry: ruff check --quiet --force-exclude
+        language: system
+        types:
+          - python
+        stages:
+          - manual
+      - id: prettier-check
+        name: prettier (check)
+        entry: prettier --check --log-level warn
+        language: system
+        files: \.(js|ts|css|md)$
+        stages:
+          - manual
+      - id: eslint-check
+        name: eslint (check)
+        entry: eslint
+        language: system
+        files: \.(js|ts)$
+        stages:
+          - manual
+      - id: jq-check
+        name: jq (check)
+        entry: sh -c 'r=0; for f; do jq -S . "$f" | cmp -s "$f" - || r=1; done; exit $r' _
+        language: system
+        files: \.json$
+        stages:
+          - manual
+      - id: yq-check
+        name: yq (check)
+        entry: sh -c 'r=0; for f; do yq -P "$f" | cmp -s "$f" - || r=1; done; exit $r' _
+        language: system
+        files: \.ya?ml$
+        stages:
+          - manual
+      - id: shfmt-check
+        name: shfmt (check)
+        entry: shfmt -d
+        language: system
+        files: \.sh$
+        stages:
+          - manual
+      - id: trailing-whitespace-check
+        name: trailing-whitespace (check)
+        entry: sh -c '! grep -nE "[[:space:]]+$" "$@"' _
+        language: system
+        types:
+          - text
+        stages:
+          - manual
+      - id: newlines-check
+        name: newlines (check)
+        entry: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && exit 1; done; true' _
+        language: system
+        types:
+          - text
+        stages:
+          - manual

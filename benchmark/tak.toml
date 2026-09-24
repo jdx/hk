@@ -1,0 +1,167 @@
+#:schema https://tak.jdx.dev/schema/tak.json
+
+# hk against other hook managers, measured by tak (https://github.com/jdx/tak).
+#
+# This file is separate from the repository's root tak.toml on purpose. That
+# one records hk's own instruction counts on every push to main; this one
+# compares wall time against other programs and needs a generated fixture and
+# the toolset in ./mise.toml. run.sh passes it to tak with --config.
+#
+# Every subject runs the same ten fixers over the same ~6,000-file project (see
+# generate-project.sh). Each subject has its own clone of it under .work/,
+# created by setup.sh. tak takes one sample of every subject per round, in a new
+# random order each round, so machine drift is shared rather than blamed on
+# whichever tool happened to be running. Every subject of a benchmark gets the
+# same number of samples, so ranges on the page compare like with like.
+#
+# Wall time says nothing about whether a run produced the right files, so every
+# timed sample is followed by `check`: the working tree must be byte-identical
+# to the fixture's clean commit. report.py refuses to publish a run in which a
+# subject that is safe by design failed a single check.
+
+[env]
+# The default deny list, plus anything that would let the user's own setup
+# leak into the measurement.
+deny = ["GITHUB_TOKEN", "GH_TOKEN", "HK_FILE", "HK_JOBS", "LEFTHOOK", "LEFTHOOK_CONFIG", "PRE_COMMIT_HOME", "PREK_HOME"]
+
+[defaults]
+dir    = ".work/{{ subject }}"
+env    = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
+runs   = 10
+warmup = 1
+# Staging the whole tree first makes untracked and unstaged changes count too.
+check = ["sh", "-c", "git add -A && git diff --cached --quiet clean"]
+
+# Shared subjects: one per configuration, recording the program's version. Each
+# benchmark gives them the command for its scenario.
+[subject.hk]
+version_cmd = ["hk", "--version"]
+
+[subject.lefthook]
+version_cmd = ["lefthook", "version"]
+
+[subject.lefthook-parallel]
+version_cmd = ["lefthook", "version"]
+
+[subject.pre-commit]
+version_cmd = ["pre-commit", "--version"]
+
+[subject.prek]
+version_cmd = ["prek", "--version"]
+
+[subject.prek-parallel]
+version_cmd = ["prek", "--version"]
+
+# --- Fix every file ------------------------------------------------------------
+# A quarter of the files have formatting defects; each defective file needs two
+# or three fixers to write it. This is `hk fix --all` after pulling a big
+# reformat, or a first run on an existing codebase.
+[bench.fix-all]
+# pre-commit and prek exit 1 whenever a hook modified files.
+ok_exit_codes = [0, 1]
+prepare       = ["sh", "-c", "git reset -q --hard dirty && git clean -qfd"]
+subjects      = ["hk", "lefthook", "lefthook-parallel", "pre-commit", "prek", "prek-parallel"]
+
+[bench.fix-all.subject.hk]
+cmd = ["hk", "fix", "--all"]
+
+[bench.fix-all.subject.lefthook]
+cmd = ["lefthook", "run", "fix", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+
+[bench.fix-all.subject.lefthook-parallel]
+cmd = ["lefthook", "run", "fix", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+
+[bench.fix-all.subject.pre-commit]
+cmd = ["pre-commit", "run", "--all-files"]
+
+[bench.fix-all.subject.prek]
+cmd = ["prek", "run", "--all-files"]
+
+[bench.fix-all.subject.prek-parallel]
+cmd = ["prek", "run", "--all-files"]
+
+# --- Check every file ----------------------------------------------------------
+# Every file is already clean and nothing writes, so running linters
+# concurrently is safe for every tool; the parallel lefthook and prek
+# configurations are fair here. This is CI, or `hk check --all`. Every subject
+# must exit 0.
+[bench.check-all]
+prepare  = ["sh", "-c", "git reset -q --hard clean && git clean -qfd"]
+subjects = ["hk", "lefthook", "lefthook-parallel", "pre-commit", "prek", "prek-parallel"]
+
+[bench.check-all.subject.hk]
+cmd = ["hk", "check", "--all"]
+
+[bench.check-all.subject.lefthook]
+cmd = ["lefthook", "run", "check", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+
+[bench.check-all.subject.lefthook-parallel]
+cmd = ["lefthook", "run", "check", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+
+[bench.check-all.subject.pre-commit]
+cmd = ["pre-commit", "run", "--all-files", "--hook-stage", "manual"]
+
+[bench.check-all.subject.prek]
+cmd = ["prek", "run", "--all-files", "--hook-stage", "manual"]
+
+[bench.check-all.subject.prek-parallel]
+cmd = ["prek", "run", "--all-files", "--hook-stage", "manual"]
+
+# A read-only check that ran nothing would also pass on a clean tree. This runs
+# the same commands once against the dirty commit, where every subject must
+# report failure (exit 1); a subject that exits 0 is dropped, and report.py
+# refuses to publish. It is a sanity check, not a scenario: the page omits it.
+[bench.check-detects]
+check         = ["true"]
+ok_exit_codes = [1]
+prepare       = ["sh", "-c", "git reset -q --hard dirty && git clean -qfd"]
+runs          = 1
+subjects      = ["hk", "lefthook", "lefthook-parallel", "pre-commit", "prek", "prek-parallel"]
+warmup        = 0
+
+[bench.check-detects.subject.hk]
+cmd = ["hk", "check", "--all"]
+
+[bench.check-detects.subject.lefthook]
+cmd = ["lefthook", "run", "check", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+
+[bench.check-detects.subject.lefthook-parallel]
+cmd = ["lefthook", "run", "check", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+
+[bench.check-detects.subject.pre-commit]
+cmd = ["pre-commit", "run", "--all-files", "--hook-stage", "manual"]
+
+[bench.check-detects.subject.prek]
+cmd = ["prek", "run", "--all-files", "--hook-stage", "manual"]
+
+[bench.check-detects.subject.prek-parallel]
+cmd = ["prek", "run", "--all-files", "--hook-stage", "manual"]
+
+# --- Commit ---------------------------------------------------------------------
+# About 60 staged files with defects, fixed by each tool's pre-commit hook: the
+# everyday case. hk and lefthook stage their fixes; pre-commit and prek leave
+# them unstaged and fail the commit, which is their design.
+[bench.fix-staged]
+ok_exit_codes = [0, 1]
+prepare       = ["sh", "-c", "git reset -q --hard clean && git clean -qfd && git checkout -q dirty --pathspec-from-file=.git/staged-files"]
+runs          = 20
+subjects      = ["hk", "lefthook", "lefthook-parallel", "pre-commit", "prek", "prek-parallel"]
+warmup        = 2
+
+[bench.fix-staged.subject.hk]
+cmd = ["hk", "run", "pre-commit"]
+
+[bench.fix-staged.subject.lefthook]
+cmd = ["lefthook", "run", "pre-commit", "--no-tty", "--no-auto-install"]
+
+[bench.fix-staged.subject.lefthook-parallel]
+cmd = ["lefthook", "run", "pre-commit", "--no-tty", "--no-auto-install"]
+
+[bench.fix-staged.subject.pre-commit]
+cmd = ["pre-commit", "run"]
+
+[bench.fix-staged.subject.prek]
+cmd = ["prek", "run"]
+
+[bench.fix-staged.subject.prek-parallel]
+cmd = ["prek", "run"]

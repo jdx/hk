@@ -1,79 +1,59 @@
 ---
-description: Recorded hk benchmark results, workload configuration, limitations, and reproduction commands.
+description: How hk compares with lefthook, pre-commit, and prek on wall time and on whether each tool produces the right files, with the method used and how to reproduce it.
 ---
-
-<script setup>
-import data from './public/benchmark-data.json'
-
-function fmt(seconds) {
-  return Number.isFinite(seconds) ? seconds.toFixed(2) + ' s' : '—'
-}
-</script>
 
 # Benchmarks
 
-These results measure one synthetic workload with overlapping linter file patterns. They illustrate how orchestration affects this setup; they are not a prediction for every repository or a survey of every tool’s available configuration.
+Running linters in parallel is easy. Running them in parallel without two fixers overwriting each other's work is the hard part, and it is what hk is built around. This benchmark therefore measures two things for every tool: how long a run takes, and whether the files it leaves behind are right.
 
-The recorded run was generated on **{{ data.generated.split('T')[0] }}**. No new benchmark run is implied by this page’s last-updated date.
+<BenchmarkResults />
 
-## Recorded results
+## What is measured
 
-Mean wall time, in seconds. Lower is faster.
+**The project.** A generated repository of about 6,000 files: 4,000 Python, 500 JavaScript and TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown. Every tool runs the same ten fixers over it: black, ruff format, ruff check, Prettier, ESLint, jq, yq, shfmt, trailing whitespace, and final newline. The whitespace fixers apply to every file, so every file is written by at least two of them.
 
-| Tool       | All files ({{ data.total_files }})                     | Staged changes ({{ data.staged_files }})                    |
-| ---------- | ------------------------------------------------------ | ----------------------------------------------------------- |
-| hk         | {{ fmt(data.scenarios.all_files.hk.mean) }}            | {{ fmt(data.scenarios.staged_changes.hk.mean) }}            |
-| lefthook   | {{ fmt(data.scenarios.all_files.lefthook.mean) }}      | {{ fmt(data.scenarios.staged_changes.lefthook.mean) }}      |
-| pre-commit | {{ fmt(data.scenarios.all_files['pre-commit'].mean) }} | {{ fmt(data.scenarios.staged_changes['pre-commit'].mean) }} |
-| prek       | {{ fmt(data.scenarios.all_files.prek.mean) }}          | {{ fmt(data.scenarios.staged_changes.prek.mean) }}          |
+**Correct output.** The generator commits a `clean` state, which is the result of running the ten fixers one after another, then a `dirty` state in which a quarter of the files have formatting defects. Each defective file needs a language fixer _and_ a whitespace fixer to write it. After fixing `dirty`, a tool is correct only if the tree is byte-for-byte identical to `clean`. tak checks this after every timed sample, so the page reports, for each tool, how many of the very runs it timed were correct.
 
-![Recorded mean runtimes for all-files and staged-change scenarios; values are in the table above](/benchmark.png)
+**Scenarios.**
 
-[Download the recorded data](/benchmark-data.json), including standard deviations, minimums, and maximums.
+- **Fix every file**: `hk fix --all` and equivalents, starting from `dirty`.
+- **Check every file**: a read-only check of the whole `clean` tree, as in CI. Nothing writes, so running in parallel is safe for every tool here.
+- **Commit**: about 60 files with defects are staged and each tool's pre-commit hook fixes them. hk and lefthook stage their fixes. pre-commit and prek leave them unstaged and fail the commit, which is how they are designed to work.
 
-## Workload
+**Tools and modes.** Each tool runs as its documented configuration allows:
 
-The generator defaults to roughly 6,000 files: 4,000 Python, 500 JavaScript/TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown files, plus project configuration.
+| Tool       | Mode                        | Concurrency                                                                                                                                      |
+| ---------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| hk         | builtins, defaults          | Steps run in parallel. Per-file read and write locks keep two fixers from writing one file at once.                                              |
+| lefthook   | sequential (its default)    | One job at a time.                                                                                                                               |
+| lefthook   | `parallel: true`            | Every job starts at once. Nothing coordinates writes to the same file.                                                                           |
+| pre-commit | defaults                    | One hook at a time. Each hook's files are split into batches that run across CPUs.                                                               |
+| prek       | defaults                    | Same model as pre-commit.                                                                                                                        |
+| prek       | `priority: 0` on every hook | Hooks with the same priority run concurrently. prek's documentation warns that hooks in one group writing the same files give undefined results. |
 
-Ten configured steps include ESLint, Prettier, Black, Ruff linting, Ruff formatting, jq, yq, shfmt, trailing whitespace, and final newlines. The whitespace steps overlap with the language-specific steps.
+## Keeping it fair
 
-The committed runner:
+- **The same work.** Every configuration runs the same ten fixers and must produce the same bytes. hk uses its builtins as shipped, including their check-before-fix behavior and the `hk util` whitespace fixers. The competitors run each tool's fix command directly, with `sed` and a shell loop for whitespace. The configurations are in [`benchmark/subjects`](https://github.com/jdx/hk/tree/main/benchmark/subjects).
+- **Pinned versions.** Every hook manager, linter, and runtime is pinned in [`benchmark/mise.toml`](https://github.com/jdx/hk/blob/main/benchmark/mise.toml). A refresh changes one variable at a time, and the page lists the versions that were measured.
+- **Interleaved sampling.** Timing uses [tak](https://github.com/jdx/tak). tak takes one sample of every tool per round, in a new random order each round, so thermal throttling or a noisy neighbour is shared across tools instead of landing on whichever tool happened to be running.
+- **Same starting state.** Each tool has its own clone of the project. Before every sample, an untimed step resets the clone to the scenario's starting state. Tool caches such as ruff's and black's are left warm, as they would be on a developer's machine.
+- **Hermetic Git.** Global and system Git configuration is disabled, so the benchmark host's hooks, signing, and filesystem monitor stay out of the measurements.
+- **Wins must beat the noise.** A tool is called faster only when the gap between medians is larger than both tools' ranges across samples. A configuration that produced wrong files is never the benchmark hk is compared against.
+- **No partial results.** The page shows a run only if hk and every configuration that is safe by design produced the right files in every timed sample. Otherwise the harness is broken or a tool has a bug, and neither should be published as a timing.
 
-- Invokes hk’s pre-commit hook in fix mode, with stashing disabled through `HK_STASH=false`.
-- Configures lefthook with sequential execution to avoid concurrent writes from overlapping formatters in this workload.
-- Runs pre-commit and prek using the provided hook definitions.
-- Resets the fixture between runs, primes hk’s configuration cache, and uses Hyperfine warmups and repeated measurements.
+## What this does not measure
 
-The [runner](https://github.com/jdx/hk/blob/main/benchmark/run.sh) and [tool configurations](https://github.com/jdx/hk/tree/main/benchmark/parallel) define the comparison. These choices matter as much as the timing values.
-
-## Limitations
-
-This workload favors concurrent work across languages while also exercising overlapping formatters. A small project, a single linter, or tools that already parallelize internally may see different results.
-
-Stashing is disabled in the runner, so the results do not measure partial-commit restoration. Hyperfine is configured to tolerate nonzero exits from lint commands; timings alone do not establish equivalent fixes or successful checks.
-
-The recorded JSON does not include machine specifications or exact tool versions. Treat it as a historical example and rerun the workload with those details recorded before using the numbers for a tool-selection decision. Current scripts may also differ from the ones used for the recorded result.
+- A real repository. The generated files are uniform. In a real project, results depend on your linters, how much their file patterns overlap, how many files change, and how many cores you have. [hk timing reports](/logging#a-run-is-slow) show where your own runs spend their time.
+- Tools that already parallelize internally benefit less from running steps concurrently. black, for example, uses every core by itself. The more CPU-bound the workload, the less orchestration matters.
+- Stashing of partially staged files. In the commit scenario no files have unstaged changes, so saving and restoring unstaged work costs almost nothing.
+- Install time, first runs with cold caches, and hook-manager features beyond running fixers.
 
 ## Reproduce
 
-Use a disposable directory. The benchmark runner resets its fixture repository and overwrites generated results.
-
-Install `hk`, `hyperfine`, `lefthook`, `pre-commit`, `prek`, `prettier`, `eslint`, `black`, `ruff`, `shfmt`, `jq`, `yq`, and `uv`, and record their versions. The shell scripts expect a Unix-like environment and compatible command-line utilities.
-
-From the repository root:
+The benchmark runs on Linux (its scripts use GNU sed) and needs [mise](https://mise.jdx.dev), which installs the pinned toolset, and a checkout of hk:
 
 ```sh
-benchmark/generate-project.sh /tmp/hk-bench
-benchmark/run.sh /tmp/hk-bench
+mise run benchmark
 ```
 
-To change the workload or number of repetitions:
-
-```sh
-NUM_JS=500 NUM_PY=500 benchmark/generate-project.sh /tmp/hk-bench
-RUNS=20 WARMUP=3 benchmark/run.sh /tmp/hk-bench
-```
-
-Results are written to `benchmark/results/`; the runner also updates `docs/public/benchmark.png` and `docs/public/benchmark-data.json`.
-
-For your own project, start with [hk timing reports](/logging#a-run-is-slow). See [Why hk?](/why-hk) for the execution model.
+This builds hk, generates the project (outside the repository, in `~/.cache/hk-bench`), verifies every tool, times every scenario, and writes `benchmark/results.json`, which this page renders. Pass tak flags to narrow a run for diagnosis, for example `mise run benchmark -- --bench fix-staged --runs 5`; such a run is never marked publishable. To measure a released hk, set `HK_BIN` to its path. See [`benchmark/README.md`](https://github.com/jdx/hk/blob/main/benchmark/README.md) for how the pieces fit together.
