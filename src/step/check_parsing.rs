@@ -41,7 +41,8 @@ impl Step {
     /// * `original_files` - The files that were passed to the check command
     /// * `stdout` - The stdout output from check_list_files
     /// * `dir` - The step's rendered `dir`. Tools that run there usually print
-    ///   paths relative to it, so a relative path is looked up there first.
+    ///   paths relative to it, but some print paths relative to the root, so a
+    ///   relative path matches a job file under either reading.
     ///
     /// # Returns
     ///
@@ -54,28 +55,38 @@ impl Step {
         stdout: &str,
         dir: Option<&str>,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
-        let listed: HashSet<PathBuf> = stdout
-            .lines()
-            .map(|p| {
-                let path = PathBuf::from(p);
-                let in_dir = dir
-                    .filter(|_| path.is_relative())
-                    .map(|dir| Path::new(dir).join(&path))
-                    .filter(|path| path.symlink_metadata().is_ok());
-                try_canonicalize(&in_dir.unwrap_or(path))
-            })
-            .collect();
-        let files: IndexSet<PathBuf> = original_files
+        let originals: HashSet<PathBuf> = original_files.iter().map(try_canonicalize).collect();
+        let mut listed: HashSet<PathBuf> = HashSet::new();
+        let mut extras: IndexSet<PathBuf> = IndexSet::new();
+        for line in stdout.lines() {
+            let path = PathBuf::from(line);
+            let in_dir = dir
+                .filter(|_| path.is_relative())
+                .map(|dir| Path::new(dir).join(&path))
+                .filter(|path| path.symlink_metadata().is_ok());
+            let mut candidates: Vec<PathBuf> = in_dir.iter().map(try_canonicalize).collect();
+            candidates.push(if path.symlink_metadata().is_ok() {
+                try_canonicalize(&path)
+            } else {
+                path.clone()
+            });
+            let matched: Vec<PathBuf> = candidates
+                .iter()
+                .filter(|path| originals.contains(*path))
+                .cloned()
+                .collect();
+            if !matched.is_empty() {
+                listed.extend(matched);
+            } else {
+                extras.extend(candidates.into_iter().next());
+            }
+        }
+        let files: Vec<PathBuf> = original_files
             .iter()
             .filter(|f| listed.contains(&try_canonicalize(f)))
             .cloned()
             .collect();
-        let canonicalized_files: IndexSet<PathBuf> = files.iter().map(try_canonicalize).collect();
-        let extras: Vec<PathBuf> = listed
-            .into_iter()
-            .filter(|f| !canonicalized_files.contains(f))
-            .collect();
-        (files.into_iter().collect(), extras)
+        (files, extras.into_iter().collect())
     }
 
     /// Parse unified diff output to extract files needing fixes.
@@ -170,5 +181,42 @@ impl Step {
             .filter(|f| !canonicalized_files.contains(f))
             .collect();
         (files.into_iter().collect(), extras)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_list_matches_job_files_relative_to_dir_or_root() {
+        // Tests run from the crate root, so `Cargo.toml` names a file relative
+        // to the root. The step's `dir` holds a file of the same name.
+        let dir = tempfile::tempdir().unwrap();
+        let in_dir = dir.path().join("Cargo.toml");
+        std::fs::write(&in_dir, "").unwrap();
+        let root = PathBuf::from("Cargo.toml");
+        let dir_str = dir.path().to_str();
+        let step = Step::default();
+
+        let (files, extras) =
+            step.filter_files_from_check_list(std::slice::from_ref(&root), "Cargo.toml\n", dir_str);
+        assert_eq!(files, vec![root.clone()]);
+        assert!(extras.is_empty());
+
+        let (files, _) = step.filter_files_from_check_list(
+            std::slice::from_ref(&in_dir),
+            "Cargo.toml\n",
+            dir_str,
+        );
+        assert_eq!(files, vec![in_dir.clone()]);
+
+        let (files, extras) = step.filter_files_from_check_list(
+            std::slice::from_ref(&in_dir),
+            "missing.py\n",
+            dir_str,
+        );
+        assert!(files.is_empty());
+        assert_eq!(extras, vec![PathBuf::from("missing.py")]);
     }
 }
