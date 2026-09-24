@@ -16,12 +16,11 @@ pub struct PostCheckout {
 
 impl PostCheckout {
     pub async fn run(mut self) -> Result<()> {
-        self.hook.tctx.insert("prev_head", &self.prev_head);
-        self.hook.tctx.insert("new_head", &self.new_head);
+        self.hook.insert_hook_var("prev_head", &self.prev_head);
+        self.hook.insert_hook_var("new_head", &self.new_head);
         self.hook
-            .tctx
-            .insert("is_branch_checkout", &(self.is_branch_checkout == "1"));
-        self.hook.tctx.insert(
+            .insert_hook_var("is_branch_checkout", &(self.is_branch_checkout == "1"));
+        self.hook.insert_hook_var(
             "hook_args",
             &format!(
                 "{} {} {}",

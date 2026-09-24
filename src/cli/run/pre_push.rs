@@ -102,7 +102,7 @@ impl PrePush {
                 "--files0-from - cannot be used with pre-push because the hook reads refs from stdin"
             ));
         }
-        self.hook.tctx.insert(
+        self.hook.insert_hook_var(
             "hook_args",
             &format!(
                 "{} {}",
@@ -111,12 +111,12 @@ impl PrePush {
             ),
         );
         let to_be_updated_refs = if std::io::stdin().is_terminal() {
-            self.hook.tctx.insert("hook_stdin", "");
+            self.hook.insert_hook_var("hook_stdin", "");
             vec![]
         } else {
             let mut input = String::new();
             std::io::stdin().read_to_string(&mut input)?;
-            self.hook.tctx.insert("hook_stdin", &input);
+            self.hook.insert_hook_var("hook_stdin", &input);
             // Note: we deliberately keep deletions (local sha all-zeros) in
             // the list. The downstream EMPTY_REF guard in hook.rs detects
             // `to_ref` of all-zeros and short-circuits to an empty file set

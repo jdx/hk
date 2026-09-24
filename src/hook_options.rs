@@ -123,9 +123,21 @@ pub(crate) struct HookOptions {
     /// Prefilled tera context
     #[usage(skip)]
     pub tctx: Context,
+    /// Hook-specific variables, such as Git hook arguments, exposed to both
+    /// command templates and condition expressions
+    #[usage(skip)]
+    pub hook_vars: indexmap::IndexMap<String, serde_json::Value>,
 }
 
 impl HookOptions {
+    /// Expose a hook-specific variable to command templates and conditions.
+    pub(crate) fn insert_hook_var<T: serde::Serialize + ?Sized>(&mut self, key: &str, val: &T) {
+        self.tctx.insert(key, val);
+        if let Ok(val) = serde_json::to_value(val) {
+            self.hook_vars.insert(key.to_string(), val);
+        }
+    }
+
     fn validate(&self) -> Result<()> {
         if self.staged && self.stash.is_some() {
             return Err(eyre::eyre!(

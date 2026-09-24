@@ -17,11 +17,9 @@ impl CommitMsg {
     pub async fn run(mut self) -> Result<()> {
         let resolved = git_util::resolve_git_relative_path(&self.commit_msg_file)?;
         self.hook
-            .tctx
-            .insert("commit_msg_file", &resolved.to_string_lossy());
+            .insert_hook_var("commit_msg_file", &resolved.to_string_lossy());
         self.hook
-            .tctx
-            .insert("hook_args", &resolved.to_string_lossy());
+            .insert_hook_var("hook_args", &resolved.to_string_lossy());
         self.hook.run("commit-msg").await
     }
 }

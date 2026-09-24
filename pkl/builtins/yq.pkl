@@ -20,7 +20,16 @@ yq = new Config.Step {
     effect = "read"
   }
   fix = new Config.CommandSpec {
-    command = "yq -iP {{ files }}"
+    // yq -i only rewrites the first file and merges every input into it,
+    // so each file must be fixed separately.
+    command =
+      """
+      failed=0
+      for f in {{ files }}; do
+      yq -iP "$f" || failed=1
+      done
+      exit $failed
+      """
     effect = "write"
   }
   tests {
@@ -29,5 +38,19 @@ yq = new Config.Step {
     ["check good file"] = testMaker.checkPass("foo: bar\n")
     ["fix bad file"] = testMaker.fixPass("foo:  bar", "foo: bar\n")
     ["fix good file"] = testMaker.fixPass("foo: bar\n", "foo: bar\n")
+    ["fix multiple files"] {
+      run = "fix"
+      tmpdir = true
+      write {
+        ["a.yaml"] = "a:  1"
+        ["b.yml"] = "b:  2"
+      }
+      expect {
+        files {
+          ["a.yaml"] = "a: 1\n"
+          ["b.yml"] = "b: 2\n"
+        }
+      }
+    }
   }
 }
