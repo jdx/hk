@@ -1,7 +1,7 @@
 use crate::{Result, file_rw_locks::Flocks, hook::SkipReason, step::RunType};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use itertools::Itertools;
-use tokio::sync::OwnedSemaphorePermit;
+use tokio::sync::{OwnedRwLockWriteGuard, OwnedSemaphorePermit};
 
 use crate::{env, step::Step, step_context::StepContext, step_locks::StepLocks, tera};
 use std::{path::PathBuf, sync::Arc};
@@ -149,12 +149,25 @@ impl StepJob {
             _ => unreachable!("invalid status: {:?}", self.status),
         }
         let flocks = self.flocks(ctx).await;
-        self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore));
+        // Take shared command access only after the file locks: a job waiting
+        // for this job's files must not block its upgrade to exclusive diff access.
+        let command_guard = ctx.hook_ctx.diff_lock.clone().read_owned().await;
+        self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore, command_guard));
         ctx.status_started();
         if let Some(progress) = &mut self.progress {
             progress.set_status(ProgressStatus::Running);
         }
         Ok(())
+    }
+
+    /// Exclude other commands and patch transactions until apply and rollback
+    /// finish. Never acquire more file locks while holding this exclusive guard.
+    pub async fn lock_diff(&mut self, ctx: &StepContext) -> Result<OwnedRwLockWriteGuard<()>> {
+        let StepJobStatus::Started(locks) = &mut self.status else {
+            eyre::bail!("cannot apply diff for a job that has not started");
+        };
+        locks.release_command_guard();
+        Ok(ctx.hook_ctx.diff_lock.clone().write_owned().await)
     }
 
     pub fn status_finished(&mut self) -> Result<()> {

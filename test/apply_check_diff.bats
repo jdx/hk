@@ -112,8 +112,9 @@ EOF
     echo "hello" > test.txt
 
     # Run fix - should fall back to fixer since diff is invalid
-    run hk fix test.txt
+    run env HK_LOG_LEVEL=warn hk fix test.txt
     assert_success
+    refute_output --partial "cannot safely apply diff"
 
     # The fixer should have run and added "FIXED"
     run cat test.txt
@@ -605,4 +606,533 @@ EOF
 
     run git show :test.txt
     assert_output "new"
+}
+
+_setup_partial_apply_fixture() {
+    mkdir locked
+    printf 'before\n' > locked/skill.md
+    printf 'before\n' > 'writable file.md'
+    chmod +x 'writable file.md'
+    cp 'writable file.md' expected.md
+    cat <<'PATCH' > changes.patch
+--- locked/skill.md
++++ locked/skill.md
+@@ -1 +1 @@
+-before
++after
+--- writable file.md
++++ writable file.md
+@@ -1 +1 @@
+-before
++after
+PATCH
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/sh
+set -eu
+cmp expected.md locked/skill.md
+cmp expected.md 'writable file.md'
+test -x 'writable file.md'
+touch fixer-ran
+SCRIPT
+    chmod +x fixer.sh
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = "*.md"
+                check_diff = "cat changes.patch; exit 1"
+                fix = "./fixer.sh"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    # Originals must come from the working tree, including unstaged edits.
+    printf 'staged\n' > locked/skill.md
+    printf 'staged\n' > 'writable file.md'
+    git add locked/skill.md 'writable file.md'
+    git write-tree > index-before
+    printf 'before\n' > locked/skill.md
+    printf 'before\n' > 'writable file.md'
+}
+
+@test "check_diff restores files after git apply fails during a write" {
+    case "$OSTYPE" in
+        msys*|cygwin*|win*) skip "requires Unix directory permissions" ;;
+    esac
+    _setup_partial_apply_fixture
+    chmod 0555 locked
+    # Root and some filesystems can still write here. Do not claim coverage on
+    # those systems; the injected failure tests below run without chmod.
+    if touch locked/write-probe 2>/dev/null; then
+        skip "directory permissions do not prevent writes for this user"
+    fi
+
+    # This succeeds even though the actual application will fail while writing.
+    git apply --check -p0 changes.patch
+    run git apply -p0 changes.patch
+    assert_failure
+    assert_file_not_exists 'writable file.md'
+    cp expected.md 'writable file.md'
+    chmod +x 'writable file.md'
+
+    run hk fix locked/skill.md 'writable file.md'
+    assert_success
+    assert_file_exists fixer-ran
+    cmp expected.md locked/skill.md
+    cmp expected.md 'writable file.md'
+    git write-tree > index-after
+    cmp index-before index-after
+}
+
+_mock_partial_git_apply() {
+    case "$OSTYPE" in
+        msys*|cygwin*|win*) skip "requires a Unix executable shim; Rust tests cover restoration on Windows" ;;
+    esac
+    export REAL_GIT
+    REAL_GIT=$(command -v git)
+    mkdir mock-bin
+    cat <<'SCRIPT' > mock-bin/git
+#!/bin/sh
+if [ "$1" = apply ]; then
+    case " $* " in
+        *" --numstat "*|*" --check "*) exec "$REAL_GIT" "$@" ;;
+    esac
+    cat >/dev/null
+    printf 'partly written\n' > locked/skill.md
+    rm 'writable file.md'
+    if [ "${BLOCK_DIFF_RESTORE:-}" = 1 ]; then
+        rm locked/skill.md
+        mkdir locked/skill.md
+        printf 'unrelated\n' > locked/skill.md/keep
+    fi
+    echo 'injected write-time failure' >&2
+    exit 1
+fi
+exec "$REAL_GIT" "$@"
+SCRIPT
+    chmod +x mock-bin/git
+    export PATH="$PWD/mock-bin:$PATH"
+}
+
+@test "check_diff warns on backup preparation I/O failures and still falls back" {
+    case "$OSTYPE" in
+        msys*|cygwin*|win*) skip "requires a Unix executable shim" ;;
+    esac
+    _setup_partial_apply_fixture
+    export REAL_GIT
+    REAL_GIT=$(command -v git)
+    mkdir mock-bin backups
+    export TMPDIR="$PWD/backups"
+    cat <<'SCRIPT' > mock-bin/git
+#!/bin/sh
+if [ "$1" = apply ]; then
+    case " $* " in
+        *" --reverse "*)
+            "$REAL_GIT" "$@" || exit
+            # The patch is already open. Make the subsequent backup creation fail.
+            mv "$TMPDIR" "$TMPDIR-unavailable"
+            exit 0
+            ;;
+    esac
+fi
+exec "$REAL_GIT" "$@"
+SCRIPT
+    chmod +x mock-bin/git
+    export PATH="$PWD/mock-bin:$PATH"
+
+    run env HK_LOG_LEVEL=warn hk fix locked/skill.md 'writable file.md'
+    assert_success
+    assert_file_exists fixer-ran
+    assert_dir_exists "$TMPDIR-unavailable"
+    assert_output --partial 'cannot safely apply diff'
+    cmp expected.md locked/skill.md
+    cmp expected.md 'writable file.md'
+}
+
+@test "check_diff restores modified and deleted files before fallback" {
+    _setup_partial_apply_fixture
+    _mock_partial_git_apply
+
+    run hk fix locked/skill.md 'writable file.md'
+    assert_success
+    assert_file_exists fixer-ran
+    cmp expected.md locked/skill.md
+    cmp expected.md 'writable file.md'
+    git write-tree > index-after
+    cmp index-before index-after
+}
+
+@test "check_diff stops and retains originals when restoration fails" {
+    _setup_partial_apply_fixture
+    _mock_partial_git_apply
+    export BLOCK_DIFF_RESTORE=1
+    # Keep the deliberately retained recovery files inside this test's temp dir.
+    mkdir backups
+    export TMPDIR="$PWD/backups"
+
+    run hk fix locked/skill.md 'writable file.md'
+    assert_failure
+    assert_output --partial 'failed to restore files after git apply; refusing to run fixer'
+    assert_output --partial 'Original files retained in'
+    assert_file_not_exists fixer-ran
+    # The first target fails restoration; later targets must still be recovered.
+    cmp expected.md 'writable file.md'
+    local backup
+    for backup in backups/hk-diff-backup-*; do
+        cmp expected.md "$backup/files/locked/skill.md"
+        cmp expected.md "$backup/files/writable file.md"
+        test -x "$backup/files/writable file.md"
+    done
+}
+
+_setup_structural_diff_fixture() {
+    mkdir locked expected
+    printf 'delete\n' > delete.txt
+    printf 'rename\n' > old.txt
+    printf 'copy\n' > source.txt
+    printf '#!/bin/sh\n' > script.sh
+    chmod 0644 script.sh
+    printf 'before\n' > locked/skill.md
+    cp delete.txt old.txt source.txt script.sh expected/
+    cp locked/skill.md expected/skill.md
+    git add delete.txt old.txt source.txt script.sh locked/skill.md
+    git write-tree > index-before
+
+    cat <<'PATCH' > changes.patch
+--- /dev/null
++++ new/nested/created.txt
+@@ -0,0 +1 @@
++created
+--- delete.txt
++++ /dev/null
+@@ -1 +0,0 @@
+-delete
+diff --git old.txt renamed.txt
+similarity index 100%
+rename from old.txt
+rename to renamed.txt
+diff --git source.txt copied.txt
+similarity index 100%
+copy from source.txt
+copy to copied.txt
+diff --git script.sh script.sh
+old mode 100644
+new mode 100755
+diff --git locked/skill.md locked/skill.md
+--- locked/skill.md
++++ locked/skill.md
+@@ -1 +1 @@
+-before
++after
+PATCH
+    cat <<'SCRIPT' > verify-original.sh
+#!/bin/sh
+set -eu
+for file in delete.txt old.txt source.txt script.sh; do
+    cmp "expected/$file" "$file"
+done
+cmp expected/skill.md locked/skill.md
+test ! -x script.sh
+test ! -e renamed.txt
+test ! -e copied.txt
+test ! -e new
+git write-tree > index-after
+cmp index-before index-after
+touch fixer-ran
+SCRIPT
+    chmod +x verify-original.sh
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                check_diff = "cat changes.patch; exit 1"
+            }
+        }
+    }
+}
+EOF_CONFIG
+}
+
+@test "check_diff-only preserves creation deletion rename copy and mode changes" {
+    _setup_structural_diff_fixture
+
+    run hk fix locked/skill.md
+    assert_success
+    assert_file_not_exists fixer-ran
+    assert_file_not_exists delete.txt
+    assert_file_not_exists old.txt
+    cmp expected/old.txt renamed.txt
+    cmp expected/source.txt source.txt
+    cmp expected/source.txt copied.txt
+    assert_file_contains new/nested/created.txt created
+    assert_file_contains locked/skill.md after
+    test -x script.sh
+    git write-tree > index-after
+    cmp index-before index-after
+}
+
+@test "check_diff rolls back structural changes after an actual write failure" {
+    case "$OSTYPE" in
+        msys*|cygwin*|win*) skip "requires Unix directory permissions" ;;
+    esac
+    _setup_structural_diff_fixture
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                check_diff = "cat changes.patch; exit 1"
+                fix = "./verify-original.sh"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    chmod 0555 locked
+    if touch locked/write-probe 2>/dev/null; then
+        skip "directory permissions do not prevent writes for this user"
+    fi
+
+    # Prove this fixture writes structural changes before the final failure.
+    git apply --check -p0 changes.patch
+    run git apply -p0 changes.patch
+    assert_failure
+    assert_file_exists new/nested/created.txt
+    assert_file_exists renamed.txt
+    assert_file_exists copied.txt
+    assert_file_not_exists delete.txt
+    test -x script.sh
+
+    # Reset only the disposable fixture, then exercise hk's recovery path.
+    cp expected/delete.txt expected/old.txt expected/source.txt expected/script.sh .
+    chmod 0644 script.sh
+    rm renamed.txt copied.txt new/nested/created.txt
+    rmdir new/nested new
+    run hk fix locked/skill.md
+    assert_success
+    assert_file_exists fixer-ran
+    run ./verify-original.sh
+    assert_success
+}
+
+_setup_concurrent_diff_fixture() {
+    case "$OSTYPE" in
+        msys*|cygwin*|win*) skip "requires a Unix executable shim" ;;
+    esac
+    printf 'input\n' > a.in
+    printf 'input\n' > b.in
+    cat <<'PATCH' > a.patch
+--- /dev/null
++++ shared.txt
+@@ -0,0 +1 @@
++A
+--- /dev/null
++++ a-side.txt
+@@ -0,0 +1 @@
++partial
+PATCH
+    cat <<'PATCH' > b.patch
+--- /dev/null
++++ shared.txt
+@@ -0,0 +1 @@
++B
+PATCH
+    cat <<'SCRIPT' > check-a.sh
+#!/bin/sh
+# Ensure B is running a command before A requests exclusive diff access.
+i=0
+while [ ! -e b-command-started ] && [ "$i" -lt 200 ]; do
+    sleep 0.01
+    i=$((i + 1))
+done
+if [ ! -e b-command-started ]; then
+    touch startup-timed-out
+    exit 1
+fi
+cat a.patch
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > wait-for-apply.sh
+#!/bin/sh
+touch b-command-started
+# Expiry is expected: A cannot apply while this command holds shared access.
+# Record it so the test rejects an unintended overlap rather than silently passing.
+i=0
+while [ ! -e a-applying ] && [ "$i" -lt 200 ]; do
+    sleep 0.01
+    i=$((i + 1))
+done
+if [ -e a-applying ]; then
+    echo observed > b-wait-result
+else
+    echo timed-out > b-wait-result
+fi
+SCRIPT
+    chmod +x check-a.sh wait-for-apply.sh
+    export REAL_GIT
+    REAL_GIT=$(command -v git)
+    mkdir mock-bin
+    cat <<'SCRIPT' > mock-bin/git
+#!/bin/sh
+if [ "$1" != apply ]; then
+    exec "$REAL_GIT" "$@"
+fi
+patch=$(cat)
+case " $* " in
+    *" --numstat "*|*" --check "*)
+        printf '%s\n' "$patch" | "$REAL_GIT" "$@"
+        result=$?
+        if [ "$result" -ne 0 ] && printf '%s\n' "$patch" | grep -q '^+A$'; then
+            touch a-preflight-rejected
+        fi
+        exit "$result"
+        ;;
+esac
+if printf '%s\n' "$patch" | grep -q '^+A$'; then
+    printf 'partial\n' > a-side.txt
+    touch a-applying
+    i=0
+    while [ ! -e b-written ] && [ "$i" -lt 200 ]; do
+        sleep 0.01
+        i=$((i + 1))
+    done
+    # B must remain blocked throughout A's transaction, including rollback.
+    if [ -e b-written ]; then
+        echo observed > a-wait-result
+    else
+        echo timed-out > a-wait-result
+    fi
+    echo 'injected A write-time failure' >&2
+    exit 1
+fi
+printf '%s\n' "$patch" | "$REAL_GIT" "$@" || exit
+# Preserve evidence that B succeeded even if A subsequently deletes its output.
+cp shared.txt b-written
+SCRIPT
+    chmod +x mock-bin/git
+    export PATH="$PWD/mock-bin:$PATH"
+}
+
+_run_concurrent_fix() {
+    # Bound lock-ordering regressions rather than hanging the integration suite.
+    run python3 -c 'import subprocess, sys; sys.exit(subprocess.run(["hk", "fix", "a.in", "b.in"], timeout=15).returncode)'
+}
+
+@test "check_diff rollback preserves another patch job's new target" {
+    _setup_concurrent_diff_fixture
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                check_diff = "./check-a.sh"
+                fix = "touch a-fixer-ran"
+            }
+            ["b"] {
+                glob = "b.in"
+                check_diff = "./wait-for-apply.sh; cat b.patch; exit 1"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix
+    assert_success
+    assert_file_not_exists startup-timed-out
+    assert_file_contains b-wait-result '^timed-out$'
+    assert_file_contains a-wait-result '^timed-out$'
+    assert_file_not_exists a-preflight-rejected
+    assert_file_exists a-applying
+    assert_file_exists a-fixer-ran
+    assert_file_not_exists a-side.txt
+    assert_file_contains b-written B
+    assert_file_contains shared.txt B
+}
+
+@test "check_diff backup and rollback exclude ordinary fixer writes" {
+    _setup_concurrent_diff_fixture
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                check_diff = "./check-a.sh"
+                fix = "touch a-fixer-ran"
+            }
+            ["b"] {
+                glob = "b.in"
+                fix = "./wait-for-apply.sh; echo B > shared.txt; cp shared.txt b-written"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix
+    assert_success
+    assert_file_not_exists startup-timed-out
+    assert_file_contains b-wait-result '^timed-out$'
+    # B finishes before A can prepare its backup. Its new file makes A's
+    # creation patch fail preflight, so partial apply must never start here.
+    assert_file_exists a-preflight-rejected
+    assert_file_not_exists a-applying
+    assert_file_not_exists a-wait-result
+    assert_file_exists a-fixer-ran
+    assert_file_not_exists a-side.txt
+    assert_file_contains b-written B
+    assert_file_contains shared.txt B
+}
+
+@test "ordinary fixers on disjoint inputs still run concurrently" {
+    _setup_concurrent_diff_fixture
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/sh
+set -eu
+file="$1"
+touch "$file-started"
+i=0
+while [ ! -e a.in-started ] || [ ! -e b.in-started ]; do
+    i=$((i + 1))
+    test "$i" -lt 200 || exit 1
+    sleep 0.01
+done
+printf 'fixed\n' > "$file"
+SCRIPT
+    chmod +x fixer.sh
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                fix = "./fixer.sh {{files}}"
+            }
+            ["b"] {
+                glob = "b.in"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix
+    assert_success
+    assert_file_contains a.in fixed
+    assert_file_contains b.in fixed
 }
