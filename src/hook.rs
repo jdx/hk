@@ -248,6 +248,12 @@ mod tests {
     }
 
     #[test]
+    fn exclude_match_paths_use_forward_slashes() {
+        let path = with_forward_slashes(normalize_lexically(Path::new("src/../vendor/lib.js")));
+        assert_eq!(path.to_str(), Some("vendor/lib.js"));
+    }
+
+    #[test]
     fn step_or_group_serializes_flat_step_for_cache_round_trip() {
         let original: StepOrGroup =
             serde_json::from_value(json!({"_type": "step", "check": "echo ok"})).unwrap();
@@ -1810,7 +1816,7 @@ impl Hook {
             // resolve `.`/`..` in file arguments. hk runs from the repo root.
             let cwd = std::env::current_dir().ok();
             let canonical_cwd = cwd.as_deref().and_then(|cwd| cwd.canonicalize().ok());
-            let relative = |f: &PathBuf| -> PathBuf {
+            let resolve = |f: &PathBuf| -> PathBuf {
                 let has_parent_dir = f.components().any(|c| c == Component::ParentDir);
                 if !has_parent_dir && !f.is_absolute() {
                     return normalize_lexically(f);
@@ -1843,6 +1849,7 @@ impl Hook {
                     }
                 }
             };
+            let relative = |f: &PathBuf| with_forward_slashes(resolve(f));
             let match_paths = files.iter().map(relative).collect::<Vec<_>>();
             let files_before = files.len();
             let mut exclude_files = HashSet::new();
@@ -1947,6 +1954,17 @@ fn watch_for_ctrl_c(cancel: CancellationToken) {
         });
         cancel.cancel();
     });
+}
+
+/// Use `/` separators, as git paths and exclude patterns do. Rebuilding a path
+/// from components on Windows joins them with `\`, which regexes would not match.
+fn with_forward_slashes(path: PathBuf) -> PathBuf {
+    if cfg!(windows)
+        && let Some(s) = path.to_str()
+    {
+        return PathBuf::from(s.replace('\\', "/"));
+    }
+    path
 }
 
 /// Remove `.` components and resolve `..` against preceding components without
