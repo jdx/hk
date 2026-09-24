@@ -461,6 +461,18 @@ impl Step {
         let stage_pathspecs: Vec<OsString> =
             stage_globs.iter().cloned().map(OsString::from).collect();
         if !stage_pathspecs.is_empty() || stage_only_job_files {
+            // Other steps may still be fixing files that `status` hashes and `add`
+            // reads. Hold read locks on everything the status query can inspect
+            // until the add finishes, so git never reads a partially written file
+            // (both libgit2 and the git CLI fail when a file changes mid-read).
+            // Take the file locks before the git mutex so neither waits on the other.
+            let hook_files = ctx.hook_ctx.files();
+            let lock_files = if stage_only_job_files {
+                hook_files
+            } else {
+                glob::get_matches(&stage_globs, &hook_files)?
+            };
+            let _flocks = ctx.hook_ctx.file_locks.read_locks(&lock_files).await;
             let status = if stage_only_job_files {
                 // For {{job_files}}, get status of all files (no pathspec filtering)
                 ctx.hook_ctx.git.lock().await.status(None)?
