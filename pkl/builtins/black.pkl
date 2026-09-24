@@ -26,12 +26,18 @@ black = new Config.Step {
       windows = ""
       other =
         #"""
-        out=$(black --check {{ files }} 2>&1) && exit 0
+        set -- {{ files }}
+        out=$(black --check "$@" 2>&1) && exit 0
         status=$?
         printf '%s\n' "$out" | while IFS= read -r line; do
         case "$line" in
         "would reformat "*) printf '%s\n' "${line#would reformat }" ;;
-        "error: cannot format "*) line=${line#error: cannot format }; printf '%s\n' "${line%%: *}" ;;
+        "error: cannot format "*)
+          # The message after the path may contain ": ", so match the inputs.
+          for f; do
+          case "$line" in "error: cannot format $f: "*) printf '%s\n' "$f" ;; esac
+          done
+          ;;
         esac
         done
         exit $status

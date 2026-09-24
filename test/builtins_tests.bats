@@ -316,12 +316,44 @@ PKL
     refute_output --partial "DEBUG $ black a b/bad.py good.py"
     assert_equal "$(cat "a b/bad.py")" "x = 1"
 
-    # A file black cannot parse is passed on to the fixer, which reports it.
-    printf 'def(\n' > broken.py
+    # A file black cannot parse is passed on to the fixer, which reports it,
+    # even when its name contains the ": " that separates black's message.
+    printf 'def(\n' > "broken: file.py"
     printf 'z=3\n' > bad2.py
     git add -A
     run hk fix --all
     assert_failure
-    assert_output --partial "error: cannot format broken.py"
+    assert_output --partial "error: cannot format broken: file.py"
     assert_equal "$(cat bad2.py)" "z = 3"
+}
+
+@test "black check_list_files paths are resolved in the step's dir" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["black"] = (Builtins.black) { dir = "ui" }
+      ["other"] {
+        glob = "**/*.py"
+        check = "true"
+        fix = "true"
+      }
+    }
+  }
+}
+PKL
+    mkdir ui
+    printf 'x=1\n' > ui/bad.py
+    printf 'y = 2\n' > ui/good.py
+    git add -A
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    HK_LOG=debug run hk fix --all
+    assert_success
+    assert_output --partial "DEBUG $ black bad.py"
+    refute_output --partial "DEBUG $ black bad.py good.py"
+    assert_equal "$(cat ui/bad.py)" "x = 1"
 }

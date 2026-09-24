@@ -8,7 +8,7 @@
 
 use indexmap::IndexSet;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use xx::file::display_path;
 
 use super::normalize_diff_paths;
@@ -40,6 +40,8 @@ impl Step {
     ///
     /// * `original_files` - The files that were passed to the check command
     /// * `stdout` - The stdout output from check_list_files
+    /// * `dir` - The step's rendered `dir`. Tools that run there usually print
+    ///   paths relative to it, so a relative path is looked up there first.
     ///
     /// # Returns
     ///
@@ -50,10 +52,18 @@ impl Step {
         &self,
         original_files: &[PathBuf],
         stdout: &str,
+        dir: Option<&str>,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
         let listed: HashSet<PathBuf> = stdout
             .lines()
-            .map(|p| try_canonicalize(&PathBuf::from(p)))
+            .map(|p| {
+                let path = PathBuf::from(p);
+                let in_dir = dir
+                    .filter(|_| path.is_relative())
+                    .map(|dir| Path::new(dir).join(&path))
+                    .filter(|path| path.symlink_metadata().is_ok());
+                try_canonicalize(&in_dir.unwrap_or(path))
+            })
             .collect();
         let files: IndexSet<PathBuf> = original_files
             .iter()
