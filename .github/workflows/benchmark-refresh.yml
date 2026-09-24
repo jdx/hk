@@ -178,7 +178,10 @@ jobs:
           MEASURED: ${{ needs.check.outputs.measured }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if git diff --quiet -- benchmark/results.json; then
+          # Stage first: the first refresh adds results.json rather than
+          # modifying it, and an untracked file is invisible to `git diff`.
+          git add benchmark/results.json
+          if git diff --cached --quiet -- benchmark/results.json; then
             echo "results.json is unchanged"
             exit 0
           fi
@@ -186,7 +189,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config core.hooksPath /dev/null
           git checkout -B benchmark-refresh
-          git commit -m "docs: refresh competitor benchmark for v${RELEASE}" -- benchmark/results.json
+          git commit -m "docs: refresh competitor benchmark for v${RELEASE}"
           git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:refs/heads/benchmark-refresh
 
           table=$(jq -r '

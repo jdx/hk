@@ -86,7 +86,7 @@
 
 ## Project
 
-- [Benchmarks](https://hk.jdx.dev/benchmarks.html): These results measure one synthetic workload with overlapping linter file patterns. They illustrate how orchestration affects this setup; they are not a prediction for every repository or a survey of…
+- [Benchmarks](https://hk.jdx.dev/benchmarks.html): Running linters in parallel is easy. Running them in parallel without two fixers overwriting each other's work is the hard part, and it is what hk is built around.
 - [About hk](https://hk.jdx.dev/about.html): hk is a Git hook manager and project linting tool built by @jdx. It is written in Rust and released under the MIT license.
 - [Contributing](https://hk.jdx.dev/contributing.html): Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
 - [Sea shanty](https://hk.jdx.dev/shanty.html): A sea shanty celebrating the hk git hook manager
