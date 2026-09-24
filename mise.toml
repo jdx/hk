@@ -4,21 +4,28 @@ min_version = "2026.9.7"
 _.path = ["test/bats/bin", "{{ env.CARGO_TARGET_DIR | default(value='target') }}/debug", "node_modules/.bin"]
 
 [tools]
-actionlint    = "latest"
-aube          = { version = "latest", minimum_release_age = "0s" }
-cargo-msrv    = "latest"
-cargo-release = "latest"
-communique    = { version = "latest", minimum_release_age = "0s" }
-git-cliff     = "latest"
-mr-boxington  = { version = "latest", minimum_release_age = "0s" }
-node          = "latest"
-pkl           = "latest"
-prettier      = "latest"
-ripgrep       = "latest"
-tak           = { version = "latest", minimum_release_age = "0s" }
-taplo         = "latest"
-uv            = "latest"
-vhs           = "latest"
+# aube, communique and mr-boxington use the github backend instead of the
+# registry's packslip backend. packslip reads each repository's
+# .well-known/packslip.json through the GitHub API on every install, even with
+# the version locked, and every CI job spends those calls from the repository's
+# shared 5,000-an-hour GITHUB_TOKEN quota; once it runs out, every job fails at
+# `mise install`. The github backend installs from mise.lock's URLs and
+# checksums without calling the API.
+actionlint                = "latest"
+cargo-msrv                = "latest"
+cargo-release             = "latest"
+git-cliff                 = "latest"
+"github:aubepkg/aube"     = { version = "latest", minimum_release_age = "0s" }
+"github:jdx/communique"   = { version = "latest", minimum_release_age = "0s" }
+"github:jdx/mr-boxington" = { version = "latest", minimum_release_age = "0s" }
+node                      = "latest"
+pkl                       = "latest"
+prettier                  = "latest"
+ripgrep                   = "latest"
+tak                       = { version = "latest", minimum_release_age = "0s" }
+taplo                     = "latest"
+uv                        = "latest"
+vhs                       = "latest"
 
 [wrappers.cargo]
 command = "mbx"
