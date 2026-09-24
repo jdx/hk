@@ -34,7 +34,7 @@ A `check_list_files` command reports which files need changes. For example, Pret
 
 ### Check before fixing
 
-For other tools, `check_first` can run a read-only check before acquiring write locks for a fix. When checks frequently pass, this avoids unnecessary exclusive access. When nearly every file needs fixing, the extra check may cost more than it saves.
+For other tools, a step can set `check_first = true` to run a read-only check before acquiring write locks for a fix. When checks frequently pass, this avoids unnecessary exclusive access. When files need fixing, the tool runs twice, and in hk's benchmark that cost more than the locks it saved, so it's off by default.
 
 These strategies affect orchestration overhead. Actual speed depends on your linters, file overlap, number of changed files, and available CPU cores. See the [benchmarks](/benchmarks) for a reproducible workload and its limitations.
 

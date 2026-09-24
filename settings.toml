@@ -60,11 +60,9 @@ default = true
 sources.env = ["HK_CHECK_FIRST"]
 sources.git = ["hk.checkFirst"]
 docs = """
-If enabled, hk will run check commands first, then run fix commands only if the check fails when there are multiple linters with the same file in matching glob patterns.
+Allows steps that set `check_first = true` to run their check command before fixing, when another step writes the same files. The check runs under a read lock alongside other checks, and the fix runs only if the check fails.
 
-The reason for this optimization is to maximize parallelization. We can have multiple check commands running in parallel against the same file without interference, but we can't have 2 fix commands potentially writing to the same file simultaneously.
-
-If disabled, hk will use simpler logic that just runs fix commands in series in this situation.
+Steps don't check first unless they set `check_first = true`: when files need fixing, the tool runs twice. Set this to `false` to turn the optimization off for every step.
 """
 
 [display_skip_reasons]

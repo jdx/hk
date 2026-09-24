@@ -233,7 +233,8 @@ pub struct Step {
     /// Expression that must evaluate to true for step to run
     pub step_condition: Option<String>,
 
-    /// Run check command before fix to identify files needing changes
+    /// Run check command before fix to identify files needing changes. See
+    /// [`Step::check_first`] for the effective value.
     #[serde(default)]
     pub check_first: bool,
 
@@ -456,6 +457,14 @@ pub(crate) enum RenderedCommand {
 }
 
 impl Command {
+    /// The command itself, without a [`CommandSpec`]'s declared effect.
+    fn without_effect(&self) -> &Command {
+        match self {
+            Self::Spec(spec) => spec.command.without_effect(),
+            other => other,
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
             Self::Spec(spec) => spec.command.is_empty(),
@@ -884,5 +893,17 @@ mod tests {
 
         assert_eq!(script.to_string(), "");
         assert!(script.to_string().trim().is_empty());
+    }
+}
+
+impl Step {
+    /// Whether this step runs its check before its fix when another step writes
+    /// the same files: when it sets `check_first`, and always when its `check`
+    /// and `fix` are the same command. A pre-commit-style fixer exits 1 after
+    /// fixing, and the second run is what lets it pass.
+    pub fn check_first(&self) -> bool {
+        self.check_first
+            || matches!((&self.check, &self.fix),
+                (Some(check), Some(fix)) if check.without_effect() == fix.without_effect())
     }
 }

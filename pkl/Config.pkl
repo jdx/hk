@@ -546,8 +546,20 @@ open class Step {
   /// [`HK_FIX=0`](https://hk.jdx.dev/environment_variables#hk-fix) or running `hk run <HOOK> --check`.
   fix: (String | Script | Command | CommandSpec)?
 
-  /// If true, hk will run the check step first and only run the fix step if the check step fails.
-  check_first: Boolean = true
+  /// Default: `false`
+  ///
+  /// If true, and another step writes the same files, hk runs this step's `check` under a read
+  /// lock before fixing, and only runs `fix` if the check fails. A passing check then avoids a
+  /// write lock. When files need fixing, the tool runs twice, which usually costs more than the
+  /// lock it saves, so it's off by default. Consider it for a slow fixer whose files usually pass.
+  ///
+  /// A step whose `check` and `fix` are the same command, as in steps migrated from pre-commit,
+  /// always checks first: such a fixer exits 1 after fixing, and the second run is what lets it pass.
+  ///
+  /// Some steps check first whatever this is set to: a step with `check_diff` in fix mode, so it
+  /// can apply the diff instead of running `fix`, and a step with `check_diff` or
+  /// `check_list_files` that stages its own files (the default `stage`), to learn which files to stage.
+  check_first: Boolean = false
 
   /// Default: `false`
   ///
