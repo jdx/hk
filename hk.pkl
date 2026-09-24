@@ -44,7 +44,10 @@ local linters = new Mapping<String, Step | Group> {
   ["taplo"] = (Builtins.taplo) {
     glob = "settings.toml"
   }
-  ["taplo-format"] = Builtins.taplo_format
+  ["taplo-format"] = (Builtins.taplo_format) {
+    // mise writes these per-tool lockfiles; keep them as generated.
+    exclude = "**/.mise/locks/**"
+  }
   ["docs"] = new Step {
     glob = "docs/**"
     check = "mise run docs:build"

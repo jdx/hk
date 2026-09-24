@@ -1,0 +1,12 @@
+#!/bin/sh
+# Runs a hook manager and treats "fixed some files" as success.
+#
+# pre-commit and prek exit 1 whenever a hook modifies files, and tak discards a
+# subject whose command fails. Every subject in a fix scenario goes through
+# this wrapper so they all pay the same few hundred microseconds for it.
+# Exit 1 is not trusted blindly: verify.py re-runs each subject and fails the
+# run unless the result is byte-identical to the fixture's clean commit.
+"$@"
+status=$?
+[ "$status" -le 1 ] && exit 0
+exit "$status"

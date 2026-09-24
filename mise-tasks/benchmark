@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-#MISE tools = { lefthook = "latest", "pre-commit" = "latest" }
+#MISE description="Benchmark hk against lefthook, pre-commit and prek (see benchmark/)"
+#MISE dir="{{config_root}}"
+set -euo pipefail
 
-set -eu
-
-./benchmark/benchmark.sh
+exec benchmark/run.sh "$@"

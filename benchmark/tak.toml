@@ -1,0 +1,130 @@
+# hk against other hook managers, measured by tak (https://github.com/jdx/tak).
+#
+# This file is separate from the repository's root tak.toml on purpose. That
+# one records hk's own instruction counts on every push to main; this one
+# compares wall time against other programs and needs a generated fixture and
+# the toolset in ./mise.toml. tak finds the nearest tak.toml, so run it from
+# this directory: `mise run benchmark` does.
+#
+# Every subject runs the same ten fixers over the same ~6,000-file project (see
+# generate-project.sh). Each subject has its own clone of it under .work/,
+# created by setup.sh. tak takes one sample of every subject per round, in a new
+# random order each round, so machine drift is shared rather than blamed on
+# whichever tool happened to be running.
+#
+# Wall time says nothing about whether a run produced the right files, so
+# verify.py runs every subject in every scenario again and checks the result
+# against the fixture's clean commit. report.py refuses to publish a run whose
+# verification is missing.
+
+[env]
+# The default deny list, plus anything that would let the user's own setup
+# leak into the measurement.
+deny = ["GITHUB_TOKEN", "GH_TOKEN", "HK_FILE", "HK_JOBS", "LEFTHOOK", "LEFTHOOK_CONFIG", "PRE_COMMIT_HOME", "PREK_HOME"]
+
+# --- Fix every file ------------------------------------------------------------
+# A quarter of the files have formatting defects; each defective file needs two
+# or three fixers to write it. This is `hk fix --all` after pulling a big
+# reformat, or a first run on an existing codebase.
+[bench.fix-all]
+env     = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
+prepare = ["sh", "-c", "git reset -q --hard dirty && git clean -qfd"]
+runs    = 10
+warmup  = 1
+
+[bench.fix-all.subject.hk]
+cmd = ["./lib/allow-fixes", "hk", "fix", "--all"]
+dir = ".work/hk"
+
+[bench.fix-all.subject.lefthook]
+cmd  = ["./lib/allow-fixes", "lefthook", "run", "fix", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+dir  = ".work/lefthook"
+runs = 5
+
+[bench.fix-all.subject.lefthook-parallel]
+cmd = ["./lib/allow-fixes", "lefthook", "run", "fix", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+dir = ".work/lefthook-parallel"
+
+[bench.fix-all.subject.pre-commit]
+cmd  = ["./lib/allow-fixes", "pre-commit", "run", "--all-files"]
+dir  = ".work/pre-commit"
+runs = 5
+
+[bench.fix-all.subject.prek]
+cmd  = ["./lib/allow-fixes", "prek", "run", "--all-files"]
+dir  = ".work/prek"
+runs = 5
+
+[bench.fix-all.subject.prek-parallel]
+cmd = ["./lib/allow-fixes", "prek", "run", "--all-files"]
+dir = ".work/prek-parallel"
+
+# --- Check every file ----------------------------------------------------------
+# Every file is already clean and nothing writes, so running linters
+# concurrently is safe for every tool; the parallel lefthook and prek
+# configurations are fair here. This is CI, or `hk check --all`.
+[bench.check-all]
+env     = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
+prepare = ["sh", "-c", "git reset -q --hard clean && git clean -qfd"]
+runs    = 10
+warmup  = 1
+
+[bench.check-all.subject.hk]
+cmd = ["hk", "check", "--all"]
+dir = ".work/hk"
+
+[bench.check-all.subject.lefthook]
+cmd = ["lefthook", "run", "check", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+dir = ".work/lefthook"
+
+[bench.check-all.subject.lefthook-parallel]
+cmd = ["lefthook", "run", "check", "--all-files", "--force", "--no-tty", "--no-auto-install"]
+dir = ".work/lefthook-parallel"
+
+[bench.check-all.subject.pre-commit]
+cmd  = ["pre-commit", "run", "--all-files", "--hook-stage", "manual"]
+dir  = ".work/pre-commit"
+runs = 5
+
+[bench.check-all.subject.prek]
+cmd  = ["prek", "run", "--all-files", "--hook-stage", "manual"]
+dir  = ".work/prek"
+runs = 5
+
+[bench.check-all.subject.prek-parallel]
+cmd = ["prek", "run", "--all-files", "--hook-stage", "manual"]
+dir = ".work/prek-parallel"
+
+# --- Commit ---------------------------------------------------------------------
+# About 60 staged files with defects, fixed by each tool's pre-commit hook: the
+# everyday case. hk and lefthook stage their fixes; pre-commit and prek leave
+# them unstaged and fail the commit, which is their design.
+[bench.fix-staged]
+env     = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
+prepare = ["sh", "-c", "git reset -q --hard clean && git clean -qfd && git checkout -q dirty --pathspec-from-file=.git/staged-files"]
+runs    = 20
+warmup  = 2
+
+[bench.fix-staged.subject.hk]
+cmd = ["./lib/allow-fixes", "hk", "run", "pre-commit"]
+dir = ".work/hk"
+
+[bench.fix-staged.subject.lefthook]
+cmd = ["./lib/allow-fixes", "lefthook", "run", "pre-commit", "--no-tty", "--no-auto-install"]
+dir = ".work/lefthook"
+
+[bench.fix-staged.subject.lefthook-parallel]
+cmd = ["./lib/allow-fixes", "lefthook", "run", "pre-commit", "--no-tty", "--no-auto-install"]
+dir = ".work/lefthook-parallel"
+
+[bench.fix-staged.subject.pre-commit]
+cmd = ["./lib/allow-fixes", "pre-commit", "run"]
+dir = ".work/pre-commit"
+
+[bench.fix-staged.subject.prek]
+cmd = ["./lib/allow-fixes", "prek", "run"]
+dir = ".work/prek"
+
+[bench.fix-staged.subject.prek-parallel]
+cmd = ["./lib/allow-fixes", "prek", "run"]
+dir = ".work/prek-parallel"

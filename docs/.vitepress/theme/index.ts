@@ -3,6 +3,7 @@ import type { Theme } from "vitepress";
 import DefaultTheme from "vitepress/theme-without-fonts";
 import Layout from "./Layout.vue";
 import HomePage from "./HomePage.vue";
+import BenchmarkResults from "./BenchmarkResults.vue";
 import { initBanner } from "./banner";
 import { data as starsData } from "../stars.data";
 import "./style.css";
@@ -12,6 +13,7 @@ export default {
   Layout,
   enhanceApp({ app }) {
     app.component("HomePage", HomePage);
+    app.component("BenchmarkResults", BenchmarkResults);
     initBanner();
   },
   setup() {

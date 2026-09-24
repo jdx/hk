@@ -1,0 +1,23 @@
+# Toolset for the competitor benchmark (see README.md in this directory).
+#
+# Everything a subject runs is pinned here so a refresh changes one variable at
+# a time: bump a hook manager and only its bars should move. The linters are the
+# workload, not the subject, so they are pinned too — a faster ruff would make
+# every tool look faster and shrink the gaps the page reports.
+[tools]
+"github:jdx/tak" = "v0.0.11"
+jq               = "1.8.2"
+lefthook         = "2.1.14"
+node             = "26.10.0"
+"npm:eslint"     = "10.11.0"
+"npm:prettier"   = "3.9.9"
+pre-commit       = "4.6.2"
+prek             = "0.5.3"
+# pre-commit is a Python zipapp; without a pinned interpreter it would start
+# through a mise shim, which rewrites PATH for the fixture directory.
+"pipx:black" = "26.5.1"
+python       = "3.14.7"
+ruff         = "0.16.8"
+shfmt        = "3.14.1"
+uv           = "0.12.18"
+yq           = "4.53.6"
