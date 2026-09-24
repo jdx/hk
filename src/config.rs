@@ -2,6 +2,7 @@ use indexmap::IndexMap;
 use indexmap::IndexSet;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::collections::{BTreeMap, BTreeSet};
 use std::future::Future;
 use std::path::{Path, PathBuf};
 
@@ -38,11 +39,13 @@ impl Config {
         Ok(config)
     }
 
+    /// Also returns every environment variable the evaluation read, with the
+    /// value it saw.
     #[tracing::instrument(level = "info", name = "config.read", skip_all, fields(path = %path.display()))]
-    fn read(path: &Path, apply_env: bool) -> Result<Self> {
+    fn read(path: &Path, apply_env: bool) -> Result<(Self, EnvReads)> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap();
-        let mut config: Config = match ext {
-            "pkl" => run_pklr(path)?,
+        let (mut config, env_reads): (Config, _) = match ext {
+            "pkl" => eval_pklr(path)?,
             "toml" | "yaml" | "yml" | "json" => bail!(
                 "{} configuration was removed in hk v2; convert {} to hk.pkl and amend Config.pkl\n\nSee {}",
                 ext.to_uppercase(),
@@ -54,7 +57,7 @@ impl Config {
             ),
         };
         config.init(path, apply_env)?;
-        Ok(config)
+        Ok((config, env_reads))
     }
 
     /// Analyze pkl imports to get all transitive dependencies.
@@ -80,6 +83,7 @@ impl Config {
             glob_imports,
             glob_matches,
             sources_digest,
+            env_names: BTreeSet::new(),
         })
     }
 
@@ -304,7 +308,7 @@ impl Config {
         if env::HK_FILE.is_none()
             && let Some(path) = Self::find_project_config(&Self::legacy_project_config_paths())
         {
-            return Self::read(&path, true);
+            return Ok(Self::read(&path, true)?.0);
         }
         debug!("No config file found, using default");
         let mut config = Config::default();
@@ -436,7 +440,7 @@ impl Config {
         // For pkl files, we need to track all transitive imports for cache invalidation
         let is_pkl = path.extension().is_some_and(|ext| ext == "pkl");
 
-        let (fresh_files, has_untracked_imports): (Vec<PathBuf>, bool) = if is_pkl {
+        let (fresh_files, has_untracked_imports, imports_cache) = if is_pkl {
             // First, get the imports (cached separately, invalidated only by the main config file)
             let imports_cache_path =
                 cache_dir.join(format!("{}-imports.json", hash::hash_to_str(&path)));
@@ -454,7 +458,10 @@ impl Config {
             // hk.pkl itself is unchanged.
             if import_analysis.is_stale(&path) {
                 tracing::event!(tracing::Level::INFO, "cache.imports_changed");
-                import_analysis = Self::analyze_imports(&path)?;
+                import_analysis = ImportAnalysis {
+                    env_names: import_analysis.env_names,
+                    ..Self::analyze_imports(&path)?
+                };
                 if let Err(err) = imports_cache_mgr.write(&import_analysis) {
                     warn!("failed to write imports cache file: {err:#}");
                 }
@@ -465,14 +472,19 @@ impl Config {
             // Always include the main config file. pklr's analyze_imports does
             // not include the source file in its output, so without this edits
             // to hk.pkl would not invalidate the cache.
-            let mut files: IndexSet<PathBuf> = import_analysis.local_paths;
+            let mut files: IndexSet<PathBuf> = import_analysis.local_paths.clone();
             files.insert(path.clone());
-            (files.into_iter().collect(), has_untracked_imports)
+            (
+                files.into_iter().collect::<Vec<_>>(),
+                has_untracked_imports,
+                Some((imports_cache_mgr, import_analysis)),
+            )
         } else {
-            (vec![path.clone()], false)
+            (vec![path.clone()], false, None)
         };
 
-        // Build the config cache with all fresh files (imports + main config)
+        // Key the config cache on all fresh files (imports + main config) and
+        // on the env vars the config reads
         let config_cache_path = if has_untracked_imports || !is_root {
             cache_dir.join(hash_key)
         } else {
@@ -480,21 +492,50 @@ impl Config {
         };
         let config_cache_builder = CacheManagerBuilder::new(config_cache_path)
             .with_cache_key(pkl_http_rewrite_cache_key());
-        let config_cache_mgr = if has_untracked_imports {
+        let config_cache_builder = if has_untracked_imports {
             config_cache_builder.with_fresh_files(fresh_files)
         } else {
             config_cache_builder.with_content_fresh_files(fresh_files)
         }
-        .build::<Config>();
+        .hash_fresh_files();
+        let build_config_cache_mgr = |env: &EnvReads| {
+            config_cache_builder
+                .clone()
+                .with_cache_key(env_cache_key(env))
+                .build::<Config>()
+        };
+        // Read the way pklr reads them, and before evaluation: a root config
+        // exports its `env` during `read`, overwriting what the evaluation saw.
+        let mut env_values: EnvReads = imports_cache
+            .iter()
+            .flat_map(|(_, import_analysis)| &import_analysis.env_names)
+            .map(|name| (name.clone(), std::env::var(name).ok()))
+            .collect();
 
         // Load from cache if fresh; otherwise read from disk. In both cases, run init
         // to apply side-effects (env vars, settings, warnings) that are not stored in cache.
-        let mut config = config_cache_mgr
-            .get_or_try_init(|| {
-                Self::read(&path, is_root)
-                    .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))
-            })?
-            .clone();
+        let mut config = match build_config_cache_mgr(&env_values).get() {
+            Some(config) => config,
+            None => {
+                let (config, env_reads) = Self::read(&path, is_root)
+                    .wrap_err_with(|| format!("Failed to read config file: {}", path.display()))?;
+                // Keyed on every variable the evaluation read, so a later lookup
+                // hits only while all of them keep these values.
+                env_values.extend(env_reads);
+                if let Err(err) = build_config_cache_mgr(&env_values).write(&config) {
+                    warn!("failed to write config cache file: {err:#}");
+                }
+                if let Some((imports_cache_mgr, mut import_analysis)) = imports_cache
+                    && env_values.len() > import_analysis.env_names.len()
+                {
+                    import_analysis.env_names = env_values.into_keys().collect();
+                    if let Err(err) = imports_cache_mgr.write(&import_analysis) {
+                        warn!("failed to write imports cache file: {err:#}");
+                    }
+                }
+                config
+            }
+        };
         config.init(&path, is_root)?;
         Ok(config)
     }
@@ -961,6 +1002,14 @@ fn embedded_pkl_package_url() -> String {
 }
 
 fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    Ok(eval_pklr(path)?.0)
+}
+
+/// Environment variables an evaluation read, with the value it saw; `None`
+/// when unset.
+type EnvReads = BTreeMap<String, Option<String>>;
+
+fn eval_pklr<T: DeserializeOwned>(path: &Path) -> Result<(T, EnvReads)> {
     let client = build_pklr_http_client()?;
     let http_rewrites = env::HK_PKL_HTTP_REWRITE
         .as_deref()
@@ -977,9 +1026,20 @@ fn run_pklr<T: DeserializeOwned>(path: &Path) -> Result<T> {
         evaluator =
             evaluator.preload_package(embedded_pkl_package_url(), "zip", EMBEDDED_PKL_PACKAGE);
     }
-    let json = block_on_pklr(evaluator.eval_to_json(path))?
+    let outcome = block_on_pklr(evaluator.eval(path))?
         .map_err(|e| handle_pklr_eval_error(&e.to_string(), path))?;
-    serde_json::from_value(json).map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))
+    let value = serde_json::from_value(outcome.json)
+        .map_err(|e| handle_pklr_deserialize_error(&e.to_string(), path))?;
+    Ok((value, outcome.env_reads))
+}
+
+/// Keeps an unset variable distinct from an empty one. The values only ever
+/// reach the cache file name as part of its hash.
+fn env_cache_key(env: &EnvReads) -> String {
+    env.iter()
+        .map(|(name, value)| format!("env:{name}={value:?}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn pkl_http_rewrite_cache_key() -> String {
@@ -1325,6 +1385,10 @@ struct ImportAnalysis {
     /// Digest of every source in the module graph when this analysis ran.
     #[serde(default)]
     sources_digest: String,
+    /// Environment variables that evaluations of this config have read. The
+    /// config cache key includes their values; only names are stored here.
+    #[serde(default)]
+    env_names: BTreeSet<String>,
 }
 
 impl ImportAnalysis {
@@ -1936,6 +2000,7 @@ mod tests {
             has_untracked_imports: false,
             glob_imports: globs,
             glob_matches,
+            env_names: BTreeSet::new(),
         }
     }
 
@@ -2004,5 +2069,39 @@ mod tests {
 
         let a = analysis(&root, &[], vec![]);
         assert!(!a.is_stale(&root));
+    }
+
+    #[test]
+    fn eval_pklr_reports_env_values_read_including_misses() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("env.pkl");
+        let unset = format!("HK_TEST_UNSET_{}", std::process::id());
+        std::fs::write(
+            &path,
+            format!("path = read(\"env:PATH\")\nmissing = read?(\"env:{unset}\")\n"),
+        )
+        .unwrap();
+
+        let (_, env_reads): (serde_json::Value, _) = eval_pklr(&path).unwrap();
+        assert_eq!(
+            env_reads,
+            BTreeMap::from([
+                (unset, None),
+                ("PATH".to_string(), std::env::var("PATH").ok()),
+            ])
+        );
+    }
+
+    #[test]
+    fn env_cache_key_distinguishes_values_and_unset_from_empty() {
+        let key = |value: Option<&str>| {
+            env_cache_key(&BTreeMap::from([(
+                "HK_TEST_VAR".to_string(),
+                value.map(String::from),
+            )]))
+        };
+        assert_eq!(key(Some("a")), key(Some("a")));
+        assert_ne!(key(Some("a")), key(Some("b")));
+        assert_ne!(key(None), key(Some("")));
     }
 }
