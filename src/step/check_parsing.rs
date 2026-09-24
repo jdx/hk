@@ -20,6 +20,52 @@ pub(crate) struct DiffFiles {
     pub extras: Vec<PathBuf>,
 }
 
+/// Resolve a path from check command stdout to the job file(s) it names.
+///
+/// When a step runs with `dir` configured (such as in a subproject), commands
+/// typically output paths relative to their working directory (`dir`).
+///
+/// If `dir` is set:
+/// 1. If `original_files` contains `dir/p`, `p`, or both, every one it
+///    contains is a match: a job can hold both `src/App.ts` and
+///    `frontend/src/App.ts`, and a report of `src/App.ts` must not silently
+///    drop the root file in favor of the subproject one (or vice versa).
+/// 2. Otherwise, if `dir/p` exists on disk, use it (even if a file with the
+///    same relative path exists at the repo root).
+/// 3. Otherwise, if `p` exists on disk at the repo root, use it.
+/// 4. Default to `p` because unrecognized paths should be reported as output by the tool.
+fn resolve_path(raw: &str, dir: Option<&str>, original_files: &HashSet<&Path>) -> Vec<PathBuf> {
+    let p = Path::new(raw);
+    if p.as_os_str().is_empty() {
+        return vec![PathBuf::new()];
+    }
+    let p = p.strip_prefix("./").unwrap_or(p);
+    if p.is_absolute() {
+        return vec![p.to_path_buf()];
+    }
+    let Some(dir) = dir.filter(|d| !d.is_empty() && *d != ".") else {
+        return vec![p.to_path_buf()];
+    };
+
+    let in_dir = Path::new(dir).join(p);
+
+    let matches: Vec<PathBuf> = [in_dir.as_path(), p]
+        .into_iter()
+        .filter(|candidate| original_files.contains(candidate))
+        .map(Path::to_path_buf)
+        .collect();
+    if !matches.is_empty() {
+        return matches;
+    }
+    if in_dir.exists() {
+        return vec![in_dir];
+    }
+    if p.exists() {
+        return vec![p.to_path_buf()];
+    }
+    vec![p.to_path_buf()]
+}
+
 /// Attempt to canonicalize a path, falling back to the original if it fails.
 ///
 /// This is useful for comparing paths that may have been deleted or renamed,
@@ -29,7 +75,7 @@ pub(crate) fn try_canonicalize(path: &PathBuf) -> PathBuf {
         Ok(p) => p,
         Err(err) => {
             warn!("failed to canonicalize file: {} {err}", display_path(path));
-            path.to_path_buf()
+            path.clone()
         }
     }
 }
@@ -38,9 +84,11 @@ impl Step {
     /// Parse check_list_files output to extract files needing fixes.
     ///
     /// The command outputs one file path per line. This function:
-    /// 1. Parses each line as a file path
-    /// 2. Canonicalizes paths for comparison
-    /// 3. Filters to only include files from the original input
+    /// 1. Parses each line as a file path, resolving relative to `dir` (or `self.dir` if not templated) if needed
+    /// 2. Matches each resulting path against the job's files as written,
+    ///    falling back to canonical-path comparison only where that finds no
+    ///    match (see [`match_listed_files`]), so naming a symlink doesn't also
+    ///    select its target
     ///
     /// # Arguments
     ///
@@ -61,38 +109,23 @@ impl Step {
         stdout: &str,
         dir: Option<&str>,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
-        let originals: HashSet<PathBuf> = original_files.iter().map(try_canonicalize).collect();
-        let mut listed: HashSet<PathBuf> = HashSet::new();
-        let mut extras: IndexSet<PathBuf> = IndexSet::new();
-        for line in stdout.lines() {
-            let path = PathBuf::from(line);
-            let in_dir = dir
-                .filter(|_| path.is_relative())
-                .map(|dir| Path::new(dir).join(&path))
-                .filter(|path| path.symlink_metadata().is_ok());
-            let mut candidates: Vec<PathBuf> = in_dir.iter().map(try_canonicalize).collect();
-            candidates.push(if path.symlink_metadata().is_ok() {
-                try_canonicalize(&path)
+        let dir = dir.or_else(|| {
+            if self.dir_is_templated() {
+                None
             } else {
-                path.clone()
-            });
-            let matched: Vec<PathBuf> = candidates
-                .iter()
-                .filter(|path| originals.contains(*path))
-                .cloned()
-                .collect();
-            if !matched.is_empty() {
-                listed.extend(matched);
-            } else {
-                extras.extend(candidates.into_iter().next());
+                self.dir.as_deref()
             }
-        }
-        let files: Vec<PathBuf> = original_files
-            .iter()
-            .filter(|f| listed.contains(&try_canonicalize(f)))
-            .cloned()
+        });
+        let original_set: HashSet<&Path> = original_files.iter().map(|p| p.as_path()).collect();
+        // Each line's readings are matched as written before any canonical
+        // fallback (see `match_listed_files`), so naming a symlink selects
+        // only that symlink even when its target is also a job file.
+        let readings: Vec<Vec<PathBuf>> = stdout
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|p| resolve_path(p, dir, &original_set))
             .collect();
-        (files, extras.into_iter().collect())
+        match_listed_files(original_files, &readings)
     }
 
     /// Parse unified diff output to extract files needing fixes.
@@ -521,5 +554,127 @@ mod tests {
         assert_eq!(parsed.files, vec![PathBuf::from("sub/existing.txt")]);
         assert_eq!(parsed.created, vec![PathBuf::from("b/new.txt")]);
         assert!(parsed.extras.is_empty());
+    }
+
+    #[test]
+    fn test_filter_files_from_check_list_subproject() {
+        let mut step = Step::default();
+        step.dir = Some("frontend".to_string());
+        let original_files = vec![
+            PathBuf::from("frontend/src/App.tsx"),
+            PathBuf::from("frontend/src/index.ts"),
+        ];
+        let stdout = "src/App.tsx\n";
+        let (files, extras) = step.filter_files_from_check_list(&original_files, stdout, None);
+        assert_eq!(files, vec![PathBuf::from("frontend/src/App.tsx")]);
+        assert_eq!(extras, Vec::<PathBuf>::new());
+    }
+
+    #[test]
+    fn test_filter_files_from_check_list_subproject_with_dot_slash() {
+        let mut step = Step::default();
+        step.dir = Some("frontend".to_string());
+        let original_files = vec![
+            PathBuf::from("frontend/src/App.tsx"),
+            PathBuf::from("frontend/src/index.ts"),
+        ];
+        let stdout = "./src/App.tsx\n";
+        let (files, extras) = step.filter_files_from_check_list(&original_files, stdout, None);
+        assert_eq!(files, vec![PathBuf::from("frontend/src/App.tsx")]);
+        assert_eq!(extras, Vec::<PathBuf>::new());
+    }
+
+    #[test]
+    fn test_filter_files_from_check_list_root_file_does_not_hide_subproject_file() {
+        let mut step = Step::default();
+        step.dir = Some("frontend".to_string());
+        let original_files = vec![PathBuf::from("frontend/src/App.ts")];
+        let stdout = "src/App.ts\n";
+        let (files, extras) = step.filter_files_from_check_list(&original_files, stdout, None);
+        assert_eq!(files, vec![PathBuf::from("frontend/src/App.ts")]);
+        assert_eq!(extras, Vec::<PathBuf>::new());
+    }
+
+    #[test]
+    fn test_filter_files_from_check_list_ambiguous_path_matches_both_job_files() {
+        // The job holds both a root file and a subproject file that share the
+        // same relative path. A report of the ambiguous path must match both,
+        // not just the one under `dir`, or the root file is silently dropped.
+        let mut step = Step::default();
+        step.dir = Some("frontend".to_string());
+        let original_files = vec![
+            PathBuf::from("src/App.ts"),
+            PathBuf::from("frontend/src/App.ts"),
+        ];
+        let stdout = "src/App.ts\n";
+        let (mut files, extras) = step.filter_files_from_check_list(&original_files, stdout, None);
+        files.sort();
+        assert_eq!(
+            files,
+            vec![
+                PathBuf::from("frontend/src/App.ts"),
+                PathBuf::from("src/App.ts"),
+            ]
+        );
+        assert_eq!(extras, Vec::<PathBuf>::new());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_filter_files_from_check_list_selects_only_the_alias_it_names_as_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target.txt");
+        let link = dir.path().join("link.txt");
+        std::fs::write(&target, "x").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let step = Step::default();
+        let job_files = [link.clone(), target.clone()];
+
+        // With a symlink and its target both in the job (only possible with
+        // `allow_symlinks`), a report naming one of them as written selects
+        // only that one, not both via canonical-path matching.
+        let stdout = format!("{}\n", link.display());
+        let (files, extras) = step.filter_files_from_check_list(&job_files, &stdout, None);
+        assert_eq!(files, vec![link]);
+        assert!(extras.is_empty(), "{extras:?}");
+    }
+
+    #[test]
+    fn test_filter_files_from_check_list_templated_dir() {
+        let mut step = Step::default();
+        step.dir = Some("{{workspace}}".to_string());
+        let original_files = vec![PathBuf::from("pkgs/api/main.go")];
+        let stdout = "main.go\n";
+        let (files, extras) =
+            step.filter_files_from_check_list(&original_files, stdout, Some("pkgs/api"));
+        assert_eq!(files, vec![PathBuf::from("pkgs/api/main.go")]);
+        assert_eq!(extras, Vec::<PathBuf>::new());
+    }
+
+    #[test]
+    fn test_filter_files_from_check_list_preserves_filename_whitespace() {
+        let step = Step::default();
+        let original_files = vec![
+            PathBuf::from(" file_with_leading_space.txt"),
+            PathBuf::from("file_with_trailing_space.txt "),
+        ];
+        let stdout = " file_with_leading_space.txt\nfile_with_trailing_space.txt \n\n";
+        let (files, extras) = step.filter_files_from_check_list(&original_files, stdout, None);
+        assert_eq!(files, original_files);
+        assert_eq!(extras, Vec::<PathBuf>::new());
+    }
+
+    #[test]
+    fn test_filter_files_from_check_list_subproject_preserves_filename_whitespace() {
+        let mut step = Step::default();
+        step.dir = Some("frontend".to_string());
+        let original_files = vec![
+            PathBuf::from("frontend/ file_with_leading_space.txt"),
+            PathBuf::from("frontend/file_with_trailing_space.txt "),
+        ];
+        let stdout = " file_with_leading_space.txt\nfile_with_trailing_space.txt \n";
+        let (files, extras) = step.filter_files_from_check_list(&original_files, stdout, None);
+        assert_eq!(files, original_files);
+        assert_eq!(extras, Vec::<PathBuf>::new());
     }
 }
