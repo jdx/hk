@@ -399,6 +399,20 @@ fn get_types_by_extension(ext: &str) -> Option<HashSet<String>> {
             types.insert("less".to_string());
         }
 
+        // Frontend component formats
+        "svelte" => {
+            types.insert("text".to_string());
+            types.insert("svelte".to_string());
+        }
+        "vue" => {
+            types.insert("text".to_string());
+            types.insert("vue".to_string());
+        }
+        "astro" => {
+            types.insert("text".to_string());
+            types.insert("astro".to_string());
+        }
+
         // Config files
         "ini" | "cfg" | "conf" => {
             types.insert("text".to_string());
@@ -624,6 +638,40 @@ mod tests {
         let types = get_file_types(file.path());
         assert!(types.contains("binary"));
         assert!(!types.contains("text"));
+    }
+
+    #[test]
+    fn test_frontend_component_extensions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let fixtures = [
+            ("App.svelte", "svelte", "<script lang=\"ts\">\n</script>\n"),
+            ("App.vue", "vue", "<script setup>\n</script>\n"),
+            ("Page.astro", "astro", "---\nconst title = 'hi';\n---\n"),
+        ];
+        let mut files = Vec::new();
+        for (name, _, content) in fixtures {
+            let path = temp_dir.path().join(name);
+            std::fs::write(&path, content).unwrap();
+            files.push(path);
+        }
+        let unrelated = temp_dir.path().join("util.ts");
+        std::fs::write(&unrelated, "export const value = 1;\n").unwrap();
+        files.push(unrelated);
+
+        for (name, tag, _) in fixtures {
+            let path = temp_dir.path().join(name);
+            let types = get_file_types(&path);
+            assert!(types.contains("text"), "{name}: got {types:?}");
+            assert!(types.contains(tag), "{name}: got {types:?}");
+            assert!(!types.contains("binary"), "{name}: got {types:?}");
+            assert!(!types.contains("html"), "{name}: got {types:?}");
+
+            let step = crate::step::Step {
+                types: Some(vec![tag.to_string()]),
+                ..Default::default()
+            };
+            assert_eq!(step.filter_files(&files).unwrap(), vec![path], "{name}");
+        }
     }
 
     #[test]

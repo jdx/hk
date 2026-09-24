@@ -393,6 +393,7 @@ open class Step {
   /// - **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
   /// - **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`, 'pkl'
   /// - **Markup:** `html`, `markdown`, `css`, 'asciidoc'
+  /// - **Components:** `svelte`, `vue`, `astro`
   /// - **Special:** `text`, `binary`, `executable`, `symlink`, `dockerfile`
   /// - **Images:** `image`, `png`, `jpeg`, `gif`, `svg`, `webp`
   /// - **Archives:** `archive`, `zip`, `tar`, `gzip`
