@@ -30,10 +30,8 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 declare -A CONFIG=(
     [hk]=hk
     [lefthook]=lefthook
-    [lefthook-parallel]=lefthook-parallel
     [pre-commit]=pre-commit
     [prek]=pre-commit
-    [prek-parallel]=prek-parallel
 )
 
 if [ -z "${HK_PKL:-}" ]; then
@@ -95,9 +93,8 @@ done
 
 # Install pre-commit-hooks for pre-commit and prek outside the timed runs, as a
 # developer would have before their first commit.
-for subject in pre-commit prek prek-parallel; do
-    cd "$WORK/$subject"
-    tool=${subject%-parallel}
+for tool in pre-commit prek; do
+    cd "$WORK/$tool"
     if [ "$tool" = prek ]; then cmd=prepare-hooks; else cmd=install-hooks; fi
     PRE_COMMIT_HOME=.git/cache PREK_HOME=.git/cache "$tool" "$cmd" >/dev/null
 done

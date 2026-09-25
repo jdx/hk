@@ -17,19 +17,17 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 **Scenarios.**
 
 - **Fix every file**: `hk fix --all` and equivalents, starting from `dirty`.
-- **Check every file**: a read-only check of the whole `clean` tree, as in CI. Nothing writes, so running in parallel is safe for every tool here.
+- **Check every file**: a read-only check of the whole `clean` tree, as in CI.
 - **Commit**: about 60 files with defects are staged and each tool's pre-commit hook fixes them. hk and lefthook stage their fixes. pre-commit and prek leave them unstaged and fail the commit, which is how they are designed to work.
 
-**Tools and modes.** Each tool runs as its documented configuration allows:
+**Tools and modes.** Each tool runs in a configuration that is safe by design:
 
-| Tool       | Mode                        | Concurrency                                                                                                                                      |
-| ---------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| hk         | builtins, defaults          | Steps run in parallel. Per-file read and write locks keep two fixers from writing one file at once.                                              |
-| lefthook   | sequential (its default)    | One job at a time.                                                                                                                               |
-| lefthook   | `parallel: true`            | Every job starts at once. Nothing coordinates writes to the same file.                                                                           |
-| pre-commit | defaults                    | One hook at a time. Each hook's files are split into batches that run across CPUs.                                                               |
-| prek       | defaults                    | Same model as pre-commit.                                                                                                                        |
-| prek       | `priority: 0` on every hook | Hooks with the same priority run concurrently. prek's documentation warns that hooks in one group writing the same files give undefined results. |
+| Tool       | Mode                     | Concurrency                                                                                         |
+| ---------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
+| hk         | builtins, defaults       | Steps run in parallel. Per-file read and write locks keep two fixers from writing one file at once. |
+| lefthook   | sequential (its default) | One job at a time.                                                                                  |
+| pre-commit | defaults                 | One hook at a time. Each hook's files are split into batches that run across CPUs.                  |
+| prek       | defaults                 | Same model as pre-commit.                                                                           |
 
 ## Keeping it fair
 
@@ -38,8 +36,9 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 - **Interleaved sampling.** Timing uses [tak](https://github.com/jdx/tak). tak takes one sample of every tool per round, in a new random order each round, so thermal throttling or a noisy neighbour is shared across tools instead of landing on whichever tool happened to be running.
 - **Same starting state.** Each tool has its own clone of the project. Before every sample, an untimed step resets the clone to the scenario's starting state. Tool caches such as ruff's and black's are left warm, as they would be on a developer's machine, and each clone keeps its own so that one tool's runs cannot evict another's entries.
 - **Hermetic Git.** Global and system Git configuration is disabled, so the benchmark host's hooks, signing, and filesystem monitor stay out of the measurements.
-- **Wins must beat the noise.** A tool is called faster only when the gap between medians is larger than both tools' ranges across samples. A configuration that produced wrong files is never the benchmark hk is compared against.
-- **No partial results.** The page shows a run only if hk and every configuration that is safe by design produced the right files in every timed sample. Otherwise the harness is broken or a tool has a bug, and neither should be published as a timing.
+- **Wins must beat the noise.** A tool is called faster only when the gap between medians is larger than both tools' ranges across samples.
+- **No partial results.** The page shows a run only if every tool produced the right files in every timed sample. Otherwise the harness is broken or a tool has a bug, and neither should be published as a timing.
+- **No racing configurations.** lefthook's `parallel: true` starts every job at once, and prek runs hooks that share a `priority` concurrently. Neither stops two fixers from writing the same file, and prek's documentation warns that doing so gives undefined results. Those modes are left out: a time for output you can't rely on isn't a result.
 
 ## What this does not measure
 

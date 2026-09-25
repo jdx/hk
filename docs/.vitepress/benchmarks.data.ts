@@ -20,7 +20,6 @@ export interface Subject {
   tool: string;
   label: string;
   mode: string;
-  safe: boolean;
 }
 
 export interface Scenario {
@@ -67,6 +66,11 @@ export default {
     const results = JSON.parse(readFileSync(resultsPath, "utf8"));
     // An unverified or failed run must never render as if it were sound.
     if (results.schema !== 2 || results.passed !== true) return null;
+    // The page presents every tool as correct, so reject a run in which one wasn't.
+    const allCorrect = (results as BenchmarkResults).scenarios.every((s) =>
+      Object.values(s.results).every((r) => r.correct.passed === r.correct.total),
+    );
+    if (!allCorrect) return null;
     return results;
   },
 };

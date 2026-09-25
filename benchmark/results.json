@@ -53,38 +53,22 @@
     "hk": {
       "tool": "hk",
       "label": "hk",
-      "mode": "parallel, file locks",
-      "safe": true
+      "mode": "parallel, file locks"
     },
     "lefthook": {
       "tool": "lefthook",
       "label": "lefthook",
-      "mode": "sequential",
-      "safe": true
-    },
-    "lefthook-parallel": {
-      "tool": "lefthook",
-      "label": "lefthook",
-      "mode": "parallel: true",
-      "safe": false
+      "mode": "sequential"
     },
     "pre-commit": {
       "tool": "pre-commit",
       "label": "pre-commit",
-      "mode": "sequential hooks, batched files",
-      "safe": true
+      "mode": "sequential hooks, batched files"
     },
     "prek": {
       "tool": "prek",
       "label": "prek",
-      "mode": "sequential hooks, batched files",
-      "safe": true
-    },
-    "prek-parallel": {
-      "tool": "prek",
-      "label": "prek",
-      "mode": "priority: 0",
-      "safe": false
+      "mode": "sequential hooks, batched files"
     }
   },
   "scenarios": [
@@ -117,18 +101,6 @@
             "total": 10
           }
         },
-        "lefthook-parallel": {
-          "mean": 7.1812,
-          "median": 7.155,
-          "stddev": 0.121,
-          "min": 7.0774,
-          "max": 7.5077,
-          "runs": 10,
-          "correct": {
-            "passed": 10,
-            "total": 10
-          }
-        },
         "pre-commit": {
           "mean": 14.4321,
           "median": 14.5795,
@@ -150,18 +122,6 @@
           "runs": 10,
           "correct": {
             "passed": 10,
-            "total": 10
-          }
-        },
-        "prek-parallel": {
-          "mean": 6.1948,
-          "median": 6.1631,
-          "stddev": 0.1699,
-          "min": 5.9898,
-          "max": 6.6174,
-          "runs": 10,
-          "correct": {
-            "passed": 0,
             "total": 10
           }
         }
@@ -196,18 +156,6 @@
             "total": 10
           }
         },
-        "lefthook-parallel": {
-          "mean": 6.7643,
-          "median": 6.7641,
-          "stddev": 0.0457,
-          "min": 6.668,
-          "max": 6.8241,
-          "runs": 10,
-          "correct": {
-            "passed": 10,
-            "total": 10
-          }
-        },
         "pre-commit": {
           "mean": 8.4469,
           "median": 8.188,
@@ -226,18 +174,6 @@
           "stddev": 2.2349,
           "min": 5.3041,
           "max": 11.3261,
-          "runs": 10,
-          "correct": {
-            "passed": 10,
-            "total": 10
-          }
-        },
-        "prek-parallel": {
-          "mean": 7.5853,
-          "median": 7.3287,
-          "stddev": 2.2929,
-          "min": 5.1253,
-          "max": 11.2353,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -275,18 +211,6 @@
             "total": 20
           }
         },
-        "lefthook-parallel": {
-          "mean": 0.4579,
-          "median": 0.4585,
-          "stddev": 0.0355,
-          "min": 0.4016,
-          "max": 0.5186,
-          "runs": 20,
-          "correct": {
-            "passed": 0,
-            "total": 20
-          }
-        },
         "pre-commit": {
           "mean": 2.4929,
           "median": 2.4887,
@@ -308,18 +232,6 @@
           "runs": 20,
           "correct": {
             "passed": 20,
-            "total": 20
-          }
-        },
-        "prek-parallel": {
-          "mean": 0.796,
-          "median": 0.7867,
-          "stddev": 0.036,
-          "min": 0.7522,
-          "max": 0.9168,
-          "runs": 20,
-          "correct": {
-            "passed": 0,
             "total": 20
           }
         }
