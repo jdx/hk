@@ -42,7 +42,7 @@ function verdict(s: Scenario): string {
   const rivals = rows(s).filter((r) => r.key !== "hk");
   if (!rivals.length) return "";
   const best = rivals[0];
-  const name = `${best.label} (${best.mode})`;
+  const name = best.label;
   if (!separated(hk, best.stats)) return `hk and ${name} are level.`;
   const ratio = best.stats.median / hk.median;
   return ratio > 1
@@ -73,6 +73,10 @@ const measured = computed(() =>
       prek {{ results.versions.prek }}.
       <a v-if="results.workflow_run" :href="results.workflow_run">Workflow run</a>
     </p>
+    <p class="bench-meta">
+      Shorter bars mean faster runs. Bars show median times; lines span the fastest
+      to slowest samples. Every tool produced the expected files in every timed sample.
+    </p>
 
     <section v-for="s in scenarios" :key="s.key" class="bench-card">
       <h3 :id="`bench-${s.key}`">{{ s.title }}</h3>
@@ -96,29 +100,24 @@ const measured = computed(() =>
             <span class="bench-bar" :style="{ width: `${(r.stats.median / scale(s)) * 100}%` }" />
           </span>
           <span class="bench-value">{{ fmt(r.stats.median) }}</span>
-          <span class="bench-ok">✓ correct</span>
         </li>
       </ul>
 
       <details>
-        <summary>Numbers</summary>
+        <summary>Timing details</summary>
         <table>
           <thead>
             <tr>
-              <th>Tool</th><th>Mode</th><th>Median</th><th>Mean ± σ</th><th>Range</th><th>Runs</th><th>Correct</th>
+              <th>Tool</th><th>Median</th><th>Mean ± standard deviation</th><th>Range</th><th>Runs</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="r in rows(s)" :key="r.key">
               <td>{{ r.label }}</td>
-              <td>{{ r.mode }}</td>
               <td>{{ fmt(r.stats.median) }}</td>
               <td>{{ fmt(r.stats.mean) }} ± {{ fmt(r.stats.stddev) }}</td>
               <td>{{ fmt(r.stats.min) }}–{{ fmt(r.stats.max) }}</td>
               <td>{{ r.stats.runs }}</td>
-              <td>
-                {{ r.stats.correct.passed }}/{{ r.stats.correct.total }}
-              </td>
             </tr>
           </tbody>
         </table>
@@ -154,7 +153,7 @@ const measured = computed(() =>
 }
 .bench-bars li {
   display: grid;
-  grid-template-columns: minmax(150px, 1.2fr) 3fr 70px minmax(150px, 1fr);
+  grid-template-columns: minmax(150px, 1fr) 3fr 70px;
   align-items: center;
   gap: 12px;
   margin: 8px 0;
@@ -185,6 +184,7 @@ const measured = computed(() =>
 }
 .bench-whisker {
   position: absolute;
+  z-index: 1;
   top: 8px;
   height: 2px;
   background: var(--vp-c-text-2);
@@ -193,15 +193,11 @@ const measured = computed(() =>
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
-.bench-ok {
-  color: var(--vp-c-success-1);
-}
 @media (max-width: 640px) {
   .bench-bars li {
     grid-template-columns: 1fr 70px;
   }
-  .bench-track,
-  .bench-ok {
+  .bench-track {
     grid-column: 1 / -1;
   }
 }
