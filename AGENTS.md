@@ -30,7 +30,7 @@ SHOULD use the same format:
 
 **Description Style:**
 
-- Start the description with a lowercase character
+- Start the description with a lowercase character, or with an acronym such as `PGO` or `CLI`
 - Use imperative mood ("add feature" not "added feature")
 - Keep it concise but descriptive
 
@@ -44,7 +44,7 @@ SHOULD use the same format:
 
 CI validates the pull request title and re-runs when it is edited. Intermediate
 commit subjects are not checked because pull requests are squash-merged. CI
-mechanically checks the allowed type, syntax, and lowercase-leading description;
+mechanically checks the allowed type, syntax, and lowercase- or acronym-leading description;
 imperative mood remains a review rule.
 
 ## Dependency Updates
