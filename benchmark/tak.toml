@@ -23,6 +23,10 @@
 # `parallel: true` and prek's shared `priority` run overlapping fixers at once
 # with nothing to stop two of them writing the same file, so their timings
 # would be for output nobody can rely on.
+#
+# Whether a race corrupts a run depends on timing, so a racing mode that
+# happens to pass on one machine is still left out. lefthook's check hook is
+# read-only and runs with `parallel: true`.
 
 [env]
 # The default deny list, plus anything that would let the user's own setup
@@ -33,10 +37,11 @@ deny = ["BLACK_CACHE_DIR", "GITHUB_TOKEN", "GH_TOKEN", "HK_FILE", "HK_JOBS", "LE
 # Every cache lives in the subject's own clone. black's would otherwise be
 # ~/.cache/black, shared by all subjects, so one subject's run could evict
 # another's entries.
-dir    = ".work/{{ subject }}"
-env    = { BLACK_CACHE_DIR = ".git/cache/black", GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
-runs   = 10
-warmup = 1
+dir  = ".work/{{ subject }}"
+env  = { BLACK_CACHE_DIR = ".git/cache/black", GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
+runs = 10
+# Two, because one left hk's first fix-all sample at twice the median.
+warmup = 2
 # Staging the whole tree first makes untracked and unstaged changes count too.
 check = ["sh", "-c", "git add -A && git diff --cached --quiet clean"]
 

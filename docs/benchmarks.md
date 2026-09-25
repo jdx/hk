@@ -20,14 +20,14 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 - **Check every file**: a read-only check of the whole `clean` tree, as in CI.
 - **Commit**: about 60 files with defects are staged and each tool's pre-commit hook fixes them. hk and lefthook stage their fixes. pre-commit and prek leave them unstaged and fail the commit, which is how they are designed to work.
 
-**Tools and modes.** Each tool runs in a configuration that is safe by design:
+**Tools and modes.** Each tool runs in a configuration that is safe by design: two fixers never write the same file at once. Fixes run concurrently only where the tool coordinates the writes (hk's file locks) or gives each process different files (pre-commit's and prek's batches). Settings that start hooks at once without that coordination are used only for checking, where nothing writes:
 
-| Tool       | Mode                     | Concurrency                                                                                         |
-| ---------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
-| hk         | builtins, defaults       | Steps run in parallel. Per-file read and write locks keep two fixers from writing one file at once. |
-| lefthook   | sequential (its default) | One job at a time.                                                                                  |
-| pre-commit | defaults                 | One hook at a time. Each hook's files are split into batches that run across CPUs.                  |
-| prek       | defaults                 | Same model as pre-commit.                                                                           |
+| Tool       | Fixing (fix every file, commit)                                                                                           | Checking (check every file)                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| hk         | Builtins with defaults. Steps run in parallel; per-file read and write locks keep two fixers from writing one file at once. | The same.                                    |
+| lefthook   | One job at a time, its default.                                                                                           | `parallel: true`: every job starts at once.  |
+| pre-commit | One hook at a time. Each hook's files are split into batches that run across CPUs.                                        | The same.                                    |
+| prek       | Same model as pre-commit.                                                                                                 | The same.                                    |
 
 ## Keeping it fair
 
@@ -38,7 +38,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 - **Hermetic Git.** Global and system Git configuration is disabled, so the benchmark host's hooks, signing, and filesystem monitor stay out of the measurements.
 - **Wins must beat the noise.** A tool is called faster only when the gap between medians is larger than both tools' ranges across samples.
 - **No partial results.** The page shows a run only if every tool produced the right files in every timed sample. Otherwise the harness is broken or a tool has a bug, and neither should be published as a timing.
-- **No racing configurations.** lefthook's `parallel: true` starts every job at once, and prek runs hooks that share a `priority` concurrently. Neither stops two fixers from writing the same file, and prek's documentation warns that doing so gives undefined results. Those modes are left out: a time for output you can't rely on isn't a result.
+- **No racing configurations.** lefthook's `parallel: true` starts every job at once, and prek runs hooks that share a `priority` concurrently. Neither stops two fixers from writing the same file, and prek's documentation warns that doing so gives undefined results. Whether a race corrupts a run depends on timing, so a racing mode can pass on one machine or scenario and fail on another. Those modes are left out: a time for output you can't rely on isn't a result. lefthook's `parallel: true` is still used for checking, where nothing writes.
 
 ## What this does not measure
 

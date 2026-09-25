@@ -27,15 +27,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+# Bump when results from an older configuration should stop rendering: the docs
+# page and benchmark-refresh.yml accept only this schema, and the refresh
+# re-measures when the published results.json has another.
 SCHEMA = 2
 
 # Benchmarks in tak.toml that guard the run but aren't shown as scenarios.
 SANITY = {"check-detects"}
 
-# Display metadata.
+# Display metadata. `mode` describes how the tool runs its hooks; `modes`
+# overrides it for scenarios where the configuration runs them differently.
 SUBJECTS = {
     "hk": {"tool": "hk", "label": "hk", "mode": "parallel, file locks"},
-    "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "sequential"},
+    "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "sequential",
+                 "modes": {"check-all": "parallel: true"}},
     "pre-commit": {"tool": "pre-commit", "label": "pre-commit", "mode": "sequential hooks, batched files"},
     "prek": {"tool": "prek", "label": "prek", "mode": "sequential hooks, batched files"},
 }
@@ -147,6 +152,7 @@ def main():
             if t.get("version"):
                 versions.setdefault(meta["tool"], semver(t["version"]))
             results[sname] = {
+                "mode": meta.get("modes", {}).get(bname, meta["mode"]),
                 "mean": round(t["mean"], 4),
                 "median": round(t["median"], 4),
                 "stddev": round(t["stddev"], 4),
@@ -181,7 +187,7 @@ def main():
         },
         "versions": versions,
         "workload": workload(),
-        "subjects": SUBJECTS,
+        "subjects": {k: {f: v[f] for f in ("tool", "label", "mode")} for k, v in SUBJECTS.items()},
         "scenarios": scenarios,
     }
     Path(args.out).write_text(json.dumps(data, indent=2) + "\n")
