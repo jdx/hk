@@ -12,22 +12,28 @@ jq = new Config.Step {
   batch = true
   // Label both sides with the file's path: an unlabeled `diff "$f" -` names
   // the new side `-`, which `git apply` cannot patch. Diff only output from a
-  // successful run: a file jq cannot parse fails the check without a patch,
-  // since diffing it against empty output would patch it to nothing. Sort
-  // keys like `fix` does, so `hk check` reports every file `hk fix` changes.
+  // successful run, since diffing a file jq cannot parse against empty output
+  // would patch it to nothing. Sort keys like `fix` does, so `hk check`
+  // reports every file that `hk fix` changes.
   check_diff = new Config.CommandSpec {
     command =
       """
       failed=0
-      out=$(mktemp) || exit 2
+      parse_failed=0
+      trap 'rm -f "$out" "$patch"' EXIT
+      trap 'exit 2' HUP INT TERM
+      out=$(mktemp) && patch=$(mktemp) || exit 2
       for f in {{ files }}; do
       if jq -S . "$f" > "$out"; then
-      diff -u -L "a/$f" -L "b/$f" "$f" "$out" || failed=1
+      diff -u -L "a/$f" -L "b/$f" "$f" "$out" >> "$patch" || failed=1
       else
-      failed=1
+      parse_failed=1
       fi
       done
-      rm -f "$out"
+      # With a file that failed to parse, print no patch: hk then runs the
+      # fixer on every file, and the fixer reports the error.
+      [ "$parse_failed" = 1 ] && exit 1
+      cat "$patch"
       exit $failed
       """
     effect = "read"
@@ -35,9 +41,20 @@ jq = new Config.Step {
   fix = new Config.CommandSpec {
     command =
       """
+      failed=0
+      trap 'rm -f "$tmp"' EXIT
+      trap 'exit 2' HUP INT TERM
+      tmp=$(mktemp) || exit 2
       for f in {{ files }}; do
-      tmp=$(mktemp) && jq -S . "$f" > "$tmp" && mv "$tmp" "$f"
+      # Copy over the file rather than moving the temp file, which would
+      # replace the file's permissions with mktemp's 0600.
+      if jq -S . "$f" > "$tmp"; then
+      cat "$tmp" > "$f"
+      else
+      failed=1
+      fi
       done
+      exit $failed
       """
     effect = "write"
   }

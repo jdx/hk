@@ -391,9 +391,10 @@ PKL
     assert_output $'foo: bar\nlist:\n  - 1\n  - 2'
 }
 
-@test "jq and yq leave files they cannot parse untouched" {
+@test "jq and yq report files they cannot parse and still fix the rest" {
     # Diffing a file against a failed run's empty output would make a patch
-    # that empties the file.
+    # that empties the file, and a patch for only the files that parsed would
+    # let hk report success.
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 import "$PKL_PATH/Builtins.pkl" as Builtins
@@ -408,13 +409,24 @@ hooks {
 }
 PKL
     printf '{\n  // JSONC comment\n  "a": 1\n}\n' > tsconfig.json
+    printf '{"b": 1, "a": 2}' > data.json
     printf 'a: [\n' > broken.yaml
+    printf 'foo:   bar\n' > config.yaml
+    chmod 755 data.json
 
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
-    run hk fix --all
+    run hk fix --all --no-fail-fast
     assert_failure
+    assert_output --partial "jq: parse error"
+    assert_output --partial "bad file 'broken.yaml'"
     run cat tsconfig.json
     assert_output $'{\n  // JSONC comment\n  "a": 1\n}'
     run cat broken.yaml
     assert_output 'a: ['
+    run cat data.json
+    assert_output $'{\n  "a": 2,\n  "b": 1\n}'
+    run cat config.yaml
+    assert_output 'foo: bar'
+    # The fixer writes through the file, keeping its permissions.
+    [ -x data.json ]
 }
