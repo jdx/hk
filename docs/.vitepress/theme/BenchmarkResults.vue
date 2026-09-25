@@ -184,6 +184,7 @@ const measured = computed(() =>
 }
 .bench-whisker {
   position: absolute;
+  z-index: 1;
   top: 8px;
   height: 2px;
   background: var(--vp-c-text-2);
