@@ -141,7 +141,10 @@ repos:
         priority: 0
   # The fixers pre-commit's documentation points to. prek runs its bundled
   # Rust implementation of these two instead. They have no check mode: they exit
-  # 1 when they would change a file, so the same hooks serve the manual stage.
+  # 1 when they change a file, so the same hooks serve the manual stage. They
+  # write nothing on the clean tree check-all uses; on the dirty tree
+  # (check-detects) only the exit code counts and every sample starts from a
+  # reset clone.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:

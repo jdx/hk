@@ -68,8 +68,11 @@ check:
     - name: shfmt
       run: shfmt -d {staged_files}
       glob: "*.sh"
-    # pre-commit-hooks has no check mode: the fixers exit 1 when they would
-    # change a file, and change nothing on a clean tree.
+    # pre-commit-hooks has no check mode: the fixers exit 1 when they change a
+    # file. check-all runs on the clean tree, where they write nothing. On the
+    # dirty tree (check-detects) they do write, but only the exit code counts
+    # there and every sample starts from a reset clone. A read-only shell
+    # comparison would bring back the per-file loop this benchmark avoids.
     - name: trailing-whitespace
       run: trailing-whitespace-fixer {staged_files}
     - name: newlines
