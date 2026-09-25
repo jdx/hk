@@ -390,3 +390,31 @@ PKL
     run cat config.yaml
     assert_output $'foo: bar\nlist:\n  - 1\n  - 2'
 }
+
+@test "jq and yq leave files they cannot parse untouched" {
+    # Diffing a file against a failed run's empty output would make a patch
+    # that empties the file.
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["jq"] = Builtins.jq
+      ["yq"] = Builtins.yq
+    }
+  }
+}
+PKL
+    printf '{\n  // JSONC comment\n  "a": 1\n}\n' > tsconfig.json
+    printf 'a: [\n' > broken.yaml
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk fix --all
+    assert_failure
+    run cat tsconfig.json
+    assert_output $'{\n  // JSONC comment\n  "a": 1\n}'
+    run cat broken.yaml
+    assert_output 'a: ['
+}

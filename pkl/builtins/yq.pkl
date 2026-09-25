@@ -11,14 +11,22 @@ yq = new Config.Step {
   // The commands run one process per file, so split the files across jobs.
   batch = true
   // Label both sides with the file's path: an unlabeled `diff "$f" -` names
-  // the new side `-`, which `git apply` cannot patch.
+  // the new side `-`, which `git apply` cannot patch. Diff only output from a
+  // successful run: a file yq cannot parse fails the check without a patch,
+  // since diffing it against empty output would patch it to nothing.
   check_diff = new Config.CommandSpec {
     command =
       """
       failed=0
+      out=$(mktemp) || exit 2
       for f in {{ files }}; do
-      yq -P "$f" | diff -u -L "a/$f" -L "b/$f" "$f" - || failed=1
+      if yq -P "$f" > "$out"; then
+      diff -u -L "a/$f" -L "b/$f" "$f" "$out" || failed=1
+      else
+      failed=1
+      fi
       done
+      rm -f "$out"
       exit $failed
       """
     effect = "read"
