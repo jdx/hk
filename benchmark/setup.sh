@@ -26,8 +26,13 @@ REPO="$(cd "$BENCH/.." && pwd)"
 WORK="${HK_BENCH_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/hk-bench}"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
-# One subject per tool, each configured from subjects/<name>/.
-SUBJECTS=(hk lefthook pre-commit prek)
+# subject name -> directory under subjects/ holding its configuration
+declare -A CONFIG=(
+    [hk]=hk
+    [lefthook]=lefthook
+    [pre-commit]=pre-commit
+    [prek]=pre-commit
+)
 
 if [ -z "${HK_PKL:-}" ]; then
     HK_PKL="$REPO/pkl"
@@ -57,7 +62,7 @@ staged_files() {
         awk 'NR % 25 == 1'
 }
 
-for subject in "${SUBJECTS[@]}"; do
+for subject in "${!CONFIG[@]}"; do
     dir="$WORK/$subject"
     rm -rf "$dir"
     git clone -q "$WORK/fixture" "$dir"
@@ -68,7 +73,7 @@ for subject in "${SUBJECTS[@]}"; do
     git fetch -q --tags
 
     git checkout -q clean
-    cp -R "$BENCH/subjects/$subject/." .
+    cp -R "$BENCH/subjects/${CONFIG[$subject]}/." .
     if [ -f hk.pkl ]; then sed -i "s|@PKL@|$HK_PKL|g" hk.pkl; fi
     # The workload's yq fixer formats every YAML file, the tool's own
     # configuration included; commit it already formatted so it is not a diff.
@@ -88,12 +93,15 @@ done
 
 # Install pre-commit-hooks for pre-commit and prek outside the timed runs, as a
 # developer would have before their first commit.
-cd "$WORK/pre-commit" && PRE_COMMIT_HOME=.git/cache pre-commit install-hooks >/dev/null
-cd "$WORK/prek" && PREK_HOME=.git/cache prek prepare-hooks >/dev/null
+for tool in pre-commit prek; do
+    cd "$WORK/$tool"
+    if [ "$tool" = prek ]; then cmd=prepare-hooks; else cmd=install-hooks; fi
+    PRE_COMMIT_HOME=.git/cache PREK_HOME=.git/cache "$tool" "$cmd" >/dev/null
+done
 
 # Prime hk's configuration cache so no sample pays for Pkl evaluation, which
 # is what a developer's second commit looks like.
 cd "$WORK/hk"
 HK_CACHE_DIR=.git/cache HK_STATE_DIR=.git/state hk validate --quiet
 
-echo "Prepared ${#SUBJECTS[@]} subjects in $WORK"
+echo "Prepared ${#CONFIG[@]} subjects in $WORK"

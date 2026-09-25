@@ -7,9 +7,9 @@ be trusted:
 
 - every subject of every scenario in tak.toml was timed, and every timed
   sample was checked against the fixture's clean commit;
-- every subject passed every check. Each is configured to be correct (fixers
-  one at a time wherever the tool cannot coordinate them), so a wrong result
-  means the harness is broken or the tool has a bug worth reporting;
+- every subject passed every check. Every configuration measured is safe by
+  design, so a wrong result means the harness is broken (or the tool has a bug
+  worth reporting);
 - every subject reported failure on the dirty tree in the check-detects sanity
   benchmark. A read-only check that ran nothing would also pass on a clean tree.
 
@@ -30,8 +30,7 @@ ROOT = Path(__file__).resolve().parent
 # Bump when results from an older configuration should stop rendering: the docs
 # page and benchmark-refresh.yml accept only this schema, and the refresh
 # re-measures when the published results.json has another.
-# 3: one configuration per tool, with each scenario's mode in its results.
-SCHEMA = 3
+SCHEMA = 2
 
 # Benchmarks in tak.toml that guard the run but aren't shown as scenarios.
 SANITY = {"check-detects"}
@@ -43,8 +42,7 @@ SUBJECTS = {
     "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "sequential",
                  "modes": {"check-all": "parallel: true"}},
     "pre-commit": {"tool": "pre-commit", "label": "pre-commit", "mode": "sequential hooks, batched files"},
-    "prek": {"tool": "prek", "label": "prek", "mode": "sequential hooks, batched files",
-             "modes": {"check-all": "priority: 0, batched files"}},
+    "prek": {"tool": "prek", "label": "prek", "mode": "sequential hooks, batched files"},
 }
 
 SCENARIOS = {
@@ -54,7 +52,7 @@ SCENARIOS = {
     },
     "check-all": {
         "title": "Check every file",
-        "summary": "Every file is already clean and nothing writes, so parallel is safe for every tool.",
+        "summary": "Every file is already clean and nothing writes.",
     },
     "fix-staged": {
         "title": "Commit",

@@ -16,15 +16,17 @@
 #
 # Wall time says nothing about whether a run produced the right files, so every
 # timed sample is followed by `check`: the working tree must be byte-identical
-# to the fixture's clean commit. report.py refuses to publish a run in which
-# any subject failed a single check.
+# to the fixture's clean commit. report.py refuses to publish a run in which any
+# subject failed a single check.
 #
-# Each tool has one configuration, its fastest in which two fixers can never
-# write the same file at once: lefthook and prek run their check hooks
-# concurrently, since those write nothing, and their fixers one at a time,
-# since concurrent fixers on the same files race (see the subjects'
-# configuration files). Whether a race corrupts a run depends on timing, so a
-# setting that happens to pass on one machine is still excluded.
+# Every subject is a configuration that is safe by design. lefthook's
+# `parallel: true` and prek's shared `priority` run overlapping fixers at once
+# with nothing to stop two of them writing the same file, so their timings
+# would be for output nobody can rely on.
+#
+# Whether a race corrupts a run depends on timing, so a racing mode that
+# happens to pass on one machine is still left out. lefthook's check hook is
+# read-only and runs with `parallel: true`.
 
 [env]
 # The default deny list, plus anything that would let the user's own setup
@@ -80,8 +82,7 @@ cmd = ["pre-commit", "run", "--all-files"]
 cmd = ["prek", "run", "--all-files"]
 
 # --- Check every file ----------------------------------------------------------
-# Every file is already clean and nothing writes, so running linters
-# concurrently is safe for every tool, and lefthook and prek do. This is CI, or
+# Every file is already clean and nothing writes. This is CI, or
 # `hk check --all`. Every subject must exit 0.
 [bench.check-all]
 prepare  = ["sh", "-c", "git reset -q --hard clean && git clean -qfd"]

@@ -8,8 +8,6 @@ const results = data;
 const fmt = (s: number) =>
   s >= 10 ? `${s.toFixed(1)} s` : s >= 1 ? `${s.toFixed(2)} s` : `${Math.round(s * 1000)} ms`;
 
-const correct = (st: Stats) => st.correct.passed === st.correct.total;
-
 // Two tools only differ when the gap between their medians is larger than
 // either one's own spread across samples. Otherwise the page calls it level.
 const separated = (a: Stats, b: Stats) =>
@@ -20,7 +18,6 @@ interface Row {
   label: string;
   mode: string;
   stats: Stats;
-  ok: boolean;
 }
 
 function rows(s: Scenario): Row[] {
@@ -30,7 +27,6 @@ function rows(s: Scenario): Row[] {
       label: results!.subjects[key].label,
       mode: stats.mode ?? results!.subjects[key].mode,
       stats,
-      ok: correct(stats),
     }))
     .sort((a, b) => a.stats.median - b.stats.median);
 }
@@ -39,19 +35,18 @@ function scale(s: Scenario) {
   return Math.max(...Object.values(s.results).map((r) => r.max));
 }
 
-// The headline compares hk with the fastest *other* tool whose output was
-// right every time. A configuration that races is never the benchmark to beat.
+// The headline compares hk with the fastest other tool.
 function verdict(s: Scenario): string {
   const hk = s.results.hk;
   if (!hk) return "";
-  const rivals = rows(s).filter((r) => r.key !== "hk" && r.ok);
+  const rivals = rows(s).filter((r) => r.key !== "hk");
   if (!rivals.length) return "";
   const best = rivals[0];
   const name = `${best.label} (${best.mode})`;
   if (!separated(hk, best.stats)) return `hk and ${name} are level.`;
   const ratio = best.stats.median / hk.median;
   return ratio > 1
-    ? `hk is ${ratio.toFixed(1)}× faster than ${name}, the fastest other tool that produced the right files every time.`
+    ? `hk is ${ratio.toFixed(1)}× faster than ${name}, the fastest other tool.`
     : `${name} is ${(1 / ratio).toFixed(1)}× faster than hk.`;
 }
 
@@ -64,9 +59,8 @@ const measured = computed(() =>
 <template>
   <div v-if="!results" class="bench-empty">
     <p>
-      No verified run of the current benchmark has been published yet. The page only shows numbers
-      from a run in which every tool that is safe by design produced exactly the
-      right files. Run <code>mise run benchmark</code> to measure on your own machine.
+      No verified benchmark run has been published yet. The page only shows numbers
+      from a run in which every tool produced exactly the right files. Run <code>mise run benchmark</code> to measure on your own machine.
     </p>
   </div>
 
@@ -86,7 +80,7 @@ const measured = computed(() =>
       <p v-if="verdict(s)" class="bench-verdict">{{ verdict(s) }}</p>
 
       <ul class="bench-bars" role="list">
-        <li v-for="r in rows(s)" :key="r.key" :class="{ hk: r.key === 'hk', wrong: !r.ok }">
+        <li v-for="r in rows(s)" :key="r.key" :class="{ hk: r.key === 'hk' }">
           <span class="bench-name">
             <strong>{{ r.label }}</strong>
             <small>{{ r.mode }}</small>
@@ -102,10 +96,7 @@ const measured = computed(() =>
             <span class="bench-bar" :style="{ width: `${(r.stats.median / scale(s)) * 100}%` }" />
           </span>
           <span class="bench-value">{{ fmt(r.stats.median) }}</span>
-          <span v-if="r.ok" class="bench-ok">✓ correct</span>
-          <span v-else class="bench-bad">
-            ✗ wrong files in {{ r.stats.correct.total - r.stats.correct.passed }}/{{ r.stats.correct.total }} runs
-          </span>
+          <span class="bench-ok">✓ correct</span>
         </li>
       </ul>
 
@@ -192,14 +183,6 @@ const measured = computed(() =>
   background: var(--vp-c-brand-1);
   opacity: 1;
 }
-.wrong .bench-bar {
-  background: repeating-linear-gradient(
-    135deg,
-    var(--vp-c-danger-1) 0 4px,
-    transparent 4px 8px
-  );
-  opacity: 0.8;
-}
 .bench-whisker {
   position: absolute;
   top: 8px;
@@ -213,16 +196,12 @@ const measured = computed(() =>
 .bench-ok {
   color: var(--vp-c-success-1);
 }
-.bench-bad {
-  color: var(--vp-c-danger-1);
-}
 @media (max-width: 640px) {
   .bench-bars li {
     grid-template-columns: 1fr 70px;
   }
   .bench-track,
-  .bench-ok,
-  .bench-bad {
+  .bench-ok {
     grid-column: 1 / -1;
   }
 }
