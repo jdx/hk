@@ -22,7 +22,7 @@ HK_BIN=~/Downloads/hk mise run benchmark            # measure a specific binary
 | `subjects/`             | Each tool's configuration.                                                                               |
 | `setup.sh`              | One clone of the fixture per subject in `~/.cache/hk-bench` (`.work` links to it).                       |
 | `tak.toml`              | Scenarios, commands and the per-sample `check`, timed by [tak](https://github.com/jdx/tak) 0.0.13.       |
-| `report.py`             | Writes `results.json` from tak's export, publishable only if every safe-by-design subject always passed. |
+| `report.py`             | Writes `results.json` from tak's export, publishable only if every subject always passed.               |
 
 This `tak.toml` is separate from the repository root's. The root one records
 hk's instruction counts on every push to main, while this one compares wall
@@ -30,12 +30,15 @@ time against other programs. `run.sh` passes it to tak with `--config`.
 
 ## Adding a tool or scenario
 
-1. Add the configuration under `subjects/<name>/` and map it in `setup.sh`.
+1. Add the configuration under `subjects/<name>/` and list it in `SUBJECTS` in
+   `setup.sh`. Use the tool's fastest settings that produce the right files:
+   concurrency for read-only checks, and fixers one at a time unless the tool
+   coordinates writes to the same file.
 2. In `tak.toml`, add a shared `[subject.<name>]` with its `version_cmd`, list
    it in each benchmark's `subjects`, and give each benchmark a
    `[bench.<scenario>.subject.<name>]` with the command for that scenario.
-3. Add display metadata to `SUBJECTS` in `report.py`. Mark it `safe` only if
-   the configuration cannot race by design.
+3. Add display metadata to `SUBJECTS` in `report.py`, with `modes` for any
+   scenario the configuration runs differently.
 4. Pin the tool in `mise.toml`.
 
 The workload's yq fixer also formats each tool's own YAML configuration, so

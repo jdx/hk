@@ -28,7 +28,7 @@ function rows(s: Scenario): Row[] {
     .map(([key, stats]) => ({
       key,
       label: results!.subjects[key].label,
-      mode: results!.subjects[key].mode,
+      mode: stats.mode ?? results!.subjects[key].mode,
       stats,
       ok: correct(stats),
     }))

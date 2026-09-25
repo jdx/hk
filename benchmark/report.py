@@ -7,16 +7,11 @@ be trusted:
 
 - every subject of every scenario in tak.toml was timed, and every timed
   sample was checked against the fixture's clean commit;
-- every subject that is safe by design passed every check. A sequential tool
-  getting it wrong means the harness is broken (or the tool has a bug worth
-  reporting), not that parallelism is hard;
+- every subject passed every check. Each is configured to be correct (fixers
+  one at a time wherever the tool cannot coordinate them), so a wrong result
+  means the harness is broken or the tool has a bug worth reporting;
 - every subject reported failure on the dirty tree in the check-detects sanity
   benchmark. A read-only check that ran nothing would also pass on a clean tree.
-
-Subjects configured to run fixers concurrently without coordination
-(lefthook-parallel, prek-parallel) are allowed to fail checks. That is the
-finding the page exists to show, so their pass rate is published next to
-their time.
 
 Usage: report.py <tak-export.json> [--out PATH]
 """
@@ -37,14 +32,15 @@ SCHEMA = 2
 # Benchmarks in tak.toml that guard the run but aren't shown as scenarios.
 SANITY = {"check-detects"}
 
-# Display metadata. `safe` marks configurations that cannot race by design.
+# Display metadata. `mode` describes how the tool runs its hooks; `modes`
+# overrides it for scenarios where the configuration runs them differently.
 SUBJECTS = {
-    "hk": {"tool": "hk", "label": "hk", "mode": "parallel, file locks", "safe": True},
-    "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "sequential", "safe": True},
-    "lefthook-parallel": {"tool": "lefthook", "label": "lefthook", "mode": "parallel: true", "safe": False},
-    "pre-commit": {"tool": "pre-commit", "label": "pre-commit", "mode": "sequential hooks, batched files", "safe": True},
-    "prek": {"tool": "prek", "label": "prek", "mode": "sequential hooks, batched files", "safe": True},
-    "prek-parallel": {"tool": "prek", "label": "prek", "mode": "priority: 0", "safe": False},
+    "hk": {"tool": "hk", "label": "hk", "mode": "parallel, file locks"},
+    "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "sequential",
+                 "modes": {"check-all": "parallel: true"}},
+    "pre-commit": {"tool": "pre-commit", "label": "pre-commit", "mode": "sequential hooks, batched files"},
+    "prek": {"tool": "prek", "label": "prek", "mode": "sequential hooks, batched files",
+             "modes": {"check-all": "priority: 0, batched files"}},
 }
 
 SCENARIOS = {
@@ -146,7 +142,7 @@ def main():
             if not checks or checks["total"] != len(t["times"]):
                 problems.append(f"{bname}/{sname}: not every sample was checked")
                 continue
-            if meta["safe"] and checks["passed"] != checks["total"]:
+            if checks["passed"] != checks["total"]:
                 problems.append(
                     f"{bname}/{sname}: produced the wrong files in "
                     f"{checks['total'] - checks['passed']}/{checks['total']} samples"
@@ -154,6 +150,7 @@ def main():
             if t.get("version"):
                 versions.setdefault(meta["tool"], semver(t["version"]))
             results[sname] = {
+                "mode": meta.get("modes", {}).get(bname, meta["mode"]),
                 "mean": round(t["mean"], 4),
                 "median": round(t["median"], 4),
                 "stddev": round(t["stddev"], 4),
@@ -188,7 +185,7 @@ def main():
         },
         "versions": versions,
         "workload": workload(),
-        "subjects": SUBJECTS,
+        "subjects": {k: {f: v[f] for f in ("tool", "label", "mode")} for k, v in SUBJECTS.items()},
         "scenarios": scenarios,
     }
     Path(args.out).write_text(json.dumps(data, indent=2) + "\n")

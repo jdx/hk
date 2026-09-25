@@ -1,7 +1,9 @@
-# prek with every hook at `priority: 0`, prek's setting for running hooks
-# concurrently. prek's docs warn that hooks in one priority group that modify
-# the same files give undefined results; this workload is exactly that case.
-# Identical to ../pre-commit otherwise.
+# prek. The fix hooks run one at a time like pre-commit's, because prek's docs
+# warn that hooks in one priority group that modify the same files give
+# undefined results, and every file here is written by two or three fixers.
+# The check hooks (`--hook-stage manual`) write nothing on the clean tree, so
+# they all share `priority: 0` and run concurrently, prek's setting for speed.
+# Within a hook, prek splits the files into batches across CPUs.
 repos:
   - repo: local
     hooks:
@@ -11,7 +13,6 @@ repos:
         language: system
         types:
           - python
-        priority: 0
         stages:
           - pre-commit
       - id: ruff-format
@@ -20,7 +21,6 @@ repos:
         language: system
         types:
           - python
-        priority: 0
         stages:
           - pre-commit
       - id: ruff
@@ -29,7 +29,6 @@ repos:
         language: system
         types:
           - python
-        priority: 0
         stages:
           - pre-commit
       - id: prettier
@@ -37,7 +36,6 @@ repos:
         entry: prettier --write --log-level warn
         language: system
         files: \.(js|ts|css|md)$
-        priority: 0
         stages:
           - pre-commit
       - id: eslint
@@ -45,7 +43,6 @@ repos:
         entry: eslint --fix
         language: system
         files: \.(js|ts)$
-        priority: 0
         stages:
           - pre-commit
       - id: jq
@@ -53,7 +50,6 @@ repos:
         entry: sh -c 'for f; do t=$(mktemp) && jq -S . "$f" >"$t" && mv "$t" "$f"; done' _
         language: system
         files: \.json$
-        priority: 0
         stages:
           - pre-commit
       - id: yq
@@ -61,7 +57,6 @@ repos:
         entry: sh -c 'for f; do yq -iP "$f"; done' _
         language: system
         files: \.ya?ml$
-        priority: 0
         stages:
           - pre-commit
       - id: shfmt
@@ -69,7 +64,6 @@ repos:
         entry: shfmt -w
         language: system
         files: \.sh$
-        priority: 0
         stages:
           - pre-commit
       - id: black-check
@@ -78,83 +72,88 @@ repos:
         language: system
         types:
           - python
+        priority: 0
         stages:
           - manual
-        priority: 0
       - id: ruff-format-check
         name: ruff-format (check)
         entry: ruff format --quiet --force-exclude --check
         language: system
         types:
           - python
+        priority: 0
         stages:
           - manual
-        priority: 0
       - id: ruff-check
         name: ruff (check)
         entry: ruff check --quiet --force-exclude
         language: system
         types:
           - python
+        priority: 0
         stages:
           - manual
-        priority: 0
       - id: prettier-check
         name: prettier (check)
         entry: prettier --check --log-level warn
         language: system
         files: \.(js|ts|css|md)$
+        priority: 0
         stages:
           - manual
-        priority: 0
       - id: eslint-check
         name: eslint (check)
         entry: eslint
         language: system
         files: \.(js|ts)$
+        priority: 0
         stages:
           - manual
-        priority: 0
       - id: jq-check
         name: jq (check)
         entry: sh -c 'r=0; for f; do jq -S . "$f" | cmp -s "$f" - || r=1; done; exit $r' _
         language: system
         files: \.json$
+        priority: 0
         stages:
           - manual
-        priority: 0
       - id: yq-check
         name: yq (check)
         entry: sh -c 'r=0; for f; do yq -P "$f" | cmp -s "$f" - || r=1; done; exit $r' _
         language: system
         files: \.ya?ml$
+        priority: 0
         stages:
           - manual
-        priority: 0
       - id: shfmt-check
         name: shfmt (check)
         entry: shfmt -d
         language: system
         files: \.sh$
+        priority: 0
         stages:
           - manual
-        priority: 0
   # The fixers pre-commit's documentation points to. prek runs its bundled
   # Rust implementation of these two instead. They have no check mode: they exit
-  # 1 when they change a file, so the same hooks serve the manual stage. They
+  # 1 when they change a file, so the manual-stage entries serve as checks. They
   # write nothing on the clean tree check-all uses; on the dirty tree
   # (check-detects) only the exit code counts and every sample starts from a
-  # reset clone.
+  # reset clone. Each is listed once per stage so that only the checks share
+  # priority 0; the two fixers write the same files and must not overlap.
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        priority: 0
         stages:
           - pre-commit
+      - id: end-of-file-fixer
+        stages:
+          - pre-commit
+      - id: trailing-whitespace
+        priority: 0
+        stages:
           - manual
       - id: end-of-file-fixer
         priority: 0
         stages:
-          - pre-commit
           - manual
