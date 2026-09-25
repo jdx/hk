@@ -30,10 +30,12 @@ fix:
     - name: shfmt
       run: shfmt -w {staged_files}
       glob: "*.sh"
+    # lefthook has no built-in fixers; these are pre-commit-hooks' console
+    # scripts (pinned in mise.toml), the same fixers pre-commit runs.
     - name: trailing-whitespace
-      run: sed -i 's/[[:space:]]*$//' {staged_files}
+      run: trailing-whitespace-fixer {staged_files}
     - name: newlines
-      run: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && echo >>"$f"; done; true' _ {staged_files}
+      run: end-of-file-fixer {staged_files}
 pre-commit:
   parallel: true
   stage_fixed: true
@@ -65,7 +67,12 @@ check:
     - name: shfmt
       run: shfmt -d {staged_files}
       glob: "*.sh"
+    # pre-commit-hooks has no check mode: the fixers exit 1 when they change a
+    # file. check-all runs on the clean tree, where they write nothing. On the
+    # dirty tree (check-detects) they do write, but only the exit code counts
+    # there and every sample starts from a reset clone. A read-only shell
+    # comparison would bring back the per-file loop this benchmark avoids.
     - name: trailing-whitespace
-      run: "! grep -nE '[[:space:]]+$' {staged_files}"
+      run: trailing-whitespace-fixer {staged_files}
     - name: newlines
-      run: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && exit 1; done; true' _ {staged_files}
+      run: end-of-file-fixer {staged_files}

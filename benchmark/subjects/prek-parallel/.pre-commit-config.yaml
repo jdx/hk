@@ -72,24 +72,6 @@ repos:
         priority: 0
         stages:
           - pre-commit
-      - id: trailing-whitespace
-        name: trailing-whitespace
-        entry: sed -i 's/[[:space:]]*$//'
-        language: system
-        types:
-          - text
-        priority: 0
-        stages:
-          - pre-commit
-      - id: newlines
-        name: newlines
-        entry: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && echo >>"$f"; done; true' _
-        language: system
-        types:
-          - text
-        priority: 0
-        stages:
-          - pre-commit
       - id: black-check
         name: black (check)
         entry: black --quiet --check
@@ -157,21 +139,22 @@ repos:
         stages:
           - manual
         priority: 0
-      - id: trailing-whitespace-check
-        name: trailing-whitespace (check)
-        entry: sh -c '! grep -nE "[[:space:]]+$" "$@"' _
-        language: system
-        types:
-          - text
-        stages:
-          - manual
+  # The fixers pre-commit's documentation points to. prek runs its bundled
+  # Rust implementation of these two instead. They have no check mode: they exit
+  # 1 when they change a file, so the same hooks serve the manual stage. They
+  # write nothing on the clean tree check-all uses; on the dirty tree
+  # (check-detects) only the exit code counts and every sample starts from a
+  # reset clone.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
         priority: 0
-      - id: newlines-check
-        name: newlines (check)
-        entry: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && exit 1; done; true' _
-        language: system
-        types:
-          - text
         stages:
+          - pre-commit
           - manual
+      - id: end-of-file-fixer
         priority: 0
+        stages:
+          - pre-commit
+          - manual
