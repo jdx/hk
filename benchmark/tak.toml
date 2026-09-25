@@ -19,10 +19,12 @@
 # to the fixture's clean commit. report.py refuses to publish a run in which
 # any subject failed a single check.
 #
-# Each tool has one configuration, its fastest that is correct in every
-# scenario: lefthook and prek run their check hooks concurrently, since those
-# write nothing, and their fixers one at a time, since concurrent fixers on the
-# same files race (see the subjects' configuration files).
+# Each tool has one configuration, its fastest in which two fixers can never
+# write the same file at once: lefthook and prek run their check hooks
+# concurrently, since those write nothing, and their fixers one at a time,
+# since concurrent fixers on the same files race (see the subjects'
+# configuration files). Whether a race corrupts a run depends on timing, so a
+# setting that happens to pass on one machine is still excluded.
 
 [env]
 # The default deny list, plus anything that would let the user's own setup

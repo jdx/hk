@@ -20,7 +20,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 - **Check every file**: a read-only check of the whole `clean` tree, as in CI. Nothing writes, so running in parallel is safe for every tool here.
 - **Commit**: about 60 files with defects are staged and each tool's pre-commit hook fixes them. hk and lefthook stage their fixes. pre-commit and prek leave them unstaged and fail the commit, which is how they are designed to work.
 
-**Tools and modes.** Each tool has one configuration: the fastest it offers that still produces the right files in every scenario.
+**Tools and modes.** Each tool has one configuration: the fastest it offers in which two fixers can never write the same file at once.
 
 | Tool       | Fixing (fix every file, commit)                                                                 | Checking (check every file)                                            |
 | ---------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -29,7 +29,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 | pre-commit | One hook at a time. Each hook's files are split into batches that run across CPUs.              | The same.                                                              |
 | prek       | Same model as pre-commit.                                                                        | `priority: 0` on every hook, so the hooks run concurrently.            |
 
-lefthook's `parallel: true` and prek's `priority: 0` start fixers at once with nothing to stop two of them writing the same file, and here every file is written by two or three fixers. prek's documentation warns that hooks in one priority group that modify the same files give undefined results. When both settings were measured on the fixing scenarios, every run left wrong files ([#1463](https://github.com/jdx/hk/pull/1463)), so they are used only for checking, where nothing writes.
+lefthook's `parallel: true` and prek's `priority: 0` start fixers at once with nothing to stop two of them writing the same file, and here every file is written by two or three fixers. prek's documentation warns that hooks in one priority group that modify the same files give undefined results. Whether a run comes out wrong depends on timing: in measurements with these settings, some scenarios came out right on one machine and wrong in every sample on another, or in the commit scenario on the same machine. A setting that is right only when the timing is lucky is not one a team can rely on, so these settings are used only for checking, where nothing writes.
 
 ## Keeping it fair
 
