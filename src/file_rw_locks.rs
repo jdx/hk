@@ -57,6 +57,16 @@ impl FileRwLocks {
         })
     }
 
+    /// Take read locks on `files` if no writer holds any of them, without waiting.
+    pub fn try_read(&self, files: &[PathBuf]) -> Option<Flocks> {
+        self.try_read_locks(&lock_order(files)).ok()
+    }
+
+    /// Take write locks on `files` if nothing holds any of them, without waiting.
+    pub fn try_write(&self, files: &[PathBuf]) -> Option<Flocks> {
+        self.try_write_locks(&lock_order(files)).ok()
+    }
+
     /// Acquire read locks on `files`, waiting for any writers to finish.
     ///
     /// Locks are taken in sorted order (see [`lock_order`]) so callers cannot

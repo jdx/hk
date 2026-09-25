@@ -136,10 +136,16 @@ impl StepJob {
         ctx.progress.add(job)
     }
 
+    /// Take this job's file locks and a job slot, then mark it running.
+    ///
+    /// `semaphore` is a slot the caller already holds, if any. A job that has
+    /// to wait for another step to release its files gives that slot up while
+    /// it waits, so a job that can run takes it instead of every slot sitting
+    /// behind one slow fixer.
     pub async fn status_start(
         &mut self,
         ctx: &StepContext,
-        semaphore: OwnedSemaphorePermit,
+        mut semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
         match &self.status {
             StepJobStatus::Pending => {}
@@ -148,7 +154,19 @@ impl StepJob {
             }
             _ => unreachable!("invalid status: {:?}", self.status),
         }
-        let flocks = self.flocks(ctx).await;
+        let flocks = match self.try_flocks(ctx) {
+            Some(flocks) => flocks,
+            None => {
+                semaphore = None;
+                self.flocks(ctx).await
+            }
+        };
+        // Every job holding a slot also holds its locks, so the slot holders
+        // always finish and this wait cannot deadlock.
+        let semaphore = match semaphore {
+            Some(semaphore) => semaphore,
+            None => ctx.hook_ctx.semaphore().await,
+        };
         self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore));
         ctx.status_started();
         if let Some(progress) = &mut self.progress {
@@ -184,6 +202,16 @@ impl StepJob {
         }
         ctx.status_errored(&err);
         Ok(())
+    }
+
+    fn try_flocks(&self, ctx: &StepContext) -> Option<Flocks> {
+        if self.step.stomp {
+            Some(Default::default())
+        } else if self.requested_run_type == RunType::Fix {
+            ctx.hook_ctx.file_locks.try_write(&self.files)
+        } else {
+            ctx.hook_ctx.file_locks.try_read(&self.files)
+        }
     }
 
     async fn flocks(&self, ctx: &StepContext) -> Flocks {
