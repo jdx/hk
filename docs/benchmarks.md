@@ -20,7 +20,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 - **Check every file**: a read-only check of the whole `clean` tree, as in CI.
 - **Commit**: about 60 files with defects are staged and each tool's pre-commit hook fixes them. hk and lefthook stage their fixes. pre-commit and prek leave them unstaged and fail the commit, which is how they are designed to work.
 
-**Tools and modes.** Each tool runs in a configuration that is safe by design, using its concurrency settings only where nothing writes:
+**Tools and modes.** Each tool runs in a configuration that is safe by design: two fixers never write the same file at once. Fixes run concurrently only where the tool coordinates the writes (hk's file locks) or gives each process different files (pre-commit's and prek's batches). Settings that start hooks at once without that coordination are used only for checking, where nothing writes:
 
 | Tool       | Fixing (fix every file, commit)                                                                                           | Checking (check every file)                  |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |

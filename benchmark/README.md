@@ -30,8 +30,8 @@ time against other programs. `run.sh` passes it to tak with `--config`.
 
 ## Adding a tool or scenario
 
-1. Add the configuration under `subjects/<name>/` and list it in `SUBJECTS` in
-   `setup.sh`. Use the tool's fastest settings in which two fixers can never
+1. Add the configuration under `subjects/<name>/` and map the subject to it in
+   `CONFIG` in `setup.sh`. Use the tool's fastest settings in which two fixers can never
    write the same file at once: concurrency for read-only checks, and fixers
    one at a time unless the tool coordinates writes to the same file.
 2. In `tak.toml`, add a shared `[subject.<name>]` with its `version_cmd`, list
