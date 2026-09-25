@@ -10,13 +10,37 @@ jq = new Config.Step {
   glob = "**/*.json"
   // The commands run one process per file, so split the files across jobs.
   batch = true
+  // Label both sides with the file's path: an unlabeled `diff "$f" -` names
+  // the new side `-`, which `git apply` cannot patch. Diff only output from a
+  // successful run, since diffing a file jq cannot parse against empty output
+  // would patch it to nothing. Sort keys like `fix` does, so `hk check`
+  // reports every file that `hk fix` changes.
   check_diff = new Config.CommandSpec {
     command =
       """
       failed=0
+      broken=0
+      trap 'rm -f "$out" "$patch"' EXIT
+      trap 'exit 2' HUP INT TERM
+      out=$(mktemp) && patch=$(mktemp) || exit 2
       for f in {{ files }}; do
-      jq . "$f" | diff -u "$f" - || failed=1
+      if jq -S . "$f" > "$out"; then
+      # hk runs this with `set -e`, so take diff's status through `||`.
+      status=0
+      diff -u -L "a/$f" -L "b/$f" "$f" "$out" >> "$patch" || status=$?
+      case $status in
+      0) ;;
+      1) failed=1 ;;
+      *) broken=1 ;;
+      esac
+      else
+      broken=1
+      fi
       done
+      # When a file failed to parse or diff, print no patch: hk then runs the
+      # fixer on every file, and the fixer reports the error.
+      [ "$broken" = 1 ] && exit 1
+      cat "$patch" || exit 2
       exit $failed
       """
     effect = "read"
@@ -24,9 +48,22 @@ jq = new Config.Step {
   fix = new Config.CommandSpec {
     command =
       """
+      failed=0
+      tmp=
+      trap 'rm -f "$tmp"' EXIT
+      trap 'exit 2' HUP INT TERM
       for f in {{ files }}; do
-      tmp=$(mktemp) && jq -S . "$f" > "$tmp" && mv "$tmp" "$f"
+      # Write a copy beside the file, with its permissions, then rename it
+      # over the file, so a failed write never truncates the original. A
+      # file that is already formatted is left alone, links and all.
+      tmp=$(mktemp "$f.XXXXXX") &&
+      cp -p "$f" "$tmp" &&
+      jq -S . "$f" > "$tmp" &&
+      { cmp -s "$f" "$tmp" || mv "$tmp" "$f"; } || failed=1
+      rm -f "$tmp"
+      tmp=
       done
+      exit $failed
       """
     effect = "write"
   }
@@ -40,5 +77,8 @@ jq = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+    local const unsorted = "{\n  \"b\": 1,\n  \"a\": 2\n}\n"
+    ["check unsorted keys"] = testMaker.checkFail(unsorted, 1)
+    ["fix unsorted keys"] = testMaker.fixPass(unsorted, "{\n  \"a\": 2,\n  \"b\": 1\n}\n")
   }
 }

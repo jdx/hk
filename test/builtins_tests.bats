@@ -358,3 +358,80 @@ PKL
     refute_output --partial "DEBUG $ black bad.py good.py"
     assert_equal "$(cat ui/bad.py)" "x = 1"
 }
+
+@test "jq and yq fixes apply the check_diff patch instead of rerunning the tool" {
+    # The fixers are replaced by commands that would leave a marker, so the
+    # expected output can only come from applying check_diff's patch.
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["jq"] = (Builtins.jq) {
+        fix { command = "for f in {{ files }}; do echo fixer-ran > \"\$f\"; done" }
+      }
+      ["yq"] = (Builtins.yq) {
+        fix { command = "for f in {{ files }}; do echo fixer-ran > \"\$f\"; done" }
+      }
+    }
+  }
+}
+PKL
+    printf '{"b": 1, "a": [1,2]}' > data.json
+    printf 'foo:   bar\nlist: [1, 2]\n' > config.yaml
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk fix --all
+    assert_success
+    run cat data.json
+    assert_output $'{\n  "a": [\n    1,\n    2\n  ],\n  "b": 1\n}'
+    run cat config.yaml
+    assert_output $'foo: bar\nlist:\n  - 1\n  - 2'
+}
+
+@test "jq and yq report files they cannot parse and still fix the rest" {
+    # Diffing a file against a failed run's empty output would make a patch
+    # that empties the file, and a patch for only the files that parsed would
+    # let hk report success.
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["fix"] {
+    fix = true
+    steps {
+      ["jq"] = Builtins.jq
+      ["yq"] = Builtins.yq
+    }
+  }
+}
+PKL
+    printf '{\n  // JSONC comment\n  "a": 1\n}\n' > tsconfig.json
+    printf '{"b": 1, "a": 2}' > data.json
+    printf 'a: [\n' > broken.yaml
+    printf 'foo:   bar\n' > config.yaml
+    chmod 755 data.json
+    printf '{\n  "ok": true\n}\n' > formatted.json
+    ln formatted.json formatted-link.json
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk fix --all --no-fail-fast
+    assert_failure
+    assert_output --partial "jq: parse error"
+    assert_output --partial "bad file 'broken.yaml'"
+    run cat tsconfig.json
+    assert_output $'{\n  // JSONC comment\n  "a": 1\n}'
+    run cat broken.yaml
+    assert_output 'a: ['
+    run cat data.json
+    assert_output $'{\n  "a": 2,\n  "b": 1\n}'
+    run cat config.yaml
+    assert_output 'foo: bar'
+    # The fixer keeps the file's permissions, leaves already formatted files
+    # (and their links) alone, and leaves no temp files.
+    [ -x data.json ]
+    [ formatted.json -ef formatted-link.json ]
+    assert_equal "$(find . -name '*.json.*' -o -name '*.yaml.*' | wc -l | tr -d ' ')" 0
+}

@@ -138,9 +138,7 @@ EOF
     git add bad.txt good.txt
     echo "unstaged" >> good.txt
 
-    # Only libgit2 skips the stash before the first commit; the git CLI
-    # backend fails to stash there instead.
-    HK_LIBGIT2=1 HK_LOG=debug run hk run pre-commit
+    HK_LOG=debug run hk run pre-commit
     assert_success
     assert_output --partial "DEBUG $ ./list.sh"
     assert_equal "$(git show :bad.txt)" "good"
