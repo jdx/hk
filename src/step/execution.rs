@@ -491,7 +491,7 @@ impl Step {
             // until the add finishes, so git never reads a partially written file
             // (both libgit2 and the git CLI fail when a file changes mid-read).
             // Take the file locks before the git mutex so neither waits on the other.
-            // With the default stage, only this job's files are inspected, so
+            // The status query inspects only the files it is asked about, so
             // staging does not wait for steps that write other files.
             let status_files = if stage_only_job_files {
                 actual_job_files.iter().cloned().collect_vec()
@@ -527,7 +527,7 @@ impl Step {
                 // Only this job's files can be staged, so only they need a status
                 git.status_of_paths(&status_files)?
             } else {
-                git.status(Some(&stage_pathspecs))?
+                git.status_of_pathspec(&stage_pathspecs)?
             };
 
             // Build a scoped candidate set:

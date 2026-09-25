@@ -479,6 +479,16 @@ impl Git {
         self.read_status(pathspec, false)
     }
 
+    /// Status of the paths matching `pathspec`, read without touching any
+    /// file outside them.
+    ///
+    /// Like [`Git::status_of_paths`], it skips the index refresh in
+    /// [`Git::status`], which may hash any tracked file.
+    #[tracing::instrument(level = "info", name = "git.status_of_pathspec", skip_all, fields(pathspec_count = pathspec.len()))]
+    pub fn status_of_pathspec(&self, pathspec: &[OsString]) -> Result<GitStatus> {
+        self.read_status(Some(pathspec), false)
+    }
+
     /// Worktree paths that any index write may read, besides the paths being
     /// written.
     ///
@@ -684,25 +694,19 @@ impl Git {
             } else {
                 "--untracked-files=no"
             };
-            // Without --no-optional-locks, `git status` writes the refreshed
-            // index back, and writing the index re-hashes every racily clean
-            // entry in the repository, not just the ones in `pathspec`.
-            let mut args = vec![
-                "--no-optional-locks",
-                "status",
-                "--porcelain",
-                untracked_arg,
-                "-z",
-            ]
-            .into_iter()
-            .filter(|&arg| !arg.is_empty())
-            .map(OsString::from)
-            .collect_vec();
+            let mut args = vec!["status", "--porcelain", untracked_arg, "-z"]
+                .into_iter()
+                .filter(|&arg| !arg.is_empty())
+                .map(OsString::from)
+                .collect_vec();
             if let Some(pathspec) = pathspec {
                 args.push("--".into());
                 args.extend(pathspec.iter().map(|p| p.into()))
             }
-            let output = git_read(args)?;
+            // With optional locks, `git status` writes the refreshed index
+            // back, and writing the index re-hashes every racily clean entry
+            // in the repository, not just the ones in `pathspec`.
+            let output = git_cmd(args).env("GIT_OPTIONAL_LOCKS", "0").read()?;
             let mut staged_files = BTreeSet::new();
             let mut unstaged_files = BTreeSet::new();
             let mut untracked_files = BTreeSet::new();
