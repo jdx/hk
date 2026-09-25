@@ -1,5 +1,6 @@
-# pre-commit (and prek, which reads the same file). Hooks run one at a time;
-# within a hook, both tools split the files into batches across CPUs.
+# pre-commit. Hooks run one at a time; within a hook, pre-commit splits the
+# files into batches across CPUs. ../prek is the same hooks with prek's
+# concurrency setting on the check hooks.
 #
 # Fix hooks run at the pre-commit stage. The check hooks are the same tools in
 # read-only mode, run with `--hook-stage manual`.

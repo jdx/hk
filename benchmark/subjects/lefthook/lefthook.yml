@@ -1,9 +1,11 @@
-# lefthook, sequential (its default). Safe: one fixer writes at a time.
+# lefthook. `fix` fixes without staging and is the all-files scenario;
+# `pre-commit` is the same jobs with stage_fixed, matching hk's pre-commit hook.
+# Both run one job at a time (lefthook's default): with `parallel: true` every
+# job starts at once and nothing stops two fixers writing the same file, and in
+# this workload every file is written by two or three of them.
 #
-# `fix` fixes without staging and is the all-files scenario. `pre-commit` is
-# the same jobs with stage_fixed, matching hk's pre-commit hook. `check` is
-# read-only and sequential too, so that check-all shows what lefthook-parallel
-# gains over the default.
+# `check` writes nothing on the clean tree, so it uses `parallel: true`,
+# lefthook's setting for speed.
 fix:
   parallel: false
   jobs: &fix
@@ -42,7 +44,7 @@ pre-commit:
   stage_fixed: true
   jobs: *fix
 check:
-  parallel: false
+  parallel: true
   jobs: &check
     - name: black
       run: black --quiet --check {staged_files}

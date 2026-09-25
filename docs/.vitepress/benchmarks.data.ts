@@ -7,6 +7,8 @@ const resultsPath = fileURLToPath(
 );
 
 export interface Stats {
+  // How the tool ran its hooks in this scenario; older results omit it.
+  mode?: string;
   mean: number;
   median: number;
   stddev: number;
@@ -20,7 +22,6 @@ export interface Subject {
   tool: string;
   label: string;
   mode: string;
-  safe: boolean;
 }
 
 export interface Scenario {
