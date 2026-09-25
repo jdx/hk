@@ -472,6 +472,48 @@ impl Git {
     pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         // Refresh index stat information to avoid stale mtime/size causing mis-detection
         let _ = git_run(["update-index", "-q", "--refresh"]);
+        self.read_status(pathspec, false)
+    }
+
+    /// Status of exactly `paths`, read without touching any other file in the
+    /// worktree, so it is safe while other steps are writing other files.
+    ///
+    /// It skips the index refresh in [`Git::status`], which stats and may hash
+    /// every tracked file. Both libgit2 and `git status` compare contents
+    /// themselves when an entry's stat information is stale.
+    #[tracing::instrument(level = "info", name = "git.status_of_paths", skip_all, fields(path_count = paths.len()))]
+    pub fn status_of_paths(&self, paths: &[PathBuf]) -> Result<GitStatus> {
+        if paths.is_empty() {
+            return Ok(GitStatus::default());
+        }
+        if self.repo.is_some() {
+            let pathspec = paths.iter().map(|p| p.as_os_str().to_owned()).collect_vec();
+            return self.read_status(Some(&pathspec), true);
+        }
+        // `git status` takes pathspecs only as arguments, so query in chunks
+        // that stay well under the command-line limit (32 KiB on Windows).
+        const MAX_ARG_BYTES: usize = 16 * 1024;
+        let mut status = GitStatus::default();
+        let mut chunk: Vec<OsString> = Vec::new();
+        let mut chunk_bytes = 0;
+        for p in paths {
+            let mut spec = OsString::from(":(literal)");
+            spec.push(p);
+            if !chunk.is_empty() && chunk_bytes + spec.len() + 1 > MAX_ARG_BYTES {
+                status.extend(self.read_status(Some(&chunk), true)?);
+                chunk.clear();
+                chunk_bytes = 0;
+            }
+            chunk_bytes += spec.len() + 1;
+            chunk.push(spec);
+        }
+        status.extend(self.read_status(Some(&chunk), true)?);
+        Ok(status)
+    }
+
+    /// `literal` matches libgit2 pathspecs as exact paths; git CLI callers mark
+    /// literal pathspecs themselves with `:(literal)`.
+    fn read_status(&self, pathspec: Option<&[OsString]>, literal: bool) -> Result<GitStatus> {
         // When stashing untracked files is disabled, skip the untracked-file scan.
         // This avoids catastrophic scans when GIT_WORK_TREE points at a large tree
         // (e.g. YADM dotfile repos where the worktree is $HOME). See #860.
@@ -481,6 +523,7 @@ impl Git {
             status_options.include_untracked(include_untracked);
             status_options.recurse_untracked_dirs(include_untracked);
             status_options.renames_head_to_index(true);
+            status_options.disable_pathspec_match(literal);
 
             if let Some(pathspec) = pathspec {
                 for path in pathspec {
@@ -706,6 +749,12 @@ impl Git {
     }
 
     #[tracing::instrument(level = "info", name = "git.stash.push", skip_all)]
+    /// Paths whose unstaged changes the last [`Git::stash_unstaged`] set aside,
+    /// or `None` if it stashed nothing.
+    pub fn stashed_paths(&self) -> Option<&BTreeSet<PathBuf>> {
+        self.stash.as_ref().and(self.stashed_paths.as_ref())
+    }
+
     pub fn stash_unstaged(
         &mut self,
         job: &ProgressJob,
@@ -1624,20 +1673,29 @@ impl Git {
         Ok(())
     }
 
-    pub fn add(&self, pathspecs: &[PathBuf]) -> Result<()> {
-        let pathspecs = pathspecs.iter().collect_vec();
-        trace!("adding files: {:?}", pathspecs);
-        if let Some(repo) = &self.repo {
-            let mut index = repo.index().wrap_err("failed to get index")?;
-            index
-                .add_all(&pathspecs, git2::IndexAddOption::DEFAULT, None)
-                .wrap_err("failed to add files to index")?;
-            index.write().wrap_err("failed to write index")?;
-            Ok(())
-        } else {
-            git_cmd(["add", "--"]).args(pathspecs).run()?;
-            Ok(())
+    /// Stages exactly `paths`, taken literally rather than as pathspecs.
+    ///
+    /// Always runs `git add`, even with libgit2: writing the index re-checks
+    /// recently staged entries against the worktree, and other steps may still
+    /// be writing those files. Git smudges an entry whose file changes while it
+    /// reads it; libgit2 fails the whole write instead.
+    pub fn add(&self, paths: &[PathBuf]) -> Result<()> {
+        trace!("adding files: {:?}", paths);
+        if paths.is_empty() {
+            return Ok(());
         }
+        // Pass the paths on stdin: a large fixer's files can exceed the
+        // command-line limit.
+        let mut pathspecs = Vec::new();
+        for p in paths {
+            pathspecs.extend_from_slice(b":(literal)");
+            pathspecs.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            pathspecs.push(0);
+        }
+        git_cmd(["add", "--pathspec-from-file=-", "--pathspec-file-nul"])
+            .stdin_bytes(pathspecs)
+            .run()?;
+        Ok(())
     }
 
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {
@@ -1831,4 +1889,26 @@ pub(crate) struct GitStatus {
     pub unstaged_modified_files: BTreeSet<PathBuf>,
     pub unstaged_deleted_files: BTreeSet<PathBuf>,
     pub unstaged_renamed_files: BTreeSet<PathBuf>,
+}
+
+impl GitStatus {
+    /// Adds the entries of a status of other paths.
+    fn extend(&mut self, other: GitStatus) {
+        self.unstaged_files.extend(other.unstaged_files);
+        self.staged_files.extend(other.staged_files);
+        self.untracked_files.extend(other.untracked_files);
+        self.modified_files.extend(other.modified_files);
+        self.staged_added_files.extend(other.staged_added_files);
+        self.staged_modified_files
+            .extend(other.staged_modified_files);
+        self.staged_deleted_files.extend(other.staged_deleted_files);
+        self.staged_renamed_files.extend(other.staged_renamed_files);
+        self.staged_copied_files.extend(other.staged_copied_files);
+        self.unstaged_modified_files
+            .extend(other.unstaged_modified_files);
+        self.unstaged_deleted_files
+            .extend(other.unstaged_deleted_files);
+        self.unstaged_renamed_files
+            .extend(other.unstaged_renamed_files);
+    }
 }

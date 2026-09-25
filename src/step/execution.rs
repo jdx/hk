@@ -86,15 +86,20 @@ impl Step {
             &ctx.hook_ctx.skip_steps,
         )?;
         // When this hook stages fixes with the default `stage`, a step that can
-        // list or diff the files it would change checks first, so only files
-        // it changed are fixed and staged.
+        // list or diff the files it would change checks first if any of its
+        // files has unstaged changes, so only files it changed are fixed and
+        // staged. Otherwise staging picks up exactly the files the fix changed,
+        // and the check would only run the tool twice.
         if ctx.hook_ctx.should_stage
             && self.stage.is_none()
             && matches!(ctx.hook_ctx.run_type, RunType::Fix)
             && (self.check_list_files.is_some() || self.check_diff.is_some())
         {
+            let unstaged = ctx.hook_ctx.initial_unstaged.lock().unwrap();
             for job in &mut jobs {
-                job.check_first = true;
+                if job.files.iter().any(|f| unstaged.contains(f)) {
+                    job.check_first = true;
+                }
             }
         }
         // Apply ARG_MAX-safe auto-batching now that the full tera context is
@@ -485,16 +490,17 @@ impl Step {
             // until the add finishes, so git never reads a partially written file
             // (both libgit2 and the git CLI fail when a file changes mid-read).
             // Take the file locks before the git mutex so neither waits on the other.
-            let hook_files = ctx.hook_ctx.files();
+            // With the default stage, only this job's files are inspected, so
+            // staging does not wait for steps that write other files.
             let lock_files = if stage_only_job_files {
-                hook_files
+                actual_job_files.iter().cloned().collect_vec()
             } else {
-                glob::get_matches(&stage_globs, &hook_files)?
+                glob::get_matches(&stage_globs, &ctx.hook_ctx.files())?
             };
             let _flocks = ctx.hook_ctx.file_locks.read_locks(&lock_files).await;
             let status = if stage_only_job_files {
-                // For {{job_files}}, get status of all files (no pathspec filtering)
-                ctx.hook_ctx.git.lock().await.status(None)?
+                // Only this job's files can be staged, so only they need a status
+                ctx.hook_ctx.git.lock().await.status_of_paths(&lock_files)?
             } else {
                 ctx.hook_ctx
                     .git

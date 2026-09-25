@@ -561,8 +561,10 @@ open class Step {
   /// - a step whose `check` and `fix` are the same command, as in steps migrated from
   ///   pre-commit: such a fixer exits 1 after fixing, and the second run is what lets it pass;
   /// - a step with `check_diff` in fix mode, so it can apply the diff instead of running `fix`;
-  /// - a step with `check_diff` or `check_list_files` in a hook that stages its fixes, with the
-  ///   default `stage` or `stage = "<JOB_FILES>"`, so only the files it changed are fixed and staged.
+  /// - a step with `check_diff` or `check_list_files` and `stage = "<JOB_FILES>"`, so only the
+  ///   files it changed are fixed and staged. With the default `stage`, this happens only when one
+  ///   of the step's files has unstaged changes that hk didn't stash, since otherwise staging
+  ///   picks up exactly the files the fix changed.
   check_first: Boolean = false
 
   /// Default: `false`

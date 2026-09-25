@@ -47,7 +47,7 @@ Request check commands instead of fix commands. This setting wins when both `HK_
 
 Allow steps to run their check before fixing and skip the fix when the check passes. Steps do this when they set `check_first = true` (and another step writes the same files), and always when their `check` and `fix` are the same command, as in steps migrated from pre-commit. Setting this to `false` turns it off for both; such a migrated fixer then fails whenever it fixes something, because it exits 1 after fixing.
 
-Some steps check first regardless of this setting, because fixing or staging depends on it: a step with `check_diff` in fix mode applies the diff instead of running `fix`, and in a hook that stages its fixes (with the default `stage`), a step with `check_diff` or `check_list_files` lists the files it would change so only those are fixed and staged.
+Some steps check first regardless of this setting, because fixing or staging depends on it: a step with `check_diff` in fix mode applies the diff instead of running `fix`, and in a hook that stages its fixes, a step with `check_diff` or `check_list_files` lists the files it would change so only those are fixed and staged. With the default `stage`, that happens only when one of the step's files has unstaged changes that hk didn't stash.
 
 ## `HK_CONFIG_DIR` {#hk-config-dir}
 
