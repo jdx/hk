@@ -712,13 +712,17 @@ impl Git {
         method: StashMethod,
         status: &GitStatus,
     ) -> Result<()> {
-        // Skip stashing if there's no initial commit yet or auto-stash is disabled
+        // Skip stashing if auto-stash is disabled or there's no initial commit yet
         if method == StashMethod::None {
             return Ok(());
         }
-        if let Some(repo) = &self.repo
-            && repo.head().is_err()
-        {
+        let has_head = match &self.repo {
+            Some(repo) => repo.head().is_ok(),
+            None => git_cmd_silent(["rev-parse", "--verify", "-q", "HEAD"])
+                .read()
+                .is_ok(),
+        };
+        if !has_head {
             return Ok(());
         }
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
