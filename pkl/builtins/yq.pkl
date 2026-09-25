@@ -18,21 +18,28 @@ yq = new Config.Step {
     command =
       """
       failed=0
-      parse_failed=0
+      broken=0
       trap 'rm -f "$out" "$patch"' EXIT
       trap 'exit 2' HUP INT TERM
       out=$(mktemp) && patch=$(mktemp) || exit 2
       for f in {{ files }}; do
       if yq -P "$f" > "$out"; then
-      diff -u -L "a/$f" -L "b/$f" "$f" "$out" >> "$patch" || failed=1
+      # hk runs this with `set -e`, so take diff's status through `||`.
+      status=0
+      diff -u -L "a/$f" -L "b/$f" "$f" "$out" >> "$patch" || status=$?
+      case $status in
+      0) ;;
+      1) failed=1 ;;
+      *) broken=1 ;;
+      esac
       else
-      parse_failed=1
+      broken=1
       fi
       done
-      # With a file that failed to parse, print no patch: hk then runs the
+      # When a file failed to parse or diff, print no patch: hk then runs the
       # fixer on every file, and the fixer reports the error.
-      [ "$parse_failed" = 1 ] && exit 1
-      cat "$patch"
+      [ "$broken" = 1 ] && exit 1
+      cat "$patch" || exit 2
       exit $failed
       """
     effect = "read"

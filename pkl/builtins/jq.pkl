@@ -19,21 +19,28 @@ jq = new Config.Step {
     command =
       """
       failed=0
-      parse_failed=0
+      broken=0
       trap 'rm -f "$out" "$patch"' EXIT
       trap 'exit 2' HUP INT TERM
       out=$(mktemp) && patch=$(mktemp) || exit 2
       for f in {{ files }}; do
       if jq -S . "$f" > "$out"; then
-      diff -u -L "a/$f" -L "b/$f" "$f" "$out" >> "$patch" || failed=1
+      # hk runs this with `set -e`, so take diff's status through `||`.
+      status=0
+      diff -u -L "a/$f" -L "b/$f" "$f" "$out" >> "$patch" || status=$?
+      case $status in
+      0) ;;
+      1) failed=1 ;;
+      *) broken=1 ;;
+      esac
       else
-      parse_failed=1
+      broken=1
       fi
       done
-      # With a file that failed to parse, print no patch: hk then runs the
+      # When a file failed to parse or diff, print no patch: hk then runs the
       # fixer on every file, and the fixer reports the error.
-      [ "$parse_failed" = 1 ] && exit 1
-      cat "$patch"
+      [ "$broken" = 1 ] && exit 1
+      cat "$patch" || exit 2
       exit $failed
       """
     effect = "read"
@@ -42,17 +49,20 @@ jq = new Config.Step {
     command =
       """
       failed=0
+      tmp=
       trap 'rm -f "$tmp"' EXIT
       trap 'exit 2' HUP INT TERM
-      tmp=$(mktemp) || exit 2
       for f in {{ files }}; do
-      # Copy over the file rather than moving the temp file, which would
-      # replace the file's permissions with mktemp's 0600.
-      if jq -S . "$f" > "$tmp"; then
-      cat "$tmp" > "$f"
-      else
+      # Write a copy beside the file, with its permissions, then rename it
+      # over the file, so a failed write never truncates the original.
+      tmp=$(mktemp "$f.XXXXXX") &&
+      cp -p "$f" "$tmp" &&
+      jq -S . "$f" > "$tmp" &&
+      mv "$tmp" "$f" || {
+      rm -f "$tmp"
       failed=1
-      fi
+      }
+      tmp=
       done
       exit $failed
       """

@@ -427,6 +427,7 @@ PKL
     assert_output $'{\n  "a": 2,\n  "b": 1\n}'
     run cat config.yaml
     assert_output 'foo: bar'
-    # The fixer writes through the file, keeping its permissions.
+    # The fixer keeps the file's permissions and leaves no temp files.
     [ -x data.json ]
+    assert_equal "$(find . -name '*.json.*' -o -name '*.yaml.*' | wc -l | tr -d ' ')" 0
 }
