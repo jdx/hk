@@ -81,7 +81,7 @@ EOF
     refute_output --partial "check-a a.txt"
 }
 
-write_listing_fixer_config() {
+write_listing_hook() {
     cat <<'EOF' > list.sh
 #!/bin/sh
 status=0
@@ -112,24 +112,14 @@ hooks {
   }
 }
 EOF
-    # A literal default keeps the heredoc valid Pkl for the Apple Pkl check.
-    if [ "$1" != none ]; then
-        sed -i.bak "s/stash = \"none\"/stash = \"$1\"/" hk.pkl && rm hk.pkl.bak
-    fi
-    # git cannot stash before the first commit.
-    if [ "${2:-}" != no-commit ]; then
-        git add -A
-        git commit -qm init
-    fi
+}
+
+@test "a staging hook narrows a listing step when its files have unstaged changes" {
+    write_listing_hook
     echo bad > bad.txt
     echo fine > good.txt
     git add -A
-    # An unstaged edit that the step's fix must not stage.
-    echo edited >> good.txt
-}
-
-@test "a staging hook without a stash narrows a listing step to the files it would change" {
-    write_listing_fixer_config none
+    echo "unstaged" >> good.txt
 
     HK_LOG=debug run hk run pre-commit
     assert_success
@@ -140,27 +130,35 @@ EOF
     assert_equal "$(git show :good.txt)" "fine"
 }
 
-@test "a staging hook that stashes fixes a listing step's files directly" {
-    write_listing_fixer_config git
-
-    HK_LOG=debug run hk run pre-commit
-    assert_success
-    refute_output --partial "DEBUG $ ./list.sh"
-    assert_output --partial "DEBUG $ sed -i.bak s/bad/good/ bad.txt good.txt"
-    assert_equal "$(git show :bad.txt)" "good"
-    assert_equal "$(git show :good.txt)" "fine"
-    assert_equal "$(cat good.txt)" $'fine\nedited'
-}
-
-@test "a listing step still narrows when a configured stash cannot run" {
-    write_listing_fixer_config git no-commit
+@test "a staging hook narrows a listing step when there is no commit to stash against" {
+    write_listing_hook
+    sed -i.bak 's/stash = "none"/stash = "git"/' hk.pkl && rm -f hk.pkl.bak
+    echo bad > bad.txt
+    echo fine > good.txt
+    git add bad.txt good.txt
+    echo "unstaged" >> good.txt
 
     HK_LOG=debug run hk run pre-commit
     assert_success
     assert_output --partial "DEBUG $ ./list.sh"
-    refute_output --partial "s/bad/good/ bad.txt good.txt"
     assert_equal "$(git show :bad.txt)" "good"
     assert_equal "$(git show :good.txt)" "fine"
+}
+
+@test "a staging hook fixes a listing step directly when nothing is unstaged" {
+    write_listing_hook
+    echo bad > bad.txt
+    echo fine > good.txt
+    git add -A
+
+    HK_LOG=debug run hk run pre-commit
+    assert_success
+    refute_output --partial "DEBUG $ ./list.sh"
+    assert_output --partial "s/bad/good/ bad.txt good.txt"
+    assert_equal "$(git show :bad.txt)" "good"
+    assert_equal "$(git show :good.txt)" "fine"
+    run git diff --name-only
+    assert_output ""
 }
 
 @test "files fixed by a same-command step whose check passes are staged" {
