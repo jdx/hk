@@ -74,8 +74,8 @@ const measured = computed(() =>
       <a v-if="results.workflow_run" :href="results.workflow_run">Workflow run</a>
     </p>
     <p class="bench-meta">
-      Bars show the median time, lines the fastest to slowest sample. Every tool
-      left byte-for-byte correct files in every timed sample.
+      Shorter bars mean faster runs. Bars show median times; lines span the fastest
+      to slowest samples. Every tool produced the expected files in every timed sample.
     </p>
 
     <section v-for="s in scenarios" :key="s.key" class="bench-card">
@@ -104,11 +104,11 @@ const measured = computed(() =>
       </ul>
 
       <details>
-        <summary>Numbers</summary>
+        <summary>Timing details</summary>
         <table>
           <thead>
             <tr>
-              <th>Tool</th><th>Median</th><th>Mean ± σ</th><th>Range</th><th>Runs</th>
+              <th>Tool</th><th>Median</th><th>Mean ± standard deviation</th><th>Range</th><th>Runs</th>
             </tr>
           </thead>
           <tbody>

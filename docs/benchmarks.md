@@ -1,66 +1,98 @@
 ---
-description: How hk compares with lefthook, pre-commit, and prek on wall time and on whether each tool produces the right files, with the method used and how to reproduce it.
+description: Compare hk, lefthook, pre-commit, and prek on fixing files, checking a repository, and running pre-commit hooks. Includes the benchmark method and reproduction steps.
 ---
 
 # Benchmarks
 
-hk runs fixers in parallel and uses file locks so that two of them never write the same file at once. This page compares hk with lefthook, pre-commit, and prek on how long each run takes and whether it leaves the right files behind.
+This benchmark compares hk, lefthook, pre-commit, and prek on three everyday tasks: fixing files, checking a repository, and running pre-commit hooks. It measures elapsed time and verifies the files each tool produces. hk runs steps concurrently, using file locks to prevent fixers from writing the same file at once.
+
+## Results on main
+
+On main ([`10b49864`](https://github.com/jdx/hk/commit/10b49864)), hk is fastest in all three scenarios. This run used a Ryzen 9 7950X3D pinned to eight CPUs with `taskset -c 0-7`. Every tool produced the expected files in every timed sample.
+
+| Scenario | hk (main) | Fastest other tool | Result |
+| --- | --- | --- | --- |
+| Fix every file | 4.43 s | prek: 5.22 s | hk is 1.2× faster |
+| Check every file | 1.51 s | lefthook: 2.08 s | hk is 1.4× faster |
+| Commit | 0.42 s | lefthook: 0.72 s | hk is 1.7× faster |
+
+Times are medians; speed ratios compare hk with the fastest other tool in the same run.
+
+- **Fix every file:** hk's lead over the next tool is smallest here. pre-commit and prek split each hook's files into batches that run across CPUs; hk can also run different fixers concurrently.
+- **Check every file:** hk finishes ahead of lefthook even with lefthook's parallel mode enabled for read-only checks.
+- **Commit:** hk has its largest relative lead when fixing about 60 staged files. hk runs independent fixers concurrently and stages each fixer's files as it finishes; the other configurations run hooks or jobs one at a time.
+
+## Published results
+
+The charts below show the latest published run, including its host and tool versions. They currently measure hk 2.2.0 on a different host from the main run above. The next release and benchmark refresh will update them to include the changes on main.
 
 <BenchmarkResults />
 
-## What the results show
+## Workload and correctness
 
-hk is the fastest of the four in every scenario, and every tool produces the right files.
+The generated repository contains about 6,000 files: 4,000 Python, 500 JavaScript and TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown. Each configuration runs ten fixers: black, ruff format, ruff check, Prettier, ESLint, jq, yq, shfmt, trailing whitespace, and final newline.
 
-- **Fixing every file**, the gap is smallest. pre-commit and prek already use every core by splitting each hook's files into batches, and hk also runs different fixers at the same time. lefthook runs one fixer at a time over every file and takes more than twice as long as hk.
-- **Checking every file**, hk stays ahead of lefthook even though lefthook starts every job at once here.
-- **Committing** a few dozen files, the gap is largest. There is little work to split into batches, so most of each run is fixers starting up and finishing. hk runs the fixers at the same time and stages each one's files as soon as it finishes. The others run them one after another.
+The generator creates two commits: `clean`, the result of running the fixers sequentially, and `dirty`, with formatting defects in a quarter of the files. Each defective file needs both a language fixer and a whitespace fixer, so the workload exercises overlapping writes.
 
-## The workload
+| Scenario | Starting state | Measured work |
+| --- | --- | --- |
+| Fix every file | `dirty` | `hk fix --all` and equivalent commands. |
+| Check every file | `clean` | Read-only checks of the entire repository, as in CI. |
+| Commit | About 60 files with defects staged | Each tool's pre-commit hook fixes the staged files. |
 
-A generated repository of about 6,000 files: 4,000 Python, 500 JavaScript and TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown. Every tool runs the same ten fixers over it: black, ruff format, ruff check, Prettier, ESLint, jq, yq, shfmt, trailing whitespace, and final newline.
+The commit scenario measures one hook invocation. hk and lefthook stage their fixes. pre-commit and prek leave fixes unstaged and return a failure, requiring the user to stage the changes and retry the commit. That manual work and retry are outside the measurement.
 
-The generator commits a `clean` state, the result of running the ten fixers one after another, and a `dirty` state in which a quarter of the files have defects. Each defective file needs both a language fixer and a whitespace fixer. After fixing `dirty`, a run is correct only if the tree is byte-for-byte identical to `clean`. tak checks this after every timed sample, and the page publishes a run only if every sample of every tool was correct.
+After every timed sample, [tak](https://github.com/jdx/tak) checks that the resulting tree matches `clean` byte for byte. A separate check verifies that each tool detects defects in `dirty`. A run is publishable only if every tool passes all required checks.
 
-- **Fix every file**: `hk fix --all` and equivalents, starting from `dirty`.
-- **Check every file**: a read-only check of the `clean` tree, as in CI.
-- **Commit**: about 60 files with defects are staged and each tool's pre-commit hook fixes them. hk and lefthook stage their fixes. pre-commit and prek leave them unstaged and fail the commit, which is how they are designed to work.
+## Tool configurations
 
-## How each tool runs
+The configurations allow concurrency where it cannot cause overlapping writes: hk coordinates fixers with file locks, while pre-commit and prek give each batch different files.
 
-Each tool uses its fastest configuration in which two fixers can never write the same file at once:
+| Tool | Fixing | Checking |
+| --- | --- | --- |
+| hk | Steps run concurrently with per-file locks. | Same configuration. |
+| lefthook | Jobs run sequentially (the default). | Jobs run concurrently with `parallel: true`. |
+| pre-commit | Hooks run sequentially; each hook's file batches run across CPUs. | Same configuration. |
+| prek | Hooks run sequentially; each hook's file batches run across CPUs. | Same configuration. |
 
-| Tool       | Fixing                                                              | Checking                               |
-| ---------- | ------------------------------------------------------------------- | -------------------------------------- |
-| hk         | Steps in parallel; file locks keep two fixers off the same file.    | The same.                              |
-| lefthook   | One job at a time, its default.                                     | `parallel: true`: every job at once.   |
-| pre-commit | One hook at a time; each hook's files split into batches per CPU.   | The same.                              |
-| prek       | Same as pre-commit.                                                 | The same.                              |
+lefthook's `parallel: true` and prek hooks with a shared `priority` can run fixers that write the same file at once. Those configurations are excluded from fixing, even if a particular run happens to produce correct output. lefthook's parallel mode is used for read-only checks.
 
-lefthook's `parallel: true` and prek's hooks that share a `priority` start fixers at once with nothing to stop two of them from writing the same file, and prek's documentation warns that this gives undefined results. Whether a race corrupts a run depends on timing, so it can pass on one machine and fail on another. Neither mode is used for fixing. lefthook's `parallel: true` is still used for checking, where nothing writes.
+hk uses its builtins, including their check-before-fix behavior and the `hk util` whitespace fixers. The other configurations invoke the language fixers directly. pre-commit and lefthook use the whitespace fixers from [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks); prek uses its bundled Rust replacements. See the complete [tool configurations](https://github.com/jdx/hk/tree/main/benchmark/subjects).
 
-## Keeping it fair
+## Measurement method
 
-- **The same work.** hk uses its builtins as shipped, including their check-before-fix behavior and the `hk util` whitespace fixers. The others run each linter's fix command directly, and [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks)' `trailing-whitespace` and `end-of-file-fixer` for whitespace. prek swaps those for its bundled Rust versions, and lefthook calls the package's console scripts. See [`benchmark/subjects`](https://github.com/jdx/hk/tree/main/benchmark/subjects).
-- **Pinned versions.** Every tool and runtime is pinned in [`benchmark/mise.toml`](https://github.com/jdx/hk/blob/main/benchmark/mise.toml).
-- **Interleaved sampling.** [tak](https://github.com/jdx/tak) takes one sample of every tool per round, in a new random order each round, so thermal throttling or a noisy neighbour is shared across tools.
-- **Same starting state.** Each tool has its own clone, reset before every sample. Caches such as ruff's and black's stay warm, as on a developer's machine, and each clone keeps its own.
-- **Hermetic Git.** Global and system Git configuration is disabled, so the host's hooks, signing, and filesystem monitor stay out of the measurements.
-- **Wins must beat the noise.** A tool is called faster only when the gap between medians is larger than both tools' ranges across samples.
+- **Pinned versions.** Hook managers, linters, and runtimes are pinned in [`benchmark/mise.toml`](https://github.com/jdx/hk/blob/main/benchmark/mise.toml). The charts list the measured hook-manager versions and host.
+- **Interleaved samples.** tak measures every tool once per round, in a new random order each round, to spread the effects of changing host conditions across tools.
+- **Repeatable starting state.** Each tool has its own clone, reset before each sample outside the timed interval. Each clone keeps its own warm caches, including ruff's and black's.
+- **Isolated Git configuration.** Global and system Git configuration is disabled to exclude the host's hooks, signing, and filesystem monitor.
+- **Variation matters.** The chart calls a tool faster only when the gap between medians exceeds both tools' sample ranges. Otherwise, it calls them level. This is a conservative comparison rule, not a statistical significance test.
 
-## What this does not measure
+## Limitations
 
-- **Your repository.** The generated files are uniform. Real results depend on your linters, how much their file patterns overlap, how many files change, and how many cores you have. [hk timing reports](/logging#a-run-is-slow) show where your own runs spend their time.
-- **CPU-bound linters.** Tools that already use every core, such as black, gain less from running steps concurrently.
-- **Stashing.** In the commit scenario no file has unstaged changes, so saving and restoring unstaged work costs almost nothing.
-- **Setup.** Install time, first runs with cold caches, and features beyond running fixers.
+The generated files are uniform. Results in your repository depend on the linters, overlapping file patterns, number of changed files, and available CPU cores. Linters that already use all available cores, such as black, may gain less from running alongside other steps. Use [hk timing reports](/logging#a-run-is-slow) to see where your own runs spend their time.
 
-## Reproduce
+The benchmark excludes installation, first runs with cold caches, and hook-manager features beyond running fixers. It also does not measure the cost of preserving partially staged work: the commit scenario has no unstaged changes to save and restore.
 
-The benchmark runs on Linux (its scripts use GNU sed) and needs [mise](https://mise.jdx.dev) and a checkout of hk:
+## Reproduce the benchmark
+
+On Linux, install [mise](https://mise.jdx.dev) and run this command from a checkout of hk. The benchmark scripts require GNU sed; mise installs the pinned toolset.
 
 ```sh
 mise run benchmark
 ```
 
-This builds hk, generates the project in `~/.cache/hk-bench`, times every scenario, and writes `benchmark/results.json`, which this page renders. Pass tak flags to narrow a run, for example `mise run benchmark -- --bench fix-staged --runs 5`; such a run is never marked publishable. Set `HK_BIN` to measure a released hk. [`benchmark/README.md`](https://github.com/jdx/hk/blob/main/benchmark/README.md) explains how the pieces fit together.
+This builds hk from the checkout, generates the test repository in `~/.cache/hk-bench`, runs the scenarios and correctness checks, and writes `benchmark/results.json`, which supplies the charts on this page.
+
+To investigate one scenario, pass flags through to tak:
+
+```sh
+mise run benchmark -- --bench fix-staged --runs 5
+```
+
+A filtered run is not publishable. To measure an existing hk binary instead of building the checkout, set `HK_BIN` to its path:
+
+```sh
+HK_BIN=/path/to/hk mise run benchmark
+```
+
+See the [benchmark maintainer guide](https://github.com/jdx/hk/blob/main/benchmark/README.md) for the scripts and publication workflow.
