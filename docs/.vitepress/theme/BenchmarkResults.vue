@@ -64,7 +64,7 @@ const measured = computed(() =>
 <template>
   <div v-if="!results" class="bench-empty">
     <p>
-      No verified benchmark run has been published yet. The page only shows numbers
+      No verified run of the current benchmark has been published yet. The page only shows numbers
       from a run in which every tool that is safe by design produced exactly the
       right files. Run <code>mise run benchmark</code> to measure on your own machine.
     </p>

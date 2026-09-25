@@ -10,8 +10,14 @@ name: benchmark-refresh
 on:
   schedule:
     # Weekly, Tuesday 05:17 UTC. Only does work when a release has shipped
-    # since the last refresh (see the `check` job).
+    # since the last refresh, or the results schema changed (see the `check`
+    # job).
     - cron: "17 5 * * 2"
+  # A change to the benchmark that bumps report.py's SCHEMA takes the published
+  # results off the docs page; re-measure right away instead of next week.
+  push:
+    branches: [main]
+    paths: [benchmark/report.py]
   workflow_dispatch:
     inputs:
       force:
@@ -49,10 +55,14 @@ jobs:
         run: |
           RELEASE=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq '.tagName | ltrimstr("v")')
           MEASURED=$(jq -r '.versions.hk // empty' benchmark/results.json 2>/dev/null || true)
-          echo "latest release: $RELEASE, measured: ${MEASURED:-<none>}, force: $FORCE"
+          # A benchmark change that bumps report.py's SCHEMA makes the
+          # published results stale even for the same release.
+          SCHEMA=$(sed -n 's/^SCHEMA = //p' benchmark/report.py)
+          PUBLISHED=$(jq -r '.schema // empty' benchmark/results.json 2>/dev/null || true)
+          echo "latest release: $RELEASE, measured: ${MEASURED:-<none>}, schema: ${PUBLISHED:-<none>} (want $SCHEMA), force: $FORCE"
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
           echo "measured=$MEASURED" >> "$GITHUB_OUTPUT"
-          if [ "$FORCE" = "true" ] || [ "$RELEASE" != "$MEASURED" ]; then
+          if [ "$FORCE" = "true" ] || [ "$RELEASE" != "$MEASURED" ] || [ "$PUBLISHED" != "$SCHEMA" ]; then
             echo "drift=true" >> "$GITHUB_OUTPUT"
           else
             echo "drift=false" >> "$GITHUB_OUTPUT"
@@ -168,7 +178,8 @@ jobs:
             echo "::error::unexpected artifact contents"
             exit 1
           fi
-          jq -e '.schema == 2 and .passed == true and .versions.hk == env.RELEASE' results.json >/dev/null
+          schema=$(sed -n 's/^SCHEMA = //p' "$GITHUB_WORKSPACE/benchmark/report.py")
+          jq -e --argjson schema "$schema" '.schema == $schema and .passed == true and .versions.hk == env.RELEASE' results.json >/dev/null
           cp results.json "$GITHUB_WORKSPACE/benchmark/results.json"
       - name: Push the benchmark-refresh branch and open a pull request
         env:

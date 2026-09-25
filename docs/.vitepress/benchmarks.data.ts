@@ -32,7 +32,7 @@ export interface Scenario {
 }
 
 export interface BenchmarkResults {
-  schema: 2;
+  schema: 3;
   generated: string;
   passed: boolean;
   commit: string;
@@ -67,7 +67,8 @@ export default {
     if (!existsSync(resultsPath)) return null;
     const results = JSON.parse(readFileSync(resultsPath, "utf8"));
     // An unverified or failed run must never render as if it were sound.
-    if (results.schema !== 2 || results.passed !== true) return null;
+    // Results from an older configuration (another schema) wait for a refresh.
+    if (results.schema !== 3 || results.passed !== true) return null;
     return results;
   },
 };
