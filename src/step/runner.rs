@@ -121,7 +121,7 @@ impl Step {
     /// 2. Evaluate condition expression (if configured)
     /// 3. Check profile requirements
     /// 4. Filter out deleted files
-    /// 5. Acquire semaphore and start job
+    /// 5. Acquire file locks and a job slot, then start the job
     /// 6. Render command template
     /// 7. Execute command
     /// 8. Handle success/failure
@@ -159,11 +159,7 @@ impl Step {
         }
         job.progress = Some(job.build_progress(ctx));
         job.status = StepJobStatus::Pending;
-        let semaphore = if let Some(semaphore) = job.semaphore.take() {
-            semaphore
-        } else {
-            ctx.hook_ctx.semaphore().await
-        };
+        let semaphore = job.semaphore.take();
         job.status_start(ctx, semaphore).await?;
         // Filter out files that no longer exist (e.g., deleted by parallel tasks)
         // Use symlink_metadata to check if the path exists as a file/symlink (even if broken)
