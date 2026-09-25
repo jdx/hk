@@ -21,20 +21,21 @@ hooks {
     fix = true
     steps {
       // Both write shared.txt, so one waits for the other. Each takes one of
-      // the two slots when the hook starts.
+      // the two slots when the hook starts, and the one that runs first waits
+      // for "other" to run before it finishes.
       ["first"] {
         glob = "shared.txt"
-        fix = "sleep 2; echo first >> ../writers-done"
+        fix = "for _ in \$(seq 100); do test -e ../other-ran && break; sleep 0.1; done; test -e ../other-ran && echo ran >> ../writers || echo waited >> ../writers"
       }
       ["second"] {
         glob = "shared.txt"
-        fix = "sleep 2; echo second >> ../writers-done"
+        fix = "for _ in \$(seq 100); do test -e ../other-ran && break; sleep 0.1; done; test -e ../other-ran && echo ran >> ../writers || echo waited >> ../writers"
       }
-      // Starts without a slot. It should get the waiting writer's slot and
-      // run while the other writer is still going.
+      // Starts without a slot. It can run only if the writer waiting for
+      // shared.txt gives up its slot.
       ["other"] {
         glob = "other.txt"
-        fix = "cat ../writers-done 2>/dev/null | wc -l | tr -d ' ' > ../writers-done-before-other"
+        fix = "touch ../other-ran"
       }
     }
   }
@@ -46,6 +47,8 @@ PKL
 
   run hk fix --all
   assert_success
-  run cat ../writers-done-before-other
-  assert_output 0
+  # Holding its slot, the waiting writer would leave "other" queued until the
+  # first writer gave up after 10 seconds.
+  run cat ../writers
+  assert_output "$(printf 'ran\nran')"
 }
