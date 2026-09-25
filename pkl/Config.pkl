@@ -586,9 +586,11 @@ open class Step {
 
   /// Default: `4`
   ///
-  /// The fewest files hk gives one process when `batch` is true. Raise it for tools that are slow
-  /// to start, such as Node-based linters. When other steps run at the same time, the CPUs are
-  /// already busy, and every extra batch only pays the tool's startup again.
+  /// When `batch` is true, the fewest files hk puts in each batch when it splits a step's files
+  /// across `--jobs`. A step with fewer files still runs once, and a batch whose command would be
+  /// too long for the OS is split further, below this number. Raise it for tools that are slow to
+  /// start, such as Node-based linters: when other steps keep the CPUs busy, every extra batch
+  /// mostly pays the tool's startup again.
   ///
   /// ```pkl
   /// local linters = new Mapping {
