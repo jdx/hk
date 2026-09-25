@@ -30,13 +30,17 @@ time against other programs. `run.sh` passes it to tak with `--config`.
 
 ## Adding a tool or scenario
 
-1. Add the configuration under `subjects/<name>/` and map it in `setup.sh`.
+1. Add the configuration under `subjects/<name>/` and map the subject to it in
+   `CONFIG` in `setup.sh`. Use the tool's fastest settings in which two fixers can never
+   write the same file at once: concurrency for read-only checks, and fixers
+   one at a time unless the tool coordinates writes to the same file.
 2. In `tak.toml`, add a shared `[subject.<name>]` with its `version_cmd`, list
    it in each benchmark's `subjects`, and give each benchmark a
    `[bench.<scenario>.subject.<name>]` with the command for that scenario.
-3. Add display metadata to `SUBJECTS` in `report.py`. Only add configurations
-   that are safe by design: one whose fixers can race produces files nobody
-   can rely on, however fast it is.
+3. Add display metadata to `SUBJECTS` in `report.py`, with `modes` for any
+   scenario the configuration runs differently. Only add configurations that
+   are safe by design: one whose fixers can race produces files nobody can
+   rely on, however fast it is.
 4. Pin the tool in `mise.toml`.
 
 The workload's yq fixer also formats each tool's own YAML configuration, so

@@ -78,6 +78,7 @@
       "summary": "A quarter of the files need two or three fixers each to write them.",
       "results": {
         "hk": {
+          "mode": "parallel, file locks",
           "mean": 10.6193,
           "median": 10.6263,
           "stddev": 0.294,
@@ -90,6 +91,7 @@
           }
         },
         "lefthook": {
+          "mode": "sequential",
           "mean": 25.5861,
           "median": 24.8556,
           "stddev": 1.5428,
@@ -102,6 +104,7 @@
           }
         },
         "pre-commit": {
+          "mode": "sequential hooks, batched files",
           "mean": 14.4321,
           "median": 14.5795,
           "stddev": 0.5565,
@@ -114,6 +117,7 @@
           }
         },
         "prek": {
+          "mode": "sequential hooks, batched files",
           "mean": 13.731,
           "median": 13.7398,
           "stddev": 0.5039,
@@ -133,6 +137,7 @@
       "summary": "Every file is already clean and nothing writes, so parallel is safe for every tool.",
       "results": {
         "hk": {
+          "mode": "parallel, file locks",
           "mean": 3.8126,
           "median": 3.8165,
           "stddev": 0.0379,
@@ -145,6 +150,7 @@
           }
         },
         "lefthook": {
+          "mode": "parallel: true",
           "mean": 6.7629,
           "median": 6.7654,
           "stddev": 0.0428,
@@ -157,6 +163,7 @@
           }
         },
         "pre-commit": {
+          "mode": "sequential hooks, batched files",
           "mean": 8.4469,
           "median": 8.188,
           "stddev": 2.2428,
@@ -169,6 +176,7 @@
           }
         },
         "prek": {
+          "mode": "sequential hooks, batched files",
           "mean": 7.7895,
           "median": 7.5546,
           "stddev": 2.2349,
@@ -188,6 +196,7 @@
       "summary": "About 60 staged files with defects, fixed by each tool's pre-commit hook.",
       "results": {
         "hk": {
+          "mode": "parallel, file locks",
           "mean": 1.824,
           "median": 1.8355,
           "stddev": 0.0532,
@@ -200,6 +209,7 @@
           }
         },
         "lefthook": {
+          "mode": "sequential",
           "mean": 1.5026,
           "median": 1.5135,
           "stddev": 0.0449,
@@ -212,6 +222,7 @@
           }
         },
         "pre-commit": {
+          "mode": "sequential hooks, batched files",
           "mean": 2.4929,
           "median": 2.4887,
           "stddev": 0.1339,
@@ -224,6 +235,7 @@
           }
         },
         "prek": {
+          "mode": "sequential hooks, batched files",
           "mean": 2.0305,
           "median": 2.0634,
           "stddev": 0.1156,
