@@ -4,7 +4,7 @@ description: How hk compares with lefthook, pre-commit, and prek on wall time an
 
 # Benchmarks
 
-Running linters in parallel is easy. Running them in parallel without two fixers overwriting each other's work is the hard part, and it is what hk is built around. This page measures hk, lefthook, pre-commit, and prek on two things: how long a run takes, and whether the files it leaves behind are right.
+hk runs fixers in parallel and uses file locks so that two of them never write the same file at once. This page compares hk with lefthook, pre-commit, and prek on how long each run takes and whether it leaves the right files behind.
 
 <BenchmarkResults />
 
@@ -12,7 +12,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 
 hk is the fastest of the four in every scenario, and every tool produces the right files.
 
-- **Fixing every file**, the gap is smallest. pre-commit and prek already use every core by splitting each hook's files into batches, so hk's edge comes from running different fixers at the same time. lefthook runs one fixer at a time over every file and takes more than twice as long as hk.
+- **Fixing every file**, the gap is smallest. pre-commit and prek already use every core by splitting each hook's files into batches, and hk also runs different fixers at the same time. lefthook runs one fixer at a time over every file and takes more than twice as long as hk.
 - **Checking every file**, hk stays ahead of lefthook even though lefthook starts every job at once here.
 - **Committing** a few dozen files, the gap is largest. There is little work to split into batches, so most of each run is fixers starting up and finishing. hk runs the fixers at the same time and stages each one's files as soon as it finishes. The others run them one after another.
 
@@ -37,7 +37,7 @@ Each tool uses its fastest configuration in which two fixers can never write the
 | pre-commit | One hook at a time; each hook's files split into batches per CPU.   | The same.                              |
 | prek       | Same as pre-commit.                                                 | The same.                              |
 
-lefthook's `parallel: true` and prek's hooks that share a `priority` start fixers at once with nothing to stop two of them from writing the same file, and prek's documentation warns that this gives undefined results. Whether a race corrupts a run depends on timing, so it can pass on one machine and fail on another. A time for output you can't rely on isn't a result, so neither mode is used for fixing. lefthook's `parallel: true` is still used for checking, where nothing writes.
+lefthook's `parallel: true` and prek's hooks that share a `priority` start fixers at once with nothing to stop two of them from writing the same file, and prek's documentation warns that this gives undefined results. Whether a race corrupts a run depends on timing, so it can pass on one machine and fail on another. Neither mode is used for fixing. lefthook's `parallel: true` is still used for checking, where nothing writes.
 
 ## Keeping it fair
 
