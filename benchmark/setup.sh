@@ -30,10 +30,8 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 declare -A CONFIG=(
     [hk]=hk
     [lefthook]=lefthook
-    [lefthook-parallel]=lefthook-parallel
     [pre-commit]=pre-commit
     [prek]=pre-commit
-    [prek-parallel]=prek-parallel
 )
 
 if [ -z "${HK_PKL:-}" ]; then

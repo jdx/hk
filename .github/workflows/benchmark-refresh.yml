@@ -204,7 +204,7 @@ jobs:
           | --- | --- |
           ${table}
 
-          Every tool that is safe by design produced the right files in every timed sample; otherwise this pull request would not exist. Check the numbers against the previous release before merging.
+          Every tool produced the right files in every timed sample; otherwise this pull request would not exist. Check the numbers against the previous release before merging.
 
           Workflow run: ${RUN_URL}
           EOF

@@ -2,7 +2,7 @@
 #
 # `fix` fixes without staging and is the all-files scenario. `pre-commit` is
 # the same jobs with stage_fixed, matching hk's pre-commit hook. `check` is
-# read-only, so it runs in parallel here and in lefthook-parallel alike.
+# read-only, so it runs in parallel.
 fix:
   parallel: false
   jobs: &fix

@@ -20,7 +20,6 @@ export interface Subject {
   tool: string;
   label: string;
   mode: string;
-  safe: boolean;
 }
 
 export interface Scenario {
