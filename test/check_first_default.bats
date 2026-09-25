@@ -81,7 +81,7 @@ EOF
     refute_output --partial "check-a a.txt"
 }
 
-@test "a staging hook narrows a listing step to the files it would change" {
+write_listing_hook() {
     cat <<'EOF' > list.sh
 #!/bin/sh
 status=0
@@ -100,6 +100,7 @@ hooks {
   ["pre-commit"] {
     fix = true
     stage = true
+    stash = "none"
     steps {
       ["lister"] {
         glob = "*.txt"
@@ -107,18 +108,18 @@ hooks {
         check_list_files = "./list.sh {{files}}"
         fix = "sed -i.bak s/bad/good/ {{files}} && rm -f *.bak"
       }
-      ["other"] {
-        glob = "*.txt"
-        check = "true"
-        fix = "true"
-      }
     }
   }
 }
 EOF
+}
+
+@test "a staging hook narrows a listing step when its files have unstaged changes" {
+    write_listing_hook
     echo bad > bad.txt
     echo fine > good.txt
     git add -A
+    echo "unstaged" >> good.txt
 
     HK_LOG=debug run hk run pre-commit
     assert_success
@@ -126,6 +127,23 @@ EOF
     assert_output --partial "DEBUG $ sed -i.bak s/bad/good/ bad.txt"
     refute_output --partial "s/bad/good/ bad.txt good.txt"
     assert_equal "$(git show :bad.txt)" "good"
+    assert_equal "$(git show :good.txt)" "fine"
+}
+
+@test "a staging hook fixes a listing step directly when nothing is unstaged" {
+    write_listing_hook
+    echo bad > bad.txt
+    echo fine > good.txt
+    git add -A
+
+    HK_LOG=debug run hk run pre-commit
+    assert_success
+    refute_output --partial "DEBUG $ ./list.sh"
+    assert_output --partial "s/bad/good/ bad.txt good.txt"
+    assert_equal "$(git show :bad.txt)" "good"
+    assert_equal "$(git show :good.txt)" "fine"
+    run git diff --name-only
+    assert_output ""
 }
 
 @test "files fixed by a same-command step whose check passes are staged" {

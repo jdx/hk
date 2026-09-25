@@ -472,6 +472,38 @@ impl Git {
     pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         // Refresh index stat information to avoid stale mtime/size causing mis-detection
         let _ = git_run(["update-index", "-q", "--refresh"]);
+        self.read_status(pathspec, false)
+    }
+
+    /// Status of exactly `paths`, read without touching any other file in the
+    /// worktree, so it is safe while other steps are writing other files.
+    ///
+    /// It skips the index refresh in [`Git::status`], which stats and may hash
+    /// every tracked file. Both libgit2 and `git status` compare contents
+    /// themselves when an entry's stat information is stale.
+    #[tracing::instrument(level = "info", name = "git.status_of_paths", skip_all, fields(path_count = paths.len()))]
+    pub fn status_of_paths(&self, paths: &[PathBuf]) -> Result<GitStatus> {
+        if paths.is_empty() {
+            return Ok(GitStatus::default());
+        }
+        let pathspec = if self.repo.is_some() {
+            paths.iter().map(|p| p.as_os_str().to_owned()).collect_vec()
+        } else {
+            paths
+                .iter()
+                .map(|p| {
+                    let mut spec = OsString::from(":(literal)");
+                    spec.push(p);
+                    spec
+                })
+                .collect_vec()
+        };
+        self.read_status(Some(&pathspec), true)
+    }
+
+    /// `literal` matches libgit2 pathspecs as exact paths; git CLI callers mark
+    /// literal pathspecs themselves with `:(literal)`.
+    fn read_status(&self, pathspec: Option<&[OsString]>, literal: bool) -> Result<GitStatus> {
         // When stashing untracked files is disabled, skip the untracked-file scan.
         // This avoids catastrophic scans when GIT_WORK_TREE points at a large tree
         // (e.g. YADM dotfile repos where the worktree is $HOME). See #860.
@@ -481,6 +513,7 @@ impl Git {
             status_options.include_untracked(include_untracked);
             status_options.recurse_untracked_dirs(include_untracked);
             status_options.renames_head_to_index(true);
+            status_options.disable_pathspec_match(literal);
 
             if let Some(pathspec) = pathspec {
                 for path in pathspec {
@@ -1624,20 +1657,22 @@ impl Git {
         Ok(())
     }
 
-    pub fn add(&self, pathspecs: &[PathBuf]) -> Result<()> {
-        let pathspecs = pathspecs.iter().collect_vec();
-        trace!("adding files: {:?}", pathspecs);
-        if let Some(repo) = &self.repo {
-            let mut index = repo.index().wrap_err("failed to get index")?;
-            index
-                .add_all(&pathspecs, git2::IndexAddOption::DEFAULT, None)
-                .wrap_err("failed to add files to index")?;
-            index.write().wrap_err("failed to write index")?;
-            Ok(())
-        } else {
-            git_cmd(["add", "--"]).args(pathspecs).run()?;
-            Ok(())
-        }
+    /// Stages exactly `paths`, taken literally rather than as pathspecs.
+    ///
+    /// Always runs `git add`, even with libgit2: writing the index re-checks
+    /// recently staged entries against the worktree, and other steps may still
+    /// be writing those files. Git smudges an entry whose file changes while it
+    /// reads it; libgit2 fails the whole write instead.
+    pub fn add(&self, paths: &[PathBuf]) -> Result<()> {
+        trace!("adding files: {:?}", paths);
+        git_cmd(["add", "--"])
+            .args(paths.iter().map(|p| {
+                let mut spec = OsString::from(":(literal)");
+                spec.push(p);
+                spec
+            }))
+            .run()?;
+        Ok(())
     }
 
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {
