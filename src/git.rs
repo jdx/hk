@@ -716,9 +716,11 @@ impl Git {
         if method == StashMethod::None {
             return Ok(());
         }
-        if let Some(repo) = &self.repo
-            && repo.head().is_err()
-        {
+        let has_head = match &self.repo {
+            Some(repo) => repo.head().is_ok(),
+            None => git_rev_exists("HEAD")?,
+        };
+        if !has_head {
             return Ok(());
         }
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
