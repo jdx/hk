@@ -8,6 +8,14 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 
 <BenchmarkResults />
 
+## What the results show
+
+hk is the fastest of the four in every scenario, and every tool produces the right files.
+
+- **Fixing every file**, the gap is smallest. pre-commit and prek already use every core by splitting each hook's files into batches, so hk's edge comes from running different fixers at the same time. lefthook runs one fixer at a time over every file and takes more than twice as long as hk.
+- **Checking every file**, hk stays ahead of lefthook even though lefthook starts every job at once here.
+- **Committing** a few dozen files, the gap is largest. There is little work to split into batches, so most of each run is fixers starting up and finishing. hk runs the fixers at the same time and stages each one's files as soon as it finishes. The others run them one after another.
+
 ## The workload
 
 A generated repository of about 6,000 files: 4,000 Python, 500 JavaScript and TypeScript, 500 JSON, 500 shell, 250 YAML, 200 CSS, and 200 Markdown. Every tool runs the same ten fixers over it: black, ruff format, ruff check, Prettier, ESLint, jq, yq, shfmt, trailing whitespace, and final newline.
