@@ -395,6 +395,10 @@ pub struct HookContext {
     /// Untracked files at the start of the hook run, used to avoid staging
     /// pre-existing untracked files that were not created by a fixer.
     pub initial_untracked: BTreeSet<PathBuf>,
+    /// Tracked files whose working tree still differs from the index when the
+    /// steps start, because hk did not stash them. Staging such a file would
+    /// also stage the user's unstaged edits.
+    pub unstashed_changes: BTreeSet<PathBuf>,
 }
 
 impl HookContext {
@@ -410,6 +414,7 @@ impl HookContext {
         skip_steps: IndexMap<String, SkipReason>,
         should_stage: bool,
         initial_untracked: BTreeSet<PathBuf>,
+        unstashed_changes: BTreeSet<PathBuf>,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = expr_ctx;
@@ -449,6 +454,7 @@ impl HookContext {
             git_index_lock_contention: AtomicBool::new(false),
             should_stage,
             initial_untracked,
+            unstashed_changes,
         }
     }
 
@@ -1346,6 +1352,12 @@ impl Hook {
             skip_steps,
             should_stage,
             git_status.untracked_files.clone(),
+            // Stashing sets every tracked file's working tree to its index.
+            if stash_method == StashMethod::None {
+                git_status.unstaged_files.clone()
+            } else {
+                Default::default()
+            },
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());

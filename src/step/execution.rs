@@ -85,16 +85,23 @@ impl Step {
             &ctx.hook_ctx.files_in_contention.lock().unwrap(),
             &ctx.hook_ctx.skip_steps,
         )?;
-        // When this hook stages fixes with the default `stage`, a step that can
-        // list or diff the files it would change checks first, so only files
-        // it changed are fixed and staged.
+        // When this hook stages fixes with the default `stage`, a job with
+        // unstaged changes hk did not stash checks first if its step can list
+        // or diff the files it would change, so it stages only the files it
+        // changes and leaves the user's edits to the others unstaged. Once
+        // stashed, a job file shows as unstaged only after a fixer changed it,
+        // so checking first would cost a second run of the tool for nothing.
+        let unstashed = &ctx.hook_ctx.unstashed_changes;
         if ctx.hook_ctx.should_stage
+            && !unstashed.is_empty()
             && self.stage.is_none()
             && matches!(ctx.hook_ctx.run_type, RunType::Fix)
             && (self.check_list_files.is_some() || self.check_diff.is_some())
         {
             for job in &mut jobs {
-                job.check_first = true;
+                if job.files.iter().any(|f| unstashed.contains(f)) {
+                    job.check_first = true;
+                }
             }
         }
         // Apply ARG_MAX-safe auto-batching now that the full tera context is

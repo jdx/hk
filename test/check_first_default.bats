@@ -81,7 +81,7 @@ EOF
     refute_output --partial "check-a a.txt"
 }
 
-@test "a staging hook narrows a listing step to the files it would change" {
+write_listing_fixer_config() {
     cat <<'EOF' > list.sh
 #!/bin/sh
 status=0
@@ -100,6 +100,7 @@ hooks {
   ["pre-commit"] {
     fix = true
     stage = true
+    stash = "$1"
     steps {
       ["lister"] {
         glob = "*.txt"
@@ -107,18 +108,22 @@ hooks {
         check_list_files = "./list.sh {{files}}"
         fix = "sed -i.bak s/bad/good/ {{files}} && rm -f *.bak"
       }
-      ["other"] {
-        glob = "*.txt"
-        check = "true"
-        fix = "true"
-      }
     }
   }
 }
 EOF
+    # git cannot stash before the first commit.
+    git add -A
+    git commit -qm init
     echo bad > bad.txt
     echo fine > good.txt
     git add -A
+    # An unstaged edit that the step's fix must not stage.
+    echo edited >> good.txt
+}
+
+@test "a staging hook without a stash narrows a listing step to the files it would change" {
+    write_listing_fixer_config none
 
     HK_LOG=debug run hk run pre-commit
     assert_success
@@ -126,6 +131,19 @@ EOF
     assert_output --partial "DEBUG $ sed -i.bak s/bad/good/ bad.txt"
     refute_output --partial "s/bad/good/ bad.txt good.txt"
     assert_equal "$(git show :bad.txt)" "good"
+    assert_equal "$(git show :good.txt)" "fine"
+}
+
+@test "a staging hook that stashes fixes a listing step's files directly" {
+    write_listing_fixer_config git
+
+    HK_LOG=debug run hk run pre-commit
+    assert_success
+    refute_output --partial "DEBUG $ ./list.sh"
+    assert_output --partial "DEBUG $ sed -i.bak s/bad/good/ bad.txt good.txt"
+    assert_equal "$(git show :bad.txt)" "good"
+    assert_equal "$(git show :good.txt)" "fine"
+    assert_equal "$(cat good.txt)" $'fine\nedited'
 }
 
 @test "files fixed by a same-command step whose check passes are staged" {
