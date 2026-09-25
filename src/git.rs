@@ -486,19 +486,29 @@ impl Git {
         if paths.is_empty() {
             return Ok(GitStatus::default());
         }
-        let pathspec = if self.repo.is_some() {
-            paths.iter().map(|p| p.as_os_str().to_owned()).collect_vec()
-        } else {
-            paths
-                .iter()
-                .map(|p| {
-                    let mut spec = OsString::from(":(literal)");
-                    spec.push(p);
-                    spec
-                })
-                .collect_vec()
-        };
-        self.read_status(Some(&pathspec), true)
+        if self.repo.is_some() {
+            let pathspec = paths.iter().map(|p| p.as_os_str().to_owned()).collect_vec();
+            return self.read_status(Some(&pathspec), true);
+        }
+        // `git status` takes pathspecs only as arguments, so query in chunks
+        // that stay well under the command-line limit (32 KiB on Windows).
+        const MAX_ARG_BYTES: usize = 16 * 1024;
+        let mut status = GitStatus::default();
+        let mut chunk: Vec<OsString> = Vec::new();
+        let mut chunk_bytes = 0;
+        for p in paths {
+            let mut spec = OsString::from(":(literal)");
+            spec.push(p);
+            if !chunk.is_empty() && chunk_bytes + spec.len() + 1 > MAX_ARG_BYTES {
+                status.extend(self.read_status(Some(&chunk), true)?);
+                chunk.clear();
+                chunk_bytes = 0;
+            }
+            chunk_bytes += spec.len() + 1;
+            chunk.push(spec);
+        }
+        status.extend(self.read_status(Some(&chunk), true)?);
+        Ok(status)
     }
 
     /// `literal` matches libgit2 pathspecs as exact paths; git CLI callers mark
@@ -1671,12 +1681,19 @@ impl Git {
     /// reads it; libgit2 fails the whole write instead.
     pub fn add(&self, paths: &[PathBuf]) -> Result<()> {
         trace!("adding files: {:?}", paths);
-        git_cmd(["add", "--"])
-            .args(paths.iter().map(|p| {
-                let mut spec = OsString::from(":(literal)");
-                spec.push(p);
-                spec
-            }))
+        if paths.is_empty() {
+            return Ok(());
+        }
+        // Pass the paths on stdin: a large fixer's files can exceed the
+        // command-line limit.
+        let mut pathspecs = Vec::new();
+        for p in paths {
+            pathspecs.extend_from_slice(b":(literal)");
+            pathspecs.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            pathspecs.push(0);
+        }
+        git_cmd(["add", "--pathspec-from-file=-", "--pathspec-file-nul"])
+            .stdin_bytes(pathspecs)
             .run()?;
         Ok(())
     }
@@ -1872,4 +1889,26 @@ pub(crate) struct GitStatus {
     pub unstaged_modified_files: BTreeSet<PathBuf>,
     pub unstaged_deleted_files: BTreeSet<PathBuf>,
     pub unstaged_renamed_files: BTreeSet<PathBuf>,
+}
+
+impl GitStatus {
+    /// Adds the entries of a status of other paths.
+    fn extend(&mut self, other: GitStatus) {
+        self.unstaged_files.extend(other.unstaged_files);
+        self.staged_files.extend(other.staged_files);
+        self.untracked_files.extend(other.untracked_files);
+        self.modified_files.extend(other.modified_files);
+        self.staged_added_files.extend(other.staged_added_files);
+        self.staged_modified_files
+            .extend(other.staged_modified_files);
+        self.staged_deleted_files.extend(other.staged_deleted_files);
+        self.staged_renamed_files.extend(other.staged_renamed_files);
+        self.staged_copied_files.extend(other.staged_copied_files);
+        self.unstaged_modified_files
+            .extend(other.unstaged_modified_files);
+        self.unstaged_deleted_files
+            .extend(other.unstaged_deleted_files);
+        self.unstaged_renamed_files
+            .extend(other.unstaged_renamed_files);
+    }
 }
