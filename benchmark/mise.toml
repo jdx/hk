@@ -16,8 +16,11 @@ prek             = "0.5.3"
 # pre-commit is a Python zipapp; without a pinned interpreter it would start
 # through a mise shim, which rewrites PATH for the fixture directory.
 "pipx:black" = "26.5.1"
-python       = "3.14.7"
-ruff         = "0.16.8"
-shfmt        = "3.14.1"
-uv           = "0.12.18"
-yq           = "4.53.6"
+# lefthook's whitespace fixers; pre-commit installs the same package from
+# .pre-commit-config.yaml.
+"pipx:pre-commit-hooks" = "6.0.0"
+python                  = "3.14.7"
+ruff                    = "0.16.8"
+shfmt                   = "3.14.1"
+uv                      = "0.12.18"
+yq                      = "4.53.6"

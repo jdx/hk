@@ -27,11 +27,14 @@
 [env]
 # The default deny list, plus anything that would let the user's own setup
 # leak into the measurement.
-deny = ["GITHUB_TOKEN", "GH_TOKEN", "HK_FILE", "HK_JOBS", "LEFTHOOK", "LEFTHOOK_CONFIG", "PRE_COMMIT_HOME", "PREK_HOME"]
+deny = ["BLACK_CACHE_DIR", "GITHUB_TOKEN", "GH_TOKEN", "HK_FILE", "HK_JOBS", "LEFTHOOK", "LEFTHOOK_CONFIG", "PRE_COMMIT_HOME", "PREK_HOME"]
 
 [defaults]
+# Every cache lives in the subject's own clone. black's would otherwise be
+# ~/.cache/black, shared by all subjects, so one subject's run could evict
+# another's entries.
 dir    = ".work/{{ subject }}"
-env    = { GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
+env    = { BLACK_CACHE_DIR = ".git/cache/black", GIT_CONFIG_GLOBAL = "/dev/null", GIT_CONFIG_NOSYSTEM = "1", HK_CACHE_DIR = ".git/cache", HK_STATE_DIR = ".git/state", PRE_COMMIT_HOME = ".git/cache", PREK_HOME = ".git/cache" }
 runs   = 10
 warmup = 1
 # Staging the whole tree first makes untracked and unstaged changes count too.

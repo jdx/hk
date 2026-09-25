@@ -31,10 +31,10 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 
 ## Keeping it fair
 
-- **The same work.** Every configuration runs the same ten fixers and must produce the same bytes. hk uses its builtins as shipped, including their check-before-fix behavior and the `hk util` whitespace fixers. The competitors run each tool's fix command directly, with `sed` and a shell loop for whitespace. The configurations are in [`benchmark/subjects`](https://github.com/jdx/hk/tree/main/benchmark/subjects).
+- **The same work.** Every configuration runs the same ten fixers and must produce the same bytes. hk uses its builtins as shipped, including their check-before-fix behavior and the `hk util` whitespace fixers. The competitors run each linter's fix command directly. For whitespace they use [pre-commit-hooks](https://github.com/pre-commit/pre-commit-hooks)' `trailing-whitespace` and `end-of-file-fixer`, the fixers pre-commit's documentation points to. prek replaces those two with its own bundled Rust implementation, and lefthook, which has no built-in fixers, calls the same package's console scripts. The configurations are in [`benchmark/subjects`](https://github.com/jdx/hk/tree/main/benchmark/subjects).
 - **Pinned versions.** Every hook manager, linter, and runtime is pinned in [`benchmark/mise.toml`](https://github.com/jdx/hk/blob/main/benchmark/mise.toml). A refresh changes one variable at a time, and the page lists the versions that were measured.
 - **Interleaved sampling.** Timing uses [tak](https://github.com/jdx/tak). tak takes one sample of every tool per round, in a new random order each round, so thermal throttling or a noisy neighbour is shared across tools instead of landing on whichever tool happened to be running.
-- **Same starting state.** Each tool has its own clone of the project. Before every sample, an untimed step resets the clone to the scenario's starting state. Tool caches such as ruff's and black's are left warm, as they would be on a developer's machine.
+- **Same starting state.** Each tool has its own clone of the project. Before every sample, an untimed step resets the clone to the scenario's starting state. Tool caches such as ruff's and black's are left warm, as they would be on a developer's machine, and each clone keeps its own so that one tool's runs cannot evict another's entries.
 - **Hermetic Git.** Global and system Git configuration is disabled, so the benchmark host's hooks, signing, and filesystem monitor stay out of the measurements.
 - **Wins must beat the noise.** A tool is called faster only when the gap between medians is larger than both tools' ranges across samples.
 - **No partial results.** The page shows a run only if every tool produced the right files in every timed sample. Otherwise the harness is broken or a tool has a bug, and neither should be published as a timing.
@@ -45,7 +45,7 @@ Running linters in parallel is easy. Running them in parallel without two fixers
 - A real repository. The generated files are uniform. In a real project, results depend on your linters, how much their file patterns overlap, how many files change, and how many cores you have. [hk timing reports](/logging#a-run-is-slow) show where your own runs spend their time.
 - Tools that already parallelize internally benefit less from running steps concurrently. black, for example, uses every core by itself. The more CPU-bound the workload, the less orchestration matters.
 - Stashing of partially staged files. In the commit scenario no files have unstaged changes, so saving and restoring unstaged work costs almost nothing.
-- Install time, first runs with cold caches, and hook-manager features beyond running fixers.
+- Install time (pre-commit and prek install pre-commit-hooks before the first sample), first runs with cold caches, and hook-manager features beyond running fixers.
 
 ## Reproduce
 

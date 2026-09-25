@@ -188,6 +188,12 @@ backend = "pipx:black"
 specifiers = ["26.5.1"]
 uv = { path = ".mise/locks/pipx-black/26.5.1", digest = "sha256:946a19b9ebe206d1919492e74dc5b2273a60e618bbc5a6246fb5288311157557" }
 
+[[tools."pipx:pre-commit-hooks"]]
+version = "6.0.0"
+backend = "pipx:pre-commit-hooks"
+specifiers = ["6.0.0"]
+uv = { path = ".mise/locks/pipx-pre-commit-hooks/6.0.0", digest = "sha256:26480ddfc45b933a881a7495cb2fd4824985f997246885aae30ddef78c52e29f" }
+
 [[tools.pre-commit]]
 version = "4.6.2"
 backend = "aqua:pre-commit/pre-commit"
