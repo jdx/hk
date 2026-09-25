@@ -571,8 +571,9 @@ open class Step {
   ///
   /// If true, hk will run the linter on batches of files instead of all files at once.
   /// This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
-  /// Files are split evenly across `--jobs` batches, with at least 4 files in each, so a
-  /// handful of files doesn't start one process per file and pay the tool's startup cost each time.
+  /// Files are split evenly across `--jobs` batches, with at least `batch_min_files` files in
+  /// each, so a handful of files doesn't start one process per file and pay the tool's startup
+  /// cost each time.
   ///
   /// ```pkl
   /// local linters = new Mapping {
@@ -582,6 +583,25 @@ open class Step {
   /// }
   /// ```
   batch: Boolean = false
+
+  /// Default: `4`
+  ///
+  /// When `batch` is true, the fewest files hk puts in each batch when it splits a step's files
+  /// across `--jobs`. A step with fewer files still runs once, and a batch whose command would be
+  /// too long for the OS is split further, below this number. Raise it for tools that are slow to
+  /// start, such as Node-based linters: when other steps keep the CPUs busy, every extra batch
+  /// mostly pays the tool's startup again.
+  ///
+  /// ```pkl
+  /// local linters = new Mapping {
+  ///     ["prettier"] {
+  ///         batch = true
+  ///         // 900 files make 4 batches instead of one per job
+  ///         batch_min_files = 200
+  ///     }
+  /// }
+  /// ```
+  batch_min_files: UInt?
 
   /// Default: `false`
   ///
