@@ -2,7 +2,8 @@
 #
 # `fix` fixes without staging and is the all-files scenario. `pre-commit` is
 # the same jobs with stage_fixed, matching hk's pre-commit hook. `check` is
-# read-only, so it runs in parallel here and in lefthook-parallel alike.
+# read-only and sequential too, so that check-all shows what lefthook-parallel
+# gains over the default.
 fix:
   parallel: false
   jobs: &fix
@@ -30,16 +31,18 @@ fix:
     - name: shfmt
       run: shfmt -w {staged_files}
       glob: "*.sh"
+    # lefthook has no built-in fixers; these are pre-commit-hooks' console
+    # scripts (pinned in mise.toml), the same fixers pre-commit runs.
     - name: trailing-whitespace
-      run: sed -i 's/[[:space:]]*$//' {staged_files}
+      run: trailing-whitespace-fixer {staged_files}
     - name: newlines
-      run: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && echo >>"$f"; done; true' _ {staged_files}
+      run: end-of-file-fixer {staged_files}
 pre-commit:
   parallel: false
   stage_fixed: true
   jobs: *fix
 check:
-  parallel: true
+  parallel: false
   jobs: &check
     - name: black
       run: black --quiet --check {staged_files}
@@ -65,7 +68,9 @@ check:
     - name: shfmt
       run: shfmt -d {staged_files}
       glob: "*.sh"
+    # pre-commit-hooks has no check mode: the fixers exit 1 when they would
+    # change a file, and change nothing on a clean tree.
     - name: trailing-whitespace
-      run: "! grep -nE '[[:space:]]+$' {staged_files}"
+      run: trailing-whitespace-fixer {staged_files}
     - name: newlines
-      run: sh -c 'for f; do [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ] && exit 1; done; true' _ {staged_files}
+      run: end-of-file-fixer {staged_files}

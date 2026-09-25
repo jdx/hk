@@ -93,6 +93,15 @@ for subject in "${!CONFIG[@]}"; do
     mkdir -p .git/cache .git/state
 done
 
+# Install pre-commit-hooks for pre-commit and prek outside the timed runs, as a
+# developer would have before their first commit.
+for subject in pre-commit prek prek-parallel; do
+    cd "$WORK/$subject"
+    tool=${subject%-parallel}
+    if [ "$tool" = prek ]; then cmd=prepare-hooks; else cmd=install-hooks; fi
+    PRE_COMMIT_HOME=.git/cache PREK_HOME=.git/cache "$tool" "$cmd" >/dev/null
+done
+
 # Prime hk's configuration cache so no sample pays for Pkl evaluation, which
 # is what a developer's second commit looks like.
 cd "$WORK/hk"
