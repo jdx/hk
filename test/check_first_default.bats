@@ -117,8 +117,10 @@ EOF
         sed -i.bak "s/stash = \"none\"/stash = \"$1\"/" hk.pkl && rm hk.pkl.bak
     fi
     # git cannot stash before the first commit.
-    git add -A
-    git commit -qm init
+    if [ "${2:-}" != no-commit ]; then
+        git add -A
+        git commit -qm init
+    fi
     echo bad > bad.txt
     echo fine > good.txt
     git add -A
@@ -148,6 +150,17 @@ EOF
     assert_equal "$(git show :bad.txt)" "good"
     assert_equal "$(git show :good.txt)" "fine"
     assert_equal "$(cat good.txt)" $'fine\nedited'
+}
+
+@test "a listing step still narrows when a configured stash cannot run" {
+    write_listing_fixer_config git no-commit
+
+    HK_LOG=debug run hk run pre-commit
+    assert_success
+    assert_output --partial "DEBUG $ ./list.sh"
+    refute_output --partial "s/bad/good/ bad.txt good.txt"
+    assert_equal "$(git show :bad.txt)" "good"
+    assert_equal "$(git show :good.txt)" "fine"
 }
 
 @test "files fixed by a same-command step whose check passes are staged" {

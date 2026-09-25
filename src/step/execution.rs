@@ -91,13 +91,12 @@ impl Step {
         // changes and leaves the user's edits to the others unstaged. Once
         // stashed, a job file shows as unstaged only after a fixer changed it,
         // so checking first would cost a second run of the tool for nothing.
-        let unstashed = &ctx.hook_ctx.unstashed_changes;
         if ctx.hook_ctx.should_stage
-            && !unstashed.is_empty()
             && self.stage.is_none()
             && matches!(ctx.hook_ctx.run_type, RunType::Fix)
             && (self.check_list_files.is_some() || self.check_diff.is_some())
         {
+            let unstashed = ctx.hook_ctx.unstashed_changes.lock().unwrap();
             for job in &mut jobs {
                 if job.files.iter().any(|f| unstashed.contains(f)) {
                     job.check_first = true;

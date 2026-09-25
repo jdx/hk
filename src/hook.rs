@@ -396,9 +396,10 @@ pub struct HookContext {
     /// pre-existing untracked files that were not created by a fixer.
     pub initial_untracked: BTreeSet<PathBuf>,
     /// Tracked files whose working tree still differs from the index when the
-    /// steps start, because hk did not stash them. Staging such a file would
+    /// steps start, because hk did not stash them (stashing is off, or git
+    /// could not stash, as before the first commit). Staging such a file would
     /// also stage the user's unstaged edits.
-    pub unstashed_changes: BTreeSet<PathBuf>,
+    pub unstashed_changes: std::sync::Mutex<BTreeSet<PathBuf>>,
 }
 
 impl HookContext {
@@ -454,7 +455,7 @@ impl HookContext {
             git_index_lock_contention: AtomicBool::new(false),
             should_stage,
             initial_untracked,
-            unstashed_changes,
+            unstashed_changes: StdMutex::new(unstashed_changes),
         }
     }
 
@@ -1352,12 +1353,8 @@ impl Hook {
             skip_steps,
             should_stage,
             git_status.untracked_files.clone(),
-            // Stashing sets every tracked file's working tree to its index.
-            if stash_method == StashMethod::None {
-                git_status.unstaged_files.clone()
-            } else {
-                Default::default()
-            },
+            // Paths the stash below sets back to their index are removed.
+            git_status.unstaged_files.clone(),
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
@@ -1377,6 +1374,13 @@ impl Hook {
                     // Stash ALL unstaged changes in the repository (not only files under consideration)
                     // so that unrelated worktree changes do not affect or get affected by fixers.
                     r.stash_unstaged(&file_progress, stash_method, &git_status)?;
+                    if let Some(stashed) = r.stashed_paths() {
+                        hook_ctx
+                            .unstashed_changes
+                            .lock()
+                            .unwrap()
+                            .retain(|p| !stashed.contains(p));
+                    }
                 }
             } else {
                 file_progress.prop("message", "No unstaged changes to stash");

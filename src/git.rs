@@ -987,6 +987,11 @@ impl Git {
 
     // removed: push_stash_keep_index_no_untracked helper
 
+    /// Paths whose unstaged changes this run stashed, if it stashed any.
+    pub fn stashed_paths(&self) -> Option<&BTreeSet<PathBuf>> {
+        self.stashed_paths.as_ref()
+    }
+
     pub fn capture_index(&mut self, paths: &[PathBuf]) -> Result<()> {
         if paths.is_empty() {
             self.saved_index = Some(vec![]);
