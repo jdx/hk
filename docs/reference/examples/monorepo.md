@@ -45,7 +45,7 @@ its own `hk.pkl` next to its code. The root config lists the subproject director
 
 ```pkl
 // hk.pkl (repo root)
-amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.2.0/hk@2.2.0#/Config.pkl"
 
 subprojects = List("frontend", "backend", "packages/*")
 
@@ -60,8 +60,8 @@ hooks {
 
 ```pkl
 // frontend/hk.pkl
-amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.2.0/hk@2.2.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.2.0/hk@2.2.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
   // aube resolves these executables from frontend/node_modules/.bin
@@ -86,8 +86,8 @@ hooks {
 
 ```pkl
 // backend/hk.pkl
-amends "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.1.0/hk@2.1.0#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.2.0/hk@2.2.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.2.0/hk@2.2.0#/Builtins.pkl"
 
 local linters = new Mapping<String, Step> {
   ["cargo-fmt"] = Builtins.cargo_fmt
