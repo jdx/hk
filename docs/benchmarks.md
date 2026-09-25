@@ -6,27 +6,15 @@ description: Compare hk, lefthook, pre-commit, and prek on fixing files, checkin
 
 This benchmark compares hk, lefthook, pre-commit, and prek on three everyday tasks: fixing files, checking a repository, and running pre-commit hooks. It measures elapsed time and verifies the files each tool produces. hk runs steps concurrently, using file locks to prevent fixers from writing the same file at once.
 
-## Results on main
+<BenchmarkResults />
 
-On main ([`10b49864`](https://github.com/jdx/hk/commit/10b49864)), hk is fastest in all three scenarios. This run used a Ryzen 9 7950X3D pinned to eight CPUs with `taskset -c 0-7`. Every tool produced the expected files in every timed sample.
+## What the results show
 
-| Scenario | hk (main) | Fastest other tool | Result |
-| --- | --- | --- | --- |
-| Fix every file | 4.43 s | prek: 5.22 s | hk is 1.2× faster |
-| Check every file | 1.51 s | lefthook: 2.08 s | hk is 1.4× faster |
-| Commit | 0.42 s | lefthook: 0.72 s | hk is 1.7× faster |
-
-Times are medians; speed ratios compare hk with the fastest other tool in the same run.
+hk is fastest in all three scenarios, and every tool produces the expected files in every timed sample.
 
 - **Fix every file:** hk's lead over the next tool is smallest here. pre-commit and prek split each hook's files into batches that run across CPUs; hk can also run different fixers concurrently.
 - **Check every file:** hk finishes ahead of lefthook even with lefthook's parallel mode enabled for read-only checks.
 - **Commit:** hk has its largest relative lead when fixing about 60 staged files. hk runs independent fixers concurrently and stages each fixer's files as it finishes; the other configurations run hooks or jobs one at a time.
-
-## Published results
-
-The charts below show the latest published run, including its host and tool versions. They currently measure hk 2.2.0 on a different host from the main run above. The next release and benchmark refresh will update them to include the changes on main.
-
-<BenchmarkResults />
 
 ## Workload and correctness
 
