@@ -100,7 +100,7 @@ hooks {
   ["pre-commit"] {
     fix = true
     stage = true
-    stash = "$1"
+    stash = "none"
     steps {
       ["lister"] {
         glob = "*.txt"
@@ -112,6 +112,10 @@ hooks {
   }
 }
 EOF
+    # A literal default keeps the heredoc valid Pkl for the Apple Pkl check.
+    if [ "$1" != none ]; then
+        sed -i.bak "s/stash = \"none\"/stash = \"$1\"/" hk.pkl && rm hk.pkl.bak
+    fi
     # git cannot stash before the first commit.
     git add -A
     git commit -qm init
