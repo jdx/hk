@@ -10,13 +10,14 @@
 //! - Progress tracking and error aggregation
 
 use crate::error::Error;
+use crate::git::Git;
 use crate::hook::SkipReason;
 use crate::step_context::StepContext;
 use crate::step_job::StepJobStatus;
 use crate::{Result, glob, tera};
 use indexmap::IndexSet;
 use itertools::Itertools;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
@@ -492,21 +493,41 @@ impl Step {
             // Take the file locks before the git mutex so neither waits on the other.
             // With the default stage, only this job's files are inspected, so
             // staging does not wait for steps that write other files.
-            let lock_files = if stage_only_job_files {
+            let status_files = if stage_only_job_files {
                 actual_job_files.iter().cloned().collect_vec()
             } else {
                 glob::get_matches(&stage_globs, &ctx.hook_ctx.files())?
             };
-            let _flocks = ctx.hook_ctx.file_locks.read_locks(&lock_files).await;
+            // `git add` writes the index, which re-hashes racily clean entries
+            // anywhere in the repository (see `Git::racily_clean_paths`), so it
+            // also needs read locks on those. Take every lock in one call so they
+            // are acquired in order, then check under the git mutex that no
+            // entry became racy meanwhile. Nothing else writes the index while
+            // the mutex is held.
+            let mut lock_files: BTreeSet<PathBuf> = status_files.iter().cloned().collect();
+            if ctx.hook_ctx.should_stage {
+                let git = ctx.hook_ctx.git.lock().await;
+                lock_files.extend(racy_hook_files(ctx, &git, &lock_files));
+            }
+            let (_flocks, git) = loop {
+                let lock_vec = lock_files.iter().cloned().collect_vec();
+                let flocks = ctx.hook_ctx.file_locks.read_locks(&lock_vec).await;
+                let git = ctx.hook_ctx.git.lock().await;
+                if !ctx.hook_ctx.should_stage {
+                    break (flocks, git);
+                }
+                let racy = racy_hook_files(ctx, &git, &lock_files);
+                if racy.is_empty() {
+                    break (flocks, git);
+                }
+                trace!("{self}: more racily clean files to lock: {racy:?}");
+                lock_files.extend(racy);
+            };
             let status = if stage_only_job_files {
                 // Only this job's files can be staged, so only they need a status
-                ctx.hook_ctx.git.lock().await.status_of_paths(&lock_files)?
+                git.status_of_paths(&status_files)?
             } else {
-                ctx.hook_ctx
-                    .git
-                    .lock()
-                    .await
-                    .status(Some(&stage_pathspecs))?
+                git.status(Some(&stage_pathspecs))?
             };
 
             // Build a scoped candidate set:
@@ -588,7 +609,7 @@ impl Step {
                 // Only stage matched files when staging is enabled for this hook.
                 // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
                 if ctx.hook_ctx.should_stage {
-                    ctx.hook_ctx.git.lock().await.add(&filtered)?;
+                    git.add(&filtered)?;
                 }
                 // Classify staged files using pre-staging untracked snapshot
                 let filtered_set: BTreeSet<PathBuf> = filtered.iter().cloned().collect();
@@ -603,6 +624,26 @@ impl Step {
         }
         Ok(())
     }
+}
+
+/// Hook files that an index write may read and that are not in `locked`.
+/// If the index can't be read, every hook file counts.
+fn racy_hook_files(ctx: &StepContext, git: &Git, locked: &BTreeSet<PathBuf>) -> Vec<PathBuf> {
+    let hook_files = ctx.hook_ctx.files();
+    let racy = match git.racily_clean_paths() {
+        Ok(racy) => racy,
+        Err(err) => {
+            debug!("failed to find racily clean index entries, locking all files: {err:?}");
+            return hook_files
+                .into_iter()
+                .filter(|p| !locked.contains(p))
+                .collect();
+        }
+    };
+    let hook_files: HashSet<PathBuf> = hook_files.into_iter().collect();
+    racy.into_iter()
+        .filter(|p| hook_files.contains(p) && !locked.contains(p))
+        .collect()
 }
 
 /// Push `pat` once per stage root, or bare when there are none (the repo root).
