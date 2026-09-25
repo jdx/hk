@@ -242,6 +242,10 @@ pub struct Step {
     #[serde(default)]
     pub batch: bool,
 
+    /// Fewest files a `batch` job gets; defaults to 4
+    #[serde(default)]
+    pub batch_min_files: Option<usize>,
+
     /// Allow overwriting files being processed by other steps
     #[serde(default)]
     pub stomp: bool,
