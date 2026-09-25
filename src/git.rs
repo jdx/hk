@@ -739,6 +739,12 @@ impl Git {
     }
 
     #[tracing::instrument(level = "info", name = "git.stash.push", skip_all)]
+    /// Paths whose unstaged changes the last [`Git::stash_unstaged`] set aside,
+    /// or `None` if it stashed nothing.
+    pub fn stashed_paths(&self) -> Option<&BTreeSet<PathBuf>> {
+        self.stash.as_ref().and(self.stashed_paths.as_ref())
+    }
+
     pub fn stash_unstaged(
         &mut self,
         job: &ProgressJob,

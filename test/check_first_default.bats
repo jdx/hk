@@ -130,6 +130,23 @@ EOF
     assert_equal "$(git show :good.txt)" "fine"
 }
 
+@test "a staging hook narrows a listing step when there is no commit to stash against" {
+    write_listing_hook
+    sed -i.bak 's/stash = "none"/stash = "git"/' hk.pkl && rm -f hk.pkl.bak
+    echo bad > bad.txt
+    echo fine > good.txt
+    git add bad.txt good.txt
+    echo "unstaged" >> good.txt
+
+    # Only libgit2 skips the stash before the first commit; the git CLI
+    # backend fails to stash there instead.
+    HK_LIBGIT2=1 HK_LOG=debug run hk run pre-commit
+    assert_success
+    assert_output --partial "DEBUG $ ./list.sh"
+    assert_equal "$(git show :bad.txt)" "good"
+    assert_equal "$(git show :good.txt)" "fine"
+}
+
 @test "a staging hook fixes a listing step directly when nothing is unstaged" {
     write_listing_hook
     echo bad > bad.txt

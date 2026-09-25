@@ -95,12 +95,9 @@ impl Step {
             && matches!(ctx.hook_ctx.run_type, RunType::Fix)
             && (self.check_list_files.is_some() || self.check_diff.is_some())
         {
+            let unstaged = ctx.hook_ctx.initial_unstaged.lock().unwrap();
             for job in &mut jobs {
-                if job
-                    .files
-                    .iter()
-                    .any(|f| ctx.hook_ctx.initial_unstaged.contains(f))
-                {
+                if job.files.iter().any(|f| unstaged.contains(f)) {
                     job.check_first = true;
                 }
             }
