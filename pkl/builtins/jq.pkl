@@ -54,14 +54,13 @@ jq = new Config.Step {
       trap 'exit 2' HUP INT TERM
       for f in {{ files }}; do
       # Write a copy beside the file, with its permissions, then rename it
-      # over the file, so a failed write never truncates the original.
+      # over the file, so a failed write never truncates the original. A
+      # file that is already formatted is left alone, links and all.
       tmp=$(mktemp "$f.XXXXXX") &&
       cp -p "$f" "$tmp" &&
       jq -S . "$f" > "$tmp" &&
-      mv "$tmp" "$f" || {
+      { cmp -s "$f" "$tmp" || mv "$tmp" "$f"; } || failed=1
       rm -f "$tmp"
-      failed=1
-      }
       tmp=
       done
       exit $failed

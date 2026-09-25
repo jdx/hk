@@ -413,6 +413,8 @@ PKL
     printf 'a: [\n' > broken.yaml
     printf 'foo:   bar\n' > config.yaml
     chmod 755 data.json
+    printf '{\n  "ok": true\n}\n' > formatted.json
+    ln formatted.json formatted-link.json
 
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
     run hk fix --all --no-fail-fast
@@ -427,7 +429,9 @@ PKL
     assert_output $'{\n  "a": 2,\n  "b": 1\n}'
     run cat config.yaml
     assert_output 'foo: bar'
-    # The fixer keeps the file's permissions and leaves no temp files.
+    # The fixer keeps the file's permissions, leaves already formatted files
+    # (and their links) alone, and leaves no temp files.
     [ -x data.json ]
+    [ formatted.json -ef formatted-link.json ]
     assert_equal "$(find . -name '*.json.*' -o -name '*.yaml.*' | wc -l | tr -d ' ')" 0
 }
