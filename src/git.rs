@@ -3,6 +3,7 @@ use std::{
     ffi::{CString, OsString},
     path::PathBuf,
     process::Command,
+    sync::OnceLock,
     thread,
     time::Duration,
 };
@@ -136,6 +137,8 @@ pub struct Git {
     saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
     // Path of the most recent stash patch backup, surfaced if restore fails
     last_patch_path: Option<PathBuf>,
+    // Path of the index file git writes, resolved on first use
+    index_path: OnceLock<PathBuf>,
 }
 
 enum StashType {
@@ -220,6 +223,7 @@ impl Git {
             saved_index: None,
             saved_worktree: None,
             last_patch_path: None,
+            index_path: OnceLock::new(),
         })
     }
 
@@ -475,6 +479,61 @@ impl Git {
         self.read_status(pathspec, false)
     }
 
+    /// Status of the paths matching `pathspec`, read without touching any
+    /// file outside them.
+    ///
+    /// Like [`Git::status_of_paths`], it skips the index refresh in
+    /// [`Git::status`], which may hash any tracked file.
+    #[tracing::instrument(level = "info", name = "git.status_of_pathspec", skip_all, fields(pathspec_count = pathspec.len()))]
+    pub fn status_of_pathspec(&self, pathspec: &[OsString]) -> Result<GitStatus> {
+        self.read_status(Some(pathspec), false)
+    }
+
+    /// Worktree paths that any index write may read, besides the paths being
+    /// written.
+    ///
+    /// When git writes the index, it re-hashes every entry whose recorded mtime
+    /// is not older than the index file ("racily clean") and whose stat data
+    /// still matches the worktree, so it can tell whether the file changed
+    /// within the same timestamp tick. git maps the file into memory to hash
+    /// it, so if another process truncates the file meanwhile, git dies with
+    /// SIGBUS. Entries recorded with size 0 were already marked as changed and
+    /// are never hashed.
+    ///
+    /// Seconds are compared, which covers git builds with and without
+    /// nanosecond timestamps.
+    pub fn racily_clean_paths(&self) -> Result<Vec<PathBuf>> {
+        let index_path = match self.index_path.get() {
+            Some(path) => path,
+            None => {
+                let path = PathBuf::from(git_read(["rev-parse", "--git-path", "index"])?);
+                self.index_path.get_or_init(|| path)
+            }
+        };
+        let index_mtime = match std::fs::metadata(index_path) {
+            Ok(metadata) => metadata.modified()?,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+            Err(err) => return Err(err.into()),
+        };
+        let index_secs = index_mtime
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let index = git2::Index::open(index_path)
+            .wrap_err_with(|| format!("failed to read index {}", index_path.display()))?;
+        Ok(index
+            .iter()
+            .filter(|entry| entry.file_size != 0 && i64::from(entry.mtime.seconds()) >= index_secs)
+            .map(|entry| {
+                #[cfg(unix)]
+                let path = PathBuf::from(OsString::from_vec(entry.path));
+                #[cfg(not(unix))]
+                let path = PathBuf::from(String::from_utf8_lossy(&entry.path).into_owned());
+                path
+            })
+            .collect())
+    }
+
     /// Status of exactly `paths`, read without touching any other file in the
     /// worktree, so it is safe while other steps are writing other files.
     ///
@@ -644,7 +703,10 @@ impl Git {
                 args.push("--".into());
                 args.extend(pathspec.iter().map(|p| p.into()))
             }
-            let output = git_read(args)?;
+            // With optional locks, `git status` writes the refreshed index
+            // back, and writing the index re-hashes every racily clean entry
+            // in the repository, not just the ones in `pathspec`.
+            let output = git_cmd(args).env("GIT_OPTIONAL_LOCKS", "0").read()?;
             let mut staged_files = BTreeSet::new();
             let mut unstaged_files = BTreeSet::new();
             let mut untracked_files = BTreeSet::new();
