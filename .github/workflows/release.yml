@@ -36,12 +36,14 @@ jobs:
             os: macos-latest
             runner: namespace-profile-endev-macos-arm64
             build-tool: cargo
-            optimized: false
+            optimized: true
+            bolt: false
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
-            optimized: false
+            optimized: true
+            bolt: false
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
@@ -52,6 +54,7 @@ jobs:
             runner: namespace-profile-endev-linux-amd64
             build-tool: cross
             optimized: true
+            bolt: true
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
@@ -83,12 +86,24 @@ jobs:
         with:
           p12-file-base64: ${{ secrets.CERTIFICATES_P12 }}
           p12-password: ${{ secrets.CERTIFICATES_P12_PASS }}
-      - name: Install PGO and BOLT build tools
+      # `optimized` rows are PGO-trained by scripts/pgo-bolt.bash, so their
+      # binaries must run on the build host. arm64 Linux cross-builds on an
+      # amd64 runner and Windows has no training pipeline, so those stay on
+      # the plain serious profile. `bolt` adds a post-link layout rewrite,
+      # which only works for glibc Linux: BOLT's instrumentation runtime
+      # crashes against musl and it does not rewrite Mach-O.
+      - name: Install PGO build tools
         if: matrix.optimized
         shell: bash
+        run: rustup component add llvm-tools
+      - name: Install cross
+        if: matrix.optimized && matrix.build-tool == 'cross'
+        shell: bash
+        run: cargo install cross --locked --version 0.2.5
+      - name: Install BOLT
+        if: matrix.optimized && matrix.bolt
+        shell: bash
         run: |
-          rustup component add llvm-tools
-          cargo install cross --locked --version 0.2.5
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends wget gnupg ca-certificates
           sudo install -d -m 0755 /etc/apt/keyrings
@@ -99,14 +114,26 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/llvm-toolchain-18.list
           sudo apt-get update
           sudo apt-get install -y bolt-18
-      - name: Build PGO+BOLT binary
+      - name: Build PGO-optimized binary
         if: matrix.optimized
         shell: bash
         env:
           HK_PGO_BUILD_TOOL: ${{ matrix.build-tool }}
           HK_PGO_TARGET: ${{ matrix.target }}
+          HK_PGO_BOLT: ${{ matrix.bolt && '1' || '0' }}
         run: scripts/pgo-bolt.bash
-      - name: Package PGO+BOLT binary
+      # upload-rust-binary-action signs the binaries it builds; this one is
+      # built outside it, so sign it the same way before it is archived.
+      - name: Codesign PGO-optimized macOS binary
+        if: matrix.optimized && matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          BINARY: target/${{ matrix.target }}/serious-pgo/hk
+        run: |
+          codesign --sign "Developer ID Application: Jeffrey Dickey (4993Y37DX6)" \
+            --options runtime --timestamp --prefix dev.jdx. --force "$BINARY"
+          codesign --verify --strict --verbose=2 "$BINARY"
+      - name: Package PGO-optimized binary
         if: matrix.optimized
         shell: bash
         env:
@@ -150,7 +177,7 @@ jobs:
           APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          BINARIES: target/${{ matrix.target }}/serious/hk
+          BINARIES: target/${{ matrix.target }}/${{ matrix.optimized && 'serious-pgo' || 'serious' }}/hk
         run: |
           set -euo pipefail
 

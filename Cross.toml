@@ -15,3 +15,8 @@ image = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:0.2.5"
 # HK_REQUIRE_EMBEDDED_PKL is repeated from [build.env] in case a target list
 # replaces the build one rather than extending it.
 passthrough = ["RUSTFLAGS", "HK_REQUIRE_EMBEDDED_PKL"]
+
+[target.x86_64-unknown-linux-musl.env]
+# The musl build is PGO-trained too (without BOLT), so RUSTFLAGS must reach
+# the container for the same reason as above.
+passthrough = ["RUSTFLAGS", "HK_REQUIRE_EMBEDDED_PKL"]
