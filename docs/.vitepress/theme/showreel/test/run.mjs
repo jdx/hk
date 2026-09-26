@@ -11,9 +11,14 @@ import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const tests = globSync("**/*.test.ts", { cwd: root }).sort();
+// `run.mjs handoff captions` runs only the test files whose paths contain one
+// of the words; with no words it runs them all.
+const only = process.argv.slice(2);
+const tests = globSync("**/*.test.ts", { cwd: root })
+  .filter((t) => !only.length || only.some((word) => t.includes(word)))
+  .sort();
 if (!tests.length) {
-  console.error(`no *.test.ts files under ${root}`);
+  console.error(`no *.test.ts files under ${root}${only.length ? ` matching ${only.join(", ")}` : ""}`);
   process.exit(1);
 }
 
