@@ -377,4 +377,3 @@ export const scene: Scene = {
   },
   captions: () => CAPTIONS,
 };
-
