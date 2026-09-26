@@ -587,7 +587,7 @@ function drawTracks(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): v
   const n = raceAt(m, lt).order.length;
   const sweep = m.races.length > 1 ? progress(RESET[1] - b(0.1), m.races[1].start, lt) : 0;
   const h = m.geom.barH;
-  for (let i = 0; i < Math.max(n, m.races[0].order.length); i++) {
+  for (let i = 0; i < n; i++) {
     const cy = slotY(i, n);
     inLayer(ctx, layerAt(L_TRACKS, i), lt, () => {
       ctx.save();

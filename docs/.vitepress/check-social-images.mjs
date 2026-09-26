@@ -32,9 +32,9 @@ const video120 = existsSync(video120File) ? readFileSync(video120File) : null;
 // stale render.
 const version = (file) =>
   createHash("sha256").update(file).digest("hex").slice(0, 12);
-if (video) {
-  // The landing page's player shows this until someone presses play.
-  const poster = readFileSync(join(root, "showreel-poster.jpg"));
+// The landing page's player shows this until someone presses play.
+const poster = video ? readFileSync(join(root, "showreel-poster.jpg")) : null;
+if (poster) {
   assert.deepEqual(
     [...poster.subarray(0, 3)],
     [0xff, 0xd8, 0xff],
@@ -117,17 +117,17 @@ for (const file of walk(root).filter((file) => file.endsWith(".html"))) {
       "showreel.mp4 is not an MP4",
     );
     // The player starts on the same 60 fps file, with the poster rendered
-    // with it.
+    // with it, each versioned by its own bytes.
     const player = html.match(/<video\b[^>]*\ssrc="([^"]*)"/);
     assert.equal(
       player?.[1],
       `/showreel.mp4?v=${version(video)}`,
       "The player does not start on the deployed showreel.mp4",
     );
-    const poster = html.match(/<video\b[^>]*\sposter="([^"]*)"/);
+    const posterSrc = html.match(/<video\b[^>]*\sposter="([^"]*)"/);
     assert.equal(
-      poster?.[1],
-      `/showreel-poster.jpg?v=${version(video)}`,
+      posterSrc?.[1],
+      `/showreel-poster.jpg?v=${version(poster)}`,
       "The player's poster is not the deployed render's",
     );
   } else {

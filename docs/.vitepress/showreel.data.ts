@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const configDir = dirname(fileURLToPath(import.meta.url));
 const videoPath = resolve(configDir, "../public/showreel.mp4");
 const video120Path = resolve(configDir, "../public/showreel-120.mp4");
+const posterPath = resolve(configDir, "../public/showreel-poster.jpg");
 
 export interface ShowreelFiles {
   /** Site-relative URL of the 60 fps MP4. */
@@ -56,7 +57,7 @@ function mp4Seconds(mp4: Buffer): number | null {
  * elsewhere; the homepage offers the 60 fps file as og:video.
  */
 export function showreelFiles(): ShowreelFiles | null {
-  if (!existsSync(videoPath)) return null;
+  if (!existsSync(videoPath) || !existsSync(posterPath)) return null;
   const video = readFileSync(videoPath);
   const video120 = existsSync(video120Path) ? readFileSync(video120Path) : null;
   const seconds = video120 && mp4Seconds(video120);
@@ -69,8 +70,9 @@ export function showreelFiles(): ShowreelFiles | null {
             bitrate: Math.round((video120.length * 8) / seconds),
           }
         : null,
-    // The poster is rendered with the video.
-    poster: `/showreel-poster.jpg?v=${version(video)}`,
+    // Versioned by its own bytes: a change to the poster frame alone must
+    // reach browsers too.
+    poster: `/showreel-poster.jpg?v=${version(readFileSync(posterPath))}`,
   };
 }
 
@@ -78,6 +80,6 @@ export declare const data: ShowreelFiles | null;
 
 export default {
   // Pick up a render made while the dev server is running.
-  watch: [videoPath, video120Path],
+  watch: [videoPath, video120Path, posterPath],
   load: showreelFiles,
 };

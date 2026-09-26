@@ -126,6 +126,7 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
     Buffer.concat([Buffer.from([0, 0, 0, 16]), Buffer.from(`ftyp${brand}`)]);
   const video = mp4("isom0060");
   const video120 = mp4("isom0120");
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
   const version = (file) =>
     createHash("sha256").update(file).digest("hex").slice(0, 12);
   const src = `/showreel.mp4?v=${version(video)}`;
@@ -146,7 +147,7 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
     <meta property="og:image:alt" content="Fast git hooks and project linting — hk docs">
     <meta name="twitter:image:alt" content="Fast git hooks and project linting — hk docs">
     <meta name="twitter:card" content="summary_large_image">`;
-  const posterSrc = `/showreel-poster.jpg?v=${version(video)}`;
+  const posterSrc = `/showreel-poster.jpg?v=${version(jpeg)}`;
   const homeWith = (url, player = src, poster = posterSrc) =>
     page("Home", home, { type: "video.other", extra: tags(url) }) +
     `<video src="${player}" poster="${poster}" controls></video>`;
@@ -174,7 +175,7 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
     writeSocialCard(dir, other);
     writeFileSync(join(dir, "showreel.mp4"), video);
     writeFileSync(join(dir, "showreel-120.mp4"), video120);
-    writeFileSync(join(dir, "showreel-poster.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+    writeFileSync(join(dir, "showreel-poster.jpg"), jpeg);
     writeFileSync(join(dir, "app.js"), `const upgrade = "/showreel-120.mp4?v=${version(video120)}";`);
     writeFileSync(join(dir, "index.html"), homeWith(`https://example.com${src}`));
     writeFileSync(join(dir, "other.html"), otherPage());
@@ -190,6 +191,12 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
     writeFileSync(
       join(dir, "index.html"),
       homeWith(`https://example.com${src}`, src, "/showreel-poster.jpg?v=0123456789ab"),
+    );
+    expectFailure(/The player's poster is not the deployed render's/);
+    // The poster carries its own version, not the video's.
+    writeFileSync(
+      join(dir, "index.html"),
+      homeWith(`https://example.com${src}`, src, `/showreel-poster.jpg?v=${version(video)}`),
     );
     expectFailure(/The player's poster is not the deployed render's/);
     writeFileSync(join(dir, "index.html"), homeWith(`https://example.com${src}`));
@@ -208,7 +215,7 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
 
     writeFileSync(join(dir, "showreel-poster.jpg"), Buffer.from("PNG"));
     expectFailure(/showreel-poster\.jpg is not a JPEG/);
-    writeFileSync(join(dir, "showreel-poster.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+    writeFileSync(join(dir, "showreel-poster.jpg"), jpeg);
 
     // Without a render, the homepage is a website with no player.
     rmSync(join(dir, "showreel.mp4"));

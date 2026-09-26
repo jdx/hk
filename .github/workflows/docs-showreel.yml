@@ -5,12 +5,15 @@ name: docs showreel
 # the race scene's empty captions band. The lint job's docs build runs the
 # reel's tests without a browser, which skips these, and the docs deploy runs
 # them only when it renders a new video on main. Here they run on the pull
-# request that changes the reel, before a failure can block a deploy.
+# request that changes the reel, before a failure can block a deploy, along
+# with a short draft render and a preview, which no test covers.
 
 on:
   pull_request:
     paths:
       - "docs/.vitepress/theme/showreel/**"
+      - "docs/.vitepress/showreel-video.mjs"
+      - "docs/.vitepress/showreel-frames.mjs"
       - "docs/.vitepress/fonts/**"
       - "docs/package.json"
       - "aube-lock.yaml"
@@ -20,6 +23,8 @@ on:
     branches: [main]
     paths:
       - "docs/.vitepress/theme/showreel/**"
+      - "docs/.vitepress/showreel-video.mjs"
+      - "docs/.vitepress/showreel-frames.mjs"
       - "docs/.vitepress/fonts/**"
       - "docs/package.json"
       - "aube-lock.yaml"
@@ -62,3 +67,13 @@ jobs:
         env:
           SHOWREEL_REQUIRE_CHROMIUM: "1"
         run: aube run test:showreel
+      # The two entry points no test imports: two seconds of the video, with
+      # its score, and the poster frame through the preview tool. Neither
+      # writes to docs/public.
+      - name: Render a draft and a preview
+        working-directory: docs
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg
+          node .vitepress/showreel-video.mjs --out "$RUNNER_TEMP/draft.mp4" --fps 60 --until 2
+          node .vitepress/showreel-frames.mjs --all --times 0,40.25 --scale 0.25 --out "$RUNNER_TEMP/frames"
