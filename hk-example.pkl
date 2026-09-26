@@ -15,9 +15,9 @@ local linters = new Mapping {
     // a command that edits files in place
     fix = "eslint --fix {{files}}"
 
-    // if multiple fixes run against the same file, run check first which only requires read locking
-    // if failure, then it gets write locks to run the "fix" step
-    // default: true
+    // if another step fixes the same files, run check first and skip the fix when the check passes
+    // the check holds the same write locks as the fix, and eslint runs twice when files need fixing
+    // default: false
     check_first = true
 
     // instead of passing all files to check/fix, it will split them into batches
