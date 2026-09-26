@@ -504,16 +504,21 @@ impl Step {
                 let git = ctx.hook_ctx.git.lock().await;
                 lock_files.extend(racy_hook_files(ctx, &git, &lock_files));
             }
-            let (_flocks, git) = loop {
+            let (_flocks, _diff_guard, git) = loop {
                 let lock_vec = lock_files.iter().cloned().collect_vec();
                 let flocks = ctx.hook_ctx.file_locks.read_locks(&lock_vec).await;
+                // A diff may touch paths outside its job's input-file locks.
+                // Exclude apply/rollback through both status and add, taking
+                // file locks before the diff guard just as commands do. On a
+                // retry, release all guards before acquiring more file locks.
+                let diff_guard = ctx.hook_ctx.diff_lock.read().await;
                 let git = ctx.hook_ctx.git.lock().await;
                 if !ctx.hook_ctx.should_stage {
-                    break (flocks, git);
+                    break (flocks, diff_guard, git);
                 }
                 let racy = racy_hook_files(ctx, &git, &lock_files);
                 if racy.is_empty() {
-                    break (flocks, git);
+                    break (flocks, diff_guard, git);
                 }
                 trace!("{self}: more racily clean files to lock: {racy:?}");
                 lock_files.extend(racy);

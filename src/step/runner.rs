@@ -158,6 +158,8 @@ impl Step {
             return Ok(());
         }
         job.progress = Some(job.build_progress(ctx));
+        // Every command starts with fresh file locks and shared diff access,
+        // including a fallback fixer or the check after applying a diff.
         job.status = StepJobStatus::Pending;
         let semaphore = job.semaphore.take();
         job.status_start(ctx, semaphore).await?;

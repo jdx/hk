@@ -1030,7 +1030,7 @@ SCRIPT
 
 _run_concurrent_fix() {
     # Bound lock-ordering regressions rather than hanging the integration suite.
-    run python3 - <<'PYTHON'
+    run python3 - "$@" <<'PYTHON'
 import os
 import pathlib
 import signal
@@ -1038,7 +1038,7 @@ import subprocess
 import sys
 
 # Kill the whole fixture on timeout so shim children cannot outlive teardown.
-process = subprocess.Popen(["hk", "fix", "a.in", "b.in"], start_new_session=True)
+process = subprocess.Popen(["hk", "fix", "a.in", "b.in", *sys.argv[1:]], start_new_session=True)
 try:
     sys.exit(process.wait(timeout=15))
 except subprocess.TimeoutExpired:
@@ -1156,4 +1156,199 @@ EOF_CONFIG
     assert_success
     assert_file_contains a.in fixed
     assert_file_contains b.in fixed
+}
+
+@test "staging excludes partial diff writes outside the patch job inputs" {
+    _setup_concurrent_diff_fixture
+    printf 'before\n' > shared.txt
+    # Keep input entries non-racy, so the staging job does not incidentally
+    # wait for A's input-file lock before it can read the shared patch target.
+    python3 - <<'PYTHON'
+import os
+for name in ("a.in", "b.in", "shared.txt"):
+    os.utime(name, (1, 1))
+PYTHON
+    git add a.in b.in shared.txt
+    cat <<'PATCH' > a.patch
+--- shared.txt
++++ shared.txt
+@@ -1 +1 @@
+-before
++after
+PATCH
+    cat <<'PYTHON' > wait-for-index.py
+import os
+import pathlib
+import subprocess
+import time
+
+deadline = time.monotonic() + 2
+while time.monotonic() < deadline:
+    indexed = subprocess.check_output([os.environ["REAL_GIT"], "show", ":shared.txt"])
+    if indexed == b"partial\n":
+        pathlib.Path("staged-during-apply").touch()
+        break
+    time.sleep(0.01)
+pathlib.Path("apply-wait-finished").touch()
+PYTHON
+    cat <<'SCRIPT' > mock-bin/git
+#!/bin/sh
+# Both Git backends inspect the index path before taking staging locks.
+# Hold that inspection until the transaction has actually written partial data.
+if [ "$1" = rev-parse ] && [ "$2" = --git-path ] && [ "$3" = index ]; then
+    touch staging-started
+    python3 wait-for-files.py a-applying || exit 1
+fi
+if [ "$1" != apply ]; then
+    exec "$REAL_GIT" "$@"
+fi
+patch=$(cat)
+case " $* " in
+    *" --numstat "*|*" --check "*)
+        printf '%s\n' "$patch" | "$REAL_GIT" "$@"
+        exit $?
+        ;;
+esac
+printf 'partial\n' > shared.txt
+touch a-applying
+python3 wait-for-index.py || exit 1
+echo 'injected write-time failure' >&2
+exit 1
+SCRIPT
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                stage = List()
+                check_diff = "./check-a.sh"
+                fix = "touch a-fixer-ran"
+            }
+            ["b"] {
+                glob = "b.in"
+                stage = "shared.txt"
+                fix = "./wait-for-apply.sh; echo fixed > b.in"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix --stage
+    assert_success
+    assert_file_not_exists startup-timed-out
+    assert_file_contains b-wait-result '^timed-out$'
+    assert_file_exists a-applying
+    assert_file_exists apply-wait-finished
+    assert_file_exists staging-started
+    assert_file_exists a-fixer-ran
+    assert_file_contains shared.txt '^before$'
+    assert_file_not_exists staged-during-apply
+    run git show :shared.txt
+    assert_output before
+}
+
+_assert_followup_excludes_diff() {
+    _setup_concurrent_diff_fixture
+    local check_after_diff="$1"
+    export FAIL_FIRST_DIFF="$2"
+    cat <<'PATCH' > b.patch
+--- /dev/null
++++ b-side.txt
+@@ -0,0 +1 @@
++B
+PATCH
+    cat <<'SCRIPT' > follow-up.sh
+#!/bin/sh
+touch followup-started
+if python3 wait-for-files.py b-applying; then
+    echo observed > followup-wait-result
+else
+    echo timed-out > followup-wait-result
+fi
+touch followup-finished
+SCRIPT
+    cat <<'SCRIPT' > check-b.sh
+#!/bin/sh
+python3 wait-for-files.py followup-started || exit 2
+touch b-check-started
+cat b.patch
+exit 1
+SCRIPT
+    chmod +x follow-up.sh check-b.sh
+    cat <<'SCRIPT' > mock-bin/git
+#!/bin/sh
+if [ "$1" != apply ]; then
+    exec "$REAL_GIT" "$@"
+fi
+patch=$(cat)
+case " $* " in
+    *" --numstat "*|*" --check "*)
+        printf '%s\n' "$patch" | "$REAL_GIT" "$@"
+        exit $?
+        ;;
+esac
+if printf '%s\n' "$patch" | grep -q '^+A$'; then
+    touch a-applying
+    if [ "$FAIL_FIRST_DIFF" = 1 ]; then
+        printf 'partial\n' > a-side.txt
+        exit 1
+    fi
+else
+    touch b-applying
+fi
+printf '%s\n' "$patch" | "$REAL_GIT" "$@"
+SCRIPT
+    cat <<EOF_CONFIG > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["a"] {
+                glob = "a.in"
+                check_diff = "./check-a.sh"
+                check_after_diff = $check_after_diff
+                check = "./follow-up.sh"
+                fix = "./follow-up.sh; touch a-fixer-ran"
+            }
+            // Keep A's first transaction queued until C finishes, then let B
+            // check concurrently with A's fallback fixer or follow-up check.
+            ["c"] {
+                glob = "b.in"
+                fix = "./wait-for-apply.sh"
+            }
+            ["b"] {
+                glob = "b.in"
+                depends = List("c")
+                check_diff = "./check-b.sh"
+            }
+        }
+    }
+}
+EOF_CONFIG
+    _run_concurrent_fix
+    assert_success
+    assert_file_not_exists startup-timed-out
+    assert_file_contains b-wait-result '^timed-out$'
+    assert_file_exists a-applying
+    assert_file_exists followup-finished
+    assert_file_exists b-check-started
+    assert_file_exists b-applying
+    assert_file_contains followup-wait-result '^timed-out$'
+    assert_file_contains b-side.txt '^B$'
+}
+
+@test "fallback fixer reacquires shared access before another diff applies" {
+    _assert_followup_excludes_diff false 1
+    assert_file_exists a-fixer-ran
+    assert_file_not_exists a-side.txt
+}
+
+@test "check_after_diff reacquires shared access before another diff applies" {
+    _assert_followup_excludes_diff true 0
+    assert_file_not_exists a-fixer-ran
+    assert_file_contains shared.txt '^A$'
 }
