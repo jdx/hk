@@ -22,15 +22,15 @@ This relies on accurate step definitions. A check must be read-only, and a step 
 
 ## Use each linter’s capabilities
 
-Taking a write lock on every file can serialize otherwise independent work. hk’s [builtins](/builtins) describe more efficient ways to run tools when they support them.
+A fix holds write locks on its step’s files, so fixers that share files run one at a time. hk’s [builtins](/builtins) describe more efficient ways to run tools when they support them.
 
 ### Diff output
 
-A `check_diff` command emits a patch without editing files. hk can run it with read locks, then apply the patch under write locks. Builtins such as Ruff’s formatter use this approach.
+A `check_diff` command emits a patch without editing files. When fixing, hk runs it in place of `fix` and applies the patch itself, falling back to `fix` if the patch doesn’t apply. The step holds its write locks throughout, as any fix does. Builtins such as Ruff’s formatter use this approach.
 
 ### Lists of files needing fixes
 
-A `check_list_files` command reports which files need changes. For example, Prettier’s `--list-different` lets hk narrow the files passed to `--write`.
+A `check_list_files` command reports which files need changes. When the step checks first, as described below, Prettier’s `--list-different` lets hk pass only those files to `--write`.
 
 ### Check before fixing
 
