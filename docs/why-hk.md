@@ -26,7 +26,7 @@ A fix holds write locks on its step’s files, so fixers that share files run on
 
 ### Diff output
 
-A `check_diff` command emits a patch without editing files. When fixing, hk runs it and applies the patch itself instead of running `fix`. If the patch doesn’t apply, hk falls back to `fix`, or to the step’s check when it has no `fix` command. The step holds its write locks throughout, as any fix does. Builtins such as Ruff’s formatter use this approach.
+A `check_diff` command emits a patch without editing files. When fixing, hk runs it and applies the patch itself instead of running `fix`. If the patch doesn’t apply, hk runs `fix` instead, or, for a step without `fix`, the command it runs when checking. The step holds its write locks throughout, as any fix does. Builtins such as Ruff’s formatter use this approach.
 
 ### Lists of files needing fixes
 
