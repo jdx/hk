@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from "vue";
+import HomeShowreel from "./HomeShowreel.vue";
 
 const installCommand = "mise use hk";
 const copyStatus = ref("");
@@ -112,6 +113,9 @@ hooks {
         >
       </div>
     </section>
+
+    <!-- Full width under the hero; left out of builds without a render. -->
+    <HomeShowreel />
 
     <section class="hk-principles" aria-label="How hk works">
       <article>

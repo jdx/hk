@@ -1,0 +1,10 @@
+----- final -----
+hk 2.2.0 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines

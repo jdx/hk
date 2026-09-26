@@ -1,0 +1,18 @@
+{
+  // Strict type checking for the showreel and its tests: `aube run typecheck`.
+  // The renderer and the test runner bundle with esbuild, which strips types
+  // without checking them.
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom"],
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"]
+}

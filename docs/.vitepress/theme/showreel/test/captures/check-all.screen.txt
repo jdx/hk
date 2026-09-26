@@ -1,0 +1,10 @@
+----- final -----
+hk 2.2.0 by @jdx – check  [================================================] 7/7
+✔ files - Fetching all files in repo (5 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
