@@ -946,15 +946,31 @@ PATCH
 @@ -0,0 +1 @@
 +B
 PATCH
+    # A shell loop spawns a new sleep process on every poll. Under parallel
+    # macOS CI load, 200 nominal 10ms sleeps can exhaust the outer timeout.
+    # Keep each observation window bounded by elapsed time instead.
+    cat <<'SCRIPT' > wait-for-files.py
+import pathlib
+import sys
+import time
+
+paths = [pathlib.Path(name) for name in sys.argv[1:]]
+started = time.monotonic()
+deadline = started + 2
+while True:
+    observed = all(path.exists() for path in paths)
+    if observed or time.monotonic() >= deadline:
+        break
+    time.sleep(0.01)
+with open("wait-timings.log", "a") as log:
+    log.write(f"{sys.argv[1:]}: {'observed' if observed else 'timed-out'} "
+              f"after {time.monotonic() - started:.3f}s\n")
+sys.exit(0 if observed else 1)
+SCRIPT
     cat <<'SCRIPT' > check-a.sh
 #!/bin/sh
 # Ensure B is running a command before A requests exclusive diff access.
-i=0
-while [ ! -e b-command-started ] && [ "$i" -lt 200 ]; do
-    sleep 0.01
-    i=$((i + 1))
-done
-if [ ! -e b-command-started ]; then
+if ! python3 wait-for-files.py b-command-started; then
     touch startup-timed-out
     exit 1
 fi
@@ -966,12 +982,7 @@ SCRIPT
 touch b-command-started
 # Expiry is expected: A cannot apply while this command holds shared access.
 # Record it so the test rejects an unintended overlap rather than silently passing.
-i=0
-while [ ! -e a-applying ] && [ "$i" -lt 200 ]; do
-    sleep 0.01
-    i=$((i + 1))
-done
-if [ -e a-applying ]; then
+if python3 wait-for-files.py a-applying; then
     echo observed > b-wait-result
 else
     echo timed-out > b-wait-result
@@ -1000,13 +1011,8 @@ esac
 if printf '%s\n' "$patch" | grep -q '^+A$'; then
     printf 'partial\n' > a-side.txt
     touch a-applying
-    i=0
-    while [ ! -e b-written ] && [ "$i" -lt 200 ]; do
-        sleep 0.01
-        i=$((i + 1))
-    done
     # B must remain blocked throughout A's transaction, including rollback.
-    if [ -e b-written ]; then
+    if python3 wait-for-files.py b-written; then
         echo observed > a-wait-result
     else
         echo timed-out > a-wait-result
@@ -1024,7 +1030,27 @@ SCRIPT
 
 _run_concurrent_fix() {
     # Bound lock-ordering regressions rather than hanging the integration suite.
-    run python3 -c 'import subprocess, sys; sys.exit(subprocess.run(["hk", "fix", "a.in", "b.in"], timeout=15).returncode)'
+    run python3 - <<'PYTHON'
+import os
+import pathlib
+import signal
+import subprocess
+import sys
+
+# Kill the whole fixture on timeout so shim children cannot outlive teardown.
+process = subprocess.Popen(["hk", "fix", "a.in", "b.in"], start_new_session=True)
+try:
+    sys.exit(process.wait(timeout=15))
+except subprocess.TimeoutExpired:
+    os.killpg(process.pid, signal.SIGKILL)
+    process.wait()
+    print("concurrent fix timed out after 15 seconds", file=sys.stderr)
+    sys.exit(1)
+finally:
+    timings = pathlib.Path("wait-timings.log")
+    if timings.exists():
+        print(timings.read_text(), end="", file=sys.stderr)
+PYTHON
 }
 
 @test "check_diff rollback preserves another patch job's new target" {
@@ -1104,12 +1130,7 @@ EOF_CONFIG
 set -eu
 file="$1"
 touch "$file-started"
-i=0
-while [ ! -e a.in-started ] || [ ! -e b.in-started ]; do
-    i=$((i + 1))
-    test "$i" -lt 200 || exit 1
-    sleep 0.01
-done
+python3 wait-for-files.py a.in-started b.in-started
 printf 'fixed\n' > "$file"
 SCRIPT
     chmod +x fixer.sh
