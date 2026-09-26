@@ -369,31 +369,47 @@ export function drawTermLine(ctx: CanvasRenderingContext2D, text: string, x0: nu
   let col = 0;
   for (const r of styleLine(text)) {
     const fill = paint(r.color);
-    // Runs of the font's own characters are set whole from their first
-    // column: the font's advance is the grid's to within 0.0002 em.
-    let chunk = "";
-    let at = col;
-    const flush = () => {
-      if (!chunk.trim()) return;
-      ctx.font = font(size, r.bold ? 700 : 400, MONO);
-      ctx.fillStyle = fill;
-      ctx.fillText(chunk, x0 + at * adv, y);
-    };
+    ctx.font = font(size, r.bold ? 700 : 400, MONO);
+    ctx.fillStyle = fill;
+    // One character per column, never a run set whole: Chromium rounds a
+    // run's advances to whole pixels (19 px, not 19.2, at 32 px), which
+    // walks a long run off its columns (`]` of the header lands 11 px left
+    // of its cell and opens a double space before the count).
     for (const ch of r.text) {
-      if (isVectorGlyph(ch)) {
-        flush();
-        const glyph = o.t !== undefined && SPINNER.includes(ch) ? spinnerFrame(o.t) : ch;
-        drawGlyph(ctx, glyph, x0 + col * adv, y, size, fill);
-        chunk = "";
-        at = col + 1;
-      } else {
-        chunk += ch;
-      }
+      const x = x0 + col * adv;
+      if (isVectorGlyph(ch)) drawGlyph(ctx, o.t !== undefined && SPINNER.includes(ch) ? spinnerFrame(o.t) : ch, x, y, size, fill);
+      else if (ch !== " ") ctx.fillText(ch, x, y);
       col++;
     }
-    flush();
   }
   ctx.restore();
+}
+
+/**
+ * Where drawTermLine puts character `col` of `text` (x0, size as there):
+ * its cell's left edge, on the grid, and the width Chromium gives the
+ * character drawn alone, px. A glyph drawn centred on x + w / 2 therefore
+ * lands exactly on the one drawTermLine draws: for a scene that moves a
+ * glyph onto a line the terminal then draws itself.
+ */
+export function termCharX(ctx: CanvasRenderingContext2D, text: string, col: number, x0: number, size: number): { x: number; w: number } {
+  const adv = advance(size);
+  const x = x0 + col * adv;
+  let c = 0;
+  for (const r of styleLine(text)) {
+    for (const ch of r.text) {
+      if (c === col) {
+        if (isVectorGlyph(ch)) return { x, w: adv };
+        ctx.save();
+        ctx.font = font(size, r.bold ? 700 : 400, MONO);
+        const w = ctx.measureText(ch).width;
+        ctx.restore();
+        return { x, w };
+      }
+      c++;
+    }
+  }
+  return { x, w: adv };
 }
 
 /**

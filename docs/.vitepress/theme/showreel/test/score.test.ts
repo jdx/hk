@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { playScore } from "../audio";
 import type { ReelFacts } from "../facts";
+import { LATENCY, X } from "../score/mix";
 import { GAP } from "../score/morph";
-import { DURATION, SECTIONS, sec } from "../timeline";
+import { raceRuns } from "../race-timing";
+import { arc, PARTS } from "../score";
+import { BEAT, DURATION, SECTIONS, sec } from "../timeline";
 import { MockContext } from "./mock-audio";
 import { factsFor, type Variant } from "./published";
 
@@ -30,8 +33,8 @@ test("the score starts every source inside the reel, and sounds in every section
   for (const variant of VARIANTS) {
     const starts = spans(render(0, factsFor(variant)));
     for (const { target, start } of starts) {
-      // Sources start a few milliseconds early, ahead of the compressor's lookahead.
-      assert.ok(start > -0.01 && start < DURATION, `${variant}: ${target} starts at ${start}`);
+      // Sources start a few milliseconds early, ahead of the master's compressor lookahead.
+      assert.ok(start >= -LATENCY - 0.001 && start < DURATION, `${variant}: ${target} starts at ${start}`);
     }
     for (const { id } of SECTIONS) {
       const s = sec(id);
@@ -49,7 +52,7 @@ test("nothing sounds in the breath before the end card's downbeat", () => {
     for (const { target, start, stop } of spans(render(0, factsFor(variant)))) {
       // A source stops 20 ms after its envelope has fallen silent.
       if (start < GAP) assert.ok(stop <= GAP + 0.03, `${variant}: ${target} (from ${start}) rings until ${stop}, into the breath at ${GAP}`);
-      else assert.ok(start >= resolve - 0.01, `${variant}: ${target} starts at ${start}, in the breath`);
+      else assert.ok(start >= resolve - LATENCY - 0.001, `${variant}: ${target} starts at ${start}, in the breath`);
     }
   }
 });
@@ -73,4 +76,46 @@ test("a start mid-reel plays the same sounds, on the same samples, as playback f
       assert.deepEqual(after(spans(render(from, facts), from).map((s) => s.start)), after(whole), `${variant} from ${from}`);
     }
   }
+});
+
+test("each bar in the benchmark race stops on a sound, only when the facts back its race", () => {
+  const race = sec("race");
+  // Sources start LATENCY early, ahead of the master's compressors, and half a sample before their frame.
+  const soundsAt = (starts: number[], t: number) => starts.some((s) => Math.abs(s + LATENCY - t) < 0.001);
+  const stopsOf = (variant: Variant) => raceRuns(factsFor(variant)).flatMap((run) => Object.values(run.stops).map((b) => race.beat(b)));
+  for (const variant of VARIANTS) {
+    const starts = spans(render(0, factsFor(variant))).map((s) => s.start);
+    const stops = stopsOf(variant);
+    for (const t of stops) assert.ok(soundsAt(starts, t), `${variant}: nothing sounds as a bar stops at ${t.toFixed(4)}`);
+    // Stops off the sixteenth grid, where nothing else is written, stay silent when the facts do not back their race.
+    const offGrid = (t: number) => Math.abs(t / X - Math.round(t / X)) > 0.01;
+    for (const t of stopsOf("both").filter((t) => !stops.includes(t) && offGrid(t))) {
+      assert.ok(!soundsAt(starts, t), `${variant}: a sound at ${t.toFixed(4)}, where a race the facts do not back would stop`);
+    }
+  }
+});
+
+test("the groove's fader holds each section's level and moves only over the half beat before a bar line", () => {
+  const pts = arc();
+  // The fader's value at reel time t: it only ever moves in straight lines.
+  const at = (t: number): number => {
+    let v = pts[0][1];
+    for (let i = 1; i < pts.length; i++) {
+      const [t0, v0] = pts[i - 1];
+      const [t1, v1] = pts[i];
+      if (t >= t1) v = v1;
+      else if (t > t0) return v0 + ((v1 - v0) * (t - t0)) / (t1 - t0);
+    }
+    return v;
+  };
+  for (const { id } of SECTIONS) {
+    const s = sec(id);
+    const level = PARTS[id].level ?? 1;
+    for (const t of [s.start, (s.start + s.end) / 2, s.end - BEAT / 2 - 0.001]) {
+      assert.ok(Math.abs(at(t) - level) < 1e-9, `${id}: the fader is at ${at(t)} at ${t}, not its level ${level}`);
+    }
+  }
+  // The arc: the groove enters softly, and the lanes and the race ride above the rest.
+  const level = (id: keyof typeof PARTS) => PARTS[id].level ?? 1;
+  assert.ok(level("config") < 1 && level("lanes") > 1 && level("race") > 1);
 });

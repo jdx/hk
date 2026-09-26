@@ -59,6 +59,14 @@ export interface CardOptions {
   alpha?: number;
   /** The config scene's stroke-draw, 0..1: the outline draws on, then the fill and tab come up. */
   reveal?: number;
+  /**
+   * Draw the card's box (surface fill and divider edge). False draws only
+   * what is inside it, clipped to it, for a scene that draws the box itself
+   * (the config card shrinking into the hk.pkl chip). Default true.
+   */
+  frame?: boolean;
+  /** The tab's label's opacity, 0..1 (the tab itself stays): a scene flying the name elsewhere. Default 1. */
+  tabLabelAlpha?: number;
 }
 
 /** Where a card's rows are, for scenes laying marks over them. */
@@ -78,6 +86,12 @@ export interface CardLayout {
 
 /** The tab strip across a card's top, px. */
 const TAB_H = 40;
+
+/**
+ * The tab strip's height and its label's size and inset, px: the label's
+ * baseline is at the card's y + h / 2 + 0.3 · size, its left at x + pad.
+ */
+export const CARD_TAB = { h: TAB_H, size: 30, pad: 24 } as const;
 
 /** A card's rows: the first baseline is y + 40 + 12 + 0.8·size. */
 export function cardLayout(rect: CardRect, o: { size: number; lineH: number; textX?: number }): CardLayout {
@@ -213,26 +227,28 @@ export function drawCard(ctx: CanvasRenderingContext2D, rect: CardRect, o: CardO
   ctx.globalAlpha *= a;
 
   roundedRect(ctx, rect.x, rect.y, rect.w, rect.h, R);
-  if (body > 0) {
+  if (body > 0 && o.frame !== false) {
     ctx.save();
     ctx.globalAlpha *= body;
     ctx.fillStyle = PALETTE.surface;
     ctx.fill();
     ctx.restore();
   }
-  ctx.save();
-  if (reveal < 1) {
-    // Drawn on bright enough to see, settling to the hairline as the card fills.
-    const len = perimeter(rect, R);
-    ctx.setLineDash([len * progress(0, 0.6, reveal), len + 20]);
-    ctx.strokeStyle = mix(PALETTE.text2, PALETTE.divider, body);
-    ctx.lineWidth = 2 - body;
-  } else {
-    ctx.strokeStyle = PALETTE.divider;
-    ctx.lineWidth = 1;
+  if (o.frame !== false) {
+    ctx.save();
+    if (reveal < 1) {
+      // Drawn on bright enough to see, settling to the hairline as the card fills.
+      const len = perimeter(rect, R);
+      ctx.setLineDash([len * progress(0, 0.6, reveal), len + 20]);
+      ctx.strokeStyle = mix(PALETTE.text2, PALETTE.divider, body);
+      ctx.lineWidth = 2 - body;
+    } else {
+      ctx.strokeStyle = PALETTE.divider;
+      ctx.lineWidth = 1;
+    }
+    ctx.stroke();
+    ctx.restore();
   }
-  ctx.stroke();
-  ctx.restore();
 
   ctx.save();
   roundedRect(ctx, rect.x, rect.y, rect.w, rect.h, R);
@@ -250,7 +266,11 @@ export function drawCard(ctx: CanvasRenderingContext2D, rect: CardRect, o: CardO
     ctx.fill();
     ctx.fillStyle = PALETTE.divider;
     ctx.fillRect(rect.x + tw, rect.y + TAB_H - 1, rect.w - tw, 1);
-    drawMono(ctx, o.tab, rect.x + 24, rect.y + TAB_H / 2 + 0.3 * 30, 30, PALETTE.text2);
+    const la = clamp(o.tabLabelAlpha ?? 1);
+    if (la > 0) {
+      ctx.globalAlpha *= la;
+      drawMono(ctx, o.tab, rect.x + 24, rect.y + TAB_H / 2 + 0.3 * 30, 30, PALETTE.text2);
+    }
     ctx.restore();
   }
   const g = o.gutter;

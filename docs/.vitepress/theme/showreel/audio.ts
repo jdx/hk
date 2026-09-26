@@ -14,10 +14,14 @@
 // score/: one module per section (score/index.ts), the sound palette they
 // share (score/sounds.ts), and the voices and curves under them
 // (score/mix.ts).
+//
+// The master is mixed for delivery as AAC: about -17 LUFS integrated, with
+// a lookahead limiter and a soft ceiling that keep the true peak near -2.3
+// dBTP, so the encode's overshoot stays under -1 dBTP.
 
 import type { ReelFacts } from "./facts";
-import { compose } from "./score";
-import { type Dip, floats, type Floats, MARGIN, Mix, noiseOf, roomOf, shared } from "./score/mix";
+import { arc, compose } from "./score";
+import { type Dip, floats, type Floats, MARGIN, Mix, noiseOf, type Pt, roomOf, shared } from "./score/mix";
 import { GAP } from "./score/morph";
 import { DURATION, sec } from "./timeline";
 
@@ -33,6 +37,15 @@ const FIRST = 0.4;
 /** How far ahead of the clock the timer keeps the score built, and how often it runs. */
 const AHEAD = 1.2;
 const TICK_MS = 250;
+
+/** The groove's buses under the effects, before the loudness arc (score/index.ts) rides them. */
+const DRUMS = 0.6;
+const MUSIC = 0.78;
+
+/** Gain from the glue compressor into the limiter. */
+const MAKEUP = 2.35;
+/** The limiter's threshold, dBFS: peaks above it are held down before the soft ceiling. */
+const LIMIT = -4.5;
 
 /** Duck curves are sampled on a fixed grid from reel time 0. */
 const DIP_STEP = 0.0025;
@@ -124,8 +137,9 @@ export function playScore(ac: BaseAudioContext, dest: AudioNode, from: number, w
   // checks the clock, keeps that cost out of the first voice that needs it.
   noiseOf(ac, sh, "white");
 
-  // Master: a DC blocker, a touch less sub and more air, a glue compressor,
-  // makeup, a soft ceiling, the end fade, and the stop() fade.
+  // Master: a DC blocker, a touch less sub and more air, a 16 kHz lowpass,
+  // a glue compressor, makeup, a limiter, a soft ceiling, the end fade, and
+  // the stop() fade.
   const pre = ac.createGain();
   // The staccato bass and the boots' falling thuds are gated low tones, each
   // leaving a little DC and subsonic rumble; a microphone's coupling would
@@ -134,36 +148,60 @@ export function playScore(ac: BaseAudioContext, dest: AudioNode, from: number, w
   dc.type = "highpass";
   dc.frequency.value = 18;
   dc.Q.value = -3;
+  // The bass and the boots' thuds carried half the mix's energy below 120
+  // Hz, where laptop and phone speakers play little of it and it only fed
+  // the limiter; their grit and the planks carry them above it. The air is
+  // only a lift: the tambourine and the clicks already carry the top, and
+  // more of it tires the ear on earbuds.
   const low = ac.createBiquadFilter();
   low.type = "lowshelf";
-  low.frequency.value = 90;
-  low.gain.value = -1.5;
+  low.frequency.value = 100;
+  low.gain.value = -3;
   const air = ac.createBiquadFilter();
   air.type = "highshelf";
   air.frequency.value = 7000;
-  air.gain.value = 2.5;
+  air.gain.value = 1;
+  // Nothing above 16 kHz: the AAC encode drops it anyway, and a click's
+  // top octave removed after the limiter comes back as overshoot. Two
+  // Butterworth sections, 24 dB an octave.
+  const tops = [0.54, 1.31].map((q) => {
+    const f = ac.createBiquadFilter();
+    f.type = "lowpass";
+    f.frequency.value = 16000;
+    // Q here is resonance in dB: the two sections' Butterworth Qs.
+    f.Q.value = 20 * Math.log10(q);
+    return f;
+  });
   const comp = ac.createDynamicsCompressor();
   comp.threshold.value = -18;
   comp.knee.value = 10;
   comp.ratio.value = 2;
   comp.attack.value = 0.005;
   const makeup = ac.createGain();
-  // Half, because the ceiling curve's domain is ±2.
-  makeup.gain.value = 0.5 * 1.9;
+  makeup.gain.value = MAKEUP;
+  const limiter = ac.createDynamicsCompressor();
+  limiter.threshold.value = LIMIT;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0;
+  limiter.release.value = 0.12;
+  const trim = ac.createGain();
+  // Undo the limiter's automatic makeup (the spec's 0.6 power of the gain
+  // its curve applies at full scale), and halve, because the ceiling
+  // curve's domain is ±2.
+  trim.gain.value = 0.5 * 10 ** ((0.6 * LIMIT * (1 - 1 / 20)) / 20);
   const ceiling = ac.createWaveShaper();
   ceiling.curve = sh.ceiling;
   const tail = ac.createGain();
   const kill = ac.createGain();
-  pre.connect(dc).connect(low).connect(air).connect(comp).connect(makeup).connect(ceiling).connect(tail).connect(kill).connect(dest);
+  pre.connect(dc).connect(low).connect(air).connect(tops[0]).connect(tops[1]).connect(comp).connect(makeup).connect(limiter).connect(trim).connect(ceiling).connect(tail).connect(kill).connect(dest);
 
   const sfx = ac.createGain();
   sfx.connect(pre);
   const drums = ac.createGain();
-  drums.gain.value = 0.62;
   const drumDuck = ac.createGain();
   drums.connect(drumDuck).connect(pre);
   const music = ac.createGain();
-  music.gain.value = 0.9;
   const musicDuck = ac.createGain();
   music.connect(musicDuck).connect(pre);
 
@@ -181,6 +219,10 @@ export function playScore(ac: BaseAudioContext, dest: AudioNode, from: number, w
   verb.connect(conv).connect(verbLow).connect(verbOut).connect(verbGate).connect(pre);
 
   const m = new Mix(ac, sh, from, when, { sfx, drums, music }, verb, live);
+  // The loudness arc rides the groove's two buses, section by section.
+  const fader = arc();
+  m.set(drums.gain, fader.map(([t, v]): Pt => [t, DRUMS * v]));
+  m.set(music.gain, fader.map(([t, v]): Pt => [t, MUSIC * v]));
   let stopped = false;
   let built = -Infinity;
   const build = (to: number): void => {
@@ -207,7 +249,9 @@ export function playScore(ac: BaseAudioContext, dest: AudioNode, from: number, w
   dipCurve(m, musicDuck.gain, start, p.music);
   // The breath before the resolve: the room goes quiet with everything else.
   const resolve = sec("end").start;
-  m.set(verbGate.gain, [[GAP - 0.012, 1], [GAP + 0.01, 0.02, "exp"], [resolve - 0.004, 0.02], [resolve, 1]]);
+  // It closes all the way by the time the riser cuts, so the whole sixteenth
+  // is silence and not the room's tail.
+  m.set(verbGate.gain, [[GAP - 0.02, 1], [GAP - 0.002, 0.01, "exp"], [GAP + 0.002, 0], [resolve - 0.004, 0], [resolve, 1]]);
   // Everything, reverb included, is silent before the last frame.
   const end = DURATION;
   m.set(tail.gain, [[end - 0.4, 1], [end - 0.14, 0.25, "exp"], [end - 0.035, 0.0002, "exp"], [end - 0.028, 0]]);

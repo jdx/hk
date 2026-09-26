@@ -43,6 +43,8 @@ export const G: Root = [31, 0.9];
 export const CHORD = {
   Dm: [57, 62, 65],
   C: [55, 60, 64],
+  /** C with the F for the E: under a tune whose F falls on the C bar's downbeat. */
+  Csus4: [55, 60, 65],
   Am: [57, 60, 64],
   G: [55, 59, 62],
 } as const;
@@ -57,18 +59,21 @@ const nth = <T>(list: readonly T[], b: number): T => list[Math.min(b, list.lengt
 
 /**
  * One bar of drums from `t0`. The downbeat boot lands hardest and a pickup
- * lightest; the crew's hands and the tambourine keep their places.
+ * lightest; the crew's hands and the tambourine keep their places. The
+ * tambourine sits well under the boots: it is nearly all top end, and it
+ * plays for a third of the reel.
  */
-export function stompBar(m: Mix, t0: number, [stomps, claps, jingles = [], ghosts = []]: Drums, vel = 1): void {
+export function stompBar(m: Mix, t0: number, [stomps, claps, jingles = [], ghosts = []]: Drums, vel = 1, hands = 0.82): void {
   for (const s of stomps) stomp(m, t0 + s * X, vel * (s === 0 ? 1 : s % 8 === 0 ? 0.9 : 0.7));
-  for (const s of claps) gangClap(m, t0 + s * X, vel);
-  for (const s of jingles) jingle(m, t0 + s * X, 0.85 * vel);
-  for (const s of ghosts) jingle(m, t0 + s * X, 0.35 * vel, 0.05);
+  // The crew's hands a little under the boots, so a cue on 2 or 4 still speaks.
+  for (const s of claps) gangClap(m, t0 + s * X, hands * vel);
+  for (const s of jingles) jingle(m, t0 + s * X, 0.5 * vel);
+  for (const s of ghosts) jingle(m, t0 + s * X, 0.2 * vel, 0.05);
 }
 
-/** A bar of drums for each bar of the section. */
-export function drumBars(m: Mix, s: Section, bars: readonly Drums[]): void {
-  for (let b = 0; b < s.bars; b++) stompBar(m, s.bar(b), nth(bars, b));
+/** A bar of drums for each bar of the section; `hands` sets the crew's claps against the boots. */
+export function drumBars(m: Mix, s: Section, bars: readonly Drums[], hands = 0.82): void {
+  for (let b = 0; b < s.bars; b++) stompBar(m, s.bar(b), nth(bars, b), 1, hands);
 }
 
 /** A bar of the staccato bass for each of the section's first `bars` bars. */
@@ -89,13 +94,13 @@ export function chordBars(m: Mix, s: Section, chords: readonly (readonly number[
 
 /**
  * The fiddle chopping the off-beats, on the and of 2 and the and of 4 of
- * bars `from` to `to`: the chord's top two notes an octave up, plucked as a
- * double stop.
+ * bars `from` to `to` (or on `beats` of each bar): the chord's top two
+ * notes an octave up, plucked as a double stop.
  */
-export function chopBars(m: Mix, s: Section, chords: readonly (readonly number[])[], vel = CHOP, from = 0, to = s.bars): void {
+export function chopBars(m: Mix, s: Section, chords: readonly (readonly number[])[], vel = CHOP, from = 0, to = s.bars, beats: readonly number[] = [1.5, 3.5]): void {
   for (let b = from; b < to; b++) {
     const top = nth(chords, b).slice(-2);
-    for (const beat of [1.5, 3.5]) {
+    for (const beat of beats) {
       top.forEach((n, i) => fiddlePluck(m, s.bar(b) + beat * BEAT + 0.004 * i, hz(n + 12), vel, 0.35));
     }
   }
@@ -167,5 +172,8 @@ export function melody(m: Mix, t0: number, phrase: Phrase, vel = LEAD, o: ReedOp
     if (next && next[2] === n) end = Math.min(end, next[0] - 0.1);
     return [t0 + b * BEAT, t0 + end * BEAT, n, v];
   });
-  concertinaLine(m, notes, vel, { pan: 0.2, send: 0.2, ...o });
+  // Darker than a bare reed, so the tune sings under the cues rather than
+  // over them, and its reed harmonics (1.7 to 2.9 kHz) do not make it the
+  // loudest voice on a small speaker.
+  concertinaLine(m, notes, vel, { pan: 0.2, send: 0.2, bright: 2600, ...o });
 }

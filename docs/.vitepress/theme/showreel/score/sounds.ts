@@ -1,7 +1,9 @@
 // The score's sound palette: struck, plucked, and blown voices shared by
 // every section, the drums and bass the groove is built from, and the pads,
 // then the shanty's own voices: boots on the deck, the crew's claps, the
-// tambourine, the concertina and the fiddle, the sea, and the ship.
+// tambourine, the concertina and the fiddle, the sea, and the ship; and
+// last the reel's own props: the pen, the padlocks, the ship's bell struck
+// in pairs, and the fishing reel's ratchet driven by its line.
 
 import { BEAT } from "../timeline";
 import { hash, inQuad, rng } from "../math";
@@ -357,6 +359,9 @@ export function stomp(m: Mix, t: number, vel = 1, pan = 0, muffled = false): voi
     const lp = v.filter("lowpass", 190, -3);
     v.osc("sine", [[t, 110 * k], [t + 0.05, 58, "exp"], [t + 0.3, 46, "exp"]], 1, lp);
     v.osc("triangle", sweep(t, 150 * k, t + 0.06, 96 * k), perc(t, 0.5, 0.002, 0.12), lp);
+    // The chest's wall: a short, dull body near 250 Hz, where a phone's
+    // speaker still hears the beat the thud below it carries.
+    v.osc("sine", sweep(t, 290 * k, t + 0.05, 200 * k), perc(t, 0.3, 0.002, 0.07), v.filter("lowpass", 500, -3));
     return;
   }
   m.kick(t);
@@ -380,7 +385,7 @@ export function stomp(m: Mix, t: number, vel = 1, pan = 0, muffled = false): voi
  * again, rung through the hollow between them (`band`: cupped hands are
  * lower, flat ones brighter).
  */
-export function handClap(m: Mix, t: number, vel: number, pan = 0, band = 1500, send = 0.2): void {
+export function handClap(m: Mix, t: number, vel: number, pan = 0, band = 1500, send = 0.2, bus: VoiceOpts["bus"] = "drums"): void {
   const env: Pt[] = [
     [t, 0],
     [t + 0.0008, vel],
@@ -390,16 +395,17 @@ export function handClap(m: Mix, t: number, vel: number, pan = 0, band = 1500, s
     [t + 0.13, 0.0001, "exp"],
     [t + 0.134, 0],
   ];
-  const v = m.voice(env, { bus: "drums", send, pan });
+  const v = m.voice(env, { bus, send, pan });
   if (v) v.noise("white", 1.6, v.filter("highpass", 600, 0, v.filter("bandpass", band, 1.3)));
 }
 
 /**
  * The crew on 2 and 4: three pairs of hands a few milliseconds apart and
  * spread across the deck, each its own shape. A crew, not one clapper. The
- * first hand is on the beat; the others are only ever late.
+ * first hand is on the beat; the others are only ever late. On the "sfx"
+ * bus they mark an event, and do not duck under it.
  */
-export function gangClap(m: Mix, t: number, vel = 1): void {
+export function gangClap(m: Mix, t: number, vel = 1, bus: VoiceOpts["bus"] = "drums"): void {
   const hands = [
     [0, -0.3, 1, 1250],
     [0.006, 0, 0.8, 1750],
@@ -407,7 +413,7 @@ export function gangClap(m: Mix, t: number, vel = 1): void {
   ] as const;
   hands.forEach(([dt, pan, v, band], i) => {
     const late = i ? 0.001 * (1 + vary(t, 20 + i)) : 0;
-    handClap(m, t + dt + late, vel * v * (1 + 0.1 * vary(t, 30 + i)), pan, band * (1 + 0.06 * vary(t, 40 + i)));
+    handClap(m, t + dt + late, vel * v * (1 + 0.1 * vary(t, 30 + i)), pan, band * (1 + 0.06 * vary(t, 40 + i)), 0.2, bus);
   });
 }
 
@@ -430,14 +436,41 @@ export function jingle(m: Mix, t: number, vel: number, len = 0.12, pan = 0.25): 
   v.noise("white", 1, zils(v, am));
 }
 
-/** A tambourine shaken from `t0` to `t1`: the jingles rattling at the hand's rate, swelling and dying away. */
+const strikes = new WeakMap<BaseAudioContext, PeriodicWave>();
+
+/**
+ * A falling sawtooth whose cycle starts on its sharp rising edge (the
+ * built-in sawtooth's edge falls half a cycle in): an LFO for something
+ * struck on the beat and dying away until the next.
+ */
+function strikeOf(ac: BaseAudioContext): PeriodicWave {
+  let w = strikes.get(ac);
+  if (!w) {
+    const H = 32;
+    const real = new Float32Array(H);
+    const imag = new Float32Array(H);
+    for (let k = 1; k < H; k++) imag[k] = 2 / (Math.PI * k);
+    w = ac.createPeriodicWave(real, imag);
+    strikes.set(ac, w);
+  }
+  return w;
+}
+
+/**
+ * A tambourine shaken from `t0` (on a sixteenth) to `t1`: the jingles
+ * swelling and dying away, the hand shaking in sixteenths and the jingles
+ * rattling in 64ths, both locked to the grid from `t0`. Each shake strikes
+ * on its sixteenth and dies away until the next, and an LFO entering
+ * mid-roll waits for its next cycle on the same grid.
+ */
 export function jingleRoll(m: Mix, t0: number, t1: number, vel: number, pan = 0.25): void {
   const v = m.voice(hold(t0, 0.12, 0.16 * vel, t1 - 0.1, 0.1 * vel, 0.18), { bus: "drums", pan, send: 0.12, hold: true });
   if (!v) return;
+  const grid = (period: number) => (t: number) => t0 + Math.ceil((t - t0) / period - 1e-9) * period;
   const shake = v.vca(0.55);
-  v.lfo("sine", 11, 0.35, shake.gain);
+  v.lfo(strikeOf(m.ac), 1 / X, 0.35, shake.gain, grid(X));
   const rattle = v.vca(0.7, shake);
-  v.lfo("square", 31, 0.25, rattle.gain);
+  v.lfo("square", 4 / X, 0.25, rattle.gain, grid(X / 4));
   v.noise("white", 1, zils(v, rattle));
 }
 
@@ -462,6 +495,8 @@ export function reedOf(ac: BaseAudioContext): PeriodicWave {
 }
 
 export interface ReedOpts {
+  /** The mix bus: "music" by default, "sfx" for a chord that marks an event and must not duck under it. */
+  bus?: VoiceOpts["bus"];
   pan?: number;
   send?: number;
   /** Seconds the reeds take to speak. */
@@ -489,7 +524,7 @@ export interface ReedOpts {
 export function concertina(m: Mix, t0: number, t1: number, notes: readonly number[], vel: number, o: ReedOpts = {}): void {
   const attack = o.attack ?? 0.03;
   const env = hold(t0, attack, vel, t1, (o.sustain ?? 0.85) * vel, o.release ?? 0.06);
-  const v = m.voice(env, { bus: "music", pan: o.pan ?? 0, send: o.send ?? 0.18, hold: true });
+  const v = m.voice(env, { bus: o.bus ?? "music", pan: o.pan ?? 0, send: o.send ?? 0.18, hold: true });
   if (!v) return;
   let into: AudioNode = v.amp;
   if (o.shake) {
@@ -531,30 +566,47 @@ export function concertinaLine(m: Mix, notes: readonly Note[], vel: number, o: R
  * pitch, its brightness closing fast, through the body's air and wood
  * resonances, with the finger's snap on top. Higher strings ring shorter.
  */
-export function fiddlePluck(m: Mix, t: number, f: number, vel: number, pan = 0.2, send = 0.2): void {
-  const len = Math.min(0.5, 0.18 + 60 / f);
-  const v = m.voice(perc(t, vel, 0.002, len), { bus: "music", pan, send });
+export function fiddlePluck(m: Mix, t: number, f: number, vel: number, pan: Curve = 0.2, send = 0.2, o: PluckOpts = {}): void {
+  const len = o.len ?? Math.min(0.5, 0.18 + 60 / f);
+  const v = m.voice(perc(t, vel, 0.002, len), { bus: o.bus ?? "music", pan, send });
   if (!v) return;
   const air = v.filter("peaking", 280, 1.6);
   air.gain.value = 3;
   const body = v.filter("peaking", 450, 1.4, air);
   body.gain.value = 4;
-  const lp = v.filter("lowpass", [[t, Math.min(14000, 7 * f)], [t + 0.15, 1.6 * f, "exp"]], 4, body);
+  const lp = v.filter("lowpass", [[t, Math.min(14000, (o.bright ?? 7) * f)], [t + 0.15, 1.6 * f, "exp"]], 4, body);
   const pitch: Pt[] = [[t, f * 1.008], [t + 0.03, f, "exp"]];
-  v.osc("sawtooth", pitch, 0.55, lp);
-  v.osc("triangle", pitch, 0.45, lp);
+  const saw = v.osc("sawtooth", pitch, 0.55, lp);
+  const tri = v.osc("triangle", pitch, 0.45, lp);
+  if (o.wobble) {
+    // The finger rocks on the string: a quick vibrato that settles as the note dies.
+    const depth = sweep(t, f * o.wobble, t + len, f * o.wobble * 0.15);
+    v.lfo("sine", 14, depth, saw.frequency);
+    v.lfo("sine", 14, depth, tri.frequency);
+  }
   v.noise("white", perc(t, 0.35, 0.0005, 0.01), v.filter("bandpass", 2500, 1.2), 1, t + 0.02);
+}
+
+export interface PluckOpts {
+  /** The mix bus: "music" by default, "sfx" for a pluck that marks an event and must not duck under the others. */
+  bus?: VoiceOpts["bus"];
+  /** Vibrato depth as a fraction of the pitch: a pluck that squiggles. */
+  wobble?: number;
+  /** How long the string rings, in seconds. */
+  len?: number;
+  /** The first brightness, as a multiple of the pitch (7 by default). */
+  bright?: number;
 }
 
 /**
  * A bowed slide up the fiddle from `f0` to `f1`, arriving at `t1` and held
  * `sustain` seconds: a sawtooth, as a bowed string moves, gliding faster as
  * it arrives, vibrato growing on the held note, the rosin's hiss, and the
- * body's resonances.
+ * body's resonances. The bow takes `attack` seconds to reach full pressure.
  */
-export function fiddleSlide(m: Mix, t0: number, t1: number, f0: number, f1: number, vel: number, sustain = 0.25, pan = 0.2): void {
+export function fiddleSlide(m: Mix, t0: number, t1: number, f0: number, f1: number, vel: number, sustain = 0.25, pan = 0.2, attack = 0.05): void {
   const end = t1 + sustain;
-  const v = m.voice(hold(t0, 0.05, vel, end, 0.8 * vel, 0.12), { bus: "music", pan, send: 0.25, hold: true });
+  const v = m.voice(hold(t0, attack, vel, end, 0.8 * vel, 0.12), { bus: "music", pan, send: 0.25, hold: true });
   if (!v) return;
   const air = v.filter("peaking", 280, 1.4);
   air.gain.value = 3;
@@ -571,11 +623,12 @@ export function fiddleSlide(m: Mix, t0: number, t1: number, f0: number, f1: numb
 /**
  * The sea: a wave rolls in from `t0` (pink noise through a band that rises
  * as it builds, over the water's low body), breaks just before halfway, and
- * drains away in a fizz of foam until `t1`, crossing the stereo field.
+ * drains away in a fizz of foam until `t1`, crossing the stereo field
+ * (left to right, or right to left with `dir` -1).
  */
-export function wave(m: Mix, t0: number, t1: number, vel: number, pan = 0): void {
+export function wave(m: Mix, t0: number, t1: number, vel: number, pan = 0, dir = 1): void {
   const crest = t0 + 0.45 * (t1 - t0);
-  const across = line(t0, pan - 0.35, t1, pan + 0.35);
+  const across = line(t0, pan - 0.35 * dir, t1, pan + 0.35 * dir);
   const band: Pt[] = [[t0, 300], [crest, 1200, "exp"], [t1, 400, "exp"]];
   whoosh(m, swell(t0, t0 + 0.35 * (crest - t0), 0.25 * vel, crest, vel, t1), band, 0.8, { send: 0.35, pan: across });
   const r = m.voice(swell(t0, t0 + 0.5 * (crest - t0), 0.3 * vel, crest + 0.1, 0.8 * vel, t1), { send: 0.2, hold: true, pan });
@@ -593,7 +646,7 @@ export function wave(m: Mix, t0: number, t1: number, vel: number, pan = 0): void
  * letting go (a slow pulse train, quickening as the strain builds and easing
  * after) rung through two low wooden formants.
  */
-export function creak(m: Mix, t0: number, t1: number, vel = 1, pan = 0.1): void {
+export function creak(m: Mix, t0: number, t1: number, vel = 1, pan: Curve = 0.1): void {
   const r = rng(Math.round(t0 * 997) + 707);
   const rate: Pt[] = [];
   for (let t = t0; t <= t1 + 1e-9; t += 0.015) rate.push([t, 16 + 14 * Math.sin(((t - t0) / (t1 - t0)) * Math.PI) + 5 * r()]);
@@ -733,4 +786,125 @@ export function bell(m: Mix, t: number, f: number, vel: number, pan = 0, len = 2
     if (beat) v.osc("sine", p + beat, perc(t, 0.6 * a, 0.0006, len * k));
   }
   v.noise("white", perc(t, 0.2, 0.0004, 0.02), v.filter("bandpass", 3600, 0.8), 1, t + 0.04);
+}
+
+// The reel's own props: the pen that draws the logo, the padlocks on the
+// file lanes, the dust and air things move, and the ship's bell struck in
+// pairs. Stage positions map to the stereo field with panX, so a sound
+// sits where its picture is.
+
+/** A stereo position for stage x (0 to 1920 px): the frame's edges sit at ±`width`. */
+export const panX = (x: number, width = 0.7): number => Math.max(-1, Math.min(1, ((x - 960) / 960) * width));
+
+/**
+ * The ship's bell struck twice, as a watch is rung: `f1` a 32nd after `f0`,
+ * the second strike lighter. The reel's big arrivals get one pair each.
+ */
+export function bells(m: Mix, t: number, f0: number, f1: number, vel: number, pan = 0): void {
+  m.duck(t, 0.3, 0.3);
+  bell(m, t, f0, vel, pan - 0.08);
+  bell(m, t + X / 2, f1, 0.7 * vel, pan + 0.08, 2);
+}
+
+/**
+ * A pen drawing one stroke from `t0` to `t1`, quickest at the start as a
+ * swiftOut stroke is: a nib's hiss through a band that falls as it slows,
+ * with the fibres catching it in a fast, uneven grain.
+ */
+export function pen(m: Mix, t0: number, t1: number, vel: number, pan = 0): void {
+  const env: Pt[] = [[t0, 0], [t0 + 0.012, vel], [t1, 0.25 * vel, "exp"], [t1 + 0.04, 0.0001, "exp"], [t1 + 0.044, 0]];
+  const v = m.voice(env, { pan, send: 0.14, hold: true });
+  if (!v) return;
+  const grain = v.vca(0.7, v.filter("bandpass", sweep(t0, 5200, t1 + 0.04, 2400), 1.8));
+  v.lfo("square", 47 + 9 * vary(t0, 81), 0.3, grain.gain);
+  v.noise("white", 1, grain);
+}
+
+/**
+ * Air a moving thing pushes aside as it lands: a soft low breath and a few
+ * grains of dust settling after it.
+ */
+export function puff(m: Mix, t: number, vel: number, pan = 0, dust = true): void {
+  const a = m.voice(perc(t, vel, 0.004, 0.14), { pan, send: 0.18 });
+  if (a) a.noise("pink", 1, a.filter("lowpass", sweep(t, 1400, t + 0.14, 300), 0));
+  if (!dust) return;
+  const d = m.voice(ad(t + 0.01, t + 0.04, 0.5 * vel, t + 0.3), { pan, send: 0.2 });
+  if (d) d.noise("crackle", 1.2, d.filter("bandpass", 3200, 0.8), 0.6);
+}
+
+/**
+ * A small brass padlock. Shutting, the shackle's heel knocks into the body
+ * and the latch clicks home 6 ms later with a faint ring; opening, the latch
+ * lets go with a lighter, higher click and the shackle springs up.
+ */
+export function padlock(m: Mix, t: number, shut: boolean, vel: number, pan = 0): void {
+  const k = 1 + 0.05 * vary(t + pan, 83);
+  if (shut) {
+    const heel = m.voice(perc(t, 0.55 * vel, 0.0005, 0.028), { pan, send: 0.06 });
+    if (heel) {
+      heel.noise("white", 1, heel.filter("bandpass", 1900 * k, 3), 1, t + 0.035);
+      heel.osc("sine", sweep(t, 940 * k, t + 0.02, 640 * k), 0.45);
+    }
+  }
+  const at = shut ? t + 0.006 : t;
+  const latch = m.voice(perc(at, (shut ? 0.6 : 0.4) * vel, 0.0003, 0.018), { pan, send: 0.08 });
+  if (latch) latch.noise("white", 1, latch.filter("bandpass", (shut ? 4100 : 5200) * k, 4), 1, at + 0.028);
+  const ring = m.voice(perc(at, (shut ? 0.07 : 0.05) * vel, 0.0005, shut ? 0.12 : 0.08), { pan, send: 0.14 });
+  if (ring) {
+    const f = (shut ? 2950 : 3500) * k;
+    ring.osc("sine", f);
+    ring.osc("sine", f * 1.51, 0.45);
+  }
+}
+
+/**
+ * Something zipping shut from `t0` to `t1`: teeth ticking together, closer
+ * and higher as it speeds up, `n` of them, ending in a firmer click.
+ */
+export function zip(m: Mix, t0: number, t1: number, n: number, vel: number, pan: Curve = 0): void {
+  const at = (u: number): number => (typeof pan === "number" ? pan : pan[0][1] + (pan[pan.length - 1][1] - pan[0][1]) * u);
+  for (let i = 0; i < n; i++) {
+    const u = i / (n - 1);
+    // Closer together as the slider speeds up: a quadratic run of teeth.
+    const t = t0 + (t1 - t0) * (1 - (1 - u) ** 1.6);
+    tick(m, t, 1700 + 1500 * u, vel * (0.6 + 0.4 * u) * (0.85 + 0.15 * hash(i, 84)), at(u), 0.05);
+  }
+}
+
+/**
+ * A short chord on the concertina, pushed hard and let go: a stab. It marks
+ * an event, so it plays on the effects bus, where the duck under that same
+ * event cannot swallow it.
+ */
+export function stab(m: Mix, t: number, notes: readonly number[], vel: number, pan = 0): void {
+  concertina(m, t, t + 0.16, notes, vel, { attack: 0.006, sustain: 0.55, release: 0.09, bright: 3800, pan, send: 0.2, bus: "sfx" });
+}
+
+/**
+ * A fishing reel's ratchet driven by the line itself: a click each time
+ * `pos` (px of line out) has run `step` further between `t0` and `t1`, so
+ * the clicks crowd together while it pays out fast and spread as it slows,
+ * lower and softer at low speed. Winding back does not click.
+ */
+export function ratchetAlong(m: Mix, pos: (t: number) => number, t0: number, t1: number, step: number, vel: number, f0 = 3600, f1 = 2200, pan = 0): void {
+  const dt = 0.0005;
+  const speed = (t: number) => (pos(t + 0.004) - pos(t - 0.004)) / 0.008;
+  let top = speed(t0);
+  for (let t = t0; t < t1; t += 0.01) top = Math.max(top, speed(t));
+  let last = pos(t0);
+  for (let t = t0, i = 0; t < t1 && i < 512; t += dt) {
+    const p = pos(t);
+    if (p < last) last = p;
+    else if (p - last >= step) {
+      last += step * Math.floor((p - last) / step);
+      const u = Math.min(1, Math.max(0, speed(t) / top));
+      const v = m.voice(perc(t, vel * (0.55 + 0.45 * u) * (0.85 + 0.15 * hash(i, 91)), 0.0003, 0.014), { pan, send: 0.08 });
+      if (v) {
+        const f = f1 + (f0 - f1) * u;
+        v.noise("white", 3, v.filter("bandpass", f, 6), 1, t + 0.02);
+        v.osc("sine", f * 0.31, perc(t, 0.6, 0.0003, 0.01));
+      }
+      i++;
+    }
+  }
 }

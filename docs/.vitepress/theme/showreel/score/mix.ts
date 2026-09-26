@@ -18,10 +18,11 @@ export const onFrame = (t: number): number => Math.ceil(t * 60 - 1e-9) / 60;
 
 /**
  * DynamicsCompressorNode delays its output by a fixed 6 ms lookahead (Chromium,
- * WebKit, and Gecko share the same compressor kernel). Everything is scheduled
- * that much early so the mix leaves the graph on the frame.
+ * WebKit, and Gecko share the same compressor kernel), and the master runs
+ * two in series: the glue compressor and the limiter. Everything is
+ * scheduled that much early so the mix leaves the graph on the frame.
  */
-const LATENCY = 0.006;
+export const LATENCY = 2 * 0.006;
 /** A sound the clock has already passed by at most this much still plays whole, that much late. */
 const LATE = 0.06;
 /** How far ahead of a live context's clock anything is scheduled. */
@@ -254,12 +255,13 @@ export function shared(ac: BaseAudioContext): Shared {
     warm: null,
     sat: curve(2048, (x) => Math.tanh(1.8 * x) / Math.tanh(1.8)),
     crush: curve(2048, (x) => Math.round(x * 5) / 5),
-    // Final safety: unity below 0.6, then a smooth knee that never passes
-    // 0.88 (-1.1 dBFS). The domain is ±2 so the knee has room.
+    // Final safety after the limiter: unity below 0.68, then a smooth knee
+    // that never passes 0.77 (-2.3 dBFS), which leaves room for the AAC
+    // encode's overshoot. The domain is ±2 so the knee has room.
     ceiling: curve(8192, (x) => {
       const a = Math.abs(x * 2);
-      const k = 0.6;
-      const c = 0.88;
+      const k = 0.68;
+      const c = 0.77;
       return Math.sign(x) * (a <= k ? a : k + (c - k) * Math.tanh((a - k) / (c - k)));
     }),
   };
@@ -538,9 +540,11 @@ export class Voice {
    * boundary at or after a time, so an LFO that keeps time with the beat can
    * wait for it when the voice enters mid-sound instead of starting off-grid.
    */
-  lfo(type: OscillatorType, rate: Curve, depth: Curve, target: AudioParam, cycle?: (t: number) => number): void {
+  lfo(type: OscillatorType | PeriodicWave, rate: Curve, depth: Curve, target: AudioParam, cycle?: (t: number) => number): void {
     const o = this.m.ac.createOscillator();
-    o.type = type;
+    // PeriodicWave is an empty interface, so a string check cannot narrow it away.
+    if (typeof type === "string") o.type = type as OscillatorType;
+    else o.setPeriodicWave(type);
     this.set(o.frequency, rate);
     const g = this.m.ac.createGain();
     this.set(g.gain, depth);

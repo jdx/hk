@@ -1,11 +1,39 @@
-// Benchmarks: a placeholder until the real scene replaces it (stub.ts). The
-// captions are the storyboard's (§6.9): each race the facts back states its
-// ratio against the fastest other tool; with one, the second slot says why
-// the other is missing; with none (F0), a line with no number at all.
+// Scene 9, "Benchmarks" (storyboard §6.9): the published results, stated
+// exactly as the benchmarks page states them. The chart arrives on the
+// whip from `everywhere`, its layers trailing in from the right, and races:
+// hk and every other tool on the same clock, each bar stopping on its own
+// median (race-chart.ts, on race-timing.ts's beats, which the score's dings
+// share). Only Fix every file and Check every file are drawn; the commit
+// scenario, where a sequential tool is faster, is on the page, and the
+// bottom detail says so. Then the labels wipe and the bars ease into
+// race|morph's four capsules.
+//
+// Variants, by what the facts back (facts.ts):
+// - both races: Fix every file from b1, a reset on b8.5, Check every file
+//   from b9;
+// - one (F1): that race from b1, then the finished chart holds;
+// - none (F0: no facts, or no claim): no figure at all. The whip brings in
+//   hk's own terminal running `hk check --all` (checkAll frames 0–16, top
+//   rows), pointing at the benchmarks page, and the capsules grow in from
+//   the axis as it fades. Its only digits are hk's output.
+// Every variant starts on the whip's streaks alone and ends on the capsules.
 
-import { claimLine, type Race, races, type ReelFacts } from "../facts";
-import type { Caption } from "../type";
-import { stubScene } from "./stub";
+import { BEAT, PALETTE, type ReelFacts, type Scene, type SceneEnv, sec } from "../bible";
+import { claimLine, type Race, races } from "../facts";
+import { ring } from "../fx";
+import { drawHandoff } from "../handoff";
+import { checkAll } from "../kit/screens";
+import { drawTerm, PANE_FULL, type Pane, termLayout, termLit } from "../kit/term";
+import { rgba } from "../color";
+import { clamp, inOutSine, outQuart, progress, smoothstep, swiftOut } from "../math";
+import { type Caption, drawText, font } from "../type";
+import { drawWhip, drawWhipIn, WHIP_END, whipIn } from "../whip";
+import { chartModel, drawChart, growCapsule, REST } from "./race-chart";
+
+const S = sec("race");
+
+/** Local seconds of section beat `n`. */
+const b = (n: number): number => n * BEAT;
 
 /** The section's must-read captions under `f`. */
 export function captions(f: ReelFacts | null): Caption[] {
@@ -25,8 +53,131 @@ export function captions(f: ReelFacts | null): Caption[] {
   return [{ out: 7, lines: [{ in: 3, text: "Independent steps run in parallel." }] }];
 }
 
-export const scene = stubScene(
-  "race",
+// F0: hk's terminal (storyboard §6.9 Variants).
+
+/** PANE_FULL showing the top rows of a screen, not the bottom ones. */
+export const F0_PANE: Pane = { ...PANE_FULL, anchor: "top" };
+/** checkAll frame 0 lands on b1, and each next one 0.375 beats later: frame 16 on b7. */
+export const F0_FIRST = b(1);
+export const F0_EACH = b(0.375);
+/** The pointer to the page. Right-aligned under the pane, only while no caption is up. */
+export const F0_DETAIL = "Benchmarks: hk.jdx.dev/benchmarks";
+const F0_DETAIL_AT = { x: 1760, y: 758 } as const;
+export const F0_DETAIL_IN = b(8);
+/** The pane fades, settling back a little, just before the capsules grow in. */
+export const F0_OUT = [b(14.5), b(15)] as const;
+/** The run completes (frame 15, 7/7): a light runs along the header's bar. */
+const F0_DONE = F0_FIRST + 15 * F0_EACH;
+
+/** The checkAll frame on screen at `lt`. */
+export const f0Frame = (lt: number): number => clamp(Math.floor((lt - F0_FIRST) / F0_EACH + 1e-9), 0, checkAll.length - 1);
+
+/** The steps a screen shows as passed. */
+const passed = (screen: readonly string[]): Set<string> => new Set(screen.filter((l) => l.startsWith("✔ ")).map((l) => l.split(" ")[1]));
+
+/** How far the pane is in at `lt`: 0 on the bar line, 1 once the whip has cleared, then out. */
+const f0Alpha = (lt: number): number => outQuart(progress(0, WHIP_END - S.start, lt)) * (1 - smoothstep(F0_OUT[0], F0_OUT[1], lt));
+
+function drawF0(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
+  const f = f0Frame(lt);
+  const lines = checkAll[f];
+  const out = smoothstep(F0_OUT[0], F0_OUT[1], lt);
+  const pane = () => {
+    ctx.save();
+    // Settles back a little as it goes.
+    const s = 1 - 0.02 * out;
+    ctx.translate(960, 420);
+    ctx.scale(s, s);
+    ctx.translate(-960, -420);
+    const L = drawTerm(ctx, F0_PANE, lines, { t: env.t, alpha: 1 - out });
+    // 7/7: a light runs along the header's full bar, once.
+    const sweep = progress(F0_DONE, F0_DONE + 0.45, lt);
+    if (sweep > 0 && sweep < 1) {
+      const open = lines[0].indexOf("[");
+      const close = lines[0].indexOf("]");
+      const x0 = L.col(open);
+      const x1 = L.col(close + 1);
+      const cell = L.cell(0, 0);
+      const cx = x0 + (x1 - x0 + 240) * inOutSine(sweep) - 120;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, cell.y, x1 - x0, cell.h);
+      ctx.clip();
+      ctx.globalCompositeOperation = "lighter";
+      const g = ctx.createLinearGradient(cx - 120, 0, cx + 120, 0);
+      g.addColorStop(0, rgba(PALETTE.cyan, 0));
+      g.addColorStop(0.5, rgba(PALETTE.cyan, 0.28));
+      g.addColorStop(1, rgba(PALETTE.cyan, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - 120, cell.y, 240, cell.h);
+      ctx.restore();
+    }
+    // Each step that has just passed rings once, green, as its ✔ lands.
+    if (out <= 0) {
+      for (let k = Math.max(1, f - 2); k <= f; k++) {
+        const at = F0_FIRST + k * F0_EACH;
+        const u = progress(at, at + 0.32, lt);
+        if (u <= 0 || u >= 1) continue;
+        const before = passed(checkAll[k - 1]);
+        const L = termLayout(F0_PANE, checkAll[k].length);
+        checkAll[k].forEach((line, i) => {
+          if (!line.startsWith("✔ ") || before.has(line.split(" ")[1]) || i >= F0_PANE.rows) return;
+          // Its row in the frame on screen now, which may have moved up since.
+          const row = lines.findIndex((l) => l === line);
+          const c = L.cell(row < 0 ? i : row, 0);
+          ring(ctx, c.x + c.w / 2, c.y + c.h / 2 - 2, 30, u, PALETTE.green, 3);
+        });
+      }
+    }
+    ctx.restore();
+  };
+  if (env.t < WHIP_END) drawWhipIn(ctx, env.t, pane);
+  else pane();
+  // The pointer to the page, once the caption has gone.
+  const p = progress(F0_DETAIL_IN, F0_DETAIL_IN + 0.25, lt) * (1 - out);
+  if (p > 0) {
+    ctx.save();
+    ctx.globalAlpha *= clamp(p / 0.6);
+    drawText(ctx, F0_DETAIL, F0_DETAIL_AT.x, F0_DETAIL_AT.y + 12 * (1 - swiftOut(clamp(p))), { font: font(40, 500), fill: PALETTE.text3, align: "right" });
+    ctx.restore();
+  }
+  for (let i = 0; i < 4; i++) growCapsule(ctx, i, lt);
+}
+
+// The scene.
+
+/**
+ * The facts of the frame being drawn, for `lit`, which the compositor calls
+ * right after `draw` for the same frame but without the facts (Scene.lit
+ * takes only local time). The facts are fixed for a reel, so this is the
+ * reel's configuration, not state carried between frames.
+ */
+let frameFacts: ReelFacts | null | undefined;
+
+export const scene: Scene = {
+  id: S.id,
+  start: S.start,
+  end: S.end,
+  draw(ctx, lt, env) {
+    frameFacts = env.facts;
+    if (lt >= REST) {
+      drawHandoff(ctx, "race|morph", env);
+      return;
+    }
+    ctx.fillStyle = PALETTE.bg;
+    ctx.fillRect(0, 0, env.W, env.H);
+    const m = chartModel(env.facts);
+    if (m) drawChart(ctx, m, lt);
+    else drawF0(ctx, lt, env);
+    // The whip's streaks, over whatever is arriving (nothing is drawn after b1).
+    drawWhip(ctx, env.t);
+  },
+  lit(lt) {
+    // F0's pane is lit while it is up, following the whip in and its fade.
+    if (frameFacts === undefined || chartModel(frameFacts) || lt >= REST) return null;
+    const a = f0Alpha(lt);
+    if (a <= 0) return null;
+    return termLit({ ...PANE_FULL, x: PANE_FULL.x + whipIn(S.start + lt) }, a);
+  },
   captions,
-  "The published results, stated exactly as the benchmarks page states them: Fix every file and Check every file, hk against the fastest other tool. The commit scenario is on the page, not in the reel.",
-);
+};

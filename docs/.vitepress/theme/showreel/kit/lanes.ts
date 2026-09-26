@@ -13,7 +13,7 @@
 import { LANE, PALETTE } from "../bible";
 import { rgba } from "../color";
 import { roundedRect } from "../fx";
-import { clamp, DEG, lerp, progress, swiftOut } from "../math";
+import { clamp, DEG, progress, swiftOut } from "../math";
 import { drawText, font, layout } from "../type";
 import { drawMono, monoWidth } from "./card";
 import { land } from "./motion";
@@ -27,8 +27,11 @@ export const LANES = {
   trackRadius: 10,
   barH: 56,
   barRadius: 8,
-  /** Each lane's padlock is centred here. */
-  lockX: 600,
+  /**
+   * Each lane's padlock is centred here: 22 px clear of the longest label
+   * (`scripts/deploy.sh` ends at x 568) and 18 px short of the track.
+   */
+  lockX: 606,
   rows: [200, 320, 440, 560],
 } as const;
 
@@ -39,6 +42,20 @@ export const LANE_FILES = ["README.md", "src/app.ts", "src/main.py", "scripts/de
 export type PerLane<T> = T | readonly T[];
 const perLane = <T>(v: PerLane<T> | undefined, i: number, dflt: T): T =>
   v === undefined ? dflt : Array.isArray(v) ? ((v as readonly T[])[i] ?? dflt) : (v as T);
+
+/**
+ * Opaque bar fills, one per kind: a dark saturated amber under the warm
+ * outline and a dark teal under the cyan one, so a fix bar reads warm and a
+ * check bar cyan even at thumbnail size (a 0.2 tint over the track reads
+ * grey). Padlocks take the same fills, so a write lock is the colour of the
+ * bar that holds it.
+ */
+export const BAR_FILL = {
+  /** hsl(33 45% 20%) */
+  fix: "#4a351c",
+  /** hsl(186 50% 17%) */
+  check: "#163d41",
+} as const;
 
 /** The label's baseline sits this far below the lane's centre. */
 const LABEL_DROP = 14;
@@ -74,7 +91,7 @@ export function drawPadlock(ctx: CanvasRenderingContext2D, cx: number, cy: numbe
   if (a <= 0) return;
   const lift = o.lift ?? (state === "open" ? 1 : 0);
   const color = state === "write" ? PALETTE.warm : state === "read" ? PALETTE.cyan : PALETTE.text3;
-  const fill = state === "write" ? LANE.fix.fill : state === "read" ? LANE.check.fill : null;
+  const fill = state === "write" ? BAR_FILL.fix : state === "read" ? BAR_FILL.check : null;
   ctx.save();
   ctx.globalAlpha *= a;
   ctx.translate(cx, cy);
@@ -99,9 +116,7 @@ export function drawPadlock(ctx: CanvasRenderingContext2D, cx: number, cy: numbe
   ctx.restore();
   roundedRect(ctx, -16, -3, 32, 24, 5);
   if (fill) {
-    // Opaque under the tint, so the shackle's feet never show through.
-    ctx.fillStyle = PALETTE.bg;
-    ctx.fill();
+    // Opaque, so the shackle's feet never show through.
     ctx.fillStyle = fill;
     ctx.fill();
   }
@@ -139,11 +154,8 @@ export interface BarOptions {
   rotate?: boolean;
   alpha?: number;
   radius?: number;
-  /**
-   * Painted under the tint, so a bar across several lanes is one colour over
-   * tracks and gaps alike: the track's colour by default.
-   */
-  base?: string;
+  /** The fill, opaque: BAR_FILL for its kind by default. */
+  fill?: string;
 }
 
 /** The largest label size that fits `room` px, from `max` down to a floor of 32, never abbreviated. */
@@ -153,7 +165,9 @@ function fitSize(ctx: CanvasRenderingContext2D, label: string, room: number, max
 }
 
 /**
- * A step's bar: a check (cyan) or a fix (warm) tint with a 2 px outline and
+ * A step's bar: a check (dark teal) or a fix (dark amber) fill, opaque, so
+ * a bar across several lanes is one colour over tracks and gaps alike, with
+ * a 2 px cyan or warm outline and
  * its step name in Space Grotesk 600, 40 px from 16 px in, or 36 px up the
  * middle of a tall bar. The label shrinks to fit, to 32 px at the least, and
  * is clipped to the bar.
@@ -167,28 +181,42 @@ export function drawBar(ctx: CanvasRenderingContext2D, r: BarRect, kind: BarKind
   ctx.save();
   ctx.globalAlpha *= a;
   roundedRect(ctx, r.x0, r.y0, w, h, o.radius ?? LANES.barRadius);
-  ctx.fillStyle = o.base ?? LANE.track;
-  ctx.fill();
-  ctx.fillStyle = style.fill;
+  ctx.fillStyle = o.fill ?? BAR_FILL[kind];
   ctx.fill();
   ctx.strokeStyle = style.stroke;
   ctx.lineWidth = 2;
   ctx.stroke();
   if (o.label) {
     ctx.clip();
-    const full = o.fullWidth ?? w;
-    if (o.rotate) {
-      const size = fitSize(ctx, o.label, h - 32, 36);
-      // Rides the middle of the bar as it grows, and comes in once there is room for it.
-      const cx = r.x0 + Math.max(w, 0) / 2;
-      ctx.globalAlpha *= progress(size * 0.6, size * 1.3, w);
-      ctx.translate(cx, (r.y0 + r.y1) / 2);
-      ctx.rotate(-Math.PI / 2);
-      drawText(ctx, o.label, 0, size * 0.34, { font: font(size, 600), fill: style.text, align: "center" });
-    } else {
-      const size = fitSize(ctx, o.label, full - 32, 40);
-      drawText(ctx, o.label, r.x0 + 16, (r.y0 + r.y1) / 2 + size * 0.34, { font: font(size, 600), fill: style.text });
-    }
+    drawBarLabel(ctx, r, kind, o.label, o);
+  }
+  ctx.restore();
+}
+
+/**
+ * A bar's label exactly as drawBar sets it on `r`, unclipped: up the middle
+ * of a tall bar, else 16 px in, sized for `fullWidth`. Either comes in with
+ * the bar's width, so a thin bar never shows glyph slivers. A scene that
+ * shows a name before its bar has grown draws it here, on the bar's full
+ * rect, and it is drawBar's own label to the pixel.
+ */
+export function drawBarLabel(ctx: CanvasRenderingContext2D, r: BarRect, kind: BarKind, label: string, o: Pick<BarOptions, "fullWidth" | "rotate"> & { color?: string } = {}): void {
+  const w = r.x1 - r.x0;
+  const h = r.y1 - r.y0;
+  const fill = o.color ?? (kind === "fix" ? LANE.fix : LANE.check).text;
+  ctx.save();
+  if (o.rotate) {
+    const size = fitSize(ctx, label, h - 32, 36);
+    // Rides the middle of the bar as it grows, and comes in once there is room for it.
+    const cx = r.x0 + Math.max(w, 0) / 2;
+    ctx.globalAlpha *= progress(size * 0.6, size * 1.3, w);
+    ctx.translate(cx, (r.y0 + r.y1) / 2);
+    ctx.rotate(-Math.PI / 2);
+    drawText(ctx, label, 0, size * 0.34, { font: font(size, 600), fill, align: "center" });
+  } else {
+    const size = fitSize(ctx, label, (o.fullWidth ?? w) - 32, 40);
+    ctx.globalAlpha *= progress(16, 56, w);
+    drawText(ctx, label, r.x0 + 16, (r.y0 + r.y1) / 2 + size * 0.34, { font: font(size, 600), fill });
   }
   ctx.restore();
 }
@@ -204,6 +232,16 @@ export interface ChipOptions {
   /** A small closed warm padlock after the label: the lock it waits for. */
   lock?: boolean;
   alpha?: number;
+  /** The outline's dash offset, px: march it to show the chip waiting. */
+  dashOffset?: number;
+  /** The outline's colour (text3 by default), e.g. flushed warm as it knocks on its lock. */
+  stroke?: string;
+  /** The small padlock rattles about its centre, radians. */
+  lockAngle?: number;
+  /** How far the small padlock's shackle is up (0 shut, the default; 1 open), as its lock is let go. */
+  lockLift?: number;
+  /** Draw the dashed outline (default true); false draws only the label and the padlock. */
+  outline?: boolean;
 }
 
 const CHIP_PAD = 16;
@@ -223,14 +261,25 @@ export function drawWaitingChip(ctx: CanvasRenderingContext2D, x: number, cy: nu
   const size = o.size ?? 32;
   ctx.save();
   ctx.globalAlpha *= a;
-  roundedRect(ctx, x, cy - h / 2, w, h, LANES.barRadius);
-  ctx.setLineDash([...LANE.waiting.dash]);
-  ctx.strokeStyle = LANE.waiting.stroke;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.setLineDash([]);
+  if (o.outline !== false) {
+    roundedRect(ctx, x, cy - h / 2, w, h, LANES.barRadius);
+    ctx.setLineDash([...LANE.waiting.dash]);
+    ctx.lineDashOffset = o.dashOffset ?? 0;
+    ctx.strokeStyle = o.stroke ?? LANE.waiting.stroke;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.lineDashOffset = 0;
+  }
   drawMono(ctx, label, x + CHIP_PAD, cy + size * 0.3, size, LANE.waiting.text);
-  if (o.lock) drawPadlock(ctx, x + w - 12 - 16 * CHIP_LOCK, cy - 1, "write", { scale: CHIP_LOCK });
+  if (o.lock) {
+    const lx = x + w - 12 - 16 * CHIP_LOCK;
+    ctx.save();
+    ctx.translate(lx, cy - 1);
+    if (o.lockAngle) ctx.rotate(o.lockAngle);
+    drawPadlock(ctx, 0, 0, "write", { scale: CHIP_LOCK, lift: o.lockLift ?? 0 });
+    ctx.restore();
+  }
   ctx.restore();
   return w;
 }
@@ -266,6 +315,8 @@ export interface LockDraw {
   lift?: number;
   pips?: number;
   alpha?: number;
+  /** A punch as it snaps: 1 at rest. */
+  scale?: number;
 }
 
 export interface LanesOptions {
@@ -348,15 +399,47 @@ export const PLAYHEAD: readonly (readonly [beat: number, x: number])[] = [
   [12, 1690],
 ];
 
-/** The playhead's x at lanes-local `beat`, piecewise linear, held before b1 and after b12. */
+/**
+ * The playhead's speed at each keyframe, px per beat: a monotone cubic
+ * (PCHIP, Fritsch–Butland weights) through the keyframes, so it never runs
+ * backward or overshoots a keyframe and its speed never jumps where two
+ * stretches meet. It leaves b1 at the first stretch's speed and comes to
+ * rest on b12.
+ */
+const PLAYHEAD_SPEED: readonly number[] = (() => {
+  const n = PLAYHEAD.length;
+  const h = PLAYHEAD.slice(1).map(([b, _], i) => b - PLAYHEAD[i][0]);
+  const d = PLAYHEAD.slice(1).map(([_, x], i) => (x - PLAYHEAD[i][1]) / h[i]);
+  const m = new Array<number>(n).fill(0);
+  m[0] = d[0];
+  for (let k = 1; k < n - 1; k++) {
+    if (d[k - 1] * d[k] <= 0) continue;
+    const w1 = 2 * h[k] + h[k - 1];
+    const w2 = h[k] + 2 * h[k - 1];
+    m[k] = (w1 + w2) / (w1 / d[k - 1] + w2 / d[k]);
+  }
+  m[n - 1] = 0;
+  return m;
+})();
+
+/**
+ * The playhead's x at lanes-local `beat`, held before b1 and after b12: a
+ * smooth curve through the keyframes, exactly on each keyframe's x on its
+ * beat, so every bar starts and ends on the playhead.
+ */
 export function playheadX(beat: number): number {
   if (beat <= PLAYHEAD[0][0]) return PLAYHEAD[0][1];
   for (let i = 1; i < PLAYHEAD.length; i++) {
     const [b1, x1] = PLAYHEAD[i];
-    if (beat <= b1) {
+    if (beat < b1) {
       const [b0, x0] = PLAYHEAD[i - 1];
-      return lerp(x0, x1, (beat - b0) / (b1 - b0));
+      const h = b1 - b0;
+      const t = (beat - b0) / h;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      return (2 * t3 - 3 * t2 + 1) * x0 + (t3 - 2 * t2 + t) * h * PLAYHEAD_SPEED[i - 1] + (3 * t2 - 2 * t3) * x1 + (t3 - t2) * h * PLAYHEAD_SPEED[i];
     }
+    if (beat === b1) return x1;
   }
   return PLAYHEAD[PLAYHEAD.length - 1][1];
 }
@@ -367,6 +450,8 @@ export const PLAYHEAD_LINE = { y0: 150, y1: 610, width: 2, alpha: 0.5 } as const
 export const DOCK = { y0: 108, y1: 148 } as const;
 /** The dock's chips are 40 px high with 28 px labels. */
 const DOCK_SIZE = 28;
+/** How a dock chip is drawn: 40 px high, a 28 px label and the lock it waits for. */
+export const DOCK_CHIP = { h: DOCK.y1 - DOCK.y0, size: DOCK_SIZE, lock: true } as const;
 
 /** Waiting chips come in over this half beat, after the handoff frame. */
 const CHIPS_IN = 0.5;
@@ -377,17 +462,18 @@ const SNAP = 1 / 8;
 /** A lock handed straight on shows open for a sixteenth before the next step takes it. */
 const HANDOFF_OPEN = 1 / 4;
 /** The ✔ cascade at the end, one lane per sixteenth. */
-const CASCADE = { beat: 12, each: 1 / 4, x: 1730, size: 40 } as const;
+export const CASCADE = { beat: 12, each: 1 / 4, x: 1730, size: 40 } as const;
 /** From here on the chart is still: the lanes|restore handoff. */
 export const GANTT_SETTLED = 13;
 /** The lanes scene's last beat. */
 const GANTT_END = 16;
 
-const lanesOf = (s: ScheduleStep): number[] => Array.from({ length: s.lanes[1] - s.lanes[0] + 1 }, (_, k) => s.lanes[0] + k);
+/** The lanes a step holds, first to last. */
+export const lanesOf = (s: ScheduleStep): number[] => Array.from({ length: s.lanes[1] - s.lanes[0] + 1 }, (_, k) => s.lanes[0] + k);
 /** Queued steps wait in the dock when they hold more than two lanes, and on their lane otherwise. */
-const inDock = (s: ScheduleStep): boolean => s.lanes[1] - s.lanes[0] >= 2;
+export const inDock = (s: ScheduleStep): boolean => s.lanes[1] - s.lanes[0] >= 2;
 /** When a step's write locks shut: at its start, or a sixteenth later when it takes a lock straight from another step. */
-function lockedFrom(s: ScheduleStep): number {
+export function lockedFrom(s: ScheduleStep): number {
   const handed = SCHEDULE.some((o) => o !== s && o.end === s.start && lanesOf(o).some((l) => l >= s.lanes[0] && l <= s.lanes[1]));
   return s.start + (handed ? HANDOFF_OPEN : 0);
 }

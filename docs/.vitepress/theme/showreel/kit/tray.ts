@@ -35,6 +35,13 @@ export interface TrayOptions {
   /** Global seconds, for the sliver's shimmer. */
   t?: number;
   alpha?: number;
+  /**
+   * Drawn inside the box: after its mouth and the held sliver, before the
+   * lid and the label, so a line dropped in passes under the lid (stash) or
+   * rises out from under it (restore). Clip it to the mouth yourself: the
+   * box's front is not drawn over it.
+   */
+  inside?: (ctx: CanvasRenderingContext2D) => void;
 }
 
 /** One shimmer pass along the sliver per bar and a half, on the reel's clock. */
@@ -76,6 +83,12 @@ export function drawTray(ctx: CanvasRenderingContext2D, o: TrayOptions = {}): vo
     grad.addColorStop(1, rgba("#ffffff", 0));
     ctx.fillStyle = grad;
     ctx.fillRect(sliver.x0, sliver.y0, span, sliver.y1 - sliver.y0);
+    ctx.restore();
+  }
+
+  if (o.inside) {
+    ctx.save();
+    o.inside(ctx);
     ctx.restore();
   }
 
