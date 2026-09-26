@@ -70,6 +70,7 @@ onUnmounted(() => clearTimeout(copyTimer));
         </div>
         <pre
           class="hk-config"
+          role="group"
           aria-label="Example steps shared by the check, fix, and pre-commit hooks"
         ><code><span class="hk-code-comment">// Run by check, fix, and pre-commit</span>
 steps {
