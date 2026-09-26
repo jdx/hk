@@ -4,8 +4,8 @@
 // number for that case, so a failed, malformed or inconclusive run leaves the
 // figures out instead of drawing one the benchmarks page would not stand
 // behind. The rules are the benchmarks page's own (benchmarks.data.ts and
-// BenchmarkResults.vue) plus the storyboard's: a race is drawn only when hk
-// is clearly ahead of the fastest other tool.
+// BenchmarkResults.vue) plus the reel's: a race is drawn only when hk is
+// clearly ahead of the fastest other tool.
 //
 // The commit scenario (`fix-staged`) is deliberately not representable: the
 // reel shows only whole-repository runs and sends viewers to the page for

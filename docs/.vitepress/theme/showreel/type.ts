@@ -171,8 +171,6 @@ export const CAPTION = wordStyle(88);
 export const LABEL = wordStyle(56);
 /** Desktop-only detail: 40 px. */
 export const DETAIL = wordStyle(40);
-/** A figure: 144 px; figures run from `wordStyle(120)` to `wordStyle(160)`. */
-export const FIGURE = wordStyle(144);
 
 /** Words land one per 1/32 note, each rising and fading in over its own. */
 export const WORD = BEAT / 8;

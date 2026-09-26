@@ -1,5 +1,6 @@
 // The whole reel: every section's scene, composited (compose.ts). The video
-// renderer and the page's player import this.
+// renderer (showreel-video.mjs) imports it, and the tests; the landing page
+// only plays the rendered file.
 
 import type { ReelFacts } from "./bible";
 import { composeReel, type Reel, type ReelOptions } from "./compose";

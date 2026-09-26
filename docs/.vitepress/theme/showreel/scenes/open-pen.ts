@@ -32,18 +32,19 @@ function intoLogo(ctx: CanvasRenderingContext2D, place: LogoPlace, swing = 0): v
 }
 
 /**
- * The wordmark's centre lines as a dotted guide, one round dot every
- * 4 units: the path the pen is about to trace. Drawn under the ink, which
- * covers it exactly as each stroke lands.
+ * The wordmark's centre lines as a dotted guide, one round dot 2.6 units
+ * across every 5 units: the path the pen is about to trace, big enough to
+ * read as "hk" at a phone's quarter scale. Drawn under the ink, which covers
+ * it exactly as each stroke lands.
  */
 export function drawGuide(ctx: CanvasRenderingContext2D, place: LogoPlace, alpha: number): void {
   if (!(alpha > 0)) return;
   ctx.save();
   intoLogo(ctx, place);
   ctx.strokeStyle = rgba(PALETTE.logo, alpha);
-  ctx.lineWidth = 1.7;
+  ctx.lineWidth = 2.6;
   ctx.lineCap = "round";
-  ctx.setLineDash([0.001, 4]);
+  ctx.setLineDash([0.001, 5]);
   for (let i = 0; i < LOGO_STROKES.length; i++) ctx.stroke(strokePath(i));
   ctx.restore();
 }

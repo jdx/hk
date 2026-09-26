@@ -7,7 +7,7 @@
 // which touch every file, wait in the dock above the lanes and clamp down
 // across all four in turn.
 //
-// What the viewer reads, beat by beat (lanes-local beats, BEATS below):
+// What the viewer reads, beat by beat (lanes-local beats, BEATS in lanes-timing.ts):
 //
 //   b0.5   the queue: the two all-file steps slide into the dock, the
 //          waiting chips pop onto lanes 3 and 4, and a dashed bracket ties
@@ -15,8 +15,9 @@
 //   b1     go: the playhead drops in at x 648, the first three bars grow
 //          from it, and all four padlocks snap shut
 //   b2.5   shfmt ✔; deploy.sh's padlock opens for a sixteenth and sends
-//          a warm key under lane 4 to shellcheck, and shuts as it lands
-//   b3.5   ruff ✔ sends a spark along the bracket, reading its label
+//          a warm key under lane 4 to shellcheck's waiting chip, and shuts
+//          as it lands: the chip flushes warm and turns into the bar
+//   b3.5   ruff ✔ sends a green spark along the bracket, reading its label
 //          through; b4 it snaps taut and fades, and ruff-format starts
 //   b5     shellcheck ✔; b6.5 ruff-format ✔; only prettier still runs and
 //          the docked steps knock on their locks
@@ -58,6 +59,7 @@ import {
   drawLanes,
   drawScheduleBar,
   drawWaitingChip,
+  fitSize,
   ganttAt,
   inDock,
   LANE_FILES,
@@ -72,54 +74,23 @@ import {
 import { type Curve, drawSpark, jolt, land } from "../kit/motion";
 import { drawTray } from "../kit/tray";
 import { clamp, inOutSine, inQuad, lerp, progress, smoothstep, swiftOut, TAU } from "../math";
-import { type Caption, drawWords, wordStyle } from "../type";
+import { type Caption, drawWords, font, layout, wordStyle } from "../type";
+import { BEATS } from "./lanes-timing";
 
 /** The section's must-read captions. */
 export const CAPTIONS: readonly Caption[] = [
   // 6 words: need 4, hold 4.
   { out: 6, lines: [{ in: 2, text: "Different files? Steps run at once." }] },
-  // 5 words: need 3.5, hold 3.5; lands on the clamp's echo.
-  { out: 12, lines: [{ in: 8.5, text: "Same file? Fixes take turns." }] },
+  // 5 words: need 3.5, hold 3.5; lands on the clamp's echo. "They", not
+  // "Fixes": everywhere's thesis says "Fixes take turns." and this must not
+  // pre-empt it word for word.
+  { out: 12, lines: [{ in: 8.5, text: "Same file? They take turns." }] },
 ];
 
 const S = sec("lanes");
 
-/**
- * The picture's beats, lanes-local. score/lanes.ts reads them, so its cues
- * follow the picture: every cue here lands on the half-beat grid or a
- * sixteenth off it.
- */
-export const BEATS = {
-  /** The dock chips slide in, the waiting chips pop, the bracket draws. */
-  queue: 0.5,
-  /** The playhead drops in; prettier, ruff and shfmt start; four padlocks shut. */
-  go: 1,
-  /** shfmt ✔ and deploy.sh's padlock opens; the key hops to shellcheck. */
-  shfmtDone: 2.5,
-  /** shellcheck holds deploy.sh: its padlock shuts again. */
-  shellcheckLock: 2.75,
-  ruffDone: 3.5,
-  /** ruff ✔ sends a spark along the depends bracket… */
-  dependsSpark: 3.5,
-  /** …and lands: the bracket snaps taut, ruff-format starts and main.py locks. */
-  depends: 4,
-  shellcheckDone: 5,
-  ruffFormatDone: 6.5,
-  /** The docked steps knock on their locks. */
-  knocks: [6.5, 7, 7.5, 8.5, 9, 9.5],
-  /** prettier ✔; README.md and src/app.ts flash warm; trailing-whitespace, wound up since b7.75, dives. */
-  clamp: 8,
-  /** trailing-whitespace lands across all four lanes; every padlock shuts (the kit's lockedFrom). */
-  slam: 8.25,
-  twDone: 10,
-  /** newlines lands across all four lanes. */
-  slam2: 10.25,
-  newlinesDone: 12,
-  /** The ✔ cascade down x 1730, a lane per sixteenth. */
-  cascade: [12, 12.25, 12.5, 12.75],
-  /** The detail line wipes. */
-  detailOut: 14.5,
-} as const;
+/** The picture's beats (lanes-timing.ts, which the score reads on its own). */
+export { BEATS };
 
 /** From here the frame is exactly the lanes|restore handoff. */
 const SETTLED = 15;
@@ -283,6 +254,17 @@ function drawDockChip(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: number,
   ctx.restore();
 }
 
+/** How far the docked step's name, falling, trails the blind's foot: trailing-whitespace's gap at rest. */
+const GHOST_NAME_LEAD = 38;
+/**
+ * The two names cross-fade on the dive: the chip's, riding the blind's top
+ * corner, gives way (GHOST_CHIP_OUT) as the bar's name, already inside the
+ * blind behind its foot, comes up (GHOST_NAME_IN), so the blind is never
+ * empty.
+ */
+const GHOST_CHIP_OUT = (u: number): number => 1 - smoothstep(0.1, 0.4, u);
+const GHOST_NAME_IN = (u: number): number => smoothstep(0.2, 0.5, u);
+
 /** The dive: a sixteenth, from the docked step's start to its landing. */
 const diveOf = (s: ScheduleStep, b: number): number => progress(s.start, landOf(s), b);
 
@@ -336,7 +318,7 @@ function drawGhost(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: number, lt
   // in the chip's wound-up squash, so the first frame of the dive is the
   // last frame in the dock. The lock it waited for is free: the shackle
   // springs open, and both fade as the blind drops.
-  const ca = 1 - smoothstep(0.1, 0.4, u);
+  const ca = GHOST_CHIP_OUT(u);
   if (ca > 0) {
     ctx.save();
     ctx.clip();
@@ -361,8 +343,8 @@ function drawGhost(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: number, lt
 
 /**
  * The docked step's name, set up the middle of the bar it reserves: drawBar's
- * own rotated label. It falls with the blind's foot, first letter leading,
- * and comes to rest exactly where the finished bar will carry it; it stays
+ * own rotated label. It falls just behind the blind's foot, first letter
+ * leading, and comes to rest exactly where the finished bar will carry it; it stays
  * put while the bar grows in under it, and the bar's label takes over, to
  * the pixel, when the bar is whole. One name is on screen from the dock to
  * the end.
@@ -370,11 +352,18 @@ function drawGhost(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: number, lt
 function drawGhostLabel(ctx: CanvasRenderingContext2D, s: ScheduleStep, b: number): void {
   if (b < s.start || b >= s.end) return;
   const u = diveOf(s, b);
-  const a = smoothstep(0.3, 0.6, u);
+  const a = GHOST_NAME_IN(u);
   if (a <= 0) return;
   const r = ghostRect(s, u);
   const full = barRect(s, s.x1);
-  const drop = r.y1 - full.y1;
+  // Its first letter (the bottom of the turned name) rides a fixed gap
+  // behind the foot, whatever the name's length, so a short name is inside
+  // the blind as soon as a long one; it stops at rest, where the bar will
+  // carry it, which a short name reaches just before the blind lands.
+  const size = fitSize(ctx, s.step, full.y1 - full.y0 - 32, 36);
+  const restLead = (full.y0 + full.y1) / 2 + layout(ctx, s.step, font(size, 600)).width / 2;
+  const lead = Math.min(GHOST_NAME_LEAD, full.y1 - restLead);
+  const drop = Math.min(0, r.y1 - lead - restLead);
   ctx.save();
   ctx.globalAlpha *= a;
   roundedRect(ctx, r.x0, r.y0, r.x1 - r.x0, r.y1 - r.y0, LANES.barRadius);
@@ -401,6 +390,12 @@ const DEP = {
   radius: 8,
 } as const;
 const DEP_LABEL_END = DEP.label.x + monoWidth(DEP_LABEL, DEP.label.size);
+/**
+ * The spark carries ruff's ✔ along the bracket, so it is the ✔'s green
+ * (paper is the user's own work), with a green-tinted core.
+ */
+const DEP_SPARK = PALETTE.green;
+const DEP_SPARK_CORE = mix(PALETTE.green, "#ffffff", 0.6);
 
 /** The bracket as a polyline from lane 3's start to above the chip's middle, and its length. */
 function depPath(chipX: number): { pts: { x: number; y: number }[]; lens: number[] } {
@@ -443,13 +438,46 @@ function drawDepends(ctx: CanvasRenderingContext2D, b: number, lt: number): void
   const lit = smoothstep(BEATS.ruffDone, BEATS.ruffDone + 0.25, b);
   const taut = smoothstep(BEATS.depends - 0.0625, BEATS.depends, b);
   const snap = flare(b, BEATS.depends, 0.12);
-  const color = mix(mix(PALETTE.text3, PALETTE.text2, lit), PALETTE.paper, Math.max(taut * 0.6, snap));
+  // It pulls taut in the colour of ruff's ✔, which the spark carries to it.
+  const color = mix(mix(PALETTE.text3, PALETTE.text2, lit), DEP_SPARK, Math.max(taut * 0.6, snap));
   ctx.save();
   ctx.globalAlpha *= fade;
-  // The label sits on the run, which breaks around it.
+  // The label sits on the run, which breaks around it: the run draws on
+  // through the gap and gives way there, under the label's plate, as the
+  // label comes up.
   const gapA = DEP.label.x - 10;
   const gapB = DEP_LABEL_END + 10;
-  const labelIn = progress(BEATS.queue + 0.25, BEATS.queue + 0.625, b) * (1 - smoothstep(BEATS.depends + 0.25, BEATS.depends + 0.75, b));
+  const labelUp = progress(BEATS.queue + 0.25, BEATS.queue + 0.625, b);
+  const labelIn = labelUp * (1 - smoothstep(BEATS.depends + 0.25, BEATS.depends + 0.75, b));
+  const inGap = 1 - smoothstep(BEATS.queue + 0.25, BEATS.queue + 0.4375, b);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2 + snap;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const gap = lerp(7, 0, taut);
+  if (gap > 0.01) ctx.setLineDash([8, gap]);
+  ctx.lineDashOffset = -lt * 40;
+  // One unbroken path, so its dashes march straight through, stroked inside
+  // the label's gap or outside it.
+  const strokeRun = (inside: boolean, a: number): void => {
+    if (a <= 0) return;
+    ctx.save();
+    ctx.beginPath();
+    if (!inside) ctx.rect(-1e4, -1e4, 2e4, 2e4);
+    ctx.rect(gapA, DEP.y - 8, gapB - gapA, 16);
+    ctx.clip(inside ? "nonzero" : "evenodd");
+    ctx.globalAlpha *= a;
+    ctx.beginPath();
+    const n = 120;
+    for (let i = 0; i <= n; i++) {
+      const p = pathAt(path, (L * draw * i) / n);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  };
+  strokeRun(true, inGap);
   // The label's plate, of the stage's own colour, so the playhead passes behind it.
   if (labelIn > 0) {
     ctx.save();
@@ -459,29 +487,7 @@ function drawDepends(ctx: CanvasRenderingContext2D, b: number, lt: number): void
     ctx.fill();
     ctx.restore();
   }
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2 + snap;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  const gap = lerp(7, 0, taut);
-  if (gap > 0.01) ctx.setLineDash([8, gap]);
-  ctx.lineDashOffset = -lt * 40;
-  ctx.beginPath();
-  let pen = false;
-  const n = 120;
-  for (let i = 0; i <= n; i++) {
-    const d = (L * draw * i) / n;
-    const p = pathAt(path, d);
-    const hidden = Math.abs(p.y - DEP.y) < 0.5 && p.x > gapA && p.x < gapB;
-    if (hidden) {
-      pen = false;
-      continue;
-    }
-    if (!pen) ctx.moveTo(p.x, p.y);
-    else ctx.lineTo(p.x, p.y);
-    pen = true;
-  }
-  ctx.stroke();
+  strokeRun(false, 1);
   ctx.setLineDash([]);
   // The head, as the bracket reaches the chip.
   const headIn = progress(0.85, 1, draw);
@@ -510,7 +516,7 @@ function drawDepends(ctx: CanvasRenderingContext2D, b: number, lt: number): void
       const p0 = pathAt(path, Math.max(0, d0));
       const p1 = pathAt(path, d1);
       if (Math.abs(p1.y - DEP.y) < 0.5 && p1.x > gapA && p1.x < gapB) continue;
-      ctx.strokeStyle = rgba(PALETTE.paper, 0.9 * ((i + 1) / 12) ** 2);
+      ctx.strokeStyle = rgba(DEP_SPARK, 0.9 * ((i + 1) / 12) ** 2);
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
@@ -518,8 +524,8 @@ function drawDepends(ctx: CanvasRenderingContext2D, b: number, lt: number): void
       ctx.stroke();
     }
     const head = pathAt(path, d);
-    glow(ctx, head.x, head.y, 34, PALETTE.paper, 0.8);
-    ctx.fillStyle = "#ffffff";
+    glow(ctx, head.x, head.y, 34, DEP_SPARK, 0.8);
+    ctx.fillStyle = DEP_SPARK_CORE;
     ctx.beginPath();
     ctx.arc(head.x, head.y, 4.5, 0, TAU);
     ctx.fill();
@@ -534,7 +540,7 @@ function drawDepends(ctx: CanvasRenderingContext2D, b: number, lt: number): void
     if (ch === " ") return;
     const x = DEP.label.x + i * 0.6 * size;
     const k = Math.exp(-(((x + 0.3 * size - sparkX) / 34) ** 2));
-    drawMono(ctx, ch, x, DEP.label.y, size, k > 0.01 ? mix(base, PALETTE.paper, k) : base);
+    drawMono(ctx, ch, x, DEP.label.y, size, k > 0.01 ? mix(base, DEP_SPARK, k) : base);
   });
   ctx.restore();
 }
@@ -554,6 +560,11 @@ const KEY_LOW = LANES.rows[3] + LANES.trackH / 2 + 16;
 const KEY_HOP: Curve = { a: KEY_FROM, c: { x: (KEY_FROM.x + KEY_TO.x) / 2, y: 2 * KEY_LOW - (KEY_FROM.y + KEY_TO.y) / 2 }, b: KEY_TO };
 /** The ring it lands with: small enough to clear the badge. */
 const KEY_RING = 22;
+/**
+ * Steps on a lane that are handed their lock (shellcheck): the kit fades
+ * their chip on their start, but it holds here until the key lands.
+ */
+const KEYED = SCHEDULE.filter((s) => !inDock(s) && lockedFrom(s) > s.start);
 
 // Flashes down a column: the playhead dropping in, and the two slams.
 
@@ -625,12 +636,14 @@ const DETAIL_AT = { x: 640, y: 690 } as const;
 function drawBars(ctx: CanvasRenderingContext2D, b: number, lt: number): void {
   const ph = playheadX(b);
   for (const s of SCHEDULE) {
-    const from = landOf(s);
+    // A bar starts when its step holds its locks.
+    const from = lockedFrom(s);
     if (b < from) continue;
     let x1 = clamp(ph, s.x0, s.x1);
-    // A docked step lands a little after the playhead has passed its start:
-    // its bar catches up over a 32nd instead of appearing part-grown.
-    if (inDock(s)) x1 = lerp(s.x0, x1, swiftOut(progress(from, from + 0.125, b)));
+    // A step handed its lock by another (a docked step's landing, shellcheck's
+    // key) gets it a little after the playhead has passed its start: its bar
+    // catches up over a 32nd instead of appearing part-grown.
+    if (from > s.start) x1 = lerp(s.x0, x1, swiftOut(progress(from, from + 0.125, b)));
     // Home with a thunk: a few px past its end, back, and still.
     if (b >= s.end) x1 = s.x1 + 5 * jolt(b, s.end, 0.375, 2);
     // A docked step's name is on its reservation until its bar is whole (drawGhostLabel).
@@ -673,9 +686,8 @@ function drawBars(ctx: CanvasRenderingContext2D, b: number, lt: number): void {
 }
 
 /** Once the run is done, a light crosses the finished chart, over every bar. */
-const GLINT = { from: 13, to: 14.25 } as const;
 function drawGlint(ctx: CanvasRenderingContext2D, b: number): void {
-  const u = progress(GLINT.from, GLINT.to, b);
+  const u = progress(BEATS.glint[0], BEATS.glint[1], b);
   if (u <= 0 || u >= 1) return;
   const band = 150;
   const cx = lerp(LANES.trackX0 - band, LANES.trackX1 + band, inOutSine(u));
@@ -780,15 +792,31 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
     ctx.restore();
   }
 
-  // Waiting chips on the lanes: they pop on, march, and ride ahead of the playhead.
+  // Waiting chips on the lanes: they pop on, march, and ride ahead of the
+  // playhead. A chip waiting for a key stays solid until the key lands on
+  // it, flushes warm, and gives way to its bar as the bar grows in under it.
+  const pop = 0.85 + 0.15 * land(b, BEATS.queue, 0.3, 0.4);
   for (const c of g.chips) {
-    if (c.dock) continue;
+    if (c.dock || KEYED.includes(c.step)) continue;
     const w = chipWidth(c.step.step);
-    const pop = 0.85 + 0.15 * land(b, BEATS.queue, 0.3, 0.4);
     ctx.save();
     ctx.translate(c.x + w / 2, c.cy);
     ctx.scale(pop, pop);
     drawWaitingChip(ctx, -w / 2, 0, c.step.step, { alpha: c.alpha, dashOffset: -lt * 36 });
+    ctx.restore();
+  }
+  for (const s of KEYED) {
+    const c = ganttAt(Math.min(b, s.start)).chips.find((k) => k.step === s);
+    const to = lockedFrom(s);
+    const alpha = (c?.alpha ?? 0) * (1 - progress(to, to + 0.125, b));
+    if (!c || alpha <= 0) continue;
+    const w = chipWidth(s.step);
+    const flush = smoothstep(to - 0.0625, to, b);
+    ctx.save();
+    ctx.translate(c.x + w / 2, c.cy);
+    ctx.scale(pop, pop);
+    if (flush > 0) glow(ctx, -w / 2 + 4, 0, 40, PALETTE.warm, 0.5 * flush * alpha);
+    drawWaitingChip(ctx, -w / 2, 0, s.step, { alpha, dashOffset: -lt * 36, stroke: mix(PALETTE.text3, PALETTE.warmBright, flush) });
     ctx.restore();
   }
   drawDepends(ctx, b, lt);
@@ -796,7 +824,8 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
   // deploy.sh's key, from its padlock to shellcheck.
   const ku = progress(KEY.at, KEY.to, b);
   if (ku > 0 && ku < 1) drawSpark(ctx, KEY_HOP, inOutSine(ku), { color: PALETTE.warmBright, size: 7, trail: 0.3 });
-  if (b >= KEY.to) ring(ctx, KEY_TO.x, KEY_TO.y, KEY_RING, progress(KEY.to, KEY.to + 0.5, b), PALETTE.warm, 4);
+  // Its ring is gone before shellcheck's label comes up under it.
+  if (b >= KEY.to) ring(ctx, KEY_TO.x, KEY_TO.y, KEY_RING, progress(KEY.to, KEY.to + 0.3, b), PALETTE.warm, 4);
 
   drawBadges(ctx, b);
   // The cascade: a ✔ per lane at x 1730, each with a ring.

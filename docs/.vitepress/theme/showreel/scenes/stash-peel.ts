@@ -6,10 +6,12 @@
 // each placed by where the strip's arc length has got to. On the card it
 // lies flat. Peeling, the part behind the peel front bends round a small
 // radius and rises at the peel angle, its free end curling tighter, as tape
-// does. Once the front reaches the far end it is free: its centre of mass
-// flies a ballistic arc (straight over the ground, parabolic in height)
-// while the curl relaxes with a flutter, and it shrinks and turns edge-on
-// into the tray's slot, where it becomes the tray's sliver.
+// does. The front eases into the far end, where the strip hangs on a
+// moment, still curling, after the blade has gone; then it is free: its
+// centre of mass eases into a ballistic arc (over the ground, parabolic in
+// height) while the curl relaxes with a flutter, comes to a stop over the
+// tray and drops into its mouth, in front of the open lid, and shrinks and
+// turns edge-on into the slot, where it becomes the tray's sliver.
 //
 // The camera looks down on the card from above the frame's foot, so height
 // shows as a shift up the screen (LIFT px per px) and a little growth
@@ -27,11 +29,14 @@ import { BEAT } from "../timeline";
 // Where the strip lies on the card: row 10 of the main.py card (x 660–1260,
 // y 284–696, 26 px mono on a 32 px pitch), baseline 676.8, text from x 684.
 
-/** The TODO strip at rest on the card, logical px. Its top edge is the cut. */
-export const STRIP = { x: 670, y: 651, w: 466, h: 38, r: 7 } as const;
-/** The line's text from the strip's left edge, and its baseline from the top. */
+/**
+ * The TODO strip at rest on the card, logical px. Its top edge is the cut,
+ * 2–3 px clear of the `()` of `main()` on the row above (they reach y 650.5).
+ */
+export const STRIP = { x: 670, y: 653, w: 466, h: 36, r: 7 } as const;
+/** The line's text from the strip's left edge, and its baseline from the top (676.8, the card's row 10). */
 const TEXT_DX = 14;
-const TEXT_DY = 25.8;
+const TEXT_DY = 23.8;
 const SIZE = 26;
 /** The dashed outline: the user's own line, marked for cutting. */
 export const DASH: readonly number[] = [12, 8];
@@ -59,13 +64,17 @@ const COLS = Math.round(STRIP.w / COL);
 
 // Timing, in scene beats (storyboard §6.4: slice on b2, lid shut on b3).
 
-/** The blade enters, runs along the strip's top edge (y 651), and leaves the card in a sixteenth. */
+/** The blade enters, runs along the strip's top edge (y 653), and leaves the card in a sixteenth. */
 export const CUT = { from: 2, to: 2.25, x0: 628, x1: 1310, y: STRIP.y } as const;
 /** The card's edges, where the blade starts cutting and throws its sparks. */
 const CARD_X0 = 660;
 const CARD_X1 = 1260;
-/** The peel front runs from the free end to the far end behind the blade. */
-export const PEEL = { from: 2.0625, to: 2.25 } as const;
+/**
+ * The peel front runs from the free end to the far end behind the blade and
+ * eases into it; the strip goes on curling up from its far end for a moment
+ * after the blade has gone, then lets go.
+ */
+export const PEEL = { from: 2.0625, to: 2.375 } as const;
 /** The free strip's flight, from the release to the slot. */
 export const FLY = { from: PEEL.to, to: 2.9375 } as const;
 /** It is gone into the tray as the lid slams on b3. */
@@ -210,17 +219,24 @@ export interface StripPose {
 /** The strip lying on the card. */
 const FLAT: readonly Sample[] = Array.from({ length: COLS + 1 }, (_, j) => ({ x: STRIP.x + j * COL, z: 0, th: 0 }));
 
-/** The peel front's arc length at beat b: accelerating, and never ahead of the blade. */
+/** How far through the peel the front reaches the far end. */
+const FRONT_END = 0.8;
+
+/**
+ * The peel front's arc length at beat b: never ahead of the blade, quick
+ * behind it, and easing into the far end, where the strip holds on a moment.
+ */
 function frontAt(b: number): number {
-  const u = progress(PEEL.from, PEEL.to, b);
-  const run = STRIP.w * (0.35 * u + 0.65 * u * u);
+  // A cubic from 0.3 of its mean speed at the free end to rest at the far end.
+  const u = Math.min(1, progress(PEEL.from, PEEL.to, b) / FRONT_END);
+  const run = STRIP.w * u * (0.3 + u * (2.4 - 1.7 * u));
   return clamp(Math.min(run, bladeX(b) - STRIP.x - 24), 0, STRIP.w);
 }
 
-/** The peel angle and the tip's curl at beat b. */
+/** The peel angle and the tip's curl at beat b, both still growing after the blade has gone. */
 function peelParams(b: number): { phi: number; curl: number } {
   const u = progress(PEEL.from, PEEL.to, b);
-  return { phi: lerp(PHI0, PHI1, smoothstep(0, 1, u)), curl: CURL * smoothstep(0, 0.35, u) };
+  return { phi: lerp(PHI0, PHI1, smoothstep(0, 1, u)), curl: CURL * smoothstep(0, 0.75, u) };
 }
 
 /** The strip's shape the moment it comes free, relative to its far end. */
@@ -246,8 +262,41 @@ const RELEASE_C = centroid(RELEASE);
 const GROUND0 = { x: RELEASE_C.x, y: STRIP.y + STRIP.h / 2 };
 const GROUND1 = { x: SLOT.cx, y: SLOT.top + SLOT.h / 2 };
 
-/** Height of the flying strip's centre at flight progress u: from where it came free, over the arc, into the slot. */
-const heightAt = (u: number): number => RELEASE_C.z * (1 - u) + 4 * ARC_H * u * (1 - u);
+/**
+ * Height of the flying strip's centre at flight progress u: from where it
+ * came free, over the arc, and down faster at the end, so it is at the
+ * slot's mouth before it turns edge-on into it.
+ */
+const heightAt = (u: number): number => (RELEASE_C.z * (1 - u) + 4 * ARC_H * u * (1 - u)) * (1 - smoothstep(0.7, 1, u));
+
+/**
+ * How far over the ground the strip has got at flight progress u: steady,
+ * then slowing to a stop over the slot at u = OVER_SLOT, so it drops into
+ * the tray's mouth from above rather than sliding in through its side.
+ */
+const OVER_SLOT = 0.92;
+const TRACK_EASE = 0.75;
+function groundAt(u: number): number {
+  const v = Math.min(1, u / OVER_SLOT);
+  const c = 1 / (TRACK_EASE + (1 - TRACK_EASE) / 2);
+  return v < TRACK_EASE ? c * v : c * (v - (v - TRACK_EASE) ** 2 / (2 * (1 - TRACK_EASE)));
+}
+
+/** The flying strip's centre on screen at flight progress u. */
+function screenAt(u: number): { x: number; y: number } {
+  const g = groundAt(u);
+  return { x: lerp(GROUND0.x, GROUND1.x, g), y: lerp(GROUND0.y, GROUND1.y, g) - LIFT * heightAt(u) };
+}
+
+/** The start of the flight eases in over its first FLY_EASE, from FLY_K of its speed. */
+const FLY_EASE = 0.15;
+const FLY_K = 0.25;
+const FLY_C = 1 / (1 - ((1 - FLY_K) * FLY_EASE) / 2);
+/** Flight progress at tf: easing out of the peel, then flung, slowing a little as the tray takes it. */
+function flightAt(tf: number): number {
+  const e = tf < FLY_EASE ? FLY_C * (FLY_K * tf + ((1 - FLY_K) * tf * tf) / (2 * FLY_EASE)) : FLY_C * (tf - ((1 - FLY_K) * FLY_EASE) / 2);
+  return 1 - (1 - clamp(e)) ** 1.2;
+}
 
 /** The strip's pose at beat b, or null before the cut has freed any of it (it is then part of the card) or once it is in the tray. */
 export function stripPose(b: number): StripPose | null {
@@ -262,18 +311,21 @@ export function stripPose(b: number): StripPose | null {
   // Flung, it slows a little as the tray takes it; the bend it came off
   // with springs out over a few frames and flutters once.
   const tf = progress(FLY.from, FLY.to, b);
-  const u = 1 - (1 - tf) ** 1.2;
+  const u = flightAt(tf);
   const relax = Math.exp(-3 * tf) * Math.cos(TAU * 0.9 * tf) * (1 - smoothstep(0.65, 0.95, tf));
   const local = integrate((s) => releaseAngle(s) * relax, STRIP.w, { x: 0, z: 0 });
   const c = centroid(local);
-  const gx = lerp(GROUND0.x, GROUND1.x, u);
-  const gy = lerp(GROUND0.y, GROUND1.y, u);
+  const g = groundAt(u);
+  const gx = lerp(GROUND0.x, GROUND1.x, g);
+  const gy = lerp(GROUND0.y, GROUND1.y, g);
   const z = heightAt(u);
   const samples = local.map((q) => ({ x: q.x - c.x + gx, z: q.z - c.z + z, th: q.th }));
   // Leaning into its path, then level as it lines up with the slot.
   const du = 1e-3;
-  const vx = GROUND1.x - GROUND0.x;
-  const vy = GROUND1.y - GROUND0.y - (LIFT * (heightAt(Math.min(1, u + du)) - heightAt(Math.max(0, u - du)))) / (Math.min(1, u + du) - Math.max(0, u - du));
+  const s0 = screenAt(Math.max(0, u - du));
+  const s1 = screenAt(Math.min(1, u + du));
+  const vx = s1.x - s0.x;
+  const vy = s1.y - s0.y;
   const tilt = Math.atan2(vy, vx) * 0.25 * smoothstep(0, 0.3, u) * (1 - smoothstep(0.68, 0.93, u));
   return {
     samples,
@@ -281,8 +333,9 @@ export function stripPose(b: number): StripPose | null {
     pivot: { x: gx, y: gy - LIFT * z },
     tilt,
     scale: lerp(1, SCALE_END, smoothstep(0.45, 1, u)),
-    squash: lerp(1, SQUASH_END, smoothstep(0.76, 1, u)),
-    sliver: smoothstep(0.78, 1, u),
+    // Paper until it reaches the slot's mouth, then edge-on into it.
+    squash: lerp(1, SQUASH_END, smoothstep(0.9, 1, u)),
+    sliver: smoothstep(0.9, 1, u),
     shadow: 1 - smoothstep(0.45, 0.8, u),
     alpha: 1 - progress(INTO.from, INTO.to, b),
   };

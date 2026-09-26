@@ -6,8 +6,9 @@
 // (`git commit`), a terminal (`hk fix`) and CI (`hk check --all`). Each
 // lists the top of the final screen of a real run (kit/screens.ts `final`),
 // its rows ticking on in a 32nd cascade, and all three name the same seven
-// steps. Pulses run down the connectors on the eighths, from the one config
-// into all three.
+// steps (the CI one shows a terminal's screen, stylised: see PANELS).
+// Pulses run down the connectors on the eighths, from the one config into
+// all three.
 //
 // Checks share a file; fixes take turns. The panels roll up, their
 // connectors retract into the chip, which goes, and two small timelines for
@@ -16,8 +17,9 @@
 // once, and finish in the order `hk check --all` finished them
 // (check-all.frames.txt: newlines, trailing-whitespace, then prettier).
 // Under `hk fix` three warm fixes take the write lock one per beat, in the
-// commit run's order: the padlock opens and shuts between them and the lit
-// node slides down to the next, and each pill grows only once the key has
+// order `hk fix` ran them (fix.frames.txt: prettier, newlines, then
+// trailing-whitespace): the padlock opens and shuts between them and the
+// lit node slides on to the next, and each pill grows only once the key has
 // reached it. The contrast is also the score's: a three-note chord on b6.5,
 // the same notes one at a time as each fix takes the lock. The beats live in
 // everywhere-timing.ts, which the score can import.
@@ -30,7 +32,7 @@ import { BEAT, type LitRect, PALETTE, type Scene, type SceneEnv, sec, TERM } fro
 import { rgba } from "../color";
 import { glow, roundedRect } from "../fx";
 import { drawChip, drawMono, HKPKL_CHIP, monoWidth } from "../kit/card";
-import { drawBar, drawDone, drawPadlock, type LockState } from "../kit/lanes";
+import { BAR_FILL, drawBar, drawDone, drawPadlock, LANES, type LockState } from "../kit/lanes";
 import { bump, jolt, land, lerpRect, type Pt, type Rect, typedChars } from "../kit/motion";
 import { final, type Screen } from "../kit/screens";
 import { advance, drawTermLine, drawWindow, mini, termLit } from "../kit/term";
@@ -44,6 +46,7 @@ import {
   CHIP_OUT,
   COLUMN_IN,
   FIX_HOLDS,
+  FIX_ROWS,
   FOLD,
   FOLD_LEN,
   IMPACT,
@@ -61,9 +64,11 @@ const b = (n: number): number => n * BEAT;
 
 /** The section's must-read captions. */
 export const CAPTIONS: readonly Caption[] = [
-  // 4 + 3 words: need 4.5, hold 4.5.
-  { out: 6, lines: [{ in: 1.5, text: "One set of steps:" }, { in: 2.5, text: "commit, terminal, CI." }] },
-  // 4 + 3 words: need 4.5, hold 4.5; its first word rises on b6, as the caption above starts to leave.
+  // 4 + 3 words: need 4.5, hold 4.5 from b1 (line 2 needs 2.5, holds 3.5).
+  // Each line lands on a slam, and it wipes away over b5.5–5.75 as the
+  // panels start to roll up, clear before the next caption's first word.
+  { out: 5.5, lines: [{ in: 1, text: "One set of steps:" }, { in: 2, text: "commit, terminal, CI." }] },
+  // 4 + 3 words: need 4.5, hold 4.5; its first word rises on b6, a 16th after the caption above has gone.
   { out: 11, lines: [{ in: 6.5, text: "Checks share a file." }, { in: 7, text: "Fixes take turns." }] },
 ];
 
@@ -86,7 +91,16 @@ interface PanelSpec {
   screen: Screen;
 }
 
-/** The three panels (storyboard §6.8): a label, the command, and the top 9 rows of its run's last screen. */
+/**
+ * The three panels (storyboard §6.8): a label, the command, and the top 9
+ * rows of its run's last screen. The CI panel is stylised: it shows the
+ * `hk check --all` terminal capture, header and progress bar included. In
+ * CI hk prints plain text instead, with no header or bar and the ✔ lines
+ * in the order steps finish, among `❯` and log lines (src/cli/mod.rs:
+ * `is_ci` selects ProgressOutput::Text). The panel keeps the terminal's
+ * screen so that all three show the same rows the same way; a verbatim CI
+ * log would need a non-TTY capture in test/captures and kit/screens.ts.
+ */
 const PANELS: readonly PanelSpec[] = [
   { x: 160, label: "commit", cmd: "git commit", screen: final.commit },
   { x: 700, label: "terminal", cmd: "hk fix", screen: final.fix },
@@ -147,7 +161,10 @@ const LOCK_SCALE = 1.5;
 const CHECK_RATE = (900 - CHECK.x0) / (CHECK_DONE[0] - CHECK_GO);
 const CHECK_END = CHECK_DONE.map((d) => CHECK.x0 + CHECK_RATE * (d - CHECK_GO));
 
-/** The fixes, one after another, 8 px apart where the lock is handed on (as the lanes); each grows while it holds the lock. */
+/**
+ * The fixes' pills, turn by turn (FIX_ROWS says whose), 8 px apart where
+ * the lock is handed on (as the lanes); each grows while it holds the lock.
+ */
 const FIX_PILLS = [
   { x0: 1400, x1: 1560 },
   { x0: 1568, x1: 1660 },
@@ -503,7 +520,7 @@ function drawSource(ctx: CanvasRenderingContext2D, bt: number): void {
  */
 const HOLDS: Record<Column["kind"], readonly (readonly [from: number, to: number])[]> = {
   check: CHECK_DONE.map((d) => [CHECK_GO, d] as const),
-  fix: FIX_HOLDS,
+  fix: ROW_Y.map((_, r) => FIX_HOLDS[FIX_ROWS.indexOf(r as 0 | 1 | 2)]),
 };
 
 /** How far row `r` holds column `c`'s lock at `bt`, 0..1, snapping in and out over a 32nd. */
@@ -512,13 +529,20 @@ function holding(c: Column, r: number, bt: number): number {
   return progress(from, from + SNAP, bt) * (1 - progress(to, to + SNAP, bt));
 }
 
-/** A column's padlock: read or write while any row holds it, open between and after. */
-function lockAt(c: Column, bt: number): { state: LockState; lift: number } {
+/**
+ * A column's padlock: read or write while any row holds it, open between
+ * and after. `held` is how far it shows its held colour, 0..1: it
+ * cross-fades from open over the same 32nd as its shackle shuts and its
+ * row's node lights, and back as the shackle springs open. A read lock
+ * shows a pip per check still reading.
+ */
+function lockAt(c: Column, bt: number): { held: number; lift: number; pips: number } {
   const holds = HOLDS[c.kind];
   const held = holds.filter(([from, to]) => bt >= from && bt < to);
-  if (held.length) return { state: c.lockState, lift: 1 - land(bt, Math.min(...held.map(([from]) => from)), SNAP, 0.2) };
+  const k = Math.max(0, ...holds.map((_, r) => holding(c, r, bt)));
+  if (held.length) return { held: k, lift: 1 - land(bt, Math.min(...held.map(([from]) => from)), SNAP, 0.2), pips: c.kind === "check" ? held.length : 0 };
   const released = holds.filter(([, to]) => to <= bt).reduce((m, [, to]) => Math.max(m, to), -Infinity);
-  return { state: "open", lift: released === -Infinity ? 1 : land(bt, released, SNAP, 0.2) };
+  return { held: k, lift: released === -Infinity ? 1 : land(bt, released, SNAP, 0.2), pips: 0 };
 }
 
 /**
@@ -526,8 +550,8 @@ function lockAt(c: Column, bt: number): { state: LockState; lift: number } {
  * round a corner and down the gutter between the row labels and the
  * tracks, with a node at each row. A row that holds the lock lights its
  * node and the line from the padlock down to it: under hk check all three
- * at once (the read lock's three pips), under hk fix one at a time, the
- * key sliding down to the next fix while the lock is open.
+ * at once (and the read lock shows a pip per reader), under hk fix one at
+ * a time, the key sliding on to the next fix's node while the lock is open.
  */
 const BUS_Y = 352;
 const busX = (c: Column): number => c.x0 - 18;
@@ -561,20 +585,21 @@ function busLit(c: Column, bt: number): { y: number; a: number; key: number | nu
     return { y, a, key: null };
   }
   // Unlit until the first fix takes the lock; then the fix holding it, or
-  // the key on its way down to the next.
-  if (bt < HOLDS.fix[0][0]) return { y: BUS_Y - BUS_R, a: 0, key: null };
-  for (let r = 0; r < ROW_Y.length; r++) {
-    const [from, to] = HOLDS.fix[r];
-    if (r === 0 && bt < from + SNAP) return { y: lerp(BUS_Y - BUS_R, ROW_Y[0], progress(from, from + SNAP, bt)), a: 1, key: null };
-    if (bt >= from && bt < to) return { y: ROW_Y[r], a: 1, key: null };
-    const next = HOLDS.fix[r + 1];
-    if (next && bt >= to && bt < next[0]) {
-      const y = lerp(ROW_Y[r], ROW_Y[r + 1], swiftInOut(progress(to, next[0], bt)));
+  // the key on its way to the next, down or back up the line.
+  if (bt < FIX_HOLDS[0][0]) return { y: BUS_Y - BUS_R, a: 0, key: null };
+  for (let k = 0; k < FIX_HOLDS.length; k++) {
+    const [from, to] = FIX_HOLDS[k];
+    const cy = ROW_Y[FIX_ROWS[k]];
+    if (k === 0 && bt < from + SNAP) return { y: lerp(BUS_Y - BUS_R, cy, progress(from, from + SNAP, bt)), a: 1, key: null };
+    if (bt >= from && bt < to) return { y: cy, a: 1, key: null };
+    if (k + 1 < FIX_HOLDS.length && bt >= to && bt < FIX_HOLDS[k + 1][0]) {
+      const y = lerp(cy, ROW_Y[FIX_ROWS[k + 1]], swiftInOut(progress(to, FIX_HOLDS[k + 1][0], bt)));
       return { y, a: 1, key: y };
     }
   }
-  const last = HOLDS.fix[ROW_Y.length - 1][1];
-  return { y: ROW_Y[ROW_Y.length - 1], a: 1 - progress(last, last + 2 * SNAP, bt), key: null };
+  const last = FIX_HOLDS.length - 1;
+  const end = FIX_HOLDS[last][1];
+  return { y: ROW_Y[FIX_ROWS[last]], a: 1 - progress(end, end + 2 * SNAP, bt), key: null };
 }
 
 function drawBus(ctx: CanvasRenderingContext2D, c: Column, bt: number, reveal: number): void {
@@ -654,18 +679,51 @@ function drawColumnFrame(ctx: CanvasRenderingContext2D, c: Column, bt: number, l
   // The padlock pops in, then shows who holds the file.
   const pop = land(bt, c.at + 1 / 4, 1 / 4, 0.3);
   if (pop > 0) {
+    const { x, y } = c.lock;
     const lock = lockAt(c, bt);
-    drawPadlock(ctx, c.lock.x, c.lock.y, lock.state, { lift: lock.lift, scale: LOCK_SCALE * pop });
+    const open = { lift: lock.lift, scale: LOCK_SCALE * pop };
+    const held = { ...open, alpha: lock.held, pips: lock.pips };
+    if (lock.held <= 0) drawPadlock(ctx, x, y, "open", open);
+    else if (lock.held >= 1) drawPadlock(ctx, x, y, c.lockState, held);
+    else {
+      // Cross-fading: the held padlock over the open one at `held`, on one
+      // shackle. As the shackle snaps shut it overshoots into the body,
+      // where only an opaque fill hides it, so both are drawn round the
+      // body's inside (kit/lanes.ts: a 32×24 body at y −3, 3 px stroke),
+      // which then takes the held fill at `held`.
+      const k = open.scale;
+      const inside = () => roundedRect(ctx, x - 14 * k, y - k, 28 * k, 20 * k, 3 * k);
+      ctx.save();
+      inside();
+      ctx.rect(x - 120, y - 140, 240, 240);
+      ctx.clip("evenodd");
+      drawPadlock(ctx, x, y, "open", open);
+      drawPadlock(ctx, x, y, c.lockState, held);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha *= lock.held;
+      ctx.fillStyle = BAR_FILL[c.kind];
+      inside();
+      ctx.fill();
+      ctx.restore();
+    }
   }
 }
 
 /** How lit a running pill's leading edge is: up over a 32nd from its start, out over a 16th from its end. */
 const tipLit = (bt: number, start: number, end: number): number => progress(start, start + 1 / 8, bt) * (1 - progress(end, end + 1 / 4, bt));
 
+/**
+ * A pill only a few radii wide (the lanes' bars' 8 px) is a tall thin
+ * capsule, a "|", so it fades in as it widens from one radius to four,
+ * out of its lit leading edge, and reads as a bar growing from its start.
+ */
+const PILL_IN = [LANES.barRadius, 4 * LANES.barRadius] as const;
+
 /** One step's pill from x0 to x1 on row `r`, its leading edge lit while it runs, and its ✔ once done. */
 function drawPill(ctx: CanvasRenderingContext2D, c: Column, r: number, x0: number, x1: number, tip: number, done: number, flourish: number): void {
   const cy = ROW_Y[r];
-  drawBar(ctx, { x0, x1, y0: cy - PILL_H / 2, y1: cy + PILL_H / 2 }, c.kind);
+  drawBar(ctx, { x0, x1, y0: cy - PILL_H / 2, y1: cy + PILL_H / 2 }, c.kind, { alpha: smoothstep(PILL_IN[0], PILL_IN[1], x1 - x0) });
   if (tip > 0) glow(ctx, x1, cy, 46, c.color, 0.45 * tip);
   if (done > 0) {
     const cx = x1 - 22;
@@ -697,10 +755,11 @@ function drawChecks(ctx: CanvasRenderingContext2D, bt: number): void {
 
 function drawFixes(ctx: CanvasRenderingContext2D, bt: number): void {
   const flourish = bump(bt, ALL_DONE, 1 / 2);
-  FIX_PILLS.forEach((f, r) => {
+  FIX_PILLS.forEach((f, k) => {
     // It grows only while it holds the write lock: from the moment the key
     // reaches its node to its ✔ on the beat.
-    const [from, to] = FIX_HOLDS[r];
+    const [from, to] = FIX_HOLDS[k];
+    const r = FIX_ROWS[k];
     if (bt < from) return;
     const x1 = lerp(f.x0, f.x1, progress(from, to, bt));
     drawPill(ctx, FIX, r, f.x0, x1, tipLit(bt, from, to), land(bt, to, 1 / 4, 0.3), flourish);

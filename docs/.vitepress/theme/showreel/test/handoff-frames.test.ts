@@ -1,14 +1,13 @@
-// The frames on the bar lines, drawn (storyboard §4 "Build order and tests"
-// and §5). For every hold, the outgoing scene's last frame (its end − 1/120 s)
-// and the incoming scene's first (its start) must each be drawHandoff's
-// frame at the same global time; across the whip, the race's first frame
-// must be the streaks alone. All of it under every facts variant, because
-// the frame on a bar line is the same whatever the benchmarks say. Frames
-// are the reel's raw ones (no vignette, captions or grain), drawn by the
-// reel's own compositor with the bundled fonts, so this holds whichever
-// scenes are in scenes/index.ts: stubs today, the real scenes as they land.
-// Last, every frame must come out the same whatever was drawn before it,
-// as the renderer's parallel pages need.
+// The frames on the bar lines (handoff.ts), drawn. For every hold, the
+// outgoing scene's last frame (its end − 1/120 s) and the incoming scene's
+// first (its start) must each be drawHandoff's frame at the same global
+// time; across the whip, the race's first frame must be the streaks alone.
+// All of it under every facts variant, because the frame on a bar line is
+// the same whatever the benchmarks say. Frames are the reel's raw ones (no
+// vignette, captions or grain), drawn by the reel's own compositor with the
+// bundled fonts, so this holds whichever scenes are in scenes/index.ts.
+// Last, every frame must come out the same whatever was drawn before it, as
+// the renderer's parallel pages need.
 //
 // A failing frame is written out as got, want and diff PNGs under the
 // system temp directory, and the failure names the files. Skipped when no

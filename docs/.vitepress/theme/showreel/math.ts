@@ -9,15 +9,6 @@ export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
 /** Progress of `v` from `a` to `b`, clamped to [0, 1]. */
 export const progress = (a: number, b: number, v: number): number =>
   b === a ? (v >= b ? 1 : 0) : clamp((v - a) / (b - a));
-/** Map `v` from [a, b] to [c, d] through an easing curve, clamped. */
-export const remap = (
-  v: number,
-  a: number,
-  b: number,
-  c: number,
-  d: number,
-  ease: Ease = linear,
-): number => lerp(c, d, ease(progress(a, b, v)));
 export const smoothstep = (a: number, b: number, v: number): number => {
   const t = progress(a, b, v);
   return t * t * (3 - 2 * t);
@@ -34,7 +25,6 @@ export const outCubic: Ease = (t) => 1 - (1 - t) ** 3;
 export const inOutCubic: Ease = (t) =>
   t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 export const outQuart: Ease = (t) => 1 - (1 - t) ** 4;
-export const outExpo: Ease = (t) => (t >= 1 ? 1 : 1 - 2 ** (-10 * t));
 export const outSine: Ease = (t) => Math.sin((t * Math.PI) / 2);
 export const inOutSine: Ease = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
 export const outBack =
@@ -173,12 +163,4 @@ export function rng(seed: number): () => number {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-/** Smooth 1D value noise in [-1, 1]. */
-export function noise1(x: number, seed = 0): number {
-  const i = Math.floor(x);
-  const f = x - i;
-  const u = f * f * (3 - 2 * f);
-  return lerp(hash(i, seed), hash(i + 1, seed), u) * 2 - 1;
 }

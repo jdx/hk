@@ -60,7 +60,6 @@ export const BAR_FILL = {
 /** The label's baseline sits this far below the lane's centre. */
 const LABEL_DROP = 14;
 
-export const laneY = (lane: number): number => LANES.rows[lane];
 /** The top and bottom of a bar across lanes `first` to `last`. */
 export const barSpan = (first: number, last: number): { y0: number; y1: number } => ({
   y0: LANES.rows[first] - LANES.barH / 2,
@@ -159,7 +158,7 @@ export interface BarOptions {
 }
 
 /** The largest label size that fits `room` px, from `max` down to a floor of 32, never abbreviated. */
-function fitSize(ctx: CanvasRenderingContext2D, label: string, room: number, max: number): number {
+export function fitSize(ctx: CanvasRenderingContext2D, label: string, room: number, max: number): number {
   const w = layout(ctx, label, font(max, 600)).width;
   return w <= room ? max : Math.max(32, Math.floor((max * room) / w));
 }

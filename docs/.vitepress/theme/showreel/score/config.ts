@@ -13,7 +13,8 @@
 // chip with a flick and a soft click as it seats.
 
 import type { Part } from ".";
-import { T_BAND, T_CARD, T_FOLD, T_LAND, T_LOGO_OUT, T_POP, T_STAMP, T_TAKEOFF } from "../scenes/config";
+import { lerp } from "../math";
+import { T_BAND, T_CARD, T_FOLD, T_LAND, T_LOGO_OUT, T_POP, T_SINK, T_STAMP, T_TAKEOFF } from "../scenes/config";
 import { bassBars, C, CHORD, chordBars, DM, drumBars, M, melody, STOMP } from "./grooves";
 import { ad, hz, line, sweep } from "./mix";
 import { bloop, fiddlePluck, flick, jingleRoll, knock, panX, ping, pop, puff, stamp, thump, tick, whoosh } from "./sounds";
@@ -24,8 +25,8 @@ const CARD = panX(1180);
 /** The seven steps climb D dorian, D4 up to C5, one a sixteenth as they land (T_LAND). */
 const CLIMB = [62, 64, 65, 67, 69, 71, 72];
 
-/** zizmor sinks back into its river (scenes/config.ts T_SINK). */
-const SINK = 3.5;
+/** zizmor is back among its river's names 80% of the way through its sink (scenes/config.ts T_SINK): the plop. */
+const PLOP = lerp(T_SINK[0], T_SINK[1], 0.8);
 
 export const part: Part = {
   // The groove has only just come in: it sits back.
@@ -45,7 +46,7 @@ export const part: Part = {
     ping(m, pops + 0.02, hz(86), 0.025, 0.35, { pan: panX(420), send: 0.4 });
     ping(m, pops + 0.03, hz(93), 0.022, 0.35, { pan: panX(1500), send: 0.4 });
     // zizmor sinks back into its river with a small plop.
-    bloop(m, s.beat(SINK), hz(69), 0.05, panX(1500), 0.18);
+    bloop(m, s.at(PLOP), hz(69), 0.05, panX(1500), 0.18);
 
     // The card's outline draws on: a paper flick, with the stroke's air after it.
     const [card0, card1] = T_CARD.map((t) => s.at(t));

@@ -202,10 +202,73 @@ export const nameWidth = (text: string, size: number): number => text.length * 0
 const RUN = 6.5;
 
 /**
+ * Where two rivers must not print over each other, local seconds: from the
+ * first wash, across the whole frame's width (the bleeds included), through
+ * the turn and into the columns.
+ */
+const APART = { from: b(0.5), to: b(4.75), step: 1 / 60 } as const;
+
+/** A name's box, turned as drawn, and the circle round it, for the layout's overprint check. */
+interface Placed {
+  river: number;
+  cx: number;
+  cy: number;
+  rad: number;
+  pts: readonly { x: number; y: number }[];
+}
+
+/** A name's box at a pose: the mono grid's width, ascenders to descenders. */
+function boxAt(text: string, p: Pose, size: number, river: number): Placed {
+  const hw = (text.length * 0.6 * size) / 2;
+  const y0 = -0.4 * size;
+  const y1 = (/[gjpqy_]/.test(text) ? 0.55 : 0.37) * size;
+  const c = Math.cos(p.a);
+  const s = Math.sin(p.a);
+  const pts = [
+    [-hw, y0],
+    [hw, y0],
+    [hw, y1],
+    [-hw, y1],
+  ].map(([u, v]) => ({ x: p.x + u * c - v * s, y: p.y + u * s + v * c }));
+  return { river, cx: p.x, cy: p.y, rad: Math.hypot(hw, Math.max(-y0, y1)), pts };
+}
+
+/** Whether two turned boxes overlap by more than `graze` px (separating axes). */
+function overprints(a: Placed, q: Placed, graze: number): boolean {
+  if (Math.hypot(a.cx - q.cx, a.cy - q.cy) > a.rad + q.rad) return false;
+  for (const e of [a.pts, q.pts]) {
+    for (let i = 0; i < 2; i++) {
+      const nx = -(e[i + 1].y - e[i].y);
+      const ny = e[i + 1].x - e[i].x;
+      const l = Math.hypot(nx, ny) || 1;
+      let a0 = Infinity;
+      let a1 = -Infinity;
+      let q0 = Infinity;
+      let q1 = -Infinity;
+      for (const p of a.pts) {
+        const d = (p.x * nx + p.y * ny) / l;
+        a0 = Math.min(a0, d);
+        a1 = Math.max(a1, d);
+      }
+      for (const p of q.pts) {
+        const d = (p.x * nx + p.y * ny) / l;
+        q0 = Math.min(q0, d);
+        q1 = Math.max(q1, d);
+      }
+      if (a1 - graze < q0 || q1 - graze < a0) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Lay out the rivers: each of its files filled from beyond the right edge to
  * as far upstream as it will flow in the scene, the fixed names exactly
  * where the scene asks and the pool's names, in a seeded shuffle, in the
- * gaps between them. Each pool name is used once, while they last.
+ * gaps between them. Each pool name is used once, while they last. A pool
+ * name that would print over a name of another river anywhere on the frame
+ * (the rivers' waves meet in the right-hand bleed as they wash in) slides
+ * upstream, a character at a time, until it is clear.
  */
 export function layoutRivers(fixed: readonly Fixed[], seed = 1729): RiverName[] {
   const rand = rng(seed);
@@ -224,6 +287,33 @@ export function layoutRivers(fixed: readonly Fixed[], seed = 1729): RiverName[] 
     const z = rand();
     return { text, river: r.depth, n, s0, size: r.size * (0.94 + 0.12 * z), color, alpha: r.alpha * (0.8 + 0.35 * z) };
   };
+
+  // Every name placed so far, as its visible boxes at each of APART's instants.
+  const samples = Math.floor((APART.to - APART.from) / APART.step) + 1;
+  const seen: Placed[][] = Array.from({ length: samples }, () => []);
+  const boxes = (ri: number, text: string, n: number, s0: number): (Placed | null)[] => {
+    const r = RIVERS[ri];
+    const size = r.size * 1.06;
+    const hw = nameWidth(text, size) / 2 + size;
+    const got: (Placed | null)[] = [];
+    for (let i = 0; i < samples; i++) {
+      const t = APART.from + i * APART.step;
+      const s = s0 + flow(r, t);
+      const wash = washOf(r, s, t);
+      const pose = r.alpha * wash > 0.03 ? riverPose(r, s, n - 22 * (1 - outCubic(wash)), t) : null;
+      got.push(pose && r.alpha * wash * maskAt(pose.y) >= 0.04 && pose.x > -hw && pose.x < 1920 + hw ? boxAt(text, pose, size, ri) : null);
+    }
+    return got;
+  };
+  const clashes = (got: (Placed | null)[]): boolean =>
+    got.some((p, i) => p !== null && seen[i].some((q) => q.river !== p.river && overprints(p, q, 0)));
+  const keep = (got: (Placed | null)[]) => got.forEach((p, i) => p && seen[i].push(p));
+  // The fixed names first, where the scene put them.
+  fixed.forEach((f) => {
+    const r = RIVERS[f.river];
+    keep(boxes(f.river, f.text, r.lanes[f.lane], f.s - flow(r, f.at)));
+  });
+
   RIVERS.forEach((r, ri) => {
     r.lanes.forEach((n, li) => {
       const adv = 0.6 * r.size;
@@ -242,19 +332,30 @@ export function layoutRivers(fixed: readonly Fixed[], seed = 1729): RiverName[] 
         // The next fixed name to the left of the cursor.
         while (k < mine.length && mine[k].s0 - mine[k].w / 2 > cursor) k++;
         const f = mine[k];
-        const room = f ? cursor - (f.s0 + f.w / 2) - gap : Infinity;
+        const roomAt = (c: number) => (f ? c - (f.s0 + f.w / 2) - gap : Infinity);
         let placed = false;
         for (let tries = 0; tries < 6 && next < pool.length; tries++) {
           const text = pool[next];
           const w = nameWidth(text, r.size * 1.06);
-          if (w <= room) {
+          // Slid upstream past any name of another river it would print over.
+          let c = cursor;
+          let got = w <= roomAt(c) ? boxes(ri, text, n, c - w / 2) : null;
+          let free = got !== null && !clashes(got);
+          for (let slide = 0; got && !free && slide < 60; slide++) {
+            c -= adv;
+            got = w <= roomAt(c) ? boxes(ri, text, n, c - w / 2) : null;
+            free = got !== null && !clashes(got);
+          }
+          if (got && free) {
             next++;
-            out.push(style(r, text, n, cursor - w / 2));
-            cursor -= w + gap;
+            out.push(style(r, text, n, c - w / 2));
+            keep(got);
+            cursor = c - w - gap;
             placed = true;
             break;
           }
-          // Too long for the room before a fixed name: try a later one.
+          // Too long for the room before a fixed name (or with no clear
+          // place before it): try a later one.
           const j = next + 1 + tries;
           if (j < pool.length) [pool[next], pool[j]] = [pool[j], pool[next]];
         }
@@ -264,6 +365,9 @@ export function layoutRivers(fixed: readonly Fixed[], seed = 1729): RiverName[] 
             k++;
           } else if (next >= pool.length) {
             break;
+          } else {
+            // Nothing clear here: leave the stretch empty.
+            cursor -= 60 * adv;
           }
         }
       }
@@ -342,8 +446,8 @@ export interface RiverDrawOptions {
   alpha: number;
   /** Names the scene is drawing itself at `t` (popped or plucked): skipped here. */
   skip?: (nm: RiverName) => boolean;
-  /** A per-name opacity: the clearing round a popped word. */
-  clear?: (p: Pose) => number;
+  /** A per-name opacity, from where the name is: the clearing round a popped or plucked word. */
+  clear?: (p: Pose, nm: RiverName) => number;
 }
 
 /** The back river's blur, px: a little out of focus, behind the other two. */
@@ -372,7 +476,7 @@ export function drawRivers(ctx: CanvasRenderingContext2D, names: readonly RiverN
     // is as long as it is wide.
     const half = nameWidth(nm.text, nm.size) / 2 + 40;
     if (pose.x < -half || pose.x > 1920 + half || pose.y < MASK.top[0] - half || pose.y > MASK.bottom[1] + half) continue;
-    if (o.clear) a *= o.clear(pose);
+    if (o.clear) a *= o.clear(pose, nm);
     const g = nm.river === 0 ? back : main;
     drawNameAt(g, nm.text, pose, nm.size, nm.color, a);
     if (nm.river === 0) anyBack = true;

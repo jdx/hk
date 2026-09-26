@@ -1,0 +1,64 @@
+name: docs showreel
+
+# The landing-page showreel's tests, its Chromium ones included: the pixel
+# checks that each scene starts and ends on its handoff frame, the logo's, and
+# the race scene's empty captions band. The lint job's docs build runs the
+# reel's tests without a browser, which skips these, and the docs deploy runs
+# them only when it renders a new video on main. Here they run on the pull
+# request that changes the reel, before a failure can block a deploy.
+
+on:
+  pull_request:
+    paths:
+      - "docs/.vitepress/theme/showreel/**"
+      - "docs/.vitepress/fonts/**"
+      - "docs/package.json"
+      - "aube-lock.yaml"
+      - "benchmark/results.json"
+      - ".github/workflows/docs-showreel.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/.vitepress/theme/showreel/**"
+      - "docs/.vitepress/fonts/**"
+      - "docs/package.json"
+      - "aube-lock.yaml"
+      - "benchmark/results.json"
+      - ".github/workflows/docs-showreel.yml"
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  showreel:
+    name: showreel tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          cache: false
+          install_args: aube node
+      - name: Install the docs dependencies and Chromium
+        working-directory: docs
+        run: |
+          aube install
+          aube exec playwright-core install --with-deps chromium-headless-shell
+      - name: Type-check the showreel
+        working-directory: docs
+        run: aube run typecheck
+      # SHOWREEL_REQUIRE_CHROMIUM turns a browser that fails to start into a
+      # failure instead of a skip.
+      - name: Test the showreel
+        working-directory: docs
+        env:
+          SHOWREEL_REQUIRE_CHROMIUM: "1"
+        run: aube run test:showreel

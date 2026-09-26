@@ -24,10 +24,13 @@ export const MAIN = {
 export type DotKind = "parent" | "head" | "slot";
 
 /**
- * A commit on the line: the parent in text3; the head in logo cyan with a
- * soft glow; a slot, the dashed empty ring where a commit would go.
+ * A commit on the line: the parent in text3; the head, the commit hk made,
+ * in hk's cyan with a soft glow (not logo cyan, which is only the wordmark,
+ * the hook, its line and hk's benchmark bar; storyboard §3); a slot, the
+ * dashed empty ring where a commit would go. `glow` scales the head's glow,
+ * radius and alpha (1, the default, is at rest).
  */
-export function drawCommitDot(ctx: CanvasRenderingContext2D, x: number, kind: DotKind, o: { y?: number; alpha?: number; r?: number } = {}): void {
+export function drawCommitDot(ctx: CanvasRenderingContext2D, x: number, kind: DotKind, o: { y?: number; alpha?: number; r?: number; glow?: number } = {}): void {
   const a = o.alpha ?? 1;
   if (a <= 0) return;
   const y = o.y ?? MAIN.y;
@@ -44,8 +47,9 @@ export function drawCommitDot(ctx: CanvasRenderingContext2D, x: number, kind: Do
     ctx.lineWidth = 2;
     ctx.stroke();
   } else {
-    if (kind === "head") glow(ctx, x, y, MAIN.head.glow, PALETTE.logo, 0.35);
-    ctx.fillStyle = kind === "head" ? PALETTE.logo : PALETTE.text3;
+    const g = o.glow ?? 1;
+    if (kind === "head") glow(ctx, x, y, MAIN.head.glow * g, PALETTE.cyan, 0.35 * g);
+    ctx.fillStyle = kind === "head" ? PALETTE.cyan : PALETTE.text3;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
@@ -63,6 +67,8 @@ export interface MainOptions {
   /** The parent and head dots, 0..1 each. */
   parent?: number;
   head?: number;
+  /** The head's glow, 1 at rest (drawCommitDot's `glow`). */
+  headGlow?: number;
   alpha?: number;
 }
 
@@ -87,7 +93,7 @@ export function drawMain(ctx: CanvasRenderingContext2D, o: MainOptions = {}): vo
     ctx.fillRect(left, MAIN.y - MAIN.width / 2, right - left, MAIN.width);
   }
   drawCommitDot(ctx, MAIN.parent.x + pan, "parent", { alpha: o.parent ?? 1 });
-  drawCommitDot(ctx, MAIN.head.x + pan, "head", { alpha: o.head ?? 1 });
+  drawCommitDot(ctx, MAIN.head.x + pan, "head", { alpha: o.head ?? 1, glow: o.headGlow });
 
   if (labels > 0) {
     const mono = font(40, 400, MONO);

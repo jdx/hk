@@ -8,7 +8,7 @@
 // (one prettier job), src/main.py is A4 and scripts/deploy.sh C5, so the
 // four lanes at once are the Dm7 the reel lives in. The cues come from the
 // kit's own schedule (kit/lanes.ts) and the scene's beat map
-// (scenes/lanes.ts BEATS), so they land where the chart moves: every
+// (scenes/lanes-timing.ts BEATS), so they land where the chart moves: every
 // padlock clicks shut when its lock is taken and springs open when it is
 // let go, each single-lane step's ✔ rings its lane an octave up, the
 // docked steps rattle their locks while they wait, and each step that
@@ -19,7 +19,7 @@
 
 import type { Part } from ".";
 import { CASCADE, chipWidth, DOCK_CHIP, ganttAt, LANES, lanesOf, lockedFrom, SCHEDULE, type ScheduleStep } from "../kit/lanes";
-import { BEATS } from "../scenes/lanes";
+import { BEATS } from "../scenes/lanes-timing";
 import { BEAT, type Section } from "../timeline";
 import { C, CHOP, CHORD, chopBars, chordBars, DM, type Drums, drumBars, G, HOME, melody, STOMP_FULL } from "./grooves";
 import { ad, hz, line, type Mix, swell, sweep, X } from "./mix";
@@ -30,8 +30,6 @@ import { bassBar, bassRun, blip, concertina, fiddlePluck, gangClap, jingle, knoc
  * sixteenths, and nothing on the last one: the clamp lands out of a breath.
  */
 const BREAK: Drums = [[0, 8], [4], [2, 6], [10, 11, 12, 13, 14]];
-/** Bar 3: the full stomp under the clamps, whose own boots land on 1 and 3. */
-const CLAMPED: Drums = [[10], STOMP_FULL[1], STOMP_FULL[2], STOMP_FULL[3]];
 
 /** Each lane's pitch: D4, F4, A4, C5. */
 const LANE_NOTE = [62, 65, 69, 72];
@@ -46,8 +44,6 @@ const LOCK = panX(LANES.lockX);
 const DOCK_CHIPS = ganttAt(2).chips.filter((c) => c.dock);
 const DOCK_STEPS = DOCK_CHIPS.map((c) => c.step);
 const DOCKED = DOCK_CHIPS.map((c) => c.x + chipWidth(c.step.step, DOCK_CHIP) / 2);
-/** A light crosses the finished chart (scenes/lanes.ts GLINT). */
-const GLINT = { from: 13, to: 14.25 } as const;
 
 /** Every padlock event: [lanes-local beat, lane, shut]. A lock handed straight on opens for a sixteenth first. */
 function lockEvents(): [number, number, boolean][] {
@@ -63,6 +59,8 @@ function lockEvents(): [number, number, boolean][] {
 
 /** A step that holds every file, dropping out of the dock: a clamp. */
 const holdsAll = (s: ScheduleStep): boolean => lanesOf(s).length === LANES.rows.length;
+/** The clamps, in the order they dive. */
+const CLAMPS = SCHEDULE.filter(holdsAll);
 
 /**
  * A step that holds every file leaves the dock: the big hit. It winds up
@@ -141,14 +139,13 @@ export const part: Part = {
         if (at < st.start) padlock(m, s.beat(at) + 0.03 * k, true, 0.16 - 0.02 * k, panX(DOCKED[k]));
       });
     }
-    const clamps = SCHEDULE.filter(holdsAll);
-    const first = s.beat(clamps[0].start);
+    const first = s.beat(CLAMPS[0].start);
     // It is sucked away a sixteenth before the clamp, which lands out of the quiet.
     const suck = first - X;
     whoosh(m, swell(first - 1.25 * BEAT, first - BEAT, 0.01, suck - 0.03, 0.05, suck), sweep(first - 1.25 * BEAT, 1500, suck, 6000), 1.1, { send: 0.15 }, "white");
 
     // The clamps: every file at once on a Dm stab, then again a step higher.
-    clamps.forEach((st, i) => clamp(m, s, st, i ? BEATS.slam2 : BEATS.slam, i ? HIGHER : LANE_NOTE, i ? CLAMP_CHORD_HIGH : CLAMP_CHORD));
+    CLAMPS.forEach((st, i) => clamp(m, s, st, i ? BEATS.slam2 : BEATS.slam, i ? HIGHER : LANE_NOTE, i ? CLAMP_CHORD_HIGH : CLAMP_CHORD));
     // The files the clamp was waiting on flash warm.
     puff(m, s.beat(BEATS.clamp) + 0.01, 0.03, panX(1320), false);
 
@@ -158,14 +155,15 @@ export const part: Part = {
     });
 
     // A light crosses the finished chart.
-    shimmer(m, s.beat(GLINT.from), s.beat(GLINT.to), 0.018, 0);
+    const [glint0, glint1] = BEATS.glint.map((b) => s.beat(b));
+    shimmer(m, glint0, glint1, 0.018, 0);
     // The note and the dock clear away.
     const out = s.beat(BEATS.detailOut);
     whoosh(m, ad(out, out + 0.15, 0.045, out + 0.35), sweep(out, 1200, out + 0.35, 3000), 1.2, { pan: line(out, -0.2, out + 0.35, 0.4), send: 0.2 });
   },
-  // The heart of the reel: the crew's hands at full strength. In bar 3 the
-  // clamps bring their own boots on 1 and 3, so the groove leaves those out.
-  drums: (m, s) => drumBars(m, s, [STOMP_FULL, BREAK, CLAMPED, STOMP_FULL], 1),
+  // The heart of the reel: the crew's hands at full strength. The clamps
+  // bring their own boots (on 1 and 3 of bar 3), so the groove's rest there.
+  drums: (m, s) => drumBars(m, s, [STOMP_FULL, BREAK, STOMP_FULL], 1, CLAMPS.map((st) => st.start)),
   bass(m, s) {
     bassBar(m, s.bar(0), ...DM);
     // Bar 2 bounces on C until the break, then holds A, the dominant, into the clamp's Dm.

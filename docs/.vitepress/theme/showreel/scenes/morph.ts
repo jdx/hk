@@ -8,8 +8,9 @@
 // k's stem stand up; the k's arm slides in under the stem's foot already a
 // diagonal and docks on the stem from the right, so no bar ever passes
 // through another. Each swings a hair past its angle to land on its
-// sixteenth, and rocks back to rest. The last bar is the pen: it rises into
-// the k's junction, draws out along the leg's straight run, and on the
+// sixteenth, and rocks back to rest. The last bar is the pen: already the
+// leg's diagonal, it rises clear of the stem's right into the k's junction
+// and docks there, draws out along the leg's straight run, and on the
 // heartbeat's dub carries straight on round the bowl to the point while the
 // h's shoulder springs out of its stem. The stage dims from bg to night from
 // the edges in, and from b3.5 the frame is morph|end, the wordmark minus its

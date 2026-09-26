@@ -2,9 +2,10 @@
 // the rivers fly into the hk.pkl card, one per sixteenth. A name in flight
 // must never cross a line already drawn, a name being picked, or another
 // flying name, and must stay on the stage: inside the side margin and above
-// the captions' band. And the rivers, swinging into their columns, must not
-// pass through each other. Checked on the scene's own geometry (PROBE), with
-// each name as its box on the mono grid, turned as it is drawn.
+// the captions' band. And the rivers, washing in and swinging into their
+// columns, must not print over each other anywhere on the frame. Checked on
+// the scene's own geometry (PROBE), with each name as its box on the mono
+// grid, turned as it is drawn.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -138,17 +139,19 @@ test("each flight reaches its row, upright, left of the card's text, and lands o
   }
 });
 
-test("the rivers swing into their columns without passing through each other", () => {
+test("the rivers never print over each other, washing in or swinging into their columns", () => {
   const crossings: string[] = [];
-  // From the turn's start to the columns, every visible name of each river
-  // against the others', between the side margins (past x 1760 the front and
-  // mid rivers' waves already graze in the bleed before the turn).
-  for (let t = 3.5 * BEAT; t <= 4.75 * BEAT; t += 1 / 120) {
+  // From the first wash to the columns, every visible name of each river
+  // against the others', across the whole frame, bleeds included.
+  for (let t = 0.5 * BEAT; t <= 4.75 * BEAT; t += 1 / 120) {
     const vis: { river: number; box: Box; text: string }[] = [];
     for (const nm of PROBE.names) {
       const { pose, alpha } = namePose(nm, t);
-      if (alpha * maskAt(pose.y) < 0.06 || pose.x < 160 || pose.x > 1760) continue;
-      vis.push({ river: nm.river, box: nameBox(nm.text, pose, nm.size), text: nm.text });
+      if (alpha * maskAt(pose.y) < 0.06) continue;
+      const box = nameBox(nm.text, pose, nm.size);
+      const xs = corners(box).map((p) => p.x);
+      if (Math.max(...xs) < 0 || Math.min(...xs) > 1920) continue;
+      vis.push({ river: nm.river, box, text: nm.text });
     }
     for (let i = 0; i < vis.length; i++) {
       for (let j = i + 1; j < vis.length; j++) {

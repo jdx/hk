@@ -3,8 +3,9 @@
 // race-timing.ts gives it (the score rings each ding there), at exactly
 // median / axis × 1000 px, never past it; the chart draws only the facts'
 // own figures; without a claim (F0) it draws no figure at all, only hk's
-// output; F0's pane is the lit screen; and nothing is drawn in the
-// captions' band while a caption is up (in Chromium).
+// output; F0's pane is the lit screen; with more tools than capsules the
+// rows close up without touching; and nothing is drawn in the captions'
+// band while a caption is up (in Chromium).
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -12,18 +13,37 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { test } from "node:test";
 import { BEAT, type ReelFacts, sec, W, H } from "../bible";
+import { fmt, type Race } from "../facts";
 import { raceRuns } from "../race-timing";
 import { checkAll } from "../kit/screens";
-import { PANE_FULL } from "../kit/term";
-import { captions, scene } from "../scenes/race";
-import { barLen, chartModel, RESET, REST, SCALE } from "../scenes/race-chart";
+import { termLayout } from "../kit/term";
+import { captions, F0_DETAIL_AT, F0_PANE, scene } from "../scenes/race";
+import { barLen, chartModel, RESET, REST, rowExtent, SCALE, slotY } from "../scenes/race-chart";
 import { timeCaptions } from "../type";
 import { factsFor, noClaim, numbers } from "./published";
 import { REPO, SHOWREEL } from "./repo";
 
 const S = sec("race");
+
+/** `f` with `extra` more tools in each race, each slower than the last. */
+function withMoreTools(f: ReelFacts, extra: number): ReelFacts {
+  const more = (r: Race | null): Race | null => {
+    if (!r) return r;
+    const slowest = r.rows[r.rows.length - 1];
+    const rows = [...r.rows];
+    for (let i = 1; i <= extra; i++) {
+      const median = slowest.median * (1 + 0.12 * i);
+      rows.push({ key: `tool${i}`, label: `tool-${i}`, mode: "sequential", median, min: median * 0.98, max: median * 1.03, shown: fmt(median) });
+    }
+    return { ...r, rows, axis: Math.max(...rows.map((x) => x.max)) };
+  };
+  return { ...f, fixAll: more(f.fixAll), checkAll: more(f.checkAll) };
+}
+
 const VARIANTS: [string, ReelFacts | null][] = [
   ["both", factsFor("both")],
+  // More tools than capsules: the rows close up.
+  ["six tools", withMoreTools(factsFor("both")!, 2)],
   ["one", factsFor("one")],
   // The other single claim: Check every file alone, which then runs first, from b1.
   ["check only", { ...factsFor("both")!, fixAll: null }],
@@ -70,6 +90,20 @@ test("each bar stops on the beat race-timing gives it, at its median to the pixe
       assert.equal(r.order[0], "hk");
     });
   }
+});
+
+test("however many tools race, no row's ink reaches the next row's", () => {
+  for (let n = 2; n <= 10; n++) {
+    const { above, below } = rowExtent(n);
+    for (let i = 0; i + 1 < n; i++) {
+      const pitch = slotY(i + 1, n) - slotY(i, n);
+      assert.ok(below + above < pitch, `${n} rows: rows ${i} and ${i + 1} are ${pitch} px apart, but a row reaches ${above} px up and ${below} px down`);
+    }
+  }
+  // The six-tool fixture draws every row, each in its own band.
+  const m = chartModel(withMoreTools(factsFor("both")!, 2))!;
+  assert.equal(m.races[0].order.length, 6);
+  assert.equal(m.geom.detail, false, "six rows leave out the modes and whiskers");
 });
 
 test("the second race's bars are home on the axis before they start again", () => {
@@ -160,18 +194,29 @@ test("with a claim the chart draws only the facts' figures: the workload and eac
 });
 
 test("F0's pane is the lit screen while it is up, and nothing is lit with a chart or on a bar line", () => {
-  const { ctx } = recorder();
-  const litAt = (facts: ReelFacts | null, lt: number) => {
-    scene.draw(ctx, lt, { W, H, t: S.start + lt, facts });
-    return scene.lit!(lt);
-  };
+  const litAt = (facts: ReelFacts | null, lt: number) => scene.lit!(lt, { facts });
   for (const facts of [factsFor("both"), factsFor("one")]) {
     for (let lt = 0; lt < S.len; lt += BEAT / 4) assert.equal(litAt(facts, lt), null, `lit at ${lt} with a chart`);
   }
   assert.equal(litAt(null, 0), null, "nothing lit on the whip's bar line");
   assert.equal(litAt(null, S.len - 1 / 120), null, "nothing lit on race|morph");
   const up = litAt(null, 4 * BEAT);
-  assert.deepEqual(up, { x: PANE_FULL.x, y: PANE_FULL.y, w: PANE_FULL.w, h: PANE_FULL.h, alpha: 1 });
+  assert.deepEqual(up, { x: F0_PANE.x, y: F0_PANE.y, w: F0_PANE.w, h: F0_PANE.h, alpha: 1 });
+});
+
+test("F0's pane shows every row of every checkAll screen, inside its window, with the pointer to the page under it", () => {
+  const most = Math.max(...checkAll.map((s) => s.length));
+  assert.ok(F0_PANE.rows >= most, `the pane holds ${F0_PANE.rows} rows, but a screen has ${most}`);
+  const L = termLayout(F0_PANE, most);
+  assert.equal(L.first, 0, "top rows first");
+  // Ascenders reach 0.8 em above a baseline and descenders 0.25 em below.
+  assert.ok(L.baseline(0) - 0.8 * F0_PANE.size >= L.body.y, "the first row is inside the window's body");
+  const bottom = F0_PANE.y + F0_PANE.h;
+  assert.ok(L.baseline(most - 1) + 0.25 * F0_PANE.size <= bottom, "the last row is inside the window");
+  assert.ok(F0_PANE.y >= 100 && bottom <= 700, "the pane stands in the actors' zone");
+  // The 40 px pointer: its caps clear the pane, its descenders the captions' band.
+  assert.ok(F0_DETAIL_AT.y - 0.75 * 40 >= bottom + 12, "the pointer clears the pane");
+  assert.ok(F0_DETAIL_AT.y + 0.25 * 40 <= 740 - 8, "the pointer clears the captions' band");
 });
 
 // In Chromium: the captions' band stays empty while a caption is up.

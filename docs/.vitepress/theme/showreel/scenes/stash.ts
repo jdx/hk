@@ -2,14 +2,15 @@
 // unstaged line aside, so the linters see only what was staged.
 //
 // The commit's pane squeezes into a strip at the top as the staged
-// src/main.py rises on a spring, its unstaged last line marked out in paper
-// with a marching dashed outline. On b2 a blade cuts along the outline and
-// the line peels up behind it (stash-peel.ts), is flung in an arc into the
-// stash tray, and the lid slams on b3 as the pane reports the stash. A cyan
-// read band sweeps what the linters will see, three formatting problems
-// are underlined on the eighths, and the scene folds into the lanes: the
-// strip leaves through the top, the card collapses into its file's lane
-// label, the other labels type on, the tracks draw, and the padlocks pop in.
+// src/main.py rises and lands on b1.5, its unstaged last line marked out in
+// paper with a marching dashed outline. On b2 a blade cuts along the outline
+// and the line peels up behind it (stash-peel.ts), is flung in an arc into
+// the stash tray, and the lid slams on b3 as the pane reports the stash. A
+// cyan read band sweeps what the linters will see, the four lines ruff and
+// ruff-format will change are underlined on the eighths, and the scene folds
+// into the lanes: the strip leaves through the top, the card collapses into
+// its file's lane label, the other labels type on, the tracks draw, and the
+// padlocks pop in.
 
 import { BEAT, PALETTE, type Scene, sec } from "../bible";
 import { mix, rgba } from "../color";
@@ -24,6 +25,7 @@ import { drawTray, TRAY } from "../kit/tray";
 import { clamp, cubicBezier, DEG, hash, inOutCubic, inOutSine, lerp, outCubic, progress, smoothstep, spring, swiftIn, swiftInOut, swiftOut, TAU } from "../math";
 import { type Caption, drawText, font } from "../type";
 import { DASH, dashAt, drawBlade, drawSparks, drawStrip, drawStripFace, INTO, PEEL, SPARKS_AT, STRIP, stripPose } from "./stash-peel";
+import { CARD_IN, CARD_OUT, HOLD, LID, LOCKS, PANE_IN, READ, ROW_AT, SETTLED, SQUIGGLE_DRAW, SQUIGGLES, STRIP_OUT, TAG_IN, TRACKS, TRAY_IN, TYPE } from "./stash-timing";
 
 /** The section's must-read captions. */
 export const CAPTIONS: readonly Caption[] = [
@@ -33,36 +35,7 @@ export const CAPTIONS: readonly Caption[] = [
 
 const S = sec("stash");
 
-// Beats, section-local. The score (score/stash.ts) can hang its cues here.
-
-/** The commit's pane squeezes into STRIP, settling on b1.5. */
-const PANE_IN = { from: 0, to: 1.5 } as const;
-/** The main.py card rises on a spring and lands on b1.5. */
-const CARD_IN = { from: 0.5, to: 1.5 } as const;
-/** The tray rises in behind it, settled before its lid opens. */
-const TRAY_IN = { from: 1, to: 1.875 } as const;
-/** The `unstaged` tag comes in once the card has landed, and the sparks blow it away. */
-const TAG_IN = 1.375;
-/** The lid opens on the cut, stays up for the flight, and slams on b3. */
-const LID = { open: 2, opened: 2.1875, shut: 2.875, slam: 3 } as const;
-/** The pane's second row reports the stash as the lid slams. */
-const ROW_AT = 3;
-/** What the linters see: a read band down the staged lines. */
-const READ = { from: 3.5, to: 5 } as const;
-/** Squiggles under three lines ruff will fix, one per eighth. */
-const SQUIGGLES = [
-  { row: 0, col0: 0, col1: 9, at: 6 },
-  { row: 1, col0: 0, col1: 17, at: 6.5 },
-  { row: 2, col0: 4, col1: 19, at: 7 },
-] as const;
-/** Into the lanes: the strip leaves, the card collapses into its label, the lanes come up. */
-const STRIP_OUT = { from: 9.5, to: 10.5 } as const;
-const CARD_OUT = { from: 10, to: 11 } as const;
-const TYPE = { from: 10.5, each: 0.125, rate: 24 } as const;
-const TRACKS = { from: 11, each: 0.125, dur: 0.375 } as const;
-const LOCKS = { from: 11.5, each: 0.0625, dur: 0.25 } as const;
-/** From here on the frame is the stash|lanes handoff. */
-const SETTLED = LOCKS.from + 3 * LOCKS.each + LOCKS.dur;
+// Beats, section-local, are stash-timing.ts's, which the score reads too.
 
 // Layout.
 
@@ -73,6 +46,8 @@ const L = cardLayout(CARD, CARD_TEXT);
 const TAB = "src/main.py";
 /** The card draws a tab this wide with no text; the scene sets the name itself, so it can fly into the lane label. */
 const TAB_BLANK = " ".repeat(TAB.length);
+/** The card's tab strip, as deep as card.ts draws it. */
+const TAB_BAND = 40;
 const TAB_AT = { x: CARD.x + 24, y: CARD.y + 20 + 0.3 * 30, size: 30 } as const;
 /** Lane 3's label, where the tab's name lands (lanes.ts: mono 40 px text1 at x 160, baseline cy + 14). */
 const LABEL_AT = { x: LANES.labelX, y: LANES.rows[2] + 14, size: 40 } as const;
@@ -94,6 +69,42 @@ function springTo(b: number, from: number, until: number, freq: number, damping:
   const v = spring((b - from) * BEAT, freq, damping);
   return v + (1 - v) * smoothstep(until - 0.375, until, b);
 }
+
+/** How fast the card is going, in rest-heights a beat, as it is launched and as it reaches its place. */
+const RISE = { launch: 1.6, arrive: 0.3 } as const;
+
+/**
+ * The card's rise at beat b: 0 below the frame, 1 at rest. Launched at
+ * CARD_IN.from, it slows all the way up but is still moving when it reaches
+ * its place on CARD_IN.to (a cubic Hermite, monotonic for these speeds), so
+ * it lands on the beat; it carries on up a few pixels and settles home,
+ * exactly 1 and still from CARD_IN.settled.
+ */
+export function cardRise(b: number): number {
+  if (b <= CARD_IN.from) return 0;
+  if (b >= CARD_IN.settled) return 1;
+  if (b < CARD_IN.to) {
+    const span = CARD_IN.to - CARD_IN.from;
+    const u = (b - CARD_IN.from) / span;
+    const m0 = RISE.launch * span;
+    const m1 = RISE.arrive * span;
+    return (u ** 3 - 2 * u ** 2 + u) * m0 + (3 * u ** 2 - 2 * u ** 3) + (u ** 3 - u ** 2) * m1;
+  }
+  // The overshoot leaves at the arrival's speed and comes home at rest.
+  const T = CARD_IN.settled - CARD_IN.to;
+  const s = (b - CARD_IN.to) / T;
+  return 1 + ((RISE.arrive * T) / Math.PI) * Math.sin(Math.PI * s) * (1 - s) ** 2;
+}
+
+/**
+ * How much the hold breathes at beat b: 0 outside HOLD, 1 across its middle.
+ * The card itself stays put: text snaps to whole pixels, so a slow float of
+ * a pixel or two would judder.
+ */
+const holdEnv = (b: number): number => smoothstep(HOLD.from, HOLD.full, b) * (1 - smoothstep(HOLD.fade, HOLD.to, b));
+
+/** A pulse on the beats through the hold, −1..1 scaled by holdEnv: 1 on each beat. */
+const holdPulse = (b: number): number => holdEnv(b) * Math.cos(TAU * b);
 
 // The terminal.
 
@@ -147,11 +158,11 @@ function drawPane(ctx: CanvasRenderingContext2D, b: number, t: number): void {
 /** The card collapsing: away gently, then fast, then a soft finish into the name. */
 const SHRINK = cubicBezier(0.45, 0, 0.25, 1);
 
-/** The card's pose: rising on a spring, then collapsing into its lane label about the flying name. */
+/** The card's pose: rising into place, then collapsing into its lane label about the flying name. */
 interface CardPose {
   dy: number;
   rot: number;
-  /** Scale about the tab name's middle, which is where `name` puts it. */
+  /** Scale about the tab name's left end on its baseline, which is where `name` puts it. */
   scale: number;
   name: { x: number; y: number; size: number; color: string };
   alpha: number;
@@ -159,8 +170,8 @@ interface CardPose {
 
 function cardPose(b: number): CardPose | null {
   if (b < CARD_IN.from || b >= CARD_OUT.to) return null;
-  // Launched from below the frame, it rises past its place and settles on b1.5.
-  const up = land(b, CARD_IN.from, CARD_IN.to - CARD_IN.from, 0.041);
+  // Launched from below the frame, it reaches its place on b1.5, rises a hair past it and settles.
+  const up = cardRise(b);
   const rest = { x: TAB_AT.x, y: TAB_AT.y, size: TAB_AT.size, color: PALETTE.text2 };
   if (b < CARD_OUT.from) {
     // A breath before it goes.
@@ -208,6 +219,16 @@ function squiggle(ctx: CanvasRenderingContext2D, x0: number, x1: number, y: numb
   if (p < 1) glow(ctx, end, y, 22, PALETTE.warm, 0.55 * (1 - p));
 }
 
+/** The card's rise, float and recoil: a shift and a turn about its middle. */
+function cardTransform(ctx: CanvasRenderingContext2D, pose: CardPose): void {
+  if (!pose.dy && !pose.rot) return;
+  const cx = CARD.x + CARD.w / 2;
+  const cy = CARD.y + CARD.h / 2;
+  ctx.translate(cx, cy + pose.dy);
+  ctx.rotate(pose.rot);
+  ctx.translate(-cx, -cy);
+}
+
 function drawMainCard(ctx: CanvasRenderingContext2D, b: number): void {
   const pose = cardPose(b);
   if (!pose) return;
@@ -221,35 +242,40 @@ function drawMainCard(ctx: CanvasRenderingContext2D, b: number): void {
   }
   ctx.save();
   ctx.globalAlpha *= pose.alpha;
-  if (pose.dy || pose.rot) {
-    const cx = CARD.x + CARD.w / 2;
-    const cy = CARD.y + CARD.h / 2 + pose.dy;
-    ctx.translate(cx, cy);
-    ctx.rotate(pose.rot);
-    ctx.translate(-cx, -(CARD.y + CARD.h / 2));
-  }
+  cardTransform(ctx, pose);
   if (pose.scale !== 1) {
-    // About the name's middle, so the card shrinks into the name as it flies.
-    const mid = (n: { x: number; y: number; size: number }) => ({ x: n.x + monoWidth(TAB, n.size) / 2, y: n.y - 0.3 * n.size });
-    const to = mid(pose.name);
-    const from = mid(TAB_AT);
-    ctx.translate(to.x, to.y);
+    // About the name's left end on its baseline, so the card shrinks into
+    // the name as it flies and the name never hangs off the card's left.
+    ctx.translate(pose.name.x, pose.name.y);
     ctx.scale(pose.scale, pose.scale);
-    ctx.translate(-from.x, -from.y);
+    ctx.translate(-TAB_AT.x, -TAB_AT.y);
   }
   // A soft shadow under it: straight down whatever the card's angle, and
   // clear of the captions' band.
   const d = Math.hypot(ctx.getTransform().a, ctx.getTransform().b);
+  const breath = holdEnv(b) * Math.sin(Math.PI * (b - HOLD.from));
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 22 * d;
-  ctx.shadowOffsetY = 10 * d;
+  ctx.shadowColor = `rgba(0,0,0,${(0.5 + 0.08 * breath).toFixed(4)})`;
+  ctx.shadowBlur = (22 + 3 * breath) * d;
+  ctx.shadowOffsetY = (10 + 2 * breath) * d;
   roundedRect(ctx, CARD.x, CARD.y, CARD.w, CARD.h, 16);
   ctx.fillStyle = PALETTE.surface;
   ctx.fill();
   ctx.restore();
 
-  drawCard(ctx, CARD, { tab: TAB_BLANK, lines: MAIN_PY_STAGED, ...CARD_TEXT, gutter: { color: PALETTE.cyanSoft, from: 0, to: 9 } });
+  // Collapsing, the card's tab strip fades out first, so the name, growing
+  // toward its lane size, never overhangs a tab smaller than itself.
+  const tabA = b < CARD_OUT.from ? 1 : 1 - smoothstep(0, 0.2, progress(CARD_OUT.from, CARD_OUT.to, b));
+  drawCard(ctx, CARD, { tab: tabA >= 1 ? TAB_BLANK : undefined, lines: MAIN_PY_STAGED, ...CARD_TEXT, gutter: { color: PALETTE.cyanSoft, from: 0, to: 9 } });
+  if (tabA > 0 && tabA < 1) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(CARD.x, CARD.y, CARD.w, TAB_BAND);
+    ctx.clip();
+    ctx.globalAlpha *= tabA;
+    drawCard(ctx, CARD, { tab: TAB_BLANK, lines: [], ...CARD_TEXT, frame: false });
+    ctx.restore();
+  }
   if (b < CARD_OUT.from) drawMono(ctx, TAB, TAB_AT.x, TAB_AT.y, TAB_AT.size, PALETTE.text2);
 
   ctx.save();
@@ -277,10 +303,11 @@ function drawMainCard(ctx: CanvasRenderingContext2D, b: number): void {
   // The staged lines light up in the gutter as the read band passes them, and stay lit.
   if (b >= READ.from) {
     const edge = readEdge(b);
+    const pulse = 1 + 0.1 * holdPulse(b);
     for (let r = 0; r <= 9; r++) {
       const lit = smoothstep(L.rowTop(r), L.rowBottom(r), edge);
       if (lit <= 0) continue;
-      ctx.fillStyle = rgba(PALETTE.cyan, 0.5 * lit);
+      ctx.fillStyle = rgba(PALETTE.cyan, 0.8 * lit * pulse);
       ctx.fillRect(CARD.x + 12, L.rowTop(r), 6, L.rowBottom(r) - L.rowTop(r));
     }
     const env = smoothstep(READ.from, READ.from + 0.25, b) * (1 - smoothstep(READ.to - 0.25, READ.to, b));
@@ -292,30 +319,37 @@ function drawMainCard(ctx: CanvasRenderingContext2D, b: number): void {
       const bandH = 96;
       const g = ctx.createLinearGradient(0, edge - bandH, 0, edge);
       g.addColorStop(0, rgba(PALETTE.cyan, 0));
-      g.addColorStop(0.8, rgba(PALETTE.cyan, 0.1 * env));
-      g.addColorStop(1, rgba(PALETTE.cyan, 0.18 * env));
+      g.addColorStop(0.8, rgba(PALETTE.cyan, 0.16 * env));
+      g.addColorStop(1, rgba(PALETTE.cyan, 0.28 * env));
       ctx.fillStyle = g;
       ctx.fillRect(CARD.x, edge - bandH, CARD.w, bandH);
-      ctx.fillStyle = rgba(PALETTE.cyanBright, 0.6 * env);
+      ctx.fillStyle = rgba(PALETTE.cyanBright, 0.8 * env);
       ctx.fillRect(CARD.x + 12, edge - 1, CARD.w - 24, 2);
       glow(ctx, CARD.x + CARD.w / 2, edge, 60, PALETTE.cyan, 0.12 * env);
       ctx.restore();
     }
   }
+  ctx.save();
+  // Full on the beats, a touch dimmer between them.
+  ctx.globalAlpha *= 1 - 0.1 * (holdEnv(b) - holdPulse(b));
   for (const q of SQUIGGLES) {
-    const p = swiftOut(progress(q.at, q.at + 0.25, b));
+    const p = swiftOut(progress(q.at, q.at + SQUIGGLE_DRAW, b));
     squiggle(ctx, L.col(q.col0), L.col(q.col1) - 2, L.baseline(q.row) + 6.5, p);
   }
+  ctx.restore();
   ctx.restore();
   ctx.restore();
   drawName();
 }
 
-/** The `unstaged` tag on line 11, with a dashed leader to it; the sparks blow it away. */
+/** The `unstaged` tag on line 11, with a dashed leader to it, riding with the card; the sparks blow it away. */
 function drawTag(ctx: CanvasRenderingContext2D, b: number): void {
   const inP = swiftOut(progress(TAG_IN, TAG_IN + 0.375, b));
   const blow = progress(SPARKS_AT, SPARKS_AT + 0.22, b);
-  if (inP <= 0 || blow >= 1) return;
+  const pose = cardPose(b);
+  if (inP <= 0 || blow >= 1 || !pose) return;
+  ctx.save();
+  cardTransform(ctx, pose);
   const leader = inP * (1 - progress(1.9375, 2.0625, b));
   if (leader > 0) {
     ctx.save();
@@ -335,6 +369,7 @@ function drawTag(ctx: CanvasRenderingContext2D, b: number): void {
   ctx.save();
   ctx.globalAlpha *= inP * (1 - blow) ** 1.5;
   drawText(ctx, "unstaged", TAG.x - 16 * (1 - inP) + 22 * k, TAG.y - 8 * k, { font: font(40, 500), fill: PALETTE.text3 });
+  ctx.restore();
   ctx.restore();
 }
 
@@ -363,6 +398,10 @@ function drawTrayLayer(ctx: CanvasRenderingContext2D, b: number, t: number): voi
   const dy = (1 - up) * 120 + 3 * bump(b, LID.slam, 0.2);
   const alpha = smoothstep(TRAY_IN.from, TRAY_IN.from + 0.3, b);
   const pose = stripPose(b);
+  // The strip comes down over the open lid's hinge end, so it flies in front
+  // of the lid, and goes under it once it is flat in the slot, as the lid
+  // comes down on it.
+  const under = pose !== null && b >= INTO.from;
   // The line's top edge is the sliver in the slot once it is down in the tray.
   const holding = progress(INTO.from, INTO.to, b);
   ctx.save();
@@ -372,10 +411,9 @@ function drawTrayLayer(ctx: CanvasRenderingContext2D, b: number, t: number): voi
     holding: holding >= 1 ? true : holding,
     t,
     alpha,
-    // The strip, from the moment it starts to peel, rides over the card and
-    // into the tray under its lid: in the tray's inside layer, in frame
-    // coordinates.
-    inside: pose
+    // In the slot, the strip is in the tray's inside layer, under the lid,
+    // in frame coordinates.
+    inside: under
       ? (c) => {
           c.translate(0, -dy);
           drawStrip(c, pose);
@@ -401,6 +439,7 @@ function drawTrayLayer(ctx: CanvasRenderingContext2D, b: number, t: number): voi
     ctx.restore();
   }
   ctx.restore();
+  if (pose && !under) drawStrip(ctx, pose);
 }
 
 // The lanes coming up.

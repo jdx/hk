@@ -57,23 +57,38 @@ export const CHOP = 0.05;
 /** The item for bar `b`: the list's own, or its last one once the list runs out. */
 const nth = <T>(list: readonly T[], b: number): T => list[Math.min(b, list.length - 1)];
 
+/** Reel times where the groove holds back, so a cue there is the only attack. */
+export type Hush = (t: number) => boolean;
+const never: Hush = () => false;
+
 /**
- * One bar of drums from `t0`. The downbeat boot lands hardest and a pickup
- * lightest; the crew's hands and the tambourine keep their places. The
- * tambourine sits well under the boots: it is nearly all top end, and it
- * plays for a third of the reel.
+ * One bar of drums from `t0`, less any hit `hush` holds back. The downbeat
+ * boot lands hardest and a pickup lightest; the crew's hands and the
+ * tambourine keep their places. The tambourine sits well under the boots:
+ * it is nearly all top end, and it plays for a third of the reel.
  */
-export function stompBar(m: Mix, t0: number, [stomps, claps, jingles = [], ghosts = []]: Drums, vel = 1, hands = 0.82): void {
-  for (const s of stomps) stomp(m, t0 + s * X, vel * (s === 0 ? 1 : s % 8 === 0 ? 0.9 : 0.7));
+export function stompBar(m: Mix, t0: number, [stomps, claps, jingles = [], ghosts = []]: Drums, vel = 1, hands = 0.82, hush = never): void {
+  const at = (s: number) => t0 + s * X;
+  const heard = (s: number) => !hush(at(s));
+  for (const s of stomps.filter(heard)) stomp(m, at(s), vel * (s === 0 ? 1 : s % 8 === 0 ? 0.9 : 0.7));
   // The crew's hands a little under the boots, so a cue on 2 or 4 still speaks.
-  for (const s of claps) gangClap(m, t0 + s * X, hands * vel);
-  for (const s of jingles) jingle(m, t0 + s * X, 0.5 * vel);
-  for (const s of ghosts) jingle(m, t0 + s * X, 0.2 * vel, 0.05);
+  for (const s of claps.filter(heard)) gangClap(m, at(s), hands * vel);
+  for (const s of jingles.filter(heard)) jingle(m, at(s), 0.5 * vel);
+  for (const s of ghosts.filter(heard)) jingle(m, at(s), 0.2 * vel, 0.05);
 }
 
-/** A bar of drums for each bar of the section; `hands` sets the crew's claps against the boots. */
-export function drumBars(m: Mix, s: Section, bars: readonly Drums[], hands = 0.82): void {
-  for (let b = 0; b < s.bars; b++) stompBar(m, s.bar(b), nth(bars, b), 1, hands);
+/**
+ * A bar of drums for each bar of the section; `hands` sets the crew's claps
+ * against the boots. The groove's boots rest on `rests` (section beats),
+ * where a cue brings its own boot, so the two never double; every hit rests
+ * where `hush` says.
+ */
+export function drumBars(m: Mix, s: Section, bars: readonly Drums[], hands = 0.82, rests: readonly number[] = [], hush = never): void {
+  for (let b = 0; b < s.bars; b++) {
+    const [stomps, ...rest] = nth(bars, b);
+    const free = stomps.filter((x) => !rests.some((at) => Math.abs(at - (4 * b + x / 4)) < 1e-6));
+    stompBar(m, s.bar(b), [free, ...rest], 1, hands, hush);
+  }
 }
 
 /** A bar of the staccato bass for each of the section's first `bars` bars. */
@@ -95,13 +110,23 @@ export function chordBars(m: Mix, s: Section, chords: readonly (readonly number[
 /**
  * The fiddle chopping the off-beats, on the and of 2 and the and of 4 of
  * bars `from` to `to` (or on `beats` of each bar): the chord's top two
- * notes an octave up, plucked as a double stop.
+ * notes an octave up, plucked as a double stop, except where `hush` says.
  */
-export function chopBars(m: Mix, s: Section, chords: readonly (readonly number[])[], vel = CHOP, from = 0, to = s.bars, beats: readonly number[] = [1.5, 3.5]): void {
+export function chopBars(
+  m: Mix,
+  s: Section,
+  chords: readonly (readonly number[])[],
+  vel = CHOP,
+  from = 0,
+  to = s.bars,
+  beats: readonly number[] = [1.5, 3.5],
+  hush = never,
+): void {
   for (let b = from; b < to; b++) {
     const top = nth(chords, b).slice(-2);
     for (const beat of beats) {
-      top.forEach((n, i) => fiddlePluck(m, s.bar(b) + beat * BEAT + 0.004 * i, hz(n + 12), vel, 0.35));
+      const t = s.bar(b) + beat * BEAT;
+      if (!hush(t)) top.forEach((n, i) => fiddlePluck(m, t + 0.004 * i, hz(n + 12), vel, 0.35));
     }
   }
 }

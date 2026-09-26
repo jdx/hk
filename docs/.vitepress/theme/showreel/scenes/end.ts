@@ -69,7 +69,12 @@ export const URL_TEXT = "hk.jdx.dev";
 
 // Layout (storyboard §6.11).
 const LEFT = 160;
-const NAME_Y = 400;
+/**
+ * The name stands on the wordmark's line: its baseline is the ink bottom of
+ * the logo's h and k stems (y 80 plus the round cap, ≈ 428), not the
+ * storyboard's 400, so the two "hk"s sit side by side on one line.
+ */
+const NAME_Y = logoToPx(LOGO_END, 28, 85).y;
 const NAME_SIZE = 220;
 const NAME_FONT = font(NAME_SIZE, 700);
 /** −0.04 em, laid out per glyph. */
@@ -272,7 +277,9 @@ function drawInstall(ctx: CanvasRenderingContext2D, lt: number, t: number): void
     ctx.restore();
   }
   if (reveal < 1) {
-    ctx.setLineDash([PERIMETER * swiftOut(progress(0, 0.7, reveal)), PERIMETER + 20]);
+    // Drawn over the box's first half (about eight frames at 60 fps, eased
+    // in and out so it visibly travels), closing as the `$` lands on b3.75.
+    ctx.setLineDash([PERIMETER * inOutSine(progress(0, 0.5, reveal)), PERIMETER + 20]);
     ctx.strokeStyle = mix(PALETTE.text2, PALETTE.divider, body);
     ctx.lineWidth = 2 - body;
   } else {
@@ -331,7 +338,10 @@ function drawCopy(ctx: CanvasRenderingContext2D, lt: number, t: number): void {
   drawName(ctx, lt);
   drawWords(ctx, TAGLINE, LEFT, TAGLINE_Y, taglineStyle(ctx), lt, T_TAGLINE);
   drawInstall(ctx, lt, t);
-  drawWords(ctx, URL_TEXT, LEFT, URL_Y, URL_STYLE, lt, T_URL);
+  // The address lands bright on the bell and cools to cyan over a
+  // sixteenth, as the typed keys do.
+  const cool = smoothstep(T_URL, T_URL + b(0.25), lt);
+  drawWords(ctx, URL_TEXT, LEFT, URL_Y, { ...URL_STYLE, fill: mix(PALETTE.glint, PALETTE.cyan, cool) }, lt, T_URL);
 }
 
 /**

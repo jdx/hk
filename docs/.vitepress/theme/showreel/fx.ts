@@ -99,24 +99,44 @@ const SPARE_CORE = Math.SQRT2;
 const SPARE_OUT = 2 * Math.SQRT2;
 
 /**
- * Darkens the frame toward its edges. A lit screen, if given, is left out
- * of it: the ellipse through its corners spared by `lit.alpha`, fading back
- * into the vignette with no edge. Without one the vignette is painted
- * straight onto the frame.
+ * Where the vignette starts, as a fraction of the way from the frame's
+ * centre to its corners along the ellipse through them. At mid-height that
+ * is just outside the stage's side margins (x 160 and 1760), so labels set
+ * there keep their palette colours.
+ */
+const VIGNETTE_INNER = 0.55;
+
+/**
+ * Darkens the frame toward its corners: an ellipse with the frame's aspect,
+ * clear inside VIGNETTE_INNER and easing in (quadratically) to `strength`
+ * at the corners, so the stage is all but untouched and a long label does
+ * not fade across its width. A lit screen, if given, is left out of it: the
+ * ellipse through its corners spared by `lit.alpha`, fading back into the
+ * vignette with no edge. Without one the vignette is painted straight onto
+ * the frame.
  */
 export function vignette(
   ctx: CanvasRenderingContext2D,
   W: number,
   H: number,
-  strength = 0.55,
+  strength = 0.35,
   lit: LitRect | null = null,
 ): void {
   const paint = (c: CanvasRenderingContext2D) => {
-    const g = c.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 1.05);
+    // Squeezed by H/W about the centre, the frame is an H × H square and
+    // the ellipse through its corners a circle of radius H/√2.
+    c.save();
+    c.translate(W / 2, H / 2);
+    c.scale(W / H, 1);
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, (H / 2) * Math.SQRT2);
     g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, `rgba(0,0,0,${strength})`);
+    for (let i = 0; i <= 8; i++) {
+      const u = i / 8;
+      g.addColorStop(VIGNETTE_INNER + (1 - VIGNETTE_INNER) * u, `rgba(0,0,0,${strength * u * u})`);
+    }
     c.fillStyle = g;
-    c.fillRect(0, 0, W, H);
+    c.fillRect(-H / 2, -H / 2, H, H);
+    c.restore();
   };
   const spare = lit ? clamp(lit.alpha) : 0;
   if (!lit || spare <= 0 || lit.w < 1 || lit.h < 1) {

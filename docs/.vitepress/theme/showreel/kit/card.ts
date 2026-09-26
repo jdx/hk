@@ -67,6 +67,11 @@ export interface CardOptions {
   frame?: boolean;
   /** The tab's label's opacity, 0..1 (the tab itself stays): a scene flying the name elsewhere. Default 1. */
   tabLabelAlpha?: number;
+  /**
+   * Paint on the card's surface, clipped to the card, under its tab strip
+   * and its rows: light passing over the card without touching its text.
+   */
+  under?: (ctx: CanvasRenderingContext2D, layout: CardLayout) => void;
 }
 
 /** Where a card's rows are, for scenes laying marks over them. */
@@ -253,6 +258,11 @@ export function drawCard(ctx: CanvasRenderingContext2D, rect: CardRect, o: CardO
   ctx.save();
   roundedRect(ctx, rect.x, rect.y, rect.w, rect.h, R);
   ctx.clip();
+  if (o.under) {
+    ctx.save();
+    o.under(ctx, L);
+    ctx.restore();
+  }
   if (o.tab && body > 0) {
     // An editor's tab strip, a step darker than the card, with the file's
     // tab in the card's own colour so it reads as open.

@@ -146,9 +146,10 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
     <meta property="og:image:alt" content="Fast git hooks and project linting — hk docs">
     <meta name="twitter:image:alt" content="Fast git hooks and project linting — hk docs">
     <meta name="twitter:card" content="summary_large_image">`;
-  const homeWith = (url, player = src) =>
+  const posterSrc = `/showreel-poster.jpg?v=${version(video)}`;
+  const homeWith = (url, player = src, poster = posterSrc) =>
     page("Home", home, { type: "video.other", extra: tags(url) }) +
-    `<video src="${player}" poster="/showreel-poster.jpg?v=${version(video)}" controls></video>`;
+    `<video src="${player}" poster="${poster}" controls></video>`;
   const otherPage = (extra = "") =>
     page("Other page", other, { extra }).replaceAll(
       "Fast git hooks and project linting — hk docs",
@@ -181,11 +182,16 @@ test("built-page checks offer the showreel as og:video on the homepage only", ()
     assert.equal(valid.status, 0, valid.stderr);
     assert.match(valid.stdout, /with the showreel/);
 
-    // A stale render's URL, in the tags or in the player.
+    // A stale render's URL, in the tags, the player or its poster.
     writeFileSync(join(dir, "index.html"), homeWith("https://example.com/showreel.mp4?v=0123456789ab"));
     expectFailure(/og:video is not the deployed showreel\.mp4/);
     writeFileSync(join(dir, "index.html"), homeWith(`https://example.com${src}`, "/showreel.mp4?v=0123456789ab"));
     expectFailure(/The player does not start on the deployed showreel\.mp4/);
+    writeFileSync(
+      join(dir, "index.html"),
+      homeWith(`https://example.com${src}`, src, "/showreel-poster.jpg?v=0123456789ab"),
+    );
+    expectFailure(/The player's poster is not the deployed render's/);
     writeFileSync(join(dir, "index.html"), homeWith(`https://example.com${src}`));
 
     // Only the homepage is a video, and every page has one og:type.

@@ -36,7 +36,7 @@ import { once } from "node:events";
 import { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { availableParallelism, tmpdir } from "node:os";
-import { basename, dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { build } from "esbuild";
 import { chromium } from "playwright-core";
@@ -118,7 +118,13 @@ function parseArgs(argv) {
   if (o.out && !/\.mp4$/i.test(o.out)) fail("--out names the draft's .mp4 file");
   if (o.audioOnly && !/\.wav$/i.test(o.audioOnly)) fail("--audio-only names the score's .wav file");
   const target = o.out ?? o.audioOnly;
-  if (target && !relative(PUBLIC, target).startsWith("..")) fail(`a draft is never written to ${PUBLIC}, which the site deploys; run without arguments for the full render`);
+  if (target) {
+    // Outside means up and out of public/ (or on another drive), not merely a
+    // name that starts with two dots, such as public/..draft.mp4.
+    const rel = relative(PUBLIC, target);
+    const outside = rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+    if (!outside) fail(`a draft is never written to ${PUBLIC}, which the site deploys; run without arguments for the full render`);
+  }
   return o;
 }
 

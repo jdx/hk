@@ -6,13 +6,15 @@
 // and a spray of sparks; the strip tears away and falls into the tray, whose
 // lid knocks shut on the boot at b3 as hk's row updates on a pluck; a soft
 // rising breath follows the read band down the card; each squiggle under a
-// formatting problem wobbles a pluck (F5 G5 A5); then the strip leaves, the
+// formatting problem wobbles a pluck (F5 G5 A5 C6); then the strip leaves, the
 // card shrinks into its lane label, the other labels type on, and the
 // tracks draw across on an arpeggio, D4 F4 A4 D5. The blade's and the
-// strip's timing are the scene's own (scenes/stash-peel.ts).
+// strip's timing are the scene's own (scenes/stash-peel.ts), and so are
+// the rest of its beats (scenes/stash-timing.ts).
 
 import type { Part } from ".";
 import { bladeX, CUT, FLY, INTO, PEEL, SPARKS_AT } from "../scenes/stash-peel";
+import { CARD_OUT, LID, LOCKS as LOCKS_IN, READ, ROW_AT, SQUIGGLES, STRIP_OUT, TRACKS, TYPE } from "../scenes/stash-timing";
 import { AM, ANSWER, bassBars, CHORD, chordBars, DM, drumBars, melody, STOMP } from "./grooves";
 import { ad, hz, line, type Pt, sweep } from "./mix";
 import { crackle, fiddlePluck, flick, knock, padlock, panX, puff, shing, stomp, thump, tick, whoosh } from "./sounds";
@@ -24,23 +26,8 @@ const TRAY = panX(1640);
 const LABELS = panX(300);
 const LOCKS = panX(606);
 
-/**
- * Beats of the scene (scenes/stash.ts) it keeps to itself: the lid lifts
- * on the cut and slams on b3, hk's row updates on b3, the read band runs
- * b3.5 to b5, the squiggles land an eighth apart, and the lanes come up
- * (the strip leaves, the card folds into its label, the labels type a key
- * a 32nd, the tracks draw a 32nd apart and the padlocks fade in a 16th
- * apart).
- */
-const LID = { open: 2, slam: 3 } as const;
-const ROW_AT = 3;
-const READ = { from: 3.5, to: 5 } as const;
-const SQUIGGLES = [6, 6.5, 7] as const;
-const STRIP_OUT = { from: 9.5, to: 10.5 } as const;
-const CARD_OUT = { from: 10, to: 11 } as const;
-const TYPE = { from: 10.5, each: 0.125, keys: 8 } as const;
-const TRACKS = { from: 11, each: 0.125 } as const;
-const LOCKS_IN = { from: 11.5, each: 0.0625 } as const;
+/** The labels type a key a 32nd: eight keys cover the three names' visible typing. */
+const TYPE_KEYS = 8;
 
 export const part: Part = {
   level: 0.92,
@@ -85,9 +72,10 @@ export const part: Part = {
     whoosh(m, ad(s.beat(READ.from), s.beat(READ.to - 0.5), 0.06, s.beat(READ.to + 0.1)), sweep(s.beat(READ.from), 500, s.beat(READ.to), 2600), 1.6, { pan: CARD, send: 0.35 });
 
     // A warm squiggle under each formatting problem: a pluck that wobbles,
-    // F5 G5 A5, over the answer's D5 and C5 rather than against them.
-    [77, 79, 81].forEach((n, i) => {
-      fiddlePluck(m, s.beat(SQUIGGLES[i]), hz(n), 0.12, panX(820), 0.25, { bus: "sfx", wobble: 0.03, len: 0.4, bright: 10 });
+    // F5 G5 A5 C6, over the answer's D5 and C5 rather than against them. The
+    // last lands on Am's C, an octave over the tune's.
+    [77, 79, 81, 84].forEach((n, i) => {
+      fiddlePluck(m, s.beat(SQUIGGLES[i].at), hz(n), 0.12, panX(820), 0.25, { bus: "sfx", wobble: 0.03, len: 0.4, bright: 10 });
     });
 
     // Into the lanes. The strip slides up out of frame; the card shrinks
@@ -95,7 +83,7 @@ export const part: Part = {
     // on an arpeggio, D4 F4 A4 D5; the padlocks come up open.
     whoosh(m, ad(s.beat(STRIP_OUT.from), s.beat(STRIP_OUT.to - 0.4), 0.08, s.beat(STRIP_OUT.to)), sweep(s.beat(STRIP_OUT.from), 900, s.beat(STRIP_OUT.to), 3600), 1.3, { send: 0.2 });
     whoosh(m, ad(s.beat(CARD_OUT.from), s.beat(CARD_OUT.to - 0.3), 0.08, s.beat(CARD_OUT.to)), sweep(s.beat(CARD_OUT.from), 2600, s.beat(CARD_OUT.to), 800), 1.3, { pan: line(s.beat(CARD_OUT.from), CARD, s.beat(CARD_OUT.to), LABELS), send: 0.2 });
-    for (let i = 0; i < TYPE.keys; i++) tick(m, s.beat(TYPE.from + i * TYPE.each), 2500 + 250 * (i % 3), 0.25, LABELS + 0.05 * (i % 2), 0.06);
+    for (let i = 0; i < TYPE_KEYS; i++) tick(m, s.beat(TYPE.from + i * TYPE.each), 2500 + 250 * (i % 3), 0.25, LABELS + 0.05 * (i % 2), 0.06);
     [62, 65, 69, 74].forEach((n, i) => {
       fiddlePluck(m, s.beat(TRACKS.from + i * TRACKS.each), hz(n), 0.07, panX(700 + 330 * i), 0.25, { bus: "sfx", bright: 9 });
     });

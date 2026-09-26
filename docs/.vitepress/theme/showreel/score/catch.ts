@@ -16,6 +16,7 @@
 
 import type { Part } from ".";
 import { blocked } from "../kit/screens";
+import { smoothstep } from "../math";
 import { SNAG, STOP, SWING } from "../scenes/catch";
 import { BEAT, type Section } from "../timeline";
 import { BED, CHORD, DM, HALF, heartbeat, STOMP, stompBar } from "./grooves";
@@ -59,19 +60,26 @@ function newRows(): [number, string][] {
 }
 
 /**
- * The swing's apexes from b6: θ = 7°·e^(−(t−b6)/2 beats)·sin(2π(t−b6)/2
- * beats). A damped sine peaks at atan(ωτ)/ω, then every half period.
+ * The card's swing, degrees, section-local seconds (scenes/catch.ts
+ * swingAt): θ = A·e^(−d/2 beats)·sin(2πd/2 beats) from SWING, eased in over
+ * the yank, with A held down to about 3.8° for the first lobe (A = 7°·(1 −
+ * 0.6·e^(−d/0.75 beats))) and 7° from the second apex on.
  */
+function swingAt(lt: number): number {
+  const ramp = smoothstep(5.55 * BEAT, 6.1 * BEAT, lt);
+  if (ramp <= 0) return 0;
+  const d = lt - SWING;
+  const amp = 7 * (1 - 0.6 * Math.exp(-Math.max(0, d) / (0.75 * BEAT)));
+  return amp * Math.exp(-d / (2 * BEAT)) * Math.sin((2 * Math.PI * d) / (2 * BEAT)) * ramp;
+}
+
+/** The swing's apexes before the reel takes the card up, found on a 1 ms grid: [time, |angle| in degrees]. */
 function apexes(s: Section): [number, number][] {
-  const period = 2 * BEAT;
-  const tau = 2 * BEAT;
-  const w = (2 * Math.PI) / period;
-  const first = Math.atan(w * tau) / w;
   const out: [number, number][] = [];
-  for (let k = 0; ; k++) {
-    const d = first + (k * period) / 2;
-    if (s.at(SWING) + d >= s.beat(REEL[0])) break;
-    out.push([s.at(SWING) + d, 7 * Math.exp(-d / tau)]);
+  const dt = 0.001;
+  for (let lt = SWING; lt + dt < REEL[0] * BEAT; lt += dt) {
+    const [a, b, c] = [swingAt(lt - dt), swingAt(lt), swingAt(lt + dt)];
+    if (Math.abs(b) > 0.2 && Math.abs(b) >= Math.abs(a) && Math.abs(b) > Math.abs(c)) out.push([s.start + lt, Math.abs(b)]);
   }
   return out;
 }

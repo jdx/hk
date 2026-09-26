@@ -1,8 +1,8 @@
-// The exact frame on every bar line (storyboard §5). The outgoing scene
-// settles onto its boundary's frame by its last beat and the incoming scene
-// starts from it at rest (a "hold"), or both evaluate the same function of
-// global time through it (a "motion": the whip into `race`). The frame at a
-// section's `end` belongs to the next section. Salvaged from mbx's map.ts.
+// The exact frame on every bar line. The outgoing scene settles onto its
+// boundary's frame by its last beat and the incoming scene starts from it at
+// rest (a "hold"), or both evaluate the same function of global time through
+// it (a "motion": the whip into `race`). The frame at a section's `end`
+// belongs to the next section.
 //
 // Every frame is drawn only with the shared kit's own calls, the same calls
 // the scenes make, so a scene that ends by making them lands on its handoff
@@ -66,7 +66,7 @@ export const bg = (ctx: CanvasRenderingContext2D, env: SceneEnv, color: string =
 };
 
 /**
- * race|morph's capsules (storyboard §5): round-capped, 56 px high, x 700–1420,
+ * race|morph's capsules: round-capped, 56 px high, x 700–1420,
  * centred on four rows. `race` eases its bars into them and `morph` tweens
  * them into the end card's strokes, so both draw them with drawCapsule.
  */

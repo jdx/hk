@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { playScore } from "../audio";
 import type { ReelFacts } from "../facts";
+import { checkAll } from "../kit/screens";
 import { LATENCY, X } from "../score/mix";
 import { GAP } from "../score/morph";
 import { raceRuns } from "../race-timing";
+import { F0_EACH, F0_FIRST } from "../scenes/race";
 import { arc, PARTS } from "../score";
 import { BEAT, DURATION, SECTIONS, sec } from "../timeline";
 import { MockContext } from "./mock-audio";
@@ -57,6 +59,38 @@ test("nothing sounds in the breath before the end card's downbeat", () => {
   }
 });
 
+test("every automation curve runs forward in time, and every exponential ramp between positive values", () => {
+  // Web Audio sorts a param's events by time, so a curve whose points run
+  // backwards (an envelope's peak written after its end) plays as a
+  // different curve, often silence, and an exponential ramp to or from 0
+  // jumps instead of ramping. A value curve owns its whole span: Chromium
+  // rejects any event that starts inside it.
+  const TIMED = ["setValueAtTime", "linearRampToValueAtTime", "exponentialRampToValueAtTime", "setTargetAtTime", "setValueCurveAtTime"];
+  const reel = (t: number) => (t - WHEN + LATENCY).toFixed(4);
+  const bad: string[] = [];
+  for (const variant of VARIANTS) {
+    // Per param: when its last event ends (a curve's end, any other event's
+    // time), and the value it leaves (NaN after a curve: the mock keeps only
+    // a curve's length and sum).
+    const last = new Map<string, number>();
+    const value = new Map<string, number>();
+    for (const c of render(0, factsFor(variant)).calls) {
+      if (c.method === "value=") value.set(c.target, c.args[0] as number);
+      if (c.method === "cancelScheduledValues") last.delete(c.target);
+      if (!TIMED.includes(c.method)) continue;
+      const [v, t, span] = c.args as [number, number, number];
+      const curve = c.method === "setValueCurveAtTime";
+      const before = last.get(c.target) ?? -Infinity;
+      if (t < before - 1e-9) bad.push(`${variant}: ${c.target} ${c.method}(${curve ? "curve" : v}) at ${reel(t)} starts before ${reel(before)}, where its last event ends`);
+      const from = value.get(c.target) ?? 0;
+      if (c.method === "exponentialRampToValueAtTime" && !(v > 0 && from > 0)) bad.push(`${variant}: ${c.target} ramps exponentially from ${from} to ${v} at ${reel(t)}`);
+      last.set(c.target, curve ? t + span : t);
+      value.set(c.target, curve ? NaN : v);
+    }
+  }
+  assert.deepEqual(bad, []);
+});
+
 test("the score schedules the same calls every time, from any start", () => {
   for (const variant of VARIANTS) {
     for (const from of [0, 4.2, 11, 37.3, 50.3, 57.9]) {
@@ -93,6 +127,24 @@ test("each bar in the benchmark race stops on a sound, only when the facts back 
       assert.ok(!soundsAt(starts, t), `${variant}: a sound at ${t.toFixed(4)}, where a race the facts do not back would stop`);
     }
   }
+});
+
+test("with no race, each ✔ row of hk's check run, and the 7/7, sounds on the frame it lands", () => {
+  const race = sec("race");
+  // Sources start LATENCY early, ahead of the master's compressors.
+  const starts = spans(render(0, factsFor("none"))).map((s) => s.start + LATENCY);
+  const soundsAt = (t: number) => starts.some((s) => s > t - 0.001 && s < t + 0.005);
+  let frames = 0;
+  checkAll.forEach((rows, f) => {
+    if (!f) return;
+    const before = new Set<string>(checkAll[f - 1]);
+    const lands = rows.slice(1).some((r) => r.startsWith("✔ ") && !before.has(r)) || (rows[0].endsWith("7/7") && !checkAll[f - 1][0].endsWith("7/7"));
+    if (!lands) return;
+    frames++;
+    const t = race.at(F0_FIRST + F0_EACH * f);
+    assert.ok(soundsAt(t), `frame ${f} lands at ${t.toFixed(4)} with nothing sounding within 5 ms`);
+  });
+  assert.ok(frames >= 7, `only ${frames} frames land a ✔ row`);
 });
 
 test("the groove's fader holds each section's level and moves only over the half beat before a bar line", () => {

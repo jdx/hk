@@ -19,7 +19,7 @@
 import type { Part } from ".";
 import { ALL_DONE, CHECK_DONE, CHECK_GO, COLUMN_IN, FIX_HOLDS, FOLD, FOLD_LEN, IMPACT, LAUNCH, PULSE_FLY, PULSES, TICKS } from "../scenes/everywhere-timing";
 import { WHIP_AT, WHIP_OUT, WHIP_START } from "../whip";
-import { bassBars, C, CHORD, chordBars, DM, type Drums, drumBars, STOMP_FULL } from "./grooves";
+import { bassBars, C, CHORD, chordBars, DM, drumBars, STOMP_FULL } from "./grooves";
 import { ad, hz, line, type Pt, sweep } from "./mix";
 import { bassBar, bassRun, blip, ding, fiddlePluck, hat, jingle, knock, OOMPAH, padlock, panX, ping, riser, stab, stomp, whoosh } from "./sounds";
 
@@ -108,13 +108,12 @@ export const part: Part = {
     whoosh(m, env, [[WHIP_START, 700], [WHIP_AT, 5200, "exp"], [WHIP_AT + 0.28, 2000, "exp"]], 1.1, { pan: [[out, 0.15], [WHIP_AT, -0.55], [WHIP_AT + 0.28, -0.8]], send: 0.15 });
   },
   drums(m, s) {
-    // The first panel slams a sixteenth after the downbeat on its own boot,
-    // so the downbeat's boot is only a light step; the third slam's boot is
-    // the one on 3, so the groove leaves it out rather than doubling it.
-    stomp(m, s.start, 0.45);
-    const [, hands, jingles, ghosts] = STOMP_FULL;
-    const landing: Drums = [[10], hands, jingles, ghosts];
-    drumBars(m, s, [landing, STOMP_FULL, [[0, 8, 14], [4], [2, 6], [7]]]);
+    // Each panel slams on its own boot, so the groove's boots rest wherever
+    // a slam lands (the third's is the one on 3). The first lands a 32nd
+    // after the downbeat, so the downbeat's boot gives way to a light step.
+    const late = IMPACT[0] > 0 && IMPACT[0] < 0.25;
+    if (late) stomp(m, s.start, 0.45);
+    drumBars(m, s, [STOMP_FULL, STOMP_FULL, [[0, 8, 14], [4], [2, 6], [7]]], 0.82, late ? [0, ...IMPACT] : IMPACT);
     // Soft: on 3.5 and 4.5 they fall with the tambourine.
     for (let b = 3; b < 5; b += 0.5) hat(m, s.beat(b), 0.5);
   },

@@ -49,8 +49,8 @@ export function composeReel(scenes: readonly Scene[], facts: ReelFacts | null, o
       s.draw(ctx, lt, { W, H, t, facts });
       ctx.restore();
       if (!options.raw) {
-        // Darker toward the edges, but not over a terminal's window, a lit screen.
-        vignette(ctx, W, H, 0.5, s.lit?.(lt) ?? null);
+        // Darker toward the corners, but not over a terminal's window, a lit screen.
+        vignette(ctx, W, H, 0.35, s.lit?.(lt, { facts }) ?? null);
         // Over the vignette, so a caption reads the same at the frame's edge;
         // under the grain, so it sits in the picture.
         drawCaptions(ctx, t, captions);

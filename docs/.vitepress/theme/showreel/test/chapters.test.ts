@@ -4,21 +4,13 @@
 
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
 import { CHAPTERS, chaptersVtt, DURATION, SECTIONS } from "../timeline";
-
-/** docs/, found from the working directory, since the tests run from a bundle. */
-function docsDir(): string {
-  for (let dir = process.cwd(); ; dir = dirname(dir)) {
-    if (existsSync(join(dir, ".vitepress/theme/showreel"))) return dir;
-    if (existsSync(join(dir, "docs/.vitepress/theme/showreel"))) return join(dir, "docs");
-    if (dirname(dir) === dir) throw new Error("run the tests from inside the repository");
-  }
-}
+import { REPO } from "./repo";
 
 test("docs/public/showreel-chapters.vtt is the chapters track SECTIONS generates", () => {
-  const file = join(docsDir(), "public/showreel-chapters.vtt");
+  const file = join(REPO, "docs/public/showreel-chapters.vtt");
   if (process.env.UPDATE_CHAPTERS) writeFileSync(file, chaptersVtt());
   const served = existsSync(file) ? readFileSync(file, "utf8") : "";
   assert.equal(served, chaptersVtt(), "the chapters track is stale: run `UPDATE_CHAPTERS=1 aube run test:showreel` in docs/");

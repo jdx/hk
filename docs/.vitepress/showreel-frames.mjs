@@ -46,7 +46,12 @@ const showreel = join(here, "theme/showreel");
 const W = 1920;
 const H = 1080;
 
+// The temporary directory the node bundle is loaded from, while it exists;
+// fail() removes it, since process.exit skips finally blocks.
+let work = null;
+
 function fail(message) {
+  if (work) rmSync(work, { recursive: true, force: true });
   console.error(`showreel-frames: ${message}`);
   process.exit(2);
 }
@@ -64,6 +69,11 @@ function parseArgs(argv) {
       if (s.trim() === "" || !Number.isFinite(n)) fail(`${flag}: "${s}" is not a number`);
       return n;
     });
+  const count = (v, flag) => {
+    const n = Number(v);
+    if (!/^\s*\d+\s*$/.test(v) || !(n > 0)) fail(`${flag} must be a positive whole number, not "${v}"`);
+    return n;
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     switch (a) {
@@ -77,8 +87,8 @@ function parseArgs(argv) {
       case "--scale": [o.scale] = numbers(value(i++, a), a); if (!(o.scale > 0 && o.scale <= 2)) fail("--scale must be in (0, 2]"); break;
       case "--sheet": o.sheet = true; break;
       case "--sheet-only": o.sheet = o.sheetOnly = true; break;
-      case "--cols": [o.cols] = numbers(value(i++, a), a); break;
-      case "--thumb": [o.thumb] = numbers(value(i++, a), a); break;
+      case "--cols": o.cols = count(value(i++, a), a); break;
+      case "--thumb": o.thumb = count(value(i++, a), a); break;
       case "--out": o.out = value(i++, a); break;
       case "-h":
       case "--help": {
@@ -103,7 +113,7 @@ const started = performance.now();
 // The timeline and the facts variants, run in node from the same sources the
 // tests use. test/repo.ts finds the checkout from the working directory.
 process.chdir(here);
-const work = mkdtempSync(join(tmpdir(), "showreel-frames-"));
+work = mkdtempSync(join(tmpdir(), "showreel-frames-"));
 let node;
 try {
   const bundled = await build({
@@ -125,8 +135,11 @@ export { factsFor } from "./theme/showreel/test/published.ts";`,
   writeFileSync(file, bundled.outputFiles[0].text);
   node = await import(pathToFileURL(file).href);
 } catch (err) {
-  rmSync(work, { recursive: true, force: true });
   fail(`could not load the timeline and facts:\n${err.message}`);
+} finally {
+  // Loaded, so the file is no longer needed.
+  rmSync(work, { recursive: true, force: true });
+  work = null;
 }
 const { BEAT, DURATION, SECTIONS, sec, factsFor } = node;
 
@@ -191,7 +204,6 @@ ${entry}`,
     logLevel: "silent",
   });
 } catch (err) {
-  rmSync(work, { recursive: true, force: true });
   const errors = (err.errors ?? []).map((e) => `  ${e.location ? `${relative(cwd, resolve(here, e.location.file))}:${e.location.line}:${e.location.column}: ` : ""}${e.text}`);
   fail(`the ${opts.section ? `${opts.section} scene` : "reel"} does not bundle:\n${errors.join("\n") || err.message}`);
 }
@@ -329,7 +341,6 @@ try {
   broken = err;
 } finally {
   await browser.close();
-  rmSync(work, { recursive: true, force: true });
 }
 if (broken) {
   console.error(`showreel-frames: the ${opts.section ? `${opts.section} scene` : "reel"} failed to load:\n${broken.stack ?? broken.message ?? broken}`);

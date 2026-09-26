@@ -4,7 +4,7 @@
 // peaking on the bar line, whose frame is the streaks alone on the stage;
 // the chart arrives from the right while they die out. Every function here
 // is a pure function of GLOBAL time, so both neighbours evaluate the same
-// move and the cut is seamless. Salvaged from mbx's map.ts.
+// move and the cut is seamless.
 
 import { PALETTE, W } from "./bible";
 import { rgba } from "./color";

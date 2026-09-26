@@ -52,7 +52,7 @@ test("one scene per section, in order, on its section's span", () => {
   }
 });
 
-test("the reel is the storyboard's eleven sections: 32 bars at 120 BPM, 64.000 s", () => {
+test("the reel is eleven sections: 32 bars at 120 BPM, 64.000 s", () => {
   assert.equal(BEAT, 0.5);
   assert.equal(BAR, 2);
   assert.deepEqual(
@@ -63,7 +63,7 @@ test("the reel is the storyboard's eleven sections: 32 bars at 120 BPM, 64.000 s
   assert.equal(DURATION, 64);
   // Every bar line is a whole second, so it is a frame at 60 and 120 fps.
   for (const { id } of SECTIONS) assert.ok(Number.isInteger(sec(id).start), id);
-  // Storyboard §2's spans.
+  // Each section's span, seconds.
   assert.deepEqual(
     SECTIONS.map(({ id }) => `${sec(id).start}-${sec(id).end}`),
     ["0-4", "4-10", "10-16", "16-22", "22-30", "30-36", "36-42", "42-48", "48-56", "56-58", "58-64"],

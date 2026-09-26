@@ -60,17 +60,23 @@ jobs:
           } > "$RUNNER_TEMP/showreel-versions"
           cat "$RUNNER_TEMP/showreel-versions"
           echo "hash=$(sha256sum < "$RUNNER_TEMP/showreel-versions" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      # Only restored here: the trusted build saves a fresh render below, once
+      # the site around it has built. The reel's tests (test/**) are not read
+      # by the render, so changing only them keeps the cached video.
       - name: Restore the showreel video
         id: showreel
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             docs/public/showreel-120.mp4
             docs/public/showreel.mp4
             docs/public/showreel-poster.jpg
-          key: showreel-${{ runner.os }}-${{ steps.showreel-versions.outputs.hash }}-${{ hashFiles('docs/.vitepress/showreel-video.mjs', 'docs/.vitepress/theme/showreel/**', 'docs/.vitepress/fonts/*.ttf', 'benchmark/results.json') }}
+          key: showreel-${{ runner.os }}-${{ steps.showreel-versions.outputs.hash }}-${{ hashFiles('docs/.vitepress/showreel-video.mjs', 'docs/.vitepress/theme/showreel/**', '!docs/.vitepress/theme/showreel/test/**', 'docs/.vitepress/fonts/*.ttf', 'benchmark/results.json') }}
       # A miss renders only in the trusted build, which deploys; the untrusted
       # build then leaves the showreel out, which the site's checks accept.
+      # The reel is type-checked and tested, its Chromium tests included,
+      # before the minutes-long render, so a broken reel fails before it is
+      # drawn rather than in the build that follows.
       - name: Render the showreel video
         if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true'
         timeout-minutes: 30
@@ -78,12 +84,21 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q ffmpeg
           (cd docs && aube install && aube exec playwright-core install --with-deps chromium-headless-shell)
-          echo "SHOWREEL_REQUIRE_CHROMIUM=1" >> "$GITHUB_ENV"
+          (cd docs && aube run typecheck && SHOWREEL_REQUIRE_CHROMIUM=1 aube run test:showreel)
           mise run docs:showreel
       - name: Build with VitePress
         run: |
           mise run docs:build
           touch docs/.vitepress/dist/.nojekyll
+      - name: Save the showreel video
+        if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            docs/public/showreel-120.mp4
+            docs/public/showreel.mp4
+            docs/public/showreel-poster.jpg
+          key: ${{ steps.showreel.outputs.cache-primary-key }}
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:

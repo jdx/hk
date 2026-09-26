@@ -1,13 +1,13 @@
 // Motion every scene shares, on the caller's clock (seconds): pops, typing,
-// the terminal cursor's blink, thrown arcs and the arrows drawn along them,
+// the terminal cursor's blink, thrown arcs and the sparks that travel them,
 // and settles that land exactly on their mark, so a scene rests on its
-// handoff frame to the pixel. Salvaged from mbx's map.ts and first-build-kit.
-// Every function is a pure function of its arguments.
+// handoff frame to the pixel. Every function is a pure function of its
+// arguments.
 
 import { PALETTE } from "../bible";
 import { mix, rgba } from "../color";
 import { glow } from "../fx";
-import { clamp, lerp, progress, spring, TAU } from "../math";
+import { lerp, progress, spring, TAU } from "../math";
 import { BEAT } from "../timeline";
 
 export interface Pt {
@@ -21,7 +21,6 @@ export interface Rect {
   h: number;
 }
 
-export const lerpPt = (a: Pt, b: Pt, k: number): Pt => ({ x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k) });
 /** A rect tweened toward another. */
 export const lerpRect = (a: Rect, b: Rect, k: number): Rect => ({
   x: lerp(a.x, b.x, k),
@@ -40,7 +39,7 @@ export const typedChars = (text: string, t: number, at: number, dur: number): nu
 /**
  * A terminal's block cursor, blinking with the beat: on for a beat, off for
  * the next. Pass GLOBAL `t`, so a cursor that crosses a bar line keeps its
- * phase (storyboard §3: on when floor(t / 0.5) is even).
+ * phase: on while floor(t / BEAT) is even.
  */
 export const cursorOn = (t: number): boolean => Math.floor(t / BEAT + 1e-9) % 2 === 0;
 
@@ -75,68 +74,6 @@ export function curveTangent(k: Curve, u: number): Pt {
     x: 2 * (1 - u) * (k.c.x - k.a.x) + 2 * u * (k.b.x - k.c.x),
     y: 2 * (1 - u) * (k.c.y - k.a.y) + 2 * u * (k.b.y - k.c.y),
   };
-}
-
-export interface ArrowOptions {
-  /** The drawn stretch of the curve, 0..1; the head rides `to`. */
-  from?: number;
-  to?: number;
-  width?: number;
-  color?: string;
-  /** Head length px; 0 for none. */
-  head?: number;
-  alpha?: number;
-  /** 0..1 a glow under the stroke. */
-  glow?: number;
-  /** A dash pattern for the shaft, e.g. [10, 8]. */
-  dash?: readonly number[];
-}
-
-/** An arrow along a curve, drawn on from `from` to `to`. */
-export function drawArrow(ctx: CanvasRenderingContext2D, k: Curve, o: ArrowOptions = {}): void {
-  const u0 = clamp(o.from ?? 0);
-  const u1 = clamp(o.to ?? 1);
-  const a = o.alpha ?? 1;
-  if (u1 <= u0 || a <= 0) return;
-  const width = o.width ?? 4;
-  const color = o.color ?? PALETTE.paper;
-  const head = o.head ?? width * 4.5;
-  const n = 24;
-  const end = curveAt(k, u1);
-  const tan = curveTangent(k, u1);
-  const tl = Math.hypot(tan.x, tan.y) || 1;
-  const dir = { x: tan.x / tl, y: tan.y / tl };
-  ctx.save();
-  ctx.globalAlpha *= a;
-  if ((o.glow ?? 0) > 0) glow(ctx, end.x, end.y, width * 10, color, 0.6 * (o.glow ?? 0));
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  if (o.dash) ctx.setLineDash([...o.dash]);
-  ctx.beginPath();
-  for (let i = 0; i <= n; i++) {
-    const p = curveAt(k, lerp(u0, u1, i / n));
-    // Stop the shaft under the head so the tip stays sharp.
-    const q = i === n && head > 0 ? { x: p.x - dir.x * head * 0.6, y: p.y - dir.y * head * 0.6 } : p;
-    if (i === 0) ctx.moveTo(q.x, q.y);
-    else ctx.lineTo(q.x, q.y);
-  }
-  ctx.stroke();
-  ctx.setLineDash([]);
-  if (head > 0) {
-    const nx = -dir.y;
-    const ny = dir.x;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(end.x, end.y);
-    ctx.lineTo(end.x - dir.x * head + nx * head * 0.55, end.y - dir.y * head + ny * head * 0.55);
-    ctx.lineTo(end.x - dir.x * head * 0.7, end.y - dir.y * head * 0.7);
-    ctx.lineTo(end.x - dir.x * head - nx * head * 0.55, end.y - dir.y * head - ny * head * 0.55);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.restore();
 }
 
 export interface SparkOptions {

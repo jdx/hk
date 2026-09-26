@@ -1,8 +1,8 @@
-// The captions' reading rules (the storyboard's design/check/captions.py):
-// every must-read line holds long enough to read, two-line captions hold all
-// their words, and captions never share the screen. Checked for every
-// scene's captions under today's figures, with exactly one claim, with a
-// run that backs no claim, and with no facts at all.
+// The captions' reading rules (type.ts): every must-read line holds long
+// enough to read, two-line captions hold all their words, and captions never
+// share the screen. Checked for every scene's captions under today's
+// figures, with exactly one claim, with a run that backs no claim, and with
+// no facts at all.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -37,8 +37,8 @@ function heldOnFrames(landed: number, out: number, fps: number): number {
   return (frameAt(out, fps) - frameAt(landed, fps)) / fps;
 }
 
-test("the storyboard's captions are on screen", () => {
-  // §7.1: fourteen captions with a claim, in every section but morph and end.
+test("every section but morph and end has its captions", () => {
+  // Fourteen captions with a claim, in every section but morph and end.
   for (const [what, facts] of VARIANTS) {
     const n = scenes.reduce((k, s) => k + (s.captions?.(facts) ?? []).length, 0);
     // The race keeps two captions while any claim stands, and one without.

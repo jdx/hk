@@ -11,11 +11,13 @@
 // Variants, by what the facts back (facts.ts):
 // - both races: Fix every file from b1, a reset on b8.5, Check every file
 //   from b9;
-// - one (F1): that race from b1, then the finished chart holds;
+// - one (F1): that race from b1, then the finished chart holds, the bottom
+//   detail rising on b8;
 // - none (F0: no facts, or no claim): no figure at all. The whip brings in
-//   hk's own terminal running `hk check --all` (checkAll frames 0–16, top
-//   rows), pointing at the benchmarks page, and the capsules grow in from
-//   the axis as it fades. Its only digits are hk's output.
+//   hk's own terminal running `hk check --all` (checkAll frames 0–16, every
+//   row of each), pointing at the benchmarks page under it, and the
+//   capsules grow in from the axis as it fades, hk's last. Its only digits
+//   are hk's output.
 // Every variant starts on the whip's streaks alone and ends on the capsules.
 
 import { BEAT, PALETTE, type ReelFacts, type Scene, type SceneEnv, sec } from "../bible";
@@ -49,23 +51,36 @@ export function captions(f: ReelFacts | null): Caption[] {
   if (both.length === 2) return [claim(both[0], 2.5, 8.5), claim(both[1], 9.5, 15.5)];
   // 7 words: need 4.5, hold 5.75.
   if (both.length === 1) return [claim(both[0], 2.5, 8.5), { out: 15.5, lines: [{ in: 9.75, text: "Timed only when the files are right." }] }];
-  // 5 words: need 3.5, hold 4. No digits.
-  return [{ out: 7, lines: [{ in: 3, text: "Independent steps run in parallel." }] }];
+  // 5 words: need 3.5, hold 9, over the run and its 7/7. No digits.
+  return [{ out: 12, lines: [{ in: 3, text: "Independent steps run in parallel." }] }];
 }
 
 // F0: hk's terminal (storyboard §6.9 Variants).
 
-/** PANE_FULL showing the top rows of a screen, not the bottom ones. */
-export const F0_PANE: Pane = { ...PANE_FULL, anchor: "top" };
+/**
+ * PANE_FULL's window and 32 px text, set a little closer (38 px baselines)
+ * to hold 13 rows, so every screen of checkAll shows whole: frame 2's six
+ * running steps included. It stands higher, y 102–664, so the pointer to
+ * the page fits under it, above the captions' band.
+ */
+export const F0_PANE: Pane = { ...PANE_FULL, anchor: "top", y: 102, h: 562, lineH: 38, baseline0: 188, rows: 13 };
 /** checkAll frame 0 lands on b1, and each next one 0.375 beats later: frame 16 on b7. */
 export const F0_FIRST = b(1);
 export const F0_EACH = b(0.375);
-/** The pointer to the page. Right-aligned under the pane, only while no caption is up. */
+/** The pointer to the page: right-aligned under the pane, above the captions' band, rising on b8. */
 export const F0_DETAIL = "Benchmarks: hk.jdx.dev/benchmarks";
-const F0_DETAIL_AT = { x: 1760, y: 758 } as const;
+export const F0_DETAIL_AT = { x: 1760, y: 712 } as const;
 export const F0_DETAIL_IN = b(8);
-/** The pane fades, settling back a little, just before the capsules grow in. */
+/** The pane fades, settling back a little, as the capsules grow in. */
 export const F0_OUT = [b(14.5), b(15)] as const;
+/**
+ * Each capsule's growth in F0, from the bottom up, overlapping the fade so
+ * the stage is never empty: the other tools' three from b14.625, over
+ * empty pane at 7/7, and hk's, just under the pane's top lines, once the
+ * pane has all but gone. All are home by REST.
+ */
+export const F0_GROW = [b(14.9375), b(14.75), b(14.6875), b(14.625)] as const;
+export const F0_GROW_DUR = b(0.75);
 /** The run completes (frame 15, 7/7): a light runs along the header's bar. */
 const F0_DONE = F0_FIRST + 15 * F0_EACH;
 
@@ -84,11 +99,13 @@ function drawF0(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void 
   const out = smoothstep(F0_OUT[0], F0_OUT[1], lt);
   const pane = () => {
     ctx.save();
-    // Settles back a little as it goes.
+    // Settles back a little as it goes, about its centre.
     const s = 1 - 0.02 * out;
-    ctx.translate(960, 420);
+    const cx = F0_PANE.x + F0_PANE.w / 2;
+    const cy = F0_PANE.y + F0_PANE.h / 2;
+    ctx.translate(cx, cy);
     ctx.scale(s, s);
-    ctx.translate(-960, -420);
+    ctx.translate(-cx, -cy);
     const L = drawTerm(ctx, F0_PANE, lines, { t: env.t, alpha: 1 - out });
     // 7/7: a light runs along the header's full bar, once.
     const sweep = progress(F0_DONE, F0_DONE + 0.45, lt);
@@ -133,7 +150,7 @@ function drawF0(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void 
   };
   if (env.t < WHIP_END) drawWhipIn(ctx, env.t, pane);
   else pane();
-  // The pointer to the page, once the caption has gone.
+  // The pointer to the page.
   const p = progress(F0_DETAIL_IN, F0_DETAIL_IN + 0.25, lt) * (1 - out);
   if (p > 0) {
     ctx.save();
@@ -141,25 +158,16 @@ function drawF0(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void 
     drawText(ctx, F0_DETAIL, F0_DETAIL_AT.x, F0_DETAIL_AT.y + 12 * (1 - swiftOut(clamp(p))), { font: font(40, 500), fill: PALETTE.text3, align: "right" });
     ctx.restore();
   }
-  for (let i = 0; i < 4; i++) growCapsule(ctx, i, lt);
+  for (let i = 0; i < 4; i++) growCapsule(ctx, i, lt, F0_GROW[i], F0_GROW_DUR);
 }
 
 // The scene.
-
-/**
- * The facts of the frame being drawn, for `lit`, which the compositor calls
- * right after `draw` for the same frame but without the facts (Scene.lit
- * takes only local time). The facts are fixed for a reel, so this is the
- * reel's configuration, not state carried between frames.
- */
-let frameFacts: ReelFacts | null | undefined;
 
 export const scene: Scene = {
   id: S.id,
   start: S.start,
   end: S.end,
   draw(ctx, lt, env) {
-    frameFacts = env.facts;
     if (lt >= REST) {
       drawHandoff(ctx, "race|morph", env);
       return;
@@ -172,12 +180,12 @@ export const scene: Scene = {
     // The whip's streaks, over whatever is arriving (nothing is drawn after b1).
     drawWhip(ctx, env.t);
   },
-  lit(lt) {
+  lit(lt, env) {
     // F0's pane is lit while it is up, following the whip in and its fade.
-    if (frameFacts === undefined || chartModel(frameFacts) || lt >= REST) return null;
+    if (chartModel(env.facts) || lt >= REST) return null;
     const a = f0Alpha(lt);
     if (a <= 0) return null;
-    return termLit({ ...PANE_FULL, x: PANE_FULL.x + whipIn(S.start + lt) }, a);
+    return termLit({ ...F0_PANE, x: F0_PANE.x + whipIn(S.start + lt) }, a);
   },
   captions,
 };

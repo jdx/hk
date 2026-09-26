@@ -8,7 +8,7 @@ import { BEAT } from "../bible";
 import { capsuleAt } from "../handoff";
 import { KLEG_RUN, LOGO_END, LOGO_STROKE, LOGO_STROKES, logoScale, logoToPx, STROKE } from "../kit/logo";
 import { bump, type Pt } from "../kit/motion";
-import { clamp, cubicBezier, DEG, inOutCubic, inOutSine, keys, lerp, outCubic, progress, smoothstep } from "../math";
+import { clamp, cubicBezier, inOutCubic, inOutSine, keys, lerp, outCubic, progress, smoothstep } from "../math";
 import { DUB, LAND, LIFT, LUB, PEN, SWAP } from "./morph-cues";
 
 /** Local seconds of section beat `n`. */
@@ -87,10 +87,10 @@ const riseSoon = (p: number): number => inOutCubic(clamp((p - RISE_SOON[0]) / (R
 
 /**
  * The turn to its stroke's angle, with a dip the other way while it
- * gathers (a share ANTICIPATE of the turn). The stems and the pen are square
- * by 90% of the flight. The arm turns sooner, square by 58%: it is already
- * its diagonal when its tail comes up by the k's stem, so the two never
- * read as an "L" on the way in.
+ * gathers (a share ANTICIPATE of the turn). The stems are square by 90% of
+ * the flight. The arm and the pen turn sooner, square by 58%: each is
+ * already its diagonal when its tail comes up by the k's stem, so neither
+ * reads as an "L" with it on the way in.
  */
 const ANTICIPATE = 0.04;
 const turnLate = keys([
@@ -106,22 +106,28 @@ const turnSoon = keys([
 
 /** How far right of the arm's root its tail gathers, px: its ink stays clear of the stem's far side. */
 const DOCK = 36;
+/**
+ * How far right of the pen's root its tail gathers, px: its ink stays clear
+ * of the stem's face until it is up at the junction, rather than meeting the
+ * stem's foot and sliding up it.
+ */
+const PEN_DOCK = 24;
 /** The dock: back from there onto the root, from halfway through the flight, home on the landing. */
 const docking = (p: number): number => smoothstep(0.5, 1, p);
 
 /**
  * Each bar's character: how it rises and turns; how far past its angle it
  * swings (a share of its turn: 1.8° for the stems, 3.3° for the arm),
- * reached on its landing and rocked out over ROCK; how far it leans into
- * the climb, degrees; and, for a bar placed by its tail, how far right of
- * its root the tail gathers to, px, so it docks from the right (the arm,
- * onto the k's stem, never through it).
+ * reached on its landing and rocked out over ROCK; and, for a bar placed by
+ * its tail, how far right of its root the tail gathers to, px, so it docks
+ * from the right (the arm and the pen, onto the k's stem, never through it
+ * or up its face).
  */
 const FLIGHT = [
-  { rise: riseLate, turn: turnLate, over: 0.02, lean: 0, dock: 0 },
-  { rise: riseLate, turn: turnLate, over: 0.02, lean: 0, dock: 0 },
-  { rise: riseSoon, turn: turnSoon, over: 0.1, lean: 0, dock: DOCK },
-  { rise: riseLate, turn: turnLate, over: 0, lean: -14, dock: 0 },
+  { rise: riseLate, turn: turnLate, over: 0.02, dock: 0 },
+  { rise: riseLate, turn: turnLate, over: 0.02, dock: 0 },
+  { rise: riseSoon, turn: turnSoon, over: 0.1, dock: DOCK },
+  { rise: riseLate, turn: turnSoon, over: 0, dock: PEN_DOCK },
 ] as const;
 
 /**
@@ -170,7 +176,7 @@ export function poseAt(i: number, lt: number): Pose {
   const f = FLIGHT[i];
   const g = gathered(p);
   const up = f.rise(p);
-  const turned = angleOf(s) + (angleOf(e) - angleOf(s)) * f.turn(p) + f.lean * DEG * bump(p, 0.25, 0.75);
+  const turned = angleOf(s) + (angleOf(e) - angleOf(s)) * f.turn(p);
   const dir = { x: Math.cos(turned), y: Math.sin(turned) };
   const width = lerp(s.width, e.width, smoothstep(0.1, 0.9, p)) * throb(lt);
   // The swing past its angle turns it on its tail, as the rock after landing does.
@@ -178,8 +184,8 @@ export function poseAt(i: number, lt: number): Pose {
   if (i >= 2) {
     // The arm and the pen are placed by their tails, which lead: each
     // gathers toward its tail, which slides along its row and rises onto its
-    // root, the arm's from the right of the stem. The pen's head then draws
-    // out along the leg's run.
+    // root from the right of the stem. The pen's head then draws out along
+    // the leg's run.
     const len = i === 3 ? penLength(p) : lerp(lengthOf(s), lengthOf(e), g);
     const tail = { x: lerp(s.a.x, e.a.x + f.dock, g) - f.dock * docking(p), y: lerp(s.a.y, e.a.y, up) };
     const head = { x: tail.x + dir.x * len, y: tail.y + dir.y * len };

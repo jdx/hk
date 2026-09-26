@@ -1,19 +1,23 @@
 // The morph's flights (storyboard §6.10, scenes/morph-pose.ts), checked on
 // the geometry every 1/120 s: the k's arm comes up by the k's stem as a
 // diagonal and docks on it from the right, never through it (no "L" and no
-// tail poking out of the stem's far side); the stems swing no more than a
-// hair past upright on their landings; and every bar is exactly on its
-// stroke when the logo kit takes it over.
+// tail poking out of the stem's far side); the pen comes up by it as the
+// leg's diagonal and meets it only at the junction, never at its foot; the
+// stems swing no more than a hair past upright on their landings and are
+// still from SETTLE to the scene's end; and every
+// bar is exactly on its stroke when the logo kit takes it over.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { BEAT } from "../bible";
+import { BEAT, sec } from "../bible";
 import type { Pt } from "../kit/motion";
 import { LAND, LIFT, SWAP } from "../scenes/morph-cues";
 import { angleOf, type Pose, poseAt, SETTLE, TARGET } from "../scenes/morph-pose";
 
+const S = sec("morph");
 const STEM = 1;
 const ARM = 2;
+const PEN = 3;
 const DEG = 180 / Math.PI;
 
 const sub = (p: Pt, q: Pt): Pt => ({ x: p.x - q.x, y: p.y - q.y });
@@ -93,11 +97,53 @@ test("the k's arm is a diagonal whenever it is near the stem, so the two never r
   assert.ok(near > 0, "the arm does come up by the stem");
 });
 
+/** How steeply the pen falls to the right, degrees (the leg's run falls at 32.5°). */
+const falling = (p: Pose): number => angleOf(p) * DEG;
+
+test("the pen meets the k's stem only up at the junction, from the right, never at its foot", () => {
+  const root = TARGET[PEN].a;
+  // Level with the landed arm's root ink, where the k's strokes meet.
+  const junction = TARGET[ARM].a.y + TARGET[ARM].width / 2;
+  let touched = false;
+  for (const lt of frames(LIFT[PEN], LAND[PEN])) {
+    const stem = poseAt(STEM, lt);
+    const pen = poseAt(PEN, lt);
+    const at = `b${(lt / BEAT).toFixed(3)}`;
+    const g = gap(stem, pen);
+    if (pen.a.y > junction) assert.ok(g >= 0, `${at}: the pen touches the stem by ${(-g).toFixed(1)} px with its tail at y ${pen.a.y.toFixed(1)}, below the junction`);
+    else touched ||= g < 0;
+    // Once its tail is level with the stem it is on the stem's right.
+    const foot = stem.a.y > stem.b.y ? stem.a : stem.b;
+    if (pen.a.y - pen.width / 2 < foot.y + stem.width / 2) assert.ok(pen.a.x >= root.x - 1e-6, `${at}: the pen's tail at x ${pen.a.x.toFixed(1)} is left of its root`);
+  }
+  assert.ok(touched, "the pen does dock on the stem before it lands");
+});
+
+test("the pen is the leg's diagonal whenever it is near the stem, so the two never read as an L", () => {
+  let near = 0;
+  for (const lt of frames(LIFT[PEN], LAND[PEN])) {
+    const g = gap(poseAt(STEM, lt), poseAt(PEN, lt));
+    if (g >= 40) continue;
+    near++;
+    const pen = poseAt(PEN, lt);
+    assert.ok(falling(pen) >= 20, `b${(lt / BEAT).toFixed(3)}: the pen falls at ${falling(pen).toFixed(1)}°, ${g.toFixed(0)} px from the stem`);
+  }
+  assert.ok(near > 0, "the pen does come up by the stem");
+});
+
 test("the stems swing no more than 2° past upright on their landings, and are still from SETTLE", () => {
+  const end = S.end - S.start;
   for (const i of [0, 1]) {
     let most = 0;
     for (const lt of frames(LIFT[i], SETTLE[i])) most = Math.max(most, Math.abs(rising(poseAt(i, lt)) - 90) * (lt >= LAND[i] - 0.1 * BEAT ? 1 : 0));
     assert.ok(most <= 2, `stem ${i} swings ${most.toFixed(2)}° past upright`);
+    const still = poseAt(i, SETTLE[i]);
+    let checked = 0;
+    for (const lt of frames(SETTLE[i], end)) {
+      assert.deepEqual(poseAt(i, lt), still, `stem ${i} moves at b${(lt / BEAT).toFixed(3)}, after it settled at b${(SETTLE[i] / BEAT).toFixed(2)}`);
+      checked++;
+    }
+    assert.ok(checked > 0, `stem ${i} settles before the scene ends`);
   }
 });
 

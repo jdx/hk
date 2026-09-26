@@ -38,12 +38,15 @@ export const TIE = (ICON_HOOK.eye.r + ICON_HOOK.ring / 2) * HOOK_SCALE;
 /**
  * The card's loop: a key ring through a hole punched under the card's top
  * edge, wide enough for the hook's stroke to pass through it (the
- * storyboard's r 10 would not take a hook this size).
+ * storyboard's r 10 would not take a hook this size), and long enough that
+ * the loaded card hangs clear of the bowl: a strip of stage about 15 px
+ * tall shows between the bowl and the card's top edge, crossed by the
+ * ring's two sides, so the card reads as hung by its loop.
  */
-export const LOOP_R = 6 * HOOK_SCALE;
+export const LOOP_R = 26;
 export const LOOP_W = 5;
 /** The punched hole's centre below the card's top edge, and its radius. */
-export const HOLE_Y = 16;
+export const HOLE_Y = 12;
 const HOLE_R = 7;
 /** The loop's centre relative to the card's top edge: its lowest point is in the hole. */
 export const loopCentre = (cx: number, top: number): Pt => ({ x: cx, y: top + HOLE_Y - LOOP_R });

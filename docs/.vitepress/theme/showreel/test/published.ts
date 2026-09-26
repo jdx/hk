@@ -61,7 +61,7 @@ export function unseparate(run: Json, key: RaceKey): Json {
   return run;
 }
 
-/** The facts today's run gives: both races, the storyboard's figures. */
+/** The facts today's run gives: both races, with the frozen run's figures. */
 export function today(): ReelFacts {
   const facts = factsFromBenchmarks(published());
   assert.ok(facts, "today's run gives no facts");

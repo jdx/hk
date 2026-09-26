@@ -120,6 +120,13 @@ const cockAt = (lt: number): number => -2.5 * bump(lt, b(3.78), b(0.32));
 /** How far the hook has docked into the k. */
 const dockAt = (lt: number): number => smoothstep(T_DOCK, b(3.75), lt);
 
+/**
+ * The eye and the top of the shank are gone by the time the line lets go,
+ * so its knot slips off the hook rather than leaving the eye hanging by the
+ * arm while the dock finishes.
+ */
+const eyeAt = (lt: number): number => 1 - smoothstep(b(3.2), T_LET_GO, lt);
+
 // The pen: each stroke fast off the mark and landing soft; the leg evenly
 // round the bowl; the barb a flick.
 const PEN = cubicBezier(0.25, 0.55, 0.35, 1);
@@ -144,7 +151,7 @@ const heatOf = (i: number, lt: number): number => {
 const penAlpha = (lt: number): number => 1 - smoothstep(STROKE_AT[STROKE.kBarb][1], b(4.6), lt);
 
 /** The dotted guide, at full strength until the ink has covered it. */
-const guideAlpha = (lt: number): number => 0.3 * (1 - smoothstep(b(3.5), b(4.25), lt));
+const guideAlpha = (lt: number): number => 0.45 * (1 - smoothstep(b(3.5), b(4.25), lt));
 
 /**
  * The ink's soft halo: the fresh strokes glow as they are drawn, flare on
@@ -157,7 +164,8 @@ function haloAt(lt: number): number {
 
 /**
  * A cool light on the stage behind the mark, an ellipse that ends above the
- * captions' band; it swells on the click and is gone with the night.
+ * captions' band; it swells on the click and is gone with the night. Brand
+ * cyan, not logo cyan, which is the wordmark's and the hook's alone (§3).
  */
 function stageLight(ctx: CanvasRenderingContext2D, lt: number, click: number): void {
   const a = (0.05 + 0.09 * click) * (1 - smoothstep(b(5), BG_FADE[1] - b(0.5), lt));
@@ -167,10 +175,10 @@ function stageLight(ctx: CanvasRenderingContext2D, lt: number, click: number): v
   ctx.translate(960, 400);
   ctx.scale(1, 0.38);
   const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
-  g.addColorStop(0, rgba(PALETTE.logo, a));
-  g.addColorStop(0.4, rgba(PALETTE.logo, a * 0.42));
-  g.addColorStop(0.75, rgba(PALETTE.logo, a * 0.1));
-  g.addColorStop(1, rgba(PALETTE.logo, 0));
+  g.addColorStop(0, rgba(PALETTE.cyan, a));
+  g.addColorStop(0.4, rgba(PALETTE.cyan, a * 0.42));
+  g.addColorStop(0.75, rgba(PALETTE.cyan, a * 0.1));
+  g.addColorStop(1, rgba(PALETTE.cyan, 0));
   ctx.fillStyle = g;
   ctx.fillRect(-R, -R, 2 * R, 2 * R);
   ctx.restore();
@@ -179,7 +187,8 @@ function stageLight(ctx: CanvasRenderingContext2D, lt: number, click: number): v
 /**
  * Motes in the dark water the hook hangs in: soft, out-of-focus ones near
  * the lens rising faster than the sharp far ones, so the empty stage has
- * depth. They stay above the captions' band and go with the night.
+ * depth. They stay above the captions' band and go with the night. Brand
+ * cyan near and its bright tint far: no logo cyan off the marks.
  */
 const MOTES = Array.from({ length: 26 }, (_, i) => {
   const near = i % 3 === 0;
@@ -208,7 +217,7 @@ function drawMotes(ctx: CanvasRenderingContext2D, lt: number, fade: number): voi
     const a = m.alpha * edge * fade * (0.8 + 0.2 * Math.sin(m.phase * 3 + TAU * lt * 0.7));
     if (!(a > 0.004)) continue;
     if (m.near) {
-      glow(ctx, x, y, m.size * 2.2, PALETTE.logo, a);
+      glow(ctx, x, y, m.size * 2.2, PALETTE.cyan, a);
     } else {
       ctx.fillStyle = rgba(PALETTE.cyanBright, a);
       ctx.beginPath();
@@ -268,7 +277,8 @@ export const scene: Scene = {
     // become the tail of the leg (drawing it twice brightens the leg's
     // edges). Its halo fades as it docks, so it never doubles the leg's.
     if (k < 1) {
-      withHalo(ctx, halo * (1 - k), () => drawIconHook(ctx, place, k, { offset: [0, dy], rotate: hookTurn(lt) }));
+      const hook = { offset: [0, dy] as const, rotate: hookTurn(lt), eyeAlpha: eyeAt(lt) };
+      withHalo(ctx, halo * (1 - k), () => drawIconHook(ctx, place, k, hook));
     }
     // The dock's knock: a soft light in the bowl as it seats.
     const knock = pulse(lt, T_DOCK, 0.015, 0.12);
@@ -278,7 +288,7 @@ export const scene: Scene = {
     }
 
     // The wordmark, the leg swinging from the click and still from b7.
-    const swing = settledSwing(t, T_CLICK, 8, BAR, CALM) + cockAt(lt);
+    const swing = settledSwing(lt, T_CLICK, 8, BAR, CALM) + cockAt(lt);
     const p = strokesAt(lt);
     withHalo(ctx, halo, () => drawLogo(ctx, place, p, { swing }));
     for (let i = 0; i < LOGO_STROKES.length; i++) drawHotInk(ctx, place, i, p[i], heatOf(i, lt), swing);

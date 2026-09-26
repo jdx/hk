@@ -16,14 +16,14 @@
 
 import { BEAT, type LitRect, PALETTE, type Scene, type SceneEnv, sec } from "../bible";
 import { rgba } from "../color";
-import { glow, ring, shake } from "../fx";
+import { glow, ring, roundedRect, shake } from "../fx";
 import { drawHandoff } from "../handoff";
 import { drawChip, drawPanel } from "../kit/card";
 import { drawIconHook, hookPlace, sparkle } from "../kit/logo";
 import { drawMain, MAIN } from "../kit/mainline";
 import { bump, land, popIn } from "../kit/motion";
 import { blocked } from "../kit/screens";
-import { drawTerm, drawWindow, INSET, type Pane, termLayout, termLit } from "../kit/term";
+import { advance, drawTerm, drawWindow, INSET, type Pane, RADIUS, termLayout, termLit } from "../kit/term";
 import { clamp, DEG, inCubic, lerp, outCubic, outQuad, progress, pulse, smoothstep, spring, swiftInOut, swiftOut, TAU } from "../math";
 import { type Caption, drawText, font, MONO } from "../type";
 import {
@@ -44,8 +44,12 @@ import {
   LOOP_R,
   loopCentre,
   puff,
+  softShadow,
   TIE,
 } from "./catch-rig";
+import { BEATS, FRAME_BEATS, swingAt } from "./catch-timing";
+
+export { BEATS, FRAME_BEATS, swingAt };
 
 const S = sec("catch");
 const b = (n: number): number => n * BEAT;
@@ -56,37 +60,41 @@ export const CAPTIONS: readonly Caption[] = [
   { out: 10, lines: [{ in: 5, text: "Can't be fixed?" }, { in: 6, text: "hk blocks the commit." }] },
 ];
 
-// The beats, section-local seconds. The score (score/catch.ts) is on them.
+// The beats, section-local seconds, from scenes/catch-timing.ts, which the
+// score (score/catch.ts) reads too.
 
 /** The main line has panned. */
-const PAN_END = b(1);
+const PAN_END = b(BEATS.panned);
 /** The inset fades in. */
-const INSET_IN = b(0.5);
+const INSET_IN = b(BEATS.insetIn);
 /** The card enters at the left edge, cruises, brakes from BRAKE and stops on STOP, the ✗. */
-const RIDE = b(1);
-const BRAKE = b(2.2);
-export const STOP = b(3);
+const RIDE = b(BEATS.ride);
+const BRAKE = b(BEATS.brake);
+export const STOP = b(BEATS.stop);
 /** The hook whips down, and snags the loop. */
-const DROP = b(3.5);
-const DROP_END = b(3.875);
-export const SNAG = b(4);
+const DROP = b(BEATS.drop[0]);
+const DROP_END = b(BEATS.drop[1]);
+export const SNAG = b(BEATS.snag);
 /** Heave, ho: two tugs, each over a sixteenth. */
-const TUGS = [b(4.5), b(5)] as const;
-const TUG_LEN = b(0.25);
+const TUGS = [b(BEATS.tugs[0]), b(BEATS.tugs[1])] as const;
+const TUG_LEN = b(BEATS.tugLen);
 /** The yank lifts the card off the line; it hangs from SWING. */
-const YANK = b(5.25);
-export const SWING = b(6);
+const YANK = b(BEATS.yank);
+export const SWING = b(BEATS.swing);
 /** The line reels the card out of the top. */
-const REEL = b(10);
-const REEL_END = b(11.5);
+const REEL = b(BEATS.reel[0]);
+const REEL_END = b(BEATS.reel[1]);
 /** Light runs down the hook as it holds the card up, as it ran down the logo's leg in `open`. */
-const GLINT = b(6.25);
-/** The chip comes up, and the frame is the handoff from HOLD. */
-const CHIP = b(11.125);
-const HOLD = b(11.75);
+const GLINT = b(BEATS.glint);
+/**
+ * The chip comes up, and the frame is the handoff from HOLD. It starts once
+ * the reeled card, its shadow too, has cleared the chip's top (y 120).
+ */
+const CHIP = b(BEATS.chip);
+const HOLD = b(BEATS.hold);
 
 /** blocked frames 0–13, each shown from its beat until the next (storyboard §6.7 table). */
-const FRAME_AT = [1, 1.25, 1.5, 1.75, 2, 2.125, 2.25, 2.375, 2.5, 2.625, 2.75, 3, 3.125, 3.25].map(b);
+const FRAME_AT = FRAME_BEATS.map(b);
 /** The `✗ shellcheck` row, from frame 11. */
 const FAIL_ROW = 3;
 
@@ -159,14 +167,6 @@ function tug(lt: number, at: number): number {
   return 24 * (1 - q * q);
 }
 
-/** The swing, degrees, positive clockwise about ANCHOR: θ = 7°·e^(−d/2 beats)·sin(2πd/2 beats), eased in over the yank. */
-function swingAt(lt: number): number {
-  const ramp = smoothstep(b(5.55), b(6.1), lt);
-  if (ramp <= 0) return 0;
-  const d = lt - SWING;
-  return 7 * Math.exp(-d / b(2)) * Math.sin((TAU * d) / b(2)) * ramp;
-}
-
 /**
  * The card's bottom edge above the line, px: the snag's jolt, the tugs, the
  * yank, and the reel, which first lets the card sink a little as it takes
@@ -182,7 +182,7 @@ function lift(lt: number): number {
   return y;
 }
 
-interface Card {
+export interface Card {
   cx: number;
   bottom: number;
   w: number;
@@ -194,7 +194,7 @@ interface Card {
   look: CardLook;
 }
 
-function cardAt(lt: number): Card | null {
+export function cardAt(lt: number): Card | null {
   if (lt < RIDE || lt >= REEL_END) return null;
   const grow = land(lt, STOP, 0.32, 0.14);
   const badge = popIn(lt, STOP + 0.03, 3.4, 0.38);
@@ -295,12 +295,28 @@ const pan = (lt: number): number => PAN * swiftInOut(progress(0, PAN_END, lt));
  * stage drifts down, the main line (nearer) more than the terminal.
  */
 const follow = (lt: number): number => smoothstep(REEL, REEL_END, lt);
+/** Device pixels per px, vertically, where the scene is drawing. */
+const dprOf = (ctx: CanvasRenderingContext2D): number => ctx.getTransform().d || 1;
+/** `v` px rounded to whole device pixels: text is set on whole pixel rows. */
+const snap = (ctx: CanvasRenderingContext2D, v: number): number => Math.round(v * dprOf(ctx)) / dprOf(ctx);
 const mainAlpha = (lt: number): number => 1 - smoothstep(b(10.5), b(11.5), lt);
 
+/** The `main` label's mono size, and its left edge once it sits centred over the panned head. */
+const LABEL_SIZE = 40;
+const LABEL_TO = MAIN.head.x + PAN - (advance(LABEL_SIZE) * MAIN.label.text.length) / 2;
+
 /**
- * The main line. The history slides away under the `main` label, which
- * stays at the margin; the hashes and the message fade as they go. The
- * next commit's slot comes in with the line, its dashes creeping round.
+ * The `main` label's left edge: at the line's start on b0 (restore|catch),
+ * gliding with the pan to sit centred over ada2ca4 by b1, where the parent
+ * would otherwise come to rest right under it. The branch still names the
+ * head: the commit never lands.
+ */
+export const labelX = (lt: number): number => lerp(MAIN.label.x, LABEL_TO, swiftInOut(progress(0, PAN_END, lt)));
+
+/**
+ * The main line. The history slides away and the `main` label follows its
+ * head; the hashes and the message fade as they go. The next commit's slot
+ * comes in with the line, its dashes creeping round.
  */
 function drawBranch(ctx: CanvasRenderingContext2D, lt: number): void {
   const a = mainAlpha(lt);
@@ -308,21 +324,27 @@ function drawBranch(ctx: CanvasRenderingContext2D, lt: number): void {
   const p = pan(lt);
   const labels = 1 - smoothstep(0, b(0.75), lt);
   ctx.save();
-  ctx.translate(0, 40 * follow(lt));
+  // On whole device pixels, so the `main` label (set on whole pixel rows)
+  // drifts with the line rather than stepping against it.
+  ctx.translate(0, snap(ctx, 40 * follow(lt)));
   drawPanTrails(ctx, lt, a);
   drawMain(ctx, { pan: p, labels: 0, alpha: a });
   ctx.save();
   ctx.globalAlpha *= a;
-  const mono = font(40, 400, MONO);
-  drawText(ctx, MAIN.label.text, MAIN.label.x, MAIN.label.y, { font: mono, fill: rgba(PALETTE.cyan, 1) });
+  const mono = font(LABEL_SIZE, 400, MONO);
+  drawText(ctx, MAIN.label.text, labelX(lt), MAIN.label.y, { font: mono, fill: rgba(PALETTE.cyan, 1) });
   if (labels > 0) {
     drawText(ctx, MAIN.parent.hash, MAIN.parent.x + p, MAIN.parent.hashY, { font: mono, fill: rgba(PALETTE.text2, labels), align: "center" });
     drawText(ctx, MAIN.head.hash, MAIN.head.x + p, MAIN.head.hashY, { font: mono, fill: rgba(PALETTE.text1, labels), align: "center" });
     drawText(ctx, MAIN.head.message, MAIN.head.x + p, MAIN.head.messageY, { font: font(40, 500), fill: rgba(PALETTE.text2, labels), align: "center" });
   }
-  // The slot.
+  // The slot. It comes in off the line's fixed right end (x 1760), fading
+  // up as it reaches it, so it never floats in the space past the line.
   const sx = SLOT_X + p - PAN;
-  if (sx < 1920 + MAIN.dotR) {
+  const onLine = clamp((MAIN.x1 + MAIN.dotR - sx) / 100);
+  if (onLine > 0) {
+    ctx.save();
+    ctx.globalAlpha *= onLine;
     ctx.fillStyle = PALETTE.bg;
     ctx.beginPath();
     ctx.arc(sx, MAIN.y, MAIN.dotR, 0, TAU);
@@ -333,6 +355,7 @@ function drawBranch(ctx: CanvasRenderingContext2D, lt: number): void {
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.restore();
   }
   // No commit: a red ✗ flashes over the slot on b6 and glows on above it,
   // the slot still dashed and empty under it.
@@ -371,7 +394,7 @@ function drawPanTrails(ctx: CanvasRenderingContext2D, lt: number, alpha: number)
   ctx.lineCap = "round";
   for (const [x, color] of [
     [MAIN.parent.x + p, PALETTE.text3],
-    [MAIN.head.x + p, PALETTE.logo],
+    [MAIN.head.x + p, PALETTE.cyan],
   ] as const) {
     const g = ctx.createLinearGradient(x, 0, x + trail, 0);
     g.addColorStop(0, rgba(color, 0.55));
@@ -386,12 +409,43 @@ function drawPanTrails(ctx: CanvasRenderingContext2D, lt: number, alpha: number)
   ctx.restore();
 }
 
-/** The inset's fade, and where it stands: it rises a little as it comes and goes. */
-function insetPane(lt: number): { pane: Pane; alpha: number } {
+/**
+ * The inset: kit/term's INSET (x 120–880 from y 110) cut down to the 7 rows
+ * a blocked frame fills at most, its bottom edge at y 390 rather than 430,
+ * 27 px under the last baseline as the first sits 37 px under its top. The
+ * card's loop, sized to take the hook (catch-rig LOOP_R), tops out at y 405
+ * as the card rides in beneath the pane: it clears the edge by 15 px rather
+ * than crossing it.
+ */
+export const PANE: Pane = { ...INSET, h: 280, rows: 7 };
+
+/**
+ * The inset's fade, and where it stands: it rises a little as it comes, and
+ * drifts down after the reeled card as it goes, on whole device pixels
+ * (`dpr` of them to the px) so its text drifts with its window.
+ */
+export function insetPane(lt: number, dpr = 1): { pane: Pane; alpha: number } {
   const come = swiftOut(progress(INSET_IN, b(1), lt));
   const go = smoothstep(b(10), b(11), lt);
-  const dy = 16 * (1 - come) + 20 * follow(lt);
-  return { pane: { ...INSET, y: INSET.y + dy, baseline0: INSET.baseline0 + dy }, alpha: come * (1 - go) };
+  const dy = 16 * (1 - come) + Math.round(20 * follow(lt) * dpr) / dpr;
+  return { pane: { ...PANE, y: PANE.y + dy, baseline0: PANE.baseline0 + dy }, alpha: come * (1 - go) };
+}
+
+/**
+ * The inset's shadow, falling mostly below it: the card's loop rides in
+ * through it, just under the pane's bottom edge, and the shade on it says
+ * the terminal is in front. Only outside the pane, which would otherwise
+ * darken through its window as it fades.
+ */
+function drawInsetShadow(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
+  const { pane, alpha } = insetPane(lt, dprOf(ctx));
+  if (alpha <= 0) return;
+  ctx.save();
+  roundedRect(ctx, pane.x, pane.y, pane.w, pane.h, RADIUS);
+  ctx.rect(0, 0, env.W, env.H);
+  ctx.clip("evenodd");
+  softShadow(ctx, pane, { dy: 8, spread: 24, alpha: 0.55 * alpha, radius: RADIUS });
+  ctx.restore();
 }
 
 /** Which blocked frame is up, or −1 before the first. */
@@ -403,7 +457,7 @@ function frameAt(lt: number): number {
 
 /** hk's blocked run, frame by frame: a new or changed row fades in over a 64th. */
 function drawInset(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
-  const { pane, alpha } = insetPane(lt);
+  const { pane, alpha } = insetPane(lt, dprOf(ctx));
   if (alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha *= alpha;
@@ -539,8 +593,7 @@ function drawRig(ctx: CanvasRenderingContext2D, lt: number): void {
   // on whole pixel rows, and would otherwise step against its panel as the
   // card bobs on the line.
   const upright = !theta && !found.pitch && !found.lag;
-  const dpr = ctx.getTransform().d;
-  const card = upright ? { ...found, bottom: Math.round(found.bottom * dpr) / dpr } : found;
+  const card = upright ? { ...found, bottom: snap(ctx, found.bottom) } : found;
   drawStreaks(ctx, card, lt);
   drawContact(ctx, card);
   drawDust(ctx, card, lt);
@@ -609,8 +662,9 @@ function draw(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
     drawChip(ctx, { alpha: k, scale: lerp(0.92, 1, k) });
   }
   drawRig(ctx, lt);
-  // The terminal sits in front: the card's loop passes behind its lower
-  // edge as the card rides in under it.
+  // The terminal sits in front: its shadow falls across the card's loop as
+  // the card rides in under it.
+  drawInsetShadow(ctx, lt, env);
   drawInset(ctx, lt, env);
 }
 

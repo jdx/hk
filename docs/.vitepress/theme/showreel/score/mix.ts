@@ -11,10 +11,6 @@ import { hash, rng, smoothstep } from "../math";
 export const X = BEAT / 4;
 /** Equal-tempered pitch of MIDI note `n`. */
 export const hz = (n: number): number => 440 * 2 ** ((n - 69) / 12);
-/** One 60 fps frame, as the scenes count them. */
-export const FRAME = 1 / 60;
-/** The first 60 fps frame at or after reel time `t`, where a scene's event first shows. */
-export const onFrame = (t: number): number => Math.ceil(t * 60 - 1e-9) / 60;
 
 /**
  * DynamicsCompressorNode delays its output by a fixed 6 ms lookahead (Chromium,
@@ -23,10 +19,8 @@ export const onFrame = (t: number): number => Math.ceil(t * 60 - 1e-9) / 60;
  * scheduled that much early so the mix leaves the graph on the frame.
  */
 export const LATENCY = 2 * 0.006;
-/** A sound the clock has already passed by at most this much still plays whole, that much late. */
+/** A sound due at most this much before the floor (Mix.floor), and not before `from`, still plays whole, that much late. */
 const LATE = 0.06;
-/** How far ahead of a live context's clock anything is scheduled. */
-export const MARGIN = 0.015;
 
 // Automation. A curve is a constant or a list of points in reel seconds; each
 // point's kind shapes the segment arriving at it. Exponential segments only
@@ -101,19 +95,6 @@ export function glide(t0: number, t1: number, v0: number, v1: number, ease: (u: 
   }
   return out;
 }
-/** Inverse of an ease-out cubic: when a counter easing out passes fraction `p`. */
-export const outCubicInv = (p: number) => 1 - (1 - p) ** (1 / 3);
-/** When a rising function `f` first reaches `v` after `t0` (bisection within `span`). */
-export function crossing(f: (t: number) => number, v: number, t0: number, span: number): number {
-  let lo = t0;
-  let hi = t0 + span;
-  for (let i = 0; i < 40; i++) {
-    const mid = (lo + hi) / 2;
-    if (f(mid) >= v) hi = mid;
-    else lo = mid;
-  }
-  return hi;
-}
 
 // Buffers and curves shared by every score on one context.
 
@@ -121,10 +102,7 @@ export function crossing(f: (t: number) => number, v: number, t0: number, span: 
 export const floats = (n: number) => new Float32Array(n);
 export type Floats = ReturnType<typeof floats>;
 
-/**
- * Buffers are generated the first time a score needs them, so the first call
- * on a fresh context (a click on the sound button) only pays for white noise.
- */
+/** Buffers are generated the first time a score needs them. */
 interface Shared {
   noise: Partial<Record<NoiseKind, AudioBuffer>>;
   room: AudioBuffer | null;
@@ -290,23 +268,19 @@ function rings(env: readonly Pt[], t: number): boolean {
 }
 
 /**
- * The score is built in passes, each creating the voices whose first sound
- * falls in its window. Every pass runs the same composition, so a voice is
- * the same whichever pass builds it. The first pass of the first score on a
- * page also records the ducks and the kicks (see Plan in audio.ts).
+ * The score's voices, from reel time `from` on, and the accents and kicks
+ * the duck curves follow (audio.ts), recorded as the composition builds them.
  */
 export class Mix {
-  readonly sources: AudioScheduledSourceNode[] = [];
   /** Effect accents the music ducks under: time, depth, release. */
   readonly ducks: Dip[] = [];
   /** Groove kicks, for the bass and pad pump. */
   readonly kicks: number[] = [];
-  /** This pass builds voices whose first sound falls in [lo, hi). */
-  lo = -Infinity;
-  hi = Infinity;
-  collect = true;
-  /** Reel time the context clock has passed (with a margin): nothing can start before it. */
-  floor: number;
+  /**
+   * The earliest reel time a sound can start: `from`, or later when `from`
+   * plays less than LATENCY into the context, before its time 0.
+   */
+  readonly floor: number;
   private readonly strips = new Map<string, AudioNode>();
 
   constructor(
@@ -316,10 +290,8 @@ export class Mix {
     readonly when: number,
     readonly buses: Record<Bus, AudioNode>,
     readonly verb: AudioNode,
-    /** A real-time context, whose clock keeps running while a pass builds. */
-    readonly live = false,
   ) {
-    this.floor = from;
+    this.floor = Math.max(from, from + LATENCY - when);
   }
 
   /**
@@ -335,17 +307,12 @@ export class Mix {
     return Math.max(0, (Math.round((this.when + (t - this.from) - LATENCY) * sr) - 0.5) / sr);
   }
 
-  /** The earliest reel time still safe to schedule, `margin` seconds ahead of the context clock. */
-  clock(margin: number): number {
-    return Math.max(this.from, this.from + this.ac.currentTime + margin + LATENCY - this.when);
-  }
-
   duck(t: number, depth: number, release = 0.15): void {
-    if (this.collect) this.ducks.push([t, depth, release]);
+    this.ducks.push([t, depth, release]);
   }
 
   kick(t: number): void {
-    if (this.collect) this.kicks.push(t);
+    this.kicks.push(t);
   }
 
   /**
@@ -404,21 +371,16 @@ export class Mix {
 
   /**
    * A voice whose amplitude follows `env` (reel seconds), or null when it
-   * belongs to another pass or cannot sound. A voice the clock has just
-   * passed plays whole, a moment late; one that began long before (a
-   * mid-reel start, a stalled timer) enters mid-sound with a short fade if
-   * it is sustained or still ringing, and is skipped otherwise.
+   * cannot sound. A voice due just before the floor plays whole, a moment
+   * late; one that began before `from` (a mid-reel start) enters mid-sound
+   * with a short fade if it is sustained or still ringing, and is skipped
+   * otherwise.
    */
   voice(env: readonly Pt[], o: VoiceOpts = {}): Voice | null {
     const t0 = env[0][0];
     const t1 = env[env.length - 1][0];
     if (t1 <= this.from || t0 >= DURATION) return null;
-    const nominal = Math.max(t0, this.from);
-    if (nominal < this.lo || nominal >= this.hi) return null;
-    // A slow pass (a cold first call, a throttled tab) can fall behind the
-    // clock partway through, so a live voice checks it again: a source that
-    // starts late while its envelope runs on time would lose its attack.
-    const floor = Math.max(this.floor, this.from, this.live ? this.clock(MARGIN) : -Infinity);
+    const { floor } = this;
     let enter = t0;
     let shift = 0;
     if (t0 < floor) {
@@ -470,7 +432,6 @@ export class Voice {
     if (offset === undefined) src.start(start);
     else (src as AudioBufferSourceNode).start(start, offset);
     src.stop(m.at(Math.max(until, this.enter) + this.shift) + 0.02);
-    m.sources.push(src);
   }
 
   /** A gain stage into `into`; a plain 1 connects straight through. */

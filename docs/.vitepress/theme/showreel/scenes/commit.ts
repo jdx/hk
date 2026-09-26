@@ -8,27 +8,34 @@
 //           against it as one body: each glyph squashes a 32nd of a beat
 //           after the one before, the word closing up like an accordion
 //           and springing back out, and the letters of `git` jostle
-//   b2–3.5  `-m "feat: hoist the sails"` flips in word by word, the cursor
-//           riding ahead of it, parked at each word's end as it opens
-//   b4      Enter: the cursor flashes, the type squashes and from b4.05
-//           the glyphs stream off in column order, each flying to its cell
+//   b2–4.25 `-m "feat: hoist the sails"` flips in word by word, a dotted
+//           eighth apart (b2, 2.75, 3.5, 4.25, running on into Enter), the
+//           cursor riding ahead of it, parked at each word's end as it opens
+//   b5      Enter: the type squashes into the key from b4.84, the cursor
+//           flashes, and from b5.05 the glyphs stream off in column
+//           order, each flying to its cell
 //           in row 0 of PANE_FULL, which grows out of the type's box; the
 //           chip flashes and shrinks into the chrome bar. Row and pane are
-//           at rest by b4.46, and the terminal draws the row itself on b4.5
-//   b4.5    commit[0]: the header at 0/7 and the files step, spinner live
-//   b5.5    commit[1]: ✔ files … (4 files): `git status` fades, the new
+//           at rest by b5.46, and the terminal draws the row itself on b5.5
+//   b5.5    commit[0]: the header at 0/7 and the files step, spinner live
+//   b6.5    commit[1]: ✔ files … (4 files): `git status` fades, the new
 //           message sweeps in behind a soft edge, and the ✔ pops with a
-//           green glow and ring, all done by b5.94
-//   b6–12   exactly commit|stash (hk hides the cursor while it runs)
+//           green glow and ring, all done by b6.94
+//   b7–12   exactly commit|stash (hk hides the cursor while it runs), under
+//           the caption until its wipe ends on b11.75
+//
+// The big type holds the stage for two seconds (b1–5), since it is what
+// reads on a phone, and the still pane after the ✔ is left only the
+// caption's reading time.
 //
 // Every frame is a pure function of time. The spinner reads global time.
-// From b5.94 nothing moves: the frame is commit|stash's to the pixel, and
-// drawHandoff's itself from b6 to the bar line. At lt 0 it is
+// From b6.94 nothing moves: the frame is commit|stash's to the pixel, and
+// drawHandoff's itself from b7 to the bar line. At lt 0 it is
 // config|commit's, the chip at rest.
 
 import { BEAT, PALETTE, type Scene, type SceneEnv, sec, TERM } from "../bible";
 import { mix, rgba } from "../color";
-import { glow, ring, roundedRect, shake } from "../fx";
+import { glow, makeCanvas, ring, roundedRect, shake } from "../fx";
 import { bg, drawHandoff } from "../handoff";
 import { drawChip, HKPKL_CHIP } from "../kit/card";
 import { jolt, land, lerpRect, type Pt, type Rect } from "../kit/motion";
@@ -49,22 +56,23 @@ import {
   swiftOut,
   TAU,
 } from "../math";
-import { type Caption, font, MONO } from "../type";
+import { type Caption, entrance, font, MONO } from "../type";
 
 const S = sec("commit");
 const b = (n: number): number => n * BEAT;
 
 /** The section's must-read captions. */
 export const CAPTIONS: readonly Caption[] = [
-  // 5 + 5 = 10 words need 6 beats; held 6 from b4.5 (line 2 needs 3.5, holds 5.5).
-  { out: 10.5, lines: [{ in: 4.5, text: "After `hk install`, `git commit`" }, { in: 5, text: "runs hk before the commit." }] },
+  // 5 + 5 = 10 words need 6 beats; held 6 from b5.5, as hk's rows print
+  // (line 2 needs 3.5, holds 5.5). The wipe ends b11.75.
+  { out: 11.5, lines: [{ in: 5.5, text: "After `hk install`, `git commit`" }, { in: 6, text: "runs hk before the commit." }] },
 ];
 
 /**
  * The scene's hits, in section-local beats, for the score: `git` lands,
  * `commit` slams, the four flips, Enter, hk's first rows, the files ✔.
  */
-export const COMMIT_BEATS = { git: 1, slam: 1.5, flips: [2, 2.5, 3, 3.5], enter: 4, run: 4.5, files: 5.5 } as const;
+export const COMMIT_BEATS = { git: 1, slam: 1.5, flips: [2, 2.75, 3.5, 4.25], enter: 5, run: 5.5, files: 6.5 } as const;
 
 const T_GIT = b(COMMIT_BEATS.git);
 const T_SLAM = b(COMMIT_BEATS.slam);
@@ -72,10 +80,10 @@ const T_ENTER = b(COMMIT_BEATS.enter);
 const T_RUN = b(COMMIT_BEATS.run);
 const T_FILES = b(COMMIT_BEATS.files);
 /** From here to the bar line the frame is exactly commit|stash. */
-const T_SETTLED = b(6);
+const T_SETTLED = b(COMMIT_BEATS.files + 0.5);
 /**
  * The pane has grown and the last glyph has landed in row 0 a few frames
- * before b4.5, so the row is at rest before the terminal draws it itself.
+ * before b5.5, so the row is at rest before the terminal draws it itself.
  */
 const LANDED = T_RUN - 0.02;
 
@@ -171,7 +179,7 @@ function knock(lt: number, at: number, amp: number, decay: number): [number, num
 
 /** The camera at `lt`; `depth` < 1 is further back (the chip), so it moves less. */
 function camera(lt: number, depth = 1): Cam {
-  const z = 1 + 0.03 * smoothstep(b(3.6), T_ENTER, Math.min(lt, T_ENTER));
+  const z = 1 + 0.03 * smoothstep(T_ENTER - b(0.4), T_ENTER, Math.min(lt, T_ENTER));
   const [ax, ay] = knock(lt, T_GIT, 9, 0.045);
   const [bx, by] = knock(lt, T_SLAM, 6, 0.04);
   return { z: 1 + (z - 1) * depth, dx: (ax + bx) * depth, dy: (ay + by) * depth };
@@ -336,7 +344,7 @@ function seen(p: Pose, c: Cam): Pose {
   return { ...p, x: q.x, y: q.y, size: p.size * c.z };
 }
 
-// The pane, growing out of the type's box over b4–4.5.
+// The pane, growing out of the type's box over b5–5.5.
 
 /** The type's box at rest (world px): `git commit`'s ascenders to the message's descenders, the cursor included, padded. */
 const TYPE_BOX: Rect = { x: SUB.x0 - 44, y: BIG.y - 0.76 * BIG.size - 36, w: 0, h: 0 };
@@ -382,12 +390,21 @@ function cellAt(ctx: CanvasRenderingContext2D, col: number, lt: number): Pt {
 // The flight into row 0.
 
 /**
- * Enter's squash lasts this long before the first glyph leaves (b4.05);
- * they leave in column order, this far apart, so the row visibly streams
- * off the big type.
+ * The first glyph leaves this long after Enter (b5.05), the type held
+ * squashed till then; they leave in column order, this far apart, so the
+ * row visibly streams off the big type.
  */
 const DEPART = 0.025;
 const STAGGER = 0.0035;
+/**
+ * The key's press: the type squashes into it over the PRESS s before the
+ * beat (anticipation, on the camera's push-in), to 1 + PRESS_SX wide and
+ * 1 − PRESS_SY tall at Enter, and is let go glyph by glyph into the flight.
+ */
+const PRESS = 0.08;
+const PRESS_SX = 0.08;
+const PRESS_SY = 0.2;
+const pressK = (lt: number): number => smoothstep(T_ENTER - PRESS, T_ENTER, lt);
 /** Each flight is as long as lets the last glyph land on LANDED. */
 const FLY = LANDED - T_ENTER - DEPART - (GLYPHS.length - 1) * STAGGER;
 /** Eased in and out, the travel spread over the flight rather than spent in its first frames. */
@@ -405,8 +422,8 @@ function flight(ctx: CanvasRenderingContext2D, g: Glyph, lt: number): Flight {
   const src = seen(restPose(g, T_ENTER)!, camera(T_ENTER));
   const td = T_ENTER + DEPART + g.rank * STAGGER;
   const ta = td + FLY;
-  // Squashed by the key, then let go into the flight.
-  const press = smoothstep(T_ENTER, T_ENTER + DEPART, lt) * (1 - smoothstep(td, td + 0.4 * FLY, lt));
+  // Squashed by the key (drawType has it building up to the beat), then let go into the flight.
+  const press = pressK(lt) * (1 - smoothstep(td, td + 0.4 * FLY, lt));
   const u = progress(td, ta, lt);
   const p = u >= 1 ? 1 : FLY_EASE(u);
   const dst = cellAt(ctx, g.col, lt);
@@ -424,8 +441,8 @@ function flight(ctx: CanvasRenderingContext2D, g: Glyph, lt: number): Flight {
     x,
     y,
     size,
-    sx: 1 + 0.08 * press,
-    sy: 1 - 0.2 * press,
+    sx: 1 + PRESS_SX * press,
+    sy: 1 - PRESS_SY * press,
     rot: 0,
     alpha: 1,
     tint: 0,
@@ -472,35 +489,39 @@ function drawPose(ctx: CanvasRenderingContext2D, g: Glyph, p: Pose, alpha = 1): 
 /** commit's smear runs on through the impact while the glyphs behind the c are still closing up. */
 const SMEAR_END = T_SLAM + 5 * PILE + IMPACT;
 
-/** The big type before Enter, with commit's smear while it slides. */
+/** The big type before Enter, with commit's smear while it slides and squashing into the key's press. */
 function drawType(ctx: CanvasRenderingContext2D, lt: number): void {
   const c = camera(lt);
+  const press = pressK(lt);
   for (const g of GLYPHS) {
     const p = restPose(g, lt);
     if (!p) continue;
     if (g.word === 1 && lt < SMEAR_END) {
       // Motion smear: fainter copies along where it was a shutter ago,
-      // fading out as the word comes to rest.
-      const N = 8;
+      // close enough (under 5 px at full speed) to merge into one streak,
+      // fading along it and out as the word comes to rest.
+      const N = 32;
       const k = 1 - smoothstep(T_SLAM, SMEAR_END, lt);
       for (let m = N; m >= 1; m--) {
         const q = restPose(g, lt - (m / N) * (1 / 45));
-        if (q && Math.abs(q.x - p.x) > 1.5) drawPose(ctx, g, { ...seen(q, c), sx: p.sx, sy: p.sy, rot: p.rot, skew: p.skew }, 0.16 * k * (1 - m / (N + 1)));
+        if (q && Math.abs(q.x - p.x) > 1.5) drawPose(ctx, g, { ...seen(q, c), sx: p.sx, sy: p.sy, rot: p.rot, skew: p.skew }, 0.06 * k * (1 - m / (N + 1)) ** 1.5);
       }
     }
     if (g.word === 0 && lt < T_GIT) {
-      // A short vertical trail on the drop.
-      const N = 3;
+      // A short vertical blur on the drop, as the flight's: many close
+      // copies over the shutter (4 px apart at the landing), fading along it.
+      const N = 24;
       for (let m = N; m >= 1; m--) {
         const q = restPose(g, lt - (m / N) * (1 / 60));
-        if (q) drawPose(ctx, g, seen(q, c), 0.22 * (1 - m / (N + 1)));
+        if (q && Math.abs(q.y - p.y) >= 2) drawPose(ctx, g, seen(q, c), 0.09 * (1 - m / (N + 1)) ** 1.5);
       }
     }
-    drawPose(ctx, g, seen(p, c));
+    const s = seen(p, c);
+    drawPose(ctx, g, press > 0 ? { ...s, sx: s.sx * (1 + PRESS_SX * press), sy: s.sy * (1 - PRESS_SY * press) } : s);
   }
 }
 
-/** Each glyph on its way to row 0 (b4–4.5), and the prompt's `$` coming up in col 0. */
+/** Each glyph on its way to row 0 (b5–5.5), and the prompt's `$` coming up in col 0. */
 function drawFlight(ctx: CanvasRenderingContext2D, lt: number): void {
   for (const g of GLYPHS) {
     const f = flight(ctx, g, lt);
@@ -632,12 +653,15 @@ function drawDust(ctx: CanvasRenderingContext2D, lt: number): void {
   ctx.restore();
 }
 
+/** The caption's first word starts to rise (b4.875). */
+const T_CAPTION = entrance(CAPTIONS[0].lines[0].text, b(CAPTIONS[0].lines[0].in));
+
 /** A warm light under the type while it is up, kicked by each landing. */
 function drawTypeLight(ctx: CanvasRenderingContext2D, lt: number): void {
   if (lt < T_GIT - 0.05 || lt > T_ENTER) return;
   const c = camera(lt);
-  // Out of the captions' band before the first caption rises (b3.875).
-  const up = smoothstep(T_GIT - 0.05, T_GIT + 0.12, lt) * (1 - smoothstep(b(3.4), b(3.8), lt));
+  // Out of the captions' band before the caption starts to rise.
+  const up = smoothstep(T_GIT - 0.05, T_GIT + 0.12, lt) * (1 - smoothstep(T_CAPTION - b(0.475), T_CAPTION - b(0.075), lt));
   const base = view(c, 960, 430);
   glow(ctx, base.x, base.y, 760 * c.z, PALETTE.warmDeep, 0.07 * up);
   const hitGit = flashAt(lt, T_GIT, 0.1);
@@ -657,6 +681,46 @@ function drawTypeLight(ctx: CanvasRenderingContext2D, lt: number): void {
 
 const CHIP_C: Pt = { x: HKPKL_CHIP.x + HKPKL_CHIP.w / 2, y: HKPKL_CHIP.y + HKPKL_CHIP.h / 2 };
 const CHIP_DEPTH = 0.5;
+
+/**
+ * The chip's label, drawn once by drawChip onto an opaque canvas in the
+ * chip's fill (so its text is antialiased as on the reel's own opaque
+ * canvas), cut to LABEL. While the chip moves and scales slowly (the
+ * breath, the knocks, the push-in, Enter's flash) its label is drawn from
+ * it, since a bitmap scales and moves continuously where drawChip's label,
+ * rasterized afresh each frame, steps its glyphs a whole pixel at a time.
+ * Placed at rest it lands on whole pixels, so it is drawChip's label to
+ * the pixel there.
+ */
+const LABEL: Rect = { x: 870, y: 126, w: 180, h: 50 };
+/** Below this scale (from about b5.18, shrinking 7 % a frame) the label is drawn afresh: a bitmap scaled down further would alias. */
+const LABEL_MIN_SCALE = 0.8;
+let labelSprite: HTMLCanvasElement | null = null;
+
+function spriteOfLabel(): HTMLCanvasElement | null {
+  if (labelSprite) return labelSprite;
+  // Not before the label's face is in, or the cache would keep a fallback's.
+  if (typeof document === "undefined" || !document.fonts?.check(font(36, 400, MONO))) return null;
+  const c = makeCanvas(LABEL.w, LABEL.h);
+  const g = c.getContext("2d", { alpha: false });
+  if (!g) return null;
+  g.fillStyle = PALETTE.surface;
+  g.fillRect(0, 0, LABEL.w, LABEL.h);
+  g.translate(-LABEL.x, -LABEL.y);
+  drawChip(g);
+  labelSprite = c;
+  return c;
+}
+
+/** The label's sprite scaled by `scale` about the chip's `centre`. */
+function drawLabelSprite(ctx: CanvasRenderingContext2D, sprite: HTMLCanvasElement, centre: Pt, scale: number): void {
+  ctx.save();
+  // Bilinear: it interpolates, so at scale 1 on whole pixels it is an exact copy.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "low";
+  ctx.drawImage(sprite, centre.x + (LABEL.x - CHIP_C.x) * scale, centre.y + (LABEL.y - CHIP_C.y) * scale, LABEL.w * scale, LABEL.h * scale);
+  ctx.restore();
+}
 
 function drawTheChip(ctx: CanvasRenderingContext2D, lt: number): void {
   const flash = flashAt(lt, T_ENTER, 0.09);
@@ -682,19 +746,26 @@ function drawTheChip(ctx: CanvasRenderingContext2D, lt: number): void {
   if (alpha <= 0 || scale <= 0.01) return;
   const rect = { x: centre.x - HKPKL_CHIP.w / 2, y: centre.y - HKPKL_CHIP.h / 2, w: HKPKL_CHIP.w, h: HKPKL_CHIP.h };
   if (flash > 0) glow(ctx, centre.x, centre.y, 200 * scale, PALETTE.cyan, 0.5 * flash * alpha);
-  drawChip(ctx, { rect, scale, alpha, stroke: flash > 0 ? mix(PALETTE.cyan, "#ffffff", 0.7 * flash) : undefined });
+  // The sprite is opaque, so only while the chip is.
+  const sprite = alpha === 1 && scale >= LABEL_MIN_SCALE ? spriteOfLabel() : null;
+  drawChip(ctx, { rect, scale, alpha, stroke: flash > 0 ? mix(PALETTE.cyan, "#ffffff", 0.7 * flash) : undefined, textAlpha: sprite ? 0 : 1 });
+  if (sprite) drawLabelSprite(ctx, sprite, centre, scale);
 }
 
-/** The chip's light running out along the chrome bar as it is taken in. */
+/**
+ * The chip's light running out along the chrome bar as it is taken in:
+ * rising from b5.3, while the chip is still a speck, to its peak as the
+ * chip's scale reaches 0 (T_RUN − 0.04), and gone by b6.06.
+ */
 function drawChromeGlint(ctx: CanvasRenderingContext2D, lt: number): void {
-  const t0 = T_RUN - 0.06;
-  const p = progress(t0, t0 + 0.34, lt);
+  const t0 = T_RUN - 0.1;
+  const p = progress(t0, t0 + 0.38, lt);
   if (p <= 0 || p >= 1) return;
   const pane = paneAt(lt);
   const cx = pane.x + pane.w / 2;
   const y = pane.y + CHROME - 1;
   const half = (pane.w / 2) * outCubic(p);
-  const a = (1 - p) ** 1.6;
+  const a = smoothstep(t0, T_RUN - 0.04, lt) * (1 - p) ** 1.6;
   ctx.save();
   const g = ctx.createLinearGradient(cx - half, 0, cx + half, 0);
   g.addColorStop(0, rgba(PALETTE.cyan, 0));
@@ -750,9 +821,11 @@ function printRow(ctx: CanvasRenderingContext2D, L: TermLayout, text: string, ro
   ctx.restore();
 }
 
-/** Row 2's redraw starts here (the old tail starting to fade), and everything on it is done by FILES_DONE (b5.94): from there the frame is commit|stash's to the pixel, before the switch to drawHandoff on b6. */
+/** Row 2's redraw starts here (the old tail starting to fade), and everything on it is done by FILES_DONE (b6.94): from there the frame is commit|stash's to the pixel, before the switch to drawHandoff on b7. */
 const FILES_FROM = T_FILES - 0.07;
 const FILES_DONE = T_FILES + 0.22;
+/** The ✔'s ring's last radius, px: inside its cell pair and under row 1's baseline. */
+const RING_R = 28;
 
 /**
  * Row 2 redrawn as the files step finishes: the old message's tail (`git
@@ -817,14 +890,15 @@ function drawFilesRow(ctx: CanvasRenderingContext2D, L: TermLayout, lt: number, 
   const lit = lt < T_FILES ? smoothstep(T_FILES - 0.03, T_FILES, lt) : 1 - progress(T_FILES, FILES_DONE, lt);
   if (lit > 0) glow(ctx, cx, cy, 54, TERM.green, 0.45 * lit * lit);
   inPane(ctx, () => scaled(`${after[0]} `, pop));
-  // A ring pulsing out from round the ✔ as it lands, gone by FILES_DONE.
+  // A small ring pulsing out from round the ✔ as it lands, gone by
+  // FILES_DONE. It stops short of row 1's `hk` and of the `f` of `files`.
   const rp = progress(T_FILES + 0.03, FILES_DONE, lt);
   if (rp > 0 && rp < 1) {
     ctx.save();
     ctx.strokeStyle = rgba(TERM.green, 0.85 * (1 - rp) ** 2);
     ctx.lineWidth = 0.5 + 2.5 * (1 - rp);
     ctx.beginPath();
-    ctx.arc(cx, cy, lerp(15, 60, outCubic(rp)), 0, TAU);
+    ctx.arc(cx, cy, lerp(14, RING_R, outCubic(rp)), 0, TAU);
     ctx.stroke();
     ctx.restore();
   }

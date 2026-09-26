@@ -49,17 +49,24 @@ export const CHECK_GO = 6.5;
 export const CHECK_DONE = [8, 7.25, 7] as const;
 
 /**
- * Fixes: when each holds the write lock, by row (prettier,
- * trailing-whitespace, newlines), one per beat in the commit run's order.
- * The first takes it on b7; each lets it go on the beat (its ✔, the lock
- * springs open) and the next takes it a 16th later (the lock shuts, its
- * pill starts), the lanes' rule. The last lets it go on b10.
+ * Fixes: when each holds the write lock, in turn, one per beat. The first
+ * takes it on b7; each lets it go on the beat (its ✔, the lock springs
+ * open) and the next takes it a 16th later (the lock shuts, its pill
+ * starts), the lanes' rule. The last lets it go on b10.
  */
 export const FIX_HOLDS = [
   [7, 8],
   [8.25, 9],
   [9.25, 10],
 ] as const;
+/**
+ * Which row (0 prettier, 1 trailing-whitespace, 2 newlines) takes each of
+ * those turns: prettier, newlines, then trailing-whitespace, the order
+ * `hk fix` took README.md's write lock (fix.frames.txt frames 12–16), the
+ * run the column is titled after. The commit run went prettier,
+ * trailing-whitespace, newlines: the order of the turns is not fixed.
+ */
+export const FIX_ROWS = [0, 2, 1] as const;
 
 /** Every row of both columns done. */
 export const ALL_DONE = 10;

@@ -6,7 +6,8 @@
 //    measure, and each file takes a cyan `✓ staged` stamp in a 32nd
 //    cascade. README.md's fixed content is the last commit's, so its row
 //    dims and its stamp turns to `= HEAD`: that is why the commit lists
-//    three files.
+//    three files. Its row is the last of the lanes to go, stepping up clear
+//    of the split and holding a beat.
 // 2. Edits back. The split: src/main.py as staged (the fixed file) on the
 //    left, its worktree copy on the right. The fixed lines slide across the
 //    divider as a copy (the fixer's result reaches the worktree too), then
@@ -16,24 +17,28 @@
 // 3. Committed. The split closes onto the staged side, which goes into the
 //    terminal as the commit: `[main ada2ca4] feat: hoist the sails` prints,
 //    lifts off as a cyan dot and shoots along `main`, landing on the bell.
+//    The commit is hk's cyan throughout, never logo cyan (storyboard §3).
 //
 // Starts on lanes|restore (the finished Gantt and the closed tray) and is
-// exactly restore|catch (the main line) from b8. Nothing here reads the
-// facts. Every terminal line is commit.frames.txt's (kit/screens.ts).
+// restore|catch (the main line) from b8, its head's glow breathing once, and
+// exactly from b11. Nothing here reads the facts. Every terminal line is
+// commit.frames.txt's (kit/screens.ts). The TODO strip is stash's own
+// (scenes/stash-peel.ts).
 
-import { BEAT, PALETTE, type Scene, type SceneEnv, sec } from "../bible";
+import { BEAT, LANE, PALETTE, type Scene, type SceneEnv, sec } from "../bible";
 import { mix, rgba } from "../color";
 import { glow, ring, roundedRect } from "../fx";
 import { bg, drawHandoff } from "../handoff";
 import { type CardRect, cardLayout, drawCard, drawMono, MAIN_PY_FIXED, MAIN_PY_TODO, monoWidth } from "../kit/card";
 import { barSpan, drawBar, drawDone, drawLanes, LANE_FILES, LANES, SCHEDULE } from "../kit/lanes";
-import { drawCommitDot, MAIN } from "../kit/mainline";
+import { drawCommitDot, drawMain, MAIN } from "../kit/mainline";
 import { bump, jolt, land, type Pt } from "../kit/motion";
 import { commit } from "../kit/screens";
 import { drawTerm, type Pane, STRIP, termLayout, termLit } from "../kit/term";
 import { drawTray, TRAY } from "../kit/tray";
 import { clamp, cubicBezier, inOutCubic, lerp, outCubic, progress, smoothstep, swiftIn, swiftInOut, swiftOut, TAU } from "../math";
 import { type Caption, drawText, drawWords, font, layout, MONO, wordStyle } from "../type";
+import { DASH, STRIP_BODY, STRIP as TODO_STRIP } from "./stash-peel";
 
 const S = sec("restore");
 
@@ -59,18 +64,31 @@ export const T_RETRACT0 = b(0.25);
 export const T_ABSORB = b(1.375);
 /** The `✓ staged` stamps, one per lane on 32nds (the score's four stamps). */
 export const T_STAMPS = [b(1.5), b(1.625), b(1.75), b(1.875)] as const;
-/** README.md dims and its stamp flips to `= HEAD`. */
-export const T_HEAD = b(2.25);
+/** README.md dims and its stamp flips to `= HEAD`, on the beat after the cascade. */
+export const T_HEAD = b(2);
 /** The divider draws down; the lanes fade. */
 export const T_SPLIT = b(2);
+/**
+ * README.md's row (label and `= HEAD`) is the last of the lanes: it steps up
+ * clear of the unfolding staged card, holds over the split's first beat, and
+ * gives way to the `Staged` header. A beat on screen after the flip, so
+ * `= HEAD` reads before `3 files changed` needs it.
+ */
+const T_HEAD_UP0 = b(2.375);
+const T_HEAD_UP1 = b(2.75);
+const T_HEAD_OUT0 = b(2.9375);
+const T_HEAD_OUT1 = b(3.0625);
 /** The src/main.py label unfolds into the staged card. */
 const T_STAGED0 = b(2.3125);
 const T_STAGED1 = b(2.75);
 /** The worktree card draws on. */
 const T_WORKTREE0 = b(2.375);
 const T_WORKTREE1 = b(2.75);
-/** The fixed lines slide across the divider, one row per 32nd. */
-const T_COPY0 = b(2.6875);
+/** The headers land: `Worktree` as its card fills, `Staged` once README.md has gone from under it. */
+const T_WORKTREE_HEAD = b(2.875);
+const T_STAGED_HEAD = b(3.1875);
+/** The fixed lines slide across the divider, one row per 32nd (the score's copy whoosh). */
+export const T_COPY0 = b(2.6875);
 const COPY_EACH = b(1 / 32);
 const COPY_DUR = b(0.25);
 /** The tray opens (the score's creak) and the TODO line rises out of it. */
@@ -82,20 +100,25 @@ export const T_ZIP1 = b(3.5);
 /** …and it settles into the worktree copy with a glow (the score's bloop). */
 export const T_BLOOP = T_ZIP1;
 const T_LID_SHUT0 = b(3.5);
-const T_LID_SHUT1 = b(3.75);
+/** The lid bangs shut (the score's knock). */
+export const T_LID_SHUT1 = b(3.75);
 const T_TRAY_OUT0 = b(4);
 const T_TRAY_OUT1 = b(4.5);
 /** The split closes onto the staged side; the terminal strip drops in. */
-export const T_CLOSE = b(4.5);
-const T_SLIDE1 = b(5.125);
-const T_STRIP_IN1 = b(5);
-/** The strip prints `✔ stash – Restoring unstaged changes (manual)` (a terminal tick). */
-export const T_RESTORED = b(5);
+export const T_CLOSE = b(5);
+/** The cards have slid together (the end of the score's close whoosh). */
+export const T_SLIDE1 = b(5.5);
+const T_STRIP_IN1 = b(5.5);
+/**
+ * The strip lands on hk's last row, `✔ stash – Restoring unstaged changes
+ * (manual)`, which it falls in showing (a puff and a terminal tick).
+ */
+export const T_RESTORED = T_STRIP_IN1;
 /** The staged card goes into the terminal and the commit prints (a terminal tick). */
-export const T_COMMITTED = b(5.5);
-/** `main` draws on, left to right, with the parent commit on it. */
-const T_LINE0 = b(5.5);
-const T_LINE1 = b(6.5);
+export const T_COMMITTED = b(5.75);
+/** `main` draws on, left to right, with the parent commit on it (the score's line whoosh). */
+export const T_LINE0 = b(5.5);
+export const T_LINE1 = b(6.5);
 /** `[main ada2ca4]` lifts off as a dot… */
 export const T_LIFT = b(6);
 const T_SHOOT0 = b(6.25);
@@ -104,21 +127,38 @@ export const T_LAND = b(7);
 /** The strip fades; the main line's labels come in. */
 const T_STRIP_OUT0 = b(7);
 const T_STRIP_OUT1 = b(8);
-/** From here the frame is restore|catch, exactly. */
+/** From here the frame is restore|catch, the head's glow breathing once… */
 const T_STILL = b(8);
+/** …and exactly restore|catch from b11, the last beat. */
+const T_BREATHED = b(11);
 
 // Stage 1: the lanes rewind and the files are stamped.
 
-const TRACK_W = LANES.trackX1 - LANES.trackX0;
 /** Starts from rest and arrives at speed: the tape measure's slam. */
 const retractEase = (p: number): number => (p * p * (3 - p)) / 2;
-/** The retracting edge's x: bars and tracks end here. */
-const edgeAt = (lt: number): number => lerp(LANES.trackX1, LANES.trackX0, retractEase(progress(T_RETRACT0, T_ABSORB, lt)));
+/** The wind-up: over b0–0.25 the bars' right ends and the tracks push out this far, and the retract starts from there. */
+const PUSH = 10;
+const pushAt = (lt: number): number => PUSH * smoothstep(T_CHARGE, T_RETRACT0, lt);
+/** The retracting edge's x: bars and tracks end here (or at their pushed ends, before it reaches them). */
+const edgeAt = (lt: number): number => lerp(LANES.trackX1 + PUSH, LANES.trackX0, retractEase(progress(T_RETRACT0, T_ABSORB, lt)));
 /** The edge's speed, px per second, for its smear. */
 const edgeSpeed = (lt: number): number => (edgeAt(lt - 1 / 240) - edgeAt(lt + 1 / 240)) * 120;
 
 /** The lanes, their padlocks and stamps fade as the split comes in. */
 const lanesOut = (lt: number): number => smoothstep(b(2.3), b(2.8), lt);
+/**
+ * How far README.md's label and `= HEAD` have stepped up, px: 48 lifts the
+ * chip's bottom (y 224) to 176, ahead of the unfolding card's top edge all
+ * the way (at least 20 px clear, the gap left when the card stops at y 196).
+ */
+const HEAD_UP = 48;
+const headUpAt = (lt: number): number => HEAD_UP * swiftOut(progress(T_HEAD_UP0, T_HEAD_UP1, lt));
+/** README.md's row goes last, as the `Staged` header comes in where it stood. */
+const headRowOut = (lt: number): number => smoothstep(T_HEAD_OUT0, T_HEAD_OUT1, lt);
+/** Its padlock stays with the lanes, gone before the card's top edge could leave its shackle showing. */
+const headLockOut = (lt: number): number => smoothstep(b(2.3), b(2.55), lt);
+/** The other stamps are gone before the unfolding card's edge reaches them, so none pokes out beside it. */
+const stampsOut = (lt: number): number => smoothstep(b(2.3), b(2.5), lt);
 
 /** The labels flash warm as the fixes arrive in them. */
 function absorbFlash(lt: number): number {
@@ -135,7 +175,7 @@ function stampWidth(ctx: CanvasRenderingContext2D, kind: StampKind): number {
   return STAMP.pad * 2 + STAMP.check + STAMP.gap + layout(ctx, "staged", font(STAMP.size, 600)).width;
 }
 
-/** A stamp chip from x, centred on cy: cyan `✓ staged` on an elevated chip, or `= HEAD` in text3. */
+/** A stamp chip from x, centred on cy: cyan `✓ staged` on an elevated chip, or `= HEAD` in text2 in a dashed text3 outline. */
 function drawStamp(ctx: CanvasRenderingContext2D, x: number, cy: number, kind: StampKind, sx: number, sy: number, alpha: number): void {
   if (alpha <= 0 || sx <= 0 || sy <= 0.01) return;
   const w = stampWidth(ctx, kind);
@@ -161,17 +201,17 @@ function drawStamp(ctx: CanvasRenderingContext2D, x: number, cy: number, kind: S
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.setLineDash([]);
-    drawMono(ctx, "= HEAD", STAMP.pad, STAMP.size * 0.34, STAMP.size, PALETTE.text3);
+    drawMono(ctx, "= HEAD", STAMP.pad, STAMP.size * 0.34, STAMP.size, PALETTE.text2);
   }
   ctx.restore();
 }
 
-/** Lane `i`'s stamp: dropped from above onto the lane on its 32nd, squashed on impact, flipped on README.md. */
-function drawLaneStamp(ctx: CanvasRenderingContext2D, i: number, lt: number, alpha: number): void {
+/** Lane `i`'s stamp: dropped from above onto the lane on its 32nd, squashed on impact, flipped on README.md; `up` px above its lane. */
+function drawLaneStamp(ctx: CanvasRenderingContext2D, i: number, lt: number, alpha: number, up = 0): void {
   const hit = T_STAMPS[i];
   const fall = b(1 / 8);
   if (lt < hit - fall || alpha <= 0) return;
-  const cy = LANES.rows[i];
+  const cy = LANES.rows[i] - up;
   let sx = 1;
   let sy = 1;
   let a = alpha;
@@ -218,7 +258,10 @@ function drawLaneStamp(ctx: CanvasRenderingContext2D, i: number, lt: number, alp
 /** The finished bars and their tracks, cut at the retracting edge. */
 function drawRetract(ctx: CanvasRenderingContext2D, lt: number): void {
   const E = edgeAt(lt);
+  const push = pushAt(lt);
   const out = lanesOut(lt);
+  const out0 = headRowOut(lt);
+  const up0 = headUpAt(lt);
   const flash = absorbFlash(lt);
   // Knocked left as the fixes slam in, and easing back: one push, no rattle.
   const kp = progress(T_ABSORB, T_ABSORB + 0.28, lt);
@@ -228,16 +271,27 @@ function drawRetract(ctx: CanvasRenderingContext2D, lt: number): void {
   const intoCard = cardOpen(lt);
   LANE_FILES.forEach((file, i) => {
     let a = 1 - out;
-    if (i === 0) a *= lerp(1, 0.45, headDim);
+    if (i === 0) a = (1 - out0) * lerp(1, 0.45, headDim);
     if (i === 2) a = 1 - progress(0, 0.3, intoCard);
     if (a <= 0) return;
     const color = mix(PALETTE.text1, PALETTE.warmBright, 0.85 * flash);
-    drawMono(ctx, file, LANES.labelX + knock, LANES.rows[i] + 14, 40, rgba(color, a));
+    drawMono(ctx, file, LANES.labelX + knock, LANES.rows[i] + 14 - (i === 0 ? up0 : 0), 40, rgba(color, a));
   });
-  // Tracks and padlocks: the tracks retract with the bars, the padlocks stay open.
-  drawLanes(ctx, { labels: 0, tracks: clamp((E - LANES.trackX0) / TRACK_W), locks: 1 - out });
+  // Tracks and padlocks: the tracks push out and retract with the bars, the padlocks stay open.
+  // drawLanes' own track, drawn here so it can reach past x 1760 in the wind-up.
+  const trackW = Math.min(LANES.trackX1 + push, E) - LANES.trackX0;
+  if (trackW > 0) {
+    ctx.save();
+    ctx.fillStyle = LANE.track;
+    for (const cy of LANES.rows) {
+      roundedRect(ctx, LANES.trackX0, cy - LANES.trackH / 2, trackW, LANES.trackH, LANES.trackRadius);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  drawLanes(ctx, { labels: 0, tracks: 0, locks: [1 - headLockOut(lt), 1 - out, 1 - out, 1 - out] });
   for (const s of SCHEDULE) {
-    const x1 = Math.min(s.x1, E);
+    const x1 = Math.min(s.x1 + push, E);
     if (x1 - s.x0 < 1) continue;
     const { y0, y1 } = barSpan(s.lanes[0], s.lanes[1]);
     drawBar(ctx, { x0: s.x0, x1, y0, y1 }, "fix", { label: s.step, fullWidth: s.x1 - s.x0, rotate: s.lanes[1] - s.lanes[0] >= 2 });
@@ -245,7 +299,7 @@ function drawRetract(ctx: CanvasRenderingContext2D, lt: number): void {
   // The ✔ at each lane's end swells, then rides the edge in and fades.
   const swell = 1 + 0.18 * bump(lt, T_CHARGE, T_RETRACT0 + b(0.125));
   LANES.rows.forEach((cy) => {
-    const x = Math.min(1730, E - 28);
+    const x = Math.min(1730 + push, E - 28);
     const a = progress(1080, 1420, x);
     if (a > 0) drawDone(ctx, x, cy, { size: 40, scale: swell * lerp(0.55, 1, progress(1080, 1730, x)), alpha: a });
   });
@@ -276,7 +330,7 @@ function drawRetract(ctx: CanvasRenderingContext2D, lt: number): void {
     });
   }
   // The stamps.
-  LANE_FILES.forEach((_, i) => drawLaneStamp(ctx, i, lt, 1 - out));
+  LANE_FILES.forEach((_, i) => (i === 0 ? drawLaneStamp(ctx, i, lt, 1 - out0, up0) : drawLaneStamp(ctx, i, lt, (1 - out) * (1 - stampsOut(lt)))));
 }
 
 // Stage 2: the split.
@@ -289,24 +343,30 @@ const LEFT: CardRect = { x: 160, y: 196, w: 720, h: 416 };
 const RIGHT: CardRect = { x: 1040, y: 196, w: 720, h: 416 };
 const L_LEFT = cardLayout(LEFT, CODE);
 const L_RIGHT = cardLayout(RIGHT, CODE);
-/** The two cards meet here as the split closes. */
+/** The two cards meet here as the split closes… */
 const CENTER_X = 960 - LEFT.w / 2;
+/** …drifting down as they go, so the strip (y 100–264) lands clear of their tops. */
+const CLOSE_DROP = 84;
+/** How far the split has closed, 0..1. */
+const closeAt = (lt: number): number => swiftInOut(progress(T_CLOSE, T_SLIDE1, lt));
 /** The TODO line is the worktree copy's 11th row. */
 const TODO_ROW = 10;
 const TODO_W = monoWidth(MAIN_PY_TODO, CODE.size);
-const STRIP_PAD = 10;
+
+/** The divider is back up a dotted quaver after the split starts to close. */
+const T_DIVIDER_UP = T_CLOSE + b(0.375);
 
 /** The divider's reach down the frame, and how far it has gone back up. */
 function drawDivider(ctx: CanvasRenderingContext2D, lt: number): void {
   const down = swiftOut(progress(T_SPLIT, b(2.75), lt));
-  const up = swiftIn(progress(T_CLOSE, b(4.875), lt));
+  const up = swiftIn(progress(T_CLOSE, T_DIVIDER_UP, lt));
   if (down <= 0 || up >= 1) return;
   const end = lerp(lerp(DIVIDER.y0, DIVIDER.y1, down), DIVIDER.y0, up);
   ctx.save();
   ctx.fillStyle = mix(PALETTE.divider, PALETTE.text3, 0.35);
   ctx.fillRect(DIVIDER.x - 1, DIVIDER.y0, 2, end - DIVIDER.y0);
   // A glint at the head while it draws, and again as it goes back up.
-  const head = (1 - progress(b(2.6), b(3), lt)) * progress(T_SPLIT, T_SPLIT + b(1 / 16), lt) + bump(lt, T_CLOSE, b(4.875) - T_CLOSE);
+  const head = (1 - progress(b(2.6), b(3), lt)) * progress(T_SPLIT, T_SPLIT + b(1 / 16), lt) + bump(lt, T_CLOSE, T_DIVIDER_UP - T_CLOSE);
   if (head > 0) {
     glow(ctx, DIVIDER.x, end, 34, PALETTE.cyanBright, 0.9 * head);
     const g = ctx.createLinearGradient(0, end - 60, 0, end);
@@ -322,9 +382,9 @@ const STAGED_STYLE = wordStyle(56, PALETTE.cyan);
 const WORKTREE_STYLE = wordStyle(56, PALETTE.paper);
 
 function drawHeaders(ctx: CanvasRenderingContext2D, lt: number): void {
-  if (lt < b(2.25) || lt >= b(4.75)) return;
-  drawWords(ctx, "Staged", LEFT.x, HEADER_Y, STAGED_STYLE, lt, b(2.625), T_CLOSE);
-  drawWords(ctx, "Worktree", RIGHT.x, HEADER_Y, WORKTREE_STYLE, lt, b(2.875), T_CLOSE);
+  if (lt < T_WORKTREE_HEAD - b(1 / 8) || lt >= T_CLOSE + b(1 / 4)) return;
+  drawWords(ctx, "Staged", LEFT.x, HEADER_Y, STAGED_STYLE, lt, T_STAGED_HEAD, T_CLOSE);
+  drawWords(ctx, "Worktree", RIGHT.x, HEADER_Y, WORKTREE_STYLE, lt, T_WORKTREE_HEAD, T_CLOSE);
 }
 
 /** How far the staged card has unfolded out of the src/main.py label, 0..1 (linear). */
@@ -346,7 +406,7 @@ const TAB_W = monoWidth(TAB, 30) + 48;
 const UNFOLD_S = 40 / 30;
 const UNFOLD: Placed = { x: LANES.labelX - 24 * UNFOLD_S, y: LANES.rows[2] + 14 - 29 * UNFOLD_S, s: UNFOLD_S, w: TAB_W, h: 40, alpha: 0 };
 
-/** Where the staged card is: unfolding, at rest, sliding to the centre, then shrinking into the terminal. */
+/** Where the staged card is: unfolding, at rest, sliding down to the centre, then shrinking into the terminal. */
 function stagedAt(lt: number): Placed | null {
   if (lt < T_STAGED0 || lt >= T_COMMITTED) return null;
   const e = swiftInOut(cardOpen(lt));
@@ -358,8 +418,9 @@ function stagedAt(lt: number): Placed | null {
     h: lerp(UNFOLD.h, LEFT.h, e),
     alpha: progress(0, 0.25, cardOpen(lt)),
   };
-  const c = swiftInOut(progress(T_CLOSE, T_SLIDE1, lt));
+  const c = closeAt(lt);
   p.x += (CENTER_X - LEFT.x) * c;
+  p.y += CLOSE_DROP * c;
   const k = progress(T_SLIDE1, T_COMMITTED, lt);
   if (k > 0) {
     // Into the terminal: up behind its window, toward the `[main ada2ca4]` it becomes.
@@ -373,11 +434,12 @@ function stagedAt(lt: number): Placed | null {
   return p;
 }
 
-/** Where the worktree card is: drawing on in place, then sliding under the staged card and gone. */
+/** Where the worktree card is: drawing on in place, then sliding down under the staged card and gone. */
 function worktreeAt(lt: number): Placed | null {
-  if (lt < T_WORKTREE0 || lt >= b(5.125)) return null;
-  const c = swiftInOut(progress(T_CLOSE, T_SLIDE1, lt));
-  return { x: RIGHT.x + (CENTER_X - RIGHT.x) * c, y: RIGHT.y, s: 1, w: RIGHT.w, h: RIGHT.h, alpha: 1 - progress(b(4.875), b(5.125), lt) };
+  const gone = T_SLIDE1 - b(1 / 16);
+  if (lt < T_WORKTREE0 || lt >= gone) return null;
+  const c = closeAt(lt);
+  return { x: RIGHT.x + (CENTER_X - RIGHT.x) * c, y: RIGHT.y + CLOSE_DROP * c, s: 1, w: RIGHT.w, h: RIGHT.h, alpha: 1 - progress(gone - b(1 / 8), gone, lt) };
 }
 
 /** A soft drop shadow under a card, in logical px whatever the output scale. */
@@ -494,13 +556,23 @@ function drawCopies(ctx: CanvasRenderingContext2D, lt: number): void {
 
 // The tray and the TODO line.
 
+/** How far the lid opens here (the kit's 1 is −35°). */
+const LID_OPEN = 0.5;
+
 function drawTrayLayer(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): void {
   const a = 1 - smoothstep(T_TRAY_OUT0, T_TRAY_OUT1, lt);
   if (a <= 0) return;
-  const lid = swiftOut(progress(T_LID, T_LID + b(1 / 8), lt)) * (1 - swiftIn(progress(T_LID_SHUT0, T_LID_SHUT1, lt)));
+  const lid = LID_OPEN * swiftOut(progress(T_LID, T_LID + b(1 / 8), lt)) * (1 - swiftIn(progress(T_LID_SHUT0, T_LID_SHUT1, lt)));
   // A little knock as the lid bangs shut.
   const dy = 2.5 * jolt(lt, T_LID_SHUT1, 0.18, 12);
   ctx.save();
+  // The lid swings up behind the worktree card, never across it and the zip: the tray shows only below the card.
+  const card = worktreeAt(lt);
+  if (card && lid > 0) {
+    ctx.beginPath();
+    ctx.rect(0, card.y + card.h * card.s, 1920, 1080);
+    ctx.clip();
+  }
   ctx.translate(0, dy);
   drawTray(ctx, { lid, holding: lt < T_LID, t: env.t, alpha: a });
   ctx.restore();
@@ -509,20 +581,32 @@ function drawTrayLayer(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv)
 /** The slot the held line shows in, where the TODO strip starts from. */
 const SLOT = TRAY.sliver;
 const SLOT_C: Pt = { x: (SLOT.x0 + SLOT.x1) / 2, y: (SLOT.y0 + SLOT.y1) / 2 };
-/** The strip at home: the worktree card's row 10, padded. */
-const TODO_BOX = { w: TODO_W + 2 * STRIP_PAD, h: CODE.lineH };
-const TODO_HOME: Pt = { x: L_RIGHT.x0 + TODO_W / 2, y: L_RIGHT.rowTop(TODO_ROW) + CODE.lineH / 2 };
+/** The tray's sliver colour (tray.ts): the strip is still this as it leaves the slot. */
+const SLIVER = mix(PALETTE.paper, PALETTE.paperDim, 0.35);
+/**
+ * The strip is the one stash cut off its card (scenes/stash-peel.ts): the
+ * same size, paper, radius and dashed outline, with the line 14 px in on a
+ * baseline 25.8 px down (its TEXT_DX and TEXT_DY). At home its line sits on
+ * the worktree copy's row 10, as the stash strip lay on its card's.
+ */
+const STRIP_TEXT = { dx: 14, dy: 25.8 } as const;
+const TODO_HOME: Pt = {
+  x: L_RIGHT.x0 - STRIP_TEXT.dx + TODO_STRIP.w / 2,
+  y: L_RIGHT.baseline(TODO_ROW) - STRIP_TEXT.dy + TODO_STRIP.h / 2,
+};
+/** The line's first glyph and its baseline, from the strip's centre. */
+const TEXT_X = STRIP_TEXT.dx - TODO_STRIP.w / 2;
+const TEXT_BASE = STRIP_TEXT.dy - TODO_STRIP.h / 2;
+/** The row's middle, from the strip's centre. */
+const ROW_DY = L_RIGHT.rowTop(TODO_ROW) + CODE.lineH / 2 - TODO_HOME.y;
 /** A low arc up out of the tray and left into the row, under the rows above it. */
 const RISE_C: Pt = { x: SLOT_C.x - 60, y: TODO_HOME.y - 60 };
 /**
- * The open zipper's teeth hang below the row, alternately near and far, and
- * rise into it as they mesh: px down, for even and odd columns.
+ * The open zipper's teeth: the glyphs sit alternately low and high on the
+ * strip, px from the line's baseline for even and odd columns, and meet on
+ * it as they mesh. Both stay inside the outline (no low glyph has a descender).
  */
-const TEETH = [5, 17] as const;
-/** The strip's height while its teeth are apart, reaching down from the row's top: room for them inside its dashed outline. */
-const OPEN_H = CODE.lineH + TEETH[1] + 5;
-/** Where the open strip's middle sits below the row's. */
-const OPEN_DY = (OPEN_H - CODE.lineH) / 2;
+const TEETH = [5, -2] as const;
 /** The settled line's band runs the card's width, as an editor marks a changed line. */
 const BAND = { x0: RIGHT.x + 12, x1: RIGHT.x + RIGHT.w - 12 } as const;
 /** Up out of the slot slowly, over fast, and eased into the row. */
@@ -535,26 +619,26 @@ const quad = (a: Pt, c: Pt, e: Pt, u: number): Pt => ({
 
 /**
  * The TODO line from the tray: the held sliver lifts out of the slot and
- * unfolds into the line as it arcs over, its glyphs apart like an open
- * zipper's teeth inside the dashed outline it had in the stash. Then a
- * slider runs along the row and the teeth mesh behind it, and the row's
- * band lights up: it is part of the file.
+ * unfolds into the stash's strip as it arcs over (the reverse of how it went
+ * in: scaled up and turned face-on), its glyphs apart like an open zipper's
+ * teeth. Then a slider runs along the row and the teeth mesh behind it, and
+ * the row's band lights up: it is part of the file.
  */
 function drawTodoStrip(ctx: CanvasRenderingContext2D, lt: number): void {
   if (lt < T_LID || lt >= T_ZIP1) return;
   const u = riseEase(progress(T_LID, T_RISE1, lt));
-  const pos = quad(SLOT_C, RISE_C, { x: TODO_HOME.x, y: TODO_HOME.y + OPEN_DY }, u);
-  const w = lerp(SLOT.x1 - SLOT.x0, TODO_BOX.w, u);
-  const h = lerp(SLOT.y1 - SLOT.y0, OPEN_H, u);
+  const pos = quad(SLOT_C, RISE_C, TODO_HOME, u);
+  const { w, h, r } = TODO_STRIP;
+  const sx = lerp((SLOT.x1 - SLOT.x0) / w, 1, u);
+  const sy = lerp((SLOT.y1 - SLOT.y0) / h, 1, u);
   const tilt = -0.24 * Math.sin(Math.PI * u);
   const adv = 0.6 * CODE.size;
-  const left = -TODO_W / 2;
   // The zip: the slider's column, from the band's left end to its right end.
   const zp = progress(T_ZIP0, T_ZIP1, lt);
   const col0 = (BAND.x0 - L_RIGHT.x0) / adv - 0.5;
   const col1 = (BAND.x1 - L_RIGHT.x0) / adv + 0.5;
   const slider = lerp(col0, col1, smoothstep(0, 1, zp));
-  const sliderX = left + slider * adv;
+  const sliderX = TEXT_X + slider * adv;
   ctx.save();
   if (zp > 0) {
     // Merged behind the slider: the settled row's band, lit.
@@ -564,45 +648,50 @@ function drawTodoStrip(ctx: CanvasRenderingContext2D, lt: number): void {
   }
   ctx.translate(pos.x, pos.y);
   ctx.rotate(tilt);
-  // Ahead of the slider: the strip as it came out of the stash.
+  ctx.scale(sx, sy);
+  // Ahead of the slider: the strip as it went into the stash (drawStripFace's paper and outline).
   ctx.save();
   ctx.beginPath();
-  ctx.rect(sliderX, -h, 4 * w, 2 * h);
+  ctx.rect(sliderX, -h, 2 * w, 2 * h);
   ctx.clip();
-  const solid = 1 - progress(0, 0.4, u);
-  roundedRect(ctx, -w / 2, -h / 2, w, h, Math.min(6, h / 2));
-  ctx.fillStyle = rgba(PALETTE.paper, lerp(0.06, 1, solid));
+  roundedRect(ctx, -w / 2, -h / 2, w, h, r);
+  ctx.fillStyle = STRIP_BODY;
   ctx.fill();
-  const outline = progress(0.25, 0.6, u);
+  const outline = progress(0.15, 0.5, u);
   if (outline > 0) {
-    ctx.setLineDash([12, 8]);
+    roundedRect(ctx, -w / 2 + 1, -h / 2 + 1, w - 2, h - 2, r - 1);
+    ctx.setLineDash([...DASH]);
     ctx.strokeStyle = rgba(PALETTE.paper, outline);
     ctx.lineWidth = 2;
     ctx.stroke();
     ctx.setLineDash([]);
   }
   ctx.restore();
-  // The glyphs: teeth apart, alternately up and down, meshing as the slider passes.
-  const ga = progress(0.35, 0.8, u);
+  // The glyphs: teeth apart, alternately low and high, meshing as the slider passes.
+  const ga = progress(0.1, 0.5, u);
   if (ga > 0) {
-    const sx = w / TODO_BOX.w;
-    const base = (CODE.lineH - CODE.size) / 2 + 0.8 * CODE.size - CODE.lineH / 2;
     Array.from(MAIN_PY_TODO).forEach((ch, c) => {
       if (ch === " ") return;
       const z = progress(c - 0.25, c + 1.5, slider);
       const open = 1 - land(z, 0, 1, 0.4);
-      const dy = TEETH[c % 2] * open - OPEN_DY;
-      drawMono(ctx, ch, (left + c * adv) * sx, base + dy, CODE.size, rgba(PALETTE.paper, ga * lerp(1, 0.8, open)));
+      drawMono(ctx, ch, TEXT_X + c * adv, TEXT_BASE + TEETH[c % 2] * open, CODE.size, rgba(PALETTE.paper, ga * lerp(1, 0.8, open)));
     });
+  }
+  // Leaving the slot it is still the tray's sliver, turning to paper as it unfolds.
+  const sliver = 1 - progress(0, 0.35, u);
+  if (sliver > 0) {
+    roundedRect(ctx, -w / 2, -h / 2, w, h, r);
+    ctx.fillStyle = rgba(SLIVER, sliver);
+    ctx.fill();
   }
   // The row starts to glow as the last teeth mesh: the bloop's light, rising into it.
   const bloom = progress(0.7, 1, zp);
-  if (bloom > 0) glow(ctx, 0, -OPEN_DY, 150, PALETTE.paper, 0.35 * bloom * bloom);
+  if (bloom > 0) glow(ctx, 0, ROW_DY, 150, PALETTE.paper, 0.35 * bloom * bloom);
   // The slider: a bright pull riding the row.
   const pull = progress(0, 0.06, zp) * (1 - progress(0.9, 1, zp));
   if (pull > 0) {
-    glow(ctx, sliderX, 0, 44, PALETTE.paper, 0.9 * pull);
-    roundedRect(ctx, sliderX - 5, -OPEN_H / 2 - 3, 10, OPEN_H + 6, 5);
+    glow(ctx, sliderX, ROW_DY, 44, PALETTE.paper, 0.9 * pull);
+    roundedRect(ctx, sliderX - 5, -h / 2 - 3, 10, h + 6, 5);
     ctx.fillStyle = rgba(PALETTE.glint, pull);
     ctx.fill();
   }
@@ -625,18 +714,18 @@ interface StripState {
 }
 
 /**
- * The terminal strip: drops in from above showing frame 18's last two rows
- * (`✔ trailing-whitespace`, `✔ newlines`), scrolls a row as the restore
- * prints (frame 19), two more as the commit prints (frame 22), then fades.
+ * The terminal strip: drops in from above showing frame 19's last two rows
+ * (`✔ newlines`, `✔ stash – Restoring unstaged changes (manual)`), lands,
+ * scrolls two rows as the commit prints (frame 22), then fades.
  */
 function stripAt(lt: number): StripState | null {
   if (lt < T_CLOSE || lt >= T_STRIP_OUT1) return null;
-  // It falls, landing on the beat the restore prints, and hops once.
+  // It falls, landing on the restore's beat, and hops once.
   const fall = progress(T_CLOSE + b(1 / 8), T_STRIP_IN1, lt);
   const hop = progress(T_STRIP_IN1, T_STRIP_IN1 + b(3 / 8), lt);
   const leave = smoothstep(T_STRIP_OUT0, T_STRIP_OUT1, lt);
   const dy = -290 * (1 - fall * fall) - 16 * Math.sin(Math.PI * hop) * (1 - hop) - 16 * leave;
-  const scroll = 7 + swiftOut(progress(T_RESTORED, T_RESTORED + b(1 / 8), lt)) + 2 * swiftOut(progress(T_COMMITTED, T_COMMITTED + b(1 / 8), lt));
+  const scroll = 8 + 2 * swiftOut(progress(T_COMMITTED, T_COMMITTED + b(1 / 8), lt));
   return { pane: { ...STRIP, y: STRIP.y + dy, baseline0: STRIP.baseline0 + dy }, scroll, alpha: 1 - leave };
 }
 
@@ -646,7 +735,7 @@ function drawStrip(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): vo
   const L = drawTerm(ctx, s.pane, STRIP_LINES, { t: env.t, scroll: s.scroll, alpha: s.alpha });
   ctx.save();
   ctx.globalAlpha *= s.alpha;
-  // The restore row's ✔ pops as it prints.
+  // The restore row's ✔ pops as the strip lands.
   const k = progress(T_RESTORED, T_RESTORED + 0.4, lt);
   if (k > 0 && k < 1) {
     const cell = L.cell(9, 0);
@@ -664,11 +753,13 @@ function drawStrip(ctx: CanvasRenderingContext2D, lt: number, env: SceneEnv): vo
   ctx.restore();
 }
 
-// The dot's flight: up off the text, down onto `main`, and along it to the head's place.
+// The dot's flight: drawn off the text into the window's left gutter, down
+// the gutter clear of the rows, onto `main`, and along it to the head's place.
 
-const LIFT_TO: Pt = { x: COMMIT_TEXT.x, y: COMMIT_TEXT.y - 30 };
+const LIFT_TO: Pt = { x: (STRIP.x + STRIP.x0) / 2, y: COMMIT_TEXT.y - 16 };
 const TOUCH: Pt = { x: 640, y: MAIN.y };
-const FALL_C: Pt = { x: 360, y: MAIN.y };
+/** Straight down out of the window first, then turning onto the line. */
+const FALL_C: Pt = { x: LIFT_TO.x, y: MAIN.y };
 const HEAD: Pt = { x: MAIN.head.x, y: MAIN.y };
 /** The fall's arc, sampled by length, then the straight run along the line. */
 const FALL = (() => {
@@ -698,7 +789,7 @@ function pathAt(d: number): Pt {
 const shootEase = (p: number): number => (p * p * (3 - p)) / 2;
 const dotAt = (lt: number): Pt => pathAt(PATH_LEN * shootEase(progress(T_SHOOT0, T_LAND, lt)));
 
-/** `[main ada2ca4]` glowing cyan over the terminal's own text, then drawn together into a dot that rises a little. */
+/** `[main ada2ca4]` glowing cyan over the terminal's own text, then drawn together into a dot in the gutter to its left, rising a little. */
 function drawLift(ctx: CanvasRenderingContext2D, lt: number): void {
   if (lt < T_LIFT || lt >= T_SHOOT0) return;
   const p = progress(T_LIFT, T_SHOOT0, lt);
@@ -709,20 +800,20 @@ function drawLift(ctx: CanvasRenderingContext2D, lt: number): void {
   const adv = 0.6 * size;
   const y = STRIP_REST.baseline(10);
   ctx.save();
-  glow(ctx, COMMIT_TEXT.x, COMMIT_TEXT.y, 170 * (1 - 0.6 * pull), PALETTE.logo, 0.55 * heat * (1 - progress(0.55, 1, p)));
+  glow(ctx, lerp(COMMIT_TEXT.x, LIFT_TO.x, pull), COMMIT_TEXT.y, 170 * (1 - 0.6 * pull), PALETTE.cyan, 0.55 * heat * (1 - progress(0.55, 1, p)));
   Array.from(text).forEach((ch, j) => {
     const x = STRIP_REST.col(j) + adv / 2;
     const gx = lerp(x, LIFT_TO.x, pull);
     const gy = lerp(y - 0.33 * size, LIFT_TO.y, pull);
     const s = lerp(size, size * 0.3, pull);
     const a = heat * (1 - progress(0.7, 1, p));
-    drawMono(ctx, ch, gx - 0.3 * s, gy + 0.33 * s, s, rgba(mix(PALETTE.text1, PALETTE.logo, heat), a), 700);
+    drawMono(ctx, ch, gx - 0.3 * s, gy + 0.33 * s, s, rgba(mix(PALETTE.text1, PALETTE.cyan, heat), a), 700);
   });
   const r = 10 * progress(0.55, 1, p);
   if (r > 0) {
     const c = { x: LIFT_TO.x, y: lerp(COMMIT_TEXT.y, LIFT_TO.y, pull) };
-    glow(ctx, c.x, c.y, r * 6, PALETTE.logo, 0.8);
-    ctx.fillStyle = mix(PALETTE.logo, "#ffffff", 0.5);
+    glow(ctx, c.x, c.y, r * 6, PALETTE.cyan, 0.8);
+    ctx.fillStyle = mix(PALETTE.cyan, "#ffffff", 0.5);
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, TAU);
     ctx.fill();
@@ -739,8 +830,8 @@ function drawShot(ctx: CanvasRenderingContext2D, lt: number): void {
   const fade = 1 - progress(T_LAND, T_LAND + 0.3, lt);
   if (at.x > TOUCH.x && at.y >= MAIN.y - 0.5) {
     const g = ctx.createLinearGradient(at.x - 520, 0, at.x, 0);
-    g.addColorStop(0, rgba(PALETTE.logo, 0));
-    g.addColorStop(1, rgba(PALETTE.logo, 0.85 * fade));
+    g.addColorStop(0, rgba(PALETTE.cyan, 0));
+    g.addColorStop(1, rgba(PALETTE.cyan, 0.85 * fade));
     ctx.fillStyle = g;
     ctx.fillRect(Math.max(TOUCH.x, at.x - 520), MAIN.y - 2.5, Math.min(520, at.x - TOUCH.x), 5);
   }
@@ -752,7 +843,7 @@ function drawShot(ctx: CanvasRenderingContext2D, lt: number): void {
       const p0 = dotAt(lt - k / 280);
       const p1 = dotAt(lt - (k - 1) / 280);
       const f = 1 - k / (n + 1);
-      ctx.strokeStyle = rgba(PALETTE.logo, 0.85 * f);
+      ctx.strokeStyle = rgba(PALETTE.cyan, 0.85 * f);
       ctx.lineWidth = 18 * f;
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
@@ -760,8 +851,8 @@ function drawShot(ctx: CanvasRenderingContext2D, lt: number): void {
       ctx.stroke();
     }
     const p = dotAt(lt);
-    glow(ctx, p.x, p.y, 70, PALETTE.logo, 0.9);
-    ctx.fillStyle = mix(PALETTE.logo, "#ffffff", 0.5);
+    glow(ctx, p.x, p.y, 70, PALETTE.cyan, 0.9);
+    ctx.fillStyle = mix(PALETTE.cyan, "#ffffff", 0.5);
     ctx.beginPath();
     ctx.arc(p.x, p.y, 10, 0, TAU);
     ctx.fill();
@@ -775,14 +866,14 @@ function drawBell(ctx: CanvasRenderingContext2D, lt: number): void {
   const d = lt - T_LAND;
   ctx.save();
   const k = progress(0, 0.42, d);
-  glow(ctx, HEAD.x, HEAD.y, 130, PALETTE.logo, 0.95 * (1 - k) ** 2);
+  glow(ctx, HEAD.x, HEAD.y, 130, PALETTE.cyan, 0.95 * (1 - k) ** 2);
   ring(ctx, HEAD.x, HEAD.y, 120, progress(0, 0.3, d), PALETTE.glint, 5);
-  ring(ctx, HEAD.x, HEAD.y, 74, progress(0.04, 0.28, d), PALETTE.logo, 4);
+  ring(ctx, HEAD.x, HEAD.y, 74, progress(0.04, 0.28, d), PALETTE.cyan, 4);
   // Sparks thrown off the strike: short dashes flying out and fading.
   const e = swiftOut(progress(0, 0.26, d));
   const ra = (1 - progress(0, 0.26, d)) ** 2;
   if (ra > 0) {
-    ctx.strokeStyle = rgba(mix(PALETTE.logo, PALETTE.glint, 0.5), 0.95 * ra);
+    ctx.strokeStyle = rgba(mix(PALETTE.cyan, PALETTE.glint, 0.5), 0.95 * ra);
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     for (let i = 0; i < 8; i++) {
@@ -815,7 +906,8 @@ function drawMainStage(ctx: CanvasRenderingContext2D, lt: number): void {
   ctx.save();
   ctx.fillStyle = PALETTE.text3;
   ctx.fillRect(MAIN.x0, MAIN.y - MAIN.width / 2, tip - MAIN.x0, MAIN.width);
-  if (line < 1) glow(ctx, tip, MAIN.y, 40, PALETTE.cyan, 0.6 * (1 - line));
+  // The tip's glow grows in as it leaves x 160, so no blob waits there on the first frame.
+  if (line < 1) glow(ctx, tip, MAIN.y, 40, PALETTE.cyan, 0.6 * (1 - line) * progress(T_LINE0, T_LINE0 + b(1 / 8), lt));
   // The parent was already there: it pops in as the line starts and nods when the shock reaches it.
   const shockAt = T_LAND + (HEAD.x - MAIN.parent.x) / 1500;
   const pr = MAIN.dotR * land(lt, T_LINE0, 0.22, 0.3) * (1 + 0.18 * bump(lt, shockAt, 0.16));
@@ -855,11 +947,16 @@ export const scene: Scene = {
   end: S.end,
   draw(ctx, lt, env) {
     if (lt >= T_STILL) {
-      drawHandoff(ctx, "restore|catch", env);
+      // The hold breathes: the head's glow swells once and settles, a sin² that is exactly 0 from b11.
+      const breath = bump(lt, T_STILL, T_BREATHED - T_STILL);
+      if (breath > 0) {
+        bg(ctx, env);
+        drawMain(ctx, { headGlow: 1 + 0.6 * breath });
+      } else drawHandoff(ctx, "restore|catch", env);
       return;
     }
     bg(ctx, env);
-    if (lt < b(2.9)) drawRetract(ctx, lt);
+    if (lt < T_HEAD_OUT1) drawRetract(ctx, lt);
     drawDivider(ctx, lt);
     drawHeaders(ctx, lt);
     drawWorktreeCard(ctx, lt);
@@ -873,10 +970,11 @@ export const scene: Scene = {
     drawShot(ctx, lt);
     drawBell(ctx, lt);
   },
-  // The terminal strip is the lit screen while it is up (b4.5–8).
+  // The terminal strip is the lit screen while it is up (b5–8), as much of it as is on screen as it falls in.
   lit(lt) {
     const s = stripAt(lt);
-    return s && s.alpha > 0 ? termLit(s.pane, s.alpha) : null;
+    const a = s ? s.alpha * clamp((s.pane.y + s.pane.h) / s.pane.h) : 0;
+    return s && a > 0 ? termLit(s.pane, a) : null;
   },
   captions: () => CAPTIONS,
 };

@@ -225,6 +225,12 @@ export interface IconHookOptions {
   /** Group opacity. */
   alpha?: number;
   /**
+   * The eye and the shank above y 80, multiplied onto their fade with the
+   * dock (default 1): open takes them out before the dock is done, so the
+   * line's knot slips off as the line lets go.
+   */
+  eyeAlpha?: number;
+  /**
    * The barb's progress. By default it retracts into the point over the
    * second half of the dock, so the wordmark's own barb can click out of
    * the point on the next downbeat (open b4).
@@ -275,7 +281,7 @@ export function drawIconHook(ctx: CanvasRenderingContext2D, place: LogoPlace, k:
   const width = lerp(ICON_HOOK.stroke, LOGO_STROKE, dock);
   const py = lerp(ICON_HOOK.point.free, ICON_HOOK.point.docked, dock);
   const barb = clamp(o.barb ?? 1 - smoothstep(0.5, 1, dock));
-  const fade = 1 - dock;
+  const fade = (1 - dock) * clamp(o.eyeAlpha ?? 1);
   const q = DOCK_FROM.map((a, i) => ({ x: lerp(a.x, DOCK_TO[i].x, dock), y: lerp(a.y, DOCK_TO[i].y, dock) }));
   const { cx: ex, cy: ey, r: er } = ICON_HOOK.eye;
 

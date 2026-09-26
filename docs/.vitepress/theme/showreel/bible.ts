@@ -29,7 +29,7 @@ export {
 } from "./timeline";
 
 /**
- * The stage (storyboard §3): side margins at x 160 and 1760, actors between
+ * The stage every scene shares: side margins at x 160 and 1760, actors between
  * y 100 and FLOOR, and the captions' band below CAPTION_TOP (type.ts) kept
  * quiet while a caption is up.
  */
@@ -81,15 +81,12 @@ export const PALETTE = {
   /** Soft fills, as the landing page's lanes. */
   cyanSoft: "rgba(115,213,223,0.10)",
   warmSoft: "rgba(234,193,142,0.12)",
-  /** Bar fills, stronger than the page's so bars read at thumbnail size (storyboard §3). */
+  /** Bar fills, stronger than the page's so bars read at thumbnail size. */
   cyanFill: "rgba(115,213,223,0.20)",
   warmFill: "rgba(234,193,142,0.22)",
   /** Passed and caught (hk's terminal green and red, Catppuccin Frappé). */
   green: "#a6d189",
   red: "#e78284",
-  /** The same two under identity.md's names. */
-  success: "#a6d189",
-  error: "#e78284",
   /** The social card's warm rule. */
   rule: "#3d3540",
 } as const;
@@ -128,7 +125,7 @@ export const TERM = {
   cursor: "#f2d5cf",
 } as const;
 
-/** The landing page's lanes, scaled up for the reel (storyboard K3). */
+/** The landing page's lanes (HomePage.vue), scaled up for the reel's (kit/lanes.ts). */
 export const LANE = {
   track: PALETTE.elevated,
   check: { fill: PALETTE.cyanFill, stroke: PALETTE.cyan, text: PALETTE.cyan },
@@ -167,9 +164,11 @@ export interface Scene {
   captions?(facts: ReelFacts | null): readonly Caption[];
   /**
    * The lit screen on the frame at `lt`, if there is one: a terminal's
-   * window, which the reel's vignette leaves out.
+   * window, which the reel's vignette leaves out. It is given the same
+   * facts as `draw`, so a scene whose picture depends on them needs no
+   * state carried over from the frame it last drew.
    */
-  lit?(lt: number): LitRect | null;
+  lit?(lt: number, env: Pick<SceneEnv, "facts">): LitRect | null;
 }
 
 /**

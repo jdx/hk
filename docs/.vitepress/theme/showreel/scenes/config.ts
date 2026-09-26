@@ -6,11 +6,12 @@
 // will run are plucked out of the rivers, one per sixteenth: each name
 // swings out of its column, turning upright, to its own row's height left
 // of the card's text, glides along that still-empty row onto its
-// `Builtins.` reference, and its line unfolds round it. The closing brace
-// stamps the block shut, the rivers ebb, and under "Configured in Pkl:
-// typed and reusable." a warm band marks ruff-format, a builtin amended
-// with `depends`, its mark breathing. Then the card folds into the hk.pkl
-// chip, its tab's name becoming the chip's, for `commit`.
+// `Builtins.` reference, and its line unfolds round it; the rivers make way
+// round each name as it pulls out. The closing brace stamps the block shut,
+// the rivers ebb, a faint sheen glances across the resting card, and under
+// "Configured in Pkl: typed and reusable." a warm band marks ruff-format, a
+// builtin amended with `depends`, its mark breathing. Then the card folds
+// into the hk.pkl chip, its tab's name becoming the chip's, for `commit`.
 //
 // Every frame is a pure function of the scene's local time. The first frame
 // is open|config's wordmark and everything from b11.75 is config|commit's
@@ -18,7 +19,7 @@
 
 import { BAR, BEAT, PALETTE, type Scene, sec } from "../bible";
 import { mix, rgba } from "../color";
-import { glow, roundedRect } from "../fx";
+import { glow, makeCanvas, roundedRect } from "../fx";
 import { drawHandoff } from "../handoff";
 import {
   CARD_TAB,
@@ -80,8 +81,11 @@ export const CAPTIONS: readonly Caption[] = [
 export const T_LOGO_OUT = b(1);
 /** `prettier` and `zizmor` pop out of the rivers, each with a cyan ring. */
 export const T_POP = b(2);
-/** zizmor sinks back into its river. */
-const T_SINK = [b(3.25), b(3.875)] as const;
+/**
+ * zizmor sinks back into its river. It is back to a river name's size by
+ * 60% of the way and back in its file by about 80% (b3.75): the plop.
+ */
+export const T_SINK = [b(3.25), b(3.875)] as const;
 /** The card stroke-draws, outline then fill: the paper flick. */
 export const T_CARD = [b(4), b(4.5)] as const;
 /**
@@ -215,6 +219,11 @@ const ebb = (t: number): number => 1 - smoothstep(T_EBB[0], T_EBB[1], t);
 const popOf = (t: number): number => (t < T_POP ? 0 : spring(t - T_POP, 2.8, 0.52));
 /** zizmor's pop, eased back to 0 as it sinks into its river again. */
 const zizmorPop = (t: number): number => popOf(t) * (1 - inOutCubic(progress(T_SINK[0], T_SINK[1], t)));
+/**
+ * zizmor's size as it sinks, 1 popped to 0 a river name's: it shrinks ahead
+ * of its way back, so it is river-sized before it is among the names again.
+ */
+const zizmorSize = (t: number): number => popOf(t) * (1 - outCubic(progress(T_SINK[0], lerp(T_SINK[0], T_SINK[1], 0.6), t)));
 
 /** A popped word's own place: its centre, bobbing a little on a bar-long sine, opposite for the two. */
 function popHome(i: number, t: number): Pose {
@@ -232,7 +241,7 @@ function popLook(i: number, t: number): Look {
   const c = clamp(k);
   return {
     pose: { x: lerp(from.pose.x, home.x, k), y: lerp(from.pose.y, home.y, k), a: lerp(from.pose.a, 0, k) },
-    size: lerp(from.size, POP_SIZE, k),
+    size: lerp(from.size, POP_SIZE, i ? zizmorSize(t) : k),
     color: mix(from.color, PALETTE.warm, c),
     alpha: lerp(from.alpha, 1, c),
     lift: c,
@@ -392,10 +401,22 @@ function flightLook(st: Step, t: number): Look {
 
 /** The motion blur's shutter: one 120 fps frame. */
 const SHUTTER = 1 / 120;
-/** At most this far apart, px, so the smear reads as a blur and never as copies. */
-const SMEAR_STEP = 3;
+/**
+ * At most this far apart, px (closer than a stem is wide), so the smear
+ * reads as a streak and never as a comb of copies, even on a paused frame.
+ */
+const SMEAR_STEP = 1.5;
+/**
+ * The most ghosts a smear draws: SMEAR_STEP apart at the flights' top speed,
+ * about 120 px a shutter (a long name's ends sweep further as it turns).
+ */
+const SMEAR_MAX = 96;
 /** The smear's total opacity, spread over its ghosts, faintest furthest back. */
 const SMEAR_ALPHA = 0.5;
+/** The smear's softening, px: its ghosts are blurred this much as one. */
+const SMEAR_SOFT = 1;
+/** The layer the smear's ghosts are drawn on. */
+let smearLayer: HTMLCanvasElement | null = null;
 
 /** A flying name's motion blur: ghosts over the last shutter's worth of its path, as many as its speed needs. */
 function drawSmear(ctx: CanvasRenderingContext2D, st: Step, t: number, k: Look): void {
@@ -403,12 +424,50 @@ function drawSmear(ctx: CanvasRenderingContext2D, st: Step, t: number, k: Look):
   const back = flightLook(st, t0);
   const dist = Math.hypot(k.pose.x - back.pose.x, k.pose.y - back.pose.y) + (Math.abs(k.pose.a - back.pose.a) * st.builtin.length * 0.6 * k.size) / 2;
   if (dist < SMEAR_STEP) return;
-  const n = Math.min(40, Math.ceil(dist / SMEAR_STEP));
+  const n = Math.min(SMEAR_MAX, Math.ceil(dist / SMEAR_STEP));
+  const ghosts: Look[] = [];
   for (let g = n; g >= 1; g--) {
     const kg = g === n ? back : flightLook(st, t - ((t - t0) * g) / n);
     const w = (2 * (1 - g / (n + 1))) / n;
-    drawLook(ctx, st.builtin, { ...kg, alpha: kg.alpha * SMEAR_ALPHA * w, lift: 0, blur: 0 });
+    ghosts.push({ ...kg, alpha: kg.alpha * SMEAR_ALPHA * w, lift: 0, blur: 0 });
   }
+  // The ghosts go down on a layer of their own, blurred a pixel as one, so
+  // their stems (each set on the whole-pixel grid) run together into a
+  // streak: just the few device pixels round them.
+  const m = ctx.getTransform();
+  const px = devScale(ctx);
+  const pad = SMEAR_SOFT * 4 * px;
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const gh of ghosts) {
+    const r = Math.hypot((st.builtin.length * 0.6 * gh.size) / 2, 0.7 * gh.size) * px + pad;
+    const dx = m.a * gh.pose.x + m.c * gh.pose.y + m.e;
+    const dy = m.b * gh.pose.x + m.d * gh.pose.y + m.f;
+    x0 = Math.min(x0, dx - r);
+    y0 = Math.min(y0, dy - r);
+    x1 = Math.max(x1, dx + r);
+    y1 = Math.max(y1, dy + r);
+  }
+  const { width, height } = ctx.canvas;
+  x0 = clamp(Math.floor(x0), 0, width);
+  y0 = clamp(Math.floor(y0), 0, height);
+  x1 = clamp(Math.ceil(x1), 0, width);
+  y1 = clamp(Math.ceil(y1), 0, height);
+  if (x1 <= x0 || y1 <= y0) return;
+  if (!smearLayer || smearLayer.width !== width || smearLayer.height !== height) smearLayer = makeCanvas(width, height);
+  const layer = smearLayer.getContext("2d")!;
+  layer.setTransform(1, 0, 0, 1, 0, 0);
+  layer.globalAlpha = 1;
+  layer.clearRect(x0, y0, x1 - x0, y1 - y0);
+  layer.setTransform(m);
+  for (const gh of ghosts) drawLook(layer, st.builtin, gh);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.filter = `blur(${(SMEAR_SOFT * px).toFixed(2)}px)`;
+  ctx.drawImage(smearLayer, x0, y0, x1 - x0, y1 - y0, x0, y0, x1 - x0, y1 - y0);
+  ctx.restore();
 }
 
 /** A name drawn at a look, with a soft shadow as far as it is lifted. */
@@ -614,6 +673,36 @@ function drawSeal(ctx: CanvasRenderingContext2D, t: number): void {
   ctx.restore();
 }
 
+/**
+ * Between the stamp and the band, while the code rests, a faint cool sheen
+ * glances once across the card, left to right, under the code: the card
+ * still moves, and no glyph does.
+ */
+const SHEEN = [b(7.05), T_BAND] as const;
+
+function drawSheen(ctx: CanvasRenderingContext2D, t: number): void {
+  const p = progress(SHEEN[0], SHEEN[1], t);
+  if (p <= 0 || p >= 1) return;
+  // A soft band leaning like `/`, from just off the card's left edge to
+  // just off its right at a steady pace, so it is on the card throughout.
+  const half = 200;
+  const lean = 0.36;
+  const ux = Math.cos(lean);
+  const uy = Math.sin(lean);
+  const reach = half / ux + (CARD.h / 2) * Math.tan(lean) + 8;
+  const cx = lerp(CARD.x - reach, CARD.x + CARD.w + reach, p);
+  const cy = CARD.y + CARD.h / 2;
+  const g = ctx.createLinearGradient(cx - ux * half, cy - uy * half, cx + ux * half, cy + uy * half);
+  const a = 0.035;
+  g.addColorStop(0, rgba(PALETTE.glint, 0));
+  g.addColorStop(0.3, rgba(PALETTE.glint, 0.35 * a));
+  g.addColorStop(0.5, rgba(PALETTE.glint, a));
+  g.addColorStop(0.7, rgba(PALETTE.glint, 0.35 * a));
+  g.addColorStop(1, rgba(PALETTE.glint, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(CARD.x, CARD.y, CARD.w, CARD.h);
+}
+
 /** The warm band's sweep over rows 4–6, 0..1. */
 const bandSweep = (t: number): number => swiftOut(progress(T_BAND, T_BAND + b(0.75), t));
 
@@ -688,6 +777,7 @@ function drawTheCard(ctx: CanvasRenderingContext2D, t: number): void {
     lines: cardLines(t),
     reveal,
     highlight: { from: 4, to: 6, sweep: bandSweep(t) },
+    under: (c) => drawSheen(c, t),
   });
   ctx.save();
   roundedRect(ctx, CARD.x, CARD.y, CARD.w, CARD.h, 16);
@@ -779,14 +869,19 @@ function drawFold(ctx: CanvasRenderingContext2D, t: number): void {
 /** Leaving: a slow start, then away. */
 const AWAY = cubicBezier(0.55, 0, 0.6, 1);
 
-/** The wordmark: a breath in, then away toward (960, 300), fading. */
+/**
+ * The wordmark: a breath in, then away toward (960, 300), fading. It is
+ * gone by b0.8, before the front river's wash reaches the middle, so no
+ * name washes in under it.
+ */
 function drawLogoOut(ctx: CanvasRenderingContext2D, t: number): void {
   if (t >= T_LOGO_OUT) return;
   const breath = 0.03 * Math.sin(Math.PI * progress(0, b(0.4), t));
   const away = AWAY(progress(b(0.1), T_LOGO_OUT, t));
   const h = LOGO_OPEN.h * (1 + breath) * lerp(1, 0.3, away);
   const cy = lerp(LOGO_OPEN.cy, 300, away);
-  const alpha = 1 - smoothstep(b(0.35), T_LOGO_OUT, t);
+  const alpha = 1 - smoothstep(b(0.3), b(0.8), t);
+  if (alpha <= 0) return;
   drawLogo(ctx, { cx: LOGO_OPEN.cx, cy, h }, LOGO_FULL, { alpha });
 }
 
@@ -836,15 +931,53 @@ function backdrop(ctx: CanvasRenderingContext2D, k: Look, text: string): void {
 /** prettier as it is at `t`: popped, then in flight. */
 const prettierLook = (t: number): Look => (t < STEPS[0].takeoff ? popLook(0, t) : flightLook(STEPS[0], t));
 
+/** The distance between segments ab and cd, px: 0 where they cross. */
+function segmentGap(a: Pt, b1: Pt, c: Pt, d: Pt): number {
+  const side = (p: Pt, q: Pt, r: Pt) => Math.sign((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+  if (side(a, b1, c) * side(a, b1, d) < 0 && side(c, d, a) * side(c, d, b1) < 0) return 0;
+  const toSeg = (p: Pt, q: Pt, r: Pt) => {
+    const dx = r.x - q.x;
+    const dy = r.y - q.y;
+    const u = clamp(((p.x - q.x) * dx + (p.y - q.y) * dy) / (dx * dx + dy * dy || 1));
+    return Math.hypot(p.x - q.x - u * dx, p.y - q.y - u * dy);
+  };
+  return Math.min(toSeg(a, c, d), toSeg(b1, c, d), toSeg(c, a, b1), toSeg(d, a, b1));
+}
+
+/** A name's centre line, end to end, at a pose. */
+function spine(text: string, p: Pose, size: number): [Pt, Pt] {
+  const h = (text.length * 0.6 * size) / 2;
+  const c = Math.cos(p.a) * h;
+  const s = Math.sin(p.a) * h;
+  return [
+    { x: p.x - c, y: p.y - s },
+    { x: p.x + c, y: p.y + s },
+  ];
+}
+
+/** How near, px between their centre lines, a river name is cleared round a plucked one. */
+const PLUCK_CLEAR = 46;
+
 /**
- * How much the rivers make way round the popped words at pose `p`: round
- * where each word is now, as wide as it is, until it has flown or sunk back.
+ * How much the rivers make way at pose `p` round the popped words (round
+ * where each word is now, as wide as it is, until it has flown or sunk
+ * back) and round each plucked name as it is picked and pulls out through
+ * the columns: every name within reach of it fades back, and the river
+ * closes behind it.
  */
-function clearing(t: number): ((p: Pose) => number) | undefined {
+function clearing(t: number): ((p: Pose, nm: RiverName) => number) | undefined {
   const f = [clamp(popOf(t)) * (1 - smoothstep(T_TAKEOFF[0], T_LAND[0], t)), Math.sqrt(clamp(zizmorPop(t)))];
-  if (f[0] <= 0 && f[1] <= 0) return undefined;
   const at = [f[0] > 0 ? prettierLook(t) : null, f[1] > 0 ? popLook(1, t) : null];
-  return (p) => {
+  const carried = STEPS.filter((st) => st.i > 0 && t >= st.takeoff - PICK && t < st.land).map((st) => {
+    const k = t < st.takeoff ? pickLook(st, t) : flightLook(st, t);
+    return { line: spine(st.builtin, k.pose, k.size), f: 0.7 * smoothstep(st.takeoff - PICK, st.takeoff, t) };
+  });
+  // zizmor, sinking, crosses the names of both its river's files on its way
+  // back to its own: they make way round it just as for a plucked name.
+  const z = at[1];
+  if (z && t > T_SINK[0]) carried.push({ line: spine("zizmor", z.pose, z.size), f: 0.85 * f[1] * smoothstep(T_SINK[0], T_SINK[0] + b(0.25), t) });
+  if (f[0] <= 0 && f[1] <= 0 && !carried.length) return undefined;
+  return (p, nm) => {
     let k = 1;
     at.forEach((w, i) => {
       if (!w) return;
@@ -852,6 +985,10 @@ function clearing(t: number): ((p: Pose) => number) | undefined {
       const d = ((p.x - w.pose.x) / rx) ** 2 + ((p.y - w.pose.y) / 80) ** 2;
       k *= 1 - 0.85 * f[i] * Math.exp(-d * d);
     });
+    if (carried.length) {
+      const [a, b1] = spine(nm.text, p, nm.size);
+      for (const q of carried) k *= 1 - q.f * Math.exp(-((segmentGap(a, b1, q.line[0], q.line[1]) / PLUCK_CLEAR) ** 4));
+    }
     return k;
   };
 }

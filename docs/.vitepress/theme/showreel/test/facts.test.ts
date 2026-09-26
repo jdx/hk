@@ -1,8 +1,8 @@
 // The reel's figures come from the published benchmark run through facts.ts.
-// Today's run gives the storyboard's figures. A run that is missing, failed,
-// malformed or too close to call gives none, or withholds just the race it
-// cannot back, and then no caption shows a number. The commit scenario is
-// never representable.
+// Today's run, frozen in test/results-36078397814.json, gives fixed figures.
+// A run that is missing, failed, malformed or too close to call gives none,
+// or withholds just the race it cannot back, and then no caption shows a
+// number. The commit scenario is never representable.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -18,7 +18,7 @@ import { REPO } from "./repo";
 /** A row as the chart reads it: key, shown median, mode. */
 const readout = (r: Race | null) => r?.rows.map((x) => `${x.key} ${x.shown} (${x.mode})`) ?? null;
 
-test("today's run gives the storyboard's figures", () => {
+test("today's run gives its published figures", () => {
   const f = today();
   assert.deepEqual(Object.keys(f), ["workload", "fixAll", "checkAll"]);
   assert.deepEqual(f.workload, { files: "6,157", fixers: 10, cpus: 8 });

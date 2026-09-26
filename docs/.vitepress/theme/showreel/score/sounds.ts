@@ -56,17 +56,6 @@ export function ding(m: Mix, t: number, f: number, vel: number, pan: number, len
   v.noise("white", perc(t, 0.12, 0.0005, 0.06), v.filter("highpass", 7000, 0), 1, t + 0.08);
 }
 
-/** Glass on glass: inharmonic partials, short and bright. */
-export function clink(m: Mix, t: number, vel: number, pan: number): void {
-  const v = m.voice(perc(t, vel, 0.0004, 0.6), { pan, send: 0.25 });
-  if (!v) return;
-  const base = hz(98);
-  for (const [ratio, a, len] of [[1, 1, 0.6], [1.59, 0.55, 0.35], [2.21, 0.4, 0.22], [2.93, 0.28, 0.14]]) {
-    v.osc("sine", base * ratio, perc(t, a, 0.0004, len));
-  }
-  v.noise("white", perc(t, 0.5, 0.0003, 0.008), v.filter("highpass", 6000, 0), 1, t + 0.02);
-}
-
 /** Air: noise through a moving band. Sustained, so a mid-sweep start still hears it. */
 export function whoosh(m: Mix, env: readonly Pt[], band: Curve, q: number, o: VoiceOpts = {}, kind: NoiseKind = "pink"): void {
   const v = m.voice(env, { hold: true, ...o });
@@ -105,64 +94,10 @@ export function knock(m: Mix, t: number, f: number, vel: number, pan: number, se
 
 // Drums and bass for the groove.
 
-export function kick(m: Mix, t: number, vel: number, filtered = false): void {
-  const v = m.voice(perc(t, 0.5 * vel, 0.002, 0.46), { bus: filtered ? "music" : "drums" });
-  if (!v) return;
-  const into = filtered ? v.filter("lowpass", 160, -3) : v.amp;
-  v.osc("sine", [[t, 165], [t + 0.032, 62, "exp"], [t + 0.3, 45, "exp"]], 1, into);
-  if (!filtered) v.noise("white", perc(t, 0.22, 0.0004, 0.012), v.filter("highpass", 2500, 0), 1, t + 0.02);
-}
-
-export function clap(m: Mix, t: number, vel: number): void {
-  // Three hands a few milliseconds apart, then the room.
-  const env: Pt[] = [
-    [t, 0],
-    [t + 0.0008, 0.8 * vel],
-    [t + 0.009, 0.15 * vel, "exp"],
-    [t + 0.0098, 0.75 * vel],
-    [t + 0.018, 0.15 * vel, "exp"],
-    [t + 0.0188, 0.9 * vel],
-    [t + 0.05, 0.28 * vel, "exp"],
-    [t + 0.2, 0.0001, "exp"],
-    [t + 0.204, 0],
-  ];
-  const v = m.voice(env, { bus: "drums", send: 0.2, pan: -0.05 });
-  if (!v) return;
-  v.noise("white", 1.6, v.filter("highpass", 700, 0, v.filter("bandpass", 1500, 1.1)));
-  v.osc("sine", 1900, perc(t, 0.3, 0.0005, 0.012));
-}
-
+/** A closed hat: a short tick of high noise. */
 export function hat(m: Mix, t: number, vel: number): void {
   const v = m.voice(perc(t, 0.28 * vel, 0.0008, 0.05), { bus: "drums", pan: 0.22 });
   if (v) v.noise("white", 1, v.filter("highpass", 7200, 0));
-}
-
-/**
- * One bar of the groove from `t0`, in sixteenths: kicks and claps where
- * given, a hat on every off-beat eighth, and soft ghost hats where given.
- * The kicks also pump the bass and pads.
- */
-export function grooveBar(
-  m: Mix,
-  t0: number,
-  kicks: readonly number[],
-  claps: readonly number[],
-  ghosts: readonly number[] = [],
-): void {
-  for (const s of kicks) {
-    m.kick(t0 + s * X);
-    kick(m, t0 + s * X, s % 8 === 0 ? 1 : 0.7);
-  }
-  for (const s of claps) {
-    clap(m, t0 + s * X, 1);
-  }
-  for (let s = 0; s < 16; s++) {
-    if (s % 4 === 2) {
-      hat(m, t0 + s * X, 1);
-    } else if (ghosts.includes(s)) {
-      hat(m, t0 + s * X, 0.4);
-    }
-  }
 }
 
 /**
@@ -281,7 +216,7 @@ export function pad(
   }
 }
 
-// Swishes, springs, stamps, flutters and blips.
+// Swishes, springs, stamps and blips.
 
 export function flick(m: Mix, t: number, pan: number, vel = 0.16): void {
   const v = m.voice(perc(t, 2.2 * vel, 0.002, 0.08), { pan, send: 0.12 });
@@ -308,24 +243,6 @@ export function stamp(m: Mix, t: number, vel = 1, pan = 0.12): void {
   if (v) v.noise("white", 1, v.filter("bandpass", 1500, 0.9), 1, t + 0.1);
   const p = m.voice(perc(t + 0.004, 0.12 * vel, 0.0005, 0.03), { pan: pan + 0.08 });
   if (p) p.noise("white", 1, p.filter("highpass", 5500, 0), 1, t + 0.05);
-}
-
-/** Fabric spinning: a sharp first flap, then flaps gated fast, slowing as the spring settles. */
-export function flutter(m: Mix, t: number, len = 0.2, vel = 0.3): void {
-  const snap = m.voice(perc(t, 3 * vel, 0.0006, 0.03), { send: 0.12, pan: -0.2 });
-  if (snap) {
-    snap.noise("white", 1, snap.filter("bandpass", 2400, 0.9), 1, t + 0.04);
-    snap.osc("sine", sweep(t, 900, t + 0.025, 380), 0.35);
-  }
-  const v = m.voice(hold(t + 0.004, 0.012, vel * 4, t + len * 0.5, vel * 3, len * 0.5), {
-    send: 0.12,
-    pan: line(t, -0.2, t + len, 0.2),
-  });
-  if (!v) return;
-  const bp = v.filter("bandpass", sweep(t, 1600, t + len, 900), 1.4);
-  const am = v.vca(0.5, bp);
-  v.lfo("square", sweep(t, 34, t + len, 12), 0.45, am.gain);
-  v.noise("pink", 1, am);
 }
 
 export function blip(m: Mix, t: number, f: number, vel: number): void {
@@ -858,17 +775,15 @@ export function padlock(m: Mix, t: number, shut: boolean, vel: number, pan = 0):
 }
 
 /**
- * Something zipping shut from `t0` to `t1`: teeth ticking together, closer
- * and higher as it speeds up, `n` of them, ending in a firmer click.
+ * Something zipping shut: a tick for each tooth as it meshes, at [time,
+ * pan], so the rasp runs as fast as the slider does. The teeth climb in
+ * pitch and firmness toward the last.
  */
-export function zip(m: Mix, t0: number, t1: number, n: number, vel: number, pan: Curve = 0): void {
-  const at = (u: number): number => (typeof pan === "number" ? pan : pan[0][1] + (pan[pan.length - 1][1] - pan[0][1]) * u);
-  for (let i = 0; i < n; i++) {
-    const u = i / (n - 1);
-    // Closer together as the slider speeds up: a quadratic run of teeth.
-    const t = t0 + (t1 - t0) * (1 - (1 - u) ** 1.6);
-    tick(m, t, 1700 + 1500 * u, vel * (0.6 + 0.4 * u) * (0.85 + 0.15 * hash(i, 84)), at(u), 0.05);
-  }
+export function zip(m: Mix, teeth: readonly (readonly [t: number, pan: number])[], vel: number): void {
+  teeth.forEach(([t, pan], i) => {
+    const u = teeth.length > 1 ? i / (teeth.length - 1) : 1;
+    tick(m, t, 1700 + 1500 * u, vel * (0.6 + 0.4 * u) * (0.85 + 0.15 * hash(i, 84)), pan, 0.05);
+  });
 }
 
 /**
