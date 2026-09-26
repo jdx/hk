@@ -39,6 +39,47 @@ jobs:
           cache-generation: ci-v2
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      # The landing page plays the showreel as an MP4 at 120 or 60 fps, and the
+      # 60 fps file is also the homepage's og:video. The render depends only on
+      # the reel and its renderer, the fonts, the benchmark numbers and the
+      # renderer's tool versions, so it is cached on those and rendered again
+      # only when one of them changes. The reel's terminal text, hk's version
+      # in its headers included, is recorded output kept in the reel's own
+      # sources, so a release alone does not render it again. Reusing the
+      # video also keeps its versioned URLs stable for link previews, because
+      # two renders of the same inputs are not byte-identical. The tool
+      # versions are read from their lines rather than by hashing all of
+      # aube-lock.yaml, which dependency updates change several times a week;
+      # playwright-core's version also fixes the Chromium revision that draws
+      # the frames.
+      - name: Key the showreel render on its tool versions
+        id: showreel-versions
+        run: |
+          {
+            grep -oE '^  (esbuild|playwright-core)@[^:(]+' aube-lock.yaml | sort -u
+          } > "$RUNNER_TEMP/showreel-versions"
+          cat "$RUNNER_TEMP/showreel-versions"
+          echo "hash=$(sha256sum < "$RUNNER_TEMP/showreel-versions" | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - name: Restore the showreel video
+        id: showreel
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            docs/public/showreel-120.mp4
+            docs/public/showreel.mp4
+            docs/public/showreel-poster.jpg
+          key: showreel-${{ runner.os }}-${{ steps.showreel-versions.outputs.hash }}-${{ hashFiles('docs/.vitepress/showreel-video.mjs', 'docs/.vitepress/theme/showreel/**', 'docs/.vitepress/fonts/*.ttf', 'benchmark/results.json') }}
+      # A miss renders only in the trusted build, which deploys; the untrusted
+      # build then leaves the showreel out, which the site's checks accept.
+      - name: Render the showreel video
+        if: inputs.trusted && steps.showreel.outputs.cache-hit != 'true'
+        timeout-minutes: 30
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q ffmpeg
+          (cd docs && aube install && aube exec playwright-core install --with-deps chromium-headless-shell)
+          echo "SHOWREEL_REQUIRE_CHROMIUM=1" >> "$GITHUB_ENV"
+          mise run docs:showreel
       - name: Build with VitePress
         run: |
           mise run docs:build

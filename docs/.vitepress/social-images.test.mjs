@@ -78,6 +78,7 @@ test("built-page checks reject swapped images and empty alt text", () => {
   const first = socialCard("First page");
   const second = socialCard("Second page");
   const page = (title, card, alt = title + " — hk docs") => `
+    <meta property="og:type" content="website">
     <meta property="og:title" content="${title} | hk">
     <meta name="twitter:title" content="${title} | hk">
     <meta property="og:description" content="Description">
@@ -111,6 +112,109 @@ test("built-page checks reject swapped images and empty alt text", () => {
     const empty = check();
     assert.notEqual(empty.status, 0);
     assert.match(empty.stderr, /Empty image alt text/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("built-page checks offer the showreel as og:video on the homepage only", () => {
+  const dir = mkdtempSync(join(tmpdir(), "showreel-validation-"));
+  const home = socialCard("Fast git hooks and project linting");
+  const other = socialCard("Other page");
+  // Just enough of an MP4 for the checks: a box size, then "ftyp".
+  const mp4 = (brand) =>
+    Buffer.concat([Buffer.from([0, 0, 0, 16]), Buffer.from(`ftyp${brand}`)]);
+  const video = mp4("isom0060");
+  const video120 = mp4("isom0120");
+  const version = (file) =>
+    createHash("sha256").update(file).digest("hex").slice(0, 12);
+  const src = `/showreel.mp4?v=${version(video)}`;
+  const tags = (url) => `
+    <meta property="og:video" content="${url}">
+    <meta property="og:video:secure_url" content="${url}">
+    <meta property="og:video:type" content="video/mp4">
+    <meta property="og:video:width" content="1920">
+    <meta property="og:video:height" content="1080">`;
+  const page = (title, card, { type = "website", extra = "" } = {}) => `
+    <meta property="og:type" content="${type}">${extra}
+    <meta property="og:title" content="${title} | hk">
+    <meta name="twitter:title" content="${title} | hk">
+    <meta property="og:description" content="Description">
+    <meta name="twitter:description" content="Description">
+    <meta property="og:image" content="https://example.com/${card.path}">
+    <meta name="twitter:image" content="https://example.com/${card.path}">
+    <meta property="og:image:alt" content="Fast git hooks and project linting — hk docs">
+    <meta name="twitter:image:alt" content="Fast git hooks and project linting — hk docs">
+    <meta name="twitter:card" content="summary_large_image">`;
+  const homeWith = (url, player = src) =>
+    page("Home", home, { type: "video.other", extra: tags(url) }) +
+    `<video src="${player}" poster="/showreel-poster.jpg?v=${version(video)}" controls></video>`;
+  const otherPage = (extra = "") =>
+    page("Other page", other, { extra }).replaceAll(
+      "Fast git hooks and project linting — hk docs",
+      "Other page — hk docs",
+    );
+  const check = () =>
+    spawnSync(
+      process.execPath,
+      [
+        fileURLToPath(new URL("./check-social-images.mjs", import.meta.url)),
+        dir,
+      ],
+      { encoding: "utf8" },
+    );
+  const expectFailure = (pattern) => {
+    const result = check();
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, pattern);
+  };
+  try {
+    writeSocialCard(dir, home);
+    writeSocialCard(dir, other);
+    writeFileSync(join(dir, "showreel.mp4"), video);
+    writeFileSync(join(dir, "showreel-120.mp4"), video120);
+    writeFileSync(join(dir, "showreel-poster.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+    writeFileSync(join(dir, "app.js"), `const upgrade = "/showreel-120.mp4?v=${version(video120)}";`);
+    writeFileSync(join(dir, "index.html"), homeWith(`https://example.com${src}`));
+    writeFileSync(join(dir, "other.html"), otherPage());
+    const valid = check();
+    assert.equal(valid.status, 0, valid.stderr);
+    assert.match(valid.stdout, /with the showreel/);
+
+    // A stale render's URL, in the tags or in the player.
+    writeFileSync(join(dir, "index.html"), homeWith("https://example.com/showreel.mp4?v=0123456789ab"));
+    expectFailure(/og:video is not the deployed showreel\.mp4/);
+    writeFileSync(join(dir, "index.html"), homeWith(`https://example.com${src}`, "/showreel.mp4?v=0123456789ab"));
+    expectFailure(/The player does not start on the deployed showreel\.mp4/);
+    writeFileSync(join(dir, "index.html"), homeWith(`https://example.com${src}`));
+
+    // Only the homepage is a video, and every page has one og:type.
+    writeFileSync(join(dir, "other.html"), otherPage(tags(`https://example.com${src}`)));
+    expectFailure(/Unexpected og:video tags/);
+    writeFileSync(join(dir, "other.html"), otherPage('<meta property="og:type" content="article">'));
+    expectFailure(/Expected one og:type tag/);
+    writeFileSync(join(dir, "other.html"), otherPage());
+
+    // The 120 fps file must be the one the player's script switches to.
+    writeFileSync(join(dir, "app.js"), `const upgrade = "/showreel-120.mp4?v=0123456789ab";`);
+    expectFailure(/No script plays \/showreel-120\.mp4/);
+    writeFileSync(join(dir, "app.js"), `const upgrade = "/showreel-120.mp4?v=${version(video120)}";`);
+
+    writeFileSync(join(dir, "showreel-poster.jpg"), Buffer.from("PNG"));
+    expectFailure(/showreel-poster\.jpg is not a JPEG/);
+    writeFileSync(join(dir, "showreel-poster.jpg"), Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+
+    // Without a render, the homepage is a website with no player.
+    rmSync(join(dir, "showreel.mp4"));
+    expectFailure(/Wrong og:type/);
+    writeFileSync(
+      join(dir, "index.html"),
+      page("Home", home) + `<video src="${src}" controls></video>`,
+    );
+    expectFailure(/The homepage has a player but no showreel\.mp4/);
+    writeFileSync(join(dir, "index.html"), page("Home", home));
+    const without = check();
+    assert.equal(without.status, 0, without.stderr);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

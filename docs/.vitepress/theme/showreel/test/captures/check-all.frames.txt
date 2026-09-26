@@ -1,0 +1,206 @@
+----- frame 0 -----
+hk 2.2.0 by @jdx – check  [                                                ] 0/7
+⠋ files - Fetching git status
+----- frame 1 -----
+hk 2.2.0 by @jdx – check  [                                                ] 0/7
+✔ files - Fetching all files in repo (5 files)
+----- frame 2 -----
+hk 2.2.0 by @jdx – check  [                                                ] 0/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude src/main.py
+❯ shfmt
+❯ shellcheck
+ ⠋ shellcheck scripts/deploy.sh
+❯ trailing-whitespace
+ ⠋ hk util trailing-whitespace --diff README.md hk.pkl scripts/deploy.sh src/ap…
+❯ newlines
+ ⠋ hk util end-of-file-fixer --diff README.md hk.pkl scripts/deploy.sh src/app.…
+----- frame 3 -----
+hk 2.2.0 by @jdx – check  [======>                                         ] 1/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude src/main.py
+✔ shfmt
+❯ shellcheck
+ ⠋ shellcheck scripts/deploy.sh
+❯ trailing-whitespace
+ ⠋ hk util trailing-whitespace --diff README.md hk.pkl scripts/deploy.sh src/ap…
+❯ newlines
+----- frame 4 -----
+hk 2.2.0 by @jdx – check  [======>                                         ] 1/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude src/main.py
+✔ shfmt
+❯ shellcheck
+ ⠋ shellcheck scripts/deploy.sh
+❯ trailing-whitespace
+ ⠋ hk util trailing-whitespace --diff README.md hk.pkl scripts/deploy.sh src/ap…
+❯ newlines
+----- frame 5 -----
+hk 2.2.0 by @jdx – check  [=============>                                  ] 2/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude src/main.py
+✔ shfmt
+❯ shellcheck
+ ⠋ shellcheck scripts/deploy.sh
+❯ trailing-whitespace
+✔ newlines
+----- frame 6 -----
+hk 2.2.0 by @jdx – check  [=============>                                  ] 2/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude src/main.py
+✔ shfmt
+❯ shellcheck
+ ⠋ shellcheck scripts/deploy.sh
+✔ trailing-whitespace
+✔ newlines
+----- frame 7 -----
+hk 2.2.0 by @jdx – check  [====================>                           ] 3/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude src/main.py
+✔ shfmt
+❯ shellcheck
+ ⠋ shellcheck scripts/deploy.sh
+✔ trailing-whitespace
+✔ newlines
+----- frame 8 -----
+hk 2.2.0 by @jdx – check  [====================>                           ] 3/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude src/main.py
+ All checks passed!
+✔ shfmt
+❯ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 9 -----
+hk 2.2.0 by @jdx – check  [====================>                           ] 3/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+❯ ruff
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 10 -----
+hk 2.2.0 by @jdx – check  [==========================>                     ] 4/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+✔ ruff
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 11 -----
+hk 2.2.0 by @jdx – check  [=================================>              ] 5/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+✔ ruff
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 12 -----
+hk 2.2.0 by @jdx – check  [=================================>              ] 5/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+✔ ruff
+❯ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 13 -----
+hk 2.2.0 by @jdx – check  [========================================>       ] 6/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+ ⠋ prettier --check README.md src/app.ts
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 14 -----
+hk 2.2.0 by @jdx – check  [========================================>       ] 6/7
+✔ files - Fetching all files in repo (5 files)
+❯ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 15 -----
+hk 2.2.0 by @jdx – check  [================================================] 7/7
+✔ files - Fetching all files in repo (5 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 16 -----
+hk 2.2.0 by @jdx – check  [================================================] 7/7
+✔ files - Fetching all files in repo (5 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 17 -----
+hk 2.2.0 by @jdx – check  [================================================] 7/7
+✔ files - Fetching all files in repo (5 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 18 -----
+hk 2.2.0 by @jdx – check  [================================================] 7/7
+✔ files - Fetching all files in repo (5 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 19 -----
+hk 2.2.0 by @jdx – check  [================================================] 7/7
+✔ files - Fetching all files in repo (5 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines

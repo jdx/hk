@@ -1,0 +1,119 @@
+----- frame 0 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+⠋ files - Fetching git status
+----- frame 1 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+✔ files - Fetching staged files (1 file)
+----- frame 2 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+✔ stash – Stashed unstaged changes (1 file)
+----- frame 3 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/4
+✔ stash – Stashed unstaged changes (1 file)
+❯ shellcheck
+----- frame 4 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/4
+✔ stash – Stashed unstaged changes (1 file)
+❯ shfmt
+❯ shellcheck
+----- frame 5 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [========>                            ] 1/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+❯ shellcheck
+❯ trailing-whitespace
+ ⠋
+----- frame 6 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [========>                            ] 1/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+❯ shellcheck
+❯ trailing-whitespace
+----- frame 7 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [==================>                  ] 2/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+❯ shellcheck
+✔ trailing-whitespace
+❯ newlines
+ ⠋
+----- frame 8 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [==================>                  ] 2/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+❯ shellcheck
+✔ trailing-whitespace
+❯ newlines
+----- frame 9 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===========================>         ] 3/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+❯ shellcheck
+ ⠋
+✔ trailing-whitespace
+✔ newlines
+----- frame 10 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===========================>         ] 3/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+❯ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 11 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===========================>         ] 3/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+✗ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 12 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+✗ shellcheck  – ERROR
+✔ trailing-whitespace
+✔ newlines
+----- frame 13 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+✗ shellcheck  – ERROR
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+----- frame 14 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+✗ shellcheck  – ERROR
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+----- frame 15 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+✗ shellcheck  – ERROR
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+----- frame 16 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 4/4
+✔ stash – Stashed unstaged changes (1 file)
+✔ shfmt
+✗ shellcheck  – ERROR
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+
+shellcheck stderr:
+
+In scripts/deploy.sh line 3:
+unused=1
+^----^ SC2034 (warning): unused appears unused. Verify use (or export if used ex
+ternally).
+
+For more information:
+  https://www.shellcheck.net/wiki/SC2034 -- unused appears unused. Verify use...
+
+See /dev/shm/hk/.local/state/hk/output.log for full command output

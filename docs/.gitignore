@@ -2,3 +2,7 @@
 .vitepress/cache
 .vitepress/dist
 gen
+# Rendered by `mise run docs:showreel`; the docs deploy renders them fresh.
+public/showreel-120.mp4
+public/showreel.mp4
+public/showreel-poster.jpg
