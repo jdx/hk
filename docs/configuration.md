@@ -14,8 +14,8 @@ For a first setup, use [getting started](/getting_started). For complete configu
 A configuration amends hk’s [Pkl schema](/pkl_introduction). For a shared set of linters, prefer top-level `steps`:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Builtins.pkl"
 
 steps {
   ["eslint"] = Builtins.eslint
@@ -355,6 +355,10 @@ Available lists include `staged_files`, `unstaged_files`, `untracked_files`, and
 
 These paths are repository-relative. Git status lists are also available to command templates, for example `{{ git.staged_files }}`.
 
+Git hook arguments such as `hook_args`, `commit_msg_file`, and `is_branch_checkout` are also available as condition variables. See [Other Git events](/hooks#other-git-events) for the variables each hook provides.
+
+Conditions are expr-lang expressions, not Tera templates. Reference variables directly, as in `is_branch_checkout`, rather than `{{ is_branch_checkout }}`.
+
 ## Configuration precedence
 
 Runtime settings resolve from lowest to highest precedence:
@@ -375,7 +379,7 @@ Higher layers override lower ones for scalar settings. List settings such as `ex
 Use `~/.config/hk/config.pkl` for defaults and additional steps across projects. The location follows `XDG_CONFIG_HOME` or `HK_CONFIG_DIR` when set.
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Config.pkl"
 
 jobs = 4
 fail_fast = false

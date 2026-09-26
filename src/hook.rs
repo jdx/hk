@@ -8,7 +8,7 @@ use std::{
     collections::{BTreeSet, HashMap, HashSet},
     ffi::OsString,
     fmt,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{
         Arc, Mutex as StdMutex,
         atomic::{AtomicBool, Ordering},
@@ -229,6 +229,31 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn normalize_lexically_resolves_dot_segments() {
+        let cases = [
+            ("src/../vendor/lib.js", "vendor/lib.js"),
+            ("./vendor/./lib.js", "vendor/lib.js"),
+            ("../outside.js", "../outside.js"),
+            ("a/../../outside.js", "../outside.js"),
+            ("/repo/src/../vendor/lib.js", "/repo/vendor/lib.js"),
+            ("/../lib.js", "/lib.js"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(
+                normalize_lexically(Path::new(input)),
+                PathBuf::from(expected),
+                "{input}"
+            );
+        }
+    }
+
+    #[test]
+    fn exclude_match_paths_use_forward_slashes() {
+        let path = with_forward_slashes(normalize_lexically(Path::new("src/../vendor/lib.js")));
+        assert_eq!(path.to_str(), Some("vendor/lib.js"));
+    }
+
+    #[test]
     fn step_or_group_serializes_flat_step_for_cache_round_trip() {
         let original: StepOrGroup =
             serde_json::from_value(json!({"_type": "step", "check": "echo ok"})).unwrap();
@@ -373,6 +398,10 @@ pub struct HookContext {
     /// Untracked files at the start of the hook run, used to avoid staging
     /// pre-existing untracked files that were not created by a fixer.
     pub initial_untracked: BTreeSet<PathBuf>,
+    /// Files whose unstaged changes are still in the worktree while steps run,
+    /// that is, those hk didn't stash. Staging one of these after a fix would
+    /// also stage the user's unstaged changes.
+    pub initial_unstaged: StdMutex<BTreeSet<PathBuf>>,
 }
 
 impl HookContext {
@@ -388,6 +417,7 @@ impl HookContext {
         skip_steps: IndexMap<String, SkipReason>,
         should_stage: bool,
         initial_untracked: BTreeSet<PathBuf>,
+        initial_unstaged: BTreeSet<PathBuf>,
     ) -> Self {
         let settings = Settings::get();
         let expr_ctx = expr_ctx;
@@ -428,6 +458,7 @@ impl HookContext {
             git_index_lock_contention: AtomicBool::new(false),
             should_stage,
             initial_untracked,
+            initial_unstaged: StdMutex::new(initial_unstaged),
         }
     }
 
@@ -712,7 +743,7 @@ impl Hook {
             validate_safe_commands(&groups, &files, run_type, &skip_steps)?;
         }
 
-        let expr_ctx = build_expr_ctx(&git_status);
+        let expr_ctx = build_expr_ctx(&git_status, &opts.hook_vars);
 
         let mut plan = Plan::new(self.name.clone(), run_type.as_str().to_string())
             .with_profiles(settings.enabled_profiles().iter().cloned().collect());
@@ -1144,6 +1175,11 @@ impl Hook {
         let output_format = Settings::cli_output_format();
         let machine_output = output_format != crate::structured_output::OutputFormat::Human;
         let sarif_path = opts.sarif.clone();
+        let junit_path = opts.junit_xml.clone();
+        let reports = crate::structured_output::ReportPaths {
+            sarif: sarif_path.as_deref(),
+            junit: junit_path.as_deref(),
+        };
         let run_started = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
         crate::structured_output::emit_run_started(output_format, &self.name, &started_at)?;
@@ -1169,7 +1205,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 vec![],
                 "hook disabled by HK_SKIP_HOOK",
-                sarif_path.as_deref(),
+                reports,
             )?;
             return Ok(());
         }
@@ -1193,7 +1229,7 @@ impl Hook {
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                    sarif_path.as_deref(),
+                    reports,
                 )
                 .wrap_err_with(|| format!("hook setup also failed: {err}"))?;
                 return Err(err);
@@ -1214,7 +1250,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 vec![],
                 "no configured steps",
-                sarif_path.as_deref(),
+                reports,
             )?;
             return Ok(());
         }
@@ -1233,7 +1269,7 @@ impl Hook {
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                    sarif_path.as_deref(),
+                    reports,
                 )
                 .wrap_err_with(|| format!("git status collection also failed: {err}"))?;
                 return Err(err);
@@ -1257,7 +1293,7 @@ impl Hook {
                     started_at,
                     run_started.elapsed().as_millis(),
                     err.to_string(),
-                    sarif_path.as_deref(),
+                    reports,
                 )
                 .wrap_err_with(|| format!("file selection also failed: {err}"))?;
                 return Err(err);
@@ -1279,7 +1315,7 @@ impl Hook {
                 run_started.elapsed().as_millis(),
                 noop_steps,
                 "no matching files",
-                sarif_path.as_deref(),
+                reports,
             )?;
             return Ok(());
         }
@@ -1297,7 +1333,7 @@ impl Hook {
                 started_at,
                 run_started.elapsed().as_millis(),
                 err.to_string(),
-                sarif_path.as_deref(),
+                reports,
             )
             .wrap_err_with(|| format!("safe command validation also failed: {err}"))?;
             return Err(err);
@@ -1308,7 +1344,7 @@ impl Hook {
         // Insert a serializable view under "git"
         tctx.insert("git", &git_status_for_ctx);
         tctx.insert("hook", &self.name);
-        let expr_ctx = build_expr_ctx(&git_status_for_ctx);
+        let expr_ctx = build_expr_ctx(&git_status_for_ctx, &opts.hook_vars);
         let hook_ctx = Arc::new(HookContext::new(
             files,
             repo.clone(),
@@ -1320,6 +1356,8 @@ impl Hook {
             skip_steps,
             should_stage,
             git_status.untracked_files.clone(),
+            // Narrowed below to what the stash actually sets aside.
+            git_status.unstaged_files.clone(),
         ));
 
         watch_for_ctrl_c(hook_ctx.failed.clone());
@@ -1339,6 +1377,15 @@ impl Hook {
                     // Stash ALL unstaged changes in the repository (not only files under consideration)
                     // so that unrelated worktree changes do not affect or get affected by fixers.
                     r.stash_unstaged(&file_progress, stash_method, &git_status)?;
+                    // Stashing can be skipped (e.g. before the first commit),
+                    // so only files it set aside stop counting as unstaged.
+                    if let Some(stashed) = r.stashed_paths() {
+                        hook_ctx
+                            .initial_unstaged
+                            .lock()
+                            .unwrap()
+                            .retain(|p| !stashed.contains(p));
+                    }
                 }
             } else {
                 file_progress.prop("message", "No unstaged changes to stash");
@@ -1645,7 +1692,7 @@ impl Hook {
             run_started.elapsed().as_millis(),
             &hook_ctx,
             failure,
-            sarif_path.as_deref(),
+            reports,
         ) {
             if let Err(run_err) = &result {
                 error!("failed to emit result after hook also failed: {emit_err}");
@@ -1785,33 +1832,83 @@ impl Hook {
             all_excludes.extend(cli_excludes.iter().cloned());
         }
 
-        if !all_excludes.is_empty() {
-            // Process excludes - handle both directory patterns and glob patterns
-            debug!(
-                "files.exclude: patterns from settings/CLI: {:?}",
-                all_excludes
-            );
-            let files_before = files.len();
-            let mut expanded_excludes = Vec::new();
-            for exclude in &all_excludes {
-                expanded_excludes.push(exclude.clone());
-                // If the pattern doesn't contain glob characters, also add patterns for directory contents
-                if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
-                    expanded_excludes.push(format!("{}/*", exclude));
-                    expanded_excludes.push(format!("{}/**", exclude));
+        if !all_excludes.is_empty() || !opts.exclude_regexes.is_empty() {
+            // Excludes match repo-relative paths, so relativize absolute paths and
+            // resolve `.`/`..` in file arguments. hk runs from the repo root.
+            let cwd = std::env::current_dir().ok();
+            let canonical_cwd = cwd.as_deref().and_then(|cwd| cwd.canonicalize().ok());
+            let resolve = |f: &PathBuf| -> PathBuf {
+                let has_parent_dir = f.components().any(|c| c == Component::ParentDir);
+                if !has_parent_dir && !f.is_absolute() {
+                    return normalize_lexically(f);
                 }
-            }
-            debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
+                if !has_parent_dir
+                    && let Some(rel) = cwd.as_deref().and_then(|cwd| f.strip_prefix(cwd).ok())
+                {
+                    return normalize_lexically(rel);
+                }
+                // `..` after a symlinked directory leaves the symlink's target, so
+                // resolve the parent directory on disk. The file name is kept, so a
+                // symlinked file matches by its own path.
+                let resolved = f.file_name().and_then(|name| {
+                    let parent = f.parent().filter(|p| !p.as_os_str().is_empty());
+                    let parent = parent.unwrap_or(Path::new(".")).canonicalize().ok()?;
+                    Some(parent.join(name))
+                });
+                match (resolved, canonical_cwd.as_deref()) {
+                    (Some(resolved), Some(cwd)) => resolved
+                        .strip_prefix(cwd)
+                        .map(Path::to_path_buf)
+                        .unwrap_or(resolved),
+                    // The file no longer exists, so its path can only be resolved lexically
+                    _ => {
+                        let normalized = normalize_lexically(f);
+                        cwd.as_deref()
+                            .and_then(|cwd| normalized.strip_prefix(cwd).ok())
+                            .map(Path::to_path_buf)
+                            .unwrap_or(normalized)
+                    }
+                }
+            };
+            let relative = |f: &PathBuf| with_forward_slashes(resolve(f));
+            let match_paths = files.iter().map(relative).collect::<Vec<_>>();
+            let files_before = files.len();
+            let mut exclude_files = HashSet::new();
 
-            let f = files.iter().collect::<Vec<_>>();
-            let exclude_files = glob::get_matches(&expanded_excludes, &f)?
-                .into_iter()
-                .collect::<HashSet<_>>();
+            if !all_excludes.is_empty() {
+                // Process excludes - handle both directory patterns and glob patterns
+                debug!(
+                    "files.exclude: patterns from settings/CLI: {:?}",
+                    all_excludes
+                );
+                let mut expanded_excludes = Vec::new();
+                for exclude in &all_excludes {
+                    expanded_excludes.push(exclude.clone());
+                    // If the pattern doesn't contain glob characters, also add patterns for directory contents
+                    if !exclude.contains('*') && !exclude.contains('?') && !exclude.contains('[') {
+                        expanded_excludes.push(format!("{}/*", exclude));
+                        expanded_excludes.push(format!("{}/**", exclude));
+                    }
+                }
+                debug!("files.exclude: expanded patterns: {:?}", expanded_excludes);
+                exclude_files.extend(glob::get_matches(&expanded_excludes, &match_paths)?);
+            }
+
+            // Regexes from the top-level config `exclude` use step-level regex semantics
+            for pattern in &opts.exclude_regexes {
+                debug!("files.exclude: regex from config: {pattern:?}");
+                let regex = crate::step::Pattern::Regex {
+                    _type: "regex".to_string(),
+                    pattern: pattern.clone(),
+                };
+                exclude_files.extend(glob::get_pattern_matches(&regex, &match_paths, None)?);
+            }
+
             debug!(
                 "files.exclude: matched and will exclude {} file(s)",
                 exclude_files.len()
             );
-            files.retain(|f| !exclude_files.contains(f));
+            files.retain(|f| !exclude_files.contains(&relative(f)));
             debug!(
                 "files.exclude: filtered files from {} to {}",
                 files_before,
@@ -1878,6 +1975,37 @@ fn watch_for_ctrl_c(cancel: CancellationToken) {
         });
         cancel.cancel();
     });
+}
+
+/// Use `/` separators, as git paths and exclude patterns do. Rebuilding a path
+/// from components on Windows joins them with `\`, which regexes would not match.
+fn with_forward_slashes(path: PathBuf) -> PathBuf {
+    if cfg!(windows)
+        && let Some(s) = path.to_str()
+    {
+        return PathBuf::from(s.replace('\\', "/"));
+    }
+    path
+}
+
+/// Remove `.` components and resolve `..` against preceding components without
+/// touching the filesystem. Leading `..` components of a relative path are kept.
+fn normalize_lexically(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => match normalized.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    normalized.pop();
+                }
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => normalized.push(".."),
+            },
+            c => normalized.push(c),
+        }
+    }
+    normalized
 }
 
 fn all_files_in_dir(dir: &Path) -> Result<Vec<PathBuf>> {
@@ -1962,8 +2090,16 @@ fn validate_safe_commands(
     Ok(())
 }
 
-fn build_expr_ctx(git_status: &GitStatus) -> expr::Context {
+fn build_expr_ctx(
+    git_status: &GitStatus,
+    hook_vars: &IndexMap<String, serde_json::Value>,
+) -> expr::Context {
     let mut expr_ctx = EXPR_CTX.clone();
+    for (key, val) in hook_vars {
+        if let Ok(val) = expr::to_value(val) {
+            expr_ctx.insert(key.clone(), val);
+        }
+    }
     if let Ok(val) = expr::to_value(git_status) {
         expr_ctx.insert("git", val);
     }

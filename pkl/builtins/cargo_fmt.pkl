@@ -10,7 +10,8 @@ import "./test/helpers.pkl"
   }
 }
 cargo_fmt = new Config.Step {
-  glob = "**/*.rs"
+  // See https://github.com/rust-lang/rustfmt/blob/main/README.md#configuring-rustfmt
+  glob = List("**/*.rs", "**/rustfmt.toml", "**/.rustfmt.toml")
   workspace_indicator = "Cargo.toml"
   check = new Config.CommandSpec {
     command = "cargo fmt --check --manifest-path {{workspace_indicator}}"
@@ -43,5 +44,22 @@ cargo_fmt = new Config.Step {
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
+    ["check catches bad file when only rustfmt.toml changed"] {
+      run = "check"
+      tmpdir = true
+      files = List("rustfmt.toml")
+      write = new Mapping<String, String> {
+        ["src/main.rs"] = before
+        ["Cargo.toml"] =
+          """
+            [package]
+            name = "test"
+            version = "0.1.0"
+            edition = "2021"
+          """
+        ["rustfmt.toml"] = "max_width = 100\n"
+      }
+      expect { code = 1 }
+    }
   }
 }

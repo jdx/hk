@@ -3,6 +3,7 @@ use std::{
     ffi::{CString, OsString},
     path::PathBuf,
     process::Command,
+    sync::OnceLock,
     thread,
     time::Duration,
 };
@@ -136,6 +137,8 @@ pub struct Git {
     saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
     // Path of the most recent stash patch backup, surfaced if restore fails
     last_patch_path: Option<PathBuf>,
+    // Path of the index file git writes, resolved on first use
+    index_path: OnceLock<PathBuf>,
 }
 
 enum StashType {
@@ -220,6 +223,7 @@ impl Git {
             saved_index: None,
             saved_worktree: None,
             last_patch_path: None,
+            index_path: OnceLock::new(),
         })
     }
 
@@ -472,6 +476,103 @@ impl Git {
     pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         // Refresh index stat information to avoid stale mtime/size causing mis-detection
         let _ = git_run(["update-index", "-q", "--refresh"]);
+        self.read_status(pathspec, false)
+    }
+
+    /// Status of the paths matching `pathspec`, read without touching any
+    /// file outside them.
+    ///
+    /// Like [`Git::status_of_paths`], it skips the index refresh in
+    /// [`Git::status`], which may hash any tracked file.
+    #[tracing::instrument(level = "info", name = "git.status_of_pathspec", skip_all, fields(pathspec_count = pathspec.len()))]
+    pub fn status_of_pathspec(&self, pathspec: &[OsString]) -> Result<GitStatus> {
+        self.read_status(Some(pathspec), false)
+    }
+
+    /// Worktree paths that any index write may read, besides the paths being
+    /// written.
+    ///
+    /// When git writes the index, it re-hashes every entry whose recorded mtime
+    /// is not older than the index file ("racily clean") and whose stat data
+    /// still matches the worktree, so it can tell whether the file changed
+    /// within the same timestamp tick. git maps the file into memory to hash
+    /// it, so if another process truncates the file meanwhile, git dies with
+    /// SIGBUS. Entries recorded with size 0 were already marked as changed and
+    /// are never hashed.
+    ///
+    /// Seconds are compared, which covers git builds with and without
+    /// nanosecond timestamps.
+    pub fn racily_clean_paths(&self) -> Result<Vec<PathBuf>> {
+        let index_path = match self.index_path.get() {
+            Some(path) => path,
+            None => {
+                let path = PathBuf::from(git_read(["rev-parse", "--git-path", "index"])?);
+                self.index_path.get_or_init(|| path)
+            }
+        };
+        let index_mtime = match std::fs::metadata(index_path) {
+            Ok(metadata) => metadata.modified()?,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+            Err(err) => return Err(err.into()),
+        };
+        let index_secs = index_mtime
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let index = git2::Index::open(index_path)
+            .wrap_err_with(|| format!("failed to read index {}", index_path.display()))?;
+        Ok(index
+            .iter()
+            .filter(|entry| entry.file_size != 0 && i64::from(entry.mtime.seconds()) >= index_secs)
+            .map(|entry| {
+                #[cfg(unix)]
+                let path = PathBuf::from(OsString::from_vec(entry.path));
+                #[cfg(not(unix))]
+                let path = PathBuf::from(String::from_utf8_lossy(&entry.path).into_owned());
+                path
+            })
+            .collect())
+    }
+
+    /// Status of exactly `paths`, read without touching any other file in the
+    /// worktree, so it is safe while other steps are writing other files.
+    ///
+    /// It skips the index refresh in [`Git::status`], which stats and may hash
+    /// every tracked file. Both libgit2 and `git status` compare contents
+    /// themselves when an entry's stat information is stale.
+    #[tracing::instrument(level = "info", name = "git.status_of_paths", skip_all, fields(path_count = paths.len()))]
+    pub fn status_of_paths(&self, paths: &[PathBuf]) -> Result<GitStatus> {
+        if paths.is_empty() {
+            return Ok(GitStatus::default());
+        }
+        if self.repo.is_some() {
+            let pathspec = paths.iter().map(|p| p.as_os_str().to_owned()).collect_vec();
+            return self.read_status(Some(&pathspec), true);
+        }
+        // `git status` takes pathspecs only as arguments, so query in chunks
+        // that stay well under the command-line limit (32 KiB on Windows).
+        const MAX_ARG_BYTES: usize = 16 * 1024;
+        let mut status = GitStatus::default();
+        let mut chunk: Vec<OsString> = Vec::new();
+        let mut chunk_bytes = 0;
+        for p in paths {
+            let mut spec = OsString::from(":(literal)");
+            spec.push(p);
+            if !chunk.is_empty() && chunk_bytes + spec.len() + 1 > MAX_ARG_BYTES {
+                status.extend(self.read_status(Some(&chunk), true)?);
+                chunk.clear();
+                chunk_bytes = 0;
+            }
+            chunk_bytes += spec.len() + 1;
+            chunk.push(spec);
+        }
+        status.extend(self.read_status(Some(&chunk), true)?);
+        Ok(status)
+    }
+
+    /// `literal` matches libgit2 pathspecs as exact paths; git CLI callers mark
+    /// literal pathspecs themselves with `:(literal)`.
+    fn read_status(&self, pathspec: Option<&[OsString]>, literal: bool) -> Result<GitStatus> {
         // When stashing untracked files is disabled, skip the untracked-file scan.
         // This avoids catastrophic scans when GIT_WORK_TREE points at a large tree
         // (e.g. YADM dotfile repos where the worktree is $HOME). See #860.
@@ -481,6 +582,7 @@ impl Git {
             status_options.include_untracked(include_untracked);
             status_options.recurse_untracked_dirs(include_untracked);
             status_options.renames_head_to_index(true);
+            status_options.disable_pathspec_match(literal);
 
             if let Some(pathspec) = pathspec {
                 for path in pathspec {
@@ -601,7 +703,10 @@ impl Git {
                 args.push("--".into());
                 args.extend(pathspec.iter().map(|p| p.into()))
             }
-            let output = git_read(args)?;
+            // With optional locks, `git status` writes the refreshed index
+            // back, and writing the index re-hashes every racily clean entry
+            // in the repository, not just the ones in `pathspec`.
+            let output = git_cmd(args).env("GIT_OPTIONAL_LOCKS", "0").read()?;
             let mut staged_files = BTreeSet::new();
             let mut unstaged_files = BTreeSet::new();
             let mut untracked_files = BTreeSet::new();
@@ -706,19 +811,29 @@ impl Git {
     }
 
     #[tracing::instrument(level = "info", name = "git.stash.push", skip_all)]
+    /// Paths whose unstaged changes the last [`Git::stash_unstaged`] set aside,
+    /// or `None` if it stashed nothing.
+    pub fn stashed_paths(&self) -> Option<&BTreeSet<PathBuf>> {
+        self.stash.as_ref().and(self.stashed_paths.as_ref())
+    }
+
     pub fn stash_unstaged(
         &mut self,
         job: &ProgressJob,
         method: StashMethod,
         status: &GitStatus,
     ) -> Result<()> {
-        // Skip stashing if there's no initial commit yet or auto-stash is disabled
+        // Skip stashing if auto-stash is disabled or there's no initial commit yet
         if method == StashMethod::None {
             return Ok(());
         }
-        if let Some(repo) = &self.repo
-            && repo.head().is_err()
-        {
+        let has_head = match &self.repo {
+            Some(repo) => repo.head().is_ok(),
+            None => git_cmd_silent(["rev-parse", "--verify", "-q", "HEAD"])
+                .read()
+                .is_ok(),
+        };
+        if !has_head {
             return Ok(());
         }
         job.set_body("{{spinner()}} stash – {{message}}{% if files is defined %} ({{files}} file{{files|pluralize}}){% endif %}");
@@ -1624,20 +1739,29 @@ impl Git {
         Ok(())
     }
 
-    pub fn add(&self, pathspecs: &[PathBuf]) -> Result<()> {
-        let pathspecs = pathspecs.iter().collect_vec();
-        trace!("adding files: {:?}", pathspecs);
-        if let Some(repo) = &self.repo {
-            let mut index = repo.index().wrap_err("failed to get index")?;
-            index
-                .add_all(&pathspecs, git2::IndexAddOption::DEFAULT, None)
-                .wrap_err("failed to add files to index")?;
-            index.write().wrap_err("failed to write index")?;
-            Ok(())
-        } else {
-            git_cmd(["add", "--"]).args(pathspecs).run()?;
-            Ok(())
+    /// Stages exactly `paths`, taken literally rather than as pathspecs.
+    ///
+    /// Always runs `git add`, even with libgit2: writing the index re-checks
+    /// recently staged entries against the worktree, and other steps may still
+    /// be writing those files. Git smudges an entry whose file changes while it
+    /// reads it; libgit2 fails the whole write instead.
+    pub fn add(&self, paths: &[PathBuf]) -> Result<()> {
+        trace!("adding files: {:?}", paths);
+        if paths.is_empty() {
+            return Ok(());
         }
+        // Pass the paths on stdin: a large fixer's files can exceed the
+        // command-line limit.
+        let mut pathspecs = Vec::new();
+        for p in paths {
+            pathspecs.extend_from_slice(b":(literal)");
+            pathspecs.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            pathspecs.push(0);
+        }
+        git_cmd(["add", "--pathspec-from-file=-", "--pathspec-file-nul"])
+            .stdin_bytes(pathspecs)
+            .run()?;
+        Ok(())
     }
 
     pub fn files_between_refs(&self, from_ref: &str, to_ref: Option<&str>) -> Result<Vec<PathBuf>> {
@@ -1831,4 +1955,26 @@ pub(crate) struct GitStatus {
     pub unstaged_modified_files: BTreeSet<PathBuf>,
     pub unstaged_deleted_files: BTreeSet<PathBuf>,
     pub unstaged_renamed_files: BTreeSet<PathBuf>,
+}
+
+impl GitStatus {
+    /// Adds the entries of a status of other paths.
+    fn extend(&mut self, other: GitStatus) {
+        self.unstaged_files.extend(other.unstaged_files);
+        self.staged_files.extend(other.staged_files);
+        self.untracked_files.extend(other.untracked_files);
+        self.modified_files.extend(other.modified_files);
+        self.staged_added_files.extend(other.staged_added_files);
+        self.staged_modified_files
+            .extend(other.staged_modified_files);
+        self.staged_deleted_files.extend(other.staged_deleted_files);
+        self.staged_renamed_files.extend(other.staged_renamed_files);
+        self.staged_copied_files.extend(other.staged_copied_files);
+        self.unstaged_modified_files
+            .extend(other.unstaged_modified_files);
+        self.unstaged_deleted_files
+            .extend(other.unstaged_deleted_files);
+        self.unstaged_renamed_files
+            .extend(other.unstaged_renamed_files);
+    }
 }

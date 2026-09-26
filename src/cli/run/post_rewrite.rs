@@ -20,7 +20,7 @@ impl PostRewrite {
                 "--files0-from - cannot be used with post-rewrite because the hook reads rewrite data from stdin"
             ));
         }
-        self.hook.tctx.insert("hook_args", &self.command);
+        self.hook.insert_hook_var("hook_args", &self.command);
         let hook_stdin = if std::io::stdin().is_terminal() {
             String::new()
         } else {
@@ -28,7 +28,7 @@ impl PostRewrite {
             std::io::stdin().read_to_string(&mut input)?;
             input
         };
-        self.hook.tctx.insert("hook_stdin", &hook_stdin);
+        self.hook.insert_hook_var("hook_stdin", &hook_stdin);
         self.hook.run("post-rewrite").await
     }
 }

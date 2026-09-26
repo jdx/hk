@@ -45,7 +45,7 @@ impl StepJob {
             requested_run_type: run_type,
             workspace_indicator: None,
             check_first: *env::HK_CHECK_FIRST
-                && step.check_first
+                && step.check_first()
                 && (step.fix.is_some() || step.check_diff.is_some())
                 && (step.check.is_some()
                     || step.check_diff.is_some()
@@ -136,10 +136,16 @@ impl StepJob {
         ctx.progress.add(job)
     }
 
+    /// Take this job's file locks and a job slot, then mark it running.
+    ///
+    /// `semaphore` is a slot the caller already holds, if any. A job that has
+    /// to wait for another step to release its files gives that slot up while
+    /// it waits, so a job that can run takes it instead of every slot sitting
+    /// behind one slow fixer.
     pub async fn status_start(
         &mut self,
         ctx: &StepContext,
-        semaphore: OwnedSemaphorePermit,
+        mut semaphore: Option<OwnedSemaphorePermit>,
     ) -> Result<()> {
         match &self.status {
             StepJobStatus::Pending => {}
@@ -148,9 +154,21 @@ impl StepJob {
             }
             _ => unreachable!("invalid status: {:?}", self.status),
         }
-        let flocks = self.flocks(ctx).await;
-        // Take shared command access only after the file locks: a job waiting
-        // for this job's files must not block its upgrade to exclusive diff access.
+        let flocks = match self.try_flocks(ctx) {
+            Some(flocks) => flocks,
+            None => {
+                semaphore = None;
+                self.flocks(ctx).await
+            }
+        };
+        // Every job holding a slot also holds its file locks, so a waiter
+        // cannot occupy the slot needed by the job that will release its files.
+        let semaphore = match semaphore {
+            Some(semaphore) => semaphore,
+            None => ctx.hook_ctx.semaphore().await,
+        };
+        // Take shared command access only after the file locks and job slot:
+        // a waiting job must not block an active job's exclusive diff access.
         let command_guard = ctx.hook_ctx.diff_lock.clone().read_owned().await;
         self.status = StepJobStatus::Started(StepLocks::new(flocks, semaphore, command_guard));
         ctx.status_started();
@@ -197,6 +215,16 @@ impl StepJob {
         }
         ctx.status_errored(&err);
         Ok(())
+    }
+
+    fn try_flocks(&self, ctx: &StepContext) -> Option<Flocks> {
+        if self.step.stomp {
+            Some(Default::default())
+        } else if self.requested_run_type == RunType::Fix {
+            ctx.hook_ctx.file_locks.try_write(&self.files)
+        } else {
+            ctx.hook_ctx.file_locks.try_read(&self.files)
+        }
     }
 
     async fn flocks(&self, ctx: &StepContext) -> Flocks {

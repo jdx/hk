@@ -12,7 +12,7 @@ pub struct PostMerge {
 
 impl PostMerge {
     pub async fn run(mut self) -> Result<()> {
-        self.hook.tctx.insert("hook_args", &self.is_squash);
+        self.hook.insert_hook_var("hook_args", &self.is_squash);
         self.hook.run("post-merge").await
     }
 }

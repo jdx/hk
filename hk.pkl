@@ -1,4 +1,4 @@
-// amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
+// amends "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Config.pkl"
 amends "pkl/Config.pkl"
 
 import "pkl/Builtins.pkl"
@@ -44,7 +44,10 @@ local linters = new Mapping<String, Step | Group> {
   ["taplo"] = (Builtins.taplo) {
     glob = "settings.toml"
   }
-  ["taplo-format"] = Builtins.taplo_format
+  ["taplo-format"] = (Builtins.taplo_format) {
+    // mise writes these per-tool lockfiles; keep them as generated.
+    exclude = "**/.mise/locks/**"
+  }
   ["docs"] = new Step {
     glob = "docs/**"
     check = "mise run docs:build"

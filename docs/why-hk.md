@@ -34,7 +34,7 @@ A `check_list_files` command reports which files need changes. For example, Pret
 
 ### Check before fixing
 
-For other tools, `check_first` can run a read-only check before acquiring write locks for a fix. When checks frequently pass, this avoids unnecessary exclusive access. When nearly every file needs fixing, the extra check may cost more than it saves.
+For other tools, a step can set `check_first = true` to run its check before its fix and skip the fix when the check passes. When files need fixing, the tool runs twice, and in hk's benchmark that cost more than it saved, so it's off by default.
 
 These strategies affect orchestration overhead. Actual speed depends on your linters, file overlap, number of changed files, and available CPU cores. See the [benchmarks](/benchmarks) for a reproducible workload and its limitations.
 
@@ -67,6 +67,6 @@ The tradeoffs are a configuration language to learn and responsibility for provi
 
 You can evaluate hk on a branch before changing your team’s setup. Create a configuration, run `hk check --all --plan`, then compare the checks and fixes with your existing workflow.
 
-For a pre-commit configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Review the generated steps, tool versions, file filters, and any unsupported hooks before installing hk’s Git hooks.
+For a pre-commit or prek configuration, start with [`hk migrate pre-commit`](/cli/migrate/pre-commit). Known hooks become hk builtins and local shell hooks become hk steps. Everything else keeps running through prek or pre-commit, so you can switch now and convert the rest later.
 
 [Get started](/getting_started) or browse the [configuration examples](/reference/examples/).

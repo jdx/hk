@@ -12,7 +12,7 @@ use std::sync::LazyLock as Lazy;
 
 use crate::hash::hash_to_str;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CacheManagerBuilder {
     cache_file_path: PathBuf,
     cache_keys: Vec<String>,
@@ -68,23 +68,31 @@ impl CacheManagerBuilder {
     }
 
     fn cache_key(&self) -> String {
-        hash_to_str(&self.cache_keys).chars().take(5).collect()
+        hash_to_str(&self.cache_keys)
+    }
+
+    /// Key on the fresh files' contents as they are now, so builders cloned
+    /// from this one do not read them again.
+    pub fn hash_fresh_files(mut self) -> Self {
+        self.key_fresh_files();
+        self
+    }
+
+    /// Draining the fresh files makes a second call a no-op.
+    fn key_fresh_files(&mut self) {
+        let mode = self.fresh_file_key_mode;
+        self.cache_keys
+            .extend(self.fresh_files.drain(..).unique().map(|path| match mode {
+                FreshFileKeyMode::PathAndContent => fresh_file_cache_key(&path),
+                FreshFileKeyMode::ContentOnly => fresh_file_content_cache_key(&path),
+            }));
     }
 
     pub fn build<T>(mut self) -> CacheManager<T>
     where
         T: Serialize + DeserializeOwned,
     {
-        self.cache_keys
-            .extend(
-                self.fresh_files
-                    .iter()
-                    .unique()
-                    .map(|path| match self.fresh_file_key_mode {
-                        FreshFileKeyMode::PathAndContent => fresh_file_cache_key(path),
-                        FreshFileKeyMode::ContentOnly => fresh_file_content_cache_key(path),
-                    }),
-            );
+        self.key_fresh_files();
         let key = self.cache_key();
         let (base, ext) = split_file_name(&self.cache_file_path);
         let mut cache_file_path = self.cache_file_path;
@@ -128,27 +136,41 @@ where
         F: FnOnce() -> Result<T>,
     {
         let val = self.cache.get_or_try_init(|| {
-            let path = &self.cache_file_path;
-            if self.is_fresh() && *crate::env::HK_CACHE {
-                match self.parse() {
-                    Ok(val) => {
-                        tracing::event!(tracing::Level::INFO, "cache.hit");
-                        return Ok::<_, eyre::Report>(val);
-                    }
-                    Err(err) => {
-                        warn!("failed to parse cache file: {} {:#}", path.display(), err);
-                    }
-                }
+            if let Some(val) = self.read_fresh() {
+                return Ok::<_, eyre::Report>(val);
             }
-            tracing::event!(tracing::Level::INFO, "cache.miss");
+            let path = &self.cache_file_path;
             let val = (fetch)()?;
-            tracing::info!(path = %path.display(), "cache.write");
             if let Err(err) = self.write(&val) {
                 warn!("failed to write cache file: {} {:#}", path.display(), err);
             }
             Ok(val)
         })?;
         Ok(val)
+    }
+
+    /// Unlike `get_or_try_init`, a miss writes nothing, so the caller can
+    /// choose the key to write under after computing the value.
+    #[tracing::instrument(level = "info", name = "cache.get", skip_all, fields(path = %self.cache_file_path.display()))]
+    pub fn get(&self) -> Option<T> {
+        self.read_fresh()
+    }
+
+    fn read_fresh(&self) -> Option<T> {
+        let path = &self.cache_file_path;
+        if self.is_fresh() && *crate::env::HK_CACHE {
+            match self.parse() {
+                Ok(val) => {
+                    tracing::event!(tracing::Level::INFO, "cache.hit");
+                    return Some(val);
+                }
+                Err(err) => {
+                    warn!("failed to parse cache file: {} {:#}", path.display(), err);
+                }
+            }
+        }
+        tracing::event!(tracing::Level::INFO, "cache.miss");
+        None
     }
 
     fn parse(&self) -> Result<T> {
@@ -160,7 +182,7 @@ where
     }
 
     pub fn write(&self, val: &T) -> Result<()> {
-        trace!("writing {}", self.cache_file_path.display());
+        tracing::info!(path = %self.cache_file_path.display(), "cache.write");
         if let Some(parent) = self.cache_file_path.parent() {
             xx::file::create_dir_all(parent)?;
         }
@@ -224,6 +246,23 @@ mod tests {
     }
 
     #[test]
+    fn get_does_not_write_on_a_miss() {
+        let cache =
+            CacheManagerBuilder::new(env::HK_CACHE_DIR.join("get-miss-test.json")).build::<u8>();
+        cache.clear().unwrap();
+        assert_eq!(cache.get(), None);
+        assert!(!cache.cache_file_path.exists());
+    }
+
+    #[test]
+    fn get_reads_an_entry_only_when_caching_is_enabled() {
+        let cache =
+            CacheManagerBuilder::new(env::HK_CACHE_DIR.join("get-hit-test.json")).build::<u8>();
+        cache.write(&1).unwrap();
+        assert_eq!(cache.get(), env::HK_CACHE.then_some(1));
+    }
+
+    #[test]
     fn explicit_cache_keys_select_distinct_files() {
         let base = env::HK_CACHE_DIR.join("cache-key-test.json");
         let unset = CacheManagerBuilder::new(&base)
@@ -234,5 +273,24 @@ mod tests {
             .build::<u8>();
 
         assert_ne!(unset.cache_file_path, rewrite.cache_file_path);
+    }
+
+    #[test]
+    fn cache_keys_sharing_a_hash_prefix_select_distinct_files() {
+        let base = env::HK_CACHE_DIR.join("cache-key-prefix-test.json");
+        let builder = |key: &str| CacheManagerBuilder::new(&base).with_cache_key(key);
+        let mut seen = std::collections::HashMap::new();
+        let (a, b) = (0..)
+            .map(|i| format!("key-{i}"))
+            .find_map(|key| {
+                let prefix: String = builder(&key).cache_key().chars().take(5).collect();
+                seen.insert(prefix, key.clone()).map(|other| (other, key))
+            })
+            .unwrap();
+
+        assert_ne!(
+            builder(&a).build::<u8>().cache_file_path,
+            builder(&b).build::<u8>().cache_file_path
+        );
     }
 }

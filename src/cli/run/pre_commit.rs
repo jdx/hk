@@ -10,7 +10,7 @@ pub struct PreCommit {
 impl PreCommit {
     pub async fn run(mut self) -> Result<()> {
         // pre-commit receives no arguments from git
-        self.hook.tctx.insert("hook_args", "");
+        self.hook.insert_hook_var("hook_args", "");
         self.hook.run("pre-commit").await
     }
 }

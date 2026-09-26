@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - benchmark/results.json
       - settings.toml
       - ".github/**"
   workflow_dispatch:

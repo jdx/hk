@@ -99,11 +99,14 @@ env: Mapping<String, String> = new Mapping<String, String> {}
 ///
 /// Notes:
 ///
-/// - Patterns from all configuration sources are unioned together
+/// - Patterns from all configuration sources are unioned together: the project
+///   config, the user config, git config, `HK_EXCLUDE`, and `--exclude`
 /// - Simple directory names automatically match their contents
 ///   (e.g., `"excluded"` matches `excluded/*` and `excluded/**`)
 /// - Can be overridden per-step with `<STEP>.exclude`
-/// - Regex patterns use Rust regex syntax and match against full file paths
+/// - Regex patterns use Rust regex syntax and search repo-relative paths, like
+///   step-level regex excludes; anchor with `^` to match from the repo root
+///   (e.g., `Regex(#"^vendor/"#)`)
 exclude: (String | List<String> | Regex)?
 
 /// Default: `true`
@@ -393,6 +396,7 @@ open class Step {
   /// - **Shells:** `shell`, `bash`, `zsh`, `fish`, `sh`
   /// - **Data formats:** `json`, `yaml`, `toml`, `xml`, `csv`, 'pkl'
   /// - **Markup:** `html`, `markdown`, `css`, 'asciidoc'
+  /// - **Components:** `svelte`, `vue`, `astro`
   /// - **Special:** `text`, `binary`, `executable`, `symlink`, `dockerfile`
   /// - **Images:** `image`, `png`, `jpeg`, `gif`, `svg`, `webp`
   /// - **Archives:** `archive`, `zip`, `tar`, `gzip`
@@ -545,13 +549,31 @@ open class Step {
   /// [`HK_FIX=0`](https://hk.jdx.dev/environment_variables#hk-fix) or running `hk run <HOOK> --check`.
   fix: (String | Script | Command | CommandSpec)?
 
-  /// If true, hk will run the check step first and only run the fix step if the check step fails.
-  check_first: Boolean = true
+  /// Default: `false`
+  ///
+  /// If true, and another step writes the same files, hk runs this step's `check` before `fix`
+  /// and skips the fix when the check passes, so files that already pass aren't rewritten. The
+  /// check holds the same write locks as the fix would. When files need fixing, the tool runs
+  /// twice, which usually costs more than it saves, so it's off by default. Consider it for a
+  /// slow fixer whose files usually pass.
+  ///
+  /// Some steps check first whatever this is set to:
+  /// - a step whose `check` and `fix` are the same command, as in steps migrated from
+  ///   pre-commit: such a fixer exits 1 after fixing, and the second run is what lets it pass;
+  /// - a step with `check_diff` in fix mode, so it can apply the diff instead of running `fix`;
+  /// - a step with `check_diff` or `check_list_files` and `stage = "<JOB_FILES>"`, so only the
+  ///   files it changed are fixed and staged. With the default `stage`, this happens only when one
+  ///   of the step's files has unstaged changes that hk didn't stash, since otherwise staging
+  ///   picks up exactly the files the fix changed.
+  check_first: Boolean = false
 
   /// Default: `false`
   ///
   /// If true, hk will run the linter on batches of files instead of all files at once.
   /// This takes advantage of parallel processing for otherwise single-threaded linters like eslint and prettier.
+  /// Files are split evenly across `--jobs` batches, with at least `batch_min_files` files in
+  /// each, so a handful of files doesn't start one process per file and pay the tool's startup
+  /// cost each time.
   ///
   /// ```pkl
   /// local linters = new Mapping {
@@ -561,6 +583,25 @@ open class Step {
   /// }
   /// ```
   batch: Boolean = false
+
+  /// Default: `4`
+  ///
+  /// When `batch` is true, the fewest files hk puts in each batch when it splits a step's files
+  /// across `--jobs`. A step with fewer files still runs once, and a batch whose command would be
+  /// too long for the OS is split further, below this number. Raise it for tools that are slow to
+  /// start, such as Node-based linters: when other steps keep the CPUs busy, every extra batch
+  /// mostly pays the tool's startup again.
+  ///
+  /// ```pkl
+  /// local linters = new Mapping {
+  ///     ["prettier"] {
+  ///         batch = true
+  ///         // 900 files make 4 batches instead of one per job
+  ///         batch_min_files = 200
+  ///     }
+  /// }
+  /// ```
+  batch_min_files: UInt?
 
   /// Default: `false`
   ///

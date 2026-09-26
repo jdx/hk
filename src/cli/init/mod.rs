@@ -5,6 +5,8 @@ mod picker;
 use std::path::PathBuf;
 
 use crate::{Result, env};
+use eyre::eyre;
+use toml_edit::{DocumentMut, Item, Table, TableLike, value};
 
 /// Default hooks to configure when none are specified
 pub(crate) const DEFAULT_HOOKS: &[&str] = &["pre-commit"];
@@ -117,20 +119,275 @@ impl Init {
     }
 
     fn write_mise_toml(&self) -> Result<()> {
-        let mise_toml = PathBuf::from("mise.toml");
-        let mise_content = r#"[tools]
-hk = "latest"
-pkl = "latest"
-
-[tasks.pre-commit]
-run = "hk run pre-commit"
-"#;
-        if mise_toml.exists() && !self.force {
-            warn!("mise.toml already exists, run with --force to overwrite");
+        let mise_file = PathBuf::from("mise.toml");
+        let original = mise_file
+            .exists()
+            .then(|| std::fs::read_to_string(&mise_file))
+            .transpose()?;
+        let root = std::env::current_dir()?;
+        let input = original.as_deref().unwrap_or("");
+        let suppress_pre_commit = match included_pre_commit(&root, input)? {
+            Some(value) => value,
+            None => existing_pre_commit_file_task(&root),
+        };
+        let content = merge_mise_config(input, suppress_pre_commit)?;
+        if original.as_deref() != Some(content.as_str()) {
+            xx::file::write(&mise_file, content)?;
+            if original.is_none() {
+                info!("Generated mise.toml");
+            } else {
+                info!("Updated mise.toml");
+            }
         } else {
-            xx::file::write(mise_toml, mise_content)?;
-            info!("Generated mise.toml");
+            info!("mise.toml already contains hk configuration");
         }
         Ok(())
+    }
+}
+
+/// Detect conventional mise file-task locations for pre-commit.
+fn existing_pre_commit_file_task(root: &std::path::Path) -> bool {
+    [
+        "mise-tasks",
+        ".mise-tasks",
+        "mise/tasks",
+        ".mise/tasks",
+        ".config/mise/tasks",
+    ]
+    .iter()
+    .any(|dir| {
+        let base = root.join(dir).join("pre-commit");
+        base.is_file() || base.join("_default").is_file()
+    })
+}
+
+/// Return whether explicit task includes should suppress root task insertion.
+/// `None` means no includes were configured, so conventional defaults apply.
+fn included_pre_commit(root: &std::path::Path, input: &str) -> Result<Option<bool>> {
+    let document = if input.is_empty() {
+        DocumentMut::new()
+    } else {
+        input
+            .parse::<DocumentMut>()
+            .map_err(|error| eyre!("invalid mise.toml: {error}"))?
+    };
+    let Some(task_config) = document.get("task_config") else {
+        return Ok(None);
+    };
+    let task_config = task_config
+        .as_table_like()
+        .ok_or_else(|| eyre!("unsupported mise.toml: [task_config] must be a table"))?;
+    let Some(includes) = task_config.get("includes") else {
+        return Ok(None);
+    };
+    let Some(includes) = includes.as_array() else {
+        warn!("Unable to inspect mise task includes; preserving external task configuration");
+        return Ok(Some(true));
+    };
+    for include in includes {
+        let Some(path) = include.as_str() else {
+            warn!("Unable to inspect mise task includes; preserving external task configuration");
+            return Ok(Some(true));
+        };
+        if path.contains("://") || path.contains(['$', '{', '}', '*', '?', '[', ']', '~']) {
+            warn!("Unable to inspect mise task includes; preserving external task configuration");
+            return Ok(Some(true));
+        }
+        let path = root.join(path);
+        if path.is_dir() {
+            let task = path.join("pre-commit");
+            for candidate in [task.clone(), task.join("_default")] {
+                match std::fs::metadata(candidate) {
+                    Ok(metadata) if metadata.is_file() => return Ok(Some(true)),
+                    Ok(_) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(_) => {
+                        warn!(
+                            "Unable to inspect mise task includes; preserving external task configuration"
+                        );
+                        return Ok(Some(true));
+                    }
+                }
+            }
+            match scan_included_task_dir(&path) {
+                Ok(true) => return Ok(Some(true)),
+                Ok(false) => {}
+                Err(_) => {
+                    warn!(
+                        "Unable to inspect mise task includes; preserving external task configuration"
+                    );
+                    return Ok(Some(true));
+                }
+            }
+            continue;
+        }
+        let content = match std::fs::read_to_string(&path) {
+            Ok(content) => content,
+            Err(_) => {
+                warn!(
+                    "Unable to inspect mise task includes; preserving external task configuration"
+                );
+                return Ok(Some(true));
+            }
+        };
+        let document = match content.parse::<DocumentMut>() {
+            Ok(document) => document,
+            Err(_) => {
+                warn!(
+                    "Unable to inspect mise task includes; preserving external task configuration"
+                );
+                return Ok(Some(true));
+            }
+        };
+        if document.get("pre-commit").is_some() {
+            return Ok(Some(true));
+        }
+    }
+    Ok(Some(false))
+}
+
+fn scan_included_task_dir(path: &std::path::Path) -> std::io::Result<bool> {
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let path = entry.path();
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        let metadata = std::fs::symlink_metadata(&path)?;
+        if metadata.file_type().is_symlink() {
+            return Err(std::io::Error::other("symlinked mise task include"));
+        }
+        if metadata.is_dir() {
+            if scan_included_task_dir(&path)? {
+                return Ok(true);
+            }
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("toml") {
+            let filename = name.to_string_lossy();
+            if filename == "mise.toml"
+                || (filename.starts_with("mise.") && filename.ends_with(".toml"))
+            {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "mise config in task include",
+                ));
+            }
+            let content = std::fs::read_to_string(&path)?;
+            let document = content.parse::<DocumentMut>().map_err(|error| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string())
+            })?;
+            if document.get("pre-commit").is_some() {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
+/// Merge hk's minimal mise entries without replacing user configuration.
+fn merge_mise_config(input: &str, external_pre_commit: bool) -> Result<String> {
+    let mut document = if input.is_empty() {
+        DocumentMut::new()
+    } else {
+        input
+            .parse::<DocumentMut>()
+            .map_err(|error| eyre!("invalid mise.toml: {error}"))?
+    };
+    if document.get("tools").is_none() {
+        document["tools"] = Item::Table(Table::new());
+    }
+    let tools = document["tools"]
+        .as_table_like_mut()
+        .ok_or_else(|| eyre!("unsupported mise.toml: [tools] must be a table"))?;
+    let has_hk = has_tool(tools, &["hk", "jdx/hk"]);
+    if !has_hk {
+        tools.insert("hk", value("latest"));
+    }
+    let has_pre_commit = match document.get("tasks") {
+        Some(item) => item
+            .as_table_like()
+            .ok_or_else(|| eyre!("unsupported mise.toml: [tasks] must be a table"))?
+            .get("pre-commit")
+            .is_some(),
+        None => false,
+    };
+    if !has_pre_commit {
+        if external_pre_commit {
+            warn!(
+                "Preserving external mise task configuration for pre-commit; wire hk manually if needed"
+            );
+        } else {
+            if document.get("tasks").is_none() {
+                let mut tasks = Table::new();
+                tasks.set_implicit(true);
+                document["tasks"] = Item::Table(tasks);
+            }
+            let tasks = document["tasks"]
+                .as_table_like_mut()
+                .expect("tasks was validated or created as a table");
+            tasks.insert(
+                "pre-commit",
+                Item::Table(Table::from_iter([("run", value("hk run pre-commit"))])),
+            );
+        }
+    }
+    Ok(document.to_string())
+}
+
+fn has_tool(tools: &dyn TableLike, suffixes: &[&str]) -> bool {
+    tools.iter().any(|(key, _)| {
+        suffixes.iter().any(|suffix| {
+            key == *suffix || key.split_once(':').is_some_and(|(_, tool)| tool == *suffix)
+        })
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_config_has_stable_output() {
+        assert_eq!(
+            merge_mise_config("", false).unwrap(),
+            "[tools]\nhk = \"latest\"\n\n[tasks.pre-commit]\nrun = \"hk run pre-commit\"\n"
+        );
+    }
+
+    #[test]
+    fn dotted_tools_and_implicit_tasks_have_stable_output() {
+        assert_eq!(
+            merge_mise_config("tools.node = \"20\"\n", false).unwrap(),
+            "tools.node = \"20\"\ntools.hk = \"latest\"\n\n[tasks.pre-commit]\nrun = \"hk run pre-commit\"\n"
+        );
+    }
+
+    #[test]
+    fn inline_tables_have_stable_output() {
+        assert_eq!(
+            merge_mise_config(
+                "tools = { node = \"20\" }\ntasks = { check = \"custom\" }\n",
+                false,
+            )
+            .unwrap(),
+            "tools = { node = \"20\" , hk = \"latest\" }\ntasks = { check = \"custom\" , pre-commit = { run = \"hk run pre-commit\" } }\n"
+        );
+    }
+
+    #[test]
+    fn scalar_tasks_are_rejected() {
+        assert!(merge_mise_config("tasks = \"custom\"\n", false).is_err());
+    }
+
+    #[test]
+    fn backend_qualified_hk_is_recognized() {
+        let output = merge_mise_config(
+            "[tools]\n\"asdf:hk\" = \"1\"\n\"vfox:jdx/hk\" = \"2\"\n\"asdf:other\" = \"3\"\n",
+            false,
+        )
+        .unwrap();
+        assert!(output.contains("\"asdf:hk\" = \"1\""));
+        assert!(output.contains("\"vfox:jdx/hk\" = \"2\""));
+        assert!(!output.contains("\nhk = \"latest\""));
     }
 }

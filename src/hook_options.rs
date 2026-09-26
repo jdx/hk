@@ -58,6 +58,9 @@ pub(crate) struct HookOptions {
     /// Select files changed since this reference; optionally pair with --to-ref
     #[usage(long)]
     pub from_ref: Option<String>,
+    /// Write step results as a JUnit XML report
+    #[usage(long, value_name = "PATH", value_hint = ValueHint::FilePath)]
+    pub junit_xml: Option<PathBuf>,
     /// Continue on failures (opposite of --fail-fast)
     #[usage(long, overrides = "--fail-fast")]
     pub no_fail_fast: bool,
@@ -120,9 +123,25 @@ pub(crate) struct HookOptions {
     /// Prefilled tera context
     #[usage(skip)]
     pub tctx: Context,
+    /// Hook-specific variables, such as Git hook arguments, exposed to both
+    /// command templates and condition expressions
+    #[usage(skip)]
+    pub hook_vars: indexmap::IndexMap<String, serde_json::Value>,
+    /// Regexes from the top-level `exclude` config, matched against
+    /// repo-relative paths. Glob excludes arrive through `Settings::exclude`.
+    #[usage(skip)]
+    pub exclude_regexes: Vec<String>,
 }
 
 impl HookOptions {
+    /// Expose a hook-specific variable to command templates and conditions.
+    pub(crate) fn insert_hook_var<T: serde::Serialize + ?Sized>(&mut self, key: &str, val: &T) {
+        self.tctx.insert(key, val);
+        if let Ok(val) = serde_json::to_value(val) {
+            self.hook_vars.insert(key.to_string(), val);
+        }
+    }
+
     fn validate(&self) -> Result<()> {
         if self.staged && self.stash.is_some() {
             return Err(eyre::eyre!(
@@ -204,11 +223,17 @@ impl HookOptions {
                 0,
                 vec![],
                 "no project configuration found for installed hook",
-                self.sarif.as_deref(),
+                crate::structured_output::ReportPaths {
+                    sarif: self.sarif.as_deref(),
+                    junit: self.junit_xml.as_deref(),
+                },
             )?;
             return Ok(());
         }
         let config = Config::get()?;
+        if let Some(exclude) = &config.exclude {
+            self.exclude_regexes = exclude.regexes.clone();
+        }
         if self.pr {
             let repo = Git::new()?;
             let default_branch = config
@@ -243,7 +268,10 @@ impl HookOptions {
                         0,
                         vec![],
                         "hook disabled by configuration",
-                        self.sarif.as_deref(),
+                        crate::structured_output::ReportPaths {
+                            sarif: self.sarif.as_deref(),
+                            junit: self.junit_xml.as_deref(),
+                        },
                     )?;
                     return Ok(());
                 }
@@ -269,7 +297,10 @@ impl HookOptions {
                         0,
                         vec![],
                         "hook not defined in project configuration",
-                        self.sarif.as_deref(),
+                        crate::structured_output::ReportPaths {
+                            sarif: self.sarif.as_deref(),
+                            junit: self.junit_xml.as_deref(),
+                        },
                     )?;
                     return Ok(());
                 }

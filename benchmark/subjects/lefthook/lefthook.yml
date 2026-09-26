@@ -1,0 +1,81 @@
+# lefthook. `fix` fixes without staging and is the all-files scenario;
+# `pre-commit` is the same jobs with stage_fixed, matching hk's pre-commit hook.
+# Both run one job at a time (lefthook's default): with `parallel: true` every
+# job starts at once and nothing stops two fixers writing the same file, and in
+# this workload every file is written by two or three of them.
+#
+# `check` writes nothing on the clean tree, so it uses `parallel: true`,
+# lefthook's setting for speed.
+fix:
+  parallel: false
+  jobs: &fix
+    - name: black
+      run: black --quiet {staged_files}
+      glob: "*.py"
+    - name: ruff-format
+      run: ruff format --quiet --force-exclude {staged_files}
+      glob: "*.py"
+    - name: ruff
+      run: ruff check --quiet --force-exclude --fix {staged_files}
+      glob: "*.py"
+    - name: prettier
+      run: prettier --write --log-level warn {staged_files}
+      glob: "*.{js,ts,css,md}"
+    - name: eslint
+      run: eslint --fix {staged_files}
+      glob: "*.{js,ts}"
+    - name: jq
+      run: sh -c 'for f; do t=$(mktemp) && jq -S . "$f" >"$t" && mv "$t" "$f"; done' _ {staged_files}
+      glob: "*.json"
+    - name: yq
+      run: sh -c 'for f; do yq -iP "$f"; done' _ {staged_files}
+      glob: "*.{yml,yaml}"
+    - name: shfmt
+      run: shfmt -w {staged_files}
+      glob: "*.sh"
+    # lefthook has no built-in fixers; these are pre-commit-hooks' console
+    # scripts (pinned in mise.toml), the same fixers pre-commit runs.
+    - name: trailing-whitespace
+      run: trailing-whitespace-fixer {staged_files}
+    - name: newlines
+      run: end-of-file-fixer {staged_files}
+pre-commit:
+  parallel: false
+  stage_fixed: true
+  jobs: *fix
+check:
+  parallel: true
+  jobs: &check
+    - name: black
+      run: black --quiet --check {staged_files}
+      glob: "*.py"
+    - name: ruff-format
+      run: ruff format --quiet --force-exclude --check {staged_files}
+      glob: "*.py"
+    - name: ruff
+      run: ruff check --quiet --force-exclude {staged_files}
+      glob: "*.py"
+    - name: prettier
+      run: prettier --check --log-level warn {staged_files}
+      glob: "*.{js,ts,css,md}"
+    - name: eslint
+      run: eslint {staged_files}
+      glob: "*.{js,ts}"
+    - name: jq
+      run: sh -c 'r=0; for f; do jq -S . "$f" | cmp -s "$f" - || r=1; done; exit $r' _ {staged_files}
+      glob: "*.json"
+    - name: yq
+      run: sh -c 'r=0; for f; do yq -P "$f" | cmp -s "$f" - || r=1; done; exit $r' _ {staged_files}
+      glob: "*.{yml,yaml}"
+    - name: shfmt
+      run: shfmt -d {staged_files}
+      glob: "*.sh"
+    # pre-commit-hooks has no check mode: the fixers exit 1 when they change a
+    # file. check-all runs on the clean tree, where they write nothing. On the
+    # dirty tree (check-detects) they do write, but only the exit code counts
+    # there and every sample starts from a reset clone. A read-only shell
+    # comparison would bring back the per-file loop this benchmark avoids.
+    - name: trailing-whitespace
+      run: trailing-whitespace-fixer {staged_files}
+    - name: newlines
+      run: end-of-file-fixer {staged_files}

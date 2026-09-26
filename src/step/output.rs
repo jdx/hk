@@ -126,8 +126,12 @@ impl Step {
                     self.filter_files_from_check_diff(&job.files, &result.stdout);
                 (files, Some("check_diff"))
             } else if Some(run_cmd) == self.check_list_files.as_ref() {
+                let dir = self
+                    .render_dir(&job.tctx(&ctx.hook_ctx.tctx))
+                    .ok()
+                    .flatten();
                 let (files, _extras) =
-                    self.filter_files_from_check_list(&job.files, &result.stdout);
+                    self.filter_files_from_check_list(&job.files, &result.stdout, dir.as_deref());
                 (files, Some("check_list_files"))
             } else {
                 (vec![], None)

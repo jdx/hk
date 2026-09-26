@@ -62,6 +62,36 @@ EOF
     assert_output --regexp "^[a-f0-9]+ [a-f0-9]+ true$"
 }
 
+@test "post-checkout hook arguments are available in conditions" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["post-checkout"] {
+        steps {
+            ["branch-only"] {
+                step_condition = "is_branch_checkout"
+                check = "echo branch >> branch.log"
+            }
+            ["any-checkout"] {
+                condition = "new_head != '' && hook_args != ''"
+                check = "echo job >> job.log"
+            }
+        }
+    }
+}
+EOF
+    hk install
+    echo "test" > test.txt && git add test.txt && git commit -m "init"
+    git checkout -b feature
+    echo "changed" > test.txt
+    git checkout -- test.txt
+    run cat branch.log
+    assert_output "branch"
+    run cat job.log
+    assert_output "job
+job"
+}
+
 @test "post-checkout hook_args works with git-lfs" {
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"

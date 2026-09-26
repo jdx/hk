@@ -47,7 +47,7 @@
 - [install](https://hk.jdx.dev/cli/install.html): Set up git hooks to run hk.
 - [mcp](https://hk.jdx.dev/cli/mcp.html): Run an MCP server for coding agents over standard input/output
 - [migrate](https://hk.jdx.dev/cli/migrate.html): Migrate from other hook managers to hk
-- [migrate pre-commit](https://hk.jdx.dev/cli/migrate/pre-commit.html): Migrate from pre-commit to hk
+- [migrate pre-commit](https://hk.jdx.dev/cli/migrate/pre-commit.html): Migrate from pre-commit (or prek) to hk
 - [run](https://hk.jdx.dev/cli/run.html): Run a hook
 - [run commit-msg](https://hk.jdx.dev/cli/run/commit-msg.html): Run the commit-msg hook
 - [run post-checkout](https://hk.jdx.dev/cli/run/post-checkout.html): Run the post-checkout hook
@@ -86,7 +86,7 @@
 
 ## Project
 
-- [Benchmarks](https://hk.jdx.dev/benchmarks.html): These results measure one synthetic workload with overlapping linter file patterns. They illustrate how orchestration affects this setup; they are not a prediction for every repository or a survey of…
+- [Benchmarks](https://hk.jdx.dev/benchmarks.html): This benchmark compares hk, lefthook, pre-commit, and prek on three everyday tasks: fixing files, checking a repository, and running pre-commit hooks.
 - [About hk](https://hk.jdx.dev/about.html): hk is a Git hook manager and project linting tool built by @jdx. It is written in Rust and released under the MIT license.
 - [Contributing](https://hk.jdx.dev/contributing.html): Bug fixes, documentation improvements, and builtin definitions are welcome. For a substantial feature or behavior change, discuss the direction before investing in implementation.
 - [Sea shanty](https://hk.jdx.dev/shanty.html): A sea shanty celebrating the hk git hook manager

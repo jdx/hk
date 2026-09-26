@@ -14,7 +14,7 @@ use rmcp::{
     model::{
         CallToolResult, ContentBlock, Implementation, ListResourcesResult, MetaObject,
         PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
-        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+        ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerConfig,
     },
     service::RequestContext,
     tool, tool_handler, tool_router,
@@ -879,8 +879,8 @@ impl HkMcpServer {
 
 #[tool_handler(router = self.tool_router)]
 impl ServerHandler for HkMcpServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()

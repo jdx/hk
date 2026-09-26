@@ -11,8 +11,38 @@ import "./test/helpers.pkl"
 }
 black = new Config.Step {
   glob = List("**/*.py")
-  check_diff = new Config.CommandSpec {
-    command = new Config.Command { argv = List("black", "--check", "--diff", "{{files}}") }
+  // Black skips its cache when `--diff` is set, so there is no `check_diff`:
+  // on a large, already formatted project `black --check --diff` takes about
+  // ten times as long as `black --check`, and hk would run it before every fix.
+  check = new Config.CommandSpec {
+    command = new Config.Command { argv = List("black", "--check", "{{files}}") }
+    effect = "read"
+  }
+  // Lists the files that `black --check` reports on stderr, including files it
+  // cannot format so that the fixer reports their errors. The script needs a
+  // POSIX shell; on Windows hk falls back to `check` before fixing.
+  check_list_files = new Config.CommandSpec {
+    command = new Config.Script {
+      windows = ""
+      other =
+        #"""
+        set -- {{ files }}
+        out=$(black --check "$@" 2>&1) && exit 0
+        status=$?
+        printf '%s\n' "$out" | while IFS= read -r line; do
+        case "$line" in
+        "would reformat "*) printf '%s\n' "${line#would reformat }" ;;
+        "error: cannot format "*)
+          # The message after the path may contain ": ", so match the inputs.
+          for f; do
+          case "$line" in "error: cannot format $f: "*) printf '%s\n' "$f" ;; esac
+          done
+          ;;
+        esac
+        done
+        exit $status
+        """#
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {

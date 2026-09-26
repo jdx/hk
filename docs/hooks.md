@@ -135,8 +135,8 @@ failure.
 `commit-msg` runs after the message is prepared and before the commit is created. Use the built-in Conventional Commits check:
 
 ```pkl
-amends "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.0.1/hk@2.0.1#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.3.0/hk@2.3.0#/Builtins.pkl"
 
 hooks {
   ["commit-msg"] {
@@ -166,6 +166,21 @@ hk has dedicated handlers for these events:
 | `post-commit`        | No event-specific arguments                               |
 
 Dedicated handlers also expose their raw arguments as `hook_args`. See the [run reference](/cli/run) for argument details. Custom hooks can be invoked by name; hooks without a dedicated handler receive an empty `hook_args` value.
+
+These variables are also available in `condition` and `step_condition` expressions. For example, to run a `post-checkout` step only on branch checkouts and report it as skipped on file checkouts:
+
+```pkl
+hooks {
+  ["post-checkout"] {
+    steps {
+      ["install-deps"] {
+        step_condition = "is_branch_checkout"
+        check = "mise install"
+      }
+    }
+  }
+}
+```
 
 ## Skip a hook or step
 

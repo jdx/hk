@@ -60,7 +60,7 @@ impl Run {
         if let Some(hook) = &self.other {
             // Hooks without a dedicated handler get an empty hook_args;
             // dedicated handlers insert the actual args via clap-parsed fields
-            self.hook.tctx.insert("hook_args", "");
+            self.hook.insert_hook_var("hook_args", "");
             return self.hook.run(hook).await;
         }
         if let Some(cmd) = self.command {

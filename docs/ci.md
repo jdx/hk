@@ -83,6 +83,6 @@ HK_TIMING_JSON=hk-timing.json hk check --all
 
 `--no-fail-fast` collects failures from remaining steps. A plan shows selected steps without executing them. The timing file records total and per-step wall time; parallel step durations should not be added together as a total.
 
-Use `hk check --all --format jsonl` for structured execution events or `--sarif hk.sarif` for normalized diagnostics. See [coding agents](/agents) for command effects and exact file lists.
+Use `hk check --all --format jsonl` for structured execution events, `--sarif hk.sarif` for normalized diagnostics, or `--junit-xml hk.junit.xml` to report each step as a JUnit test case for CI test-result viewers. See [coding agents](/agents) for command effects and exact file lists.
 
 See [troubleshooting](/logging) for log levels, traces, and configuration inspection.

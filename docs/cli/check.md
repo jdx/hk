@@ -36,6 +36,7 @@ Runs each step's check command, which by convention only reports problems. If th
   **Choices:** `human`, `json`, `jsonl`
 
 - **`--from-ref <FROM_REF>`** — Select files changed since this reference; optionally pair with --to-ref
+- **`--junit-xml <PATH>`** — Write step results as a JUnit XML report
 - **`--no-fail-fast`** — Continue on failures (opposite of --fail-fast)
 - **`--no-stage`** — Disable auto-staging of fixed files
 - **`--pr`** — Check only files changed in the current PR/branch (shortcut for --from-ref DEFAULT_BRANCH --to-ref HEAD)

@@ -57,7 +57,7 @@ EXAMPLES = {
     "sponsors": ("List the sponsors supporting hk and related open source tools.", "hk sponsors"),
     "migrate": ("Convert a pre-commit configuration, then review the generated file and tool requirements.",
                 "hk migrate pre-commit --output hk.migrated.pkl\nHK_FILE=./hk.migrated.pkl hk validate"),
-    "migrate/pre-commit": ("Write to a separate file while evaluating a migration. Review filters, tool versions, and any unsupported hooks before installing.",
+    "migrate/pre-commit": ("Write to a separate file while evaluating a migration. Steps that still run through prek or pre-commit are marked with a comment explaining why.",
                            "hk migrate pre-commit --output hk.migrated.pkl\nHK_FILE=./hk.migrated.pkl hk check --all --plan"),
     "util": ("Utilities run directly on the arguments you provide. Several also have ready-to-use Builtins definitions.",
              "hk util trailing-whitespace README.md\nhk util end-of-file-fixer README.md"),
