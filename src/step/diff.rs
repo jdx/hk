@@ -129,34 +129,61 @@ impl Step {
 /// that doesn't apply changes nothing, as with `git apply`. Hunks may apply at
 /// an offset from the line they name, but their context must match exactly.
 fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usize, String> {
+    // `ParseOptions::unidiff` doesn't read git's extended headers, so a mode
+    // change would be dropped silently. Leave such patches to the fixer.
+    if diff.lines().any(|line| {
+        [
+            "old mode ",
+            "new mode ",
+            "new file mode ",
+            "deleted file mode ",
+        ]
+        .iter()
+        .any(|header| line.starts_with(header))
+    }) {
+        return Err("patches that change file modes are not supported".to_string());
+    }
     // Each touched file's contents after the patches so far, or `None` once
     // deleted. A file can appear in more than one file patch.
     let mut files: IndexMap<PathBuf, Option<String>> = IndexMap::new();
+    // Each touched file's contents before the patch, or `None` if it didn't
+    // exist, to restore if a write fails.
+    let mut originals: IndexMap<PathBuf, Option<String>> = IndexMap::new();
     for file_patch in PatchSet::parse(diff, ParseOptions::unidiff()) {
         let file_patch = file_patch.map_err(|err| err.to_string())?;
         let PatchKind::Text(patch) = file_patch.patch() else {
             return Err("binary patches are not supported".to_string());
         };
-        let (path, delete) = match file_patch.operation().strip_prefix(strip) {
+        let known = |path: &PathBuf| files.contains_key(path) || base.join(path).exists();
+        let (path, create, delete) = match file_patch.operation().strip_prefix(strip) {
             // Some tools diff against a temporary file or a label, so use the
             // side that names a file under `base`.
             FileOperation::Modify { original, modified } => {
-                let original = checked_path(&original)?;
-                if files.contains_key(&original) || base.join(&original).exists() {
-                    (original, false)
-                } else {
-                    (checked_path(&modified)?, false)
+                match checked_path(&original).ok().filter(known) {
+                    Some(original) => (original, false, false),
+                    None => (checked_path(&modified)?, false, false),
                 }
             }
-            FileOperation::Create(path) => (checked_path(&path)?, false),
-            FileOperation::Delete(path) => (checked_path(&path)?, true),
+            FileOperation::Create(path) => (checked_path(&path)?, true, false),
+            FileOperation::Delete(path) => (checked_path(&path)?, false, true),
             _ => return Err("renames and copies are not supported".to_string()),
         };
+        let display = path.display().to_string();
+        refuse_symlinks(base, &path)?;
         let current = match files.get(&path) {
             Some(current) => current.clone(),
-            None => read_existing(&base.join(&path))?,
+            None => {
+                let current = read_existing(&base.join(&path))?;
+                originals.insert(path.clone(), current.clone());
+                current
+            }
         };
-        let display = path.display();
+        if create && current.is_some() {
+            return Err(format!("{display}: the patch creates a file that exists"));
+        }
+        if !create && current.is_none() {
+            return Err(format!("{display}: no such file"));
+        }
         let patched = diffy::apply(current.as_deref().unwrap_or_default(), patch)
             .map_err(|err| format!("{display}: {err}"))?;
         files.insert(path, (!delete).then_some(patched));
@@ -164,18 +191,54 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
     if files.is_empty() {
         return Err("no file patches found".to_string());
     }
+    let mut written = Vec::with_capacity(files.len());
     for (path, contents) in &files {
-        let target = base.join(path);
-        let written = match contents {
-            Some(contents) => target
-                .parent()
-                .map_or(Ok(()), std::fs::create_dir_all)
-                .and_then(|()| std::fs::write(&target, contents)),
-            None => std::fs::remove_file(&target),
-        };
-        written.map_err(|err| format!("{}: {err}", path.display()))?;
+        if let Err(err) = write_contents(&base.join(path), contents.as_deref()) {
+            // Put back what was already written, so the fixer starts from the
+            // files as they were.
+            for done in written {
+                let original = originals.get(done).and_then(|c| c.as_deref());
+                let _ = write_contents(&base.join(done), original);
+            }
+            return Err(format!("{}: {err}", path.display()));
+        }
+        written.push(path);
     }
     Ok(files.len())
+}
+
+/// Write `contents` to `path`, creating its directory, or remove it for `None`.
+fn write_contents(path: &Path, contents: Option<&str>) -> std::io::Result<()> {
+    match contents {
+        Some(contents) => {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(path, contents)
+        }
+        None => match std::fs::remove_file(path) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            result => result,
+        },
+    }
+}
+
+/// Refuse `path` if it or any directory leading to it under `base` is a
+/// symlink, which a write would follow out of the working directory.
+fn refuse_symlinks(base: &Path, path: &Path) -> std::result::Result<(), String> {
+    let mut prefix = PathBuf::new();
+    for component in path.components() {
+        prefix.push(component);
+        match std::fs::symlink_metadata(base.join(&prefix)) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(format!("{}: is a symlink", prefix.display()));
+            }
+            Ok(_) => {}
+            // Nothing below a missing directory exists yet.
+            Err(_) => break,
+        }
+    }
+    Ok(())
 }
 
 /// `path` if it stays under the directory the patch applies in.
@@ -366,6 +429,64 @@ mod apply_patch_tests {
             let diff = format!("--- {path}\n+++ {path}\n@@ -0,0 +1 @@\n+x\n");
             assert!(apply_patch(&diff, 0, dir.path()).is_err(), "{path}");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_writes_through_a_symlinked_directory() {
+        let outside = dir_with(&[("file.txt", "x\n")]);
+        let dir = dir_with(&[]);
+        std::os::unix::fs::symlink(outside.path(), dir.path().join("linked")).unwrap();
+        let diff = "--- linked/file.txt\n+++ linked/file.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .contains("symlink")
+        );
+        assert_eq!(read(&outside, "file.txt"), "x\n");
+    }
+
+    #[test]
+    fn refuses_to_create_a_file_that_exists() {
+        let dir = dir_with(&[("a.txt", "keep\n")]);
+        let diff = "--- /dev/null\n+++ a.txt\n@@ -0,0 +1 @@\n+added\n";
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .contains("exists")
+        );
+        assert_eq!(read(&dir, "a.txt"), "keep\n");
+    }
+
+    #[test]
+    fn refuses_mode_changes() {
+        let dir = dir_with(&[("a.sh", "x\n")]);
+        let diff = "diff --git a/a.sh b/a.sh\nold mode 100644\nnew mode 100755\n\
+                    --- a/a.sh\n+++ b/a.sh\n@@ -1 +1 @@\n-x\n+y\n";
+        assert!(
+            apply_patch(diff, 1, dir.path())
+                .unwrap_err()
+                .contains("mode")
+        );
+        assert_eq!(read(&dir, "a.sh"), "x\n");
+    }
+
+    #[test]
+    fn restores_written_files_when_a_later_write_fails() {
+        // `blocker` is a file, so `blocker/new.txt` can't be created.
+        let dir = dir_with(&[("a.txt", "x\n"), ("blocker", "")]);
+        let diff = "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n\
+                    --- /dev/null\n+++ blocker/new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[test]
+    fn falls_back_to_the_modified_side_when_the_original_is_unusable() {
+        let dir = dir_with(&[("a.txt", "x\n")]);
+        let diff = "--- /tmp/original-a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(read(&dir, "a.txt"), "y\n");
     }
 
     #[test]

@@ -353,6 +353,10 @@ fn relabel_sides(old: &str, new: &str) -> Option<(String, String)> {
     if old_rest.is_empty() || old_rest != new_rest || old_rest.starts_with('/') {
         return None;
     }
+    // A side under a directory that exists names real files, not a label.
+    if std::path::Path::new(old_dir).is_dir() || std::path::Path::new(new_dir).is_dir() {
+        return None;
+    }
     let with_tail = |path: String, tail: Option<&str>| match tail {
         Some(tail) => format!("{path}\t{tail}"),
         None => path,
@@ -421,6 +425,13 @@ mod normalize_diff_paths_tests {
             normalize_diff_paths(diff),
             "--- a/tf/main.tf\t2025-01-01\n+++ b/tf/main.tf\t2025-01-02\n@@ -1 +1 @@\n-a\n+b\n"
         );
+    }
+
+    #[test]
+    fn leaves_real_directories_alone() {
+        // `src/` and `pkl/` exist in this repository, so they aren't labels.
+        let diff = "--- src/x\n+++ pkl/x\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
     }
 
     #[test]
