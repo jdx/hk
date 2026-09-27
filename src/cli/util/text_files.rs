@@ -30,28 +30,45 @@ pub(super) fn regular_file_len(path: &Path) -> Option<u64> {
     metadata.is_file().then_some(metadata.len())
 }
 
-/// Identifies the regular file a path resolves to, following symlinks, so the
-/// same file listed under several paths (repeated, through a symlink, or as a
-/// hard link) is noticed: its device and inode on Unix, its volume serial
-/// number and file index on Windows. `None` if it isn't a regular file.
-fn file_id(path: &Path) -> Option<(u64, u64)> {
-    let metadata = fs::metadata(path).ok()?;
+/// What a listed path resolves to, following symlinks, so the same file
+/// listed under several paths (repeated, through a symlink, or as a hard
+/// link) is noticed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Identity {
+    /// A regular file: its device and inode on Unix, its volume serial number
+    /// and file index on Windows.
+    File(u64, u64),
+    /// Nothing, or something other than a regular file, which the fixers skip.
+    NotFile,
+    /// A path that couldn't be identified, such as one hk may not stat or a
+    /// file Windows won't open.
+    Unknown,
+}
+
+fn identify(path: &Path) -> Identity {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Identity::NotFile,
+        Err(_) => return Identity::Unknown,
+    };
     if !metadata.is_file() {
-        return None;
+        return Identity::NotFile;
     }
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        Some((metadata.dev(), metadata.ino()))
+        Identity::File(metadata.dev(), metadata.ino())
     }
     #[cfg(windows)]
     {
-        let info = winapi_util::file::information(&File::open(path).ok()?).ok()?;
-        Some((info.volume_serial_number(), info.file_index()))
+        match File::open(path).and_then(|file| winapi_util::file::information(&file)) {
+            Ok(info) => Identity::File(info.volume_serial_number(), info.file_index()),
+            Err(_) => Identity::Unknown,
+        }
     }
     #[cfg(not(any(unix, windows)))]
     {
-        None
+        Identity::Unknown
     }
 }
 
@@ -62,38 +79,57 @@ fn file_id(path: &Path) -> Option<(u64, u64)> {
 /// A file listed more than once, under the same path or another one that
 /// resolves to it, is only fixed where it first appears. A sequential loop
 /// found it already fixed at its later entries, and reading it there could
-/// race with the write of its first entry. Only this check looks at files
-/// ahead of time; `fix` reads each file as it is when its turn comes.
+/// race with the write of its first entry. If any path can't be identified,
+/// such an alias can't be ruled out, so every file is fixed one at a time,
+/// exactly as a sequential loop does. Only this check looks at files ahead of
+/// time; `fix` reads each file as it is when its turn comes.
 pub(super) fn fix_in_order<F>(files: &[PathBuf], fix: F) -> Result<()>
 where
     F: Fn(&Path) -> Result<Option<String>> + Sync,
 {
-    let mut ids = Vec::with_capacity(files.len());
+    fix_in_order_with(files, identify, fix)
+}
+
+fn fix_in_order_with<F>(files: &[PathBuf], identify: fn(&Path) -> Identity, fix: F) -> Result<()>
+where
+    F: Fn(&Path) -> Result<Option<String>> + Sync,
+{
+    let write = |path: &Path, fixed: Result<Option<String>>| -> Result<()> {
+        if let Some(fixed) = fixed? {
+            fs::write(path, fixed)?;
+        }
+        Ok(())
+    };
+    let mut identities = Vec::with_capacity(files.len());
     for_each_in_order(
         files,
-        |path| file_id(path),
-        |_, id| {
-            ids.push(id);
+        |path| identify(path),
+        |_, identity| {
+            identities.push(identity);
             Ok(())
         },
     )?;
+    if identities.contains(&Identity::Unknown) {
+        for path in files {
+            write(path, fix(path))?;
+        }
+        return Ok(());
+    }
     let mut seen = HashSet::new();
     // Whether each entry is the first for its file. Anything that isn't a
     // regular file now is left to `fix`, which skips it as before.
     let jobs: Vec<(&PathBuf, bool)> = files
         .iter()
-        .zip(ids)
-        .map(|(path, id)| (path, id.is_none_or(|id| seen.insert(id))))
+        .zip(identities)
+        .map(|(path, identity)| match identity {
+            Identity::File(dev, ino) => (path, seen.insert((dev, ino))),
+            Identity::NotFile | Identity::Unknown => (path, true),
+        })
         .collect();
     for_each_in_order(
         &jobs,
         |(path, first)| if *first { fix(path) } else { Ok(None) },
-        |(path, _), fixed| {
-            if let Some(fixed) = fixed? {
-                fs::write(path, fixed)?;
-            }
-            Ok(())
-        },
+        |(path, _), fixed| write(path, fixed),
     )
 }
 
@@ -292,5 +328,51 @@ mod tests {
         assert_eq!(fixed.iter().filter(|path| **path == first).count(), 1);
         assert!(!fixed.contains(&hard_link));
         assert_eq!(fs::read_to_string(&first).unwrap(), "y");
+    }
+
+    #[test]
+    fn fixes_files_one_at_a_time_when_one_cannot_be_identified() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut files = Vec::new();
+        for i in 0..1000 {
+            let path = dir.path().join(format!("{i}.txt"));
+            fs::write(&path, "x").unwrap();
+            files.push(path);
+        }
+        let first = files[10].clone();
+        let hard_link = dir.path().join("hard.txt");
+        fs::hard_link(&first, &hard_link).unwrap();
+        files.insert(20, first.clone());
+        files.insert(30, hard_link.clone());
+
+        // What each entry for `first` read: a later entry must find the fix
+        // its first entry wrote, as it would in a sequential loop, rather
+        // than read the file before or while that fix is written.
+        let seen = Mutex::new(Vec::new());
+        fix_in_order_with(
+            &files,
+            |path| {
+                // `first` can't be identified, as if Windows couldn't open it.
+                if path.ends_with("10.txt") {
+                    Identity::Unknown
+                } else {
+                    identify(path)
+                }
+            },
+            |path| {
+                let content = fs::read_to_string(path).unwrap_or_default();
+                if path == first || path == hard_link {
+                    seen.lock().unwrap().push(content.clone());
+                }
+                Ok((content == "x").then(|| "y".to_string()))
+            },
+        )
+        .unwrap();
+        assert_eq!(seen.into_inner().unwrap(), ["x", "y", "y"]);
+        assert!(
+            files
+                .iter()
+                .all(|path| fs::read_to_string(path).unwrap() == "y")
+        );
     }
 }
