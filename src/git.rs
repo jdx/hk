@@ -54,6 +54,17 @@ where
     xx::process::cmd("git", args).on_stderr_line(|_line| {})
 }
 
+/// Whether the index has an entry added with `git add --intent-to-add`, or
+/// cannot be read, in which case hk should not trust libgit2 with it.
+fn index_has_intent_to_add(repo: &git2::Repository) -> bool {
+    repo.index().map_or(true, |index| {
+        index.iter().any(|entry| {
+            git2::IndexEntryExtendedFlag::from_bits_truncate(entry.flags_extended)
+                .is_intent_to_add()
+        })
+    })
+}
+
 fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
     const LOCK_RETRY_DELAYS: [Duration; 5] = [
         Duration::from_millis(25),
@@ -579,10 +590,33 @@ impl StashedChanges {
             |path| [None, self.stashed.get(path)],
             self.file_mode,
         )?;
+        // libgit2 records a tracked file replaced by an untracked directory
+        // as deleted, with the directory's files in the untracked commit
+        let directory: TreeEntry = (0o040000, String::new());
         Ok(paths
             .into_iter()
-            .filter(|path| !worktree.matches(path, self.stashed.get(path)))
+            .filter(|path| {
+                let entry = self
+                    .stashed
+                    .get(path)
+                    .or_else(|| self.has_untracked_under(path).then_some(&directory));
+                !worktree.matches(path, entry)
+            })
             .collect())
+    }
+
+    /// Whether the stash has untracked files inside the directory `path`.
+    fn has_untracked_under(&self, path: &std::path::Path) -> bool {
+        use std::ops::Bound::{Excluded, Unbounded};
+        // Paths order by component, so a directory's files follow it
+        [&self.untracked, &self.unnamed_untracked]
+            .iter()
+            .any(|untracked| {
+                untracked
+                    .range::<std::path::Path, _>((Excluded(path), Unbounded))
+                    .next()
+                    .is_some_and(|next| next.starts_with(path))
+            })
     }
 }
 
@@ -1415,10 +1449,14 @@ impl Git {
                 files_to_stash.insert(p.clone());
             }
         }
-        // The status left out paths that are not valid UTF-8, which hk cannot
-        // name in a pathspec, so stash the whole worktree to set them aside
-        let stash_everything =
-            status.skipped_unstaged || (*env::HK_STASH_UNTRACKED && status.skipped_untracked);
+        // Stash the whole worktree when a pathspec cannot name everything that
+        // needs stashing: the status left out paths that are not valid UTF-8,
+        // or there are untracked files. A stash limited to tracked paths keeps
+        // only the untracked files those paths match, and naming untracked
+        // files makes `git stash push` fail after it has stashed them.
+        let stash_everything = status.skipped_unstaged
+            || (*env::HK_STASH_UNTRACKED
+                && (status.skipped_untracked || !status.untracked_files.is_empty()));
         let files_count = files_to_stash.len();
         job.prop("files", &files_count);
         if !intent_to_add.is_empty() {
@@ -1578,7 +1616,15 @@ impl Git {
                 }
                 Ok(Some(StashType::Git))
             } else {
-                match repo.stash_save(&sig, "hk", Some(flags)) {
+                // libgit2 stashes an intent-to-add entry and then leaves it in
+                // the index as a staged empty file, so leave that to git, which
+                // refuses to stash one without changing anything
+                let saved = if index_has_intent_to_add(repo) {
+                    Err(git2::Error::from_str("the index has intent-to-add entries"))
+                } else {
+                    repo.stash_save(&sig, "hk", Some(flags))
+                };
+                match saved {
                     Ok(_) => {
                         // Record the stash commit we just created and save patch backup
                         if let Ok(h) = git_cmd(["rev-parse", "-q", "--verify", "stash@{0}"]).read()
@@ -3576,5 +3622,33 @@ mod tests {
             restore_command("stash@{0}^3", std::path::Path::new("dir/O'Brien.txt")),
             r"git restore --source='stash@{0}^3' -- ':(literal)dir/O'\''Brien.txt'"
         );
+    }
+
+    #[test]
+    fn has_untracked_under_finds_only_files_inside_the_directory() {
+        let changes = StashedChanges {
+            // As strings, the siblings of d.txt sort before "d.txt/inner",
+            // but paths compare by component
+            untracked: [
+                "d.txt ",
+                "d.txt!",
+                "d.txt-x",
+                "d.txt.bak",
+                "d.txt/inner",
+                "e/f/g",
+            ]
+            .map(PathBuf::from)
+            .into(),
+            ..Default::default()
+        };
+        let under = |path: &str| changes.has_untracked_under(std::path::Path::new(path));
+        assert!(under("d.txt"));
+        assert!(under("e"));
+        assert!(under("e/f"));
+        // Neither a name that shares a prefix, nor the file itself
+        assert!(!under("d"));
+        assert!(!under("d.txt/inner"));
+        assert!(!under("e/f/g"));
+        assert!(!under("c"));
     }
 }
