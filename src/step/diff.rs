@@ -259,7 +259,7 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
             let mut message = format!("{}: {err}", path.display());
             let mut restored = true;
             for (done, aside) in &set_aside {
-                if let Err(err) = std::fs::rename(aside, base.join(done)) {
+                if let Err(err) = restore_aside(aside, &base.join(done)) {
                     message.push_str(&format!("; could not restore {}: {err}", done.display()));
                     restored = false;
                 }
@@ -305,6 +305,30 @@ fn move_aside(path: &Path) -> std::io::Result<PathBuf> {
     };
     std::fs::rename(path, &aside)?;
     Ok(aside)
+}
+
+/// Move a file set aside by [`move_aside`] back to `path`, unless something
+/// else has been put at `path` since.
+///
+/// A hard link can't replace an existing file, so checking and restoring are
+/// one step and a file another process created there is never overwritten.
+/// Where hard links aren't supported, `path` is checked and then renamed to.
+fn restore_aside(aside: &Path, path: &Path) -> std::io::Result<()> {
+    let occupied = || {
+        std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            format!(
+                "another file is now at this path; the deleted file is kept at {}",
+                aside.display()
+            ),
+        )
+    };
+    match std::fs::hard_link(aside, path) {
+        Ok(()) => std::fs::remove_file(aside),
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => Err(occupied()),
+        Err(_) if std::fs::symlink_metadata(path).is_ok() => Err(occupied()),
+        Err(_) => std::fs::rename(aside, path),
+    }
 }
 
 /// Put `path` back as it was before hk tried to write `attempted` to it.
@@ -693,6 +717,25 @@ mod apply_patch_tests {
             .filter(|e| e.file_name().to_string_lossy().contains("hk-deleted"))
             .collect();
         assert!(leftovers.is_empty());
+    }
+
+    #[test]
+    fn restoring_a_deleted_file_never_replaces_a_newer_one() {
+        let dir = dir_with(&[(".gone.txt.hk-deleted", "old\n"), ("gone.txt", "newer\n")]);
+        let aside = dir.path().join(".gone.txt.hk-deleted");
+        let err = super::restore_aside(&aside, &dir.path().join("gone.txt")).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(read(&dir, "gone.txt"), "newer\n");
+        assert_eq!(read(&dir, ".gone.txt.hk-deleted"), "old\n");
+    }
+
+    #[test]
+    fn restoring_a_deleted_file_puts_it_back() {
+        let dir = dir_with(&[(".gone.txt.hk-deleted", "old\n")]);
+        let aside = dir.path().join(".gone.txt.hk-deleted");
+        super::restore_aside(&aside, &dir.path().join("gone.txt")).unwrap();
+        assert_eq!(read(&dir, "gone.txt"), "old\n");
+        assert!(!aside.exists());
     }
 
     #[test]
