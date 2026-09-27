@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "mise-tasks/docs/**"
       - benchmark/results.json
       - settings.toml
       - ".github/**"

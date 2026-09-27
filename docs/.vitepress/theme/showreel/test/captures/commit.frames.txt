@@ -1,0 +1,207 @@
+----- frame 0 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+⠋ files - Fetching git status
+----- frame 1 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+✔ files - Fetching staged files (4 files)
+----- frame 2 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+✔ stash – Stashed unstaged changes (1 file)
+----- frame 3 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [                                     ] 0/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude --fix src/main.py
+❯ shfmt
+----- frame 4 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [====>                                ] 1/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+❯ shfmt
+❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
+----- frame 5 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [==========>                          ] 2/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+❯ shfmt
+❯ shellcheck
+ ⠋ shellcheck --format=diff scripts/deploy.sh
+----- frame 6 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [==========>                          ] 2/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+❯ ruff-format
+ ⠋ ruff format --quiet --force-exclude --diff src/main.py
+❯ shfmt
+❯ shellcheck
+----- frame 7 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===============>                     ] 3/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+❯ ruff-format
+ ⠋ ruff format --quiet --force-exclude --diff src/main.py
+❯ shfmt
+✔ shellcheck
+----- frame 8 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===============>                     ] 3/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+❯ ruff-format
+ ⠋ ruff format --quiet --force-exclude --diff src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+----- frame 9 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===============>                     ] 3/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+❯ ruff-format
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+----- frame 10 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [====================>                ] 4/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+----- frame 11 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [====================>                ] 4/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+ README.md 12ms
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+----- frame 12 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [====================>                ] 4/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+----- frame 13 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=========================>           ] 5/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+❯ trailing-whitespace
+----- frame 14 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===============================>     ] 6/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+❯ newlines
+ ⠋ 4 files –  – hk util end-of-file-fixer --diff README.md …
+----- frame 15 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [===============================>     ] 6/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+❯ newlines
+----- frame 16 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 7/7
+✔ stash – Stashed unstaged changes (1 file)
+❯ prettier
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 17 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 7/7
+✔ stash – Stashed unstaged changes (1 file)
+✔ prettier  – 2 files modified – README.md, src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 18 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 7/7
+✔ stash – Stashed unstaged changes (1 file)
+✔ prettier  – 2 files modified – README.md, src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 19 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 7/7
+✔ stash – Stashed unstaged changes (1 file)
+✔ prettier  – 2 files modified – README.md, src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+----- frame 20 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 7/7
+✔ stash – Stashed unstaged changes (1 file)
+✔ prettier  – 2 files modified – README.md, src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+----- frame 21 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 7/7
+✔ stash – Stashed unstaged changes (1 file)
+✔ prettier  – 2 files modified – README.md, src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+----- frame 22 -----
+hk 2.2.0 by @jdx – pre-commit – fix  [=====================================] 7/7
+✔ stash – Stashed unstaged changes (1 file)
+✔ prettier  – 2 files modified – README.md, src/app.ts
+✔ ruff  – 1 file modified – src/main.py
+✔ ruff-format  – 1 file modified – src/main.py
+✔ shfmt  – 1 file modified – scripts/deploy.sh
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+✔ stash – Restoring unstaged changes (manual)
+[main ada2ca4] feat: hoist the sails
+ 3 files changed, 8 insertions(+), 1 deletion(-)

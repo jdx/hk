@@ -1,0 +1,45 @@
+WEBVTT
+
+open
+00:00:00.000 --> 00:00:04.000
+hk
+
+config
+00:00:04.000 --> 00:00:10.000
+Steps in hk.pkl
+
+commit
+00:00:10.000 --> 00:00:16.000
+git commit runs hk
+
+stash
+00:00:16.000 --> 00:00:22.000
+Unstaged work is stashed
+
+lanes
+00:00:22.000 --> 00:00:30.000
+Steps in parallel
+
+restore
+00:00:30.000 --> 00:00:36.000
+Fixes staged, edits back
+
+catch
+00:00:36.000 --> 00:00:42.000
+A commit hk can't fix
+
+everywhere
+00:00:42.000 --> 00:00:48.000
+Commit, terminal, CI
+
+race
+00:00:48.000 --> 00:00:56.000
+Benchmarks
+
+morph
+00:00:56.000 --> 00:00:58.000
+Morph
+
+end
+00:00:58.000 --> 00:01:04.000
+mise use hk
