@@ -50,6 +50,7 @@ mod types;
 // Re-export public API
 pub(crate) use command::argv_runner;
 pub use expr_env::{EXPR_CTX, eval_condition};
+pub(crate) use job_builder::SharedBatchJobs;
 pub use shell::ShellType;
 pub(crate) use types::RenderedCommand;
 #[cfg(test)]

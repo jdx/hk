@@ -16,7 +16,7 @@ use crate::step_job::StepJob;
 use indexmap::IndexMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use super::types::{CheckFirstCmd, RunType, Step};
 
@@ -62,15 +62,20 @@ impl Step {
             run_type,
             files_in_contention,
             skip_steps,
+            Settings::get().jobs().get(),
         )
     }
 
+    /// Like [`Step::build_step_jobs`], but a batched step splits its files
+    /// into at most `batch_jobs` batches instead of `--jobs` (see
+    /// [`shared_batch_jobs`]).
     pub(crate) fn build_step_jobs_shared(
         self: &Arc<Self>,
         files: &[PathBuf],
         run_type: RunType,
         files_in_contention: &HashSet<PathBuf>,
         skip_steps: &IndexMap<String, SkipReason>,
+        batch_jobs: Option<usize>,
     ) -> Result<Vec<StepJob>> {
         self.build_step_jobs_with_shared(
             self.clone(),
@@ -78,6 +83,7 @@ impl Step {
             run_type,
             files_in_contention,
             skip_steps,
+            batch_jobs.unwrap_or_else(|| Settings::get().jobs().get()),
         )
     }
 
@@ -88,6 +94,7 @@ impl Step {
         run_type: RunType,
         files_in_contention: &HashSet<PathBuf>,
         skip_steps: &IndexMap<String, SkipReason>,
+        batch_jobs: usize,
     ) -> Result<Vec<StepJob>> {
         // Pre-calculate skip reason at the job creation level to simplify run_all_jobs
         if skip_steps.contains_key(&self.name) {
@@ -101,18 +108,11 @@ impl Step {
             j.skip_reason = Some(SkipReason::NoCommandForRunType(run_type));
             return Ok(vec![j]);
         }
-        if !self.required.is_empty() {
-            let missing: Vec<String> = self
-                .required
-                .iter()
-                .filter(|e| std::env::var(e).is_err() && !self.env.contains_key(*e))
-                .cloned()
-                .collect();
-            if !missing.is_empty() {
-                let mut j = StepJob::new(shared_step, vec![], run_type);
-                j.skip_reason = Some(SkipReason::MissingRequiredEnv(missing));
-                return Ok(vec![j]);
-            }
+        let missing = self.missing_required_env();
+        if !missing.is_empty() {
+            let mut j = StepJob::new(shared_step, vec![], run_type);
+            j.skip_reason = Some(SkipReason::MissingRequiredEnv(missing));
+            return Ok(vec![j]);
         }
         let files = self.filter_files(files)?;
         // Skip if no files and step has file filters
@@ -147,8 +147,7 @@ impl Step {
                 // Share the job count across workspaces, so the total number of
                 // jobs stays ~jobs, not jobs per workspace.
                 let sizes: Vec<usize> = groups.iter().map(|(_, f)| f.len()).collect();
-                let counts =
-                    batch_counts(&sizes, Settings::get().jobs().get(), self.batch_min_files());
+                let counts = batch_counts(&sizes, batch_jobs, self.batch_min_files());
                 groups
                     .into_iter()
                     .zip(counts)
@@ -172,11 +171,7 @@ impl Step {
                     .collect()
             }
         } else if self.batch {
-            let count = batch_counts(
-                &[files.len()],
-                Settings::get().jobs().get(),
-                self.batch_min_files(),
-            )[0];
+            let count = batch_counts(&[files.len()], batch_jobs, self.batch_min_files())[0];
             split_evenly(files.clone(), count)
                 .into_iter()
                 .map(|chunk| StepJob::new(shared_step.clone(), chunk, run_type))
@@ -251,6 +246,123 @@ impl Step {
     fn batch_min_files(&self) -> usize {
         self.batch_min_files.unwrap_or(MIN_BATCH_FILES).max(1)
     }
+
+    /// Whether this step's batches run alongside the other batched steps of
+    /// its group, so that they compete for the same `--jobs`.
+    fn shares_batch_jobs(
+        &self,
+        run_type: RunType,
+        skip_steps: &IndexMap<String, SkipReason>,
+    ) -> bool {
+        self.batch
+            && !skip_steps.contains_key(&self.name)
+            && self.has_command_for(run_type)
+            // A step that waits for others runs when they're done, and one
+            // with a condition may not run at all, so they keep every job.
+            && self.depends.is_empty()
+            && self.step_condition.is_none()
+            && self.job_condition.is_none()
+            && self.profile_skip_reason().is_none()
+            && self.missing_required_env().is_empty()
+    }
+
+    /// The variables in `required` that are set neither in the environment
+    /// nor in the step's `env`, which make the step skip.
+    fn missing_required_env(&self) -> Vec<String> {
+        self.required
+            .iter()
+            .filter(|e| std::env::var(e).is_err() && !self.env.contains_key(*e))
+            .cloned()
+            .collect()
+    }
+}
+
+/// The batch counts that the batched steps of one step group share, worked out
+/// when the first of them builds its jobs so that the other steps don't wait.
+/// Groups run one after another, so each counts the files present when it
+/// starts, including any a fixer in an earlier group created.
+pub(crate) struct SharedBatchJobs {
+    steps: Vec<Arc<Step>>,
+    shares: OnceLock<IndexMap<String, usize>>,
+}
+
+impl SharedBatchJobs {
+    pub(crate) fn new(steps: Vec<Arc<Step>>) -> Self {
+        Self {
+            steps,
+            shares: OnceLock::new(),
+        }
+    }
+
+    /// How many batches `step` may split its files into, or `None` if it
+    /// gets every job.
+    pub(crate) fn for_step(
+        &self,
+        step: &str,
+        files: &[PathBuf],
+        run_type: RunType,
+        skip_steps: &IndexMap<String, SkipReason>,
+    ) -> Option<usize> {
+        self.shares
+            .get_or_init(|| {
+                shared_batch_jobs(self.steps.iter().map(|s| &**s), files, run_type, skip_steps)
+                    .unwrap_or_else(|err| {
+                        // The step reports the error when it filters its files.
+                        debug!("not sharing jobs between batched steps: {err:#}");
+                        IndexMap::new()
+                    })
+            })
+            .get(step)
+            .copied()
+    }
+}
+
+/// How many batches each batched step of a group may split its files into,
+/// for the steps that don't simply get `--jobs`.
+///
+/// The steps of a group run at the same time. If each batched step split its
+/// files into `--jobs` batches, a hook with several of them would start several
+/// times as many processes as there are jobs, each paying its tool's startup
+/// (hundreds of milliseconds for a Node tool) while the CPUs are already busy.
+/// Instead the batched steps share `--jobs` in proportion to their number of
+/// files, as the workspaces of one step do, and jobs one step can't use
+/// (because of `batch_min_files`) go to the others. A step that is the only
+/// batched one with files keeps every job.
+///
+/// Files are only a rough measure of work: jq formats a JSON file far faster
+/// than eslint lints a TypeScript one. So every step first gets an equal share
+/// of the jobs, and a step with a few slow files isn't left in one process
+/// while quick steps with many files take the rest and finish early. The
+/// shares add up to `--jobs` unless there are more such steps than jobs.
+fn shared_batch_jobs<'a>(
+    steps: impl IntoIterator<Item = &'a Step>,
+    files: &[PathBuf],
+    run_type: RunType,
+    skip_steps: &IndexMap<String, SkipReason>,
+) -> Result<IndexMap<String, usize>> {
+    let mut names = vec![];
+    let mut sizes = vec![];
+    let mut caps = vec![];
+    for step in steps {
+        if !step.shares_batch_jobs(run_type, skip_steps) {
+            continue;
+        }
+        // The same files the step will batch, so a step left with none (all
+        // binary, say) takes no share. The binary and symlink checks are
+        // cached, so the step doesn't repeat them when it builds its jobs.
+        let size = step.filter_files(files)?.len();
+        if size == 0 {
+            continue;
+        }
+        names.push(step.name.clone());
+        caps.push(batch_cap(size, step.batch_min_files()));
+        sizes.push(size);
+    }
+    if names.len() < 2 {
+        return Ok(IndexMap::new());
+    }
+    let counts = share_jobs(&sizes, &caps, Settings::get().jobs().get(), true);
+    Ok(names.into_iter().zip(counts).collect())
 }
 
 /// How many batches to split each group of files into (one group per
@@ -259,27 +371,52 @@ impl Step {
 /// than `min_files` files, and a non-empty group gets at least one. Jobs a
 /// group can't use go to the groups with the largest remaining share.
 fn batch_counts(sizes: &[usize], jobs: usize, min_files: usize) -> Vec<usize> {
+    let caps: Vec<usize> = sizes
+        .iter()
+        .map(|&size| batch_cap(size, min_files))
+        .collect();
+    share_jobs(sizes, &caps, jobs, false)
+}
+
+/// The most batches `size` files can make with at least `min_files` in each,
+/// and one for a non-empty group with fewer.
+fn batch_cap(size: usize, min_files: usize) -> usize {
+    (size / min_files.max(1)).max(usize::from(size > 0))
+}
+
+/// Shares `jobs` between groups in proportion to `sizes`, giving group `i` no
+/// more than `caps[i]` and a non-empty group at least one. With `equal_share`,
+/// each non-empty group first gets an equal share of the jobs (as far as its
+/// cap allows), and only the rest is shared in proportion to `sizes`.
+///
+/// The counts add up to at most `jobs`, with one exception: when there are
+/// more non-empty groups than jobs, each still gets one.
+fn share_jobs(sizes: &[usize], caps: &[usize], jobs: usize, equal_share: bool) -> Vec<usize> {
     let jobs = jobs.max(1);
-    let min_files = min_files.max(1);
-    let total: usize = sizes.iter().sum();
-    let cap = |size: usize| (size / min_files).max(usize::from(size > 0));
+    let groups = sizes.iter().filter(|&&size| size > 0).count();
+    let floor = if equal_share {
+        (jobs / groups.max(1)).max(1)
+    } else {
+        1
+    };
     let mut counts: Vec<usize> = sizes
         .iter()
-        .map(|&size| {
-            (size * jobs / total.max(1))
-                .min(cap(size))
-                .max(usize::from(size > 0))
-        })
+        .zip(caps)
+        .map(
+            |(&size, &cap)| {
+                if size == 0 { 0 } else { floor.min(cap).max(1) }
+            },
+        )
         .collect();
-    // Hand out the jobs left over by rounding down, one at a time, to the
-    // group furthest below its proportional share `size * jobs / total`
-    // (compared as `size * jobs - count * total` to stay in integers). This
-    // accounts for the batch a small group was given above its share.
-    let total = total.max(1);
+    // Hand out the remaining jobs one at a time to the group furthest below
+    // its proportional share `size * jobs / total` (compared as
+    // `size * jobs - count * total` to stay in integers). A group already
+    // given more than its share gets more only once the others are capped.
+    let total = sizes.iter().sum::<usize>().max(1);
     let mut left = jobs.saturating_sub(counts.iter().sum());
     while left > 0 {
         let next = (0..sizes.len())
-            .filter(|&i| counts[i] < cap(sizes[i]))
+            .filter(|&i| counts[i] < caps[i])
             .max_by_key(|&i| (sizes[i] * jobs) as i128 - (counts[i] * total) as i128);
         let Some(i) = next else { break };
         counts[i] += 1;
@@ -402,6 +539,88 @@ mod batch_tests {
         assert_eq!(batch_counts(&[62], 8, 200), vec![1]);
         // A minimum of 0 behaves as 1.
         assert_eq!(batch_counts(&[3], 8, 0), vec![3]);
+    }
+
+    fn caps(sizes: &[usize], min_files: usize) -> Vec<usize> {
+        sizes
+            .iter()
+            .map(|&size| batch_cap(size, min_files))
+            .collect()
+    }
+
+    /// Batches per step for steps with `sizes` files sharing 8 jobs.
+    fn shared(sizes: &[usize]) -> Vec<usize> {
+        share_jobs(sizes, &caps(sizes, MIN_BATCH_FILES), 8, true)
+    }
+
+    #[test]
+    fn batched_steps_share_the_jobs() {
+        // `hk check --all` on the benchmark project: prettier, eslint, jq, yq
+        // and shfmt used to start 8 processes each on 8 jobs.
+        assert_eq!(shared(&[901, 501, 500, 250, 500]), vec![3, 2, 1, 1, 1]);
+        // A 62-file commit: every step already had as few batches as its
+        // files allow, so nothing changes.
+        assert_eq!(shared(&[9, 5, 5, 3, 5]), vec![2, 1, 1, 1, 1]);
+    }
+
+    #[test]
+    fn every_step_gets_an_equal_share() {
+        // 200 files' share of 8 jobs is 1.3, but an equal share is 2.
+        assert_eq!(shared(&[200, 500, 500]), vec![2, 3, 3]);
+        // The equal shares already use every job; 901 files' proportional
+        // share of 5.1 would take the total to 9.
+        assert_eq!(shared(&[901, 501]), vec![4, 4]);
+        // A step with more files than its equal share gets the jobs left.
+        assert_eq!(shared(&[901, 100, 100]), vec![4, 2, 2]);
+        // Steps with few files still get their equal share, as far as
+        // batch_min_files allows.
+        assert_eq!(shared(&[4000, 8, 8]), vec![4, 2, 2]);
+    }
+
+    #[test]
+    fn jobs_a_step_cant_use_go_to_the_others() {
+        // The first step's batch_min_files keeps it in one process.
+        assert_eq!(share_jobs(&[400, 400], &[1, 100], 8, true), vec![1, 7]);
+    }
+
+    #[test]
+    fn shares_stay_within_the_job_count() {
+        let mixes: &[&[usize]] = &[
+            &[901, 501],
+            &[901, 501, 500, 250, 500],
+            &[200, 500, 500],
+            &[1, 1000],
+            &[3, 5, 7, 11, 13, 17, 19, 23, 29],
+            &[4000, 4, 4, 4],
+            &[10, 10, 1, 1],
+            &[30, 1, 1],
+        ];
+        for &sizes in mixes {
+            for jobs in 1..=40 {
+                for min_files in [1, MIN_BATCH_FILES, 50, 200] {
+                    let caps = caps(sizes, min_files);
+                    for equal_share in [false, true] {
+                        let counts = share_jobs(sizes, &caps, jobs, equal_share);
+                        let at = format!("{sizes:?} on {jobs} jobs (min {min_files}): {counts:?}");
+                        let steps = sizes.iter().filter(|&&s| s > 0).count();
+                        // The one exception: more steps than jobs, one each.
+                        assert!(counts.iter().sum::<usize>() <= jobs.max(steps), "{at}");
+                        // Every job is used unless the caps don't allow it.
+                        assert_eq!(
+                            counts.iter().sum::<usize>(),
+                            jobs.max(steps).min(caps.iter().sum()),
+                            "{at}"
+                        );
+                        for (&cap, &count) in caps.iter().zip(&counts) {
+                            assert!(count >= 1 && count <= cap, "{at}");
+                            if equal_share {
+                                assert!(count >= (jobs / steps).min(cap), "{at}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]

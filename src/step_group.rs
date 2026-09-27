@@ -7,7 +7,7 @@ use serde_with::{DisplayFromStr, PickFirst, serde_as};
 use crate::{
     Result,
     hook::{HookContext, StepOrGroup},
-    step::{CommandPrefix, Pattern, RunType, Script, Step},
+    step::{CommandPrefix, Pattern, RunType, Script, SharedBatchJobs, Step},
     step_context::StepContext,
     step_depends::StepDepends,
 };
@@ -144,6 +144,7 @@ impl StepGroup {
             .cloned()
             .map(Arc::new)
             .collect::<Vec<_>>();
+        let batch_jobs = Arc::new(SharedBatchJobs::new(steps.clone()));
         *ctx.hook_ctx.step_contexts.lock().unwrap() = self
             .steps
             .values()
@@ -155,6 +156,7 @@ impl StepGroup {
                         step: shared_step.clone(),
                         hook_ctx: ctx.hook_ctx.clone(),
                         depends: depends.clone(),
+                        batch_jobs: batch_jobs.clone(),
                         progress: s.build_step_progress(),
                         files_added: Arc::new(Mutex::new(IndexSet::new())),
                         jobs_remaining: Arc::new(Mutex::new(0)),

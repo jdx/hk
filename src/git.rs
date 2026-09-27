@@ -105,6 +105,617 @@ where
     Ok(output.stdout)
 }
 
+/// Runs git and splits its NUL-separated output into paths, setting names
+/// that are not valid UTF-8, which hk cannot handle as paths, aside as bytes.
+fn git_read_paths<I, S>(args: I) -> Result<(Vec<PathBuf>, Vec<Vec<u8>>)>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let mut paths = Vec::new();
+    let mut unnamed = Vec::new();
+    for name in git_read_bytes(args)?.split(|&b| b == 0) {
+        if name.is_empty() {
+            continue;
+        }
+        match std::str::from_utf8(name) {
+            Ok(path) => paths.push(PathBuf::from(path)),
+            Err(_) => unnamed.push(name.to_vec()),
+        }
+    }
+    Ok((paths, unnamed))
+}
+
+/// A path git printed, which need not be valid UTF-8.
+fn path_from_raw(name: &[u8]) -> PathBuf {
+    #[cfg(unix)]
+    {
+        PathBuf::from(OsString::from_vec(name.to_vec()))
+    }
+    #[cfg(not(unix))]
+    {
+        // Git for Windows writes paths as UTF-8
+        PathBuf::from(String::from_utf8_lossy(name).into_owned())
+    }
+}
+
+/// A tree entry: its mode and object name.
+type TreeEntry = (u32, String);
+
+/// The worktree changes a stash set aside.
+#[derive(Debug, Default)]
+struct StashedChanges {
+    /// Tracked paths whose stashed worktree differs from the stashed index,
+    /// with their modes in the index and in the worktree (0 where absent)
+    modes: std::collections::BTreeMap<PathBuf, (u32, u32)>,
+    /// Untracked files
+    untracked: BTreeSet<PathBuf>,
+    /// Paths of either kind that are not valid UTF-8, as git printed them
+    unnamed: Vec<Vec<u8>>,
+    /// The untracked ones among `unnamed`
+    unnamed_untracked: BTreeSet<PathBuf>,
+    /// The modes of the tracked ones among `unnamed`, as in `modes`
+    unnamed_modes: std::collections::BTreeMap<PathBuf, (u32, u32)>,
+    /// What the stash has at each of these paths, except deleted ones
+    stashed: std::collections::HashMap<PathBuf, TreeEntry>,
+    /// Whether git tracks executable bits here (`core.fileMode`)
+    file_mode: bool,
+}
+
+/// How restoring a stash treats the paths it set aside.
+#[derive(Debug, Default)]
+struct RestorePlan {
+    /// Paths that already match the stash, which restoring leaves alone
+    unchanged: std::collections::HashSet<PathBuf>,
+    /// Paths where restoring would destroy what a step did, with why
+    conflicts: std::collections::BTreeMap<PathBuf, String>,
+    /// Regular files a step changed, whose change is merged with the
+    /// stashed edits
+    merged: std::collections::HashSet<PathBuf>,
+}
+
+impl RestorePlan {
+    /// Whether restoring leaves `path` alone.
+    fn skips(&self, path: &std::path::Path) -> bool {
+        self.unchanged.contains(path) || self.conflicts.contains_key(path)
+    }
+}
+
+impl StashedChanges {
+    /// Decides which paths restoring the stash can write.
+    ///
+    /// Stashing leaves the worktree as the stashed index (`^2`) with no
+    /// untracked files, so a step touched a path exactly when the worktree
+    /// differs from that index there. A path that already matches the stash
+    /// is left alone, whoever made it so. Otherwise, restoring the stash over
+    /// a path no step touched is safe, whatever the stash has there, and a
+    /// regular file that a step changed and that the stash also has as a
+    /// regular file is merged with the stashed edits. Any other path a step
+    /// touched, or whose parent a step replaced, conflicts with the stash.
+    fn restore_plan(
+        &self,
+        stash_ref: &str,
+        skip: &std::collections::HashSet<PathBuf>,
+    ) -> Result<RestorePlan> {
+        let index = read_tree(&format!("{stash_ref}^2"))?;
+        // Each path to restore, with its index and worktree modes when it is
+        // tracked, and whether a changed regular file can be merged
+        type ToRestore<'a> = (&'a PathBuf, Option<(u32, u32)>, bool);
+        let mut paths: Vec<ToRestore> = Vec::new();
+        // Restoring leaves the paths in `skip` alone
+        paths.extend(
+            self.modes
+                .iter()
+                .filter(|(path, _)| !skip.contains(*path))
+                .map(|(path, modes)| (path, Some(*modes), true)),
+        );
+        // hk passed no step the paths that are not valid UTF-8
+        paths.extend(
+            self.unnamed_modes
+                .iter()
+                .map(|(path, modes)| (path, Some(*modes), false)),
+        );
+        paths.extend(
+            self.untracked
+                .iter()
+                .chain(self.unnamed_untracked.iter())
+                .map(|path| (path, None, false)),
+        );
+        let parents = |path: &PathBuf| {
+            let mut parents = path
+                .ancestors()
+                .skip(1)
+                .filter(|p| !p.as_os_str().is_empty())
+                .map(std::path::Path::to_path_buf)
+                .collect_vec();
+            parents.reverse();
+            parents
+        };
+        let worktree = WorktreeMatcher::new(
+            paths
+                .iter()
+                .flat_map(|(path, _, _)| parents(path).into_iter().chain([(*path).clone()])),
+            |path| [index.get(path), self.stashed.get(path)],
+            self.file_mode,
+        )?;
+
+        let mut plan = RestorePlan::default();
+        'paths: for (path, modes, mergeable) in paths {
+            for parent in parents(path) {
+                let Ok(metadata) = std::fs::symlink_metadata(&parent) else {
+                    // Neither it nor anything under it exists
+                    break;
+                };
+                // Restoring writes into a real directory, and replaces what
+                // stashing put back
+                if !metadata.is_dir() && !worktree.matches(&parent, index.get(&parent)) {
+                    plan.conflicts.insert(
+                        path.clone(),
+                        format!(
+                            "a step changed {}, where the stash has a directory",
+                            display_path(&parent)
+                        ),
+                    );
+                    continue 'paths;
+                }
+            }
+            if worktree.matches(path, self.stashed.get(path)) {
+                plan.unchanged.insert(path.clone());
+                continue;
+            }
+            if worktree.matches(path, index.get(path)) {
+                continue;
+            }
+            let is_regular = |mode: u32| matches!(mode, 0o100644 | 0o100755);
+            let merged = mergeable
+                && modes.is_some_and(|(old_mode, new_mode)| {
+                    is_regular(old_mode) && is_regular(new_mode)
+                })
+                && std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file());
+            if merged {
+                plan.merged.insert(path.clone());
+            } else {
+                plan.conflicts.insert(
+                    path.clone(),
+                    format!(
+                        "a step changed {}, which the stash also changed",
+                        display_path(path)
+                    ),
+                );
+            }
+        }
+        Ok(plan)
+    }
+}
+
+/// The entries of `tree` and all its subtrees.
+fn read_tree(tree: &str) -> Result<std::collections::HashMap<PathBuf, TreeEntry>> {
+    let unexpected = || eyre!("unexpected git ls-tree output for {tree}");
+    let mut entries = std::collections::HashMap::new();
+    for record in git_read_bytes(["ls-tree", "-r", "-t", "-z", "--full-tree", tree])?
+        .split(|&b| b == 0)
+        .filter(|r| !r.is_empty())
+    {
+        // `<mode> SP <type> SP <object> TAB <path>`
+        let tab = record
+            .iter()
+            .position(|&b| b == b'\t')
+            .ok_or_else(unexpected)?;
+        let header = std::str::from_utf8(&record[..tab]).map_err(|_| unexpected())?;
+        let mut fields = header.split(' ');
+        let mode = fields
+            .next()
+            .and_then(|m| u32::from_str_radix(m, 8).ok())
+            .ok_or_else(unexpected)?;
+        let object = fields.nth(1).ok_or_else(unexpected)?.to_string();
+        entries.insert(path_from_raw(&record[tab + 1..]), (mode, object));
+    }
+    Ok(entries)
+}
+
+/// Compares worktree paths with tree entries, having hashed the regular files
+/// that may be compared with a regular file entry.
+struct WorktreeMatcher {
+    hashes: std::collections::HashMap<PathBuf, String>,
+    /// Whether executable bits count, as with `core.fileMode`
+    file_mode: bool,
+}
+
+impl WorktreeMatcher {
+    /// Hashes the regular files among `paths` that one of `entries` of the
+    /// path has as a regular file. Executable bits count only with
+    /// `file_mode`, as git compares them only with `core.fileMode`.
+    fn new<'a>(
+        paths: impl IntoIterator<Item = PathBuf>,
+        entries: impl Fn(&std::path::Path) -> [Option<&'a TreeEntry>; 2],
+        file_mode: bool,
+    ) -> Result<Self> {
+        let regular: BTreeSet<PathBuf> = paths
+            .into_iter()
+            .filter(|path| {
+                entries(path)
+                    .iter()
+                    .flatten()
+                    .any(|(mode, _)| matches!(mode, 0o100644 | 0o100755))
+                    && std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file())
+            })
+            .collect();
+        Ok(Self {
+            hashes: hash_worktree_files(&regular)?,
+            file_mode,
+        })
+    }
+
+    /// Whether the worktree has `entry` at `path`: the same kind of entry,
+    /// mode and contents, or nothing where `entry` is `None`.
+    fn matches(&self, path: &std::path::Path, entry: Option<&TreeEntry>) -> bool {
+        let metadata = std::fs::symlink_metadata(path);
+        match (entry, metadata) {
+            (None, Err(_)) => true,
+            (None, Ok(_)) | (Some(_), Err(_)) => false,
+            (Some((mode, object)), Ok(metadata)) => match *mode {
+                0o040000 => metadata.is_dir(),
+                0o120000 => {
+                    metadata.file_type().is_symlink() && symlink_target_matches(path, object)
+                }
+                0o100644 | 0o100755 => {
+                    metadata.is_file()
+                        && (!self.file_mode || executable_matches(&metadata, *mode))
+                        && self.hashes.get(path) == Some(object)
+                }
+                // Submodules are not stashed
+                _ => true,
+            },
+        }
+    }
+}
+
+/// Git's object names for the worktree files at `paths`, which `git add`
+/// would store: `git hash-object` applies the same filters, chosen by path.
+fn hash_worktree_files(
+    paths: &BTreeSet<PathBuf>,
+) -> Result<std::collections::HashMap<PathBuf, String>> {
+    // Paths go on the command line, which takes any name, in chunks that
+    // stay well under the command-line limit (32 KiB on Windows)
+    const MAX_ARG_BYTES: usize = 16 * 1024;
+    let mut hashes = std::collections::HashMap::new();
+    let mut chunks: Vec<Vec<&PathBuf>> = vec![vec![]];
+    let mut chunk_bytes = 0;
+    for path in paths {
+        let len = path.as_os_str().len() + 1;
+        if chunk_bytes + len > MAX_ARG_BYTES && !chunks.last().unwrap().is_empty() {
+            chunks.push(vec![]);
+            chunk_bytes = 0;
+        }
+        chunk_bytes += len;
+        chunks.last_mut().unwrap().push(path);
+    }
+    for chunk in chunks.into_iter().filter(|c| !c.is_empty()) {
+        let mut args = vec![OsString::from("hash-object"), "--".into()];
+        args.extend(chunk.iter().map(|p| p.as_os_str().to_owned()));
+        let output = String::from_utf8(git_read_bytes(args)?)?;
+        let objects = output.lines().collect_vec();
+        if objects.len() != chunk.len() {
+            return Err(eyre!("unexpected git hash-object output"));
+        }
+        for (path, object) in chunk.into_iter().zip(objects) {
+            hashes.insert(path.clone(), object.to_string());
+        }
+    }
+    Ok(hashes)
+}
+
+/// Whether the symlink at `path` points where the blob `object` says.
+fn symlink_target_matches(path: &std::path::Path, object: &str) -> bool {
+    let Ok(target) = std::fs::read_link(path) else {
+        return false;
+    };
+    git_read_bytes(["cat-file", "blob", object])
+        .is_ok_and(|blob| blob == target.as_os_str().as_encoded_bytes())
+}
+
+/// Whether a file's executable bit matches a git file mode, where the
+/// filesystem has one.
+fn executable_matches(metadata: &std::fs::Metadata, mode: u32) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        (metadata.permissions().mode() & 0o111 != 0) == (mode == 0o100755)
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = (metadata, mode);
+        true
+    }
+}
+
+/// Lists what `stash_ref` set aside: how its worktree tree differs from its
+/// index tree (`^2`), and its untracked files (`^3`).
+fn stashed_changes(stash_ref: &str) -> Result<StashedChanges> {
+    let mut changes = StashedChanges {
+        // git's default when `core.fileMode` is unset
+        file_mode: git_cmd_silent(["config", "--type=bool", "core.fileMode"])
+            .read()
+            .map_or(true, |value| value.trim() != "false"),
+        ..Default::default()
+    };
+    let unexpected = || eyre!("unexpected git diff output for {stash_ref}");
+    let index = format!("{stash_ref}^2");
+    let raw = git_read_bytes([
+        "diff",
+        "--raw",
+        "--no-abbrev",
+        "-z",
+        "--no-renames",
+        "--no-ext-diff",
+        "--ignore-submodules",
+        &index,
+        stash_ref,
+    ])?;
+    let mut fields = raw.split(|&b| b == 0);
+    while let Some(header) = fields.next() {
+        if header.is_empty() {
+            continue;
+        }
+        let name = fields.next().ok_or_else(unexpected)?;
+        // `:<index mode> <worktree mode> <index object> <worktree object> <status>`
+        let header = std::str::from_utf8(header).map_err(|_| unexpected())?;
+        let header = header.trim_start_matches(':').split(' ').collect_vec();
+        let [old_mode, new_mode, _, new_object, ..] = header[..] else {
+            return Err(unexpected());
+        };
+        let old_mode = u32::from_str_radix(old_mode, 8).map_err(|_| unexpected())?;
+        let new_mode = u32::from_str_radix(new_mode, 8).map_err(|_| unexpected())?;
+        let path = path_from_raw(name);
+        if new_mode != 0 {
+            changes
+                .stashed
+                .insert(path.clone(), (new_mode, new_object.to_string()));
+        }
+        if std::str::from_utf8(name).is_ok() {
+            changes.modes.insert(path, (old_mode, new_mode));
+        } else {
+            changes.unnamed_modes.insert(path, (old_mode, new_mode));
+            changes.unnamed.push(name.to_vec());
+        }
+    }
+    let untracked = format!("{stash_ref}^3");
+    if git_cmd_silent(["rev-parse", "-q", "--verify", &untracked])
+        .read()
+        .is_ok()
+    {
+        for (path, entry) in read_tree(&untracked)? {
+            if entry.0 == 0o040000 {
+                continue;
+            }
+            if path.to_str().is_some() {
+                changes.untracked.insert(path.clone());
+            } else {
+                changes
+                    .unnamed
+                    .push(path.as_os_str().as_encoded_bytes().to_vec());
+                changes.unnamed_untracked.insert(path.clone());
+            }
+            changes.stashed.insert(path, entry);
+        }
+    }
+    Ok(changes)
+}
+
+/// What a stash holds at a path it set aside.
+#[derive(Debug, Clone, Copy)]
+enum StashedEntry {
+    /// An untracked file, in the stash's third parent
+    Untracked,
+    /// A tracked file or symlink
+    Tracked,
+    /// Nothing: the file was deleted from the worktree
+    Deleted,
+}
+
+impl StashedChanges {
+    /// What the stash holds at `path`, one of the paths it set aside.
+    fn entry(&self, path: &std::path::Path) -> StashedEntry {
+        if self.untracked.contains(path) || self.unnamed_untracked.contains(path) {
+            return StashedEntry::Untracked;
+        }
+        let modes = self.modes.get(path).or(self.unnamed_modes.get(path));
+        if modes.is_some_and(|(_, new_mode)| *new_mode == 0) {
+            StashedEntry::Deleted
+        } else {
+            StashedEntry::Tracked
+        }
+    }
+}
+
+/// Restores a path to its state in `stash_ref`: its untracked or tracked
+/// contents and mode, or its deletion.
+fn restore_stashed_path(
+    stash_ref: &str,
+    name: &std::ffi::OsStr,
+    entry: StashedEntry,
+) -> Result<()> {
+    let source = match entry {
+        StashedEntry::Untracked => format!("{stash_ref}^3"),
+        StashedEntry::Tracked => stash_ref.to_string(),
+        StashedEntry::Deleted => {
+            // Stashing brought the index version back
+            let path = std::path::Path::new(name);
+            if std::fs::symlink_metadata(path).is_ok() {
+                std::fs::remove_file(path)?;
+            }
+            return Ok(());
+        }
+    };
+    let mut pathspec = OsString::from(":(literal)");
+    pathspec.push(name);
+    // Writes the worktree only, with the stashed file mode
+    git_cmd([
+        OsString::from("restore"),
+        format!("--source={source}").into(),
+        "--worktree".into(),
+        "--".into(),
+        pathspec,
+    ])
+    .run()?;
+    Ok(())
+}
+
+impl StashedChanges {
+    /// The paths the stash set aside whose worktree does not match it, apart
+    /// from `expected_different`.
+    fn unrestored_paths(&self, expected_different: &BTreeSet<PathBuf>) -> Result<Vec<PathBuf>> {
+        let paths = self
+            .modes
+            .keys()
+            .chain(self.unnamed_modes.keys())
+            .chain(self.untracked.iter())
+            .chain(self.unnamed_untracked.iter())
+            .filter(|path| !expected_different.contains(*path))
+            .cloned()
+            .collect_vec();
+        let worktree = WorktreeMatcher::new(
+            paths.iter().cloned(),
+            |path| [None, self.stashed.get(path)],
+            self.file_mode,
+        )?;
+        Ok(paths
+            .into_iter()
+            .filter(|path| !worktree.matches(path, self.stashed.get(path)))
+            .collect())
+    }
+}
+
+/// Merges a step's change to the regular file at `path`, which hk did not
+/// give or stage for it, with the stashed edits to it. Fails with why when
+/// they cannot be merged: when one of them is not text, or both change the
+/// same lines.
+fn merge_step_change(stash_ref: &str, path: &std::path::Path) -> std::result::Result<(), String> {
+    let conflict = |why: &str| {
+        format!(
+            "a step changed {}, which the stash also changed, {why}",
+            display_path(path)
+        )
+    };
+    let text = |rev: &str| {
+        let mut object = OsString::from(format!("{rev}:"));
+        object.push(path.as_os_str());
+        git_read_bytes([OsString::from("cat-file"), "blob".into(), object])
+            .ok()
+            .and_then(|contents| String::from_utf8(contents).ok())
+    };
+    let step = std::fs::read(path)
+        .ok()
+        .and_then(|contents| String::from_utf8(contents).ok());
+    let (Some(index), Some(stashed), Some(step)) =
+        (text(&format!("{stash_ref}^2")), text(stash_ref), step)
+    else {
+        return Err(conflict("and one of the versions is not text"));
+    };
+    if merge::hunks_overlap(&index, &step, &stashed) {
+        return Err(conflict("in the same lines"));
+    }
+    let merged = merge::three_way_merge_hunks(&index, Some(&step), Some(&stashed));
+    xx::file::write(path, merged)
+        .map_err(|err| format!("failed to write {}: {err}", display_path(path)))?;
+    Ok(())
+}
+
+/// Records that restoring keeps a step's output at `path`, where the stash
+/// has edits that hk cannot merge into it. `what` says what the step did,
+/// with `{}` for the path.
+fn keep_step_output(
+    not_restored: &mut std::collections::BTreeMap<PathBuf, String>,
+    path: &std::path::Path,
+    what: &str,
+) {
+    let reason = format!(
+        "a step {}, and hk cannot merge the stashed edits into that, so the step's version stays",
+        what.replace("{}", &display_path(path))
+    );
+    warn!("not restoring from the stash: {reason}");
+    not_restored.insert(path.to_path_buf(), reason);
+}
+
+/// Whether the worktree file at `path` matches the index.
+fn worktree_matches_index(path: &std::path::Path) -> bool {
+    let mut pathspec = OsString::from(":(literal)");
+    pathspec.push(path.as_os_str());
+    git_cmd_silent([
+        OsString::from("diff"),
+        "--quiet".into(),
+        "--no-ext-diff".into(),
+        "--".into(),
+        pathspec,
+    ])
+    .run()
+    .is_ok()
+}
+
+/// A shell command that restores `path` from `source` in the worktree only.
+fn restore_command(source: &str, path: &std::path::Path) -> String {
+    let mut pathspec = OsString::from(":(literal)");
+    pathspec.push(path.as_os_str());
+    format!(
+        "git restore --source={} -- {}",
+        shell_quote(std::ffi::OsStr::new(source)),
+        shell_quote(&pathspec)
+    )
+}
+
+/// Quotes `arg` for a POSIX shell: in single quotes, or as `$'…'` with
+/// escapes when it is not valid UTF-8.
+fn shell_quote(arg: &std::ffi::OsStr) -> String {
+    let bytes = arg.as_encoded_bytes();
+    match std::str::from_utf8(bytes) {
+        Ok(arg) => format!("'{}'", arg.replace('\'', r"'\''")),
+        Err(_) => {
+            let mut quoted = String::from("$'");
+            for &b in bytes {
+                match b {
+                    b'\'' => quoted.push_str(r"\'"),
+                    b'\\' => quoted.push_str(r"\\"),
+                    0x20..=0x7e => quoted.push(b as char),
+                    _ => quoted.push_str(&format!("\\x{b:02x}")),
+                }
+            }
+            quoted.push('\'');
+            quoted
+        }
+    }
+}
+
+fn is_symlink_mode(mode: u32) -> bool {
+    mode == 0o120000
+}
+
+/// Sets or clears the executable bits of the regular file at `path` for a
+/// git file mode, as git checks it out.
+fn set_file_mode(path: &std::path::Path, mode: u32) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return Ok(());
+        };
+        if !metadata.is_file() {
+            return Ok(());
+        }
+        let perms = metadata.permissions().mode();
+        let new_perms = match mode {
+            0o100755 => perms | ((perms & 0o444) >> 2),
+            0o100644 => perms & !0o111,
+            _ => return Ok(()),
+        };
+        if new_perms != perms {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(new_perms))?;
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = (path, mode);
+    Ok(())
+}
+
 fn git_read_raw<I, S>(args: I) -> Result<String>
 where
     I: IntoIterator<Item = S>,
@@ -495,12 +1106,16 @@ impl Git {
             args.push("--renames");
         }
         let output = git_read_bytes(args).wrap_err("failed to get git status")?;
-        let entries = parse_porcelain_status(&output)?;
-        Ok(if self.repo.is_some() {
-            GitStatus::from_entries_libgit2(entries)?
+        let mut skipped = SkippedPaths::default();
+        let entries = parse_porcelain_status(&output, &mut skipped)?;
+        let mut status = if self.repo.is_some() {
+            GitStatus::from_entries_libgit2(entries, &mut skipped)
         } else {
             GitStatus::from_entries(entries)
-        })
+        };
+        status.set_skipped(&skipped);
+        warn_skipped_paths(&skipped);
+        Ok(status)
     }
 
     /// Status of the paths matching `pathspec`, read without touching any
@@ -542,15 +1157,25 @@ impl Git {
                 self.index_path.get_or_init(|| path)
             }
         };
-        let index_mtime = match std::fs::metadata(index_path) {
-            Ok(metadata) => metadata.modified()?,
+        // Take the mtime and the contents from one open file: git replaces the
+        // index by renaming a new file over it.
+        let mut file = match std::fs::File::open(index_path) {
+            Ok(file) => file,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
             Err(err) => return Err(err.into()),
         };
-        let index_secs = index_mtime
+        let index_secs = file
+            .metadata()?
+            .modified()?
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
+        let mut data = Vec::new();
+        std::io::Read::read_to_end(&mut file, &mut data)?;
+        if let Some(paths) = crate::git_index::racily_clean_paths(&data, index_secs) {
+            return Ok(paths);
+        }
+        debug!("reading index {} with libgit2", index_path.display());
         let index = git2::Index::open(index_path)
             .wrap_err_with(|| format!("failed to read index {}", index_path.display()))?;
         Ok(index
@@ -634,12 +1259,16 @@ impl Git {
             .stdout_capture()
             .run()?
             .stdout;
-        let entries = parse_porcelain_status(&output)?;
-        Ok(if self.repo.is_some() {
-            GitStatus::from_entries_libgit2(entries)?
+        let mut skipped = SkippedPaths::default();
+        let entries = parse_porcelain_status(&output, &mut skipped)?;
+        let mut status = if self.repo.is_some() {
+            GitStatus::from_entries_libgit2(entries, &mut skipped)
         } else {
             GitStatus::from_entries(entries)
-        })
+        };
+        status.set_skipped(&skipped);
+        warn_skipped_paths(&skipped);
+        Ok(status)
     }
 
     #[tracing::instrument(level = "info", name = "git.stash.push", skip_all)]
@@ -683,30 +1312,16 @@ impl Git {
                 "--no-ext-diff".into(),
                 "--ignore-submodules".into(),
             ];
-            let out = git_read(args).unwrap_or_default();
-            for name in out.split('\0') {
-                if name.is_empty() {
-                    continue;
-                }
-                let p = PathBuf::from(name);
-                if p.exists() {
-                    files_to_stash.insert(p);
-                }
-            }
+            // Paths that are not valid UTF-8 are left out of the status, which
+            // records that they need stashing
+            let (paths, _) = git_read_paths(args).unwrap_or_default();
+            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
         }
         // 2) git ls-files -m (modified in worktree)
         {
             let args: Vec<OsString> = vec!["ls-files".into(), "-m".into(), "-z".into()];
-            let out = git_read(args).unwrap_or_default();
-            for name in out.split('\0') {
-                if name.is_empty() {
-                    continue;
-                }
-                let p = PathBuf::from(name);
-                if p.exists() {
-                    files_to_stash.insert(p);
-                }
-            }
+            let (paths, _) = git_read_paths(args).unwrap_or_default();
+            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
         }
         // 3) Parse porcelain to catch nuanced mixed states.
         // We only look at worktree-side markers (M/T/R), so untracked entries
@@ -725,15 +1340,13 @@ impl Git {
                 untracked_arg.into(),
                 "-z".into(),
             ];
-            let out = git_read(args).unwrap_or_default();
-            for entry in out.split('\0').filter(|s| !s.is_empty()) {
-                let mut chars = entry.chars();
-                let _x = chars.next().unwrap_or_default();
-                let y = chars.next().unwrap_or_default();
-                let path = chars.skip(1).collect::<String>();
-                if y == 'M' || y == 'T' || y == 'R' {
-                    // worktree side has changes
-                    let p = PathBuf::from(&path);
+            let out = git_read_bytes(args).unwrap_or_default();
+            for entry in out.split(|&b| b == 0).filter(|s| s.len() > 3) {
+                // worktree side has changes
+                if matches!(entry[1], b'M' | b'T' | b'R')
+                    && let Ok(path) = std::str::from_utf8(&entry[3..])
+                {
+                    let p = PathBuf::from(path);
                     if p.exists() {
                         files_to_stash.insert(p);
                     }
@@ -750,12 +1363,16 @@ impl Git {
                 files_to_stash.insert(p.clone());
             }
         }
+        // The status left out paths that are not valid UTF-8, which hk cannot
+        // name in a pathspec, so stash the whole worktree to set them aside
+        let stash_everything =
+            status.skipped_unstaged || (*env::HK_STASH_UNTRACKED && status.skipped_untracked);
         let files_count = files_to_stash.len();
         job.prop("files", &files_count);
         // TODO: if any intent_to_add files exist, run `git rm --cached -- <file>...` then `git add --intent-to-add -- <file>...` when unstashing
         // let intent_to_add = self.intent_to_add_files()?;
         // see https://github.com/pre-commit/pre-commit/blob/main/pre_commit/staged_files_only.py
-        if files_to_stash.is_empty() {
+        if files_to_stash.is_empty() && !stash_everything {
             job.prop("message", "No unstaged changes to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
@@ -769,7 +1386,7 @@ impl Git {
         job.prop("message", "Running git stash");
         job.update();
         let subset_vec: Vec<PathBuf> = files_to_stash.iter().cloned().collect();
-        let subset_opt: Option<&[PathBuf]> = if subset_vec.is_empty() {
+        let subset_opt: Option<&[PathBuf]> = if subset_vec.is_empty() || stash_everything {
             None
         } else {
             Some(&subset_vec[..])
@@ -1006,14 +1623,21 @@ impl Git {
                     "stash@{0}".to_string()
                 };
 
-                // List paths from our stash entry
-                // When HK_STASH_UNTRACKED=true, we need to include untracked files in the show output
-                let mut cmd = git_cmd(["stash", "show", "--name-only", "-z"]);
-                if *env::HK_STASH_UNTRACKED {
-                    cmd = cmd.arg("--include-untracked");
-                }
-                cmd = cmd.arg(&stash_ref);
-                let show = cmd.read().unwrap_or_default();
+                // Track whether any file restoration failed so we can preserve the stash
+                let mut restoration_failed = false;
+
+                // What the stash set aside: how its worktree differs from the
+                // index it recorded (^2), which includes deletions, mode changes
+                // and files reverted to HEAD with a staged edit, plus its
+                // untracked files (^3). `git stash show` compares with HEAD
+                // instead and would miss the reverted files.
+                let changes = stashed_changes(&stash_ref).unwrap_or_else(|err| {
+                    warn!("failed to list the stashed files: {err:?}");
+                    restoration_failed = true;
+                    StashedChanges::default()
+                });
+                // Paths that are not valid UTF-8 are restored separately below
+                let unnamed_paths = &changes.unnamed;
                 // Paths that are staged as deletions in the current index. These must NOT be
                 // restored to the worktree by the unstash loop for tracked files — the user
                 // intentionally deleted them and the commit should preserve that deletion.
@@ -1021,23 +1645,53 @@ impl Git {
                 // file (e.g., `git rm --cached`); the loop below preserves untracked restoration
                 // by applying this skip only AFTER the is_untracked branch.
                 let staged_deleted_set: std::collections::HashSet<PathBuf> =
-                    git_cmd(["diff", "--cached", "--name-only", "--diff-filter=D", "-z"])
-                        .read()
+                    git_read_paths(["diff", "--cached", "--name-only", "--diff-filter=D", "-z"])
+                        .map(|(paths, _)| paths)
                         .unwrap_or_default()
-                        .split('\0')
-                        .filter(|s| !s.is_empty())
-                        .map(PathBuf::from)
+                        .into_iter()
                         .collect();
-                let stash_paths: Vec<PathBuf> = show
-                    .split('\0')
-                    .filter(|s| !s.is_empty())
-                    .map(PathBuf::from)
-                    .filter(|p| {
-                        self.stashed_paths
-                            .as_ref()
-                            .is_none_or(|stashed_paths| stashed_paths.contains(p))
-                    })
+                // Leave alone the paths that already match the stash, and the
+                // ones where restoring would destroy what a step did, which
+                // keep the stash. If hk cannot tell, it restores nothing.
+                let plan = match changes.restore_plan(&stash_ref, &staged_deleted_set) {
+                    Ok(plan) => Some(plan),
+                    Err(err) => {
+                        warn!(
+                            "not restoring the stash: failed to compare the worktree with it: {err:?}"
+                        );
+                        restoration_failed = true;
+                        None
+                    }
+                };
+                let conflicts = plan
+                    .as_ref()
+                    .map(|plan| plan.conflicts.clone())
+                    .unwrap_or_default();
+                for conflict in conflicts.values() {
+                    warn!("not restoring from the stash: {conflict}");
+                }
+                restoration_failed |= !conflicts.is_empty();
+                let restores =
+                    |path: &std::path::Path| plan.as_ref().is_some_and(|plan| !plan.skips(path));
+                let unnamed_paths: Vec<&Vec<u8>> = unnamed_paths
+                    .iter()
+                    .filter(|name| restores(&path_from_raw(name)))
                     .collect();
+                let stash_paths: Vec<PathBuf> = changes
+                    .modes
+                    .keys()
+                    .chain(changes.untracked.iter())
+                    .filter(|path| restores(path))
+                    .cloned()
+                    .collect();
+                // Paths that end up merging a step's change with the stashed
+                // edits. Every other restored path must match the stash
+                // before the stash is dropped.
+                let mut merged_paths: BTreeSet<PathBuf> = BTreeSet::new();
+                // Paths left out of the worktree, with why
+                let mut not_restored = conflicts;
+                let step_changed =
+                    |path: &PathBuf| plan.as_ref().is_some_and(|plan| plan.merged.contains(path));
 
                 // When staging is disabled, fixer output remains in the isolated worktree.
                 // Ask Git which hook files differ from the unchanged index so unchanged files
@@ -1082,12 +1736,10 @@ impl Git {
                     std::collections::HashMap::new();
                 // Determine the set of paths with staged changes (index differs from HEAD)
                 let staged_changed_set: std::collections::HashSet<PathBuf> =
-                    git_cmd(["diff", "--name-only", "--cached", "-z"])
-                        .read()
+                    git_read_paths(["diff", "--name-only", "--cached", "-z"])
+                        .map(|(paths, _)| paths)
                         .unwrap_or_default()
-                        .split('\0')
-                        .filter(|s| !s.is_empty())
-                        .map(PathBuf::from)
+                        .into_iter()
                         .collect();
                 if !stash_paths.is_empty() {
                     let mut args: Vec<OsString> =
@@ -1121,8 +1773,6 @@ impl Git {
                 // the merge logic when no fixer output exists for the path.
                 const LARGE_STASH_FILE_BYTES: usize = 1_000_000; // 1 MiB
 
-                // Track whether any file restoration failed so we can preserve the stash
-                let mut restoration_failed = false;
                 let patch_hint = self
                     .last_patch_path()
                     .map(|p| format!("; stashed edits are backed up at {}", p.display()))
@@ -1131,51 +1781,29 @@ impl Git {
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
-                    // Lightweight size probe for the worktree snapshot stored in the stash
-                    // Check if this is an untracked file (exists in stash^3 but not in stash^1 or stash^2)
-                    // Use silent commands to avoid noisy "exists on disk, but not in ref" errors
-                    let is_untracked = *env::HK_STASH_UNTRACKED
-                        && git_cmd_silent([
-                            "cat-file",
-                            "-e",
-                            &format!("{}^3:{}", stash_ref, path_str),
-                        ])
-                        .run()
-                        .is_ok()
-                        && git_cmd_silent([
-                            "cat-file",
-                            "-e",
-                            &format!("{}^2:{}", stash_ref, path_str),
-                        ])
-                        .run()
-                        .is_err();
 
-                    // Handle untracked files specially - just restore from stash^3
-                    if is_untracked {
+                    // Untracked files (in stash^3) are restored as they are
+                    if changes.untracked.contains(&path) {
                         debug!(
                             "manual-unstash: restoring untracked file from stash^3 path={}",
                             display_path(&path)
                         );
-                        if let Ok(contents) = git_read_bytes([
-                            "cat-file",
-                            "-p",
-                            &format!("{}^3:{}", stash_ref, path_str),
-                        ]) {
-                            if let Err(err) = xx::file::write(&path, &contents) {
+                        match restore_stashed_path(
+                            &stash_ref,
+                            path.as_os_str(),
+                            changes.entry(&path),
+                        ) {
+                            Ok(()) => {
+                                debug!("manual-unstash: restored {}", display_path(&path));
+                            }
+                            Err(err) => {
                                 warn!(
-                                    "failed to write untracked file {}: {err:?}",
+                                    "failed to restore untracked file {} from stash: {err:?}",
                                     display_path(&path)
                                 );
                                 restoration_failed = true;
                             }
-                        } else {
-                            warn!(
-                                "failed to read untracked file {} from stash",
-                                display_path(&path)
-                            );
-                            restoration_failed = true;
                         }
-                        // Skip normal merge path for untracked files
                         continue;
                     }
 
@@ -1195,6 +1823,79 @@ impl Git {
                     } else {
                         fixer_worktree_paths.contains(&path)
                     };
+                    let step_changed = step_changed(&path);
+                    let (old_mode, new_mode) = changes.modes[&path];
+                    // A deletion, symlink or type change has no contents to
+                    // merge, so the stashed state wins over any fixer output
+                    if new_mode == 0 || is_symlink_mode(new_mode) || is_symlink_mode(old_mode) {
+                        if has_fixer {
+                            warn!(
+                                "{} was deleted or is a symlink in the stashed worktree; restoring that instead of the fixer output{}",
+                                display_path(&path),
+                                patch_hint
+                            );
+                        }
+                        match restore_stashed_path(
+                            &stash_ref,
+                            path.as_os_str(),
+                            changes.entry(&path),
+                        ) {
+                            Ok(()) => {
+                                debug!("manual-unstash: restored {}", display_path(&path));
+                            }
+                            Err(err) => {
+                                warn!(
+                                    "failed to restore {} from stash: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                        }
+                        continue;
+                    }
+                    // Contents are written in place below, which keeps this
+                    // mode. A mode change that a step made and the stash did
+                    // not is kept. Without `core.fileMode`, git ignores
+                    // executable bits, and so does hk.
+                    let mode = if step_changed && old_mode == new_mode {
+                        std::fs::symlink_metadata(&path).map_or(new_mode, |metadata| {
+                            if executable_matches(&metadata, 0o100755) {
+                                0o100755
+                            } else {
+                                0o100644
+                            }
+                        })
+                    } else {
+                        new_mode
+                    };
+                    if changes.file_mode
+                        && let Err(err) = set_file_mode(&path, mode)
+                    {
+                        warn!(
+                            "failed to restore the mode of {}: {err:?}",
+                            display_path(&path)
+                        );
+                        restoration_failed = true;
+                    }
+                    // A step's change that is staged, like a fixer's output
+                    // that hk staged, is merged below. One that is only in the
+                    // worktree, like a change to a file hk did not give the
+                    // step, is merged with the stashed edits here, or left as
+                    // a conflict when both change the same lines.
+                    let has_fixer = has_fixer || (step_changed && worktree_matches_index(&path));
+                    if step_changed && !has_fixer {
+                        match merge_step_change(&stash_ref, &path) {
+                            Ok(()) => {
+                                merged_paths.insert(path.clone());
+                            }
+                            Err(conflict) => {
+                                warn!("not restoring from the stash: {conflict}");
+                                not_restored.insert(path.clone(), conflict);
+                                restoration_failed = true;
+                            }
+                        }
+                        continue;
+                    }
                     let work_ref = format!("{}:{}", stash_ref, path_str);
                     let work_size = git_cmd_silent(["cat-file", "-s", &work_ref])
                         .read()
@@ -1228,22 +1929,24 @@ impl Git {
                         if std::fs::symlink_metadata(&path)
                             .is_ok_and(|metadata| metadata.file_type().is_symlink())
                         {
-                            warn!(
-                                "fixer replaced {} with a symlink; preserving the symlink instead of conflicting stashed edits{}",
-                                display_path(&path),
-                                patch_hint
+                            keep_step_output(
+                                &mut not_restored,
+                                &path,
+                                "replaced {} with a symlink",
                             );
+                            restoration_failed = true;
                             continue;
                         }
                         match std::fs::read(&path) {
                             Ok(contents) => match String::from_utf8(contents) {
                                 Ok(contents) => Some(contents),
                                 Err(err) => {
-                                    warn!(
-                                        "fixer wrote binary content to {}; preserving it instead of conflicting stashed edits{}",
-                                        display_path(&path),
-                                        patch_hint
+                                    keep_step_output(
+                                        &mut not_restored,
+                                        &path,
+                                        "wrote binary content to {}",
                                     );
+                                    restoration_failed = true;
                                     if let Err(write_err) = xx::file::write(&path, err.as_bytes()) {
                                         warn!(
                                             "failed to preserve binary fixer output for {}: {write_err:?}",
@@ -1255,11 +1958,8 @@ impl Git {
                                 }
                             },
                             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                                warn!(
-                                    "fixer deleted {}; preserving the deletion instead of conflicting stashed edits{}",
-                                    display_path(&path),
-                                    patch_hint
-                                );
+                                keep_step_output(&mut not_restored, &path, "deleted {}");
+                                restoration_failed = true;
                                 continue;
                             }
                             Err(err) => {
@@ -1284,11 +1984,12 @@ impl Git {
 
                     if is_binary {
                         if !should_stage && fixer_worktree.is_some() {
-                            warn!(
-                                "text fixer output for {} cannot be merged with binary stashed edits; preserving the fixer output{}",
-                                display_path(&path),
-                                patch_hint
+                            keep_step_output(
+                                &mut not_restored,
+                                &path,
+                                "wrote text to {} where the stash has binary content",
                             );
+                            restoration_failed = true;
                             continue;
                         }
                         debug!(
@@ -1328,10 +2029,19 @@ impl Git {
                             .ok();
                     // Fixer content comes from the index when fixes were staged, or from the
                     // isolated post-step worktree when staging was disabled.
+                    // A step's change to the worktree counts, whether or not
+                    // hk staged all of it
+                    let step_worktree = || {
+                        std::fs::read(&path)
+                            .ok()
+                            .and_then(|contents| String::from_utf8(contents).ok())
+                    };
                     let fixer = if should_stage {
-                        fixer_map
-                            .get(&path)
-                            .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
+                        step_changed.then(step_worktree).flatten().or_else(|| {
+                            fixer_map
+                                .get(&path)
+                                .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
+                        })
                     } else {
                         fixer_worktree
                     };
@@ -1513,6 +2223,10 @@ impl Git {
                             display_path(&path)
                         );
                         restoration_failed = true;
+                    } else if has_fixer {
+                        // It merges the fixer output, so it may differ from
+                        // the stash
+                        merged_paths.insert(path.clone());
                     }
                     // If fixer differs from base, ensure index has fixer blob unless newline-only change
                     if newline_only_change {
@@ -1543,14 +2257,87 @@ impl Git {
                         );
                     }
                 }
+                // hk gave no step the paths that are not valid UTF-8, so restore
+                // their stashed state as it is
+                for name in unnamed_paths {
+                    let path = path_from_raw(name);
+                    match restore_stashed_path(&stash_ref, path.as_os_str(), changes.entry(&path)) {
+                        Ok(()) => {
+                            debug!("manual-unstash: restored {}", display_path(&path));
+                        }
+                        Err(err) => {
+                            warn!(
+                                "failed to restore {:?} from stash: {err:?}",
+                                String::from_utf8_lossy(name)
+                            );
+                            restoration_failed = true;
+                        }
+                    }
+                }
+                // Before dropping the stash, check every path it set aside:
+                // each must match the stash, unless it merges a step's change
+                // or was left out on purpose
+                if plan.is_some() {
+                    let mut expected_different = merged_paths;
+                    expected_different.extend(staged_deleted_set.iter().cloned());
+                    expected_different.extend(not_restored.keys().cloned());
+                    if let Some(plan) = &plan {
+                        expected_different.extend(plan.unchanged.iter().cloned());
+                    }
+                    match changes.unrestored_paths(&expected_different) {
+                        Ok(unrestored) => {
+                            for path in unrestored {
+                                warn!(
+                                    "restoring the stash left {} different from the stash",
+                                    display_path(&path)
+                                );
+                                let reason = format!("restoring {} failed", display_path(&path));
+                                not_restored.insert(path, reason);
+                                restoration_failed = true;
+                            }
+                        }
+                        Err(err) => {
+                            warn!("failed to check the restored files: {err:?}");
+                            restoration_failed = true;
+                        }
+                    }
+                }
                 // Only drop the stash if all file restorations succeeded
-                if restoration_failed {
+                if !not_restored.is_empty() {
+                    error!(
+                        "Did not restore {} from the stash. Stash has been preserved at '{stash_ref}'.",
+                        not_restored.keys().map(display_path).join(", ")
+                    );
+                    for (path, reason) in &not_restored {
+                        let source = match changes.entry(path) {
+                            StashedEntry::Untracked => format!("{stash_ref}^3"),
+                            _ => stash_ref.clone(),
+                        };
+                        error!(
+                            "{reason}. To take its stashed version, run: {}",
+                            restore_command(&source, path)
+                        );
+                    }
+                    error!(
+                        "hk restored the other stashed changes, so `git stash pop` or `git stash apply` would apply those twice. Compare with `git stash show -p --include-untracked {stash_ref}`, and run `git stash drop {stash_ref}` only once every path above is recovered."
+                    );
+                    return Err(eyre!(
+                        "Stash restoration failed - stash preserved at {stash_ref}"
+                    ));
+                } else if restoration_failed {
                     error!(
                         "Failed to restore some files from stash. Stash has been preserved at '{stash_ref}'."
                     );
-                    error!(
-                        "You can manually recover your changes with: git stash show {stash_ref} && git stash apply {stash_ref}"
-                    );
+                    if plan.is_some() {
+                        // The stashed changes were restored, but not checked
+                        error!(
+                            "Compare the worktree with `git stash show -p --include-untracked {stash_ref}` before running `git stash drop {stash_ref}`."
+                        );
+                    } else {
+                        error!(
+                            "You can manually recover your changes with: git stash show {stash_ref} && git stash apply {stash_ref}"
+                        );
+                    }
                     // Keep the stash around and return an error
                     return Err(eyre!(
                         "Stash restoration failed - stash preserved at {stash_ref}"
@@ -1787,11 +2574,34 @@ pub(crate) struct GitStatus {
     pub unstaged_modified_files: BTreeSet<PathBuf>,
     pub unstaged_deleted_files: BTreeSet<PathBuf>,
     pub unstaged_renamed_files: BTreeSet<PathBuf>,
+    /// Whether the status left out a path with changes in the worktree because
+    /// it is not valid UTF-8, so that the lists above miss unstaged changes
+    #[serde(skip)]
+    pub skipped_unstaged: bool,
+    /// Whether the status left out an untracked path because it is not valid
+    /// UTF-8
+    #[serde(skip)]
+    pub skipped_untracked: bool,
 }
 
 impl GitStatus {
+    /// Whether the worktree has changes that stashing would set aside,
+    /// including untracked files when `include_untracked` is set.
+    pub fn has_unstaged_changes(&self, include_untracked: bool) -> bool {
+        !self.unstaged_files.is_empty()
+            || self.skipped_unstaged
+            || (include_untracked && (!self.untracked_files.is_empty() || self.skipped_untracked))
+    }
+
+    fn set_skipped(&mut self, skipped: &SkippedPaths) {
+        self.skipped_unstaged |= skipped.unstaged;
+        self.skipped_untracked |= skipped.untracked;
+    }
+
     /// Adds the entries of a status of other paths.
     fn extend(&mut self, other: GitStatus) {
+        self.skipped_unstaged |= other.skipped_unstaged;
+        self.skipped_untracked |= other.skipped_untracked;
         self.unstaged_files.extend(other.unstaged_files);
         self.staged_files.extend(other.staged_files);
         self.untracked_files.extend(other.untracked_files);
@@ -1877,7 +2687,10 @@ impl GitStatus {
     /// Classifies entries of `git status --porcelain=v2 --renames` the way
     /// [`read_status_libgit2`] classifies libgit2's statuses, so that a status
     /// reads the same whichever of the two produced it.
-    fn from_entries_libgit2(entries: Vec<StatusEntry>) -> Result<Self> {
+    ///
+    /// Adds original paths it leaves out because they are not valid UTF-8 to
+    /// `skipped`.
+    fn from_entries_libgit2(entries: Vec<StatusEntry>, skipped: &mut SkippedPaths) -> Self {
         let mut status = Self::default();
         for entry in entries {
             let path = entry.path;
@@ -1903,10 +2716,9 @@ impl GitStatus {
                 (b' ', b'A' | b'R') => {
                     if entry.worktree == b'R'
                         && let Some(orig_path) = &entry.orig_path
+                        && let Some(orig_path) = utf8_path(orig_path, skipped)
                     {
-                        status
-                            .unstaged_deleted_files
-                            .insert(path_from_bytes(orig_path)?);
+                        status.unstaged_deleted_files.insert(orig_path);
                     }
                     let empty =
                         std::fs::symlink_metadata(&path).is_ok_and(|m| m.is_file() && m.len() == 0);
@@ -1959,7 +2771,7 @@ impl GitStatus {
                 status.unstaged_files.insert(path);
             }
         }
-        Ok(status)
+        status
     }
 }
 
@@ -2101,6 +2913,10 @@ fn read_status_libgit2(
         unstaged_modified_files,
         unstaged_deleted_files,
         unstaged_renamed_files,
+        // libgit2 skips paths that are not valid UTF-8 without saying so, but
+        // these are queries for paths hk already knows
+        skipped_unstaged: false,
+        skipped_untracked: false,
     })
 }
 
@@ -2112,7 +2928,21 @@ fn libgit2_cannot_read_index(err: &eyre::Report) -> bool {
         .any(|e| e.class() == git2::ErrorClass::Index)
 }
 
-fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
+/// Paths a status read left out because they are not valid UTF-8, which hk
+/// cannot pass on to steps and templates.
+#[derive(Debug, Default)]
+struct SkippedPaths {
+    /// The paths, shown lossily
+    names: Vec<String>,
+    /// Whether any of them has changes in the worktree
+    unstaged: bool,
+    /// Whether any of them is untracked
+    untracked: bool,
+}
+
+/// Parses `git status --porcelain=v2 -z`, leaving out entries whose path is
+/// not valid UTF-8 and recording them in `skipped`.
+fn parse_porcelain_status(output: &[u8], skipped: &mut SkippedPaths) -> Result<Vec<StatusEntry>> {
     let malformed = |line: &[u8]| {
         eyre!(
             "unexpected git status entry: {}",
@@ -2152,30 +2982,48 @@ fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
         } else {
             None
         };
+        let Some(path) = utf8_path(fields[field_count], skipped) else {
+            // Stashing must still set the skipped file's changes aside
+            skipped.unstaged |= !matches!(worktree, b' ' | b'?');
+            skipped.untracked |= worktree == b'?';
+            continue;
+        };
         entries.push(StatusEntry {
             index,
             worktree,
             unmerged: fields[0] == b"u",
             // The HEAD and index object names of a rename or copy differ
             rename_modified: fields[0] == b"2" && fields[6] != fields[7],
-            path: path_from_bytes(fields[field_count])?,
+            path,
             orig_path,
         });
     }
     Ok(entries)
 }
 
-/// A path from git's status output.
-///
-/// hk cannot pass a path that is not valid UTF-8 on to steps and templates,
-/// so such a path is an error rather than silently left out of the status.
-fn path_from_bytes(bytes: &[u8]) -> Result<PathBuf> {
-    std::str::from_utf8(bytes).map(PathBuf::from).map_err(|_| {
-        eyre!(
-            "hk does not support paths that are not valid UTF-8, but git status lists {:?}",
-            String::from_utf8_lossy(bytes)
-        )
-    })
+/// A path from git's status output, or `None` after adding it to `skipped`
+/// when it is not valid UTF-8.
+fn utf8_path(bytes: &[u8], skipped: &mut SkippedPaths) -> Option<PathBuf> {
+    match std::str::from_utf8(bytes) {
+        Ok(path) => Some(PathBuf::from(path)),
+        Err(_) => {
+            skipped
+                .names
+                .push(String::from_utf8_lossy(bytes).into_owned());
+            None
+        }
+    }
+}
+
+/// Warns that a status read left out `skipped`, so that files hk does not
+/// check are not left out silently.
+fn warn_skipped_paths(skipped: &SkippedPaths) {
+    if !skipped.names.is_empty() {
+        warn!(
+            "skipped {} because hk cannot handle paths that are not valid UTF-8",
+            skipped.names.iter().map(|p| format!("{p:?}")).join(", ")
+        );
+    }
 }
 
 /// Whether `path` exists, counting broken symlinks, which
@@ -2236,6 +3084,22 @@ mod tests {
         .into_bytes()
     }
 
+    /// Entries of `output`, none of which may be skipped.
+    fn parse(output: &[u8]) -> Vec<StatusEntry> {
+        let mut skipped = SkippedPaths::default();
+        let entries = parse_porcelain_status(output, &mut skipped).unwrap();
+        assert!(skipped.names.is_empty(), "{skipped:?}");
+        entries
+    }
+
+    /// The libgit2 classification of `entries`, none of which may be skipped.
+    fn libgit2(entries: Vec<StatusEntry>) -> GitStatus {
+        let mut skipped = SkippedPaths::default();
+        let status = GitStatus::from_entries_libgit2(entries, &mut skipped);
+        assert!(skipped.names.is_empty(), "{skipped:?}");
+        status
+    }
+
     fn paths(dir: &std::path::Path, names: &[&str]) -> BTreeSet<PathBuf> {
         names.iter().map(|name| dir.join(name)).collect()
     }
@@ -2244,8 +3108,8 @@ mod tests {
     fn test_porcelain_status_classified_like_libgit2() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
-        let entries = parse_porcelain_status(&sample(d)).unwrap();
-        let status = GitStatus::from_entries_libgit2(entries).unwrap();
+        let entries = parse(&sample(d));
+        let status = libgit2(entries);
         let staged = ["staged.txt", "renamed.txt", "ita.txt", "empty_ita.txt"];
         let staged = [&staged[..], &["ita_moved.txt", "conflict.txt"]].concat();
         assert_eq!(status.staged_files, paths(d, &staged));
@@ -2282,7 +3146,7 @@ mod tests {
     fn test_porcelain_status_classified_like_git() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
-        let entries = parse_porcelain_status(&sample(d)).unwrap();
+        let entries = parse(&sample(d));
         let status = GitStatus::from_entries(entries);
         assert_eq!(
             status.staged_files,
@@ -2319,11 +3183,8 @@ mod tests {
             d.display(),
             d.display()
         );
-        let entries = || parse_porcelain_status(output.as_bytes()).unwrap();
-        for status in [
-            GitStatus::from_entries_libgit2(entries()).unwrap(),
-            GitStatus::from_entries(entries()),
-        ] {
+        let entries = || parse(output.as_bytes());
+        for status in [libgit2(entries()), GitStatus::from_entries(entries())] {
             assert!(status.staged_files.is_empty());
             assert!(status.staged_added_files.is_empty());
             assert!(status.unstaged_files.is_empty());
@@ -2333,30 +3194,63 @@ mod tests {
     }
 
     #[test]
-    fn test_porcelain_status_rejects_paths_that_are_not_utf8() {
+    fn test_porcelain_status_skips_paths_that_are_not_utf8() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().display();
+        std::fs::write(dir.path().join("ok.txt"), "x").unwrap();
         let a = "a".repeat(40);
-        let staged = format!("1 A. N... 000000 100644 100644 {a} {a} bad");
-        let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 bad");
-        for (output, shown) in [
-            (
-                [staged.as_bytes(), b"\xff.txt\0"].concat(),
-                "bad\u{fffd}.txt",
-            ),
-            (b"? bad\xfe.txt\0".to_vec(), "bad\u{fffd}.txt"),
-            (
-                [renamed.as_bytes(), b"\xfd.txt\0old.txt\0"].concat(),
-                "bad\u{fffd}.txt",
-            ),
-        ] {
-            let err = parse_porcelain_status(&output).err().unwrap();
-            assert!(err.to_string().contains(shown), "{err}");
-        }
+        let output = [
+            format!("1 A. N... 000000 100644 100644 {a} {a} {d}/bad").as_bytes(),
+            b"\xff.txt\0? bad\xfe.txt\0",
+            format!("2 R. N... 100644 100644 100644 {a} {a} R100 {d}/bad").as_bytes(),
+            b"\xfd.txt\0old.txt\0",
+            format!("1 A. N... 000000 100644 100644 {a} {a} {d}/ok.txt\0").as_bytes(),
+        ]
+        .concat();
+        let mut skipped = SkippedPaths::default();
+        let entries = parse_porcelain_status(&output, &mut skipped).unwrap();
+        assert_eq!(
+            skipped.names,
+            [
+                format!("{d}/bad\u{fffd}.txt"),
+                "bad\u{fffd}.txt".to_string(),
+                format!("{d}/bad\u{fffd}.txt"),
+            ]
+        );
+        // Only the untracked one needs stashing: the others are staged
+        assert!(!skipped.unstaged);
+        assert!(skipped.untracked);
+        let mut status = GitStatus::from_entries(entries);
+        status.set_skipped(&skipped);
+        assert_eq!(status.staged_files, paths(dir.path(), &["ok.txt"]));
+        assert!(status.untracked_files.is_empty());
+        assert!(status.unstaged_files.is_empty());
+        // A skipped untracked file counts as a change to stash only with
+        // untracked files
+        assert!(status.has_unstaged_changes(true));
+        assert!(!status.has_unstaged_changes(false));
+
+        // A skipped file changed in the worktree always counts
+        let mut skipped = SkippedPaths::default();
+        let modified = format!("1 .M N... 100644 100644 100644 {a} {a} {d}/bad");
+        let modified = [modified.as_bytes(), b"\xfc.txt\0"].concat();
+        assert!(
+            parse_porcelain_status(&modified, &mut skipped)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(skipped.unstaged);
+        assert!(!skipped.untracked);
+        let mut status = GitStatus::default();
+        status.set_skipped(&skipped);
+        assert!(status.has_unstaged_changes(false));
     }
 
     #[test]
     fn test_porcelain_status_checks_rename_sources_only_where_used() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path().display();
+        std::fs::write(dir.path().join("new.txt"), "x").unwrap();
         let a = "a".repeat(40);
         let staged = format!("2 R. N... 100644 100644 100644 {a} {a} R100 {d}/new.txt\0old");
         let staged = [staged.as_bytes(), b"\xfd.txt\0"].concat();
@@ -2364,31 +3258,55 @@ mod tests {
         let worktree = [worktree.as_bytes(), b"\xfd.txt\0"].concat();
 
         // Neither classification uses the source of a staged rename
-        let status = GitStatus::from_entries_libgit2(parse_porcelain_status(&staged).unwrap());
-        assert_eq!(
-            status.unwrap().staged_renamed_files,
-            paths(dir.path(), &["new.txt"])
-        );
-        let status = GitStatus::from_entries(parse_porcelain_status(&worktree).unwrap());
+        let status = libgit2(parse(&staged));
+        assert_eq!(status.staged_renamed_files, paths(dir.path(), &["new.txt"]));
+        let status = GitStatus::from_entries(parse(&worktree));
         assert_eq!(
             status.unstaged_renamed_files,
             paths(dir.path(), &["new.txt"])
         );
         // The libgit2 classification lists the source of a worktree rename
-        // as deleted
-        let err = GitStatus::from_entries_libgit2(parse_porcelain_status(&worktree).unwrap())
-            .err()
-            .unwrap();
-        assert!(err.to_string().contains("old\u{fffd}.txt"), "{err}");
+        // as deleted, so it skips one that is not valid UTF-8 and keeps the
+        // destination
+        let mut skipped = SkippedPaths::default();
+        let status = GitStatus::from_entries_libgit2(parse(&worktree), &mut skipped);
+        assert_eq!(skipped.names, ["old\u{fffd}.txt"]);
+        assert!(status.unstaged_deleted_files.is_empty());
+        assert_eq!(status.staged_added_files, paths(dir.path(), &["new.txt"]));
     }
 
     #[test]
-    fn test_porcelain_status_rejects_unknown_entries() {
-        assert!(parse_porcelain_status(b"3 what\0").is_err());
-        assert!(parse_porcelain_status(b"1 M. N... 100644\0").is_err());
+    fn test_porcelain_status_rejects_malformed_entries() {
+        let parse = |output: &[u8]| parse_porcelain_status(output, &mut SkippedPaths::default());
+        assert!(parse(b"3 what\0").is_err());
+        assert!(parse(b"1 M. N... 100644\0").is_err());
         let a = "a".repeat(40);
         // A rename without its original path
         let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 new.txt");
-        assert!(parse_porcelain_status(renamed.as_bytes()).is_err());
+        assert!(parse(renamed.as_bytes()).is_err());
+        // Malformed even though the path is not valid UTF-8
+        assert!(parse(b"1 M. bad\xff.txt\0").is_err());
+    }
+
+    #[test]
+    fn test_shell_quote() {
+        let quote = |arg: &str| shell_quote(std::ffi::OsStr::new(arg));
+        assert_eq!(quote("plain.txt"), "'plain.txt'");
+        assert_eq!(quote("O'Brien.txt"), r"'O'\''Brien.txt'");
+        assert_eq!(quote("with space $HOME"), "'with space $HOME'");
+        assert_eq!(quote("stash@{0}^3"), "'stash@{0}^3'");
+        #[cfg(unix)]
+        {
+            let name = OsString::from_vec(b"bad\xff'\\.txt".to_vec());
+            assert_eq!(shell_quote(&name), r"$'bad\xff\'\\.txt'");
+        }
+    }
+
+    #[test]
+    fn test_restore_command() {
+        assert_eq!(
+            restore_command("stash@{0}^3", std::path::Path::new("dir/O'Brien.txt")),
+            r"git restore --source='stash@{0}^3' -- ':(literal)dir/O'\''Brien.txt'"
+        );
     }
 }
