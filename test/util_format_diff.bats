@@ -103,3 +103,23 @@ EOF
     run cat b.txt
     assert_output "SAME"
 }
+
+@test "util format-diff treats a formatter that stops reading early as a failure" {
+    # It exits 0 after reading part of a large file, so its output is only
+    # part of the formatted file.
+    head -c 1048576 /dev/zero | tr '\0' 'a' > big.txt
+    echo >> big.txt
+
+    run --separate-stderr hk util format-diff big.txt -- sh -c 'head -c 5; exit 0'
+    assert_failure
+    refute_output
+    [[ "$stderr" == *"big.txt: writing to sh"* ]]
+}
+
+@test "util format-diff --no-stdin runs a formatter that reads the file itself" {
+    printf 'hello\n' > a.txt
+
+    run --separate-stderr hk util format-diff --no-stdin a.txt -- sh -c 'tr a-z A-Z < "$1"' _ {}
+    assert_failure 1
+    assert_output $'--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-hello\n+HELLO'
+}

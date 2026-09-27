@@ -7,11 +7,11 @@ description: "Arguments and options for hk util format-diff."
 
 # `hk util format-diff`
 
-- **Usage:** `hk util format-diff <FILES>… <-- COMMAND>…`
+- **Usage:** `hk util format-diff [--no-stdin] <FILES>… <-- COMMAND>…`
 
 Print a patch of what a formatter would change, for a `check_diff` command
 
-Runs COMMAND once for each file, with the file on stdin, and compares what it prints with the file. `{}` in COMMAND is replaced with the file's path, for formatters that take the path of their input as an option. Files are formatted in parallel.
+Runs COMMAND once for each file, with the file on stdin, and compares what it prints with the file. `{}` in COMMAND is replaced with the file's path, for formatters that take the path of their input as an option. With `--no-stdin`, COMMAND reads the file itself, from the path `{}` gives it. Files are formatted in parallel.
 
 Prints a unified diff for every file that would change and exits 1, or exits 0 when none would. If COMMAND fails for any file, or prints nothing for a file that isn't empty, no patch is printed: its error output is shown and hk runs the step's fixer instead.
 
@@ -24,6 +24,7 @@ Example: `hk util format-diff a.lua b.lua -- stylua --stdin-filepath {} -`
 
 ## Flags
 
+- **`--no-stdin`** — Give COMMAND no stdin, for a formatter that reads the file at `{}`
 - **`-h --help`** — Print help
 
 <!-- hk documentation examples -->

@@ -76,6 +76,7 @@
 - [util fix-byte-order-marker](https://hk.jdx.dev/cli/util/fix-byte-order-marker.html): Remove UTF-8 byte order marker (BOM)
 - [util fix-smart-quotes](https://hk.jdx.dev/cli/util/fix-smart-quotes.html): Replace smart quotes with plain ASCII quotes
 - [util forbid-submodules](https://hk.jdx.dev/cli/util/forbid-submodules.html): Check that the repository contains no git submodules
+- [util format-diff](https://hk.jdx.dev/cli/util/format-diff.html): Print a patch of what a formatter would change, for a check_diff command
 - [util mixed-line-ending](https://hk.jdx.dev/cli/util/mixed-line-ending.html): Detect and fix mixed line endings
 - [util no-commit-to-branch](https://hk.jdx.dev/cli/util/no-commit-to-branch.html): Prevent commits to specific branches
 - [util python-check-ast](https://hk.jdx.dev/cli/util/python-check-ast.html): Check Python files for valid syntax

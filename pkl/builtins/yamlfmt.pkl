@@ -24,8 +24,17 @@ yamlfmt = new Config.Step {
         list=$(yamlfmt -dry -quiet {{ files }})
         set --
         # After a heading, `-dry -quiet` lists the files that would change.
+        # Anything else it lists, such as part of a name containing a newline,
+        # prints no patch, so hk runs the fixer instead of skipping the file.
         while IFS= read -r f; do
-        [ -f "$f" ] && set -- "$@" "$f"
+        case $f in
+        '' | 'The following files would be formatted:') continue ;;
+        esac
+        if [ ! -f "$f" ]; then
+        echo "yamlfmt listed a file that does not exist: $f" >&2
+        exit 1
+        fi
+        set -- "$@" "$f"
         done <<EOF
         $list
         EOF

@@ -31,19 +31,24 @@ taplo_format = new Config.Step {
         out=$(taplo format --check --colors never {{ files }} 2>&1) && exit 0
         status=$?
         set --
+        other=0
         while IFS= read -r line; do
         case $line in
         *'not properly formatted path="'*)
           f=${line#*path=\"}
           set -- "$@" "${f%\"}"
           ;;
+        *'some files were not properly formatted'*) ;;
+        # taplo prints a syntax error as `error: invalid TOML`.
+        *[Ee][Rr][Rr][Oo][Rr]*) other=1 ;;
         esac
         done <<EOF
         $out
         EOF
-        # Nothing listed means taplo failed for another reason, such as a
-        # syntax error: print no patch, and the fixer reports it.
-        if [ $# -eq 0 ]; then
+        # Any other error, such as a syntax error, means taplo can't format
+        # every file: print no patch, and the fixer reports it. A patch for
+        # the rest would let hk report success.
+        if [ $# -eq 0 ] || [ "$other" = 1 ]; then
         printf '%s\n' "$out" >&2
         exit $status
         fi
