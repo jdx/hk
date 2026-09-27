@@ -160,11 +160,12 @@ function race(key: RaceKey, scenarios: unknown[], subjects: Json): Race | null {
 }
 
 /**
- * The results schemas the reel reads. Schema 3 (benchmarks.data.ts's) added
- * type checkers and the small commit but left every field read here as it
- * was, so the frozen schema-2 runs the tests race stay readable.
+ * The results schemas the reel reads. Schema 3 added type checkers and the
+ * small commit, and schema 4 (benchmarks.data.ts's) an unused import for ruff
+ * check to fix, but both left every field read here as it was, so the frozen
+ * schema-2 runs the tests race stay readable.
  */
-const SCHEMAS: readonly number[] = [2, 3];
+const SCHEMAS: readonly number[] = [2, 3, 4];
 
 /**
  * The workload and the best race in a published run, or null for a run that
