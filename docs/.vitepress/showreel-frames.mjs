@@ -19,9 +19,11 @@
 //   --beats         explicit beats; --times explicit global seconds
 //   --every <b>     every b beats from the start; combines with the others
 //   --facts         the benchmark facts: both races (the frozen run in
-//                   test/results-36078397814.json, the default), one (only
-//                   Fix every file, test/published.ts oneClaim), none
-//                   (facts null), or live (benchmark/results.json)
+//                   test/results-36268162842.json, the default), one (only
+//                   Fix every file: the earlier run in
+//                   test/results-36078397814.json, test/published.ts
+//                   oneClaim), none (facts null), or live
+//                   (benchmark/results.json)
 //   --raw           no vignette, captions or grain (compare scene pixels)
 //   --scale <k>     output size as a fraction of 1920×1080 (default 1)
 //   --sheet         also write a labelled contact sheet; --sheet-only skips

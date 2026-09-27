@@ -7,9 +7,10 @@
 // BenchmarkResults.vue) plus the reel's: a race is drawn only when hk is
 // clearly ahead of the fastest other tool.
 //
-// The commit scenario (`fix-staged`) is deliberately not representable: the
-// reel shows only whole-repository runs and sends viewers to the page for
-// the rest.
+// The reel races two scenarios, in this order: the commit (`fix-staged`, one
+// pre-commit hook on the staged files) and Fix every file (`fix-all`). The
+// read-only Check every file (`check-all`) is not representable: the reel
+// sends viewers to the page for it and for every other figure.
 
 /** One tool's timings in one scenario: what the page's `separated` reads. */
 export interface Stats {
@@ -30,13 +31,13 @@ export interface Row extends Stats {
   shown: string;
 }
 
-export type RaceKey = "fix-all" | "check-all";
+export type RaceKey = "fix-staged" | "fix-all";
 
 /** One scenario the reel races: hk against every other tool. */
 export interface Race {
   /** Looked up by key, never by index. */
   key: RaceKey;
-  /** scenarios[].title, "Fix every file". */
+  /** scenarios[].title, "Commit" or "Fix every file". */
   title: string;
   /** scenarios[].summary, drawn verbatim as a detail line. */
   summary: string;
@@ -49,10 +50,16 @@ export interface Race {
 }
 
 export interface ReelFacts {
-  /** "6,157" files, 10 fixers, 8 CPUs: the run's workload and machine. */
+  /**
+   * The repository every race ran in, "6,157" files, with 10 fixers on 8
+   * CPUs. The file count is the repository's size, not what each race
+   * timed: the commit times only its staged files.
+   */
   workload: { files: string; fixers: number; cpus: number };
+  /** The commit scenario, `fix-staged`: raced first. */
+  commit: Race | null;
+  /** Fix every file, `fix-all`: raced second. */
   fixAll: Race | null;
-  checkAll: Race | null;
 }
 
 /** A duration as the benchmarks page prints it (BenchmarkResults.vue). */
@@ -153,16 +160,16 @@ export function factsFromBenchmarks(results: unknown): ReelFacts | null {
   if (problems !== undefined && !(Array.isArray(problems) && problems.length === 0)) return null;
   if (!Array.isArray(scenarios) || !isObject(subjects)) return null;
   if (!allCorrect(scenarios)) return null;
-  // The workload line states what every race measured, so a run without one
-  // states nothing.
+  // The workload line states the repository and machine every race ran on,
+  // so a run without one states nothing.
   if (!isObject(workload) || !isObject(machine)) return null;
   if (!count(workload.files) || !Array.isArray(workload.fixers) || !workload.fixers.length || !count(machine.cpus)) return null;
   return {
     workload: { files: workload.files.toLocaleString("en-US"), fixers: workload.fixers.length, cpus: machine.cpus },
+    commit: race("fix-staged", scenarios, subjects),
     fixAll: race("fix-all", scenarios, subjects),
-    checkAll: race("check-all", scenarios, subjects),
   };
 }
 
-/** The races the facts back, in the order the reel runs them. */
-export const races = (f: ReelFacts | null): Race[] => [f?.fixAll ?? null, f?.checkAll ?? null].filter((r): r is Race => r !== null);
+/** The races the facts back, in the order the reel runs them: the commit, then Fix every file. */
+export const races = (f: ReelFacts | null): Race[] => [f?.commit ?? null, f?.fixAll ?? null].filter((r): r is Race => r !== null);

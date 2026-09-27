@@ -270,7 +270,7 @@ try {
   const full = await page.evaluate(() => window.reel.duration);
   const duration = Math.min(opts.until ?? full, full);
   const claims = await page.evaluate(() =>
-    [window.facts?.fixAll, window.facts?.checkAll].filter(Boolean).map((race) => `${race.title} ${race.claim.ratio}× vs ${race.claim.rival.label}`),
+    [window.facts?.commit, window.facts?.fixAll].filter(Boolean).map((race) => `${race.title} ${race.claim.ratio}× vs ${race.claim.rival.label}`),
   );
   console.log(
     `Benchmark facts (${opts.facts}): ${claims.length ? claims.join("; ") : "no race claims"}; rendering ${duration} of ${full} s`,

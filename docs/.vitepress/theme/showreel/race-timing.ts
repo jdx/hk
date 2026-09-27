@@ -19,8 +19,8 @@ export interface RaceRun {
   order: readonly string[];
 }
 
-// The first race the facts back runs from b1 over 2.5 beats; a second (check
-// every file) runs from b9 over one beat.
+// The first race the facts back runs from b1 over 2.5 beats; a second (Fix
+// every file, after the commit) runs from b9 over one beat.
 const WINDOWS = [
   { start: 1, span: 2.5 },
   { start: 9, span: 1 },

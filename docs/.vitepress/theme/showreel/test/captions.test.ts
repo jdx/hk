@@ -1,8 +1,8 @@
 // The captions' reading rules (type.ts): every must-read line holds long
 // enough to read, two-line captions hold all their words, and captions never
 // share the screen. Checked for every scene's captions under today's
-// figures, with exactly one claim, with a run that backs no claim, and with
-// no facts at all.
+// figures, with exactly one claim (the previous run's, and the commit
+// alone), with a run that backs no claim, and with no facts at all.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -15,6 +15,7 @@ import { noClaim, oneClaim, today } from "./published";
 const VARIANTS: [string, ReelFacts | null][] = [
   ["facts", today()],
   ["one claim", oneClaim()],
+  ["only the commit", { ...today(), fixAll: null }],
   ["no claim", noClaim()],
   ["no facts", null],
 ];
@@ -150,6 +151,7 @@ test("words are counted as captions.py counts them", () => {
   assert.equal(wordCount("After `hk install`, `git commit`"), 5);
   assert.equal(wordCount("so linters see only what you staged."), 7);
   assert.equal(wordCount("Fix every file: 1.3× faster"), 5);
+  assert.equal(wordCount("Commit: 1.6× faster"), 3);
   assert.equal(wordCount("Can't be fixed?"), 3);
   assert.equal(readingTime(4), 1.5);
   // At 120 BPM a line holds words / 2 + 1 beats.
@@ -162,9 +164,10 @@ test("the race states its ratios from the facts, and a line with no number witho
     (race?.captions?.(facts) ?? []).flatMap((c) => c.lines.map((l) => plain(l.text))).join(" / ");
   assert.equal(
     text(today()),
-    "Fix every file: 1.3× faster / than the fastest other tool. / Check every file: 1.8× faster / than the fastest other tool.",
+    "Commit: 1.6× faster / than the fastest other tool. / Fix every file: 1.2× faster / than the fastest other tool.",
   );
   assert.equal(text(oneClaim()), "Fix every file: 1.3× faster / than the fastest other tool. / Timed only when the files are right.");
+  assert.equal(text({ ...today(), fixAll: null }), "Commit: 1.6× faster / than the fastest other tool. / Timed only when the files are right.");
   assert.equal(text(noClaim()), "Independent steps run in parallel.");
   assert.equal(text(null), "Independent steps run in parallel.");
 });

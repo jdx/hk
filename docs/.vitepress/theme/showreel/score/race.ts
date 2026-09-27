@@ -17,11 +17,12 @@
 // hands. The groove's hits rest around each stop, so none flams with a
 // bell or passes for the stop. The bracket ticks in and a glint runs
 // across hk's bar. Between two races the bars draw back on a reversed
-// breath, with a spring when a tool changes rank; with one, a softer glint
-// crosses hk's bar in the middle of the long hold, and a soft ping runs
-// down the bars as its hold's caption lands. With no race to run (no
-// facts, or none backed), hk's own check run plays instead, and each of
-// its ✔ rows lands on a pluck.
+// breath, with a spring as the rows re-sort when any tool changes rank,
+// whichever way it moves and however far; with one, a softer glint crosses
+// hk's bar in the middle of the long hold, and a soft ping runs down the
+// bars as its hold's caption lands. With no race to run (no facts, or none
+// backed), hk's own check run plays instead, and each of its ✔ rows lands
+// on a pluck.
 
 import type { Part } from ".";
 import type { ReelFacts } from "../facts";
@@ -135,7 +136,7 @@ function rollCall(m: Mix, s: Section, run: RaceRun): void {
   });
 }
 
-/** Between the races: the bars draw back on a reversed breath, and a spring if a tool changes rank. */
+/** Between the races: the bars draw back on a reversed breath, and a spring on the re-sort (REORDER) if any tool changes rank. */
 function reset(m: Mix, s: Section, before: RaceRun, after: RaceRun): void {
   const t0 = s.at(RESET[0]);
   const t1 = s.at(REORDER[1]);

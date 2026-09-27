@@ -1,8 +1,9 @@
-// The benchmark runs the facts tests read: today's published run, frozen
-// beside the tests so their figures do not move when a benchmark refresh
-// lands, and the live benchmark/results.json as the page and the renderer
-// load it. Also the facts variants the reel must survive, which the frames
-// preview (showreel-frames.mjs --facts) renders from the same functions.
+// The benchmark runs the facts tests read: today's published run and the
+// one before it, frozen beside the tests so their figures do not move when a
+// benchmark refresh lands, and the live benchmark/results.json as the page
+// and the renderer load it. Also the facts variants the reel must survive,
+// which the frames preview (showreel-frames.mjs --facts) renders from the
+// same functions.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -13,12 +14,21 @@ import { REPO, SHOWREEL } from "./repo";
 /** Parsed JSON, which the tests garble on purpose. */
 type Json = any;
 
+/** A frozen run, parsed afresh on every call, so a test can garble its copy. */
+const frozen = (run: string): Json => JSON.parse(readFileSync(join(SHOWREEL, `test/results-${run}.json`), "utf8"));
+
 /**
- * benchmark/results.json as workflow run 36078397814 published it (hk 2.2.0
- * against lefthook, pre-commit and prek). Parsed afresh on every call, so a
- * test can garble its copy.
+ * benchmark/results.json as workflow run 36268162842 published it (hk 2.3.0
+ * against lefthook, pre-commit and prek): hk is clearly ahead in the commit
+ * and in Fix every file, so both races are drawn.
  */
-export const published = (): Json => JSON.parse(readFileSync(join(SHOWREEL, "test/results-36078397814.json"), "utf8"));
+export const published = (): Json => frozen("36268162842");
+
+/**
+ * The run before it, 36078397814 (hk 2.2.0): lefthook was faster in the
+ * commit, so only Fix every file races. Real data for the one-claim variant.
+ */
+export const previous = (): Json => frozen("36078397814");
 
 /** The live benchmark/results.json through the loaders' own check (benchmarks.data.ts). */
 export function live(): Json {
@@ -61,26 +71,26 @@ export function unseparate(run: Json, key: RaceKey): Json {
   return run;
 }
 
-/** The facts today's run gives: both races, with the frozen run's figures. */
+/** The facts today's run gives: both races, the commit and Fix every file, with the frozen run's figures. */
 export function today(): ReelFacts {
   const facts = factsFromBenchmarks(published());
-  assert.ok(facts, "today's run gives no facts");
+  assert.ok(facts?.commit && facts.fixAll, "today's run does not give both races");
   return facts;
 }
 
 /**
- * Today's run with exactly one claim (F1): Check every file made level with
- * the fastest other tool, so only Fix every file races.
+ * Exactly one claim (F1), from a real run: the previous one, in which
+ * lefthook was faster in the commit, so only Fix every file races.
  */
 export function oneClaim(): ReelFacts {
-  const facts = factsFromBenchmarks(unseparate(published(), "check-all"));
-  assert.ok(facts?.fixAll && !facts.checkAll, "the one-claim run does not give exactly Fix every file");
+  const facts = factsFromBenchmarks(previous());
+  assert.ok(facts?.fixAll && !facts.commit, "the previous run does not give exactly Fix every file");
   return facts;
 }
 
 /** Facts that back no claim: a sound run in which hk won nothing (F0, with a workload). */
 export function noClaim(): ReelFacts {
-  return { ...today(), fixAll: null, checkAll: null };
+  return { ...today(), commit: null, fixAll: null };
 }
 
 /** The facts variants the reel is reviewed and tested under. */

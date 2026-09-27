@@ -7,6 +7,7 @@ import { LATENCY, X } from "../score/mix";
 import { GAP } from "../score/morph";
 import { raceRuns } from "../race-timing";
 import { F0_EACH, F0_FIRST } from "../scenes/race";
+import { REORDER } from "../scenes/race-chart";
 import { arc, PARTS } from "../score";
 import { BEAT, DURATION, SECTIONS, sec } from "../timeline";
 import { MockContext } from "./mock-audio";
@@ -127,6 +128,25 @@ test("each bar in the benchmark race stops on a sound, only when the facts back 
       assert.ok(!soundsAt(starts, t), `${variant}: a sound at ${t.toFixed(4)}, where a race the facts do not back would stop`);
     }
   }
+});
+
+test("a spring sounds as the rows re-sort between two races, only when a tool changes rank", () => {
+  const race = sec("race");
+  const at = race.at(REORDER[0]);
+  /** Sawtooth sources starting on the re-sort's first frame, in reel seconds: the spring (score/race.ts reset). */
+  const springs = (facts: ReelFacts | null): number => {
+    const ac = render(0, facts);
+    const saws = new Set(ac.calls.filter((c) => c.method === "type=" && c.args[0] === "sawtooth").map((c) => c.target));
+    return spans(ac).filter((s) => saws.has(s.target) && Math.abs(s.start + LATENCY - at) < 0.001).length;
+  };
+  assert.equal(springs(factsFor("both")), 1, "both races: lefthook falls, so the rows spring");
+  assert.equal(springs(factsFor("one")), 0, "one race: no re-sort");
+  assert.equal(springs(factsFor("none")), 0, "no race: no re-sort");
+  // Two races that rank the tools alike: the rows hold still, and so does the spring.
+  const both = factsFor("both")!;
+  const alike = { ...both, fixAll: { ...both.commit!, key: "fix-all" as const, title: both.fixAll!.title } };
+  assert.equal(raceRuns(alike).length, 2);
+  assert.equal(springs(alike), 0, "the same ranks: no spring");
 });
 
 test("with no race, each ✔ row of hk's check run, and the 7/7, sounds on the frame it lands", () => {

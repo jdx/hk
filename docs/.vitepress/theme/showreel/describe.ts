@@ -21,20 +21,24 @@ function list(items: readonly string[]): string {
 const caption = (...lines: string[]): string => `Caption: ${lines.join(" ")}`;
 
 /**
- * One race as a sentence: every row the chart draws, with its mode and its
+ * One race: its scenario in the words the chart's detail line gives it (for
+ * the commit, "About 60 staged files with defects, fixed by each tool's
+ * pre-commit hook."), then every row the chart draws, with its mode and its
  * median in the page's format, and the claim's ratio against the fastest
  * other tool.
  */
 function raceSentence(r: Race): string {
+  const summary = /[.!?]$/.test(r.summary) ? r.summary : `${r.summary}.`;
   const times = list(r.rows.map((x, i) => `${x.label} (${x.mode}) ${i === 0 ? "takes " : ""}${x.shown}`));
-  const task = r.title.charAt(0).toLowerCase() + r.title.slice(1);
-  return `To ${task}, ${times}: ${r.claim.ratio} times faster than the fastest other tool, ${r.claim.rival.label}.`;
+  return `${r.title}: ${summary} ${times}: ${r.claim.ratio} times faster than the fastest other tool, ${r.claim.rival.label}.`;
 }
 
 /**
- * The benchmark chapter, as the race scene draws it under `f`. Without a
- * race to draw, whether the run is missing or backs no claim, the scene
- * replays hk's own check run and points to the page.
+ * The benchmark chapter, as the race scene draws it under `f`: the races in
+ * the order they run, the commit first, and the chart's bottom detail
+ * (race-chart.ts FOOT), quoted. Without a race to draw, whether the run is
+ * missing or backs no claim, the scene replays hk's own check run and points
+ * to the page.
  */
 function race(f: ReelFacts | null): string {
   const drawn = races(f);
@@ -44,10 +48,11 @@ function race(f: ReelFacts | null): string {
       `${caption("Independent steps run in parallel.")} A note under the terminal reads Benchmarks: hk.jdx.dev/benchmarks.`
     );
   }
+  // The file count is the repository's, not what a race timed: the commit times its staged files.
   const { files, fixers, cpus } = f.workload;
-  const intro = `A bar chart race from hk's published benchmark: ${files} files, ${fixers} fixers, ${cpus} CPUs.`;
+  const intro = `A bar chart race from hk's published benchmark, run on a ${files}-file repository with ${fixers} fixers and ${cpus} CPUs.`;
   const one = drawn.length === 1 ? ` ${caption("Timed only when the files are right.")}` : "";
-  return `${intro} ${drawn.map(raceSentence).join(" ")}${one} Commit timings and every tool are on hk.jdx.dev/benchmarks.`;
+  return `${intro} ${drawn.map(raceSentence).join(" ")}${one} A note under the chart reads Every tool and scenario: hk.jdx.dev/benchmarks.`;
 }
 
 /** What each chapter shows, in the reel's order. */

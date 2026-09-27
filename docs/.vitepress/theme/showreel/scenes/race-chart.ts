@@ -11,8 +11,12 @@
 //
 // With two races the chart resets on b8.5: the bars reel back to the axis,
 // the figures wipe, and the rows re-sort by the second race's medians on a
-// spring (a tool that climbs two places jumps them) while the modes and the
-// summary swap. While a finished chart holds, the camera leans in a little.
+// spring while the modes and the summary swap. Wherever two rows cross, the
+// one that overtakes comes forward and the one it passes ducks back: a tool
+// that climbs two places or more jumps the rows it overtakes, one that
+// climbs less steps forward, and one that falls ducks under the rows that
+// overtake it (race.test.ts pins today's order and tries every other one).
+// While a finished chart holds, the camera leans in a little.
 // The labels, figures and details wipe on b14.5, on a soft edge, and the
 // bars ease into race|morph's four capsules by b15.75. With more than four
 // tools the rows close up, without modes or whiskers (rowGeom), and the
@@ -75,13 +79,14 @@ const NUB = 14;
 const WORKLOAD_AT = { x: 160, y: 150 } as const;
 const SUMMARY_AT = { x: 160, y: 196 } as const;
 /**
- * The bottom detail: the page has every scenario, the commit one included.
- * It sits under the bar column, ending on the right margin and starting no
- * further left than the axis, so it never reads as a third line under the
- * last row's name and mode; it shrinks to fit (40 px to a 30 px floor, like
- * the modes), and stays clear of the last whisker and the captions' band.
+ * The bottom detail: the page has every tool and every scenario, the ones
+ * the chart does not race included. It sits under the bar column, ending on
+ * the right margin and starting no further left than the axis, so it never
+ * reads as a third line under the last row's name and mode; it shrinks to
+ * fit (40 px to a 30 px floor, like the modes), and stays clear of the last
+ * whisker and the captions' band.
  */
-export const FOOT = "All tools and scenarios, including commits: hk.jdx.dev/benchmarks";
+export const FOOT = "Every tool and scenario: hk.jdx.dev/benchmarks";
 export const FOOT_AT = { x: 1760, y: 716 } as const;
 export const FOOT_MAX_W = FOOT_AT.x - X0;
 
@@ -172,7 +177,11 @@ export interface RaceView {
 }
 
 export interface ChartModel {
-  /** "6,157 files · 10 fixers · 8 CPUs". */
+  /**
+   * "6,157-file repo · 10 fixers · 8 CPUs": the repository every race ran
+   * in, not what a race timed (the commit timed its staged files), and the
+   * machine.
+   */
   workload: string;
   races: readonly RaceView[];
   /** Every subject, in the first race's row order, then any the second adds. */
@@ -253,7 +262,7 @@ export function chartModel(f: ReelFacts | null): ChartModel | null {
   const races = raceRuns(f).map(view);
   const keys = [...new Set(races.flatMap((r) => r.order))];
   const geom = rowGeom(Math.max(0, ...races.map((r) => r.order.length)));
-  const m = races.length ? { workload: `${f.workload.files} files · ${f.workload.fixers} fixers · ${f.workload.cpus} CPUs`, races, keys, geom } : null;
+  const m = races.length ? { workload: `${f.workload.files}-file repo · ${f.workload.fixers} fixers · ${f.workload.cpus} CPUs`, races, keys, geom } : null;
   models.set(f, m);
   return m;
 }
@@ -300,38 +309,78 @@ export const slotY = (i: number, n: number): number => {
   return n <= rows.length ? rows[i] : rows[0] + (i * (rows[rows.length - 1] - rows[0])) / (n - 1);
 };
 
-interface RowPos {
+export interface RowPos {
   y: number;
-  /** 0..1 how far through a jump of two or more places. */
+  /**
+   * Its layer while the rows re-sort: the places it climbs between the races
+   * (negative as it falls), on the re-sort's arc. A row that overtakes
+   * another climbs at least two places more than it, so drawing the rows by
+   * depth puts the one in front of every crossing last.
+   */
+  depth: number;
+  /** 0..1 how far it is in front of the rows it crosses, as it overtakes them: it draws over them, behind a halo. */
+  front: number;
+  /**
+   * 0..1 how far it swings out to the right and grows as it comes forward:
+   * all the way for a row that climbs LEAP places or more, which jumps the
+   * rows it overtakes; OVER for one that climbs less, which only steps
+   * forward, so its mode never reaches the axis.
+   */
   jump: number;
-  /** 0..1 how far through being passed by a jumping row: it ducks back. */
+  /** 0..1 how far it ducks back, stepping left and dimming, as other rows overtake it. */
   duck: number;
   alpha: number;
   /** Its row in the first race, which sets its whip layer. */
   first: number;
 }
 
-/** Where subject `key`'s row stands at `lt`: re-sorting on a spring between the two races. */
+/** A row that climbs this many places or more jumps the rows it overtakes. */
+const LEAP = 2;
+/** A row that climbs fewer swings this much of a jump: it only steps forward. */
+const OVER = 0.2;
+
+/**
+ * Where subject `key`'s row stands at `lt`: re-sorting on a spring between
+ * the two races. Rows that cross must not read through each other, so on
+ * every crossing, however far either row moves, the row that overtakes
+ * comes forward and the row it passes ducks back. A row that does both (the
+ * middle of a reversal) takes the side its own move puts it on, and neither
+ * if it ends where it began; its partners keep theirs, so every crossing
+ * still has a row in front or a row ducking.
+ */
 export function rowPos(m: ChartModel, key: string, lt: number): RowPos {
   const [A, B] = m.races;
   const ea = A.entries[key];
   const first = ea ? ea.row : m.keys.indexOf(key);
   const ya = slotY(ea ? ea.row : first, A.order.length);
-  if (!B) return { y: ya, jump: 0, duck: 0, alpha: ea ? 1 : 0, first };
+  if (!B) return { y: ya, depth: 0, front: 0, jump: 0, duck: 0, alpha: ea ? 1 : 0, first };
   const eb = B.entries[key];
   const yb = eb ? slotY(eb.row, B.order.length) : ya;
   const k = reorderK(lt);
   const u = progress(REORDER[0], REORDER[1], lt);
-  const places = ea && eb ? ea.row - eb.row : 0;
-  // Only rows a jumper passes duck: those it overtakes.
-  const passed = places < 0 && B.order.some((o) => {
-    const a2 = A.entries[o];
-    const b2 = B.entries[o];
-    return !!a2 && !!b2 && a2.row - b2.row >= 2 && a2.row > ea!.row && b2.row < eb!.row;
-  });
+  let places = 0;
+  let overtakes = false;
+  let passed = false;
+  if (ea && eb) {
+    places = ea.row - eb.row;
+    for (const o of m.keys) {
+      const a2 = A.entries[o];
+      const b2 = B.entries[o];
+      if (o === key || !a2 || !b2) continue;
+      if (a2.row < ea.row && b2.row > eb.row) overtakes = true;
+      if (a2.row > ea.row && b2.row < eb.row) passed = true;
+    }
+    if (overtakes && passed) {
+      overtakes = places > 0;
+      passed = places < 0;
+    }
+  }
   const alpha = ea && eb ? 1 : ea ? 1 - progress(RESET[0], RESET[1], lt) : progress(REORDER[0], REORDER[1], lt);
   const arc = Math.sin(Math.PI * u);
-  return { y: lerp(ya, yb, k), jump: places >= 2 ? arc : 0, duck: passed ? arc : 0, alpha, first };
+  const jump = overtakes ? (places >= LEAP ? 1 : OVER) : 0;
+  // At rest every row is on one level (and a faller's depth is 0, not -0).
+  const depth = arc > 0 ? places * arc : 0;
+  return { y: lerp(ya, yb, k), depth, front: overtakes ? arc : 0, jump: jump * arc, duck: passed ? arc : 0, alpha, first };
 }
 
 /** How far row `i` has eased into its capsule. */
@@ -646,7 +695,13 @@ interface BarNow {
   alpha: number;
   entry: Entry | undefined;
   race: RaceView;
+  pos: RowPos;
 }
+
+/** How much of its brightness a row keeps as it ducks all the way back: its labels, and its stub on the axis. */
+const DUCK_ALPHA = 0.15;
+/** How far a row's labels step left as it ducks all the way back, px: into the margin, clear of the rows coming forward. */
+const DUCK_STEP = 40;
 
 /** A waiting stub's width: crouching into the start, then left behind by the bar. */
 function nubAt(m: ChartModel, lt: number): number {
@@ -662,21 +717,25 @@ function barsAt(m: ChartModel, lt: number): BarNow[] {
   return m.keys.map((key) => {
     const pos = rowPos(m, key, lt);
     const len = barLen(m, key, lt);
-    return { key, cy: pos.y, x1: X0 + Math.max(len, nub), alpha: pos.alpha, entry: race.entries[key], race };
+    return { key, cy: pos.y, x1: X0 + Math.max(len, nub), alpha: pos.alpha, entry: race.entries[key], race, pos };
   });
 }
+
+/** Rows drawn back to front: those that duck first, those that come forward last, so every crossing reads in depth. */
+const byDepth = <T extends { pos: RowPos }>(rows: T[]): T[] => rows.sort((p, q) => p.pos.depth - q.pos.depth);
 
 function drawBars(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
   const last = lastRace(m);
   const fade = 1 - progress(MORPH, REST, lt);
-  for (const bar of barsAt(m, lt)) {
-    const { key, entry, race } = bar;
+  for (const bar of byDepth(barsAt(m, lt))) {
+    const { key, entry, race, pos } = bar;
     const s = barStyle(key);
     // Rides its track's whip layer while the chart arrives.
-    const layer = layerAt(L_TRACKS, rowPos(m, key, lt).first);
+    const layer = layerAt(L_TRACKS, pos.first);
     let x1 = bar.x1;
     let r = BAR_R;
-    let alpha = bar.alpha;
+    // A stub that ducks back dims with its labels, so it crosses the others behind them.
+    let alpha = bar.alpha * (1 - (1 - DUCK_ALPHA) * pos.duck);
     let cy = bar.cy;
     let h0 = m.geom.barH;
     // The exit: into its capsule, or away if the capsules have no row for it.
@@ -918,23 +977,22 @@ function drawLabels(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): v
   const [A, B] = m.races;
   const g = m.geom;
   const nameFont = font(g.name, 600);
-  // A row that jumps draws last, in front of the rows it passes.
-  const rows = m.keys.map((key) => ({ key, pos: rowPos(m, key, lt) })).sort((p, q) => p.pos.jump - q.pos.jump);
-  for (const { key, pos } of rows) {
+  for (const { key, pos } of byDepth(m.keys.map((key) => ({ key, pos: rowPos(m, key, lt) })))) {
     if (pos.alpha <= 0) continue;
     const e = race.entries[key] ?? A.entries[key] ?? B?.entries[key];
     if (!e) continue;
     const hk = key === "hk";
     const kick = lt >= race.start && race.entries[key] ? pulse(lt, race.entries[key].stop, 0.012, 0.1) : 0;
     const jump = pos.jump;
-    // Its halo comes up fast, so it is whole before it reaches the next row.
-    const halo = clamp(3 * jump);
+    // A row in front has a halo, which comes up fast, so it is whole before it reaches the next row.
+    const halo = clamp(3 * pos.front);
     inLayer(ctx, layerAt(L_LABELS, pos.first), lt, () => {
       ctx.save();
-      // A tool climbing two places jumps them: out to the right and up, a little larger,
-      // in front, while the rows it overtakes duck back and dim under it.
-      ctx.globalAlpha *= pos.alpha * (1 - 0.75 * pos.duck);
-      ctx.translate(NAME_X + 90 * jump - 18 * pos.duck, pos.y);
+      // A row coming forward swings out to the right, a little larger, in front;
+      // one ducking back steps left into the margin, a little smaller, and dims
+      // under it, so the little of it the row in front leaves uncovered is faint.
+      ctx.globalAlpha *= pos.alpha * (1 - (1 - DUCK_ALPHA) * pos.duck);
+      ctx.translate(NAME_X + 90 * jump - DUCK_STEP * pos.duck, pos.y);
       const s = 1 + 0.05 * kick + 0.08 * jump - 0.04 * pos.duck;
       ctx.scale(s, s);
       const base = hk ? PALETTE.logo : PALETTE.text1;
