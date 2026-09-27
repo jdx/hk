@@ -483,12 +483,15 @@ impl Git {
             args.push("--renames");
         }
         let output = git_read_bytes(args).wrap_err("failed to get git status")?;
-        let entries = parse_porcelain_status(&output)?;
-        Ok(if self.repo.is_some() {
-            GitStatus::from_entries_libgit2(entries)?
+        let mut skipped = Vec::new();
+        let entries = parse_porcelain_status(&output, &mut skipped)?;
+        let status = if self.repo.is_some() {
+            GitStatus::from_entries_libgit2(entries, &mut skipped)
         } else {
             GitStatus::from_entries(entries)
-        })
+        };
+        warn_skipped_paths(&skipped);
+        Ok(status)
     }
 
     /// Status of the paths matching `pathspec`, read without touching any
@@ -720,7 +723,10 @@ impl Git {
                 .stdout_capture()
                 .run()?
                 .stdout;
-            Ok(GitStatus::from_entries(parse_porcelain_status(&output)?))
+            let mut skipped = Vec::new();
+            let status = GitStatus::from_entries(parse_porcelain_status(&output, &mut skipped)?);
+            warn_skipped_paths(&skipped);
+            Ok(status)
         }
     }
 
@@ -1959,7 +1965,10 @@ impl GitStatus {
     /// Classifies entries of `git status --porcelain=v2 --renames` the way
     /// [`Git::read_status`] classifies libgit2's statuses, so that a status
     /// reads the same whichever of the two produced it.
-    fn from_entries_libgit2(entries: Vec<StatusEntry>) -> Result<Self> {
+    ///
+    /// Adds original paths it leaves out because they are not valid UTF-8 to
+    /// `skipped`.
+    fn from_entries_libgit2(entries: Vec<StatusEntry>, skipped: &mut Vec<String>) -> Self {
         let mut status = Self::default();
         for entry in entries {
             let path = entry.path;
@@ -1985,10 +1994,9 @@ impl GitStatus {
                 (b' ', b'A' | b'R') => {
                     if entry.worktree == b'R'
                         && let Some(orig_path) = &entry.orig_path
+                        && let Some(orig_path) = utf8_path(orig_path, skipped)
                     {
-                        status
-                            .unstaged_deleted_files
-                            .insert(path_from_bytes(orig_path)?);
+                        status.unstaged_deleted_files.insert(orig_path);
                     }
                     let empty =
                         std::fs::symlink_metadata(&path).is_ok_and(|m| m.is_file() && m.len() == 0);
@@ -2041,7 +2049,7 @@ impl GitStatus {
                 status.unstaged_files.insert(path);
             }
         }
-        Ok(status)
+        status
     }
 }
 
@@ -2064,7 +2072,9 @@ struct StatusEntry {
     orig_path: Option<Vec<u8>>,
 }
 
-fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
+/// Parses `git status --porcelain=v2 -z`, leaving out entries whose path is
+/// not valid UTF-8 and adding those paths to `skipped`.
+fn parse_porcelain_status(output: &[u8], skipped: &mut Vec<String>) -> Result<Vec<StatusEntry>> {
     let malformed = |line: &[u8]| {
         eyre!(
             "unexpected git status entry: {}",
@@ -2104,30 +2114,44 @@ fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
         } else {
             None
         };
+        let Some(path) = utf8_path(fields[field_count], skipped) else {
+            continue;
+        };
         entries.push(StatusEntry {
             index,
             worktree,
             unmerged: fields[0] == b"u",
             // The HEAD and index object names of a rename or copy differ
             rename_modified: fields[0] == b"2" && fields[6] != fields[7],
-            path: path_from_bytes(fields[field_count])?,
+            path,
             orig_path,
         });
     }
     Ok(entries)
 }
 
-/// A path from git's status output.
-///
-/// hk cannot pass a path that is not valid UTF-8 on to steps and templates,
-/// so such a path is an error rather than silently left out of the status.
-fn path_from_bytes(bytes: &[u8]) -> Result<PathBuf> {
-    std::str::from_utf8(bytes).map(PathBuf::from).map_err(|_| {
-        eyre!(
-            "hk does not support paths that are not valid UTF-8, but git status lists {:?}",
-            String::from_utf8_lossy(bytes)
-        )
-    })
+/// A path from git's status output, or `None` after adding it to `skipped`
+/// when it is not valid UTF-8: hk cannot pass such a path on to steps and
+/// templates.
+fn utf8_path(bytes: &[u8], skipped: &mut Vec<String>) -> Option<PathBuf> {
+    match std::str::from_utf8(bytes) {
+        Ok(path) => Some(PathBuf::from(path)),
+        Err(_) => {
+            skipped.push(String::from_utf8_lossy(bytes).into_owned());
+            None
+        }
+    }
+}
+
+/// Warns that a status read left out `skipped`, so that files hk does not
+/// check are not left out silently.
+fn warn_skipped_paths(skipped: &[String]) {
+    if !skipped.is_empty() {
+        warn!(
+            "skipped {} because hk cannot handle paths that are not valid UTF-8",
+            skipped.iter().map(|p| format!("{p:?}")).join(", ")
+        );
+    }
 }
 
 /// Whether `path` exists, counting broken symlinks, which
@@ -2188,6 +2212,22 @@ mod tests {
         .into_bytes()
     }
 
+    /// Entries of `output`, none of which may be skipped.
+    fn parse(output: &[u8]) -> Vec<StatusEntry> {
+        let mut skipped = Vec::new();
+        let entries = parse_porcelain_status(output, &mut skipped).unwrap();
+        assert!(skipped.is_empty(), "{skipped:?}");
+        entries
+    }
+
+    /// The libgit2 classification of `entries`, none of which may be skipped.
+    fn libgit2(entries: Vec<StatusEntry>) -> GitStatus {
+        let mut skipped = Vec::new();
+        let status = GitStatus::from_entries_libgit2(entries, &mut skipped);
+        assert!(skipped.is_empty(), "{skipped:?}");
+        status
+    }
+
     fn paths(dir: &std::path::Path, names: &[&str]) -> BTreeSet<PathBuf> {
         names.iter().map(|name| dir.join(name)).collect()
     }
@@ -2196,8 +2236,8 @@ mod tests {
     fn test_porcelain_status_classified_like_libgit2() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
-        let entries = parse_porcelain_status(&sample(d)).unwrap();
-        let status = GitStatus::from_entries_libgit2(entries).unwrap();
+        let entries = parse(&sample(d));
+        let status = libgit2(entries);
         let staged = ["staged.txt", "renamed.txt", "ita.txt", "empty_ita.txt"];
         let staged = [&staged[..], &["ita_moved.txt", "conflict.txt"]].concat();
         assert_eq!(status.staged_files, paths(d, &staged));
@@ -2234,7 +2274,7 @@ mod tests {
     fn test_porcelain_status_classified_like_git() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
-        let entries = parse_porcelain_status(&sample(d)).unwrap();
+        let entries = parse(&sample(d));
         let status = GitStatus::from_entries(entries);
         assert_eq!(
             status.staged_files,
@@ -2271,11 +2311,8 @@ mod tests {
             d.display(),
             d.display()
         );
-        let entries = || parse_porcelain_status(output.as_bytes()).unwrap();
-        for status in [
-            GitStatus::from_entries_libgit2(entries()).unwrap(),
-            GitStatus::from_entries(entries()),
-        ] {
+        let entries = || parse(output.as_bytes());
+        for status in [libgit2(entries()), GitStatus::from_entries(entries())] {
             assert!(status.staged_files.is_empty());
             assert!(status.staged_added_files.is_empty());
             assert!(status.unstaged_files.is_empty());
@@ -2285,30 +2322,39 @@ mod tests {
     }
 
     #[test]
-    fn test_porcelain_status_rejects_paths_that_are_not_utf8() {
+    fn test_porcelain_status_skips_paths_that_are_not_utf8() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().display();
+        std::fs::write(dir.path().join("ok.txt"), "x").unwrap();
         let a = "a".repeat(40);
-        let staged = format!("1 A. N... 000000 100644 100644 {a} {a} bad");
-        let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 bad");
-        for (output, shown) in [
-            (
-                [staged.as_bytes(), b"\xff.txt\0"].concat(),
-                "bad\u{fffd}.txt",
-            ),
-            (b"? bad\xfe.txt\0".to_vec(), "bad\u{fffd}.txt"),
-            (
-                [renamed.as_bytes(), b"\xfd.txt\0old.txt\0"].concat(),
-                "bad\u{fffd}.txt",
-            ),
-        ] {
-            let err = parse_porcelain_status(&output).err().unwrap();
-            assert!(err.to_string().contains(shown), "{err}");
-        }
+        let output = [
+            format!("1 A. N... 000000 100644 100644 {a} {a} {d}/bad").as_bytes(),
+            b"\xff.txt\0? bad\xfe.txt\0",
+            format!("2 R. N... 100644 100644 100644 {a} {a} R100 {d}/bad").as_bytes(),
+            b"\xfd.txt\0old.txt\0",
+            format!("1 A. N... 000000 100644 100644 {a} {a} {d}/ok.txt\0").as_bytes(),
+        ]
+        .concat();
+        let mut skipped = Vec::new();
+        let entries = parse_porcelain_status(&output, &mut skipped).unwrap();
+        assert_eq!(
+            skipped,
+            [
+                format!("{d}/bad\u{fffd}.txt"),
+                "bad\u{fffd}.txt".to_string(),
+                format!("{d}/bad\u{fffd}.txt"),
+            ]
+        );
+        let status = GitStatus::from_entries(entries);
+        assert_eq!(status.staged_files, paths(dir.path(), &["ok.txt"]));
+        assert!(status.untracked_files.is_empty());
     }
 
     #[test]
     fn test_porcelain_status_checks_rename_sources_only_where_used() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path().display();
+        std::fs::write(dir.path().join("new.txt"), "x").unwrap();
         let a = "a".repeat(40);
         let staged = format!("2 R. N... 100644 100644 100644 {a} {a} R100 {d}/new.txt\0old");
         let staged = [staged.as_bytes(), b"\xfd.txt\0"].concat();
@@ -2316,31 +2362,33 @@ mod tests {
         let worktree = [worktree.as_bytes(), b"\xfd.txt\0"].concat();
 
         // Neither classification uses the source of a staged rename
-        let status = GitStatus::from_entries_libgit2(parse_porcelain_status(&staged).unwrap());
-        assert_eq!(
-            status.unwrap().staged_renamed_files,
-            paths(dir.path(), &["new.txt"])
-        );
-        let status = GitStatus::from_entries(parse_porcelain_status(&worktree).unwrap());
+        let status = libgit2(parse(&staged));
+        assert_eq!(status.staged_renamed_files, paths(dir.path(), &["new.txt"]));
+        let status = GitStatus::from_entries(parse(&worktree));
         assert_eq!(
             status.unstaged_renamed_files,
             paths(dir.path(), &["new.txt"])
         );
         // The libgit2 classification lists the source of a worktree rename
-        // as deleted
-        let err = GitStatus::from_entries_libgit2(parse_porcelain_status(&worktree).unwrap())
-            .err()
-            .unwrap();
-        assert!(err.to_string().contains("old\u{fffd}.txt"), "{err}");
+        // as deleted, so it skips one that is not valid UTF-8 and keeps the
+        // destination
+        let mut skipped = Vec::new();
+        let status = GitStatus::from_entries_libgit2(parse(&worktree), &mut skipped);
+        assert_eq!(skipped, ["old\u{fffd}.txt"]);
+        assert!(status.unstaged_deleted_files.is_empty());
+        assert_eq!(status.staged_added_files, paths(dir.path(), &["new.txt"]));
     }
 
     #[test]
-    fn test_porcelain_status_rejects_unknown_entries() {
-        assert!(parse_porcelain_status(b"3 what\0").is_err());
-        assert!(parse_porcelain_status(b"1 M. N... 100644\0").is_err());
+    fn test_porcelain_status_rejects_malformed_entries() {
+        let parse = |output: &[u8]| parse_porcelain_status(output, &mut Vec::new());
+        assert!(parse(b"3 what\0").is_err());
+        assert!(parse(b"1 M. N... 100644\0").is_err());
         let a = "a".repeat(40);
         // A rename without its original path
         let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 new.txt");
-        assert!(parse_porcelain_status(renamed.as_bytes()).is_err());
+        assert!(parse(renamed.as_bytes()).is_err());
+        // Malformed even though the path is not valid UTF-8
+        assert!(parse(b"1 M. bad\xff.txt\0").is_err());
     }
 }
