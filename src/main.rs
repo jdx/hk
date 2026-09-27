@@ -20,6 +20,7 @@ mod error;
 mod file_rw_locks;
 mod file_type;
 mod git;
+mod git_index;
 mod git_util;
 mod glob;
 mod hash;
