@@ -29,6 +29,7 @@ use crate::{
     hook_options::HookOptions,
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
+    stage_queue::StageQueue,
     step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
@@ -399,6 +400,8 @@ pub struct HookContext {
     /// that is, those hk didn't stash. Staging one of these after a fix would
     /// also stage the user's unstaged changes.
     pub initial_unstaged: StdMutex<BTreeSet<PathBuf>>,
+    /// Files steps have queued for staging under `git`; see `Step::stage_files`.
+    pub stage_queue: StageQueue,
 }
 
 impl HookContext {
@@ -455,6 +458,7 @@ impl HookContext {
             should_stage,
             initial_untracked,
             initial_unstaged: StdMutex::new(initial_unstaged),
+            stage_queue: StageQueue::default(),
         }
     }
 
@@ -723,7 +727,7 @@ impl Hook {
         let run_type = self.run_type(&opts);
         let groups = self.get_step_groups(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
+        let git_status = repo.lock().await.status()?;
         let stash_method = self.resolve_stash_method_for_opts(&opts);
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
@@ -1066,7 +1070,7 @@ impl Hook {
         }
         let run_type = self.run_type(&opts);
         let repo = Arc::new(Mutex::new(Git::new()?));
-        let git_status = repo.lock().await.status(None)?;
+        let git_status = repo.lock().await.status()?;
         let stash_method = self.resolve_stash_method_for_opts(&opts);
         let progress = ProgressJobBuilder::new()
             .status(ProgressStatus::Hide)
@@ -1256,7 +1260,7 @@ impl Hook {
         )
         .prop("message", "Fetching git status")
         .start();
-        let git_status = match repo.lock().await.status(None) {
+        let git_status = match repo.lock().await.status() {
             Ok(status) => status,
             Err(err) => {
                 crate::structured_output::emit_error_run(
@@ -1482,7 +1486,7 @@ impl Hook {
         }
         // Capture final git state when its log output or timing span is observable.
         if log::log_enabled!(log::Level::Debug) || crate::trace::enabled() {
-            match repo.lock().await.status(None) {
+            match repo.lock().await.status() {
                 Ok(s) => {
                     debug!(
                         "final git state: staged={} unstaged={}",

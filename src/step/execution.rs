@@ -418,6 +418,7 @@ impl Step {
     /// - Respects the `stage` configuration patterns
     /// - Scopes staging to files actually processed by this step
     /// - Handles `<JOB_FILES>` special value
+    /// - Shares one `git add` with steps that are staging at the same time
     async fn stage_files(
         &self,
         ctx: &StepContext,
@@ -583,7 +584,7 @@ impl Step {
             // matching untracked files.
             let unstaged_set: IndexSet<PathBuf> = status.unstaged_files.iter().cloned().collect();
             let untracked_set: IndexSet<PathBuf> = status.untracked_files.iter().cloned().collect();
-            let filtered = matched_candidates
+            let mut filtered = matched_candidates
                 .into_iter()
                 .filter(|p| {
                     if untracked_set.contains(p) {
@@ -603,14 +604,29 @@ impl Step {
                 "{}: files to stage after filtering/scoping: {:?}",
                 self, filtered
             );
+            // Only stage matched files when staging is enabled for this hook.
+            // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
+            if ctx.hook_ctx.should_stage && !filtered.is_empty() {
+                // Share one `git add` with the steps staging at the same time.
+                // Files one of them already queued are left out of `filtered`:
+                // had its `git add` run first, this status would not list them.
+                // Every step with queued files keeps its read locks until the
+                // queue is staged, and nothing writes the index until then, so
+                // the racily clean entries each step checked above are
+                // unchanged and locked.
+                let hook_ctx = &ctx.hook_ctx;
+                hook_ctx
+                    .stage_queue
+                    .stage(&hook_ctx.git, git, &mut filtered, |git, paths| {
+                        git.add(paths)?;
+                        hook_ctx.add_files(paths, &[]);
+                        Ok(())
+                    })
+                    .await?;
+            }
             if !filtered.is_empty() {
                 // Snapshot pre-staging untracked set for classification
                 let pre_untracked: BTreeSet<PathBuf> = status.untracked_files.clone();
-                // Only stage matched files when staging is enabled for this hook.
-                // Unintended staging caused by stash/apply is handled separately in git.pop_stash().
-                if ctx.hook_ctx.should_stage {
-                    git.add(&filtered)?;
-                }
                 // Classify staged files using pre-staging untracked snapshot
                 let filtered_set: BTreeSet<PathBuf> = filtered.iter().cloned().collect();
                 let created_paths: BTreeSet<PathBuf> =
