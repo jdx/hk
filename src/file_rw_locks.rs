@@ -53,6 +53,10 @@ struct Table {
     /// Jobs holding each file: any number of readers, or one writer.
     readers: Vec<u32>,
     writer: Vec<bool>,
+    /// How many write locks on each file have been released. A job that read
+    /// a file under a read lock can tell from this whether anything may have
+    /// written it since.
+    writes: Vec<u64>,
     /// Jobs waiting for locks, oldest first. After every change to the table,
     /// each of them conflicts with a job holding locks.
     queue: VecDeque<Waiter>,
@@ -143,6 +147,7 @@ impl FileRwLocks {
             sorted: true,
             readers: Vec::new(),
             writer: Vec::new(),
+            writes: Vec::new(),
             queue: VecDeque::new(),
             next_id: 0,
         };
@@ -198,6 +203,23 @@ impl FileRwLocks {
             } = &mut *table;
             order.retain(|&i| index.get(&paths[i]) == Some(&i));
         }
+    }
+
+    /// How many write locks on each of `files` have been released so far.
+    ///
+    /// Taken while holding read locks on `files`, the counts cannot change
+    /// until those are released. Comparing them with the counts taken after
+    /// later locking the files again tells whether a writer held any of them
+    /// in between.
+    pub fn write_counts(&self, files: &[PathBuf]) -> Vec<u64> {
+        let mut table = self.table.lock().unwrap();
+        files
+            .iter()
+            .map(|file| {
+                let i = table.position(file);
+                table.writes[i]
+            })
+            .collect()
     }
 
     /// Take read locks on `files` if no writer holds any of them, without
@@ -300,6 +322,7 @@ impl Table {
         self.order.push(i);
         self.readers.push(0);
         self.writer.push(false);
+        self.writes.push(0);
         i
     }
 
@@ -337,7 +360,10 @@ impl Table {
         for &f in files {
             match mode {
                 Mode::Read => self.readers[f] -= 1,
-                Mode::Write => self.writer[f] = false,
+                Mode::Write => {
+                    self.writer[f] = false;
+                    self.writes[f] += 1;
+                }
             }
         }
     }
@@ -399,6 +425,21 @@ mod tests {
         let handle = tokio::spawn(async move { locks.lock(&files, mode).await });
         settle().await;
         handle
+    }
+
+    #[tokio::test]
+    async fn write_counts_change_only_when_a_writer_releases() {
+        let locks = FileRwLocks::new(paths(&["a", "b"]));
+        let before = locks.write_counts(&paths(&["a", "b"]));
+        drop(locks.read_locks(&paths(&["a", "b"])).await);
+        assert_eq!(locks.write_counts(&paths(&["a", "b"])), before);
+        let write = locks.write_locks(&paths(&["a"])).await;
+        assert_eq!(locks.write_counts(&paths(&["a", "b"])), before);
+        drop(write);
+        assert_eq!(
+            locks.write_counts(&paths(&["a", "b"])),
+            vec![before[0] + 1, before[1]]
+        );
     }
 
     #[test]

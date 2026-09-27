@@ -175,130 +175,152 @@ impl Step {
                     let prev_run_type = job.run_type;
                     job.run_type = RunType::Check;
                     let check_first_cmd = step.check_first_cmd();
-                    match step.run(&ctx, &mut job).await {
-                        Ok(()) => {
-                            debug!("{step}: successfully ran check step first");
-                            ctx.hook_ctx.inc_completed_jobs(1);
-                            // When check and fix are the same command (a
-                            // pre-commit-style fixer), this run was the fix: its
-                            // files go to staging like any fixer's.
-                            if step.check_is_fix() && !matches!(job.status, StepJobStatus::Pending)
-                            {
-                                return Ok(job.files.clone());
+                    // A patch computed under read locks goes stale if another step
+                    // writes its files before this one can lock them for writing;
+                    // `check_diff` then runs again, under write locks.
+                    'check_first: loop {
+                        match step.run(&ctx, &mut job).await {
+                            Ok(()) => {
+                                debug!("{step}: successfully ran check step first");
+                                ctx.hook_ctx.inc_completed_jobs(1);
+                                // When check and fix are the same command (a
+                                // pre-commit-style fixer), this run was the fix: its
+                                // files go to staging like any fixer's.
+                                if step.check_is_fix() && !matches!(job.status, StepJobStatus::Pending)
+                                {
+                                    return Ok(job.files.clone());
+                                }
+                                return Ok(vec![]);
                             }
-                            return Ok(vec![]);
-                        }
-                        Err(e) => {
-                            if let Some(Error::CheckListFailed { source: _, stdout, stderr, combined }) =
-                                e.downcast_ref::<Error>()
-                            {
-                                debug!("{step}: failed check step first: check list or diff failed");
-                                // Log stderr if present (informational/warnings only)
-                                if !stderr.trim().is_empty() {
-                                    debug!("{step}: check stderr output:\n{}", stderr);
-                                }
-                                // The command runner records ordinary diagnostic output, but
-                                // check-first errors return through a dedicated error type.
-                                // Preserve that listing/diff output for structured reporting.
-                                ctx.hook_ctx
-                                    .append_diagnostic_output(&step.name, combined);
-                                if step.check_failed_files
-                                    && matches!(prev_run_type, RunType::Check)
+                            Err(e) => {
+                                if let Some(Error::CheckListFailed { source: _, stdout, stderr, combined }) =
+                                    e.downcast_ref::<Error>()
                                 {
-                                    focused_check_failed = true;
-                                    focused_check_output =
-                                        Some((stdout.clone(), stderr.clone(), combined.clone()));
-                                }
-                                // Parse according to the check-first command that actually ran.
-                                // Platform-specific Script values can be empty, in which case
-                                // check_first_cmd falls back to the next available command.
-                                let (files, extras) = if matches!(
-                                    check_first_cmd,
-                                    Some(CheckFirstCmd::Diff(_))
-                                ) {
-                                    step.filter_files_from_check_diff(&job.files, stdout)
-                                } else if matches!(
-                                    check_first_cmd,
-                                    Some(CheckFirstCmd::ListFiles(_))
-                                ) {
+                                    debug!("{step}: failed check step first: check list or diff failed");
+                                    // Log stderr if present (informational/warnings only)
+                                    if !stderr.trim().is_empty() {
+                                        debug!("{step}: check stderr output:\n{}", stderr);
+                                    }
+                                    // The command runner records ordinary diagnostic output, but
+                                    // check-first errors return through a dedicated error type.
+                                    // Preserve that listing/diff output for structured reporting.
+                                    ctx.hook_ctx
+                                        .append_diagnostic_output(&step.name, combined);
+                                    if step.check_failed_files
+                                        && matches!(prev_run_type, RunType::Check)
                                     {
-                                    let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                    step.filter_files_from_check_list(
-                                        &job.files,
-                                        stdout,
-                                        dir.as_deref(),
-                                    )
-                                }
-                                } else {
-                                    (job.files.clone(), Vec::new())
-                                };
-                                for f in extras {
-                                    warn!(
-                                        "{step}: file in check output not found in original files: {}",
-                                        f.display()
-                                    );
-                                }
+                                        focused_check_failed = true;
+                                        focused_check_output =
+                                            Some((stdout.clone(), stderr.clone(), combined.clone()));
+                                    }
+                                    // Parse according to the check-first command that actually ran.
+                                    // Platform-specific Script values can be empty, in which case
+                                    // check_first_cmd falls back to the next available command.
+                                    let (files, extras) = if matches!(
+                                        check_first_cmd,
+                                        Some(CheckFirstCmd::Diff(_))
+                                    ) {
+                                        step.filter_files_from_check_diff(&job.files, stdout)
+                                    } else if matches!(
+                                        check_first_cmd,
+                                        Some(CheckFirstCmd::ListFiles(_))
+                                    ) {
+                                        {
+                                        let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
+                                        step.filter_files_from_check_list(
+                                            &job.files,
+                                            stdout,
+                                            dir.as_deref(),
+                                        )
+                                    }
+                                    } else {
+                                        (job.files.clone(), Vec::new())
+                                    };
+                                    for f in extras {
+                                        warn!(
+                                            "{step}: file in check output not found in original files: {}",
+                                            f.display()
+                                        );
+                                    }
 
-                                // For check_diff: if no parseable files, keep all original files
-                                if files.is_empty()
-                                    && matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
-                                {
-                                    debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
-                                    // Keep all original files for check_diff when diff parsing fails
-                                } else if files.is_empty()
-                                    && matches!(check_first_cmd, Some(CheckFirstCmd::ListFiles(_)))
-                                {
-                                    // For check_list_files: non-zero exit with no files is an error
-                                    // (Tool failed, not "files need fixing")
-                                    error!("{step}: check_list_files failed with no files in output");
-                                    return Err(e);
-                                } else {
-                                    job.files = files;
-                                }
+                                    // For check_diff: if no parseable files, keep all original files
+                                    if files.is_empty()
+                                        && matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
+                                    {
+                                        debug!("{step}: check_diff returned no parseable files, will run fixer on all original files");
+                                        // Keep all original files for check_diff when diff parsing fails
+                                    } else if files.is_empty()
+                                        && matches!(check_first_cmd, Some(CheckFirstCmd::ListFiles(_)))
+                                    {
+                                        // For check_list_files: non-zero exit with no files is an error
+                                        // (Tool failed, not "files need fixing")
+                                        error!("{step}: check_list_files failed with no files in output");
+                                        return Err(e);
+                                    } else {
+                                        job.files = files;
+                                    }
 
-                                // Try to apply diff directly when check_diff is defined and we're in Fix mode
-                                // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
-                                // A step with `apply_check_diff = false` runs its fixer on the
-                                // files the diff names instead.
-                                if matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
-                                    && prev_run_type == RunType::Fix
-                                    && step.applies_check_diff()
-                                {
-                                    // Apply where the check_diff command ran.
-                                    let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
-                                    match step.apply_diff_output(stdout, dir.as_deref()) {
-                                        Ok(true) => {
-                                            let applied_files = job.files.clone();
-                                            if step.check_after_diff {
-                                                debug!(
-                                                    "{step}: diff applied successfully, rerunning check on original files"
-                                                );
-                                                job.files = original_job_files.clone();
-                                                job.run_type = RunType::Check;
-                                                job.check_first = false;
-                                                step.run(&ctx, &mut job).await?;
-                                            } else {
-                                                debug!(
-                                                    "{step}: diff applied successfully, skipping fixer"
-                                                );
+                                    // Try to apply diff directly when check_diff is defined and we're in Fix mode
+                                    // (prev_run_type is the original mode; job.run_type was temporarily changed to Check)
+                                    // A step with `apply_check_diff = false` runs its fixer on the
+                                    // files the diff names instead.
+                                    if matches!(check_first_cmd, Some(CheckFirstCmd::Diff(_)))
+                                        && prev_run_type == RunType::Fix
+                                        && step.applies_check_diff()
+                                    {
+                                        if job.diffs_under_read_locks() {
+                                            // Other steps read these files while the patch was computed.
+                                            // Lock just the files it names for writing, and apply it only
+                                            // if no step wrote them meanwhile. Files outside the job had
+                                            // no read lock, so a patch for one is computed again.
+                                            let named = job.files.clone();
+                                            let locks = &ctx.hook_ctx.file_locks;
+                                            let before = locks.write_counts(&named);
+                                            let job_files: HashSet<&PathBuf> = original_job_files.iter().collect();
+let all_read_locked = named.iter().all(|f| job_files.contains(f));
+                                            job.relock_for_write(&ctx).await?;
+                                            if !all_read_locked || locks.write_counts(&named) != before {
+                                                debug!("{step}: files written meanwhile, diffing again");
+                                                continue 'check_first;
                                             }
-                                            ctx.hook_ctx.inc_completed_jobs(1);
-                                            return Ok(applied_files);
                                         }
-                                        Ok(false) => {
-                                            // Diff application failed - fall through to run fixer
-                                            debug!("{step}: diff application failed, falling back to fixer");
-                                        }
-                                        Err(err) => {
-                                            // Unexpected error - fall through to run fixer
-                                            warn!("{step}: unexpected error applying diff: {err}");
+                                        // Apply where the check_diff command ran.
+                                        let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
+                                        match step.apply_diff_output(stdout, dir.as_deref()) {
+                                            Ok(true) => {
+                                                let applied_files = job.files.clone();
+                                                if step.check_after_diff {
+                                                    debug!(
+                                                        "{step}: diff applied successfully, rerunning check on original files"
+                                                    );
+                                                    job.files = original_job_files.clone();
+                                                    job.run_type = RunType::Check;
+                                                    job.check_first = false;
+                                                    step.run(&ctx, &mut job).await?;
+                                                } else {
+                                                    debug!(
+                                                        "{step}: diff applied successfully, skipping fixer"
+                                                    );
+                                                }
+                                                ctx.hook_ctx.inc_completed_jobs(1);
+                                                return Ok(applied_files);
+                                            }
+                                            Ok(false) => {
+                                                // Diff application failed - fall through to run fixer
+                                                debug!("{step}: diff application failed, falling back to fixer");
+                                            }
+                                            Err(err) => {
+                                                // Unexpected error - fall through to run fixer
+                                                warn!("{step}: unexpected error applying diff: {err}");
+                                            }
                                         }
                                     }
                                 }
+                                // For regular check commands that fail: fall through to run fixer
+                                debug!("{step}: failed check step first: {e}");
                             }
-                            // For regular check commands that fail: fall through to run fixer
-                            debug!("{step}: failed check step first: {e}");
                         }
+                        break;
                     }
                     job.run_type = prev_run_type;
                     job.check_first = false;

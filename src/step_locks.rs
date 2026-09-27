@@ -12,4 +12,9 @@ impl StepLocks {
     pub fn new(flocks: Flocks, semaphore: OwnedSemaphorePermit) -> Self {
         Self { flocks, semaphore }
     }
+
+    /// Release the file locks, keeping the job slot.
+    pub fn into_semaphore(self) -> OwnedSemaphorePermit {
+        self.semaphore
+    }
 }

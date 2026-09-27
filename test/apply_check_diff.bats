@@ -563,6 +563,90 @@ EOF
     assert_output "new"
 }
 
+# A check_diff that meets the other step's before it prints anything: it
+# marks that it started and waits up to 5 seconds for the other step's mark.
+# Steps that ran one after the other leave a "$STEP.alone" file. A step whose
+# first line lacks its mark prints a patch adding it.
+write_rendezvous_formatter() {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+touch "$STEP.started"
+for _ in $(seq 50); do
+    [ -e "$OTHER.started" ] && break
+    sleep 0.1
+done
+[ -e "$OTHER.started" ] || touch "$STEP.alone"
+first=$(head -1 "$file")
+[[ "$first" == *"-$STEP"* ]] && exit 0
+new=$(mktemp)
+sed "1s/\$/-$STEP/" "$file" > "$new"
+diff -u -L "$file" -L "$file" "$file" "$new"
+rm -f "$new"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+}
+
+# $1: the check_diff value for both steps
+write_rendezvous_config() {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["first"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "1"; ["OTHER"] = "2" }
+                check_diff = $1
+                fix = "./fixer.sh {{files}}"
+            }
+            ["second"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "2"; ["OTHER"] = "1" }
+                check_diff = $1
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+}
+
+@test "read-only check_diff steps compute their patches alongside each other in fix mode" {
+    write_rendezvous_formatter
+    write_rendezvous_config 'new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }'
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # Both ran at once, and both patches were applied: the second to reach
+    # its write locks found the file changed and computed its patch again.
+    [ ! -e 1.alone ]
+    [ ! -e 2.alone ]
+    run cat test.txt
+    assert_output --regexp '^line-(1-2|2-1)$'
+}
+
+@test "check_diff steps that don't declare a read effect keep write locks in fix mode" {
+    write_rendezvous_formatter
+    write_rendezvous_config '"./formatter.sh {{files}}"'
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # One ran after the other, so exactly one waited for the other in vain.
+    [ -e 1.alone ] || [ -e 2.alone ]
+    run cat test.txt
+    assert_output --regexp '^line-(1-2|2-1)$'
+}
+
 @test "check_diff-only step stages an applied patch" {
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash

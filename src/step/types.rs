@@ -926,4 +926,17 @@ impl Step {
     pub fn applies_check_diff(&self) -> bool {
         self.check_diff.is_some() && (self.apply_check_diff != Some(false) || self.fix.is_none())
     }
+
+    /// Whether fix mode can run `check_diff` under read locks and take write
+    /// locks only on the files its patch names, to apply it. That needs a
+    /// command declared read-only (`effect = "read"`); any other command could
+    /// change files while other steps read them.
+    pub fn diffs_under_read_locks(&self) -> bool {
+        self.applies_check_diff()
+            && !self.stomp
+            && matches!(
+                self.check_first_cmd(),
+                Some(CheckFirstCmd::Diff(command)) if command.effect() == Some(CommandEffect::Read)
+            )
+    }
 }

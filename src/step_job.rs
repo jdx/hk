@@ -24,6 +24,9 @@ pub struct StepJob {
     pub progress: Option<Arc<ProgressJob>>,
     pub semaphore: Option<OwnedSemaphorePermit>,
     workspace_indicator: Option<PathBuf>,
+    /// Set once this job has computed a patch under read locks and traded
+    /// them for write locks, so any rerun of `check_diff` keeps writers out.
+    pub diff_needs_write_locks: bool,
 
     pub status: StepJobStatus,
 }
@@ -55,7 +58,36 @@ impl StepJob {
             skip_reason: None,
             progress: None,
             semaphore: None,
+            diff_needs_write_locks: false,
         }
+    }
+
+    /// Whether this job is running `check_diff` first in fix mode under read
+    /// locks, so that steps reading the same files run alongside it. It takes
+    /// write locks only if there is a patch to apply
+    /// (see [`Self::relock_for_write`]).
+    pub fn diffs_under_read_locks(&self) -> bool {
+        self.check_first
+            && self.run_type == RunType::Check
+            && self.requested_run_type == RunType::Fix
+            && !self.diff_needs_write_locks
+            && self.step.diffs_under_read_locks()
+    }
+
+    /// Trade this job's read locks for write locks on `self.files`, keeping
+    /// its job slot unless it has to wait for them.
+    ///
+    /// The read locks are released first, so this never waits while holding
+    /// locks. Another step may write the files in between; callers compare
+    /// write counts to find out.
+    pub async fn relock_for_write(&mut self, ctx: &StepContext) -> Result<()> {
+        let status = std::mem::replace(&mut self.status, StepJobStatus::Pending);
+        let StepJobStatus::Started(locks) = status else {
+            unreachable!("relocking a job that is not running: {status:?}")
+        };
+        self.diff_needs_write_locks = true;
+        let semaphore = locks.into_semaphore();
+        self.status_start(ctx, Some(semaphore)).await
     }
 
     pub fn with_workspace_indicator(mut self, workspace_indicator: PathBuf) -> Self {
@@ -202,10 +234,14 @@ impl StepJob {
         Ok(())
     }
 
+    fn takes_write_locks(&self) -> bool {
+        self.requested_run_type == RunType::Fix && !self.diffs_under_read_locks()
+    }
+
     fn try_flocks(&self, ctx: &StepContext) -> Option<Flocks> {
         if self.step.stomp {
             Some(Default::default())
-        } else if self.requested_run_type == RunType::Fix {
+        } else if self.takes_write_locks() {
             ctx.hook_ctx.file_locks.try_write(&self.files)
         } else {
             ctx.hook_ctx.file_locks.try_read(&self.files)
@@ -215,7 +251,7 @@ impl StepJob {
     async fn flocks(&self, ctx: &StepContext) -> Flocks {
         if self.step.stomp {
             Default::default()
-        } else if self.requested_run_type == RunType::Fix {
+        } else if self.takes_write_locks() {
             ctx.hook_ctx.file_locks.write_locks(&self.files).await
         } else {
             ctx.hook_ctx.file_locks.read_locks(&self.files).await
@@ -236,6 +272,7 @@ impl Clone for StepJob {
             status: StepJobStatus::Pending,
             progress: self.progress.clone(),
             semaphore: None,
+            diff_needs_write_locks: self.diff_needs_write_locks,
         }
     }
 }
