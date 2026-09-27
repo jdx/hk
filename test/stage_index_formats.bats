@@ -75,16 +75,18 @@ PKL
   stage_while_racily_clean_file_is_rewritten git update-index --index-version 2
   output=$hook_output
   refute_output --partial "with libgit2"
-  run od -An -tu1 -j7 -N1 .git/index
-  assert_output --regexp '^ *2$'
+  # The index version is the header's fourth byte. macOS pads od's output.
+  run sh -c "od -An -tu1 -j7 -N1 .git/index | tr -d '[:space:]'"
+  assert_output '2'
 }
 
 @test "staging waits for a racily clean file with index version 4" {
   stage_while_racily_clean_file_is_rewritten git update-index --index-version 4
   output=$hook_output
   refute_output --partial "with libgit2"
-  run od -An -tu1 -j7 -N1 .git/index
-  assert_output --regexp '^ *4$'
+  # The index version is the header's fourth byte. macOS pads od's output.
+  run sh -c "od -An -tu1 -j7 -N1 .git/index | tr -d '[:space:]'"
+  assert_output '4'
 }
 
 # git writes the index unsplit when hk refreshes it at the start of the hook,
