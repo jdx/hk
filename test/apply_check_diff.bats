@@ -329,6 +329,51 @@ EOF
     assert_output "no_prefix_diff"
 }
 
+@test "check_diff handles diffs that label each side with its own directory" {
+    # `go mod tidy -diff` writes "--- current/go.mod" and "+++ tidy/go.mod".
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+echo "diff current/$file tidy/$file"
+echo "--- current/$file"
+echo "+++ tidy/$file"
+echo "@@ -1 +1 @@"
+echo "-$(cat "$file")"
+echo "+relabelled_diff"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "original" > test.txt
+    run hk fix test.txt
+    assert_success
+
+    run cat test.txt
+    assert_output "relabelled_diff"
+}
+
 @test "check_diff handles diffs with .orig suffix on --- line" {
     # Go tools like gofmt output diffs with .orig suffix on the --- line
     # e.g., "--- file.go.orig" instead of "--- file.go"
