@@ -1157,15 +1157,25 @@ impl Git {
                 self.index_path.get_or_init(|| path)
             }
         };
-        let index_mtime = match std::fs::metadata(index_path) {
-            Ok(metadata) => metadata.modified()?,
+        // Take the mtime and the contents from one open file: git replaces the
+        // index by renaming a new file over it.
+        let mut file = match std::fs::File::open(index_path) {
+            Ok(file) => file,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
             Err(err) => return Err(err.into()),
         };
-        let index_secs = index_mtime
+        let index_secs = file
+            .metadata()?
+            .modified()?
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
+        let mut data = Vec::new();
+        std::io::Read::read_to_end(&mut file, &mut data)?;
+        if let Some(paths) = crate::git_index::racily_clean_paths(&data, index_secs) {
+            return Ok(paths);
+        }
+        debug!("reading index {} with libgit2", index_path.display());
         let index = git2::Index::open(index_path)
             .wrap_err_with(|| format!("failed to read index {}", index_path.display()))?;
         Ok(index
