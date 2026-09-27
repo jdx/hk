@@ -11,6 +11,7 @@ mod detect_private_key;
 mod end_of_file_fixer;
 mod fix_smart_quotes;
 mod forbid_submodules;
+mod format_diff;
 mod mixed_line_ending;
 mod no_commit_to_branch;
 mod python_check_ast;
@@ -32,6 +33,7 @@ pub use detect_private_key::DetectPrivateKey;
 pub use end_of_file_fixer::EndOfFileFixer;
 pub use fix_smart_quotes::FixSmartQuotes;
 pub use forbid_submodules::ForbidSubmodules;
+pub use format_diff::FormatDiff;
 pub use mixed_line_ending::MixedLineEnding;
 pub use no_commit_to_branch::NoCommitToBranch;
 pub use python_check_ast::PythonCheckAst;
@@ -82,6 +84,8 @@ enum UtilCommands {
     FixSmartQuotes(FixSmartQuotes),
     /// Check that the repository contains no git submodules
     ForbidSubmodules(ForbidSubmodules),
+    /// Print a patch of what a formatter would change, for a `check_diff` command
+    FormatDiff(FormatDiff),
     /// Detect and fix mixed line endings
     MixedLineEnding(MixedLineEnding),
     /// Prevent commits to specific branches
@@ -113,6 +117,7 @@ impl Util {
             UtilCommands::FixByteOrderMarker(cmd) => cmd.run().await,
             UtilCommands::FixSmartQuotes(cmd) => cmd.run().await,
             UtilCommands::ForbidSubmodules(cmd) => cmd.run().await,
+            UtilCommands::FormatDiff(cmd) => cmd.run().await,
             UtilCommands::MixedLineEnding(cmd) => cmd.run().await,
             UtilCommands::NoCommitToBranch(cmd) => cmd.run().await,
             UtilCommands::PythonCheckAst(cmd) => cmd.run().await,

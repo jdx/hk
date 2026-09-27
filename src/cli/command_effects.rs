@@ -105,6 +105,10 @@ pub const UNCLASSIFIED: &[(&str, &str)] = &[
         "runs step-defined tests, which are arbitrary commands",
     ),
     (
+        "util format-diff",
+        "runs the formatter it is given on each file, which can do anything",
+    ),
+    (
         "util sarif-diff",
         "runs the tool it is given, which can do anything",
     ),

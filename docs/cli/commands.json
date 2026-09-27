@@ -7705,6 +7705,68 @@
             "examples": [],
             "headings": []
           },
+          "format-diff": {
+            "full_cmd": ["util", "format-diff"],
+            "usage": "util format-diff [--no-stdin] <FILES>… <-- COMMAND>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "FILES",
+                "usage": "<FILES>…",
+                "help": "Files to format",
+                "help_first_line": "Files to format",
+                "required": true,
+                "double_dash": "Optional",
+                "var": true,
+                "hide": false
+              },
+              {
+                "name": "COMMAND",
+                "usage": "<-- COMMAND>…",
+                "help": "The formatter, reading stdin and writing the formatted file to stdout",
+                "help_first_line": "The formatter, reading stdin and writing the formatted file to stdout",
+                "required": true,
+                "double_dash": "Required",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "no-stdin",
+                "usage": "--no-stdin",
+                "help": "Give COMMAND no stdin, for a formatter that reads the file at `{}`",
+                "help_first_line": "Give COMMAND no stdin, for a formatter that reads the file at `{}`",
+                "short": [],
+                "long": ["no-stdin"],
+                "hide": false,
+                "global": false
+              },
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Print a patch of what a formatter would change, for a `check_diff` command",
+            "help_long": "Print a patch of what a formatter would change, for a `check_diff` command\n\nRuns COMMAND once for each file, with the file on stdin, and compares what it prints with the file. `{}` in COMMAND is replaced with the file's path, for formatters that take the path of their input as an option. With `--no-stdin`, COMMAND reads the file itself, from the path `{}` gives it. Files are formatted in parallel.\n\nPrints a unified diff for every file that would change and exits 1, or exits 0 when none would. If COMMAND fails for any file, or prints nothing for a file that isn't empty, no patch is printed: its error output is shown and hk runs the step's fixer instead.\n\nExample: `hk util format-diff a.lua b.lua -- stylua --stdin-filepath {} -`",
+            "name": "format-diff",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
+          },
           "mixed-line-ending": {
             "full_cmd": ["util", "mixed-line-ending"],
             "usage": "util mixed-line-ending [-d --diff] [-f --fix] <FILES>…",
