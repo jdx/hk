@@ -142,17 +142,17 @@ async fn format_file(file: &PathBuf, command: &[String], stdin: bool) -> Outcome
             message: format!("{path}: {program} failed\n{stderr}"),
         };
     }
-    // One that exits 0 after reading only part of the file may have printed
-    // only part of it formatted.
-    if let Err(err) = written {
-        return failed(format!("{path}: writing to {program}: {err}\n{stderr}"));
-    }
     let Ok(formatted) = String::from_utf8(output.stdout) else {
         return failed(format!("{path}: {program} printed invalid UTF-8"));
     };
     // Diffing against empty output would make a patch that empties the file.
     if formatted.is_empty() && !original.is_empty() {
         return failed(format!("{path}: {program} printed nothing\n{stderr}"));
+    }
+    // One that exits 0 after reading only part of the file may have printed
+    // only part of it formatted.
+    if let Err(err) = written {
+        return failed(format!("{path}: writing to {program}: {err}\n{stderr}"));
     }
     if formatted == original {
         return Outcome::Unchanged;

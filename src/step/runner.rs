@@ -527,18 +527,23 @@ impl Step {
                 }
             })
         };
+        let mut dropped = false;
         if incompatible(&self.check_diff) {
             debug!(
                 "{name}: `check_diff` can't run with this step's prefix or shell, so hk runs `fix`"
             );
             self.check_diff = None;
             self.check_after_diff = false;
+            dropped = true;
         }
         if incompatible(&self.check_list_files) {
             debug!("{name}: `check_list_files` can't run with this step's prefix or shell");
             self.check_list_files = None;
+            dropped = true;
         }
-        if self.check_diff.is_none() && self.check_list_files.is_none() {
+        // Only a setting this left without its command; one that never had
+        // it is still rejected below.
+        if dropped && self.check_diff.is_none() && self.check_list_files.is_none() {
             self.check_failed_files = false;
         }
     }
@@ -768,6 +773,18 @@ mod tests {
         assert!(step.check_diff.is_none());
         assert!(!step.check_after_diff);
         assert!(step.check.is_some() && step.fix.is_some());
+    }
+
+    #[test]
+    fn check_failed_files_without_a_file_reporting_command_still_fails() {
+        let mut step = Step {
+            check: Some(Command::Argv(ArgvCommand {
+                argv: vec!["lint".into()],
+            })),
+            check_failed_files: true,
+            ..Default::default()
+        };
+        assert!(step.init("lint").is_err());
     }
 
     #[test]
