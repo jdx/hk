@@ -9,7 +9,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::types::Step;
-use super::{diff_lines, normalize_diff_paths, split_line_ending, uses_git_prefixes};
+use super::{
+    creations_use_git_prefixes, diff_lines, normalize_diff_paths, split_line_ending,
+    uses_git_prefixes,
+};
 
 /// Rewrite absolute paths in diff headers to be relative to `base`.
 ///
@@ -90,7 +93,9 @@ impl Step {
         let diff_content = relativize_diff_paths(&diff_content, &base);
 
         // Git-style `a/` and `b/` prefixes need -p1, other paths -p0.
-        let strip_level = if uses_git_prefixes(&diff_content) {
+        let strip_level = if uses_git_prefixes(&diff_content)
+            || creations_use_git_prefixes(&diff_content, &base)
+        {
             "-p1"
         } else {
             "-p0"
@@ -139,9 +144,80 @@ impl Step {
             Ok(true)
         } else {
             let stderr_output = String::from_utf8_lossy(&output.stderr);
+            // Output that is no patch at all is how some commands hand a file
+            // to the fixer, such as shellcheck's note that nothing is
+            // auto-fixable. A patch that doesn't apply is a broken `check_diff`
+            // that makes every fix run the tool twice, so say so.
             debug!("{}: git apply failed: {}", self.name, stderr_output);
+            if looks_like_patch(&diff_content) {
+                warn!(
+                    "{}: check_diff printed a patch that `git apply` rejected, so the fixer ran instead: {}",
+                    self.name,
+                    first_line_summary(&stderr_output)
+                );
+            }
             Ok(false)
         }
+    }
+}
+
+/// The first non-empty line of `output`, noting how many more there are.
+/// `git apply` reports each file it rejects, which for a large patch would
+/// bury the warning; the full output is logged at debug level.
+fn first_line_summary(output: &str) -> String {
+    let mut lines = output.lines().map(str::trim).filter(|l| !l.is_empty());
+    let Some(first) = lines.next() else {
+        return "no reason given".to_string();
+    };
+    match lines.count() {
+        0 => first.to_string(),
+        1 => format!("{first} (and 1 more line; run with HK_LOG=debug to see it)"),
+        more => format!("{first} (and {more} more lines; run with HK_LOG=debug to see them)"),
+    }
+}
+
+/// Whether `diff` contains a unified diff file header: a `--- ` line directly
+/// followed by a `+++ ` line.
+fn looks_like_patch(diff: &str) -> bool {
+    let mut lines = diff.lines().peekable();
+    while let Some(line) = lines.next() {
+        if line.starts_with("--- ") && lines.peek().is_some_and(|next| next.starts_with("+++ ")) {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod looks_like_patch_tests {
+    use super::{first_line_summary, looks_like_patch};
+
+    #[test]
+    fn summarizes_long_git_errors_to_their_first_line() {
+        assert_eq!(first_line_summary("error: one\n"), "error: one");
+        assert_eq!(
+            first_line_summary(
+                "\nerror: patch failed: a:1\nerror: a: patch does not apply\nerror: b\n"
+            ),
+            "error: patch failed: a:1 (and 2 more lines; run with HK_LOG=debug to see them)"
+        );
+        assert_eq!(first_line_summary(""), "no reason given");
+    }
+
+    #[test]
+    fn finds_a_file_header() {
+        assert!(looks_like_patch(
+            "note\n--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-a\n+b\n"
+        ));
+    }
+
+    #[test]
+    fn ignores_output_without_one() {
+        assert!(!looks_like_patch(
+            "Issues were detected, but none were auto-fixable. Use another format to see them.\n"
+        ));
+        assert!(!looks_like_patch("Diff in a.lua:\n1 |-print \"foo\"\n"));
+        assert!(!looks_like_patch("--- only a separator\ntext\n"));
     }
 }
 

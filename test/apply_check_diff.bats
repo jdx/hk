@@ -114,11 +114,55 @@ EOF
     # Run fix - should fall back to fixer since diff is invalid
     run hk fix test.txt
     assert_success
+    # Output that isn't a patch at all hands the file to the fixer quietly.
+    refute_output --partial "rejected"
 
     # The fixer should have run and added "FIXED"
     run cat test.txt
     assert_output "hello
 FIXED"
+}
+
+@test "check_diff warns when its patch does not apply and the fixer runs instead" {
+    # A well-formed patch whose context doesn't match the file, as a tool
+    # that mangles its diff output would print.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf -- '--- %s\n+++ %s\n@@ -1 +1 @@\n-something else\n+formatted\n' "$1" "$1"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXED" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "hello" > test.txt
+    run hk fix test.txt
+    assert_success
+    assert_output --partial "fmt: check_diff printed a patch that \`git apply\` rejected, so the fixer ran instead"
+    assert_output --partial "error: patch failed: test.txt:1 (and 1 more line; run with HK_LOG=debug to see it)"
+
+    run cat test.txt
+    assert_output "FIXED"
 }
 
 @test "check_diff applies diff when command exits nonzero with valid diff" {
@@ -493,6 +537,43 @@ EOF
     assert_output "new"
     run cat created.txt
     assert_output "made"
+}
+
+@test "check_diff applies a patch that only creates a file with git's b/ prefix" {
+    # No pair has both a/ and b/, and there is no b/ directory, so b/ is
+    # git's prefix rather than part of the path.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf -- '--- /dev/null\n+++ b/go.sum\n@@ -0,0 +1 @@\n+sum\n'
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["tidy"] {
+                glob = List("go.mod")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "echo fixer-ran > go.mod"
+            }
+        }
+    }
+}
+EOF
+
+    echo "module x" > go.mod
+    run hk fix go.mod
+    assert_success
+
+    run cat go.sum
+    assert_output "sum"
+    assert [ ! -e b/go.sum ]
+    run cat go.mod
+    assert_output "module x"
 }
 
 @test "check_diff handles diffs with .orig suffix on --- line" {

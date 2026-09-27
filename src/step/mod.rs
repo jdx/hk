@@ -232,13 +232,39 @@ fn is_full_git_pair(old: &str, new: &str) -> bool {
 }
 
 /// Whether `git apply` must strip git's `a/` and `b/` prefixes (`-p1`) from
-/// a diff's paths. That takes a pair with both: a created file's `b/new`
-/// alone could be a real directory. [`normalize_diff_paths`] makes every
-/// pair agree.
+/// a diff's paths. That takes a `diff --git` line or a pair with both
+/// prefixes: a created file's `b/new` alone could be a real directory (see
+/// [`creations_use_git_prefixes`]). [`normalize_diff_paths`] makes every pair
+/// agree.
 pub(crate) fn uses_git_prefixes(diff: &str) -> bool {
-    header_pairs(diff)
+    let git_header = diff_lines(diff)
         .into_iter()
-        .any(|(old, new)| is_full_git_pair(old, new))
+        .any(|(line, in_hunk)| !in_hunk && line.starts_with("diff --git a/"));
+    git_header
+        || header_pairs(diff)
+            .into_iter()
+            .any(|(old, new)| is_full_git_pair(old, new))
+}
+
+/// For a patch whose only prefixed pairs create or delete files, whether
+/// those prefixes are git's, judged by what exists under `base`, where the
+/// patch applies: a deleted `a/x` is git's when `x` exists and `a/x` doesn't,
+/// and a created `b/x` is git's unless `b` is a directory.
+pub(crate) fn creations_use_git_prefixes(diff: &str, base: &std::path::Path) -> bool {
+    let pairs: Vec<(&str, &str)> = header_pairs(diff)
+        .into_iter()
+        .map(|(old, new)| (header_path(old), header_path(new)))
+        .filter(|&(old, new)| is_git_pair(old, new))
+        .collect();
+    !pairs.is_empty()
+        && pairs.iter().all(|&(old, new)| {
+            if let Some(rest) = old.strip_prefix("a/") {
+                !base.join(old).exists() && base.join(rest).exists()
+            } else {
+                // `is_git_pair` means the other side is `/dev/null`.
+                new.strip_prefix("b/").is_some() && !base.join("b").is_dir()
+            }
+        })
 }
 
 /// The header paths with a tool's side labels removed, or `None` if the pair
@@ -433,6 +459,29 @@ mod normalize_diff_paths_tests {
             normalize_diff_paths(diff),
             "--- x\n+++ x\n@@ -1 +1 @@\n-a\n+b\n--- /dev/null\n+++ new\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n"
         );
+    }
+
+    #[test]
+    fn a_diff_git_line_means_git_prefixes() {
+        let diff = "diff --git a/go.sum b/go.sum\nnew file mode 100644\n--- /dev/null\n+++ b/go.sum\n@@ -0,0 +1 @@\n+x\n";
+        assert!(super::uses_git_prefixes(diff));
+    }
+
+    #[test]
+    fn creations_and_deletions_are_judged_by_what_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        let create = "--- /dev/null\n+++ b/go.sum\n@@ -0,0 +1 @@\n+x\n";
+        assert!(super::creations_use_git_prefixes(create, base));
+        std::fs::create_dir(base.join("b")).unwrap();
+        assert!(!super::creations_use_git_prefixes(create, base));
+
+        let delete = "--- a/old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+        std::fs::write(base.join("old.txt"), "x\n").unwrap();
+        assert!(super::creations_use_git_prefixes(delete, base));
+        std::fs::create_dir(base.join("a")).unwrap();
+        std::fs::write(base.join("a/old.txt"), "x\n").unwrap();
+        assert!(!super::creations_use_git_prefixes(delete, base));
     }
 
     #[test]
