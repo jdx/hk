@@ -13,10 +13,28 @@ import "./test/helpers.pkl"
 shellharden = new Config.Step {
   types = List("bash", "sh")
   batch = true
-  // `check_diff` cannot be added.
-  // `shellharden {{ files }}` shows a diff but exits with code 0 even when changes are suggested
+  // `shellharden {{ files }}` shows a diff but exits 0 even when it suggests
+  // changes, so `check_diff` builds the patch from `--transform`, which prints
+  // the changed file.
   check = new Config.CommandSpec {
     command = new Config.Command { argv = List("shellharden", "--check", "{{files}}") }
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command {
+      argv =
+        List(
+          "hk",
+          "util",
+          "format-diff",
+          "--no-stdin",
+          "{{files}}",
+          "--",
+          "shellharden",
+          "--transform",
+          "{}",
+        )
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
