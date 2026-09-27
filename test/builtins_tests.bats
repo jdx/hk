@@ -487,7 +487,9 @@ SHIM
     }
     PATH="$TEST_TEMP_DIR/bin:$PATH"
 
-    run hk check --all --no-fail-fast
+    # The two batched steps share the jobs, so 4 jobs give each step two
+    # batches.
+    HK_JOBS=4 run hk check --all --no-fail-fast
     assert_failure
     assert_output --partial "+++ b/unformatted.json"
     assert_output --partial "+++ b/unformatted.yaml"
@@ -495,10 +497,10 @@ SHIM
     refute_output --partial "+++ b/config"
     refute_output --partial "+++ b/several.json"
     refute_output --partial "+++ b/separator.yaml"
-    # HK_JOBS=2 splits each step's files into two batches. jq formats a batch
-    # in one run and compares the output with the files in another, and yq
-    # formats a batch in one run. Only the unformatted files and the two the
-    # batch run cannot vouch for run on their own.
+    # Each step's files make two batches. jq formats a batch in one run and
+    # compares the output with the files in another, and yq formats a batch in
+    # one run. Only the unformatted files and the two the batch run cannot
+    # vouch for run on their own.
     assert_equal "$(runs jq)" 6
     assert_equal "$(runs yq)" 4
     assert_equal "$(runs jq '-S . several.json')" 1
