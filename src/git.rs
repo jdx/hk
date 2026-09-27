@@ -1863,7 +1863,7 @@ impl GitStatus {
     }
 
     /// Classifies entries of `git status --porcelain=v2 --renames` the way
-    /// [`Git::read_status`] classifies libgit2's statuses, so that a status
+    /// [`read_status_libgit2`] classifies libgit2's statuses, so that a status
     /// reads the same whichever of the two produced it.
     fn from_entries_libgit2(entries: Vec<StatusEntry>) -> Result<Self> {
         let mut status = Self::default();
