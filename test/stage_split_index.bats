@@ -6,31 +6,15 @@
 setup() {
   load 'test_helper/common_setup'
   _common_setup
+  git config core.splitIndex true
 }
 
 teardown() {
   _common_teardown
 }
 
-# Writes a pre-commit hook whose fixer stages with `$1`, then stages a broken
-# a.txt in a split index.
-setup_split_index_fixer() {
-  git config core.splitIndex true
-  cat <<PKL > hk.pkl
-amends "$PKL_PATH/Config.pkl"
-hooks {
-  ["pre-commit"] {
-    fix = true
-    steps {
-      ["fix"] {
-        glob = "*.txt"
-        fix = "echo fixed > {{files}}"
-        $1
-      }
-    }
-  }
-}
-PKL
+# Commits hk.pkl, then stages a broken a.txt in a split index.
+stage_broken_file_in_split_index() {
   git add hk.pkl
   git commit -qm "init hk"
   printf 'broken\n' > a.txt
@@ -41,8 +25,6 @@ PKL
 }
 
 assert_fix_staged() {
-  run hk run pre-commit
-  assert_success
   run git show :a.txt
   assert_output 'fixed'
   run git status --porcelain -- a.txt
@@ -51,12 +33,74 @@ assert_fix_staged() {
 
 # The default `stage` reads the status of the step's files by path.
 @test "pre-commit stages its fixes in a repository with a split index" {
-  setup_split_index_fixer ""
+  cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    steps {
+      ["fix"] {
+        glob = "*.txt"
+        fix = "echo fixed > {{files}}"
+      }
+    }
+  }
+}
+PKL
+  stage_broken_file_in_split_index
+
+  run hk run pre-commit
+  assert_success
   assert_fix_staged
 }
 
 # An explicit `stage` pattern reads the status by pathspec instead.
 @test "pre-commit stages an explicit stage glob in a repository with a split index" {
-  setup_split_index_fixer 'stage = List("*.txt")'
+  cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    steps {
+      ["fix"] {
+        glob = "*.txt"
+        stage = List("*.txt")
+        fix = "echo fixed > {{files}}"
+      }
+    }
+  }
+}
+PKL
+  stage_broken_file_in_split_index
+
+  run hk run pre-commit
+  assert_success
   assert_fix_staged
+}
+
+# `git commit` hands the hook its index through GIT_INDEX_FILE.
+@test "git commit runs the pre-commit hook in a repository with a split index" {
+  cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    steps {
+      ["fix"] {
+        glob = "*.txt"
+        fix = "echo fixed > {{files}}"
+      }
+    }
+  }
+}
+PKL
+  stage_broken_file_in_split_index
+  hk install
+
+  # Not a login shell: macOS path_helper would put /usr/bin/git first, and an
+  # older git ignores the config-based hook hk installed.
+  run bash -c 'git -c commit.gpgsign=false commit -m "add a.txt"'
+  assert_success
+  run git show HEAD:a.txt
+  assert_output 'fixed'
 }

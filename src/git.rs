@@ -189,13 +189,25 @@ impl Git {
             if repo.is_bare() {
                 debug!("libgit2: bare repo detected, falling back to shell git");
                 None
-            } else {
-                if let Some(index_file) = &*env::GIT_INDEX_FILE {
-                    // sets index to .git/index.lock which is used in the case of `git commit -a`
-                    let mut index =
-                        git2::Index::open(index_file).wrap_err("failed to get index")?;
-                    repo.set_index(&mut index)?;
+            } else if let Some(index_file) = &*env::GIT_INDEX_FILE {
+                // sets index to .git/index.lock which is used in the case of `git commit -a`
+                match git2::Index::open(index_file) {
+                    Ok(mut index) => {
+                        repo.set_index(&mut index)?;
+                        Some(repo)
+                    }
+                    // libgit2 cannot read some index formats git writes, such
+                    // as a split index, so run the hook with shell git.
+                    Err(err) if err.class() == git2::ErrorClass::Index => {
+                        debug!(
+                            "libgit2 cannot read {}, falling back to shell git: {err}",
+                            index_file.display()
+                        );
+                        None
+                    }
+                    Err(err) => return Err(err).wrap_err("failed to get index"),
                 }
+            } else {
                 Some(repo)
             }
         } else {
