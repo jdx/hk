@@ -216,7 +216,8 @@ impl Step {
                                     check_first_cmd,
                                     Some(CheckFirstCmd::Diff(_))
                                 ) {
-                                    step.filter_files_from_check_diff(&job.files, stdout)
+                                    let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
+                                    step.filter_files_from_check_diff(&job.files, stdout, dir.as_deref())
                                 } else if matches!(
                                     check_first_cmd,
                                     Some(CheckFirstCmd::ListFiles(_))
