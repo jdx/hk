@@ -1,5 +1,5 @@
 use super::text_files::{
-    par_map, read_rest_to_string, read_text_probe, regular_file_len, write_fixes,
+    for_each_in_order, read_rest_to_string, read_text_probe, regular_file_len,
 };
 use crate::Result;
 use std::fs;
@@ -27,33 +27,32 @@ impl TrailingWhitespace {
     pub async fn run(&self) -> Result<()> {
         if self.fix {
             // Fix mode always succeeds.
-            let fixes = par_map(&self.files, |path| fixed_content(path));
-            return write_fixes(&self.files, fixes);
+            return for_each_in_order(&self.files, fixed_content, |path, fixed| {
+                if let Some(fixed) = fixed? {
+                    fs::write(path, fixed)?;
+                }
+                Ok(())
+            });
         }
 
-        let reports = par_map(&self.files, |path| -> Result<Option<String>> {
+        let report = |path: &Path| -> Result<Option<String>> {
             if self.diff {
                 generate_diff(path)
             } else {
                 Ok(has_trailing_whitespace(path)?.then(|| format!("{}\n", path.display())))
             }
-        });
+        };
         let mut out = io::BufWriter::new(io::stdout().lock());
         let mut found_issues = false;
-        for report in reports {
-            match report {
-                Ok(Some(report)) => {
-                    out.write_all(report.as_bytes())?;
-                    found_issues = true;
-                }
-                Ok(None) => {}
-                Err(err) => {
-                    out.flush()?;
-                    return Err(err);
-                }
+        let reported = for_each_in_order(&self.files, report, |_, report| {
+            if let Some(report) = report? {
+                out.write_all(report.as_bytes())?;
+                found_issues = true;
             }
-        }
+            Ok(())
+        });
         out.flush()?;
+        reported?;
 
         // In check/diff mode: exit with code 1 if issues found
         if found_issues {

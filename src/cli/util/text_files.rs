@@ -7,10 +7,11 @@
 //! failure stops the run at the same file as a sequential loop would.
 
 use crate::Result;
+use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Condvar, Mutex, mpsc};
 
 /// How many leading bytes decide whether a file is text.
 const TEXT_PROBE_BYTES: u64 = 8192;
@@ -19,9 +20,8 @@ const TEXT_PROBE_BYTES: u64 = 8192;
 /// thread costs more than the files take to read.
 const MIN_FILES_PER_THREAD: usize = 64;
 
-/// Files are claimed in runs of this many, so threads rarely contend on the
-/// shared counter but still even out files of very different sizes.
-const CLAIM: usize = 16;
+/// How many files the workers may read ahead of the results already handled.
+const RESULTS_AHEAD: usize = 256;
 
 /// The size of `path` if it is a regular file, following symlinks. Missing
 /// paths, directories, and special files are not text files and are skipped.
@@ -55,80 +55,131 @@ pub(super) fn read_rest_to_string(file: &mut File, mut bytes: Vec<u8>) -> Result
     })
 }
 
-/// Run `f` on every item, in parallel when there are enough of them, and
-/// return the results in the order of `items`.
-pub(super) fn par_map<I, T, F>(items: &[I], f: F) -> Vec<T>
+/// Run `f` on every file across the available CPUs and hand each result to
+/// `emit` on the calling thread, in file order, so output and writes happen
+/// exactly as in a sequential loop. Workers stay at most [`RESULTS_AHEAD`]
+/// files ahead of `emit`, which bounds how many results are held at once.
+/// The first error from `emit` stops the run and is returned; no later
+/// result reaches `emit`.
+pub(super) fn for_each_in_order<T, F, E>(files: &[PathBuf], f: F, mut emit: E) -> Result<()>
 where
-    I: Sync,
     T: Send,
-    F: Fn(&I) -> T + Sync,
+    F: Fn(&Path) -> T + Sync,
+    E: FnMut(&Path, T) -> Result<()>,
 {
     let threads = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)
-        .min(items.len() / MIN_FILES_PER_THREAD)
+        .min(files.len() / MIN_FILES_PER_THREAD)
         .max(1);
     if threads == 1 {
-        return items.iter().map(&f).collect();
+        for path in files {
+            emit(path, f(path))?;
+        }
+        return Ok(());
     }
-    let next = AtomicUsize::new(0);
-    let done: Vec<Vec<(usize, T)>> = std::thread::scope(|scope| {
-        let workers: Vec<_> = (0..threads)
-            .map(|_| {
-                scope.spawn(|| {
-                    let mut done = Vec::new();
-                    loop {
-                        let start = next.fetch_add(CLAIM, Ordering::Relaxed);
-                        if start >= items.len() {
-                            break done;
-                        }
-                        let end = (start + CLAIM).min(items.len());
-                        for (i, item) in items[start..end].iter().enumerate() {
-                            done.push((start + i, f(item)));
-                        }
-                    }
-                })
-            })
-            .collect();
-        workers
-            .into_iter()
-            .map(|worker| match worker.join() {
-                Ok(done) => done,
-                Err(panic) => std::panic::resume_unwind(panic),
-            })
-            .collect()
+
+    struct Progress {
+        /// The next file a worker will claim.
+        claimed: usize,
+        /// How many files `emit` has handled.
+        emitted: usize,
+        stop: bool,
+    }
+    let progress = Mutex::new(Progress {
+        claimed: 0,
+        emitted: 0,
+        stop: false,
     });
-    let mut results: Vec<Option<T>> = std::iter::repeat_with(|| None).take(items.len()).collect();
-    for (i, result) in done.into_iter().flatten() {
-        results[i] = Some(result);
-    }
-    results
-        .into_iter()
-        .map(|result| result.expect("every item has a result"))
-        .collect()
+    let room = Condvar::new();
+    let (tx, rx) = mpsc::channel::<(usize, T)>();
+    std::thread::scope(|scope| {
+        for _ in 0..threads {
+            let (tx, progress, room, f) = (tx.clone(), &progress, &room, &f);
+            scope.spawn(move || {
+                loop {
+                    let i = {
+                        let mut p = progress.lock().unwrap();
+                        while !p.stop
+                            && p.claimed < files.len()
+                            && p.claimed >= p.emitted + RESULTS_AHEAD
+                        {
+                            p = room.wait(p).unwrap();
+                        }
+                        if p.stop || p.claimed >= files.len() {
+                            return;
+                        }
+                        p.claimed += 1;
+                        p.claimed - 1
+                    };
+                    if tx.send((i, f(&files[i]))).is_err() {
+                        return;
+                    }
+                }
+            });
+        }
+        drop(tx);
+
+        let mut pending = BTreeMap::new();
+        let mut next = 0;
+        let mut emitted = || -> Result<()> {
+            for (i, result) in &rx {
+                pending.insert(i, result);
+                while let Some(result) = pending.remove(&next) {
+                    emit(&files[next], result)?;
+                    next += 1;
+                    progress.lock().unwrap().emitted = next;
+                    room.notify_all();
+                }
+            }
+            Ok(())
+        };
+        let result = emitted();
+        if result.is_err() {
+            progress.lock().unwrap().stop = true;
+            room.notify_all();
+        }
+        result
+    })
 }
 
-/// Write the fixed content of each file that has any. Like a sequential
-/// fixer, nothing after the first file that failed to read is written, and
-/// that error is returned; otherwise the first write error in file order is.
-pub(super) fn write_fixes(files: &[PathBuf], fixes: Vec<Result<Option<String>>>) -> Result<()> {
-    let mut writes = Vec::new();
-    let mut read_error = None;
-    for (path, fix) in files.iter().zip(fixes) {
-        match fix {
-            Ok(Some(content)) => writes.push((path, content)),
-            Ok(None) => {}
-            Err(err) => {
-                read_error = Some(err);
-                break;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn files(n: usize) -> Vec<PathBuf> {
+        (0..n).map(|i| PathBuf::from(i.to_string())).collect()
+    }
+
+    fn index(path: &Path) -> usize {
+        path.to_str().unwrap().parse().unwrap()
+    }
+
+    #[test]
+    fn emits_every_result_in_file_order() {
+        let files = files(5000);
+        let mut seen = Vec::new();
+        for_each_in_order(&files, index, |path, i| {
+            assert_eq!(index(path), i);
+            seen.push(i);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(seen, (0..5000).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn stops_at_the_first_error() {
+        let files = files(5000);
+        let mut seen = Vec::new();
+        let result = for_each_in_order(&files, index, |_, i| {
+            if i == 700 {
+                eyre::bail!("failed at {i}");
             }
-        }
-    }
-    for written in par_map(&writes, |(path, content)| fs::write(path, content)) {
-        written?;
-    }
-    match read_error {
-        Some(err) => Err(err),
-        None => Ok(()),
+            seen.push(i);
+            Ok(())
+        });
+        assert_eq!(result.unwrap_err().to_string(), "failed at 700");
+        assert_eq!(seen, (0..700).collect::<Vec<_>>());
     }
 }

@@ -630,19 +630,13 @@ SCRIPT
 
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
-local fmt = new Config.Step {
-    glob = List("*.txt")
-    check_diff = "./formatter.sh {{files}}"
-    fix = "./fixer.sh {{files}}"
-    apply_check_diff = false
-}
-hooks {
-    ["fix"] {
-        fix = true
-        steps { ["fmt"] = fmt }
-    }
-    ["check"] {
-        steps { ["fmt"] = fmt }
+// Top-level steps create the check and fix hooks.
+steps {
+    ["fmt"] {
+        glob = List("*.txt")
+        check_diff = "./formatter.sh {{files}}"
+        fix = "./fixer.sh {{files}}"
+        apply_check_diff = false
     }
 }
 EOF
@@ -725,4 +719,50 @@ EOF
     assert_output "new"
     run git show :b.txt
     assert_output "fine"
+}
+
+@test "apply_check_diff = false runs the fixer in pre-commit when check_diff is empty on this platform" {
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+for file in "$@"; do
+    echo "new" > "$file"
+done
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "none"
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = new Script {
+                    linux = ""
+                    macos = ""
+                    windows = ""
+                    other = "false"
+                }
+                fix = "./fixer.sh {{files}}"
+                apply_check_diff = false
+            }
+        }
+    }
+}
+EOF
+
+    echo "base" > a.txt
+    git add .
+    git commit -m "test: create base fixture"
+    echo "old" > a.txt
+    git add a.txt
+
+    HK_LOG=debug run hk run pre-commit
+    assert_success
+    # No check-first attempt without a command to run.
+    refute_output --partial "failed check step first"
+    run git show :a.txt
+    assert_output "new"
 }

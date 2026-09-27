@@ -105,11 +105,13 @@ impl Step {
         }
         // A step that runs its fixer instead of applying its diff still checks
         // first when the hook stages fixes: in a typical commit the check
-        // passes, which skips both the fixer and staging.
+        // passes, which skips both the fixer and staging. This needs a
+        // `check_diff` command for this platform; a platform-specific script
+        // can be empty.
         if ctx.hook_ctx.should_stage
             && matches!(ctx.hook_ctx.run_type, RunType::Fix)
-            && self.check_diff.is_some()
             && !self.applies_check_diff()
+            && matches!(self.check_first_cmd(), Some(CheckFirstCmd::Diff(_)))
         {
             for job in &mut jobs {
                 job.check_first = true;
