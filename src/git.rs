@@ -1464,12 +1464,7 @@ impl Git {
         self.stashed_paths = Some(files_to_stash);
         self.stash = match self.push_stash(subset_opt, status) {
             Ok(stash) => stash,
-            Err(err) => {
-                if let Err(restore_err) = self.restore_intent_to_add(true) {
-                    warn!("{restore_err:?}");
-                }
-                return Err(err);
-            }
+            Err(err) => return Err(with_restore_error(err, self.restore_intent_to_add(true))),
         };
         if self.stash.is_none() {
             // The paths above keep their unstaged changes
@@ -1707,11 +1702,9 @@ impl Git {
             Ok(())
         };
         if let Err(err) = set_aside() {
+            let err = err.wrap_err("failed to set aside intent-to-add files");
             // Files still present were never removed
-            if let Err(restore_err) = self.restore_intent_to_add(false) {
-                warn!("{restore_err:?}");
-            }
-            return Err(err.wrap_err("failed to set aside intent-to-add files"));
+            return Err(with_restore_error(err, self.restore_intent_to_add(false)));
         }
         Ok(())
     }
@@ -1752,7 +1745,9 @@ impl Git {
         ])
         .stdin_bytes(literal_pathspecs(&ita.paths))
         .run()
-        .wrap_err("failed to add intent-to-add files back to the index")?;
+        .wrap_err_with(|| {
+            format!("failed to add intent-to-add files back to the index; their contents are kept in {stash_ref}")
+        })?;
         if removed && !occupied.is_empty() {
             return Err(eyre!(
                 "steps created {}, which were intent-to-add files; their contents before the hook are kept in {stash_ref}",
@@ -1813,9 +1808,8 @@ impl Git {
         let intent_to_add_result = self.restore_intent_to_add(true);
         self.stashed_paths = None;
         match (result, intent_to_add_result) {
-            // Report both, as each names where its contents are kept
-            (Err(err), Err(intent_to_add_err)) => Err(eyre!("{err:#}\n{intent_to_add_err:#}")),
-            (result, intent_to_add_result) => result.and(intent_to_add_result),
+            (Err(err), intent_to_add_result) => Err(with_restore_error(err, intent_to_add_result)),
+            (Ok(()), intent_to_add_result) => intent_to_add_result,
         }
     }
 
@@ -2704,6 +2698,15 @@ impl Git {
     }
 }
 
+/// `err`, together with any failure of restoring intent-to-add files that
+/// followed it: each names where its contents are kept.
+fn with_restore_error(err: eyre::Report, restore: Result<()>) -> eyre::Report {
+    match restore {
+        Ok(()) => err,
+        Err(restore_err) => eyre!("{err:#}\n{restore_err:#}"),
+    }
+}
+
 /// `paths` as NUL-terminated literal pathspecs, for
 /// `--pathspec-from-file=- --pathspec-file-nul`.
 fn literal_pathspecs<P: AsRef<std::path::Path>>(paths: &[P]) -> Vec<u8> {
@@ -3347,6 +3350,18 @@ mod tests {
 
     fn paths(dir: &std::path::Path, names: &[&str]) -> BTreeSet<PathBuf> {
         names.iter().map(|name| dir.join(name)).collect()
+    }
+
+    #[test]
+    fn test_restore_error_is_reported_with_the_original_error() {
+        let err = with_restore_error(eyre!("stash failed"), Ok(()));
+        assert_eq!(format!("{err:#}"), "stash failed");
+        let restore_err = Err(eyre!("kept in stash@{{1}}").wrap_err("failed to restore"));
+        let err = with_restore_error(eyre!("stash failed"), restore_err);
+        assert_eq!(
+            format!("{err}"),
+            "stash failed\nfailed to restore: kept in stash@{1}"
+        );
     }
 
     #[test]
