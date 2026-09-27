@@ -498,7 +498,15 @@ impl Git {
     /// [`Git::status`], which may hash any tracked file.
     #[tracing::instrument(level = "info", name = "git.status_of_pathspec", skip_all, fields(pathspec_count = pathspec.len()))]
     pub fn status_of_pathspec(&self, pathspec: &[OsString]) -> Result<GitStatus> {
-        self.read_status(Some(pathspec), false)
+        if let Some(repo) = &self.repo {
+            match read_status_libgit2(repo, Some(pathspec), false) {
+                Err(err) if libgit2_cannot_read_index(&err) => {
+                    debug!("reading status with git, as libgit2 cannot read the index: {err:#}");
+                }
+                status => return status,
+            }
+        }
+        self.read_status_cli(Some(pathspec))
     }
 
     /// Worktree paths that any index write may read, besides the paths being
@@ -557,9 +565,14 @@ impl Git {
         if paths.is_empty() {
             return Ok(GitStatus::default());
         }
-        if self.repo.is_some() {
+        if let Some(repo) = &self.repo {
             let pathspec = paths.iter().map(|p| p.as_os_str().to_owned()).collect_vec();
-            return self.read_status(Some(&pathspec), true);
+            match read_status_libgit2(repo, Some(&pathspec), true) {
+                Err(err) if libgit2_cannot_read_index(&err) => {
+                    debug!("reading status with git, as libgit2 cannot read the index: {err:#}");
+                }
+                status => return status,
+            }
         }
         // `git status` takes pathspecs only as arguments, so query in chunks
         // that stay well under the command-line limit (32 KiB on Windows).
@@ -571,157 +584,50 @@ impl Git {
             let mut spec = OsString::from(":(literal)");
             spec.push(p);
             if !chunk.is_empty() && chunk_bytes + spec.len() + 1 > MAX_ARG_BYTES {
-                status.extend(self.read_status(Some(&chunk), true)?);
+                status.extend(self.read_status_cli(Some(&chunk))?);
                 chunk.clear();
                 chunk_bytes = 0;
             }
             chunk_bytes += spec.len() + 1;
             chunk.push(spec);
         }
-        status.extend(self.read_status(Some(&chunk), true)?);
+        status.extend(self.read_status_cli(Some(&chunk))?);
         Ok(status)
     }
 
-    /// `literal` matches libgit2 pathspecs as exact paths; git CLI callers mark
-    /// literal pathspecs themselves with `:(literal)`.
-    fn read_status(&self, pathspec: Option<&[OsString]>, literal: bool) -> Result<GitStatus> {
-        // When stashing untracked files is disabled, skip the untracked-file scan.
-        // This avoids catastrophic scans when GIT_WORK_TREE points at a large tree
-        // (e.g. YADM dotfile repos where the worktree is $HOME). See #860.
+    /// Status from `git status`. Callers mark literal pathspecs themselves
+    /// with `:(literal)`.
+    fn read_status_cli(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
         let include_untracked = *env::HK_STASH_UNTRACKED;
-        if let Some(repo) = &self.repo {
-            let mut status_options = StatusOptions::new();
-            status_options.include_untracked(include_untracked);
-            status_options.recurse_untracked_dirs(include_untracked);
-            status_options.renames_head_to_index(true);
-            status_options.disable_pathspec_match(literal);
-
-            if let Some(pathspec) = pathspec {
-                for path in pathspec {
-                    status_options.pathspec(path);
-                }
-            }
-            // Get staged files (index)
-            status_options.show(StatusShow::Index);
-            let staged_statuses = repo
-                .statuses(Some(&mut status_options))
-                .wrap_err("failed to get staged statuses")?;
-            let mut staged_files = BTreeSet::new();
-            let mut staged_added_files = BTreeSet::new();
-            let mut staged_modified_files = BTreeSet::new();
-            let mut staged_deleted_files = BTreeSet::new();
-            let mut staged_renamed_files = BTreeSet::new();
-            let staged_copied_files = BTreeSet::new();
-            for s in staged_statuses.iter() {
-                let st = s.status();
-                // For renamed entries, s.path() returns the old path which no longer
-                // exists in the worktree; use the new path from the head-to-index delta
-                let path = if st.is_index_renamed() {
-                    // INDEX_RENAMED implies a head-to-index rename delta, whose
-                    // new_file path is always present
-                    s.head_to_index()
-                        .and_then(|d| d.new_file().path())
-                        .map(PathBuf::from)
-                } else {
-                    s.path().map(PathBuf::from).ok()
-                };
-                if let Some(path) = path {
-                    // Check if path exists (including broken symlinks)
-                    // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
-                    let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
-                    if st.is_index_new() {
-                        staged_added_files.insert(path.clone());
-                    }
-                    if st.is_index_modified() || st.is_index_typechange() {
-                        staged_modified_files.insert(path.clone());
-                    }
-                    if st.is_index_deleted() {
-                        staged_deleted_files.insert(path.clone());
-                    }
-                    if st.is_index_renamed() {
-                        staged_renamed_files.insert(path.clone());
-                    }
-                    // libgit2 does not expose an index-copied accessor; keep empty here
-                    if exists {
-                        staged_files.insert(path);
-                    }
-                }
-            }
-
-            // Get unstaged files (workdir)
-            status_options.show(StatusShow::Workdir);
-            let unstaged_statuses = repo
-                .statuses(Some(&mut status_options))
-                .wrap_err("failed to get unstaged statuses")?;
-            let mut unstaged_files = BTreeSet::new();
-            let mut untracked_files = BTreeSet::new();
-            let mut modified_files = BTreeSet::new();
-            let mut unstaged_modified_files = BTreeSet::new();
-            let mut unstaged_deleted_files = BTreeSet::new();
-            let mut unstaged_renamed_files = BTreeSet::new();
-            for s in unstaged_statuses.iter() {
-                if let Ok(path) = s.path().map(PathBuf::from) {
-                    // Check if path exists (including broken symlinks)
-                    // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
-                    let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
-                    let st = s.status();
-                    if st == git2::Status::WT_NEW {
-                        untracked_files.insert(path.clone());
-                    }
-                    if st == git2::Status::WT_MODIFIED || st == git2::Status::WT_TYPECHANGE {
-                        modified_files.insert(path.clone());
-                        unstaged_modified_files.insert(path.clone());
-                    }
-                    if st == git2::Status::WT_DELETED {
-                        unstaged_deleted_files.insert(path.clone());
-                    }
-                    if st == git2::Status::WT_RENAMED {
-                        // Note: s.path() would be the old path here, but WT_RENAMED
-                        // is unreachable while renames_index_to_workdir is not enabled
-                        unstaged_renamed_files.insert(path.clone());
-                    }
-                    if exists && st != git2::Status::WT_NEW {
-                        unstaged_files.insert(path);
-                    }
-                }
-            }
-
-            Ok(GitStatus {
-                staged_files,
-                unstaged_files,
-                untracked_files,
-                modified_files,
-                staged_added_files,
-                staged_modified_files,
-                staged_deleted_files,
-                staged_renamed_files,
-                staged_copied_files,
-                unstaged_modified_files,
-                unstaged_deleted_files,
-                unstaged_renamed_files,
-            })
-        } else {
-            let mut args = vec![
-                OsString::from("status"),
-                "--porcelain=v2".into(),
-                untracked_files_arg(include_untracked).into(),
-                "-z".into(),
-            ];
-            if let Some(pathspec) = pathspec {
-                args.push("--".into());
-                args.extend(pathspec.iter().cloned());
-            }
-            // With optional locks, `git status` writes the refreshed index
-            // back, and writing the index re-hashes every racily clean entry
-            // in the repository, not just the ones in `pathspec`.
-            // The output is read as bytes: paths need not be valid UTF-8.
-            let output = xx::process::cmd("git", args)
-                .env("GIT_OPTIONAL_LOCKS", "0")
-                .stdout_capture()
-                .run()?
-                .stdout;
-            Ok(GitStatus::from_entries(parse_porcelain_status(&output)?))
+        let mut args = vec![
+            OsString::from("status"),
+            "--porcelain=v2".into(),
+            untracked_files_arg(include_untracked).into(),
+            "-z".into(),
+        ];
+        if self.repo.is_some() {
+            // libgit2 detects staged renames whatever `status.renames` says
+            args.push("--renames".into());
         }
+        if let Some(pathspec) = pathspec {
+            args.push("--".into());
+            args.extend(pathspec.iter().cloned());
+        }
+        // With optional locks, `git status` writes the refreshed index
+        // back, and writing the index re-hashes every racily clean entry
+        // in the repository, not just the ones in `pathspec`.
+        // The output is read as bytes: paths need not be valid UTF-8.
+        let output = xx::process::cmd("git", args)
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .stdout_capture()
+            .run()?
+            .stdout;
+        let entries = parse_porcelain_status(&output)?;
+        Ok(if self.repo.is_some() {
+            GitStatus::from_entries_libgit2(entries)?
+        } else {
+            GitStatus::from_entries(entries)
+        })
     }
 
     #[tracing::instrument(level = "info", name = "git.stash.push", skip_all)]
@@ -2062,6 +1968,136 @@ struct StatusEntry {
     /// The original path of a rename or copy, as git printed it: it is
     /// checked only where it is used
     orig_path: Option<Vec<u8>>,
+}
+
+/// Status from libgit2. `literal` matches pathspecs as exact paths.
+fn read_status_libgit2(
+    repo: &Repository,
+    pathspec: Option<&[OsString]>,
+    literal: bool,
+) -> Result<GitStatus> {
+    // When stashing untracked files is disabled, skip the untracked-file scan.
+    // This avoids catastrophic scans when GIT_WORK_TREE points at a large tree
+    // (e.g. YADM dotfile repos where the worktree is $HOME). See #860.
+    let include_untracked = *env::HK_STASH_UNTRACKED;
+    let mut status_options = StatusOptions::new();
+    status_options.include_untracked(include_untracked);
+    status_options.recurse_untracked_dirs(include_untracked);
+    status_options.renames_head_to_index(true);
+    status_options.disable_pathspec_match(literal);
+
+    if let Some(pathspec) = pathspec {
+        for path in pathspec {
+            status_options.pathspec(path);
+        }
+    }
+    // Get staged files (index)
+    status_options.show(StatusShow::Index);
+    let staged_statuses = repo
+        .statuses(Some(&mut status_options))
+        .wrap_err("failed to get staged statuses")?;
+    let mut staged_files = BTreeSet::new();
+    let mut staged_added_files = BTreeSet::new();
+    let mut staged_modified_files = BTreeSet::new();
+    let mut staged_deleted_files = BTreeSet::new();
+    let mut staged_renamed_files = BTreeSet::new();
+    let staged_copied_files = BTreeSet::new();
+    for s in staged_statuses.iter() {
+        let st = s.status();
+        // For renamed entries, s.path() returns the old path which no longer
+        // exists in the worktree; use the new path from the head-to-index delta
+        let path = if st.is_index_renamed() {
+            // INDEX_RENAMED implies a head-to-index rename delta, whose
+            // new_file path is always present
+            s.head_to_index()
+                .and_then(|d| d.new_file().path())
+                .map(PathBuf::from)
+        } else {
+            s.path().map(PathBuf::from).ok()
+        };
+        if let Some(path) = path {
+            // Check if path exists (including broken symlinks)
+            // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
+            let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
+            if st.is_index_new() {
+                staged_added_files.insert(path.clone());
+            }
+            if st.is_index_modified() || st.is_index_typechange() {
+                staged_modified_files.insert(path.clone());
+            }
+            if st.is_index_deleted() {
+                staged_deleted_files.insert(path.clone());
+            }
+            if st.is_index_renamed() {
+                staged_renamed_files.insert(path.clone());
+            }
+            // libgit2 does not expose an index-copied accessor; keep empty here
+            if exists {
+                staged_files.insert(path);
+            }
+        }
+    }
+
+    // Get unstaged files (workdir)
+    status_options.show(StatusShow::Workdir);
+    let unstaged_statuses = repo
+        .statuses(Some(&mut status_options))
+        .wrap_err("failed to get unstaged statuses")?;
+    let mut unstaged_files = BTreeSet::new();
+    let mut untracked_files = BTreeSet::new();
+    let mut modified_files = BTreeSet::new();
+    let mut unstaged_modified_files = BTreeSet::new();
+    let mut unstaged_deleted_files = BTreeSet::new();
+    let mut unstaged_renamed_files = BTreeSet::new();
+    for s in unstaged_statuses.iter() {
+        if let Ok(path) = s.path().map(PathBuf::from) {
+            // Check if path exists (including broken symlinks)
+            // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
+            let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
+            let st = s.status();
+            if st == git2::Status::WT_NEW {
+                untracked_files.insert(path.clone());
+            }
+            if st == git2::Status::WT_MODIFIED || st == git2::Status::WT_TYPECHANGE {
+                modified_files.insert(path.clone());
+                unstaged_modified_files.insert(path.clone());
+            }
+            if st == git2::Status::WT_DELETED {
+                unstaged_deleted_files.insert(path.clone());
+            }
+            if st == git2::Status::WT_RENAMED {
+                // Note: s.path() would be the old path here, but WT_RENAMED
+                // is unreachable while renames_index_to_workdir is not enabled
+                unstaged_renamed_files.insert(path.clone());
+            }
+            if exists && st != git2::Status::WT_NEW {
+                unstaged_files.insert(path);
+            }
+        }
+    }
+
+    Ok(GitStatus {
+        staged_files,
+        unstaged_files,
+        untracked_files,
+        modified_files,
+        staged_added_files,
+        staged_modified_files,
+        staged_deleted_files,
+        staged_renamed_files,
+        staged_copied_files,
+        unstaged_modified_files,
+        unstaged_deleted_files,
+        unstaged_renamed_files,
+    })
+}
+
+/// libgit2 cannot read some index formats git writes, such as a split index
+/// (`core.splitIndex`, whose `link` extension it rejects).
+fn libgit2_cannot_read_index(err: &eyre::Report) -> bool {
+    err.chain()
+        .filter_map(|e| e.downcast_ref::<git2::Error>())
+        .any(|e| e.class() == git2::ErrorClass::Index)
 }
 
 fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
