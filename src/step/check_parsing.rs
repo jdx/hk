@@ -14,6 +14,12 @@ use xx::file::display_path;
 use super::types::Step;
 use super::{header_pairs, header_path, normalize_diff_paths, strips_git_prefixes};
 
+pub(crate) struct DiffFiles {
+    pub files: Vec<PathBuf>,
+    pub created: Vec<PathBuf>,
+    pub extras: Vec<PathBuf>,
+}
+
 /// Attempt to canonicalize a path, falling back to the original if it fails.
 ///
 /// This is useful for comparing paths that may have been deleted or renamed,
@@ -113,17 +119,24 @@ impl Step {
         original_files: &[PathBuf],
         stdout: &str,
         dir: Option<&str>,
-    ) -> (Vec<PathBuf>, Vec<PathBuf>) {
+    ) -> DiffFiles {
         let stdout = normalize_diff_paths(stdout);
+        // Match the paths that git apply will use, including absolute headers
+        // made relative to the command's working directory.
+        let base = PathBuf::from(dir.unwrap_or("."));
+        let base = base.canonicalize().unwrap_or(base);
+        let stdout = super::diff::relativize_diff_paths(&stdout, &base);
 
         // Parse unified diff format to extract file names from --- and +++ lines
         let mut listed: IndexSet<String> = IndexSet::new();
+        let mut created: IndexSet<String> = IndexSet::new();
 
         // Only header pairs outside hunk bodies are read: a hunk can hold lines
         // that look like headers, such as a removed `-- x`.
         let strip_prefixes = strips_git_prefixes(&stdout, Path::new(dir.unwrap_or(".")));
         for (old, new) in header_pairs(&stdout) {
-            for (side, prefix) in [(old, "a/"), (new, "b/")] {
+            let creates_file = header_path(old) == "/dev/null";
+            for (side, prefix, is_new) in [(old, "a/", false), (new, "b/", true)] {
                 let path = header_path(side);
                 // A created or deleted file has `/dev/null` on the other side.
                 if path == "/dev/null" {
@@ -134,7 +147,11 @@ impl Step {
                 } else {
                     &path
                 };
-                listed.insert(path.to_string());
+                if creates_file && is_new {
+                    created.insert(path.to_string());
+                } else {
+                    listed.insert(path.to_string());
+                }
             }
         }
         // The command ran in the step's `dir`, so a relative path usually names
@@ -153,7 +170,12 @@ impl Step {
                 in_dir.into_iter().chain([path.to_path_buf()]).collect()
             })
             .collect();
-        match_listed_files(original_files, &readings)
+        let (files, extras) = match_listed_files(original_files, &readings);
+        DiffFiles {
+            files,
+            created: created.into_iter().map(PathBuf::from).collect(),
+            extras,
+        }
     }
 }
 
@@ -306,10 +328,14 @@ mod tests {
         let diff = diff_naming(&[&a, &dot_b, &missing]);
         let step = Step::default();
 
-        let (files, extras) =
-            step.filter_files_from_check_diff(&[c.clone(), b.clone(), a.clone()], &diff, None);
+        let DiffFiles {
+            files,
+            created,
+            extras,
+        } = step.filter_files_from_check_diff(&[c.clone(), b.clone(), a.clone()], &diff, None);
         // Job order is kept; `./b.txt` names `b.txt` once canonicalized.
         assert_eq!(files, vec![b, a]);
+        assert!(created.is_empty());
         assert_eq!(extras.len(), 1);
         assert!(extras[0].ends_with("missing.txt"), "{extras:?}");
     }
@@ -334,7 +360,7 @@ mod tests {
         let step = Step::default();
         let job_file = dir.path().join("old.txt");
         let diff = "--- a/old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
-        let (files, extras) = step.filter_files_from_check_diff(
+        let DiffFiles { files, extras, .. } = step.filter_files_from_check_diff(
             std::slice::from_ref(&job_file),
             diff,
             dir.path().to_str(),
@@ -357,16 +383,16 @@ mod tests {
         let at_root = PathBuf::from("x");
         let step = Step::default();
         let diff = "--- a/x\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
-        let (files, _) = step.filter_files_from_check_diff(
+        let files = step.filter_files_from_check_diff(
             &[at_root.clone(), in_pkg.clone()],
             diff,
             pkg.to_str(),
         );
-        assert_eq!(files, vec![at_root, in_pkg.clone()]);
+        assert_eq!(files.files, vec![at_root, in_pkg.clone()]);
 
         // With no root `x` in the job, only `pkg/x` matches, and no extra is
         // reported for the other reading.
-        let (files, extras) =
+        let DiffFiles { files, extras, .. } =
             step.filter_files_from_check_diff(std::slice::from_ref(&in_pkg), diff, pkg.to_str());
         assert_eq!(files, vec![in_pkg]);
         assert!(extras.is_empty());
@@ -388,12 +414,12 @@ mod tests {
         let at_root = PathBuf::from("x");
         let step = Step::default();
         let diff = "--- a/x\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
-        let (files, _) = step.filter_files_from_check_diff(
+        let files = step.filter_files_from_check_diff(
             &[at_root.clone(), in_pkg.clone()],
             diff,
             alias.to_str(),
         );
-        assert_eq!(files, vec![at_root, in_pkg]);
+        assert_eq!(files.files, vec![at_root, in_pkg]);
     }
 
     #[cfg(unix)]
@@ -412,12 +438,12 @@ mod tests {
         let at_root = PathBuf::from("link");
         let step = Step::default();
         let diff = "--- a/link\n+++ b/link\n@@ -1 +1 @@\n-x\n+y\n";
-        let (files, _) = step.filter_files_from_check_diff(
+        let files = step.filter_files_from_check_diff(
             &[at_root.clone(), link.clone()],
             diff,
             alias.to_str(),
         );
-        assert_eq!(files, vec![at_root, link]);
+        assert_eq!(files.files, vec![at_root, link]);
     }
 
     fn diff_naming(paths: &[&Path]) -> String {
@@ -438,7 +464,7 @@ mod tests {
         let step = Step::default();
 
         // The diff names the job's file only through a symlink to it.
-        let (files, extras) = step.filter_files_from_check_diff(
+        let DiffFiles { files, extras, .. } = step.filter_files_from_check_diff(
             std::slice::from_ref(&target),
             &diff_naming(&[&link]),
             None,
@@ -461,12 +487,34 @@ mod tests {
         // With a symlink and its target both in the job (only possible with
         // `allow_symlinks`), a diff naming one of them as written selects
         // only that one.
-        let (files, extras) =
+        let DiffFiles { files, extras, .. } =
             step.filter_files_from_check_diff(&job_files, &diff_naming(&[&target]), None);
         assert_eq!(files, vec![target.clone()]);
         assert!(extras.is_empty(), "{extras:?}");
-        let (files, _) =
-            step.filter_files_from_check_diff(&job_files, &diff_naming(&[&link]), None);
-        assert_eq!(files, vec![link]);
+        let files = step.filter_files_from_check_diff(&job_files, &diff_naming(&[&link]), None);
+        assert_eq!(files.files, vec![link]);
+    }
+
+    #[test]
+    fn check_diff_distinguishes_created_files_from_unexpected_files() {
+        let diff = "--- /dev/null\n+++ b/go.sum\n@@ -0,0 +1 @@\n+sum\n--- a/go.mod\n+++ b/go.mod\n@@ -1 +1 @@\n-old\n+new\n--- a/other.txt\n+++ b/other.txt\n@@ -1 +1 @@\n-old\n+new\n";
+        let parsed =
+            Step::default().filter_files_from_check_diff(&[PathBuf::from("go.mod")], diff, None);
+        assert_eq!(parsed.files, vec![PathBuf::from("go.mod")]);
+        assert_eq!(parsed.created, vec![PathBuf::from("go.sum")]);
+        assert_eq!(parsed.extras, vec![PathBuf::from("other.txt")]);
+    }
+
+    #[test]
+    fn check_diff_preserves_literal_prefix_in_mixed_patch() {
+        let diff = "--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1 @@\n+new\n--- sub/existing.txt\n+++ sub/existing.txt\n@@ -1 +1 @@\n-old\n+updated\n";
+        let parsed = Step::default().filter_files_from_check_diff(
+            &[PathBuf::from("sub/existing.txt")],
+            diff,
+            None,
+        );
+        assert_eq!(parsed.files, vec![PathBuf::from("sub/existing.txt")]);
+        assert_eq!(parsed.created, vec![PathBuf::from("b/new.txt")]);
+        assert!(parsed.extras.is_empty());
     }
 }
