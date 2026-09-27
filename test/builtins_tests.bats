@@ -195,7 +195,6 @@ PKL
     assert_output --partial "ok - kubeconform_gitops :: check manifest without kind"
 }
 
-# bats test_tags=git-backend-independent
 @test "rumdl fixes apply the check_diff patch instead of rerunning the tool" {
     # The fixers are replaced by commands that would leave a marker, so the
     # expected output can only come from applying check_diff's patch. The
