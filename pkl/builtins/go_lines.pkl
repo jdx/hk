@@ -8,21 +8,11 @@ import "./test/helpers.pkl"
 }
 go_lines = new Config.Step {
   glob = "**/*.go"
-  // `golines -l` exits 0 even when it lists files, so the exit code has to
-  // come from the shell. `--dry-run` omits blank lines while still counting
-  // them in the hunk header, so the patch it prints is not applicable;
-  // `check_diff` builds one from golines' stdin mode instead.
-  check = new Config.CommandSpec {
-    command =
-      """
-      FILES=$(golines -l {{files}})
-      if [ -n "$FILES" ]; then
-      echo "$FILES"
-      exit 1
-      fi
-      """
-    effect = "read"
-  }
+  // `golines -l` exits 0 even when it lists files, and `--dry-run` omits
+  // blank lines while still counting them in the hunk header, so neither
+  // works as a check. `check_diff` builds a patch from golines' stdin mode and
+  // exits 1 when a file would change, so it is the check too. Every command
+  // is argv, so an argv `prefix` composes with the step.
   check_diff = new Config.CommandSpec {
     command = new Config.Command {
       argv = List("hk", "util", "format-diff", "{{files}}", "--", "golines")
