@@ -454,6 +454,47 @@ EOF
     assert_output $'++ tidy/foo\nx'
 }
 
+@test "check_diff applies a git-style patch that edits one file and creates another" {
+    # `go mod tidy -diff` can create go.sum this way, from /dev/null.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf -- '--- a/%s\n+++ b/%s\n@@ -1 +1 @@\n-old\n+new\n--- /dev/null\n+++ b/created.txt\n@@ -0,0 +1 @@\n+made\n' "$1" "$1"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("test.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    echo "old" > test.txt
+    run hk fix test.txt
+    assert_success
+
+    run cat test.txt
+    assert_output "new"
+    run cat created.txt
+    assert_output "made"
+}
+
 @test "check_diff handles diffs with .orig suffix on --- line" {
     # Go tools like gofmt output diffs with .orig suffix on the --- line
     # e.g., "--- file.go.orig" instead of "--- file.go"

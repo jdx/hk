@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use xx::file::display_path;
 
 use super::types::Step;
-use super::{diff_lines, normalize_diff_paths};
+use super::{header_pairs, header_path, normalize_diff_paths, uses_git_prefixes};
 
 /// Attempt to canonicalize a path, falling back to the original if it fails.
 ///
@@ -116,61 +116,18 @@ impl Step {
         // Parse unified diff format to extract file names from --- and +++ lines
         let mut listed: IndexSet<&str> = IndexSet::new();
 
-        // First pass: detect if this diff uses a/ and b/ prefixes (git-style)
-        let mut has_a_prefix = false;
-        let mut has_b_prefix = false;
-        // Hunk bodies can hold lines that look like headers, such as a removed
-        // `-- x`, so only lines outside them are read.
-        let headers: Vec<&str> = diff_lines(&stdout)
-            .into_iter()
-            .filter(|(_, in_hunk)| !in_hunk)
-            .map(|(line, _)| line.trim_end_matches(['\n', '\r']))
-            .collect();
-        for &line in &headers {
-            if line.starts_with("--- a/") {
-                has_a_prefix = true;
-            } else if line.starts_with("+++ b/") {
-                has_b_prefix = true;
-            }
-            if has_a_prefix && has_b_prefix {
-                break;
-            }
-        }
-        let should_strip_prefixes = has_a_prefix && has_b_prefix;
-
-        // Second pass: extract file paths
-        for &line in &headers {
-            if line.starts_with("--- ") {
-                if let Some(path_str) = line.strip_prefix("--- ") {
-                    // Strip timestamp if present (tab-separated: "--- file.py	2025-01-01 12:00:00")
-                    let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
-                        before_tab.trim()
-                    } else {
-                        path_str.trim()
-                    };
-                    // Strip standard diff path prefixes (a/ or b/) if detected
-                    let path = if should_strip_prefixes {
-                        path.strip_prefix("a/")
-                            .or_else(|| path.strip_prefix("b/"))
-                            .unwrap_or(path)
-                    } else {
-                        path
-                    };
-                    listed.insert(path);
+        // Only header pairs outside hunk bodies are read: a hunk can hold lines
+        // that look like headers, such as a removed `-- x`.
+        let strip_prefixes = uses_git_prefixes(&stdout);
+        for (old, new) in header_pairs(&stdout) {
+            for (side, prefix) in [(old, "a/"), (new, "b/")] {
+                let path = header_path(side);
+                // A created or deleted file has `/dev/null` on the other side.
+                if path == "/dev/null" {
+                    continue;
                 }
-            } else if line.starts_with("+++ ")
-                && let Some(path_str) = line.strip_prefix("+++ ")
-            {
-                let path = if let Some((before_tab, _)) = path_str.split_once('\t') {
-                    before_tab.trim()
-                } else {
-                    path_str.trim()
-                };
-                // Strip standard diff path prefixes (a/ or b/) if detected
-                let path = if should_strip_prefixes {
-                    path.strip_prefix("a/")
-                        .or_else(|| path.strip_prefix("b/"))
-                        .unwrap_or(path)
+                let path = if strip_prefixes {
+                    path.strip_prefix(prefix).unwrap_or(path)
                 } else {
                     path
                 };
