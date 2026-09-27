@@ -31,8 +31,17 @@ declare -A CONFIG=(
     [hk]=hk
     [lefthook]=lefthook
     [pre-commit]=pre-commit
-    [prek]=pre-commit
+    [prek]=prek
 )
+
+# prek's configuration must be pre-commit's plus `priority` keys, so the two
+# run the same hooks and differ only in scheduling.
+strip_priority() { yq -o json 'del(.. | select(tag == "!!map") | .priority)' "$1"; }
+if ! diff -u <(strip_priority "$BENCH/subjects/pre-commit/.pre-commit-config.yaml") \
+    <(strip_priority "$BENCH/subjects/prek/.pre-commit-config.yaml") >&2; then
+    echo "error: subjects/prek differs from subjects/pre-commit in more than priority" >&2
+    exit 1
+fi
 
 if [ -z "${HK_PKL:-}" ]; then
     HK_PKL="$REPO/pkl"
@@ -55,11 +64,16 @@ if [ "${REGENERATE:-0}" != "0" ] || [ "$(cat "$WORK/fixture.inputs" 2>/dev/null)
     echo "$inputs" >"$WORK/fixture.inputs"
 fi
 
+dirty_files() {
+    git diff --name-only clean dirty -- . ':!hk.pkl' ':!lefthook.yml' ':!.pre-commit-config.yaml'
+}
 # A commit-sized change for the staged scenario: every 25th dirty file, about
 # 60, in the same language mix as the project.
-staged_files() {
-    git diff --name-only clean dirty -- . ':!hk.pkl' ':!lefthook.yml' ':!.pre-commit-config.yaml' |
-        awk 'NR % 25 == 1'
+staged_files() { dirty_files | awk 'NR % 25 == 1'; }
+# A small commit: the first dirty file of each type, so each language's hooks
+# have one file to fix. The linters' own configuration files are skipped.
+small_commit_files() {
+    dirty_files | grep -vxE 'eslint\.config\.js|tsconfig\.json' | awk -F. '!seen[$NF]++'
 }
 
 for subject in "${!CONFIG[@]}"; do
@@ -87,6 +101,7 @@ for subject in "${!CONFIG[@]}"; do
     git tag -f dirty
     git checkout -q -B main dirty
     staged_files >.git/staged-files
+    small_commit_files >.git/small-commit-files
 
     mkdir -p .git/cache .git/state
 done

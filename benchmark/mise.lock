@@ -182,11 +182,23 @@ aube = { path = ".mise/locks/npm-prettier/3.9.9", digest = "sha256:815f6667505e4
 backend = "npm:prettier"
 specifiers = ["3.9.9"]
 
+[[tools."npm:typescript"]]
+version = "7.0.2"
+aube = { path = ".mise/locks/npm-typescript/7.0.2", digest = "sha256:3d06b3b23564c68cdad7815c356edb1506fab1c42bfb8c54234134fd9650ec17" }
+backend = "npm:typescript"
+specifiers = ["7.0.2"]
+
 [[tools."pipx:black"]]
 version = "26.5.1"
 backend = "pipx:black"
 specifiers = ["26.5.1"]
 uv = { path = ".mise/locks/pipx-black/26.5.1", digest = "sha256:946a19b9ebe206d1919492e74dc5b2273a60e618bbc5a6246fb5288311157557" }
+
+[[tools."pipx:mypy"]]
+version = "2.3.1"
+backend = "pipx:mypy"
+specifiers = ["2.3.1"]
+uv = { path = ".mise/locks/pipx-mypy/2.3.1", digest = "sha256:be6709e0ebe6a4624060dcf3ae38998e901105c19c8b566b58415a40ffa0478a" }
 
 [[tools."pipx:pre-commit-hooks"]]
 version = "6.0.0"
