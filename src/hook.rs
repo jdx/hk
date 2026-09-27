@@ -1,6 +1,6 @@
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressOutput, ProgressStatus};
 use eyre::WrapErr;
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use itertools::Itertools;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error, ser};
 use serde_with::{DisplayFromStr, PickFirst, serde_as};
@@ -10,7 +10,7 @@ use std::{
     fmt,
     path::{Component, Path, PathBuf},
     sync::{
-        Arc, Mutex as StdMutex,
+        Arc, Mutex as StdMutex, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
     time::Instant,
@@ -399,6 +399,18 @@ pub struct HookContext {
     /// that is, those hk didn't stash. Staging one of these after a fix would
     /// also stage the user's unstaged changes.
     pub initial_unstaged: StdMutex<BTreeSet<PathBuf>>,
+    /// Files steps have queued for staging that no `git add` has staged yet.
+    /// Only read or changed while holding `git`; see `Step::stage_files`.
+    pub pending_stage: StdMutex<PendingStage>,
+}
+
+/// Files from steps that were ready to stage at the same time, staged by a
+/// single `git add`.
+#[derive(Default)]
+pub struct PendingStage {
+    pub paths: IndexSet<PathBuf>,
+    /// Set by the step that runs the `git add`: `Err` holds its error message.
+    pub result: Arc<OnceLock<std::result::Result<(), String>>>,
 }
 
 impl HookContext {
@@ -455,6 +467,7 @@ impl HookContext {
             should_stage,
             initial_untracked,
             initial_unstaged: StdMutex::new(initial_unstaged),
+            pending_stage: StdMutex::new(PendingStage::default()),
         }
     }
 
