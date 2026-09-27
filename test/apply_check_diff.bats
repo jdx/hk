@@ -607,6 +607,141 @@ EOF
     assert_output "new"
 }
 
+# A check_diff that meets the other step's before it prints anything: it
+# marks that it started and waits up to 5 seconds for the other step's mark.
+# Steps that ran one after the other leave a "$STEP.alone" file. A step whose
+# first line lacks its mark prints a patch adding it.
+write_rendezvous_formatter() {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+file="$1"
+touch "$STEP.started"
+for _ in $(seq 50); do
+    [ -e "$OTHER.started" ] && break
+    sleep 0.1
+done
+[ -e "$OTHER.started" ] || touch "$STEP.alone"
+first=$(head -1 "$file")
+[[ "$first" == *"-$STEP"* ]] && exit 0
+new=$(mktemp)
+sed "1s/\$/-$STEP/" "$file" > "$new"
+diff -u -L "$file" -L "$file" "$file" "$new"
+rm -f "$new"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+}
+
+# $1: the effect both steps' check_diff declares
+write_rendezvous_config() {
+    local check_diff_effect=$1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["first"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "1"; ["OTHER"] = "2" }
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "$check_diff_effect" }
+                fix = "./fixer.sh {{files}}"
+            }
+            ["second"] {
+                glob = List("*.txt")
+                env { ["STEP"] = "2"; ["OTHER"] = "1" }
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "$check_diff_effect" }
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+}
+
+@test "read-only check_diff steps compute their patches alongside each other in fix mode" {
+    write_rendezvous_formatter
+    write_rendezvous_config read
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # Both ran at once, and both patches were applied: the second to reach
+    # its write locks found the file changed and computed its patch again.
+    [ ! -e 1.alone ]
+    [ ! -e 2.alone ]
+    run cat test.txt
+    assert_output --regexp '^line-(1-2|2-1)$'
+}
+
+@test "check_diff steps that declare a write effect keep write locks in fix mode" {
+    write_rendezvous_formatter
+    write_rendezvous_config write
+    echo "line" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    # One ran after the other, so exactly one waited for the other in vain.
+    [ -e 1.alone ] || [ -e 2.alone ]
+    run cat test.txt
+    assert_output --regexp '^line-(1-2|2-1)$'
+}
+
+@test "a read-only check_diff patch that also names a file outside the job is applied" {
+    # Like `go mod tidy -diff` rewriting go.sum from all of a job's .go files:
+    # the patch is computed again under write locks, from every job file.
+    # outside.lock records how many files the formatter was given.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+status=0
+if [ "$(cat a.txt)" = "a" ]; then
+    printf -- '--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-a\n+a2\n'
+    status=1
+fi
+if [ "$(cat outside.lock)" != "count=$#" ]; then
+    printf -- '--- outside.lock\n+++ outside.lock\n@@ -1 +1 @@\n-%s\n+count=%s\n' "$(cat outside.lock)" "$#"
+    status=1
+fi
+exit $status
+SCRIPT
+    chmod +x formatter.sh
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" > outside.lock
+SCRIPT
+    chmod +x fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "a" > a.txt
+    echo "b" > b.txt
+    echo "old" > outside.lock
+
+    run hk fix a.txt b.txt
+    assert_success
+    run cat a.txt
+    assert_output "a2"
+    run cat outside.lock
+    assert_output "count=2"
+}
+
 @test "check_diff-only step stages an applied patch" {
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash
