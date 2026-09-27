@@ -86,19 +86,6 @@ fn run_git_stash(cmd: &xx::process::XXExpression) -> Result<()> {
     Ok(())
 }
 
-fn git_run<I, S>(args: I) -> Result<()>
-where
-    I: IntoIterator<Item = S>,
-    S: Into<OsString>,
-{
-    git_cmd(args)
-        .on_stdout_line(|line| {
-            clx::progress::with_terminal_lock(|| eprintln!("{} {}", style::edim("git"), line))
-        })
-        .run()?;
-    Ok(())
-}
-
 fn git_read<I, S>(args: I) -> Result<String>
 where
     I: IntoIterator<Item = S>,
@@ -472,11 +459,36 @@ impl Git {
         }
     }
 
-    #[tracing::instrument(level = "info", name = "git.status", skip(self, pathspec), fields(pathspec_count = pathspec.as_ref().map(|p| p.len()).unwrap_or(0)))]
-    pub fn status(&self, pathspec: Option<&[OsString]>) -> Result<GitStatus> {
-        // Refresh index stat information to avoid stale mtime/size causing mis-detection
-        let _ = git_run(["update-index", "-q", "--refresh"]);
-        self.read_status(pathspec, false)
+    /// Status of the whole repository, after refreshing the index's stat
+    /// information so that files whose mtime changed but whose contents did
+    /// not are not reported as modified.
+    ///
+    /// This runs `git status` even with libgit2. libgit2 compares HEAD with
+    /// the index and then the index with the worktree in two single-threaded
+    /// passes over every entry, while git stats the worktree with several
+    /// threads and skips unchanged directories through the cache tree. With
+    /// optional locks allowed, `git status` also writes the refreshed index
+    /// back when it can take the lock, as `git update-index --refresh` would.
+    #[tracing::instrument(level = "info", name = "git.status", skip_all)]
+    pub fn status(&self) -> Result<GitStatus> {
+        let include_untracked = *env::HK_STASH_UNTRACKED;
+        let mut args = vec![
+            "status",
+            "--porcelain=v2",
+            "-z",
+            untracked_files_arg(include_untracked),
+        ];
+        if self.repo.is_some() {
+            // libgit2 detects staged renames whatever `status.renames` says
+            args.push("--renames");
+        }
+        let output = git_read_bytes(args).wrap_err("failed to get git status")?;
+        let entries = parse_porcelain_status(&output)?;
+        Ok(if self.repo.is_some() {
+            GitStatus::from_entries_libgit2(entries)?
+        } else {
+            GitStatus::from_entries(entries)
+        })
     }
 
     /// Status of the paths matching `pathspec`, read without touching any
@@ -689,124 +701,26 @@ impl Git {
                 unstaged_renamed_files,
             })
         } else {
-            let untracked_arg = if include_untracked {
-                "--untracked-files=all"
-            } else {
-                "--untracked-files=no"
-            };
-            let mut args = vec!["status", "--porcelain", untracked_arg, "-z"]
-                .into_iter()
-                .filter(|&arg| !arg.is_empty())
-                .map(OsString::from)
-                .collect_vec();
+            let mut args = vec![
+                OsString::from("status"),
+                "--porcelain=v2".into(),
+                untracked_files_arg(include_untracked).into(),
+                "-z".into(),
+            ];
             if let Some(pathspec) = pathspec {
                 args.push("--".into());
-                args.extend(pathspec.iter().map(|p| p.into()))
+                args.extend(pathspec.iter().cloned());
             }
             // With optional locks, `git status` writes the refreshed index
             // back, and writing the index re-hashes every racily clean entry
             // in the repository, not just the ones in `pathspec`.
-            let output = git_cmd(args).env("GIT_OPTIONAL_LOCKS", "0").read()?;
-            let mut staged_files = BTreeSet::new();
-            let mut unstaged_files = BTreeSet::new();
-            let mut untracked_files = BTreeSet::new();
-            let mut modified_files = BTreeSet::new();
-            let mut staged_added_files = BTreeSet::new();
-            let mut staged_modified_files = BTreeSet::new();
-            let mut staged_deleted_files = BTreeSet::new();
-            let mut staged_renamed_files = BTreeSet::new();
-            let mut staged_copied_files = BTreeSet::new();
-            let mut unstaged_modified_files = BTreeSet::new();
-            let mut unstaged_deleted_files = BTreeSet::new();
-            let mut unstaged_renamed_files = BTreeSet::new();
-            let mut entries = output.split('\0');
-            while let Some(file) = entries.next() {
-                if file.is_empty() {
-                    continue;
-                }
-                let mut chars = file.chars();
-                let index_status = chars.next().unwrap_or_default();
-                let workdir_status = chars.next().unwrap_or_default();
-                let path = PathBuf::from(chars.skip(1).collect::<String>());
-                // Renamed/copied entries are followed by the original path as a
-                // separate NUL-terminated field; consume it so it is not parsed
-                // as another status entry
-                if index_status == 'R'
-                    || index_status == 'C'
-                    || workdir_status == 'R'
-                    || workdir_status == 'C'
-                {
-                    entries.next();
-                }
-                // Check if path exists (including broken symlinks)
-                // path.exists() returns false for broken symlinks, but symlink_metadata succeeds
-                let exists = path.exists() || std::fs::symlink_metadata(&path).is_ok();
-                let is_modified =
-                    |c: char| c == 'M' || c == 'T' || c == 'A' || c == 'R' || c == 'C';
-
-                // Only consider staged files that still exist in the worktree to avoid AD cases
-                if is_modified(index_status) && workdir_status != 'D' && exists {
-                    staged_files.insert(path.clone());
-                }
-                // Classify staged/index status
-                match index_status {
-                    'A' => {
-                        staged_added_files.insert(path.clone());
-                    }
-                    'M' | 'T' => {
-                        staged_modified_files.insert(path.clone());
-                    }
-                    'D' => {
-                        staged_deleted_files.insert(path.clone());
-                    }
-                    'R' => {
-                        staged_renamed_files.insert(path.clone());
-                    }
-                    'C' => {
-                        staged_copied_files.insert(path.clone());
-                    }
-                    _ => {}
-                }
-                // Unstaged files include actual worktree changes (not untracked files)
-                if is_modified(workdir_status) && exists {
-                    unstaged_files.insert(path.clone());
-                }
-                if workdir_status == '?' && exists {
-                    untracked_files.insert(path.clone());
-                }
-                // Track modified files only if the path exists
-                if (is_modified(index_status) || is_modified(workdir_status)) && exists {
-                    modified_files.insert(path.clone());
-                }
-                // Classify workdir status
-                match workdir_status {
-                    'M' | 'T' => {
-                        unstaged_modified_files.insert(path.clone());
-                    }
-                    'D' => {
-                        unstaged_deleted_files.insert(path.clone());
-                    }
-                    'R' => {
-                        unstaged_renamed_files.insert(path.clone());
-                    }
-                    _ => {}
-                }
-            }
-
-            Ok(GitStatus {
-                staged_files,
-                unstaged_files,
-                untracked_files,
-                modified_files,
-                staged_added_files,
-                staged_modified_files,
-                staged_deleted_files,
-                staged_renamed_files,
-                staged_copied_files,
-                unstaged_modified_files,
-                unstaged_deleted_files,
-                unstaged_renamed_files,
-            })
+            // The output is read as bytes: paths need not be valid UTF-8.
+            let output = xx::process::cmd("git", args)
+                .env("GIT_OPTIONAL_LOCKS", "0")
+                .stdout_capture()
+                .run()?
+                .stdout;
+            Ok(GitStatus::from_entries(parse_porcelain_status(&output)?))
         }
     }
 
@@ -1976,5 +1890,457 @@ impl GitStatus {
             .extend(other.unstaged_deleted_files);
         self.unstaged_renamed_files
             .extend(other.unstaged_renamed_files);
+    }
+
+    /// Classifies entries of `git status --porcelain=v2`.
+    fn from_entries(entries: Vec<StatusEntry>) -> Self {
+        let mut status = Self::default();
+        for entry in entries {
+            let StatusEntry {
+                index,
+                worktree,
+                path,
+                ..
+            } = entry;
+            let exists = path_exists(&path);
+            let is_modified = |c: u8| matches!(c, b'M' | b'T' | b'A' | b'R' | b'C');
+
+            // Only consider staged files that still exist in the worktree to avoid AD cases
+            if is_modified(index) && worktree != b'D' && exists {
+                status.staged_files.insert(path.clone());
+            }
+            // Classify staged/index status
+            match index {
+                b'A' => {
+                    status.staged_added_files.insert(path.clone());
+                }
+                b'M' | b'T' => {
+                    status.staged_modified_files.insert(path.clone());
+                }
+                b'D' => {
+                    status.staged_deleted_files.insert(path.clone());
+                }
+                b'R' => {
+                    status.staged_renamed_files.insert(path.clone());
+                }
+                b'C' => {
+                    status.staged_copied_files.insert(path.clone());
+                }
+                _ => {}
+            }
+            // Unstaged files include actual worktree changes (not untracked files)
+            if is_modified(worktree) && exists {
+                status.unstaged_files.insert(path.clone());
+            }
+            if worktree == b'?' && exists {
+                status.untracked_files.insert(path.clone());
+            }
+            // Track modified files only if the path exists
+            if (is_modified(index) || is_modified(worktree)) && exists {
+                status.modified_files.insert(path.clone());
+            }
+            // Classify workdir status
+            match worktree {
+                b'M' | b'T' => {
+                    status.unstaged_modified_files.insert(path);
+                }
+                b'D' => {
+                    status.unstaged_deleted_files.insert(path);
+                }
+                b'R' => {
+                    status.unstaged_renamed_files.insert(path);
+                }
+                _ => {}
+            }
+        }
+        status
+    }
+
+    /// Classifies entries of `git status --porcelain=v2 --renames` the way
+    /// [`Git::read_status`] classifies libgit2's statuses, so that a status
+    /// reads the same whichever of the two produced it.
+    fn from_entries_libgit2(entries: Vec<StatusEntry>) -> Result<Self> {
+        let mut status = Self::default();
+        for entry in entries {
+            let path = entry.path;
+            let exists = path_exists(&path);
+            // libgit2 reports an unmerged entry as conflicted on both sides,
+            // without classifying it
+            if entry.unmerged {
+                if exists {
+                    status.staged_files.insert(path.clone());
+                    status.unstaged_files.insert(path);
+                }
+                continue;
+            }
+            let (index, worktree) = match (entry.index, entry.worktree) {
+                // libgit2 reports an intent-to-add entry as added to the index
+                // with empty contents, which the worktree then modifies. git
+                // pairs an intent-to-add entry with a file deleted from the
+                // worktree as a worktree rename (`.R`), which libgit2 reports
+                // as that file deleted. Only such pairs are worktree renames:
+                // git renames between index entries, and an intent-to-add
+                // entry is the only one whose file is new in the worktree, so
+                // a file moved without `git add -N` is `.D` plus untracked.
+                (b' ', b'A' | b'R') => {
+                    if entry.worktree == b'R'
+                        && let Some(orig_path) = &entry.orig_path
+                    {
+                        status
+                            .unstaged_deleted_files
+                            .insert(path_from_bytes(orig_path)?);
+                    }
+                    let empty =
+                        std::fs::symlink_metadata(&path).is_ok_and(|m| m.is_file() && m.len() == 0);
+                    (b'A', if empty { b' ' } else { b'M' })
+                }
+                other => other,
+            };
+            // HEAD to index
+            if !matches!(index, b' ' | b'?') {
+                match index {
+                    // libgit2 detects renames but not copies
+                    b'A' | b'C' => {
+                        status.staged_added_files.insert(path.clone());
+                    }
+                    b'M' | b'T' => {
+                        status.staged_modified_files.insert(path.clone());
+                    }
+                    b'D' => {
+                        status.staged_deleted_files.insert(path.clone());
+                    }
+                    b'R' => {
+                        status.staged_renamed_files.insert(path.clone());
+                        // libgit2 also flags a rename that changed the contents
+                        // as modified
+                        if entry.rename_modified {
+                            status.staged_modified_files.insert(path.clone());
+                        }
+                    }
+                    _ => {}
+                }
+                if exists {
+                    status.staged_files.insert(path.clone());
+                }
+            }
+            // Index to worktree
+            match worktree {
+                b'?' => {
+                    status.untracked_files.insert(path.clone());
+                }
+                b'M' | b'T' => {
+                    status.modified_files.insert(path.clone());
+                    status.unstaged_modified_files.insert(path.clone());
+                }
+                b'D' => {
+                    status.unstaged_deleted_files.insert(path.clone());
+                }
+                _ => {}
+            }
+            if exists && !matches!(worktree, b' ' | b'?') {
+                status.unstaged_files.insert(path);
+            }
+        }
+        Ok(status)
+    }
+}
+
+/// One entry of `git status --porcelain=v2 -z`.
+struct StatusEntry {
+    /// The index compared with HEAD (`X`), `b' '` when unchanged and `b'?'`
+    /// when untracked
+    index: u8,
+    /// The worktree compared with the index (`Y`), `b' '` when unchanged and
+    /// `b'?'` when untracked
+    worktree: u8,
+    /// Whether the entry is unmerged
+    unmerged: bool,
+    /// Whether a staged rename or copy also changed the contents
+    rename_modified: bool,
+    /// The path, the new one for a rename or copy
+    path: PathBuf,
+    /// The original path of a rename or copy, as git printed it: it is
+    /// checked only where it is used
+    orig_path: Option<Vec<u8>>,
+}
+
+fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
+    let malformed = |line: &[u8]| {
+        eyre!(
+            "unexpected git status entry: {}",
+            String::from_utf8_lossy(line)
+        )
+    };
+    let mut entries = Vec::new();
+    let mut lines = output.split(|&b| b == 0);
+    while let Some(line) = lines.next() {
+        // Fields before the path, which may itself contain spaces
+        let field_count = match line.first() {
+            Some(b'1') => 8,
+            Some(b'2') => 9,
+            Some(b'u') => 10,
+            Some(b'?') => 1,
+            // Headers and ignored files, which are not requested
+            Some(b'#' | b'!') => continue,
+            None if line.is_empty() => continue,
+            _ => return Err(malformed(line)),
+        };
+        let fields = line.splitn(field_count + 1, |&b| b == b' ').collect_vec();
+        if fields.len() != field_count + 1 || fields[0].len() != 1 {
+            return Err(malformed(line));
+        }
+        let (index, worktree) = match (fields[0], fields[1]) {
+            (b"?", _) => (b'?', b'?'),
+            (_, [x, y]) => {
+                let unchanged = |c: u8| if c == b'.' { b' ' } else { c };
+                (unchanged(*x), unchanged(*y))
+            }
+            _ => return Err(malformed(line)),
+        };
+        let orig_path = if fields[0] == b"2" {
+            // The original path follows as a separate NUL-terminated field
+            let orig = lines.next().ok_or_else(|| malformed(line))?;
+            Some(orig.to_vec())
+        } else {
+            None
+        };
+        entries.push(StatusEntry {
+            index,
+            worktree,
+            unmerged: fields[0] == b"u",
+            // The HEAD and index object names of a rename or copy differ
+            rename_modified: fields[0] == b"2" && fields[6] != fields[7],
+            path: path_from_bytes(fields[field_count])?,
+            orig_path,
+        });
+    }
+    Ok(entries)
+}
+
+/// A path from git's status output.
+///
+/// hk cannot pass a path that is not valid UTF-8 on to steps and templates,
+/// so such a path is an error rather than silently left out of the status.
+fn path_from_bytes(bytes: &[u8]) -> Result<PathBuf> {
+    std::str::from_utf8(bytes).map(PathBuf::from).map_err(|_| {
+        eyre!(
+            "hk does not support paths that are not valid UTF-8, but git status lists {:?}",
+            String::from_utf8_lossy(bytes)
+        )
+    })
+}
+
+/// Whether `path` exists, counting broken symlinks, which
+/// [`std::path::Path::exists`] does not.
+fn path_exists(path: &std::path::Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok()
+}
+
+fn untracked_files_arg(include_untracked: bool) -> &'static str {
+    if include_untracked {
+        "--untracked-files=all"
+    } else {
+        "--untracked-files=no"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `git status --porcelain=v2 -z` output for files in `dir`: a header, a
+    /// staged modification, staged renames with and without content changes,
+    /// intent-to-add entries with and without contents, an intent-to-add
+    /// entry that git pairs with a deleted file as a worktree rename, a
+    /// conflict, a file added then deleted, and an untracked file.
+    fn sample(dir: &std::path::Path) -> Vec<u8> {
+        for (name, contents) in [
+            ("staged.txt", "x"),
+            ("renamed.txt", "x"),
+            ("ita.txt", "x"),
+            ("empty_ita.txt", ""),
+            ("ita_moved.txt", "x"),
+            ("conflict.txt", "x"),
+            ("with space.txt", "x"),
+        ] {
+            std::fs::write(dir.join(name), contents).unwrap();
+        }
+        let d = dir.display();
+        let (z, a, b) = ("0".repeat(40), "a".repeat(40), "b".repeat(40));
+        [
+            format!("# branch.oid {a}"),
+            format!("1 M. N... 100644 100644 100644 {a} {b} {d}/staged.txt"),
+            format!("2 R. N... 100644 100644 100644 {a} {b} R87 {d}/renamed.txt"),
+            format!("{d}/old.txt"),
+            format!("2 R. N... 100644 100644 100644 {a} {a} R100 {d}/moved.txt"),
+            format!("{d}/old2.txt"),
+            format!("1 .A N... 000000 000000 100644 {z} {z} {d}/ita.txt"),
+            format!("1 .A N... 000000 000000 100644 {z} {z} {d}/empty_ita.txt"),
+            format!("2 .R N... 100644 100644 100644 {a} {a} R100 {d}/ita_moved.txt"),
+            format!("{d}/ita_source.txt"),
+            format!("u UU N... 100644 100644 100644 100644 {a} {b} {a} {d}/conflict.txt"),
+            format!("1 AD N... 000000 100644 000000 {z} {a} {d}/gone.txt"),
+            format!("? {d}/with space.txt"),
+        ]
+        .iter()
+        .map(|line| format!("{line}\0"))
+        .collect::<String>()
+        .into_bytes()
+    }
+
+    fn paths(dir: &std::path::Path, names: &[&str]) -> BTreeSet<PathBuf> {
+        names.iter().map(|name| dir.join(name)).collect()
+    }
+
+    #[test]
+    fn test_porcelain_status_classified_like_libgit2() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let entries = parse_porcelain_status(&sample(d)).unwrap();
+        let status = GitStatus::from_entries_libgit2(entries).unwrap();
+        let staged = ["staged.txt", "renamed.txt", "ita.txt", "empty_ita.txt"];
+        let staged = [&staged[..], &["ita_moved.txt", "conflict.txt"]].concat();
+        assert_eq!(status.staged_files, paths(d, &staged));
+        let added = ["ita.txt", "empty_ita.txt", "ita_moved.txt", "gone.txt"];
+        assert_eq!(status.staged_added_files, paths(d, &added));
+        // libgit2 flags a rename that changed the contents as modified too
+        assert_eq!(
+            status.staged_modified_files,
+            paths(d, &["staged.txt", "renamed.txt"])
+        );
+        assert_eq!(
+            status.staged_renamed_files,
+            paths(d, &["renamed.txt", "moved.txt"])
+        );
+        assert!(status.staged_deleted_files.is_empty());
+        assert!(status.staged_copied_files.is_empty());
+        assert_eq!(
+            status.unstaged_files,
+            paths(d, &["ita.txt", "ita_moved.txt", "conflict.txt"])
+        );
+        let modified = paths(d, &["ita.txt", "ita_moved.txt"]);
+        assert_eq!(status.modified_files, modified);
+        assert_eq!(status.unstaged_modified_files, modified);
+        // libgit2 does not pair worktree renames: their source is deleted
+        assert_eq!(
+            status.unstaged_deleted_files,
+            paths(d, &["ita_source.txt", "gone.txt"])
+        );
+        assert!(status.unstaged_renamed_files.is_empty());
+        assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+    }
+
+    #[test]
+    fn test_porcelain_status_classified_like_git() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let entries = parse_porcelain_status(&sample(d)).unwrap();
+        let status = GitStatus::from_entries(entries);
+        assert_eq!(
+            status.staged_files,
+            paths(d, &["staged.txt", "renamed.txt"])
+        );
+        assert_eq!(status.staged_added_files, paths(d, &["gone.txt"]));
+        assert_eq!(status.staged_modified_files, paths(d, &["staged.txt"]));
+        assert_eq!(
+            status.staged_renamed_files,
+            paths(d, &["renamed.txt", "moved.txt"])
+        );
+        assert_eq!(
+            status.unstaged_files,
+            paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
+        );
+        let modified = ["staged.txt", "renamed.txt", "ita.txt", "empty_ita.txt"];
+        let modified = [&modified[..], &["ita_moved.txt"]].concat();
+        assert_eq!(status.modified_files, paths(d, &modified));
+        assert_eq!(status.unstaged_deleted_files, paths(d, &["gone.txt"]));
+        assert_eq!(status.unstaged_renamed_files, paths(d, &["ita_moved.txt"]));
+        assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+    }
+
+    #[test]
+    fn test_porcelain_status_plain_move_stages_nothing() {
+        // `mv a.txt b.txt` without `git add -N`, as git reports it whatever
+        // its rename settings
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        std::fs::write(d.join("b.txt"), "x").unwrap();
+        let a = "a".repeat(40);
+        let output = format!(
+            "1 .D N... 100644 100644 000000 {a} {a} {}/a.txt\0? {}/b.txt\0",
+            d.display(),
+            d.display()
+        );
+        let entries = || parse_porcelain_status(output.as_bytes()).unwrap();
+        for status in [
+            GitStatus::from_entries_libgit2(entries()).unwrap(),
+            GitStatus::from_entries(entries()),
+        ] {
+            assert!(status.staged_files.is_empty());
+            assert!(status.staged_added_files.is_empty());
+            assert!(status.unstaged_files.is_empty());
+            assert_eq!(status.unstaged_deleted_files, paths(d, &["a.txt"]));
+            assert_eq!(status.untracked_files, paths(d, &["b.txt"]));
+        }
+    }
+
+    #[test]
+    fn test_porcelain_status_rejects_paths_that_are_not_utf8() {
+        let a = "a".repeat(40);
+        let staged = format!("1 A. N... 000000 100644 100644 {a} {a} bad");
+        let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 bad");
+        for (output, shown) in [
+            (
+                [staged.as_bytes(), b"\xff.txt\0"].concat(),
+                "bad\u{fffd}.txt",
+            ),
+            (b"? bad\xfe.txt\0".to_vec(), "bad\u{fffd}.txt"),
+            (
+                [renamed.as_bytes(), b"\xfd.txt\0old.txt\0"].concat(),
+                "bad\u{fffd}.txt",
+            ),
+        ] {
+            let err = parse_porcelain_status(&output).err().unwrap();
+            assert!(err.to_string().contains(shown), "{err}");
+        }
+    }
+
+    #[test]
+    fn test_porcelain_status_checks_rename_sources_only_where_used() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().display();
+        let a = "a".repeat(40);
+        let staged = format!("2 R. N... 100644 100644 100644 {a} {a} R100 {d}/new.txt\0old");
+        let staged = [staged.as_bytes(), b"\xfd.txt\0"].concat();
+        let worktree = format!("2 .R N... 100644 100644 100644 {a} {a} R100 {d}/new.txt\0old");
+        let worktree = [worktree.as_bytes(), b"\xfd.txt\0"].concat();
+
+        // Neither classification uses the source of a staged rename
+        let status = GitStatus::from_entries_libgit2(parse_porcelain_status(&staged).unwrap());
+        assert_eq!(
+            status.unwrap().staged_renamed_files,
+            paths(dir.path(), &["new.txt"])
+        );
+        let status = GitStatus::from_entries(parse_porcelain_status(&worktree).unwrap());
+        assert_eq!(
+            status.unstaged_renamed_files,
+            paths(dir.path(), &["new.txt"])
+        );
+        // The libgit2 classification lists the source of a worktree rename
+        // as deleted
+        let err = GitStatus::from_entries_libgit2(parse_porcelain_status(&worktree).unwrap())
+            .err()
+            .unwrap();
+        assert!(err.to_string().contains("old\u{fffd}.txt"), "{err}");
+    }
+
+    #[test]
+    fn test_porcelain_status_rejects_unknown_entries() {
+        assert!(parse_porcelain_status(b"3 what\0").is_err());
+        assert!(parse_porcelain_status(b"1 M. N... 100644\0").is_err());
+        let a = "a".repeat(40);
+        // A rename without its original path
+        let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 new.txt");
+        assert!(parse_porcelain_status(renamed.as_bytes()).is_err());
     }
 }
