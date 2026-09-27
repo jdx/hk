@@ -590,10 +590,33 @@ impl StashedChanges {
             |path| [None, self.stashed.get(path)],
             self.file_mode,
         )?;
+        // libgit2 records a tracked file replaced by an untracked directory
+        // as deleted, with the directory's files in the untracked commit
+        let directory: TreeEntry = (0o040000, String::new());
         Ok(paths
             .into_iter()
-            .filter(|path| !worktree.matches(path, self.stashed.get(path)))
+            .filter(|path| {
+                let entry = self
+                    .stashed
+                    .get(path)
+                    .or_else(|| self.has_untracked_under(path).then_some(&directory));
+                !worktree.matches(path, entry)
+            })
             .collect())
+    }
+
+    /// Whether the stash has untracked files inside the directory `path`.
+    fn has_untracked_under(&self, path: &std::path::Path) -> bool {
+        use std::ops::Bound::{Excluded, Unbounded};
+        // Paths order by component, so a directory's files follow it
+        [&self.untracked, &self.unnamed_untracked]
+            .iter()
+            .any(|untracked| {
+                untracked
+                    .range::<std::path::Path, _>((Excluded(path), Unbounded))
+                    .next()
+                    .is_some_and(|next| next.starts_with(path))
+            })
     }
 }
 
@@ -3331,5 +3354,24 @@ mod tests {
             restore_command("stash@{0}^3", std::path::Path::new("dir/O'Brien.txt")),
             r"git restore --source='stash@{0}^3' -- ':(literal)dir/O'\''Brien.txt'"
         );
+    }
+
+    #[test]
+    fn has_untracked_under_finds_only_files_inside_the_directory() {
+        let changes = StashedChanges {
+            untracked: ["d.txt-x", "d.txt.bak", "d.txt/inner", "e/f/g"]
+                .map(PathBuf::from)
+                .into(),
+            ..Default::default()
+        };
+        let under = |path: &str| changes.has_untracked_under(std::path::Path::new(path));
+        assert!(under("d.txt"));
+        assert!(under("e"));
+        assert!(under("e/f"));
+        // Neither a name that shares a prefix, nor the file itself
+        assert!(!under("d"));
+        assert!(!under("d.txt/inner"));
+        assert!(!under("e/f/g"));
+        assert!(!under("c"));
     }
 }
