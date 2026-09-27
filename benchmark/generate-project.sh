@@ -78,10 +78,8 @@ export function calculateTotal_${i}(items) {
 }
 
 export class DataManager_${i} {
-  constructor() {
-    this.items = [...ITEMS]
-    this.cache = new Map()
-  }
+  items = [...ITEMS]
+  cache = new Map()
 
   getItem(id) {
     if (this.cache.has(id)) {
@@ -385,7 +383,32 @@ SHEOF
     chmod +x "scripts/task_${i}.sh"
 done
 
+# The modules import "react"; tsconfig.json maps it to this stub so the
+# TypeScript files type-check without node_modules.
+mkdir -p src/vendor
+cat > src/vendor/react.ts << 'REACTEOF'
+export function useState(value) {
+  return [value, () => {}]
+}
+
+export function useEffect() {}
+REACTEOF
+
 # --- Config files for linters ---
+cat > tsconfig.json << 'TSCONFIGEOF'
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "paths": { "react": ["./src/vendor/react.ts"] },
+    "strict": false,
+    "target": "es2022"
+  },
+  "include": ["src"]
+}
+TSCONFIGEOF
+
 cat > eslint.config.js << 'ESLINTEOF'
 export default [
   {
@@ -442,6 +465,17 @@ if [ "$(git add -A && git write-tree)" != "$(git rev-parse 'clean^{tree}')" ]; t
     exit 1
 fi
 git reset -q --hard dirty
+
+# The type checkers change no files, so a failure would show only in a
+# subject's exit code. Both commits must pass them.
+for rev in clean dirty; do
+    git checkout -q "$rev"
+    if ! mypy --cache-dir /dev/null lib >/dev/null || ! tsc -p tsconfig.json; then
+        echo "error: the $rev commit does not pass mypy and tsc" >&2
+        exit 1
+    fi
+done
+git checkout -q main
 
 TOTAL=$(git ls-files | wc -l | tr -d ' ')
 echo "Done! Generated $TOTAL files, $DIRTY with defects."
