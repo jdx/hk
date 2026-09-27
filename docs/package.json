@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "docs:dev": "vitepress dev",
-    "docs:build": "node --test .vitepress/social-images.test.mjs && vitepress build && node .vitepress/check-social-images.mjs .vitepress/dist",
+    "docs:build": "tsc -p .vitepress/theme/showreel && node .vitepress/theme/showreel/test/run.mjs && node --test .vitepress/social-images.test.mjs && vitepress build && node .vitepress/check-social-images.mjs .vitepress/dist",
     "docs:preview": "vitepress preview",
-    "eslint": "eslint"
+    "eslint": "eslint",
+    "showreel:video": "node .vitepress/showreel-video.mjs",
+    "test:showreel": "node .vitepress/theme/showreel/test/run.mjs",
+    "typecheck": "tsc -p .vitepress/theme/showreel"
   },
   "dependencies": {
     "eslint": "^10.0.0",
@@ -15,7 +18,11 @@
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "globals": "^17.0.0"
+    "@types/node": "^26",
+    "esbuild": "^0.21.5",
+    "globals": "^17.0.0",
+    "playwright-core": "^1.63.0",
+    "typescript": "^7.0.2"
   },
   "pnpm": {
     "supportedArchitectures": {

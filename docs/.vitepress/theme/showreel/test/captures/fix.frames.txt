@@ -1,0 +1,187 @@
+----- frame 0 -----
+hk 2.2.0 by @jdx – fix  [                                                  ] 0/7
+⠋ files - Fetching git status
+----- frame 1 -----
+hk 2.2.0 by @jdx – fix  [                                                  ] 0/7
+✔ files - Fetching modified files (4 files)
+----- frame 2 -----
+hk 2.2.0 by @jdx – fix  [                                                  ] 0/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+ ⠋ ruff check --force-exclude --fix src/main.py
+❯ shellcheck
+----- frame 3 -----
+hk 2.2.0 by @jdx – fix  [======>                                           ] 1/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+❯ shfmt
+ ⠋ 1 file – (**/*.sh **/*.bash **/*.mksh **/*.bats **/*.zsh) OR (types: sh, bas…
+✔ shellcheck
+----- frame 4 -----
+hk 2.2.0 by @jdx – fix  [======>                                           ] 1/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+❯ ruff
+❯ shfmt
+ ⠋ shfmt -d --apply-ignore scripts/deploy.sh
+✔ shellcheck
+----- frame 5 -----
+hk 2.2.0 by @jdx – fix  [=============>                                    ] 2/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+❯ shfmt
+ ⠋ shfmt -d --apply-ignore scripts/deploy.sh
+✔ shellcheck
+----- frame 6 -----
+hk 2.2.0 by @jdx – fix  [=============>                                    ] 2/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+❯ ruff-format
+ ⠋ ruff format --quiet --force-exclude --diff src/main.py
+❯ shfmt
+✔ shellcheck
+----- frame 7 -----
+hk 2.2.0 by @jdx – fix  [====================>                             ] 3/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+❯ ruff-format
+ ⠋ ruff format --quiet --force-exclude --diff src/main.py
+✔ shfmt
+✔ shellcheck
+----- frame 8 -----
+hk 2.2.0 by @jdx – fix  [====================>                             ] 3/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+❯ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 9 -----
+hk 2.2.0 by @jdx – fix  [============================>                     ] 4/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 10 -----
+hk 2.2.0 by @jdx – fix  [============================>                     ] 4/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+ ⠋ prettier --write README.md src/app.ts
+ README.md 13ms
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 11 -----
+hk 2.2.0 by @jdx – fix  [============================>                     ] 4/7
+✔ files - Fetching modified files (4 files)
+❯ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+----- frame 12 -----
+hk 2.2.0 by @jdx – fix  [===================================>              ] 5/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ newlines
+ ⠋
+----- frame 13 -----
+hk 2.2.0 by @jdx – fix  [===================================>              ] 5/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ newlines
+----- frame 14 -----
+hk 2.2.0 by @jdx – fix  [==========================================>       ] 6/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ trailing-whitespace
+ ⠋
+✔ newlines
+----- frame 15 -----
+hk 2.2.0 by @jdx – fix  [==========================================>       ] 6/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+❯ trailing-whitespace
+✔ newlines
+----- frame 16 -----
+hk 2.2.0 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 17 -----
+hk 2.2.0 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 18 -----
+hk 2.2.0 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 19 -----
+hk 2.2.0 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
+----- frame 20 -----
+hk 2.2.0 by @jdx – fix  [==================================================] 7/7
+✔ files - Fetching modified files (4 files)
+✔ prettier
+✔ ruff
+✔ ruff-format
+✔ shfmt
+✔ shellcheck
+✔ trailing-whitespace
+✔ newlines
