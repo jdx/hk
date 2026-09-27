@@ -29,6 +29,7 @@ use crate::{
     hook_options::HookOptions,
     plan::{ParallelGroup, Plan, PlannedStep, Reason, ReasonKind, StepStatus},
     settings::Settings,
+    stage_queue::StageQueue,
     step::{CommandEffect, EXPR_CTX, OutputSummary, RunType, Script, Step, eval_condition},
     step_context::StepContext,
     step_group::{StepGroup, StepGroupContext},
@@ -399,6 +400,8 @@ pub struct HookContext {
     /// that is, those hk didn't stash. Staging one of these after a fix would
     /// also stage the user's unstaged changes.
     pub initial_unstaged: StdMutex<BTreeSet<PathBuf>>,
+    /// Files steps have queued for staging under `git`; see `Step::stage_files`.
+    pub stage_queue: StageQueue,
 }
 
 impl HookContext {
@@ -455,6 +458,7 @@ impl HookContext {
             should_stage,
             initial_untracked,
             initial_unstaged: StdMutex::new(initial_unstaged),
+            stage_queue: StageQueue::default(),
         }
     }
 
