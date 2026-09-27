@@ -225,17 +225,18 @@ impl Step {
                                         check_first_cmd,
                                         Some(CheckFirstCmd::ListFiles(_))
                                     ) {
-                                        {
                                         let dir = step.render_dir(&job.tctx(&ctx.hook_ctx.tctx))?;
                                         step.filter_files_from_check_list(
                                             &job.files,
                                             stdout,
                                             dir.as_deref(),
                                         )
-                                    }
                                     } else {
                                         (job.files.clone(), Vec::new())
                                     };
+                                    // Files the output names outside this job, which it
+                                    // holds no locks on.
+                                    let names_other_files = !extras.is_empty();
                                     for f in extras {
                                         warn!(
                                             "{step}: file in check output not found in original files: {}",
@@ -271,15 +272,14 @@ impl Step {
                                         if job.diffs_under_read_locks() {
                                             // Other steps read these files while the patch was computed.
                                             // Lock just the files it names for writing, and apply it only
-                                            // if no step wrote them meanwhile. Files outside the job had
-                                            // no read lock, so a patch for one is computed again.
+                                            // if no step wrote them meanwhile. A patch that also names
+                                            // files outside the job is computed again under write
+                                            // locks, as it always was, since those had no read lock.
                                             let named = job.files.clone();
                                             let locks = &ctx.hook_ctx.file_locks;
                                             let before = locks.write_counts(&named);
-                                            let job_files: HashSet<&PathBuf> = original_job_files.iter().collect();
-let all_read_locked = named.iter().all(|f| job_files.contains(f));
                                             job.relock_for_write(&ctx).await?;
-                                            if !all_read_locked || locks.write_counts(&named) != before {
+                                            if names_other_files || locks.write_counts(&named) != before {
                                                 debug!("{step}: files written meanwhile, diffing again");
                                                 continue 'check_first;
                                             }
@@ -296,6 +296,7 @@ let all_read_locked = named.iter().all(|f| job_files.contains(f));
                                                     job.files = original_job_files.clone();
                                                     job.run_type = RunType::Check;
                                                     job.check_first = false;
+                                                    job.rechecking_after_diff = true;
                                                     step.run(&ctx, &mut job).await?;
                                                 } else {
                                                     debug!(

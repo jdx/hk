@@ -648,6 +648,45 @@ EOF
     assert_output --regexp '^line-(1-2|2-1)$'
 }
 
+@test "a read-only check_diff patch that also names a file outside the job is applied" {
+    # Like `go mod tidy -diff` rewriting go.sum for a job of .go files: the
+    # patch is computed again under write locks and then applied.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+[ "$(cat outside.lock)" = "old" ] || exit 0
+printf -- '--- outside.lock\n+++ outside.lock\n@@ -1 +1 @@\n-old\n+new\n'
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "fixer ran unexpectedly" > outside.lock
+SCRIPT
+    chmod +x fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "source" > a.txt
+    echo "old" > outside.lock
+
+    run hk fix a.txt
+    assert_success
+    run cat outside.lock
+    assert_output "new"
+}
+
 @test "check_diff-only step stages an applied patch" {
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash

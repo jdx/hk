@@ -1,4 +1,9 @@
-use crate::{Result, file_rw_locks::Flocks, hook::SkipReason, step::RunType};
+use crate::{
+    Result,
+    file_rw_locks::Flocks,
+    hook::SkipReason,
+    step::{CommandEffect, RunType},
+};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
 use tokio::sync::OwnedSemaphorePermit;
 
@@ -27,6 +32,9 @@ pub struct StepJob {
     /// Set once this job has computed a patch under read locks and traded
     /// them for write locks, so any rerun of `check_diff` keeps writers out.
     pub diff_needs_write_locks: bool,
+    /// Set while `check` runs again after a patch applied, for a step with
+    /// `check_after_diff`.
+    pub rechecking_after_diff: bool,
 
     pub status: StepJobStatus,
 }
@@ -59,6 +67,7 @@ impl StepJob {
             progress: None,
             semaphore: None,
             diff_needs_write_locks: false,
+            rechecking_after_diff: false,
         }
     }
 
@@ -235,7 +244,21 @@ impl StepJob {
     }
 
     fn takes_write_locks(&self) -> bool {
-        self.requested_run_type == RunType::Fix && !self.diffs_under_read_locks()
+        self.requested_run_type == RunType::Fix
+            && !self.diffs_under_read_locks()
+            && !self.rechecks_under_read_locks()
+    }
+
+    /// Whether this job is rerunning a read-only `check` after applying a
+    /// patch (`check_after_diff`), which only needs read locks.
+    fn rechecks_under_read_locks(&self) -> bool {
+        self.rechecking_after_diff
+            && self.run_type == RunType::Check
+            && self
+                .step
+                .check
+                .as_ref()
+                .is_some_and(|check| check.effect() == Some(CommandEffect::Read))
     }
 
     fn try_flocks(&self, ctx: &StepContext) -> Option<Flocks> {
@@ -273,6 +296,7 @@ impl Clone for StepJob {
             progress: self.progress.clone(),
             semaphore: None,
             diff_needs_write_locks: self.diff_needs_write_locks,
+            rechecking_after_diff: self.rechecking_after_diff,
         }
     }
 }
@@ -323,5 +347,42 @@ mod tests {
             tera::render("{{workspace_indicator}}", &tctx).unwrap(),
             "pkgs/api/go.mod"
         );
+    }
+}
+
+#[cfg(test)]
+mod lock_mode_tests {
+    use super::*;
+
+    fn step_with_check(check: serde_json::Value) -> Arc<Step> {
+        Arc::new(Step {
+            check: Some(serde_json::from_value(check).unwrap()),
+            check_diff: Some(
+                serde_json::from_value(serde_json::json!({"command": "diff", "effect": "read"}))
+                    .unwrap(),
+            ),
+            check_after_diff: true,
+            ..Default::default()
+        })
+    }
+
+    fn recheck_job(step: Arc<Step>) -> StepJob {
+        let mut job = StepJob::new(step, vec![], RunType::Fix);
+        job.run_type = RunType::Check;
+        job.check_first = false;
+        job.rechecking_after_diff = true;
+        job
+    }
+
+    #[test]
+    fn a_read_only_recheck_takes_read_locks() {
+        let step = step_with_check(serde_json::json!({"command": "check", "effect": "read"}));
+        assert!(!recheck_job(step).takes_write_locks());
+    }
+
+    #[test]
+    fn a_recheck_that_may_write_keeps_write_locks() {
+        let step = step_with_check(serde_json::json!({"command": "check", "effect": "write"}));
+        assert!(recheck_job(step).takes_write_locks());
     }
 }
