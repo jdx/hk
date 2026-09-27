@@ -117,7 +117,7 @@ impl Step {
         let stdout = normalize_diff_paths(stdout);
 
         // Parse unified diff format to extract file names from --- and +++ lines
-        let mut listed: IndexSet<&str> = IndexSet::new();
+        let mut listed: IndexSet<String> = IndexSet::new();
 
         // Only header pairs outside hunk bodies are read: a hunk can hold lines
         // that look like headers, such as a removed `-- x`.
@@ -130,11 +130,11 @@ impl Step {
                     continue;
                 }
                 let path = if strip_prefixes {
-                    path.strip_prefix(prefix).unwrap_or(path)
+                    path.strip_prefix(prefix).unwrap_or(&path)
                 } else {
-                    path
+                    &path
                 };
-                listed.insert(path);
+                listed.insert(path.to_string());
             }
         }
         // The command ran in the step's `dir`, so a relative path usually names
@@ -145,7 +145,7 @@ impl Step {
         let readings: Vec<Vec<PathBuf>> = listed
             .into_iter()
             .map(|path| {
-                let path = Path::new(path);
+                let path = Path::new(&path);
                 let in_dir = dir
                     .filter(|_| path.is_relative())
                     .map(|dir| Path::new(dir).join(path))
@@ -312,6 +312,17 @@ mod tests {
         assert_eq!(files, vec![b, a]);
         assert_eq!(extras.len(), 1);
         assert!(extras[0].ends_with("missing.txt"), "{extras:?}");
+    }
+
+    #[test]
+    fn check_diff_reads_a_quoted_path_with_a_tab() {
+        let step = Step::default();
+        let tabbed = PathBuf::from("foo\tbar.txt");
+        let files = vec![PathBuf::from("foo"), tabbed.clone()];
+        let stdout = "--- \"a/foo\\tbar.txt\"\n+++ \"b/foo\\tbar.txt\"\n@@ -1 +1 @@\n-x  \n+x\n";
+        let (matched, extras) = step.filter_files_from_check_diff(&files, stdout, None);
+        assert_eq!(matched, vec![tabbed]);
+        assert!(extras.is_empty());
     }
 
     #[test]

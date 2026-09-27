@@ -575,6 +575,35 @@ EOF
     assert_output "module x"
 }
 
+@test "a check_diff patch for a file with a tab in its name fixes that file" {
+    # hk's diff utils quote such a path the way git does, so the tab isn't read
+    # as the start of a timestamp that would leave just `foo`.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["trailing-whitespace"] = Builtins.trailing_whitespace
+        }
+    }
+}
+EOF
+    printf 'tabbed  \n' > "$(printf 'foo\tbar.txt')"
+    printf 'clean\n' > foo
+    git add -A
+    git commit -qm init
+
+    run hk fix --all
+    assert_success
+    refute_output --partial "doesn't apply"
+    run cat "$(printf 'foo\tbar.txt')"
+    assert_output "tabbed"
+    run cat foo
+    assert_output "clean"
+}
+
 @test "check_diff handles diffs with .orig suffix on --- line" {
     # Go tools like gofmt output diffs with .orig suffix on the --- line
     # e.g., "--- file.go.orig" instead of "--- file.go"
