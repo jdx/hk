@@ -208,9 +208,10 @@ impl Step {
             .unwrap_or(false)
             && (self.check_list_files.is_some() || self.check_diff.is_some());
 
-        // In Fix mode, run check_first when check_diff is defined so we can apply the diff directly.
+        // In Fix mode, run check_first when check_diff is defined so we can apply the diff directly,
+        // unless the step runs `fix` instead (`apply_check_diff = false`).
         // In Check mode, this is avoided as check_diff may hide non-auto-fixable errors.
-        let can_apply_diff = self.check_diff.is_some() && matches!(run_type, RunType::Fix);
+        let can_apply_diff = self.applies_check_diff() && matches!(run_type, RunType::Fix);
 
         // Optionally use the list/diff command to focus the regular check on
         // only the files that failed. This is opt-in because it adds a second

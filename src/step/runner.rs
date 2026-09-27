@@ -163,7 +163,7 @@ impl Step {
         job.status_start(ctx, semaphore).await?;
         // Filter out files that no longer exist (e.g., deleted by parallel tasks)
         // Use symlink_metadata to check if the path exists as a file/symlink (even if broken)
-        job.files.retain(|f| f.symlink_metadata().is_ok());
+        crate::par::retain(&mut job.files, |f| f.symlink_metadata().is_ok());
         // Skip this job if all files were deleted
         if job.files.is_empty() && self.has_filters() {
             debug!("{self}: all files deleted before execution");

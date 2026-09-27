@@ -28,6 +28,7 @@ mod hook_options;
 mod logger;
 mod merge;
 mod mise_env;
+mod par;
 mod plan;
 mod settings;
 mod stage_queue;

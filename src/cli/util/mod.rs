@@ -15,6 +15,7 @@ mod mixed_line_ending;
 mod no_commit_to_branch;
 mod python_check_ast;
 mod python_debug_statements;
+mod text_files;
 mod trailing_whitespace;
 
 pub use byte_order_marker::{CheckByteOrderMarker, FixByteOrderMarker};

@@ -1,8 +1,10 @@
 # lefthook. `fix` fixes without staging and is the all-files scenario;
 # `pre-commit` is the same jobs with stage_fixed, matching hk's pre-commit hook.
-# Both run one job at a time (lefthook's default): with `parallel: true` every
-# job starts at once and nothing stops two fixers writing the same file, and in
-# this workload every file is written by two or three of them.
+# Both run the fixers one job at a time (lefthook's default): with
+# `parallel: true` every job starts at once and nothing stops two fixers
+# writing the same file, and in this workload every file is written by two or
+# three of them. The type checkers write nothing, so they run last as a
+# parallel group, once no fixer is running.
 #
 # `check` writes nothing on the clean tree, so it uses `parallel: true`,
 # lefthook's setting for speed.
@@ -39,6 +41,16 @@ fix:
       run: trailing-whitespace-fixer {staged_files}
     - name: newlines
       run: end-of-file-fixer {staged_files}
+    - name: type checks
+      group:
+        parallel: true
+        jobs:
+          - name: mypy
+            run: mypy {staged_files}
+            glob: "*.py"
+          - name: tsc
+            run: tsc --noEmit -p tsconfig.json
+            glob: "*.ts"
 pre-commit:
   parallel: false
   stage_fixed: true
@@ -79,3 +91,9 @@ check:
       run: trailing-whitespace-fixer {staged_files}
     - name: newlines
       run: end-of-file-fixer {staged_files}
+    - name: mypy
+      run: mypy {staged_files}
+      glob: "*.py"
+    - name: tsc
+      run: tsc --noEmit -p tsconfig.json
+      glob: "*.ts"

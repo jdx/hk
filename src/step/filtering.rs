@@ -7,6 +7,7 @@
 //! - File filtering based on globs, types, and exclusions
 
 use crate::hook::SkipReason;
+use crate::par::PathMemo;
 use crate::settings::Settings;
 use crate::{Result, glob};
 use dashmap::DashMap;
@@ -14,7 +15,7 @@ use indexmap::IndexSet;
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use super::{FileSelector, Pattern, Step};
@@ -34,26 +35,18 @@ use super::{FileSelector, Pattern, Step};
 /// * `Some(false)` - File is text
 /// * `None` - Could not read file (deleted, permissions, etc.)
 pub fn is_binary_file(path: &PathBuf) -> Option<bool> {
-    // Memoize results (only cache successful reads, not errors)
-    // DashMap provides lock-free concurrent access, avoiding Mutex bottlenecks
-    static CACHE: LazyLock<DashMap<PathBuf, bool>> = LazyLock::new(DashMap::new);
+    // Memoize results (only cache successful reads, not errors). Steps that
+    // filter the same files at once share one read of each file.
+    static CACHE: LazyLock<PathMemo<bool>> = LazyLock::new(PathMemo::new);
 
-    // Check cache first (lock-free read)
-    if let Some(result) = CACHE.get(path) {
-        return Some(*result);
-    }
+    CACHE.get_or_try_init(path, || {
+        let mut file = std::fs::File::open(path).ok()?;
+        let mut buffer = [0u8; 8192];
+        let bytes_read = file.read(&mut buffer).ok()?;
 
-    let mut file = std::fs::File::open(path).ok()?;
-    let mut buffer = [0u8; 8192];
-    let bytes_read = file.read(&mut buffer).ok()?;
-
-    // Check for null bytes in the content
-    let is_binary = buffer[..bytes_read].contains(&0);
-
-    // Cache the result
-    CACHE.insert(path.clone(), is_binary);
-
-    Some(is_binary)
+        // Check for null bytes in the content
+        Some(buffer[..bytes_read].contains(&0))
+    })
 }
 
 /// Check if a file is a symbolic link.
@@ -71,22 +64,26 @@ pub fn is_binary_file(path: &PathBuf) -> Option<bool> {
 /// * `Some(false)` - Path is not a symlink
 /// * `None` - Could not read metadata (deleted, permissions, etc.)
 pub fn is_symlink_file(path: &PathBuf) -> Option<bool> {
-    // Memoize results (only cache successful reads, not errors)
-    // DashMap provides lock-free concurrent access, avoiding Mutex bottlenecks
-    static CACHE: LazyLock<DashMap<PathBuf, bool>> = LazyLock::new(DashMap::new);
-
     // Check cache first (lock-free read)
-    if let Some(result) = CACHE.get(path) {
+    if let Some(result) = SYMLINK_CACHE.get(path) {
         return Some(*result);
     }
 
     let metadata = std::fs::symlink_metadata(path).ok()?;
+    Some(cache_symlink_check(path, &metadata))
+}
+
+/// Memoized [`is_symlink_file`] results (only successful reads, not errors).
+/// DashMap provides lock-free concurrent access, avoiding Mutex bottlenecks.
+static SYMLINK_CACHE: LazyLock<DashMap<PathBuf, bool>> = LazyLock::new(DashMap::new);
+
+/// Record the result of [`is_symlink_file`] from `lstat` metadata read
+/// elsewhere, so file type detection and the symlink filter share one
+/// `lstat` per file.
+pub(crate) fn cache_symlink_check(path: &Path, metadata: &std::fs::Metadata) -> bool {
     let is_symlink = metadata.file_type().is_symlink();
-
-    // Cache the result
-    CACHE.insert(path.clone(), is_symlink);
-
-    Some(is_symlink)
+    SYMLINK_CACHE.insert(path.to_path_buf(), is_symlink);
+    is_symlink
 }
 
 impl Step {
@@ -109,7 +106,7 @@ impl Step {
             files = glob::get_pattern_matches(pattern, &files, self.dir_prefix())?;
         }
         if let Some(types) = types {
-            files.retain(|f| crate::file_type::matches_types(f, types));
+            crate::par::retain(&mut files, |f| crate::file_type::matches_types(f, types));
         }
         Ok(files)
     }
@@ -227,7 +224,7 @@ impl Step {
 
         // Filter out binary files unless allow_binary is true
         if !self.allow_binary {
-            files.retain(|f| {
+            crate::par::retain(&mut files, |f| {
                 // Keep file if we can't determine if it's binary (might be deleted/renamed)
                 // or if it's definitely not binary
                 is_binary_file(f).map(|is_bin| !is_bin).unwrap_or(true)
@@ -236,7 +233,7 @@ impl Step {
 
         // Filter out symbolic links unless allow_symlinks is true
         if !self.allow_symlinks {
-            files.retain(|f| {
+            crate::par::retain(&mut files, |f| {
                 // Keep file if we can't determine if it's a symlink (might be deleted/renamed)
                 // or if it's definitely not a symlink
                 is_symlink_file(f)

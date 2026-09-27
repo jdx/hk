@@ -1,32 +1,48 @@
-use dashmap::DashMap;
+use crate::par::PathMemo;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
+use std::path::Path;
+use std::sync::{Arc, LazyLock};
 
-/// Cache for file type detection results
-static FILE_TYPE_CACHE: LazyLock<DashMap<PathBuf, HashSet<String>>> = LazyLock::new(DashMap::new);
+/// Cache for file type detection results. Steps that filter the same files at
+/// once share one detection per file.
+static FILE_TYPE_CACHE: LazyLock<PathMemo<Arc<HashSet<String>>>> = LazyLock::new(PathMemo::new);
 
 /// Get all type tags for a given file path
 /// Returns a set of tags like: {"text", "python"}, {"binary", "image", "png"}, etc.
+#[cfg(test)]
 pub fn get_file_types(path: &Path) -> HashSet<String> {
-    // Check cache first
-    if let Some(types) = FILE_TYPE_CACHE.get(path) {
-        return types.clone();
-    }
+    cached_file_types(path).as_ref().clone()
+}
 
+fn cached_file_types(path: &Path) -> Arc<HashSet<String>> {
+    FILE_TYPE_CACHE
+        .get_or_try_init(path, || Some(Arc::new(detect_file_types(path))))
+        .expect("file type detection always returns a value")
+}
+
+fn detect_file_types(path: &Path) -> HashSet<String> {
     let mut types = HashSet::new();
 
     // 1. Check if it's a symlink (but continue to detect target's type)
-    if let Ok(metadata) = std::fs::symlink_metadata(path)
-        && metadata.is_symlink()
-    {
+    let symlink_metadata = std::fs::symlink_metadata(path).ok();
+    let is_symlink = symlink_metadata.as_ref().is_some_and(|m| m.is_symlink());
+    if let Some(metadata) = &symlink_metadata {
+        crate::step::cache_symlink_check(path, metadata);
+    }
+    if is_symlink {
         types.insert("symlink".to_string());
     }
 
-    // 2. Check if it's executable (follows symlinks)
-    if let Ok(metadata) = std::fs::metadata(path) {
+    // 2. Check if it's executable (follows symlinks). Only a symlink needs a
+    // second stat; if `lstat` failed, `stat` would too.
+    let metadata = if is_symlink {
+        std::fs::metadata(path).ok()
+    } else {
+        symlink_metadata
+    };
+    if let Some(metadata) = metadata {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -77,7 +93,6 @@ pub fn get_file_types(path: &Path) -> HashSet<String> {
         types.insert("text".to_string());
     }
 
-    FILE_TYPE_CACHE.insert(path.to_path_buf(), types.clone());
     types
 }
 
@@ -87,7 +102,7 @@ pub fn matches_types(path: &Path, type_filters: &[String]) -> bool {
         return true;
     }
 
-    let file_types = get_file_types(path);
+    let file_types = cached_file_types(path);
     type_filters
         .iter()
         .any(|filter| file_types.contains(filter))

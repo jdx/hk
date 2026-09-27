@@ -19,4 +19,11 @@ steps {
   ["shfmt"] = Builtins.shfmt
   ["trailing-whitespace"] = Builtins.trailing_whitespace
   ["newlines"] = Builtins.newlines
+  // Type checkers change no files. hk takes read locks on every file a step's
+  // glob matches, so they never read a file a fixer is writing.
+  ["mypy"] = Builtins.mypy
+  ["tsc"] = (Builtins.tsc) {
+    // tsc also reads tsconfig.json, which the jq fixer can rewrite.
+    glob = List("**/*.ts", "**/*.tsx", "tsconfig.json")
+  }
 }

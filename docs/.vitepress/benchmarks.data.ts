@@ -32,7 +32,7 @@ export interface Scenario {
 }
 
 export interface BenchmarkResults {
-  schema: 2;
+  schema: 3;
   generated: string;
   passed: boolean;
   commit: string;
@@ -52,7 +52,9 @@ export interface BenchmarkResults {
     files: number;
     dirty_files: number;
     staged_files: number | null;
+    small_commit_files: number | null;
     fixers: string[];
+    checkers: string[];
   };
   subjects: Record<string, Subject>;
   scenarios: Scenario[];
@@ -67,7 +69,7 @@ export default {
     if (!existsSync(resultsPath)) return null;
     const results = JSON.parse(readFileSync(resultsPath, "utf8"));
     // An unverified or failed run must never render as if it were sound.
-    if (results.schema !== 2 || results.passed !== true) return null;
+    if (results.schema !== 3 || results.passed !== true) return null;
     // The page presents every tool as correct, so reject a run in which one wasn't.
     const allCorrect = (results as BenchmarkResults).scenarios.every((s) =>
       Object.values(s.results).every((r) => r.correct.passed === r.correct.total),
