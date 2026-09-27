@@ -5,7 +5,9 @@
 
 set -eu
 
-tests=$(rg --files-without-match --word-regexp git "${usage_test}" --glob "test/*.bats" || true | tr '\n' ' ')
+# --sort path keeps the test order, and so the test numbers, the same between
+# runs and retry attempts.
+tests=$(rg --files-without-match --sort path --word-regexp git "${usage_test}" --glob "test/*.bats" || true | tr '\n' ' ')
 if [ "$tests" ]; then
   bats --jobs 16 $tests
 fi
