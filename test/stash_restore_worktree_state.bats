@@ -323,6 +323,94 @@ EOF
     done
 }
 
+@test "stash restore keeps a step's mode change, with and without core.fileMode" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { glob = "a.txt"; check = "chmod +x f.txt" } }
+  }
+}
+EOF
+    git add hk.pkl
+    git commit -qm config
+    for file_mode in true false; do
+        git config core.fileMode $file_mode
+        for libgit2 in 1 0; do
+            echo staged >> a.txt
+            git add a.txt
+            echo staged >> f.txt
+            git add f.txt
+            echo unstaged >> f.txt
+
+            HK_LIBGIT2=$libgit2 run hk run pre-commit
+            assert_success
+            run cat f.txt
+            assert_output $'base\nstaged\nunstaged'
+            # hk leaves the executable bit as the step set it
+            run test -x f.txt
+            assert_success
+            assert_equal "$(git stash list)" ""
+            chmod -x f.txt
+            reset_repo
+        done
+    done
+}
+
+@test "stash is kept when a fixer with stage = false leaves output it cannot merge" {
+    printf '\000\377binary' > binary.dat
+    git add binary.dat
+    git commit -qm binary
+    for fix in "rm f.txt" "rm f.txt && ln -s a.txt f.txt" "cp binary.dat f.txt"; do
+        cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stage = false
+    stash = "git"
+    steps { ["fixer"] { glob = "f.txt"; fix = "$fix" } }
+  }
+}
+EOF
+        git add hk.pkl
+        git commit -qm "fix $fix"
+        for libgit2 in 1 0; do
+            echo staged >> f.txt
+            git add f.txt
+            echo unstaged >> f.txt
+            HK_LIBGIT2=$libgit2 run hk run pre-commit
+            assert_failure
+            assert_output --partial "Did not restore f.txt from the stash"
+            case "$fix" in
+            "rm f.txt")
+                assert_output --partial "a step changed f.txt, which the stash also changed"
+                assert_file_not_exists f.txt
+                ;;
+            *ln*)
+                assert_output --partial "a step changed f.txt, which the stash also changed"
+                run readlink f.txt
+                assert_output a.txt
+                ;;
+            *)
+                assert_output --partial "a step wrote binary content to f.txt"
+                refute_output --partial "restoring f.txt failed"
+                run cmp f.txt binary.dat
+                assert_success
+                ;;
+            esac
+            # The stash still has the unmerged edits
+            rm -f f.txt
+            git restore --source='stash@{0}' -- f.txt
+            run cat f.txt
+            assert_output $'base\nstaged\nunstaged'
+            git stash drop -q
+            reset_repo
+        done
+    done
+}
+
 @test "a stash of untracked files restores unstaged deletions" {
     for libgit2 in 1 0; do
         echo staged >> a.txt

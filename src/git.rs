@@ -158,6 +158,8 @@ struct StashedChanges {
     unnamed_modes: std::collections::BTreeMap<PathBuf, (u32, u32)>,
     /// What the stash has at each of these paths, except deleted ones
     stashed: std::collections::HashMap<PathBuf, TreeEntry>,
+    /// Whether git tracks executable bits here (`core.fileMode`)
+    file_mode: bool,
 }
 
 /// How restoring a stash treats the paths it set aside.
@@ -234,6 +236,7 @@ impl StashedChanges {
                 .iter()
                 .flat_map(|(path, _, _)| parents(path).into_iter().chain([(*path).clone()])),
             |path| [index.get(path), self.stashed.get(path)],
+            self.file_mode,
         )?;
 
         let mut plan = RestorePlan::default();
@@ -314,14 +317,18 @@ fn read_tree(tree: &str) -> Result<std::collections::HashMap<PathBuf, TreeEntry>
 /// that may be compared with a regular file entry.
 struct WorktreeMatcher {
     hashes: std::collections::HashMap<PathBuf, String>,
+    /// Whether executable bits count, as with `core.fileMode`
+    file_mode: bool,
 }
 
 impl WorktreeMatcher {
     /// Hashes the regular files among `paths` that one of `entries` of the
-    /// path has as a regular file.
+    /// path has as a regular file. Executable bits count only with
+    /// `file_mode`, as git compares them only with `core.fileMode`.
     fn new<'a>(
         paths: impl IntoIterator<Item = PathBuf>,
         entries: impl Fn(&std::path::Path) -> [Option<&'a TreeEntry>; 2],
+        file_mode: bool,
     ) -> Result<Self> {
         let regular: BTreeSet<PathBuf> = paths
             .into_iter()
@@ -335,6 +342,7 @@ impl WorktreeMatcher {
             .collect();
         Ok(Self {
             hashes: hash_worktree_files(&regular)?,
+            file_mode,
         })
     }
 
@@ -352,7 +360,7 @@ impl WorktreeMatcher {
                 }
                 0o100644 | 0o100755 => {
                     metadata.is_file()
-                        && executable_matches(&metadata, *mode)
+                        && (!self.file_mode || executable_matches(&metadata, *mode))
                         && self.hashes.get(path) == Some(object)
                 }
                 // Submodules are not stashed
@@ -424,7 +432,13 @@ fn executable_matches(metadata: &std::fs::Metadata, mode: u32) -> bool {
 /// Lists what `stash_ref` set aside: how its worktree tree differs from its
 /// index tree (`^2`), and its untracked files (`^3`).
 fn stashed_changes(stash_ref: &str) -> Result<StashedChanges> {
-    let mut changes = StashedChanges::default();
+    let mut changes = StashedChanges {
+        // git's default when `core.fileMode` is unset
+        file_mode: git_cmd_silent(["config", "--type=bool", "core.fileMode"])
+            .read()
+            .map_or(true, |value| value.trim() != "false"),
+        ..Default::default()
+    };
     let unexpected = || eyre!("unexpected git diff output for {stash_ref}");
     let index = format!("{stash_ref}^2");
     let raw = git_read_bytes([
@@ -560,8 +574,11 @@ impl StashedChanges {
             .filter(|path| !expected_different.contains(*path))
             .cloned()
             .collect_vec();
-        let worktree =
-            WorktreeMatcher::new(paths.iter().cloned(), |path| [None, self.stashed.get(path)])?;
+        let worktree = WorktreeMatcher::new(
+            paths.iter().cloned(),
+            |path| [None, self.stashed.get(path)],
+            self.file_mode,
+        )?;
         Ok(paths
             .into_iter()
             .filter(|path| !worktree.matches(path, self.stashed.get(path)))
@@ -602,6 +619,22 @@ fn merge_step_change(stash_ref: &str, path: &std::path::Path) -> std::result::Re
     xx::file::write(path, merged)
         .map_err(|err| format!("failed to write {}: {err}", display_path(path)))?;
     Ok(())
+}
+
+/// Records that restoring keeps a step's output at `path`, where the stash
+/// has edits that hk cannot merge into it. `what` says what the step did,
+/// with `{}` for the path.
+fn keep_step_output(
+    not_restored: &mut std::collections::BTreeMap<PathBuf, String>,
+    path: &std::path::Path,
+    what: &str,
+) {
+    let reason = format!(
+        "a step {}, and hk cannot merge the stashed edits into that, so the step's version stays",
+        what.replace("{}", &display_path(path))
+    );
+    warn!("not restoring from the stash: {reason}");
+    not_restored.insert(path.to_path_buf(), reason);
 }
 
 /// Whether the worktree file at `path` matches the index.
@@ -1810,8 +1843,24 @@ impl Git {
                         }
                         continue;
                     }
-                    // Contents are written in place below, which keeps this mode
-                    if let Err(err) = set_file_mode(&path, new_mode) {
+                    // Contents are written in place below, which keeps this
+                    // mode. A mode change that a step made and the stash did
+                    // not is kept. Without `core.fileMode`, git ignores
+                    // executable bits, and so does hk.
+                    let mode = if step_changed && old_mode == new_mode {
+                        std::fs::symlink_metadata(&path).map_or(new_mode, |metadata| {
+                            if executable_matches(&metadata, 0o100755) {
+                                0o100755
+                            } else {
+                                0o100644
+                            }
+                        })
+                    } else {
+                        new_mode
+                    };
+                    if changes.file_mode
+                        && let Err(err) = set_file_mode(&path, mode)
+                    {
                         warn!(
                             "failed to restore the mode of {}: {err:?}",
                             display_path(&path)
@@ -1870,22 +1919,24 @@ impl Git {
                         if std::fs::symlink_metadata(&path)
                             .is_ok_and(|metadata| metadata.file_type().is_symlink())
                         {
-                            warn!(
-                                "fixer replaced {} with a symlink; preserving the symlink instead of conflicting stashed edits{}",
-                                display_path(&path),
-                                patch_hint
+                            keep_step_output(
+                                &mut not_restored,
+                                &path,
+                                "replaced {} with a symlink",
                             );
+                            restoration_failed = true;
                             continue;
                         }
                         match std::fs::read(&path) {
                             Ok(contents) => match String::from_utf8(contents) {
                                 Ok(contents) => Some(contents),
                                 Err(err) => {
-                                    warn!(
-                                        "fixer wrote binary content to {}; preserving it instead of conflicting stashed edits{}",
-                                        display_path(&path),
-                                        patch_hint
+                                    keep_step_output(
+                                        &mut not_restored,
+                                        &path,
+                                        "wrote binary content to {}",
                                     );
+                                    restoration_failed = true;
                                     if let Err(write_err) = xx::file::write(&path, err.as_bytes()) {
                                         warn!(
                                             "failed to preserve binary fixer output for {}: {write_err:?}",
@@ -1897,11 +1948,8 @@ impl Git {
                                 }
                             },
                             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                                warn!(
-                                    "fixer deleted {}; preserving the deletion instead of conflicting stashed edits{}",
-                                    display_path(&path),
-                                    patch_hint
-                                );
+                                keep_step_output(&mut not_restored, &path, "deleted {}");
+                                restoration_failed = true;
                                 continue;
                             }
                             Err(err) => {
@@ -1926,11 +1974,12 @@ impl Git {
 
                     if is_binary {
                         if !should_stage && fixer_worktree.is_some() {
-                            warn!(
-                                "text fixer output for {} cannot be merged with binary stashed edits; preserving the fixer output{}",
-                                display_path(&path),
-                                patch_hint
+                            keep_step_output(
+                                &mut not_restored,
+                                &path,
+                                "wrote text to {} where the stash has binary content",
                             );
+                            restoration_failed = true;
                             continue;
                         }
                         debug!(
