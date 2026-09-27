@@ -82,12 +82,13 @@ pub(crate) fn split_line_ending(line: &str) -> (&str, &str) {
 ///
 /// - gofmt writes `--- file.go.orig` against a plain `+++ file.go`.
 /// - `go fix -diff` labels both sides: `--- file.go (old)` / `+++ file.go (new)`.
+/// - isort labels them `--- file.py:before` / `+++ file.py:after`.
 /// - Some tools prefix each side with its own directory name instead of git's
 ///   `a/` and `b/`, such as `--- current/go.mod` / `+++ tidy/go.mod` from
 ///   `go mod tidy -diff`. When the two sides differ only in their first path
 ///   component, it is rewritten to `a/` and `b/`, which hk strips.
 ///
-/// The `(old)`/`(new)` form is only rewritten when both sides carry their label,
+/// The labelled forms are only rewritten when both sides carry their label,
 /// so a file genuinely named `foo (old)` is left alone. Lines other than headers
 /// are kept byte for byte, including carriage returns.
 pub(crate) fn normalize_diff_paths(diff: &str) -> String {
@@ -104,6 +105,14 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
             if let Some(old_path) = after_prefix.strip_suffix(" (old)")
                 && let Some(new_path) = next_path.strip_suffix(" (new)")
             {
+                result.push_str(&format!(
+                    "--- {old_path}{ending}+++ {new_path}{next_ending}"
+                ));
+                lines.next();
+                continue;
+            }
+            // isort: `path:before` and `path:after`, before any timestamp.
+            if let Some((old_path, new_path)) = strip_side_labels(after_prefix, next_path) {
                 result.push_str(&format!(
                     "--- {old_path}{ending}+++ {new_path}{next_ending}"
                 ));
@@ -138,6 +147,22 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         result.push('\n');
     }
     result
+}
+
+/// Header paths without isort's `:before`/`:after` labels, or `None` unless
+/// both sides carry theirs. Tab-separated timestamps are kept.
+fn strip_side_labels(old: &str, new: &str) -> Option<(String, String)> {
+    let strip = |side: &str, label: &str| -> Option<String> {
+        let (path, tail) = side
+            .split_once('\t')
+            .map_or((side, None), |(p, t)| (p, Some(t)));
+        let path = path.strip_suffix(label)?;
+        Some(match tail {
+            Some(tail) => format!("{path}\t{tail}"),
+            None => path.to_string(),
+        })
+    };
+    Some((strip(old, ":before")?, strip(new, ":after")?))
 }
 
 /// `a/<path>` and `b/<path>` for header paths `<old>/<path>` and `<new>/<path>`
@@ -193,6 +218,18 @@ mod normalize_diff_paths_tests {
     #[test]
     fn leaves_plain_headers_alone() {
         let diff = "--- a/main.go\n+++ b/main.go\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+    }
+
+    #[test]
+    fn strips_isort_before_after_labels() {
+        let diff = "--- /w/t.py:before\t2026-01-01 10:00:00\n+++ /w/t.py:after\t2026-01-01 10:00:01\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(
+            normalize_diff_paths(diff),
+            "--- /w/t.py\t2026-01-01 10:00:00\n+++ /w/t.py\t2026-01-01 10:00:01\n@@ -1 +1 @@\n-a\n+b\n"
+        );
+        // Only one side labelled: a file really named that way.
+        let diff = "--- t.py:before\n+++ t.py:before\n@@ -1 +1 @@\n-a\n+b\n";
         assert_eq!(normalize_diff_paths(diff), diff);
     }
 
