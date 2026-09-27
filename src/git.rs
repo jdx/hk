@@ -485,7 +485,7 @@ impl Git {
         let output = git_read_bytes(args).wrap_err("failed to get git status")?;
         let entries = parse_porcelain_status(&output)?;
         Ok(if self.repo.is_some() {
-            GitStatus::from_entries_libgit2(entries)
+            GitStatus::from_entries_libgit2(entries)?
         } else {
             GitStatus::from_entries(entries)
         })
@@ -1959,7 +1959,7 @@ impl GitStatus {
     /// Classifies entries of `git status --porcelain=v2 --renames` the way
     /// [`Git::read_status`] classifies libgit2's statuses, so that a status
     /// reads the same whichever of the two produced it.
-    fn from_entries_libgit2(entries: Vec<StatusEntry>) -> Self {
+    fn from_entries_libgit2(entries: Vec<StatusEntry>) -> Result<Self> {
         let mut status = Self::default();
         for entry in entries {
             let path = entry.path;
@@ -1978,12 +1978,17 @@ impl GitStatus {
                 // with empty contents, which the worktree then modifies. git
                 // pairs an intent-to-add entry with a file deleted from the
                 // worktree as a worktree rename (`.R`), which libgit2 reports
-                // as that file deleted.
+                // as that file deleted. Only such pairs are worktree renames:
+                // git renames between index entries, and an intent-to-add
+                // entry is the only one whose file is new in the worktree, so
+                // a file moved without `git add -N` is `.D` plus untracked.
                 (b' ', b'A' | b'R') => {
                     if entry.worktree == b'R'
-                        && let Some(orig_path) = entry.orig_path
+                        && let Some(orig_path) = &entry.orig_path
                     {
-                        status.unstaged_deleted_files.insert(orig_path);
+                        status
+                            .unstaged_deleted_files
+                            .insert(path_from_bytes(orig_path)?);
                     }
                     let empty =
                         std::fs::symlink_metadata(&path).is_ok_and(|m| m.is_file() && m.len() == 0);
@@ -2036,7 +2041,7 @@ impl GitStatus {
                 status.unstaged_files.insert(path);
             }
         }
-        status
+        Ok(status)
     }
 }
 
@@ -2054,8 +2059,9 @@ struct StatusEntry {
     rename_modified: bool,
     /// The path, the new one for a rename or copy
     path: PathBuf,
-    /// The original path of a rename or copy
-    orig_path: Option<PathBuf>,
+    /// The original path of a rename or copy, as git printed it: it is
+    /// checked only where it is used
+    orig_path: Option<Vec<u8>>,
 }
 
 fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
@@ -2094,7 +2100,7 @@ fn parse_porcelain_status(output: &[u8]) -> Result<Vec<StatusEntry>> {
         let orig_path = if fields[0] == b"2" {
             // The original path follows as a separate NUL-terminated field
             let orig = lines.next().ok_or_else(|| malformed(line))?;
-            Some(path_from_bytes(orig)?)
+            Some(orig.to_vec())
         } else {
             None
         };
@@ -2191,7 +2197,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
         let entries = parse_porcelain_status(&sample(d)).unwrap();
-        let status = GitStatus::from_entries_libgit2(entries);
+        let status = GitStatus::from_entries_libgit2(entries).unwrap();
         let staged = ["staged.txt", "renamed.txt", "ita.txt", "empty_ita.txt"];
         let staged = [&staged[..], &["ita_moved.txt", "conflict.txt"]].concat();
         assert_eq!(status.staged_files, paths(d, &staged));
@@ -2253,10 +2259,36 @@ mod tests {
     }
 
     #[test]
+    fn test_porcelain_status_plain_move_stages_nothing() {
+        // `mv a.txt b.txt` without `git add -N`, as git reports it whatever
+        // its rename settings
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        std::fs::write(d.join("b.txt"), "x").unwrap();
+        let a = "a".repeat(40);
+        let output = format!(
+            "1 .D N... 100644 100644 000000 {a} {a} {}/a.txt\0? {}/b.txt\0",
+            d.display(),
+            d.display()
+        );
+        let entries = || parse_porcelain_status(output.as_bytes()).unwrap();
+        for status in [
+            GitStatus::from_entries_libgit2(entries()).unwrap(),
+            GitStatus::from_entries(entries()),
+        ] {
+            assert!(status.staged_files.is_empty());
+            assert!(status.staged_added_files.is_empty());
+            assert!(status.unstaged_files.is_empty());
+            assert_eq!(status.unstaged_deleted_files, paths(d, &["a.txt"]));
+            assert_eq!(status.untracked_files, paths(d, &["b.txt"]));
+        }
+    }
+
+    #[test]
     fn test_porcelain_status_rejects_paths_that_are_not_utf8() {
         let a = "a".repeat(40);
         let staged = format!("1 A. N... 000000 100644 100644 {a} {a} bad");
-        let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 new.txt\0old");
+        let renamed = format!("2 R. N... 100644 100644 100644 {a} {a} R100 bad");
         for (output, shown) in [
             (
                 [staged.as_bytes(), b"\xff.txt\0"].concat(),
@@ -2264,13 +2296,42 @@ mod tests {
             ),
             (b"? bad\xfe.txt\0".to_vec(), "bad\u{fffd}.txt"),
             (
-                [renamed.as_bytes(), b"\xfd.txt\0"].concat(),
-                "old\u{fffd}.txt",
+                [renamed.as_bytes(), b"\xfd.txt\0old.txt\0"].concat(),
+                "bad\u{fffd}.txt",
             ),
         ] {
             let err = parse_porcelain_status(&output).err().unwrap();
             assert!(err.to_string().contains(shown), "{err}");
         }
+    }
+
+    #[test]
+    fn test_porcelain_status_checks_rename_sources_only_where_used() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().display();
+        let a = "a".repeat(40);
+        let staged = format!("2 R. N... 100644 100644 100644 {a} {a} R100 {d}/new.txt\0old");
+        let staged = [staged.as_bytes(), b"\xfd.txt\0"].concat();
+        let worktree = format!("2 .R N... 100644 100644 100644 {a} {a} R100 {d}/new.txt\0old");
+        let worktree = [worktree.as_bytes(), b"\xfd.txt\0"].concat();
+
+        // Neither classification uses the source of a staged rename
+        let status = GitStatus::from_entries_libgit2(parse_porcelain_status(&staged).unwrap());
+        assert_eq!(
+            status.unwrap().staged_renamed_files,
+            paths(dir.path(), &["new.txt"])
+        );
+        let status = GitStatus::from_entries(parse_porcelain_status(&worktree).unwrap());
+        assert_eq!(
+            status.unstaged_renamed_files,
+            paths(dir.path(), &["new.txt"])
+        );
+        // The libgit2 classification lists the source of a worktree rename
+        // as deleted
+        let err = GitStatus::from_entries_libgit2(parse_porcelain_status(&worktree).unwrap())
+            .err()
+            .unwrap();
+        assert!(err.to_string().contains("old\u{fffd}.txt"), "{err}");
     }
 
     #[test]
