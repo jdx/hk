@@ -195,8 +195,29 @@ fn match_listed_files(
             }
         }
     }
+    if !unmatched_in_dir.is_empty() {
+        // Resolve just these paths, and look up the result as written, either
+        // absolute or relative to where hk runs, rather than canonicalizing
+        // every job file.
+        let cwd = std::env::current_dir()
+            .ok()
+            .and_then(|cwd| cwd.canonicalize().ok());
+        for in_dir in unmatched_in_dir {
+            let Ok(canonical) = in_dir.canonicalize() else {
+                continue;
+            };
+            let relative = cwd
+                .as_deref()
+                .and_then(|cwd| canonical.strip_prefix(cwd).ok());
+            for candidate in [Some(canonical.as_path()), relative].into_iter().flatten() {
+                if let Some(&original) = originals.get(candidate) {
+                    matched.insert(original);
+                }
+            }
+        }
+    }
     let mut extras: IndexSet<PathBuf> = IndexSet::new();
-    if !unmatched.is_empty() || !unmatched_in_dir.is_empty() {
+    if !unmatched.is_empty() {
         let mut by_canonical: HashMap<PathBuf, Vec<&Path>> = HashMap::new();
         for file in original_files {
             by_canonical
@@ -216,11 +237,6 @@ fn match_listed_files(
                 extras.extend(canonical.into_iter().next());
             } else {
                 matched.extend(hits);
-            }
-        }
-        for in_dir in unmatched_in_dir {
-            if let Some(files) = by_canonical.get(&try_canonicalize(in_dir)) {
-                matched.extend(files.iter().copied());
             }
         }
     }
@@ -343,7 +359,8 @@ mod tests {
         // The step runs in `alias`, a link to `pkg`. `a/x` reads as a root `x`,
         // which is a job file, and as `alias/x`, which is `pkg/x`.
         let root = tempfile::tempdir().unwrap();
-        let pkg = root.path().join("pkg");
+        // Job files name resolved paths, as they do relative to the root.
+        let pkg = root.path().canonicalize().unwrap().join("pkg");
         std::fs::create_dir(&pkg).unwrap();
         std::fs::write(pkg.join("x"), "x\n").unwrap();
         let alias = root.path().join("alias");
