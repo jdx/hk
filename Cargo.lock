@@ -872,6 +872,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "usage-rs",
+ "winapi-util",
  "xx",
  "zip",
 ]
@@ -1647,9 +1648,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pklr"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53fb393e62c78b793c6a95a885149e19f3a87a79c7a6e0b16d4f53d29abfd431"
+checksum = "252876d45e6945501a9252b30a960ef943c535e16ba6f4a0e3de48d9ed6741a3"
 dependencies = [
  "async-recursion",
  "indexmap 2.14.2",

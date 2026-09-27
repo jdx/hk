@@ -435,3 +435,76 @@ PKL
     [ formatted.json -ef formatted-link.json ]
     assert_equal "$(find . -name '*.json.*' -o -name '*.yaml.*' | wc -l | tr -d ' ')" 0
 }
+
+@test "jq and yq check a batch of files without running the tool for each file" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["jq"] = Builtins.jq
+      ["yq"] = Builtins.yq
+    }
+  }
+}
+PKL
+    for i in $(seq 1 20); do
+        printf '{\n  "a": %d\n}\n' "$i" > "data$i.json"
+        printf 'a: %d\n' "$i" > "config$i.yaml"
+    done
+    printf '{"b": 1}' > unformatted.json
+    printf 'b:  1\n' > unformatted.yaml
+    # Formatted, but the batch run cannot tell, so these run on their own too.
+    printf '1\n2\n' > several.json
+    printf -- '---\nc: 1\n' > separator.yaml
+
+    # Log each run's arguments to a file of its own, since batches run at the
+    # same time, then run the tool. The tool may be a mise shim, which runs the
+    # next one of that name on PATH, so the wrapper takes itself off PATH
+    # first; otherwise the two run each other forever. The wrapper reads its
+    # paths from the environment, so no quoting can break it.
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    export SHIM_PATH=$PATH SHIM_LOGS=$TEST_TEMP_DIR
+    mkdir "$TEST_TEMP_DIR/bin"
+    cat > "$TEST_TEMP_DIR/bin/jq" <<'SHIM'
+#!/bin/sh
+tool=${0##*/}
+printf '%s\n' "$*" > "$(mktemp "$SHIM_LOGS/$tool.log/XXXXXX")"
+PATH=$SHIM_PATH
+exec "$tool" "$@"
+SHIM
+    chmod +x "$TEST_TEMP_DIR/bin/jq"
+    cp "$TEST_TEMP_DIR/bin/jq" "$TEST_TEMP_DIR/bin/yq"
+    mkdir "$TEST_TEMP_DIR/jq.log" "$TEST_TEMP_DIR/yq.log"
+    # Counts the runs of a tool, or those whose arguments are exactly $2.
+    runs() {
+        if [ $# -eq 1 ]; then
+            find "$TEST_TEMP_DIR/$1.log" -type f | wc -l | tr -d ' '
+        else
+            grep -lxF -- "$2" "$TEST_TEMP_DIR/$1.log"/* | wc -l | tr -d ' '
+        fi
+    }
+    PATH="$TEST_TEMP_DIR/bin:$PATH"
+
+    # The two batched steps share the jobs, so 4 jobs give each step two
+    # batches.
+    HK_JOBS=4 run hk check --all --no-fail-fast
+    assert_failure
+    assert_output --partial "+++ b/unformatted.json"
+    assert_output --partial "+++ b/unformatted.yaml"
+    refute_output --partial "+++ b/data"
+    refute_output --partial "+++ b/config"
+    refute_output --partial "+++ b/several.json"
+    refute_output --partial "+++ b/separator.yaml"
+    # Each step's files make two batches. jq formats a batch in one run and
+    # compares the output with the files in another, and yq formats a batch in
+    # one run. Only the unformatted files and the two the batch run cannot
+    # vouch for run on their own.
+    assert_equal "$(runs jq)" 6
+    assert_equal "$(runs yq)" 4
+    assert_equal "$(runs jq '-S . several.json')" 1
+    assert_equal "$(runs jq '-S . unformatted.json')" 1
+    assert_equal "$(runs yq '-P separator.yaml')" 1
+    assert_equal "$(runs yq '-P unformatted.yaml')" 1
+}

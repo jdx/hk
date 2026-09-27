@@ -1364,8 +1364,7 @@ impl Hook {
 
         if stash_method != StashMethod::None {
             // Only run stash logic if there are actually unstaged changes to stash
-            let has_unstaged_changes = !git_status.unstaged_files.is_empty()
-                || (*env::HK_STASH_UNTRACKED && !git_status.untracked_files.is_empty());
+            let has_unstaged_changes = git_status.has_unstaged_changes(*env::HK_STASH_UNTRACKED);
 
             if has_unstaged_changes {
                 // Capture exact staged index entries for files under consideration so we can
@@ -1800,7 +1799,8 @@ impl Hook {
 
         // Filter out directories (including symlinks to directories)
         // git ls-files includes symlinks, which may point to directories
-        files.retain(|f| {
+        let candidates = files.iter().collect::<Vec<_>>();
+        let keep = crate::par::map(&candidates, |f| {
             // First check if it's a symlink using symlink_metadata (doesn't follow links)
             if let Ok(symlink_meta) = std::fs::symlink_metadata(f) {
                 if symlink_meta.is_symlink() {
@@ -1822,6 +1822,9 @@ impl Hook {
                 true
             }
         });
+        // `BTreeSet::retain` visits files in the same ascending order.
+        let mut keep = keep.into_iter();
+        files.retain(|_| keep.next().unwrap_or(true));
 
         // Union excludes from Settings and CLI options
         let settings = crate::settings::Settings::get();

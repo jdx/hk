@@ -514,6 +514,15 @@ open class Step {
   /// Falls back to running the fix command if patch application fails.
   check_diff: (String | Script | Command | CommandSpec)?
 
+  /// Default: `true`
+  ///
+  /// If false, fix mode runs `fix` instead of applying `check_diff` output, and `check_diff`
+  /// only serves check mode. In a hook that stages fixes, hk still runs `check_diff` first and
+  /// then runs `fix` on just the files the diff names, so a passing check skips both the fixer
+  /// and staging. Set this for a fixer that only rewrites files that need it and is cheaper to
+  /// run than producing and applying a patch. A step without `fix` always applies the diff.
+  apply_check_diff: Boolean = true
+
   /// Default: `false`
   ///
   /// If true, rerun `check` on the original file batch after successfully
@@ -560,7 +569,9 @@ open class Step {
   /// Some steps check first whatever this is set to:
   /// - a step whose `check` and `fix` are the same command, as in steps migrated from
   ///   pre-commit: such a fixer exits 1 after fixing, and the second run is what lets it pass;
-  /// - a step with `check_diff` in fix mode, so it can apply the diff instead of running `fix`;
+  /// - a step with `check_diff` in fix mode, so it can apply the diff instead of running `fix`.
+  ///   With `apply_check_diff = false`, only in a hook that stages fixes, so a passing check
+  ///   skips both the fixer and staging;
   /// - a step with `check_diff` or `check_list_files` and `stage = "<JOB_FILES>"`, so only the
   ///   files it changed are fixed and staged. With the default `stage`, this happens only when one
   ///   of the step's files has unstaged changes that hk didn't stash, since otherwise staging
@@ -574,6 +585,14 @@ open class Step {
   /// Files are split evenly across `--jobs` batches, with at least `batch_min_files` files in
   /// each, so a handful of files doesn't start one process per file and pay the tool's startup
   /// cost each time.
+  ///
+  /// Batched steps that run at the same time share `--jobs` rather than each splitting its files
+  /// into `--jobs` batches. Each step first gets an equal share of the jobs, and the jobs left over
+  /// go to the steps with the most files. For example, with 8 jobs, prettier on 900 files and
+  /// eslint on 300 make 4 batches each, and prettier, eslint and jq on 900, 100 and 100 files make
+  /// 4, 2 and 2. Together they never make more batches than `--jobs`, unless there are more such
+  /// steps than jobs, when each still runs once. A step that is the only batched one with files,
+  /// or that has `depends` or a `condition`, gets every job.
   ///
   /// ```pkl
   /// local linters = new Mapping {
