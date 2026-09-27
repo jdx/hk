@@ -107,7 +107,8 @@ yq = new Config.Step {
     }
     ["check file that starts with a separator"] = batchMaker.checkPass("---\nfoo: bar\n")
     ["check file with several documents"] = batchMaker.checkPass("a: 1\n---\nb: 2\n")
-    ["check unformatted file with several documents"] = batchMaker.checkFail("a: 1\n---\nb:  2\n", 1)
+    ["check unformatted file with several documents"] =
+      batchMaker.checkFail("a: 1\n---\nb:  2\n", 1)
     ["check file yq cannot parse"] = batchMaker.checkFail("a: [\n", 1)
     ["check multiple files"] {
       tmpdir = true
