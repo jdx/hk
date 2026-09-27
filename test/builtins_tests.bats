@@ -435,3 +435,46 @@ PKL
     [ formatted.json -ef formatted-link.json ]
     assert_equal "$(find . -name '*.json.*' -o -name '*.yaml.*' | wc -l | tr -d ' ')" 0
 }
+
+@test "jq and yq check a batch of files without running the tool for each file" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl" as Builtins
+hooks {
+  ["check"] {
+    steps {
+      ["jq"] = Builtins.jq
+      ["yq"] = Builtins.yq
+    }
+  }
+}
+PKL
+    for i in $(seq 1 20); do
+        printf '{\n  "a": %d\n}\n' "$i" > "data$i.json"
+        printf 'a: %d\n' "$i" > "config$i.yaml"
+    done
+    printf '{"b": 1}' > unformatted.json
+    printf 'b:  1\n' > unformatted.yaml
+
+    # Log each run of jq and yq before running the tool stub.
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    mkdir "$TEST_TEMP_DIR/bin"
+    for tool in jq yq; do
+        printf '#!/bin/sh\necho run >> "%s/%s.log"\nexec "%s" "$@"\n' \
+            "$TEST_TEMP_DIR" "$tool" "$(command -v "$tool")" > "$TEST_TEMP_DIR/bin/$tool"
+        chmod +x "$TEST_TEMP_DIR/bin/$tool"
+    done
+    PATH="$TEST_TEMP_DIR/bin:$PATH"
+
+    run hk check --all --no-fail-fast
+    assert_failure
+    assert_output --partial "+++ b/unformatted.json"
+    assert_output --partial "+++ b/unformatted.yaml"
+    refute_output --partial "+++ b/data"
+    refute_output --partial "+++ b/config"
+    # HK_JOBS=2 splits each step's files into two batches. jq formats a batch
+    # in one run and compares the output with the files in another, and yq
+    # formats a batch in one run. Only the unformatted files run on their own.
+    assert_equal "$(wc -l < "$TEST_TEMP_DIR/jq.log" | tr -d ' ')" 5
+    assert_equal "$(wc -l < "$TEST_TEMP_DIR/yq.log" | tr -d ' ')" 3
+}

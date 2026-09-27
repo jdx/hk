@@ -8,22 +8,58 @@ import "./test/helpers.pkl"
 }
 jq = new Config.Step {
   glob = "**/*.json"
-  // The commands run one process per file, so split the files across jobs.
+  // jq formats on one core and the fixer runs once per file, so split the
+  // files across jobs.
   batch = true
   // Label both sides with the file's path: an unlabeled `diff "$f" -` names
   // the new side `-`, which `git apply` cannot patch. Diff only output from a
   // successful run, since diffing a file jq cannot parse against empty output
   // would patch it to nothing. Sort keys like `fix` does, so `hk check`
   // reports every file that `hk fix` changes.
+  //
+  // Starting jq and diff for each file costs more than the formatting, so for
+  // more than one file, one jq run formats every file and a second compares
+  // the output with the files. Only the files it lists go through jq and diff
+  // one at a time: those whose output differs, those `fromjson` cannot parse
+  // (it takes one value, while jq reads the files it is given as one stream),
+  // and those containing U+FFFD, which `--rawfile` also puts in place of
+  // invalid UTF-8. Every file does if either run fails, as it does before
+  // jq 1.6, which lacks `--rawfile`.
   check_diff = new Config.CommandSpec {
     command =
-      """
+      #"""
       failed=0
       broken=0
-      trap 'rm -f "$out" "$patch"' EXIT
+      trap 'rm -f "$out" "$patch" "$new"' EXIT
       trap 'exit 2' HUP INT TERM
-      out=$(mktemp) && patch=$(mktemp) || exit 2
+      out=$(mktemp) && patch=$(mktemp) && new=$(mktemp) || exit 2
+      n=0
+      set --
       for f in {{ files }}; do
+      n=$((n + 1))
+      set -- "$@" --rawfile "f$n" "$f"
+      done
+      # Each file's output follows \u001e, which formatted JSON never
+      # contains, and is \u001f if jq cannot parse the file.
+      todo=all
+      if [ "$n" -gt 1 ] && jq -n -j -S --argjson n "$n" "$@" '
+      range(1; $n + 1) as $i | "\u001e", ($ARGS.named["f\($i)"]
+      | try (fromjson | if type == "string" then tojson else . end, "\n") catch "\u001f")
+      ' > "$new" 2>/dev/null; then
+      todo=$(jq -n -r --argjson n "$n" --rawfile new "$new" "$@" '
+      ($new | split("\u001e")) as $new
+      | [range(1; $n + 1) | select($new[.] != $ARGS.named["f\(.)"]
+      or ($new[.] | contains("\u001f") or contains("\ufffd"))) | tostring]
+      | " " + join(" ") + " "
+      ' 2>/dev/null) || todo=all
+      fi
+      i=0
+      for f in {{ files }}; do
+      i=$((i + 1))
+      case $todo in
+      all | *" $i "*) ;;
+      *) continue ;;
+      esac
       if jq -S . "$f" > "$out"; then
       # hk runs this with `set -e`, so take diff's status through `||`.
       status=0
@@ -42,7 +78,7 @@ jq = new Config.Step {
       [ "$broken" = 1 ] && exit 1
       cat "$patch" || exit 2
       exit $failed
-      """
+      """#
     effect = "read"
   }
   fix = new Config.CommandSpec {
@@ -80,5 +116,21 @@ jq = new Config.Step {
     local const unsorted = "{\n  \"b\": 1,\n  \"a\": 2\n}\n"
     ["check unsorted keys"] = testMaker.checkFail(unsorted, 1)
     ["fix unsorted keys"] = testMaker.fixPass(unsorted, "{\n  \"a\": 2,\n  \"b\": 1\n}\n")
+    // jq formats each value of a file with several; `fromjson` cannot parse it.
+    ["check file with several values"] = testMaker.checkPass("1\n2\n")
+    // U+FFFD may stand for invalid UTF-8, so jq checks the file on its own.
+    ["check file with U+FFFD"] = testMaker.checkPass("\"\u{FFFD}\"\n")
+    ["check multiple files"] {
+      tmpdir = true
+      write {
+        ["a.json"] = "{\n  \"a\": 1\n}\n"
+        ["b.json"] = "{\"b\": 1}"
+        ["c.json"] = "[]\n"
+      }
+      expect {
+        code = 1
+        stdout = "--- a/b.json\n+++ b/b.json\n"
+      }
+    }
   }
 }
