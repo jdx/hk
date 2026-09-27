@@ -7,7 +7,6 @@
 use crate::Result;
 use diffy::patch_set::{FileOperation, ParseOptions, PatchKind, PatchSet};
 use indexmap::IndexMap;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::types::Step;
@@ -147,9 +146,10 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
     // Each touched file's contents after the patches so far, or `None` once
     // deleted. A file can appear in more than one file patch.
     let mut files: IndexMap<PathBuf, Option<String>> = IndexMap::new();
-    // Each touched file's contents before the patch, or `None` if it didn't
-    // exist, to restore if a write fails.
-    let mut originals: IndexMap<PathBuf, Option<String>> = IndexMap::new();
+    // Each touched file's contents and permissions before the patch, or
+    // `None` if it didn't exist, to restore if a write fails.
+    type Original = (Option<String>, Option<std::fs::Permissions>);
+    let mut originals: IndexMap<PathBuf, Original> = IndexMap::new();
     for file_patch in PatchSet::parse(diff, ParseOptions::unidiff()) {
         let file_patch = file_patch.map_err(|err| err.to_string())?;
         let PatchKind::Text(patch) = file_patch.patch() else {
@@ -171,11 +171,14 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
         };
         let display = path.display().to_string();
         refuse_symlinks(base, &path)?;
+        refuse_hard_links(&base.join(&path))?;
         let current = match files.get(&path) {
             Some(current) => current.clone(),
             None => {
-                let current = read_existing(&base.join(&path))?;
-                originals.insert(path.clone(), current.clone());
+                let target = base.join(&path);
+                let current = read_existing(&target)?;
+                let permissions = std::fs::metadata(&target).map(|m| m.permissions());
+                originals.insert(path.clone(), (current.clone(), permissions.ok()));
                 current
             }
         };
@@ -192,14 +195,18 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
     if files.is_empty() {
         return Err("no file patches found".to_string());
     }
-    let mut written = Vec::with_capacity(files.len());
+    let mut written: Vec<&PathBuf> = Vec::with_capacity(files.len());
     for (path, contents) in &files {
         if let Err(err) = write_contents(&base.join(path), contents.as_deref()) {
             // Put back what was already written, so the fixer starts from the
             // files as they were.
             for done in written {
-                let original = originals.get(done).and_then(|c| c.as_deref());
-                let _ = write_contents(&base.join(done), original);
+                let target = base.join(done);
+                let (contents, permissions): &Original = &originals[done];
+                let _ = write_contents(&target, contents.as_deref());
+                if let (Some(_), Some(permissions)) = (contents, permissions) {
+                    let _ = std::fs::set_permissions(&target, permissions.clone());
+                }
             }
             return Err(format!("{}: {err}", path.display()));
         }
@@ -210,31 +217,40 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
 
 /// Write `contents` to `path`, creating its directory, or remove it for `None`.
 ///
-/// The contents go to a new file beside `path` that then replaces it, as
-/// `git apply` does, so the write is atomic and a hard link to the old file
-/// from outside the working directory keeps its contents. The new file gets
-/// the old one's permissions.
+/// An existing file is written in place, keeping its owner, permissions, ACLs,
+/// and extended attributes; a read-only one fails the write, and hk runs the
+/// fixer. A new file gets the usual permissions for the user's umask.
 fn write_contents(path: &Path, contents: Option<&str>) -> std::io::Result<()> {
     match contents {
         Some(contents) => {
-            let parent = match path.parent() {
-                Some(parent) if !parent.as_os_str().is_empty() => parent,
-                _ => Path::new("."),
-            };
-            std::fs::create_dir_all(parent)?;
-            let permissions = std::fs::metadata(path).ok().map(|m| m.permissions());
-            let mut file = tempfile::NamedTempFile::new_in(parent)?;
-            file.write_all(contents.as_bytes())?;
-            if let Some(permissions) = permissions {
-                file.as_file().set_permissions(permissions)?;
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
             }
-            file.persist(path).map(|_| ()).map_err(|err| err.error)
+            std::fs::write(path, contents)
         }
         None => match std::fs::remove_file(path) {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
             result => result,
         },
     }
+}
+
+/// Refuse a file with other hard links, which may be outside the working
+/// directory: writing it in place would change them too.
+#[cfg(unix)]
+fn refuse_hard_links(path: &Path) -> std::result::Result<(), String> {
+    use std::os::unix::fs::MetadataExt;
+    match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_file() && meta.nlink() > 1 => {
+            Err(format!("{}: has other hard links", path.display()))
+        }
+        _ => Ok(()),
+    }
+}
+
+#[cfg(not(unix))]
+fn refuse_hard_links(_path: &Path) -> std::result::Result<(), String> {
+    Ok(())
 }
 
 /// Refuse `path` if it or any directory leading to it under `base` is a
@@ -495,6 +511,23 @@ mod apply_patch_tests {
         assert_eq!(read(&dir, "a.txt"), "x\n");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn restores_a_deleted_file_with_its_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("run.sh", "x\n"), ("blocker", "")]);
+        fs::set_permissions(dir.path().join("run.sh"), fs::Permissions::from_mode(0o755)).unwrap();
+        let diff = "--- run.sh\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n\
+                    --- /dev/null\n+++ blocker/new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        assert_eq!(read(&dir, "run.sh"), "x\n");
+        let mode = fs::metadata(dir.path().join("run.sh"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o755);
+    }
+
     #[test]
     fn falls_back_to_the_modified_side_when_the_original_is_unusable() {
         let dir = dir_with(&[("a.txt", "x\n")]);
@@ -505,25 +538,63 @@ mod apply_patch_tests {
 
     #[cfg(unix)]
     #[test]
-    fn replaces_files_instead_of_writing_through_hard_links() {
-        use std::os::unix::fs::PermissionsExt;
+    fn refuses_files_with_other_hard_links() {
         let outside = dir_with(&[("file.txt", "x\n")]);
         let dir = dir_with(&[]);
         fs::hard_link(outside.path().join("file.txt"), dir.path().join("file.txt")).unwrap();
-        fs::set_permissions(
-            dir.path().join("file.txt"),
-            fs::Permissions::from_mode(0o755),
-        )
-        .unwrap();
         let diff = "--- file.txt\n+++ file.txt\n@@ -1 +1 @@\n-x\n+y\n";
-        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
-        assert_eq!(read(&dir, "file.txt"), "y\n");
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .contains("hard links")
+        );
         assert_eq!(read(&outside, "file.txt"), "x\n");
-        let mode = fs::metadata(dir.path().join("file.txt"))
-            .unwrap()
-            .permissions()
-            .mode();
-        assert_eq!(mode & 0o777, 0o755);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn keeps_permissions_and_gives_new_files_the_usual_mode() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("run.sh", "x\n")]);
+        fs::set_permissions(dir.path().join("run.sh"), fs::Permissions::from_mode(0o755)).unwrap();
+        let diff = "--- run.sh\n+++ run.sh\n@@ -1 +1 @@\n-x\n+y\n\
+                    --- /dev/null\n+++ new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(2));
+        let mode = |name: &str| {
+            fs::metadata(dir.path().join(name))
+                .unwrap()
+                .permissions()
+                .mode()
+        };
+        assert_eq!(mode("run.sh") & 0o777, 0o755);
+        // Created like any other file: readable by others unless the umask
+        // says otherwise, not the owner-only mode of a temporary file.
+        let umask_allows_other_read = {
+            let probe = dir.path().join("probe");
+            fs::write(&probe, "").unwrap();
+            mode("probe") & 0o044
+        };
+        assert_eq!(mode("new.txt") & 0o044, umask_allows_other_read);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn leaves_read_only_files_to_the_fixer() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("a.txt", "x\n")]);
+        fs::set_permissions(dir.path().join("a.txt"), fs::Permissions::from_mode(0o444)).unwrap();
+        let diff = "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        // Root can write read-only files, so only check the outcome matches.
+        let result = apply_patch(diff, 0, dir.path());
+        assert_eq!(result.is_ok(), read(&dir, "a.txt") == "y\n");
+        assert_eq!(
+            fs::metadata(dir.path().join("a.txt"))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o444
+        );
     }
 
     #[test]
