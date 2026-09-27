@@ -341,3 +341,44 @@ assert_non_utf8_intent_to_add_set_aside() {
 @test "stash sets aside an intent-to-add file whose name is not UTF-8 with the git CLI" {
     assert_non_utf8_intent_to_add_set_aside 0
 }
+
+@test "files the stash skips keep their unstaged changes when intent-to-add files are set aside" {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps {
+      ["append"] {
+        glob = "*.sh"
+        check = "true"
+        check_list_files = "true"
+        fix = "for f in {{files}}; do echo '# fixed' >> \\\$f; done"
+      }
+    }
+  }
+}
+PKL
+    printf 'echo hi\n' > a.sh
+    git add hk.pkl a.sh
+    git commit -m "init"
+    # The worktree matches HEAD, so the stash sets nothing aside for a.sh,
+    # which still has unstaged changes; the step must check it before fixing
+    printf 'echo staged\n' > a.sh
+    git add a.sh
+    printf 'echo hi\n' > a.sh
+    printf 'new\n' > new.txt
+    git add -N new.txt
+
+    run hk run pre-commit
+    assert_success
+    run git show :a.sh
+    assert_output "echo staged"
+    run cat a.sh
+    assert_output "echo hi"
+    run git status --porcelain
+    assert_output "$(printf 'MM a.sh\n A new.txt')"
+    run git stash list
+    assert_output ""
+}

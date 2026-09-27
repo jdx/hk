@@ -1471,13 +1471,16 @@ impl Git {
                 return Err(err);
             }
         };
-        if !intent_to_add_paths.is_empty()
-            && let Some(stashed_paths) = &mut self.stashed_paths
-        {
-            stashed_paths.extend(intent_to_add_paths);
+        if self.stash.is_none() {
+            // The paths above keep their unstaged changes
+            self.stashed_paths = None;
+        }
+        if !intent_to_add_paths.is_empty() {
+            self.stashed_paths
+                .get_or_insert_default()
+                .extend(intent_to_add_paths);
         }
         if self.stash.is_none() && self.intent_to_add.is_none() {
-            self.stashed_paths = None;
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
