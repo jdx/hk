@@ -231,7 +231,7 @@ A tool that reports fixes in a SARIF log can get a `check_diff` from `hk util sa
 check_diff = "hk util sarif-diff -- pinact run --check --format sarif {{files}}"
 ```
 
-A fixer that only rewrites files that need it, and runs faster than hk can capture and apply a patch, can set `apply_check_diff = false`, as the `trailing_whitespace` and `newlines` builtins do. Fix mode then runs `fix` instead of applying the diff, and `check_diff` still shows the diff in check mode. In a hook that stages fixes, hk still runs `check_diff` first and passes `fix` only the files the diff names, so a passing check skips both the fixer and staging.
+A fixer that only rewrites files that need it, and runs faster than hk can capture and apply a patch, can set `apply_check_diff = false`. Fix mode then runs `fix` instead of applying the diff, and `check_diff` still shows the diff in check mode. In a hook that stages fixes, hk still runs `check_diff` first and passes `fix` only the files the diff names, so a passing check skips both the fixer and staging.
 
 A formatter that can read a file on stdin and print the formatted result doesn't need a diff mode of its own. `hk util format-diff` runs it once per file, in parallel, and prints the patch, as the `stylua`, `tombi_format`, `buildifier_format`, `terraform`, and `tofu` builtins do. `{}` stands for the file's path:
 

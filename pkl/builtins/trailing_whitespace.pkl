@@ -20,9 +20,6 @@ trailing_whitespace = new Config.Step {
     }
     effect = "write"
   }
-  // `fix` only rewrites files that need it, and running it is much cheaper
-  // than capturing, parsing and applying a patch for every file it changes.
-  apply_check_diff = false
   tests {
     local const testMaker = new helpers.TestMaker {}
     ["check bad file"] = testMaker.checkFail("trailing  \n", 1)
