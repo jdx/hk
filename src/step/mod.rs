@@ -59,6 +59,7 @@ pub use types::{
     Script, Step,
 };
 
+pub(crate) use filtering::cache_symlink_check;
 // Re-export for potential external use (currently only used internally)
 #[allow(unused_imports)]
 pub use filtering::{is_binary_file, is_symlink_file};

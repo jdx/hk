@@ -1,6 +1,5 @@
 use crate::{Result, file_rw_locks::Flocks, hook::SkipReason, step::RunType};
 use clx::progress::{ProgressJob, ProgressJobBuilder, ProgressJobDoneBehavior, ProgressStatus};
-use itertools::Itertools;
 use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{env, step::Step, step_context::StepContext, step_locks::StepLocks, tera};
@@ -118,7 +117,6 @@ impl StepJob {
     pub fn build_progress(&self, ctx: &StepContext) -> Arc<ProgressJob> {
         let job = ProgressJobBuilder::new()
             .prop("name", &self.step.name)
-            .prop("files", &self.files.iter().map(|f| f.display()).join(" "))
             .body(
                 "{{spinner()}} {% if ensembler_cmd %}{{ensembler_cmd | flex}}{% if ensembler_stdout %}\n{{ensembler_stdout | flex}}{% endif %}{% else %}{{message | flex}}{% endif %}"
             )
