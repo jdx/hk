@@ -1261,10 +1261,8 @@ impl Git {
         let intent_to_add_result = self.restore_intent_to_add(true);
         self.stashed_paths = None;
         match (result, intent_to_add_result) {
-            (Err(err), Err(intent_to_add_err)) => {
-                warn!("{intent_to_add_err:?}");
-                Err(err)
-            }
+            // Report both, as each names where its contents are kept
+            (Err(err), Err(intent_to_add_err)) => Err(eyre!("{err:#}\n{intent_to_add_err:#}")),
             (result, intent_to_add_result) => result.and(intent_to_add_result),
         }
     }

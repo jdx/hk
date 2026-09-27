@@ -229,3 +229,34 @@ PKL
     run git show 'stash@{0}^3:new.txt'
     assert_output "mine"
 }
+
+assert_empty_intent_to_add_set_aside() {
+    local use_libgit2="$1"
+    write_config git
+    commit_initial_files
+    : > empty.txt
+    git add -N empty.txt
+    printf 'staged v2\n' > staged.txt
+    git add staged.txt
+    printf 'other v2\n' > other.txt
+
+    run env HK_LIBGIT2="$use_libgit2" hk run pre-commit
+    assert_success
+    run cat "$SEEN/files"
+    assert_output "staged.txt"
+    run cat "$SEEN/worktree"
+    refute_output --partial "empty.txt"
+    assert [ -f empty.txt ] && [ ! -s empty.txt ]
+    run git status --porcelain
+    assert_output "$(printf ' A empty.txt\n M other.txt\nM  staged.txt')"
+    run git stash list
+    assert_output ""
+}
+
+@test "stash sets aside empty intent-to-add files with libgit2" {
+    assert_empty_intent_to_add_set_aside 1
+}
+
+@test "stash sets aside empty intent-to-add files with the git CLI" {
+    assert_empty_intent_to_add_set_aside 0
+}
