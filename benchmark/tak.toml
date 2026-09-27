@@ -33,8 +33,9 @@
 # The type checkers change no files, so a failure shows only in the exit
 # code. hk and lefthook must exit 0 in every scenario. pre-commit and prek exit
 # 1 whenever a hook modified files, so their fix scenarios accept 1 as well;
-# they run the type checkers after every fixer has finished, and
-# generate-project.sh checks that both commits type-check.
+# they run the type checkers after every fixer has finished,
+# generate-project.sh checks that both commits type-check, and setup.sh checks
+# mypy on exactly the files each commit scenario stages.
 
 [env]
 # The default deny list, plus anything that would let the user's own setup

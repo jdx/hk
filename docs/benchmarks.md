@@ -33,7 +33,7 @@ With about 60 files, splitting each hook's files into batches keeps several CPUs
 
 The commit scenarios measure one hook invocation. hk and lefthook stage their fixes. pre-commit and prek leave fixes unstaged and return a failure, requiring the user to stage the changes and retry the commit. That manual work and retry are outside the measurement.
 
-After every timed sample, [tak](https://github.com/jdx/tak) checks that the resulting tree matches `clean` byte for byte. hk and lefthook must also exit successfully, since a failed type check changes no files. pre-commit and prek report failure whenever a hook modified files, so their exit codes cannot show a failed type check; they run the type checkers after every fixer has finished, and the generator verifies that both commits type-check. A separate check verifies that each tool detects defects in `dirty`. A run is publishable only if every tool passes all required checks.
+After every timed sample, [tak](https://github.com/jdx/tak) checks that the resulting tree matches `clean` byte for byte. hk and lefthook must also exit successfully, since a failed type check changes no files. pre-commit and prek report failure whenever a hook modified files, so their exit codes cannot show a failed type check; they run the type checkers after every fixer has finished, and setup verifies that both commits type-check, including mypy on exactly the files each commit scenario stages. A separate check verifies that each tool detects defects in `dirty`. A run is publishable only if every tool passes all required checks.
 
 ## Tool configurations
 
