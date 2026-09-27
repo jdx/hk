@@ -459,18 +459,27 @@ PKL
     printf '1\n2\n' > several.json
     printf -- '---\nc: 1\n' > separator.yaml
 
-    # Log each run's arguments on one line (the batch runs' programs span
-    # several), then run the tool stub.
+    # Log each run's arguments to a file of its own, since batches run at the
+    # same time, then run the tool stub.
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
     mkdir "$TEST_TEMP_DIR/bin"
     for tool in jq yq; do
+        mkdir "$TEST_TEMP_DIR/$tool.log"
         cat > "$TEST_TEMP_DIR/bin/$tool" <<SHIM
 #!/bin/sh
-{ printf '%s' "\$*" | tr '\n' ' '; echo; } >> "$TEST_TEMP_DIR/$tool.log"
+printf '%s\n' "\$*" > "\$(mktemp "$TEST_TEMP_DIR/$tool.log/XXXXXX")"
 exec "$(command -v "$tool")" "\$@"
 SHIM
         chmod +x "$TEST_TEMP_DIR/bin/$tool"
     done
+    # Counts the runs of a tool, or those whose arguments are exactly $2.
+    runs() {
+        if [ $# -eq 1 ]; then
+            find "$TEST_TEMP_DIR/$1.log" -type f | wc -l | tr -d ' '
+        else
+            grep -lxF -- "$2" "$TEST_TEMP_DIR/$1.log"/* | wc -l | tr -d ' '
+        fi
+    }
     PATH="$TEST_TEMP_DIR/bin:$PATH"
 
     run hk check --all --no-fail-fast
@@ -485,10 +494,10 @@ SHIM
     # in one run and compares the output with the files in another, and yq
     # formats a batch in one run. Only the unformatted files and the two the
     # batch run cannot vouch for run on their own.
-    assert_equal "$(wc -l < "$TEST_TEMP_DIR/jq.log" | tr -d ' ')" 6
-    assert_equal "$(wc -l < "$TEST_TEMP_DIR/yq.log" | tr -d ' ')" 4
-    assert_equal "$(grep -cxF -- '-S . several.json' "$TEST_TEMP_DIR/jq.log")" 1
-    assert_equal "$(grep -cxF -- '-S . unformatted.json' "$TEST_TEMP_DIR/jq.log")" 1
-    assert_equal "$(grep -cxF -- '-P separator.yaml' "$TEST_TEMP_DIR/yq.log")" 1
-    assert_equal "$(grep -cxF -- '-P unformatted.yaml' "$TEST_TEMP_DIR/yq.log")" 1
+    assert_equal "$(runs jq)" 6
+    assert_equal "$(runs yq)" 4
+    assert_equal "$(runs jq '-S . several.json')" 1
+    assert_equal "$(runs jq '-S . unformatted.json')" 1
+    assert_equal "$(runs yq '-P separator.yaml')" 1
+    assert_equal "$(runs yq '-P unformatted.yaml')" 1
 }
