@@ -169,7 +169,12 @@ pub(crate) fn normalize_diff_paths(diff: &str) -> String {
         .copied()
         .filter(|&at| is_git_pair(&out[at][4..], &out[at + 1][4..]))
         .collect();
-    if !git_pairs.is_empty() && git_pairs.len() < headers.len() {
+    // Without a full `a/` and `b/` pair, a `b/` on a created file may be a
+    // real directory, so nothing is rewritten and the patch applies as is.
+    let has_full_pair = headers
+        .iter()
+        .any(|&at| is_full_git_pair(&out[at][4..], &out[at + 1][4..]));
+    if has_full_pair && git_pairs.len() < headers.len() {
         for at in git_pairs {
             // A created or deleted file has `/dev/null` on one side, which
             // keeps its path.
@@ -221,12 +226,19 @@ pub(crate) fn is_git_pair(old: &str, new: &str) -> bool {
         && (old_prefixed || new_prefixed)
 }
 
+/// Whether a header pair carries both of git's prefixes, `a/` and `b/`.
+fn is_full_git_pair(old: &str, new: &str) -> bool {
+    header_path(old).starts_with("a/") && header_path(new).starts_with("b/")
+}
+
 /// Whether `git apply` must strip git's `a/` and `b/` prefixes (`-p1`) from
-/// a diff's paths. [`normalize_diff_paths`] makes every pair agree.
+/// a diff's paths. That takes a pair with both: a created file's `b/new`
+/// alone could be a real directory. [`normalize_diff_paths`] makes every
+/// pair agree.
 pub(crate) fn uses_git_prefixes(diff: &str) -> bool {
     header_pairs(diff)
         .into_iter()
-        .any(|(old, new)| is_git_pair(old, new))
+        .any(|(old, new)| is_full_git_pair(old, new))
 }
 
 /// The header paths with a tool's side labels removed, or `None` if the pair
@@ -416,12 +428,22 @@ mod normalize_diff_paths_tests {
 
     #[test]
     fn strips_created_file_prefixes_along_with_the_rest() {
-        let diff =
-            "--- /dev/null\n+++ b/new\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n";
+        let diff = "--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n--- /dev/null\n+++ b/new\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n";
         assert_eq!(
             normalize_diff_paths(diff),
-            "--- /dev/null\n+++ new\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n"
+            "--- x\n+++ x\n@@ -1 +1 @@\n-a\n+b\n--- /dev/null\n+++ new\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n"
         );
+    }
+
+    #[test]
+    fn leaves_a_created_file_under_a_real_b_directory_alone() {
+        // No pair has both `a/` and `b/`, so `b/` may be a real directory.
+        let diff =
+            "--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1 @@\n+n\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(normalize_diff_paths(diff), diff);
+        assert!(!super::uses_git_prefixes(diff));
+        let diff = "--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1 @@\n+n\n";
+        assert!(!super::uses_git_prefixes(diff));
     }
 
     #[test]
