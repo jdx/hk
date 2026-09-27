@@ -9,6 +9,12 @@ teardown() {
     _common_teardown
 }
 
+# Cases tagged git-backend-independent run only `hk test`, which never opens the
+# repository through hk's git backend, so HK_LIBGIT2 cannot change their result.
+# test:bats:libgit2 filters them out and leaves them to test:bats:nolibgit2
+# rather than paying for "builtins tests run", the slowest case, twice.
+
+# bats test_tags=git-backend-independent
 @test "builtins tests run" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -33,6 +39,7 @@ PKL
     assert_output --partial "ok - newlines :: fix bad file"
 }
 
+# bats test_tags=git-backend-independent
 @test "gitleaks staged option tests run" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -54,6 +61,7 @@ PKL
     assert_output --partial "ok - gitleaks :: check bad staged file"
 }
 
+# bats test_tags=git-backend-independent
 @test "editorconfig-checker builtin tests run with editorconfig-checker v4" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -74,6 +82,7 @@ PKL
     assert_output --partial "ok - editorconfig_checker :: check good file"
 }
 
+# bats test_tags=git-backend-independent
 @test "editorconfig-checker v3 builtin tests run with ec" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -96,6 +105,7 @@ PKL
     assert_output --partial "ok - editorconfig_checker_v3 :: check good file"
 }
 
+# bats test_tags=git-backend-independent
 @test "pinact v3 builtin tests run with pinact v3" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -117,6 +127,7 @@ PKL
     assert_output --partial "ok - pinact_v3 :: fix bad file and mismatched version comment"
 }
 
+# bats test_tags=git-backend-independent
 @test "knip strict option tests run" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -138,6 +149,7 @@ PKL
     assert_output --partial "ok - knip_strict :: check bad file"
 }
 
+# bats test_tags=git-backend-independent
 @test "kubeconform dirs option retargets the glob and its tests" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -160,6 +172,7 @@ PKL
     assert_output --partial "ok - kubeconform_apps :: check skips helm values and kustomization"
 }
 
+# bats test_tags=git-backend-independent
 @test "kubeconform test_dir keeps the tests valid when glob is replaced" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
@@ -182,6 +195,7 @@ PKL
     assert_output --partial "ok - kubeconform_gitops :: check manifest without kind"
 }
 
+# bats test_tags=git-backend-independent
 @test "kubeconform extra_excludes adds to the default excludes" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"
