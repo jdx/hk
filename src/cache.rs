@@ -176,8 +176,9 @@ where
     fn parse(&self) -> Result<T> {
         let path = &self.cache_file_path;
         trace!("reading {}", path.display());
-        let mut f = File::open(path)?;
-        let val = serde_json::from_reader(&mut f)?;
+        // serde_json reads an unbuffered reader a byte per syscall.
+        let bytes = std::fs::read(path)?;
+        let val = serde_json::from_slice(&bytes)?;
         Ok(val)
     }
 
