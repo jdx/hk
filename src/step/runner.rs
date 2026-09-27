@@ -503,6 +503,46 @@ impl Step {
 }
 
 impl Step {
+    /// Leave out `check_diff` or `check_list_files` when it can't run with the
+    /// step's `prefix` or `shell`, such as a builtin's shell script under an
+    /// argv `prefix`.
+    ///
+    /// Both only make a step faster: without them hk runs `check` and `fix`.
+    /// So an otherwise valid step keeps working rather than failing to load.
+    /// A step with neither `check` nor `fix` keeps them, and fails validation
+    /// below.
+    fn drop_incompatible_optional_commands(&mut self, name: &str) {
+        if self.check.is_none() && self.fix.is_none() {
+            return;
+        }
+        let shell_prefix = matches!(self.prefix, Some(CommandPrefix::Shell(_)));
+        let argv_prefix = matches!(self.prefix, Some(CommandPrefix::Argv(_)));
+        let custom_shell = self.shell.is_some();
+        let incompatible = |command: &Option<Command>| {
+            command.as_ref().is_some_and(|command| {
+                if command.is_argv() {
+                    shell_prefix || custom_shell
+                } else {
+                    argv_prefix
+                }
+            })
+        };
+        if incompatible(&self.check_diff) {
+            debug!(
+                "{name}: `check_diff` can't run with this step's prefix or shell, so hk runs `fix`"
+            );
+            self.check_diff = None;
+            self.check_after_diff = false;
+        }
+        if incompatible(&self.check_list_files) {
+            debug!("{name}: `check_list_files` can't run with this step's prefix or shell");
+            self.check_list_files = None;
+        }
+        if self.check_diff.is_none() && self.check_list_files.is_none() {
+            self.check_failed_files = false;
+        }
+    }
+
     /// Initialize the step with its name and validate configuration.
     ///
     /// Must be called after deserialization to set the step name and
@@ -522,6 +562,7 @@ impl Step {
                 name
             );
         }
+        self.drop_incompatible_optional_commands(name);
         if self.check_failed_files
             && (self.check.is_none()
                 || (self.check_diff.is_none() && self.check_list_files.is_none()))
@@ -697,6 +738,51 @@ mod tests {
     fn truncate_progress_message_at_exact_length_unchanged() {
         let s = "x".repeat(2048);
         assert_eq!(truncate_progress_message(&s, 2048), s);
+    }
+
+    #[test]
+    fn a_shell_check_diff_is_dropped_under_an_argv_prefix() {
+        let argv = |args: &[&str]| {
+            Some(Command::Argv(ArgvCommand {
+                argv: args.iter().map(|a| a.to_string()).collect(),
+            }))
+        };
+        let mut step = Step {
+            check: argv(&["fmt", "--check"]),
+            check_diff: Some(Command::Shell(Script {
+                linux: None,
+                macos: None,
+                windows: None,
+                other: Some("fmt --diff && fmt --check".to_string()),
+            })),
+            check_after_diff: true,
+            fix: argv(&["fmt"]),
+            prefix: Some(CommandPrefix::Argv(vec![
+                "mise".into(),
+                "x".into(),
+                "--".into(),
+            ])),
+            ..Default::default()
+        };
+        step.init("fmt").unwrap();
+        assert!(step.check_diff.is_none());
+        assert!(!step.check_after_diff);
+        assert!(step.check.is_some() && step.fix.is_some());
+    }
+
+    #[test]
+    fn required_commands_that_cannot_run_with_the_prefix_still_fail() {
+        let mut step = Step {
+            check: Some(Command::Shell(Script {
+                linux: None,
+                macos: None,
+                windows: None,
+                other: Some("fmt --check".to_string()),
+            })),
+            prefix: Some(CommandPrefix::Argv(vec!["mise".into()])),
+            ..Default::default()
+        };
+        assert!(step.init("fmt").is_err());
     }
 
     #[test]
