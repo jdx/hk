@@ -21,11 +21,14 @@ yamlfmt = new Config.Step {
       windows = ""
       other =
         #"""
-        list=$(yamlfmt -dry -quiet {{ files }})
+        # If yamlfmt fails, print no patch: hk runs the fixer, which reports it.
+        list=$(yamlfmt -dry -quiet {{ files }}) || exit $?
         set --
         # After a heading, `-dry -quiet` lists the files that would change.
         # Anything else it lists, such as part of a name containing a newline,
         # prints no patch, so hk runs the fixer instead of skipping the file.
+        # The here-document expands `$list` once; the names in it are not
+        # expanded again, so `$(...)` in a name is just text.
         while IFS= read -r f; do
         case $f in
         '' | 'The following files would be formatted:') continue ;;
