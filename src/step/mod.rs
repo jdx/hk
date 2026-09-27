@@ -232,18 +232,20 @@ fn is_full_git_pair(old: &str, new: &str) -> bool {
 }
 
 /// Whether `git apply` must strip git's `a/` and `b/` prefixes (`-p1`) from
-/// a diff's paths. That takes a `diff --git` line or a pair with both
-/// prefixes: a created file's `b/new` alone could be a real directory (see
-/// [`creations_use_git_prefixes`]). [`normalize_diff_paths`] makes every pair
-/// agree.
+/// a diff's paths. That takes a pair with both prefixes, or a `diff --git`
+/// line while every pair still uses git's paths: a created file's `b/new`
+/// alone could be a real directory (see [`creations_use_git_prefixes`]).
+/// [`normalize_diff_paths`] makes every pair agree, and when it removes the
+/// prefixes from a mixed patch, a leftover `diff --git` line no longer counts.
 pub(crate) fn uses_git_prefixes(diff: &str) -> bool {
+    let pairs = header_pairs(diff);
+    if pairs.iter().any(|&(old, new)| is_full_git_pair(old, new)) {
+        return true;
+    }
     let git_header = diff_lines(diff)
         .into_iter()
         .any(|(line, in_hunk)| !in_hunk && line.starts_with("diff --git a/"));
-    git_header
-        || header_pairs(diff)
-            .into_iter()
-            .any(|(old, new)| is_full_git_pair(old, new))
+    git_header && pairs.iter().all(|&(old, new)| is_git_pair(old, new))
 }
 
 /// Whether a patch applied in `base` needs git's `a/` and `b/` stripped
@@ -474,6 +476,16 @@ mod normalize_diff_paths_tests {
     fn a_diff_git_line_means_git_prefixes() {
         let diff = "diff --git a/go.sum b/go.sum\nnew file mode 100644\n--- /dev/null\n+++ b/go.sum\n@@ -0,0 +1 @@\n+x\n";
         assert!(super::uses_git_prefixes(diff));
+    }
+
+    #[test]
+    fn a_diff_git_line_does_not_count_once_prefixes_are_removed() {
+        // A mixed patch loses its prefixes, so its `diff --git` line must not
+        // bring back -p1, which would strip `x`'s real directory.
+        let diff = "diff --git a/src/x b/src/x\n--- a/src/x\n+++ b/src/x\n@@ -1 +1 @@\n-a\n+b\n--- y\n+++ y\n@@ -1 +1 @@\n-a\n+b\n";
+        let normalized = normalize_diff_paths(diff);
+        assert!(normalized.contains("--- src/x\n+++ src/x\n"));
+        assert!(!super::uses_git_prefixes(&normalized));
     }
 
     #[test]
