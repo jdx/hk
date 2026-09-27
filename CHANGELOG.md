@@ -1,6 +1,53 @@
 # Changelog
 
-## [2.3.0](https://github.com/jdx/hk/compare/v2.2.0..v2.3.0) - 2026-09-25
+## [2.3.1](https://github.com/jdx/hk/compare/v2.3.0..v2.3.1) - 2026-09-27
+
+### 🐛 Bug Fixes
+
+- **(config)** load amended steps whose tests use a local named like a StepTest property by [@jdx](https://github.com/jdx) in [#1490](https://github.com/jdx/hk/pull/1490)
+- **(stage)** run pre-commit fixers again in repositories with a split index by [@jdx](https://github.com/jdx) in [#1491](https://github.com/jdx/hk/pull/1491)
+- **(stash)** stop losing untracked and unstaged files when a filename is not valid UTF-8 by [@jdx](https://github.com/jdx) in [#1488](https://github.com/jdx/hk/pull/1488)
+- **(stash)** run hooks when the worktree has intent-to-add files by [@jdx](https://github.com/jdx) in [#1492](https://github.com/jdx/hk/pull/1492)
+- **(stash)** hide untracked files from steps when tracked files have unstaged changes by [@jdx](https://github.com/jdx) in [#1501](https://github.com/jdx/hk/pull/1501)
+
+### 📚 Documentation
+
+- refresh competitor benchmark for v2.3.0 by [@jdx](https://github.com/jdx) in [#1480](https://github.com/jdx/hk/pull/1480)
+- make the landing-page example config define the fix hook by [@jdx](https://github.com/jdx) in [#1479](https://github.com/jdx/hk/pull/1479)
+- add a one-minute showreel to the landing page by [@jdx](https://github.com/jdx) in [#1478](https://github.com/jdx/hk/pull/1478)
+
+### ⚡ Performance
+
+- **(builtins)** speed up trailing_whitespace and newlines by fixing files directly and scanning in parallel by [@jdx](https://github.com/jdx) in [#1495](https://github.com/jdx/hk/pull/1495)
+- **(builtins)** check formatted JSON and YAML files without running jq or yq on each one by [@jdx](https://github.com/jdx) in [#1489](https://github.com/jdx/hk/pull/1489)
+- **(hook)** read git status about 10 ms faster when a hook starts by [@jdx](https://github.com/jdx) in [#1484](https://github.com/jdx/hk/pull/1484)
+- **(lock)** stop fixers waiting behind jobs that share none of their files by [@jdx](https://github.com/jdx) in [#1503](https://github.com/jdx/hk/pull/1503)
+- **(release)** start hk about 0.8 ms faster on Linux by linking non-PIE by [@jdx](https://github.com/jdx) in [#1482](https://github.com/jdx/hk/pull/1482)
+- **(stage)** stop hashing the whole git index before each step stages its fixes by [@jdx](https://github.com/jdx) in [#1486](https://github.com/jdx/hk/pull/1486)
+- **(step)** stage fixes from steps that finish together with one git add by [@jdx](https://github.com/jdx) in [#1485](https://github.com/jdx/hk/pull/1485)
+- **(step)** parse check_diff output for large jobs without canonicalizing every file by [@jdx](https://github.com/jdx) in [#1487](https://github.com/jdx/hk/pull/1487)
+- **(step)** start the first linter sooner on large repos by cutting hk's per-file work by [@jdx](https://github.com/jdx) in [#1494](https://github.com/jdx/hk/pull/1494)
+- **(step)** make batched steps share --jobs instead of each starting --jobs processes by [@jdx](https://github.com/jdx) in [#1496](https://github.com/jdx/hk/pull/1496)
+
+### 🧪 Testing
+
+- **(builtins)** give the jq and yq batch test enough jobs for two batches per step by [@jdx](https://github.com/jdx) in [#1500](https://github.com/jdx/hk/pull/1500)
+- **(builtins)** run jq builtin tests against the pinned jq 1.8.1 by [@jdx](https://github.com/jdx) in [#1499](https://github.com/jdx/hk/pull/1499)
+
+### 🛡️ Security
+
+- **(config)** start every hk command about 30 ms sooner by reading cache files in one call by [@jdx](https://github.com/jdx) in [#1483](https://github.com/jdx/hk/pull/1483)
+
+### 🔍 Other Changes
+
+- **(benchmark)** add a small-commit scenario and type checkers to the competitor benchmark by [@jdx](https://github.com/jdx) in [#1493](https://github.com/jdx/hk/pull/1493)
+
+### 📦️ Dependency Updates
+
+- require Rust 1.94 to build hk by [@jdx](https://github.com/jdx) in [#1502](https://github.com/jdx/hk/pull/1502)
+- update mbx to 1.18.0 and mr-boxington-action to v1.5.0 by [@jdx](https://github.com/jdx) in [#1504](https://github.com/jdx/hk/pull/1504)
+
+## [2.3.0](https://github.com/jdx/hk/compare/v2.2.0..v2.3.0) - 2026-09-26
 
 ### 🚀 Features
 
