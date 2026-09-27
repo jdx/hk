@@ -104,6 +104,10 @@ pub const UNCLASSIFIED: &[(&str, &str)] = &[
         "test",
         "runs step-defined tests, which are arbitrary commands",
     ),
+    (
+        "util sarif-diff",
+        "runs the tool it is given, which can do anything",
+    ),
 ];
 
 #[cfg(test)]
