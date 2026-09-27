@@ -7,6 +7,7 @@
 use crate::Result;
 use diffy::patch_set::{FileOperation, ParseOptions, PatchKind, PatchSet};
 use indexmap::IndexMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::types::Step;
@@ -208,13 +209,26 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
 }
 
 /// Write `contents` to `path`, creating its directory, or remove it for `None`.
+///
+/// The contents go to a new file beside `path` that then replaces it, as
+/// `git apply` does, so the write is atomic and a hard link to the old file
+/// from outside the working directory keeps its contents. The new file gets
+/// the old one's permissions.
 fn write_contents(path: &Path, contents: Option<&str>) -> std::io::Result<()> {
     match contents {
         Some(contents) => {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
+            let parent = match path.parent() {
+                Some(parent) if !parent.as_os_str().is_empty() => parent,
+                _ => Path::new("."),
+            };
+            std::fs::create_dir_all(parent)?;
+            let permissions = std::fs::metadata(path).ok().map(|m| m.permissions());
+            let mut file = tempfile::NamedTempFile::new_in(parent)?;
+            file.write_all(contents.as_bytes())?;
+            if let Some(permissions) = permissions {
+                file.as_file().set_permissions(permissions)?;
             }
-            std::fs::write(path, contents)
+            file.persist(path).map(|_| ()).map_err(|err| err.error)
         }
         None => match std::fs::remove_file(path) {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -487,6 +501,29 @@ mod apply_patch_tests {
         let diff = "--- /tmp/original-a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n";
         assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
         assert_eq!(read(&dir, "a.txt"), "y\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replaces_files_instead_of_writing_through_hard_links() {
+        use std::os::unix::fs::PermissionsExt;
+        let outside = dir_with(&[("file.txt", "x\n")]);
+        let dir = dir_with(&[]);
+        fs::hard_link(outside.path().join("file.txt"), dir.path().join("file.txt")).unwrap();
+        fs::set_permissions(
+            dir.path().join("file.txt"),
+            fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+        let diff = "--- file.txt\n+++ file.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(read(&dir, "file.txt"), "y\n");
+        assert_eq!(read(&outside, "file.txt"), "x\n");
+        let mode = fs::metadata(dir.path().join("file.txt"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o755);
     }
 
     #[test]
