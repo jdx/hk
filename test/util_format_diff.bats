@@ -123,3 +123,12 @@ EOF
     assert_failure 1
     assert_output $'--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-hello\n+HELLO'
 }
+
+@test "util format-diff reports a formatter's own error when it fails after reading part of a file" {
+    head -c 1048576 /dev/zero | tr '\0' 'a' > big.txt
+
+    run --separate-stderr hk util format-diff big.txt -- sh -c 'head -c 5 >/dev/null; echo "real error" >&2; exit 3'
+    assert_failure 3
+    refute_output
+    [[ "$stderr" == *"real error"* ]]
+}

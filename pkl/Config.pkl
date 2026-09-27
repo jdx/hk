@@ -687,6 +687,10 @@ open class Step {
   /// If set, run commands with this prefix. Use a string for shell commands or
   /// a list of explicit arguments for structured commands.
   ///
+  /// A `check_diff` or `check_list_files` that can't run with the prefix, such as
+  /// a builtin's shell script under a list prefix, is left out: hk runs `check`
+  /// and `fix` instead. A `check` or `fix` that can't run with it is an error.
+  ///
   /// ```pkl
   /// local linters = new Mapping {
   ///     ["eslint"] {

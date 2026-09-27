@@ -104,3 +104,31 @@ EOF
     run hk validate
     assert_success
 }
+
+@test "an argv prefix leaves out a builtin's shell check_diff instead of failing" {
+    # yamlfmt's and taplo's check_diff and black's check_list_files are shell
+    # scripts. They only make a fix faster, so under an argv prefix hk leaves
+    # them out and runs `check` and `fix`.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["yamlfmt"] = (Builtins.yamlfmt) {
+                prefix = List("mise", "x", "--")
+            }
+            ["taplo_format"] = (Builtins.taplo_format) {
+                prefix = List("mise", "x", "--")
+            }
+            ["black"] = (Builtins.black) {
+                prefix = List("mise", "x", "--")
+            }
+        }
+    }
+}
+EOF
+
+    run hk validate
+    assert_success
+}

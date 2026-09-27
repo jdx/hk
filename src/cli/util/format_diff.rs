@@ -128,22 +128,24 @@ async fn format_file(file: &PathBuf, command: &[String], stdin: bool) -> Outcome
         Ok(output) => output,
         Err(err) => return failed(format!("{program}: {err}")),
     };
-    // A formatter that stopped reading early may have formatted only part of
-    // the file, even if it exits 0.
-    if let Some(writer) = writer {
-        match writer.await {
-            Ok(Ok(())) => {}
-            Ok(Err(err)) => return failed(format!("{path}: writing to {program}: {err}")),
-            Err(err) => return failed(format!("{path}: writing to {program}: {err}")),
-        }
-    }
+    let written = match writer {
+        Some(writer) => writer.await.map_err(std::io::Error::other).and_then(|r| r),
+        None => Ok(()),
+    };
 
+    // A formatter that failed says why; that matters more than the broken
+    // pipe it left behind by exiting before reading all of its input.
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success() {
         return Outcome::Failed {
             code: output.status.code().filter(|&c| c != 0).unwrap_or(1),
             message: format!("{path}: {program} failed\n{stderr}"),
         };
+    }
+    // One that exits 0 after reading only part of the file may have printed
+    // only part of it formatted.
+    if let Err(err) = written {
+        return failed(format!("{path}: writing to {program}: {err}\n{stderr}"));
     }
     let Ok(formatted) = String::from_utf8(output.stdout) else {
         return failed(format!("{path}: {program} printed invalid UTF-8"));
