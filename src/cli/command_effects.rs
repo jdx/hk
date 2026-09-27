@@ -108,6 +108,10 @@ pub const UNCLASSIFIED: &[(&str, &str)] = &[
         "util format-diff",
         "runs the formatter it is given on each file, which can do anything",
     ),
+    (
+        "util sarif-diff",
+        "runs the tool it is given, which can do anything",
+    ),
 ];
 
 #[cfg(test)]

@@ -37,6 +37,7 @@ Utility commands for file operations
 - [`hk util no-commit-to-branch [--branch <BRANCH>]`](/cli/util/no-commit-to-branch.md)
 - [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)
 - [`hk util python-debug-statements <FILES>…`](/cli/util/python-debug-statements.md)
+- [`hk util sarif-diff <-- COMMAND>…`](/cli/util/sarif-diff.md)
 - [`hk util trailing-whitespace [-d --diff] [-f --fix] <FILES>…`](/cli/util/trailing-whitespace.md)
 
 <!-- hk documentation examples -->
