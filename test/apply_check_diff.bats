@@ -495,6 +495,43 @@ EOF
     assert_output "made"
 }
 
+@test "check_diff applies a patch that only creates a file with git's b/ prefix" {
+    # No pair has both a/ and b/, and there is no b/ directory, so b/ is
+    # git's prefix rather than part of the path.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf -- '--- /dev/null\n+++ b/go.sum\n@@ -0,0 +1 @@\n+sum\n'
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["tidy"] {
+                glob = List("go.mod")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "echo fixer-ran > go.mod"
+            }
+        }
+    }
+}
+EOF
+
+    echo "module x" > go.mod
+    run hk fix go.mod
+    assert_success
+
+    run cat go.sum
+    assert_output "sum"
+    assert [ ! -e b/go.sum ]
+    run cat go.mod
+    assert_output "module x"
+}
+
 @test "check_diff handles diffs with .orig suffix on --- line" {
     # Go tools like gofmt output diffs with .orig suffix on the --- line
     # e.g., "--- file.go.orig" instead of "--- file.go"
