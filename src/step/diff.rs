@@ -9,10 +9,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::types::Step;
-use super::{
-    creations_use_git_prefixes, diff_lines, normalize_diff_paths, split_line_ending,
-    uses_git_prefixes,
-};
+use super::{diff_lines, normalize_diff_paths, split_line_ending, strips_git_prefixes};
 
 /// Rewrite absolute paths in diff headers to be relative to `base`.
 ///
@@ -93,9 +90,7 @@ impl Step {
         let diff_content = relativize_diff_paths(&diff_content, &base);
 
         // Git-style `a/` and `b/` prefixes need -p1, other paths -p0.
-        let strip_level = if uses_git_prefixes(&diff_content)
-            || creations_use_git_prefixes(&diff_content, &base)
-        {
+        let strip_level = if strips_git_prefixes(&diff_content, &base) {
             "-p1"
         } else {
             "-p0"

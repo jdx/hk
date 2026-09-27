@@ -246,6 +246,13 @@ pub(crate) fn uses_git_prefixes(diff: &str) -> bool {
             .any(|(old, new)| is_full_git_pair(old, new))
 }
 
+/// Whether a patch applied in `base` needs git's `a/` and `b/` stripped
+/// (`-p1`). Applying a patch and listing the files it changes both use this,
+/// so they agree on the paths.
+pub(crate) fn strips_git_prefixes(diff: &str, base: &std::path::Path) -> bool {
+    uses_git_prefixes(diff) || creations_use_git_prefixes(diff, base)
+}
+
 /// For a patch whose every pair creates or deletes a file with a prefix,
 /// whether those prefixes are git's, judged by what exists under `base`,
 /// where the patch applies: a deleted `a/x` is git's when `x` exists and

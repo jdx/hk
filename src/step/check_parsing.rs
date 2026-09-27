@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use xx::file::display_path;
 
 use super::types::Step;
-use super::{header_pairs, header_path, normalize_diff_paths, uses_git_prefixes};
+use super::{header_pairs, header_path, normalize_diff_paths, strips_git_prefixes};
 
 /// Attempt to canonicalize a path, falling back to the original if it fails.
 ///
@@ -100,6 +100,8 @@ impl Step {
     ///
     /// * `original_files` - The files that were passed to the check command
     /// * `stdout` - The stdout output containing unified diff
+    /// * `dir` - The step's rendered `dir`, where the patch would apply, which
+    ///   decides how a patch that only creates or deletes files reads its paths
     ///
     /// # Returns
     ///
@@ -110,6 +112,7 @@ impl Step {
         &self,
         original_files: &[PathBuf],
         stdout: &str,
+        dir: Option<&str>,
     ) -> (Vec<PathBuf>, Vec<PathBuf>) {
         let stdout = normalize_diff_paths(stdout);
 
@@ -118,7 +121,7 @@ impl Step {
 
         // Only header pairs outside hunk bodies are read: a hunk can hold lines
         // that look like headers, such as a removed `-- x`.
-        let strip_prefixes = uses_git_prefixes(&stdout);
+        let strip_prefixes = strips_git_prefixes(&stdout, Path::new(dir.unwrap_or(".")));
         for (old, new) in header_pairs(&stdout) {
             for (side, prefix) in [(old, "a/"), (new, "b/")] {
                 let path = header_path(side);
@@ -239,11 +242,29 @@ mod tests {
         let step = Step::default();
 
         let (files, extras) =
-            step.filter_files_from_check_diff(&[c.clone(), b.clone(), a.clone()], &diff);
+            step.filter_files_from_check_diff(&[c.clone(), b.clone(), a.clone()], &diff, None);
         // Job order is kept; `./b.txt` names `b.txt` once canonicalized.
         assert_eq!(files, vec![b, a]);
         assert_eq!(extras.len(), 1);
         assert!(extras[0].ends_with("missing.txt"), "{extras:?}");
+    }
+
+    #[test]
+    fn check_diff_reads_a_deletion_only_patch_as_applying_would() {
+        // `a/old.txt` names `old.txt` when that exists in the step's dir and
+        // `a/old.txt` doesn't, as when the patch is applied.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("old.txt"), "x\n").unwrap();
+        let step = Step::default();
+        let job_file = PathBuf::from("old.txt");
+        let diff = "--- a/old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+        let (files, extras) = step.filter_files_from_check_diff(
+            std::slice::from_ref(&job_file),
+            diff,
+            dir.path().to_str(),
+        );
+        assert_eq!(files, vec![job_file]);
+        assert!(extras.is_empty());
     }
 
     fn diff_naming(paths: &[&Path]) -> String {
@@ -264,8 +285,11 @@ mod tests {
         let step = Step::default();
 
         // The diff names the job's file only through a symlink to it.
-        let (files, extras) = step
-            .filter_files_from_check_diff(std::slice::from_ref(&target), &diff_naming(&[&link]));
+        let (files, extras) = step.filter_files_from_check_diff(
+            std::slice::from_ref(&target),
+            &diff_naming(&[&link]),
+            None,
+        );
         assert_eq!(files, vec![target]);
         assert!(extras.is_empty(), "{extras:?}");
     }
@@ -285,10 +309,11 @@ mod tests {
         // `allow_symlinks`), a diff naming one of them as written selects
         // only that one.
         let (files, extras) =
-            step.filter_files_from_check_diff(&job_files, &diff_naming(&[&target]));
+            step.filter_files_from_check_diff(&job_files, &diff_naming(&[&target]), None);
         assert_eq!(files, vec![target.clone()]);
         assert!(extras.is_empty(), "{extras:?}");
-        let (files, _) = step.filter_files_from_check_diff(&job_files, &diff_naming(&[&link]));
+        let (files, _) =
+            step.filter_files_from_check_diff(&job_files, &diff_naming(&[&link]), None);
         assert_eq!(files, vec![link]);
     }
 }
