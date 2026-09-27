@@ -168,3 +168,56 @@ PKL
     git commit -qm "trial $trial" --no-verify --allow-empty
   done
 }
+
+@test "a failed git add fails every step whose fixes it was staging" {
+  export HK_JOBS=4
+  # Steps that stage at the same time share one `git add`. Whether these two
+  # share one depends on timing, so this checks the outcome either way: each
+  # step reports the failure of the `git add` that held its files.
+  real_git="$(command -v git)"
+  mkdir -p "$TEST_TEMP_DIR/bin"
+  cat <<SH > "$TEST_TEMP_DIR/bin/git"
+#!/bin/sh
+if [ "\$1" = add ]; then
+  echo "simulated git add failure" >&2
+  exit 1
+fi
+exec "$real_git" "\$@"
+SH
+  chmod +x "$TEST_TEMP_DIR/bin/git"
+  cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+fail_fast = false
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "none"
+    steps {
+      ["fix-a"] {
+        glob = "a.txt"
+        fix = "echo fixed > {{files}}"
+      }
+      ["fix-b"] {
+        glob = "b.txt"
+        fix = "echo fixed > {{files}}"
+      }
+    }
+  }
+}
+PKL
+  git add hk.pkl
+  git commit -qm "init hk"
+
+  echo broken > a.txt
+  echo broken > b.txt
+  git add a.txt b.txt
+
+  PATH="$TEST_TEMP_DIR/bin:$PATH" run hk run pre-commit
+  assert_failure
+  assert_output --partial "simulated git add failure"
+  assert_output --partial "✗ fix-a – ERROR"
+  assert_output --partial "✗ fix-b – ERROR"
+  assert_output --partial "hook finished with error: exited with code 1"
+  run git status --porcelain
+  assert_output "$(printf 'AM a.txt\nAM b.txt')"
+}

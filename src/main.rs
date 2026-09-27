@@ -30,6 +30,7 @@ mod merge;
 mod mise_env;
 mod plan;
 mod settings;
+mod stage_queue;
 mod step;
 mod step_context;
 mod step_depends;
