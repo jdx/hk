@@ -27,7 +27,7 @@ on:
 
 permissions: {}
 
-# One refresh at a time: they all push the same branch.
+# One refresh at a time: each closes the pull requests of the ones before it.
 concurrency:
   group: benchmark-refresh
   cancel-in-progress: true
@@ -186,7 +186,7 @@ jobs:
           schema=$(sed -n 's/^SCHEMA = //p' "$GITHUB_WORKSPACE/benchmark/report.py")
           jq -e --argjson schema "$schema" '.schema == $schema and .passed == true and .versions.hk == env.RELEASE' results.json >/dev/null
           cp results.json "$GITHUB_WORKSPACE/benchmark/results.json"
-      - name: Push the benchmark-refresh branch and open a pull request
+      - name: Push a refresh branch and open a pull request
         env:
           GITHUB_TOKEN: ${{ secrets.HK_GH_TOKEN }}
           GH_TOKEN: ${{ secrets.HK_GH_TOKEN }}
@@ -204,21 +204,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config core.hooksPath /dev/null
-          git checkout -B benchmark-refresh
+          # Every refresh pushes a new branch. GitHub rejects a push from a
+          # token without `workflow` scope that moves a branch across a
+          # workflow change, even one that only catches an earlier refresh's
+          # branch up with main; a new branch is compared with main instead.
+          branch="benchmark-refresh/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$branch"
           git commit -m "docs: refresh competitor benchmark for v${RELEASE}"
-          remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          # GitHub rejects a push from a token without `workflow` scope when
-          # it moves the branch across a workflow change, even one that only
-          # catches the branch up with main. If an earlier refresh's branch
-          # predates such a change, delete it (GitHub closes its pull request)
-          # and push a new branch, which GitHub compares with main.
-          recreated=
-          if git fetch -q "$remote" refs/heads/benchmark-refresh 2>/dev/null &&
-            ! git diff --quiet FETCH_HEAD HEAD -- .github/workflows; then
-            git push "$remote" --delete benchmark-refresh
-            recreated=1
-          fi
-          git push --force "$remote" HEAD:refs/heads/benchmark-refresh
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
 
           table=$(jq -r '
             .scenarios[] as $s
@@ -236,13 +229,19 @@ jobs:
 
           Workflow run: ${RUN_URL}
           EOF
-          existing=
-          if [ -z "$recreated" ]; then
-            existing=$(gh pr list --head benchmark-refresh --state open --json number --jq '.[0].number // empty')
-          fi
-          if [ -n "$existing" ]; then
-            gh pr edit "$existing" --title "docs: refresh competitor benchmark for v${RELEASE}" --body-file "$RUNNER_TEMP/body.md"
-          else
-            gh pr create --base main --head benchmark-refresh \
-              --title "docs: refresh competitor benchmark for v${RELEASE}" --body-file "$RUNNER_TEMP/body.md"
-          fi
+          # Open the new pull request before closing the old ones, so a run
+          # canceled in between leaves both open rather than neither.
+          url=$(gh pr create --base main --head "$branch" \
+            --title "docs: refresh competitor benchmark for v${RELEASE}" --body-file "$RUNNER_TEMP/body.md")
+          echo "$url"
+          # Earlier refreshes' pull requests, including those from the single
+          # `benchmark-refresh` branch that refreshes used to reuse.
+          stale=$(gh pr list --state open --limit 200 --json number,headRefName,isCrossRepository |
+            jq -r --arg branch "$branch" '
+              .[] | select((.isCrossRepository | not) and .headRefName != $branch
+                and (.headRefName == "benchmark-refresh" or (.headRefName | startswith("benchmark-refresh/"))))
+              | .number')
+          for number in $stale; do
+            gh pr close "$number" --delete-branch --comment "Superseded by $url." ||
+              echo "::warning::could not close superseded pull request #$number"
+          done

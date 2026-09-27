@@ -51,6 +51,7 @@ fixture.
 ## Publishing
 
 `.github/workflows/benchmark-refresh.yml` runs the benchmark against the
-released hk on the pinned `jdx-perf-v1` runner. It then opens or updates a single
-pull request that changes only `benchmark/results.json`. Review the numbers
+released hk on the pinned `jdx-perf-v1` runner. It then opens a pull request
+that changes only `benchmark/results.json`, from a new `benchmark-refresh/…`
+branch, and closes the pull request of any earlier refresh. Review the numbers
 before merging, because the docs page is rebuilt from that file.
