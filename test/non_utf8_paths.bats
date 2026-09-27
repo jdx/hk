@@ -91,3 +91,70 @@ EOF
         rm -f $'untracked\xfe.txt'
     done
 }
+
+# The index, and the whole worktree as a tree: contents, modes and symlinks.
+snapshot() {
+    git ls-files -s -z | od -c
+    local index="$BATS_TEST_TMPDIR/snapshot-index"
+    cp "$(git rev-parse --git-path index)" "$index"
+    GIT_INDEX_FILE="$index" git add -A
+    GIT_INDEX_FILE="$index" git write-tree
+    rm -f "$index"
+}
+
+stash_config() {
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { check = "true" } }
+  }
+}
+PKL
+    echo a > a.txt
+    echo base > f.txt
+    echo base > d.txt
+    echo base > $'bad\xff.txt'
+    git add -A
+    git commit -qm init
+}
+
+@test "stash restores a non-UTF-8 file reverted to HEAD after a staged edit" {
+    stash_config
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        echo staged >> $'bad\xff.txt'
+        git add $'bad\xff.txt'
+        echo base > $'bad\xff.txt'
+        before=$(snapshot)
+
+        HK_LIBGIT2=$libgit2 HK_STASH_UNTRACKED=true run hk run pre-commit
+        assert_success
+        assert_equal "$(snapshot)" "$before"
+        assert_equal "$(git stash list)" ""
+        git reset -q --hard
+    done
+}
+
+@test "stash restores a deletion, a non-UTF-8 untracked file and a reverted staged edit" {
+    stash_config
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        rm d.txt
+        echo untracked > $'untracked\xfe.txt'
+        echo staged >> f.txt
+        git add f.txt
+        echo base > f.txt
+        before=$(snapshot)
+
+        HK_LIBGIT2=$libgit2 HK_STASH_UNTRACKED=true run hk run pre-commit
+        assert_success
+        assert_equal "$(snapshot)" "$before"
+        assert_equal "$(git stash list)" ""
+        git reset -q --hard
+        git clean -qfd
+    done
+}

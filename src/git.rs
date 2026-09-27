@@ -126,13 +126,91 @@ where
     Ok((paths, unnamed))
 }
 
-/// Restores the stashed worktree state of a path that is not valid UTF-8: its
-/// untracked or modified contents, or its deletion.
-#[cfg(unix)]
-fn restore_stashed_path(stash_ref: &str, name: &[u8]) -> Result<()> {
-    use std::ffi::OsStr;
-    use std::os::unix::ffi::OsStrExt;
-    let name = OsStr::from_bytes(name);
+/// A path git printed, which need not be valid UTF-8.
+fn path_from_raw(name: &[u8]) -> PathBuf {
+    #[cfg(unix)]
+    {
+        PathBuf::from(OsString::from_vec(name.to_vec()))
+    }
+    #[cfg(not(unix))]
+    {
+        // Git for Windows writes paths as UTF-8
+        PathBuf::from(String::from_utf8_lossy(name).into_owned())
+    }
+}
+
+/// The worktree changes a stash set aside.
+#[derive(Debug, Default)]
+struct StashedChanges {
+    /// Tracked paths whose stashed worktree differs from the stashed index,
+    /// with their modes in the index and in the worktree (0 where absent)
+    modes: std::collections::BTreeMap<PathBuf, (u32, u32)>,
+    /// Untracked files
+    untracked: BTreeSet<PathBuf>,
+    /// Paths of either kind that are not valid UTF-8, as git printed them
+    unnamed: Vec<Vec<u8>>,
+    /// The untracked ones among `unnamed`
+    unnamed_untracked: BTreeSet<PathBuf>,
+}
+
+/// Lists what `stash_ref` set aside: how its worktree tree differs from its
+/// index tree (`^2`), and its untracked files (`^3`).
+fn stashed_changes(stash_ref: &str) -> Result<StashedChanges> {
+    let mut changes = StashedChanges::default();
+    let unexpected = || eyre!("unexpected git diff output for {stash_ref}");
+    let index = format!("{stash_ref}^2");
+    let raw = git_read_bytes([
+        "diff",
+        "--raw",
+        "-z",
+        "--no-renames",
+        "--no-ext-diff",
+        "--ignore-submodules",
+        &index,
+        stash_ref,
+    ])?;
+    let mut fields = raw.split(|&b| b == 0);
+    while let Some(header) = fields.next() {
+        if header.is_empty() {
+            continue;
+        }
+        let path = fields.next().ok_or_else(unexpected)?;
+        // `:<index mode> <worktree mode> <index object> <worktree object> <status>`
+        let header = std::str::from_utf8(header).map_err(|_| unexpected())?;
+        let mut modes = header
+            .trim_start_matches(':')
+            .split(' ')
+            .take(2)
+            .map(|m| u32::from_str_radix(m, 8).map_err(|_| unexpected()));
+        let old_mode = modes.next().ok_or_else(unexpected)??;
+        let new_mode = modes.next().ok_or_else(unexpected)??;
+        match std::str::from_utf8(path) {
+            Ok(path) => {
+                changes
+                    .modes
+                    .insert(PathBuf::from(path), (old_mode, new_mode));
+            }
+            Err(_) => changes.unnamed.push(path.to_vec()),
+        }
+    }
+    let untracked = format!("{stash_ref}^3");
+    if git_cmd_silent(["rev-parse", "-q", "--verify", &untracked])
+        .read()
+        .is_ok()
+    {
+        let (paths, unnamed) = git_read_paths(["ls-tree", "-r", "-z", "--name-only", &untracked])?;
+        changes.untracked.extend(paths);
+        for name in unnamed {
+            changes.unnamed_untracked.insert(path_from_raw(&name));
+            changes.unnamed.push(name);
+        }
+    }
+    Ok(changes)
+}
+
+/// Restores a path to its state in `stash_ref`: its untracked or tracked
+/// contents and mode, or its deletion.
+fn restore_stashed_path(stash_ref: &str, name: &std::ffi::OsStr) -> Result<()> {
     let has_path = |rev: &str| {
         let mut object = OsString::from(format!("{rev}:"));
         object.push(name);
@@ -142,7 +220,7 @@ fn restore_stashed_path(stash_ref: &str, name: &[u8]) -> Result<()> {
     };
     // The untracked files of a stash are in its third parent
     let untracked = format!("{stash_ref}^3");
-    let source = if *env::HK_STASH_UNTRACKED && has_path(&untracked) {
+    let source = if has_path(&untracked) {
         untracked
     } else if has_path(stash_ref) {
         stash_ref.to_string()
@@ -168,9 +246,68 @@ fn restore_stashed_path(stash_ref: &str, name: &[u8]) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(unix))]
-fn restore_stashed_path(_stash_ref: &str, _name: &[u8]) -> Result<()> {
-    Err(eyre!("cannot restore a path that is not valid UTF-8"))
+/// The restored paths among `restored` that still differ from `stash_ref`.
+fn unrestored_paths(
+    stash_ref: &str,
+    changes: &StashedChanges,
+    restored: &BTreeSet<PathBuf>,
+) -> Result<Vec<PathBuf>> {
+    // Tracked paths whose worktree differs from the stashed worktree
+    let differ: BTreeSet<PathBuf> = git_read_bytes([
+        "diff",
+        "--name-only",
+        "-z",
+        "--no-renames",
+        "--no-ext-diff",
+        "--ignore-submodules",
+        stash_ref,
+    ])?
+    .split(|&b| b == 0)
+    .filter(|name| !name.is_empty())
+    .map(path_from_raw)
+    .collect();
+    Ok(restored
+        .iter()
+        .filter(|path| {
+            if changes.untracked.contains(*path) || changes.unnamed_untracked.contains(*path) {
+                std::fs::symlink_metadata(path).is_err()
+            } else {
+                differ.contains(*path)
+            }
+        })
+        .cloned()
+        .collect())
+}
+
+fn is_symlink_mode(mode: u32) -> bool {
+    mode == 0o120000
+}
+
+/// Sets or clears the executable bits of the regular file at `path` for a
+/// git file mode, as git checks it out.
+fn set_file_mode(path: &std::path::Path, mode: u32) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let Ok(metadata) = std::fs::symlink_metadata(path) else {
+            return Ok(());
+        };
+        if !metadata.is_file() {
+            return Ok(());
+        }
+        let perms = metadata.permissions().mode();
+        let new_perms = match mode {
+            0o100755 => perms | ((perms & 0o444) >> 2),
+            0o100644 => perms & !0o111,
+            _ => return Ok(()),
+        };
+        if new_perms != perms {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(new_perms))?;
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = (path, mode);
+    Ok(())
 }
 
 fn git_read_raw<I, S>(args: I) -> Result<String>
@@ -1160,24 +1297,18 @@ impl Git {
                 // Track whether any file restoration failed so we can preserve the stash
                 let mut restoration_failed = false;
 
-                // List paths from our stash entry
-                // When HK_STASH_UNTRACKED=true, we need to include untracked files in the show output
-                let mut args: Vec<OsString> = vec![
-                    "stash".into(),
-                    "show".into(),
-                    "--name-only".into(),
-                    "-z".into(),
-                ];
-                if *env::HK_STASH_UNTRACKED {
-                    args.push("--include-untracked".into());
-                }
-                args.push(OsString::from(&stash_ref));
-                // Paths that are not valid UTF-8 are restored separately below
-                let (show, unnamed_paths) = git_read_paths(args).unwrap_or_else(|err| {
+                // What the stash set aside: how its worktree differs from the
+                // index it recorded (^2), which includes deletions, mode changes
+                // and files reverted to HEAD with a staged edit, plus its
+                // untracked files (^3). `git stash show` compares with HEAD
+                // instead and would miss the reverted files.
+                let changes = stashed_changes(&stash_ref).unwrap_or_else(|err| {
                     warn!("failed to list the stashed files: {err:?}");
                     restoration_failed = true;
-                    Default::default()
+                    StashedChanges::default()
                 });
+                // Paths that are not valid UTF-8 are restored separately below
+                let unnamed_paths = &changes.unnamed;
                 // Paths that are staged as deletions in the current index. These must NOT be
                 // restored to the worktree by the unstash loop for tracked files — the user
                 // intentionally deleted them and the commit should preserve that deletion.
@@ -1190,14 +1321,15 @@ impl Git {
                         .unwrap_or_default()
                         .into_iter()
                         .collect();
-                let stash_paths: Vec<PathBuf> = show
-                    .into_iter()
-                    .filter(|p| {
-                        self.stashed_paths
-                            .as_ref()
-                            .is_none_or(|stashed_paths| stashed_paths.contains(p))
-                    })
+                let stash_paths: Vec<PathBuf> = changes
+                    .modes
+                    .keys()
+                    .chain(changes.untracked.iter())
+                    .cloned()
                     .collect();
+                // Paths restored to exactly their stashed state, which are
+                // checked before the stash is dropped
+                let mut snapshot_paths: BTreeSet<PathBuf> = BTreeSet::new();
 
                 // When staging is disabled, fixer output remains in the isolated worktree.
                 // Ask Git which hook files differ from the unchanged index so unchanged files
@@ -1287,51 +1419,25 @@ impl Git {
                 for p in stash_paths.iter() {
                     let path = PathBuf::from(p);
                     let path_str = p.to_string_lossy();
-                    // Lightweight size probe for the worktree snapshot stored in the stash
-                    // Check if this is an untracked file (exists in stash^3 but not in stash^1 or stash^2)
-                    // Use silent commands to avoid noisy "exists on disk, but not in ref" errors
-                    let is_untracked = *env::HK_STASH_UNTRACKED
-                        && git_cmd_silent([
-                            "cat-file",
-                            "-e",
-                            &format!("{}^3:{}", stash_ref, path_str),
-                        ])
-                        .run()
-                        .is_ok()
-                        && git_cmd_silent([
-                            "cat-file",
-                            "-e",
-                            &format!("{}^2:{}", stash_ref, path_str),
-                        ])
-                        .run()
-                        .is_err();
 
-                    // Handle untracked files specially - just restore from stash^3
-                    if is_untracked {
+                    // Untracked files (in stash^3) are restored as they are
+                    if changes.untracked.contains(&path) {
                         debug!(
                             "manual-unstash: restoring untracked file from stash^3 path={}",
                             display_path(&path)
                         );
-                        if let Ok(contents) = git_read_bytes([
-                            "cat-file",
-                            "-p",
-                            &format!("{}^3:{}", stash_ref, path_str),
-                        ]) {
-                            if let Err(err) = xx::file::write(&path, &contents) {
+                        match restore_stashed_path(&stash_ref, path.as_os_str()) {
+                            Ok(()) => {
+                                snapshot_paths.insert(path);
+                            }
+                            Err(err) => {
                                 warn!(
-                                    "failed to write untracked file {}: {err:?}",
+                                    "failed to restore untracked file {} from stash: {err:?}",
                                     display_path(&path)
                                 );
                                 restoration_failed = true;
                             }
-                        } else {
-                            warn!(
-                                "failed to read untracked file {} from stash",
-                                display_path(&path)
-                            );
-                            restoration_failed = true;
                         }
-                        // Skip normal merge path for untracked files
                         continue;
                     }
 
@@ -1351,6 +1457,42 @@ impl Git {
                     } else {
                         fixer_worktree_paths.contains(&path)
                     };
+                    let (old_mode, new_mode) = changes.modes[&path];
+                    // A deletion, symlink or type change has no contents to
+                    // merge, so the stashed state wins over any fixer output
+                    if new_mode == 0 || is_symlink_mode(new_mode) || is_symlink_mode(old_mode) {
+                        if has_fixer {
+                            warn!(
+                                "{} was deleted or is a symlink in the stashed worktree; restoring that instead of the fixer output{}",
+                                display_path(&path),
+                                patch_hint
+                            );
+                        }
+                        match restore_stashed_path(&stash_ref, path.as_os_str()) {
+                            Ok(()) => {
+                                snapshot_paths.insert(path);
+                            }
+                            Err(err) => {
+                                warn!(
+                                    "failed to restore {} from stash: {err:?}",
+                                    display_path(&path)
+                                );
+                                restoration_failed = true;
+                            }
+                        }
+                        continue;
+                    }
+                    // Contents are written in place below, which keeps this mode
+                    if let Err(err) = set_file_mode(&path, new_mode) {
+                        warn!(
+                            "failed to restore the mode of {}: {err:?}",
+                            display_path(&path)
+                        );
+                        restoration_failed = true;
+                    }
+                    if !has_fixer {
+                        snapshot_paths.insert(path.clone());
+                    }
                     let work_ref = format!("{}:{}", stash_ref, path_str);
                     let work_size = git_cmd_silent(["cat-file", "-s", &work_ref])
                         .read()
@@ -1701,13 +1843,37 @@ impl Git {
                 }
                 // hk gave no step the paths that are not valid UTF-8, so restore
                 // their stashed state as it is
-                for name in &unnamed_paths {
-                    if let Err(err) = restore_stashed_path(&stash_ref, name) {
-                        warn!(
-                            "failed to restore {:?} from stash: {err:?}",
-                            String::from_utf8_lossy(name)
-                        );
-                        restoration_failed = true;
+                for name in unnamed_paths {
+                    let path = path_from_raw(name);
+                    match restore_stashed_path(&stash_ref, path.as_os_str()) {
+                        Ok(()) => {
+                            snapshot_paths.insert(path);
+                        }
+                        Err(err) => {
+                            warn!(
+                                "failed to restore {:?} from stash: {err:?}",
+                                String::from_utf8_lossy(name)
+                            );
+                            restoration_failed = true;
+                        }
+                    }
+                }
+                // Before dropping the stash, check that every path restored to
+                // its stashed state matches it
+                if !restoration_failed {
+                    match unrestored_paths(&stash_ref, &changes, &snapshot_paths) {
+                        Ok(unrestored) if unrestored.is_empty() => {}
+                        Ok(unrestored) => {
+                            warn!(
+                                "restoring the stash left {} different from the stash",
+                                unrestored.iter().map(display_path).join(", ")
+                            );
+                            restoration_failed = true;
+                        }
+                        Err(err) => {
+                            warn!("failed to check the restored files: {err:?}");
+                            restoration_failed = true;
+                        }
                     }
                 }
                 // Only drop the stash if all file restorations succeeded
