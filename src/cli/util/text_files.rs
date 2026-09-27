@@ -26,72 +26,68 @@ const RESULTS_AHEAD: usize = 256;
 /// The size of `path` if it is a regular file, following symlinks. Missing
 /// paths, directories, and special files are not text files and are skipped.
 pub(super) fn regular_file_len(path: &Path) -> Option<u64> {
-    regular_file(path).map(|file| file.len)
+    let metadata = fs::metadata(path).ok()?;
+    metadata.is_file().then_some(metadata.len())
 }
 
-/// Identifies the file a path resolves to, so the same file listed under
-/// several paths (repeated, through a symlink, or as a hard link) is noticed.
-#[derive(Debug, PartialEq, Eq, Hash)]
-struct FileId(#[cfg(unix)] (u64, u64), #[cfg(not(unix))] PathBuf);
-
-/// A regular file, following symlinks.
-struct RegularFile {
-    len: u64,
-    id: FileId,
-}
-
-fn regular_file(path: &Path) -> Option<RegularFile> {
+/// Identifies the regular file a path resolves to, following symlinks, so the
+/// same file listed under several paths (repeated, through a symlink, or as a
+/// hard link) is noticed: its device and inode on Unix, its volume serial
+/// number and file index on Windows. `None` if it isn't a regular file.
+fn file_id(path: &Path) -> Option<(u64, u64)> {
     let metadata = fs::metadata(path).ok()?;
     if !metadata.is_file() {
         return None;
     }
     #[cfg(unix)]
-    let id = {
+    {
         use std::os::unix::fs::MetadataExt;
-        FileId((metadata.dev(), metadata.ino()))
-    };
-    #[cfg(not(unix))]
-    let id = FileId(fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf()));
-    Some(RegularFile {
-        len: metadata.len(),
-        id,
-    })
+        Some((metadata.dev(), metadata.ino()))
+    }
+    #[cfg(windows)]
+    {
+        let info = winapi_util::file::information(&File::open(path).ok()?).ok()?;
+        Some((info.volume_serial_number(), info.file_index()))
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        None
+    }
 }
 
-/// Fix every file with `fix`, which gets the file's size and returns its
-/// fixed content if it changes. Files are read in parallel and written in
-/// file order, stopping at the first error, as in a sequential loop.
+/// Fix every file with `fix`, which returns a file's fixed content if it
+/// changes. Files are read in parallel and written in file order, stopping at
+/// the first error, as in a sequential loop.
 ///
 /// A file listed more than once, under the same path or another one that
 /// resolves to it, is only fixed where it first appears. A sequential loop
 /// found it already fixed at its later entries, and reading it there could
-/// race with the write of its first entry.
+/// race with the write of its first entry. Only this check looks at files
+/// ahead of time; `fix` reads each file as it is when its turn comes.
 pub(super) fn fix_in_order<F>(files: &[PathBuf], fix: F) -> Result<()>
 where
-    F: Fn(&Path, u64) -> Result<Option<String>> + Sync,
+    F: Fn(&Path) -> Result<Option<String>> + Sync,
 {
-    let mut regular = Vec::with_capacity(files.len());
+    let mut ids = Vec::with_capacity(files.len());
     for_each_in_order(
         files,
-        |path| regular_file(path),
-        |_, file| {
-            regular.push(file);
+        |path| file_id(path),
+        |_, id| {
+            ids.push(id);
             Ok(())
         },
     )?;
     let mut seen = HashSet::new();
-    // The size of each file to fix; `None` for files to leave alone.
-    let lens: Vec<Option<u64>> = regular
-        .into_iter()
-        .map(|file| file.and_then(|file| seen.insert(file.id).then_some(file.len)))
+    // Whether each entry is the first for its file. Anything that isn't a
+    // regular file now is left to `fix`, which skips it as before.
+    let jobs: Vec<(&PathBuf, bool)> = files
+        .iter()
+        .zip(ids)
+        .map(|(path, id)| (path, id.is_none_or(|id| seen.insert(id))))
         .collect();
-    let jobs: Vec<(&PathBuf, Option<u64>)> = files.iter().zip(lens).collect();
     for_each_in_order(
         &jobs,
-        |(path, len)| match len {
-            Some(len) => fix(path, *len),
-            None => Ok(None),
-        },
+        |(path, first)| if *first { fix(path) } else { Ok(None) },
         |(path, _), fixed| {
             if let Some(fixed) = fixed? {
                 fs::write(path, fixed)?;
@@ -286,7 +282,7 @@ mod tests {
         files.push(first.clone());
 
         let fixed = Mutex::new(Vec::new());
-        fix_in_order(&files, |path, _| {
+        fix_in_order(&files, |path| {
             fixed.lock().unwrap().push(path.to_path_buf());
             Ok(Some("y".to_string()))
         })

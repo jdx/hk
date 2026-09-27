@@ -64,15 +64,9 @@ impl TrailingWhitespace {
 
 /// Read a file's content, or `None` for a file that isn't text.
 fn read_text(path: &Path) -> Result<Option<String>> {
-    match regular_file_len(path) {
-        Some(len) => read_text_of_len(path, len),
-        None => Ok(None),
-    }
-}
-
-/// Read the content of a regular file of `len` bytes, or `None` if it isn't
-/// text.
-fn read_text_of_len(path: &Path, len: u64) -> Result<Option<String>> {
+    let Some(len) = regular_file_len(path) else {
+        return Ok(None);
+    };
     let mut file = fs::File::open(path)?;
     let head = if len == 0 {
         Vec::new() // Empty files are text
@@ -111,10 +105,10 @@ fn strip_trailing_whitespace(original: &str) -> String {
         + if original.ends_with('\n') { "\n" } else { "" }
 }
 
-/// The content of a regular file of `len` bytes without trailing
-/// whitespace, or `None` if it has none or isn't a text file.
-fn fixed_content(path: &Path, len: u64) -> Result<Option<String>> {
-    let Some(original) = read_text_of_len(path, len)? else {
+/// The file's content without trailing whitespace, or `None` if it has none
+/// or isn't a text file.
+fn fixed_content(path: &Path) -> Result<Option<String>> {
+    let Some(original) = read_text(path)? else {
         return Ok(None);
     };
     let fixed = strip_trailing_whitespace(&original);
@@ -147,10 +141,7 @@ fn generate_diff(path: &Path) -> Result<Option<String>> {
 /// Fix trailing whitespace in a file, returns true if file was modified
 #[cfg(test)]
 fn fix_trailing_whitespace(path: &Path) -> Result<bool> {
-    let Some(len) = regular_file_len(path) else {
-        return Ok(false);
-    };
-    let Some(fixed) = fixed_content(path, len)? else {
+    let Some(fixed) = fixed_content(path)? else {
         return Ok(false);
     };
     fs::write(path, &fixed)?;
