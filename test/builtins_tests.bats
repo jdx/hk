@@ -1,43 +1,11 @@
 #!/usr/bin/env bats
 
-# DEBUG (temporary): CI hangs in this file. After 240 s, record the processes
-# and the stuck jq/yq, then kill those so the run finishes and the report is
-# uploaded with target/test-timings.
-_hang_watchdog() {
-    [ -n "${CI:-}" ] || return 0
-    local dir out name=$BATS_TEST_DESCRIPTION tmp=$TEST_TEMP_DIR
-    dir="$(cd "$PROJECT_ROOT" && pwd)/target/test-timings"
-    mkdir -p "$dir"
-    out="$dir/stuck-$BATS_TEST_NUMBER.txt"
-    (
-        sleep 240
-        {
-            echo "test: $name ($tmp)"
-            date
-            ps -eo pid,ppid,etime,stat,args
-            for p in $(pgrep -x jq; pgrep -x yq; pgrep -x mise); do
-                echo "== $p"
-                tr '\0' ' ' < "/proc/$p/cmdline"
-                echo
-                ls -l "/proc/$p/cwd" "/proc/$p/fd"
-                cat "/proc/$p/wchan"
-                echo
-            done
-        } > "$out" 2>&1
-        pkill -x jq
-        pkill -x yq
-    ) < /dev/null > /dev/null 2>&1 3>&- &
-    HANG_WATCHDOG=$!
-}
-
 setup() {
     load 'test_helper/common_setup'
     _common_setup
-    _hang_watchdog
 }
 
 teardown() {
-    [ -z "${HANG_WATCHDOG:-}" ] || kill "$HANG_WATCHDOG" 2>/dev/null || true
     _common_teardown
 }
 
@@ -492,14 +460,18 @@ PKL
     printf -- '---\nc: 1\n' > separator.yaml
 
     # Log each run's arguments to a file of its own, since batches run at the
-    # same time, then run the tool stub.
+    # same time, then run the tool. The tool may be a mise shim, which runs the
+    # next one of that name on PATH, so the wrapper takes itself off PATH
+    # first; otherwise the two run each other forever.
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    local tool_path=$PATH
     mkdir "$TEST_TEMP_DIR/bin"
     for tool in jq yq; do
         mkdir "$TEST_TEMP_DIR/$tool.log"
         cat > "$TEST_TEMP_DIR/bin/$tool" <<SHIM
 #!/bin/sh
 printf '%s\n' "\$*" > "\$(mktemp "$TEST_TEMP_DIR/$tool.log/XXXXXX")"
+PATH='$tool_path'
 exec "$(command -v "$tool")" "\$@"
 SHIM
         chmod +x "$TEST_TEMP_DIR/bin/$tool"
