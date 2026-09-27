@@ -157,6 +157,13 @@ function race(key: RaceKey, scenarios: unknown[], subjects: Json): Race | null {
 }
 
 /**
+ * The results schemas the reel reads. Schema 3 (benchmarks.data.ts's) added
+ * type checkers and the small commit but left every field read here as it
+ * was, so the frozen schema-2 runs the tests race stay readable.
+ */
+const SCHEMAS: readonly number[] = [2, 3];
+
+/**
  * The workload and the best race in a published run, or null for a run that
  * is missing, not parsable, from another schema, failed, reported problems,
  * or has a tool that did not produce the right files: the benchmarks page
@@ -164,7 +171,7 @@ function race(key: RaceKey, scenarios: unknown[], subjects: Json): Race | null {
  */
 export function factsFromBenchmarks(results: unknown): ReelFacts | null {
   if (!isObject(results)) return null;
-  if (results.schema !== 2 || results.passed !== true) return null;
+  if (!SCHEMAS.includes(results.schema as number) || results.passed !== true) return null;
   const { problems, scenarios, subjects, workload, machine } = results;
   if (problems !== undefined && !(Array.isArray(problems) && problems.length === 0)) return null;
   if (!Array.isArray(scenarios) || !isObject(subjects)) return null;

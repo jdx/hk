@@ -35,7 +35,7 @@ export const previous = (): Json => frozen("36078397814");
 export function live(): Json {
   try {
     const run = JSON.parse(readFileSync(join(REPO, "benchmark/results.json"), "utf8"));
-    if (run.schema !== 2 || run.passed !== true) return null;
+    if (run.schema !== 3 || run.passed !== true) return null;
     const allCorrect = run.scenarios.every((s: Json) =>
       Object.values(s.results).every((r: Json) => r.correct.passed === r.correct.total),
     );

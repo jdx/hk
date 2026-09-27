@@ -341,6 +341,13 @@ test("the variants the preview, the drafts and the tests share", () => {
   assert.deepEqual(races(null), []);
 });
 
+test("the reel reads every run the benchmarks page shows", () => {
+  // Otherwise a schema bump that updates only the page's loader leaves the
+  // landing page without its race, and the test below passes on no facts.
+  const run = live();
+  if (run) assert.ok(factsFromBenchmarks(run), `the page shows schema ${run.schema} results, which the reel rejects`);
+});
+
 test("the live results.json gives a race that holds together and leads by the most, or none", () => {
   // A refresh may publish a run too close to call, which leaves the race
   // out; it must never give one that contradicts itself.
