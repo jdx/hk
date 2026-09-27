@@ -271,10 +271,7 @@ mod tests {
         }
         let dot_b = dir.path().join(".").join("b.txt");
         let missing = dir.path().join("missing.txt");
-        let diff = [&a, &dot_b, &missing]
-            .iter()
-            .map(|p| format!("--- {p}\n+++ {p}\n@@ -1 +1 @@\n-x\n+y\n", p = p.display()))
-            .collect::<String>();
+        let diff = diff_naming(&[&a, &dot_b, &missing]);
         let step = Step::default();
 
         let (files, extras) =
@@ -283,5 +280,51 @@ mod tests {
         assert_eq!(files, vec![b, a]);
         assert_eq!(extras.len(), 1);
         assert!(extras[0].ends_with("missing.txt"), "{extras:?}");
+    }
+
+    fn diff_naming(paths: &[&Path]) -> String {
+        paths
+            .iter()
+            .map(|p| format!("--- {p}\n+++ {p}\n@@ -1 +1 @@\n-x\n+y\n", p = p.display()))
+            .collect()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn check_diff_matches_a_symlinked_path_once_canonicalized() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target.txt");
+        let link = dir.path().join("link.txt");
+        std::fs::write(&target, "x").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let step = Step::default();
+
+        // The diff names the job's file only through a symlink to it.
+        let (files, extras) = step
+            .filter_files_from_check_diff(std::slice::from_ref(&target), &diff_naming(&[&link]));
+        assert_eq!(files, vec![target]);
+        assert!(extras.is_empty(), "{extras:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn check_diff_selects_only_the_alias_it_names_as_written() {
+        let dir = tempfile::tempdir().unwrap();
+        let target = dir.path().join("target.txt");
+        let link = dir.path().join("link.txt");
+        std::fs::write(&target, "x").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let step = Step::default();
+        let job_files = [link.clone(), target.clone()];
+
+        // With a symlink and its target both in the job (only possible with
+        // `allow_symlinks`), a diff naming one of them as written selects
+        // only that one.
+        let (files, extras) =
+            step.filter_files_from_check_diff(&job_files, &diff_naming(&[&target]));
+        assert_eq!(files, vec![target.clone()]);
+        assert!(extras.is_empty(), "{extras:?}");
+        let (files, _) = step.filter_files_from_check_diff(&job_files, &diff_naming(&[&link]));
+        assert_eq!(files, vec![link]);
     }
 }
