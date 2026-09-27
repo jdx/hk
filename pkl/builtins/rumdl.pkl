@@ -31,6 +31,17 @@ rumdl = new Config.Step {
         "Paragraph\n\nSecond paragraph\n",
         1,
       )
+    ["diff bad file violations remain"] =
+      testMaker.diffFail(
+        "Paragraph\n\n\nSecond paragraph\n\n",
+        "Paragraph\n\nSecond paragraph\n",
+        1,
+      )
+    ["diff bad file all violations are fixed"] =
+      testMaker.diffPass(
+        "# Hello\n\n\nParagraph\n",
+        "# Hello\n\nParagraph\n",
+      )
     ["fix bad file all violations are fixed"] =
       testMaker.fixPass(
         "# Hello\n\n\nParagraph\n",

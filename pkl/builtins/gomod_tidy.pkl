@@ -50,7 +50,9 @@ gomod_tidy = new Config.Step {
       }
       expect { code = 1 }
     }
-    ["fix untidy module"] {
+    ["diff untidy module"] = (fixUntidy) { run = "diff" }
+    ["fix untidy module"] = fixUntidy
+    local fixUntidy = new Config.StepTest {
       run = "fix"
       tmpdir = true
       write = new Mapping<String, String> {

@@ -28,6 +28,7 @@ newlines = new Config.Step {
     ["check bad file"] = testMaker.checkFail("content", 1)
     ["check good file"] = testMaker.checkPass("content\n")
     ["fix bad file"] = testMaker.fixPass("content", "content\n")
+    ["diff bad file"] = testMaker.diffPass("content", "content\n")
     ["fix good file"] = testMaker.fixPass("content\n", "content\n")
   }
 }

@@ -51,7 +51,7 @@ Run checks appropriate to the change. Integration tests use isolated temporary r
 4. Regenerate and build with `mise run build`.
 5. Run `mise run test:bats test/builtins_tests.bats`, or use `hk test --step <name>` with a configuration that loads the builtin.
 
-Tests should verify meaningful behavior: a clean check, a failing check, and the expected result of a fix when supported. Avoid enabling batching or bypassing locks without confirming the tool’s behavior.
+Tests should verify meaningful behavior: a clean check, a failing check, and the expected result of a fix when supported. A builtin with `check_diff` also needs a diff test (`TestMaker.diffPass` or `diffFail`), which applies the patch `check_diff` prints and fails if `git apply` rejects it. Fix tests can't catch that, because they run `fix` directly, and `test/builtins_tests.bats` fails for a tested builtin without one. Avoid enabling batching or bypassing locks without confirming the tool’s behavior.
 
 ## Edit documentation
 

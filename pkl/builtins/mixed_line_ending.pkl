@@ -26,6 +26,7 @@ mixed_line_ending = new Config.Step {
     ["check good file (LF only)"] = testMaker.checkPass("line1\nline2\nline3\n")
     ["check good file (CRLF only)"] = testMaker.checkPass("line1\r\nline2\r\nline3\r\n")
     ["fix bad file"] = testMaker.fixPass("line1\r\nline2\nline3\r\n", "line1\nline2\nline3\n")
+    ["diff bad file"] = testMaker.diffPass("line1\r\nline2\nline3\r\n", "line1\nline2\nline3\n")
     ["fix good file"] = testMaker.fixPass("line1\nline2\nline3\n", "line1\nline2\nline3\n")
   }
 }

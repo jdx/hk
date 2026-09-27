@@ -50,6 +50,8 @@ tombi_format = new Config.Step {
     ["check good file"] = testMaker.checkPass("[table]\nkey = \"value\"\n")
     ["fix bad file"] =
       testMaker.fixPass("[table]\nkey  =  \"value\"\n", "[table]\nkey = \"value\"\n")
+    ["diff bad file"] =
+      testMaker.diffPass("[table]\nkey  =  \"value\"\n", "[table]\nkey = \"value\"\n")
     ["fix good file"] =
       testMaker.fixPass("[table]\nkey = \"value\"\n", "[table]\nkey = \"value\"\n")
   }

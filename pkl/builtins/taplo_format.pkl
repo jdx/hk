@@ -50,7 +50,16 @@ taplo_format = new Config.Step {
     ["check good file"] = testMaker.checkPass("[table]\nkey = \"value\"\n")
     ["fix bad file"] =
       testMaker.fixPass("[table]\nkey  =  \"value\"\n", "[table]\nkey = \"value\"\n")
+    ["diff bad file"] =
+      testMaker.diffPass("[table]\nkey  =  \"value\"\n", "[table]\nkey = \"value\"\n")
     ["fix good file"] =
       testMaker.fixPass("[table]\nkey = \"value\"\n", "[table]\nkey = \"value\"\n")
+    // taplo's stdin mode ignores `exclude`, so the patch must leave out files
+    // it excludes.
+    local const excludeMaker = (testMaker) {
+      extra_files { ["taplo.toml"] = "exclude = [\"test.toml\"]\n" }
+    }
+    ["diff respects config exclude"] =
+      excludeMaker.diffPass("[table]\nkey  =  \"value\"\n", "[table]\nkey  =  \"value\"\n")
   }
 }

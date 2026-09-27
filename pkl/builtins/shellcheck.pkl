@@ -42,9 +42,21 @@ shellcheck = new Config.Step {
     }
     ["check extensionless shell script"] =
       extensionlessTestMaker.checkFail("#!/bin/sh\necho 'oops I'm escaped'", 1)
-    // With no `fix` command, `hk test` runs `check` for fix-mode tests, so the
-    // apply path itself is covered in test/shellcheck_partial_fix.bats.
+    // With no `fix` command, `hk test` runs `check` for fix-mode tests; the
+    // "diff" tests cover applying the patch. SC2006 (backticks) is autofixable
+    // and SC2034 (unused variable) is not.
     local const fixTestMaker = new helpers.TestMaker { filename = "test.sh" }
+    ["diff autofixable file"] =
+      fixTestMaker.diffPass(
+        "#!/bin/sh\nx=`date`\necho \"$x\"\n",
+        "#!/bin/sh\nx=$(date)\necho \"$x\"\n",
+      )
+    ["diff file with unfixable findings"] =
+      fixTestMaker.diffFail(
+        "#!/bin/sh\nunused=value\nx=`date`\necho \"$x\"\n",
+        "#!/bin/sh\nunused=value\nx=$(date)\necho \"$x\"\n",
+        1,
+      )
     local const backtickGood = "#!/bin/sh\nx=$(date)\necho \"$x\"\n"
     ["fix good file"] = fixTestMaker.fixPass(backtickGood, backtickGood)
     local const unfixable = "#!/usr/bin/bash\necho 'oops I'm escaped'"

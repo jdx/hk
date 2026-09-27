@@ -40,6 +40,26 @@ PKL
 }
 
 # bats test_tags=git-backend-independent
+@test "tested builtins with check_diff have a diff test" {
+    # A "diff" test applies check_diff's patch without falling back to the
+    # fixer, so it fails when check_diff prints anything but a patch that git
+    # apply accepts. Fix tests run `fix` directly and pass either way.
+    cat <<PKL > missing.pkl
+import "$PKL_PATH/Builtins.pkl"
+output {
+  value = Builtins.all.toMap()
+    .filter((_, step) -> step.check_diff != null && !step.tests.isEmpty
+      && !step.tests.toMap().values.any((t) -> t.run == "diff"))
+    .keys.toListing()
+  renderer = new JsonRenderer {}
+}
+PKL
+    run pkl eval missing.pkl
+    assert_success
+    assert_output "[]"
+}
+
+# bats test_tags=git-backend-independent
 @test "gitleaks staged option tests run" {
     cat <<PKL > hk.pkl
 amends "$PKL_PATH/Config.pkl"

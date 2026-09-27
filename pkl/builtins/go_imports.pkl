@@ -46,6 +46,7 @@ go_imports = new Config.Step {
     ["check bad file"] = testMaker.checkFail(before, 1)
     ["check good file"] = testMaker.checkPass(after)
     ["fix bad file"] = testMaker.fixPass(before, after)
+    ["diff bad file"] = testMaker.diffPass(before, after)
     ["fix good file"] = testMaker.fixPass(after, after)
   }
 }
