@@ -27,7 +27,7 @@ const CLAIM: usize = 16;
 /// paths, directories, and special files are not text files and are skipped.
 pub(super) fn regular_file_len(path: &Path) -> Option<u64> {
     let metadata = fs::metadata(path).ok()?;
-    metadata.is_file().then(|| metadata.len())
+    metadata.is_file().then_some(metadata.len())
 }
 
 /// Read the bytes that decide whether a file of `len` bytes is text: the first

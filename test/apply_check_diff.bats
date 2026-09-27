@@ -606,3 +606,123 @@ EOF
     run git show :test.txt
     assert_output "new"
 }
+
+@test "apply_check_diff = false runs the fixer instead of the diff" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+echo "ran" >> formatter.log
+for file in "$@"; do
+    echo "--- a/$file"
+    echo "+++ b/$file"
+    echo "@@ -1 +1 @@"
+    echo "-$(cat "$file")"
+    echo "+from-diff"
+done
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+for file in "$@"; do
+    echo "FIXED" > "$file"
+done
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+local fmt = new Config.Step {
+    glob = List("*.txt")
+    check_diff = "./formatter.sh {{files}}"
+    fix = "./fixer.sh {{files}}"
+    apply_check_diff = false
+}
+hooks {
+    ["fix"] {
+        fix = true
+        steps { ["fmt"] = fmt }
+    }
+    ["check"] {
+        steps { ["fmt"] = fmt }
+    }
+}
+EOF
+
+    echo "hello" > test.txt
+
+    run hk fix test.txt
+    assert_success
+    run cat test.txt
+    assert_output "FIXED"
+    # With no files to narrow for staging, fix mode doesn't run check_diff.
+    assert_file_not_exists formatter.log
+
+    # Check mode still shows the diff and leaves the file alone.
+    echo "hello" > test.txt
+    run hk check test.txt
+    assert_failure
+    assert_output --partial "+from-diff"
+    run cat test.txt
+    assert_output "hello"
+}
+
+@test "apply_check_diff = false fixes and stages only the files the diff names in pre-commit" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+status=0
+for file in "$@"; do
+    if [[ "$(cat "$file")" == "old" ]]; then
+        echo "--- a/$file"
+        echo "+++ b/$file"
+        echo "@@ -1 +1 @@"
+        echo "-old"
+        echo "+new"
+        status=1
+    fi
+done
+exit $status
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+for file in "$@"; do
+    echo "$file" >> fixer.log
+    echo "new" > "$file"
+done
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "none"
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+                apply_check_diff = false
+            }
+        }
+    }
+}
+EOF
+
+    echo "base" > a.txt
+    echo "base" > b.txt
+    git add .
+    git commit -m "test: create base fixture"
+    echo "old" > a.txt
+    echo "fine" > b.txt
+    git add a.txt b.txt
+
+    run hk run pre-commit
+    assert_success
+
+    run cat fixer.log
+    assert_output "a.txt"
+    run git show :a.txt
+    assert_output "new"
+    run git show :b.txt
+    assert_output "fine"
+}

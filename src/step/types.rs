@@ -205,6 +205,10 @@ pub struct Step {
     #[serde_as(as = "Option<PickFirst<(_, DisplayFromStr)>>")]
     pub check_diff: Option<Command>,
 
+    /// In fix mode, apply check_diff output instead of running fix (default: true)
+    #[serde(default)]
+    pub apply_check_diff: Option<bool>,
+
     /// Run the regular check after applying check_diff output
     #[serde(default)]
     pub check_after_diff: bool,
@@ -915,5 +919,11 @@ impl Step {
     pub fn check_is_fix(&self) -> bool {
         matches!((&self.check, &self.fix),
             (Some(check), Some(fix)) if check.without_effect() == fix.without_effect())
+    }
+
+    /// Whether fix mode applies `check_diff` output instead of running `fix`.
+    /// A step without `fix` has no other way to fix files.
+    pub fn applies_check_diff(&self) -> bool {
+        self.check_diff.is_some() && (self.apply_check_diff != Some(false) || self.fix.is_none())
     }
 }
