@@ -9,7 +9,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use super::types::Step;
-use super::{normalize_diff_paths, split_line_ending};
+use super::{diff_lines, normalize_diff_paths, split_line_ending};
 
 /// Rewrite absolute paths in diff headers to be relative to `base`.
 ///
@@ -23,7 +23,11 @@ use super::{normalize_diff_paths, split_line_ending};
 fn relativize_diff_paths(diff: &str, base: &Path) -> String {
     let mut out = String::with_capacity(diff.len() + 1);
     // Keep each line's terminator: a changed line's `\r` must survive.
-    for line in diff.split_inclusive('\n') {
+    for (line, in_hunk) in diff_lines(diff) {
+        if in_hunk {
+            out.push_str(line);
+            continue;
+        }
         let (content, ending) = split_line_ending(line);
         let rewritten = ["--- ", "+++ "].into_iter().find_map(|prefix| {
             let rest = content.strip_prefix(prefix)?;
@@ -89,7 +93,11 @@ impl Step {
         // Use -p1 to strip prefixes if present, -p0 otherwise
         let mut has_a_prefix = false;
         let mut has_b_prefix = false;
-        for line in diff_content.lines() {
+        for line in diff_lines(&diff_content)
+            .into_iter()
+            .filter(|(_, in_hunk)| !in_hunk)
+            .map(|(line, _)| line)
+        {
             if line.starts_with("--- a/") {
                 has_a_prefix = true;
             } else if line.starts_with("+++ b/") {
