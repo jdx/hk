@@ -9,6 +9,7 @@
 use dashmap::DashMap;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, OnceLock};
 
 /// Fewest items worth a thread of their own. Starting a thread costs about
@@ -17,25 +18,72 @@ const MIN_ITEMS_PER_THREAD: usize = 256;
 /// Filesystem checks stop speeding up well before this many threads.
 const MAX_THREADS: usize = 8;
 
-static THREADS: LazyLock<usize> = LazyLock::new(|| {
+/// Helper threads allowed to run at once across the whole process. Steps
+/// filter their files concurrently, so a per-call limit alone would let a
+/// hook start several times more threads than there are CPUs. A caller is
+/// one of the threads, so the helpers number one fewer.
+static MAX_HELPERS: LazyLock<usize> = LazyLock::new(|| {
     std::thread::available_parallelism()
         .map(NonZeroUsize::get)
         .unwrap_or(1)
         .min(MAX_THREADS)
+        - 1
 });
+static HELPERS_IN_USE: AtomicUsize = AtomicUsize::new(0);
+
+/// Helper-thread slots taken from the process-wide budget, returned on drop.
+struct HelperSlots(usize);
+
+impl HelperSlots {
+    /// Take up to `wanted` slots, or fewer if other callers hold the rest.
+    fn reserve(wanted: usize) -> Self {
+        let mut in_use = HELPERS_IN_USE.load(Ordering::Acquire);
+        loop {
+            let taken = wanted.min(MAX_HELPERS.saturating_sub(in_use));
+            if taken == 0 {
+                return Self(0);
+            }
+            match HELPERS_IN_USE.compare_exchange_weak(
+                in_use,
+                in_use + taken,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Self(taken),
+                Err(current) => in_use = current,
+            }
+        }
+    }
+}
+
+impl Drop for HelperSlots {
+    fn drop(&mut self) {
+        if self.0 > 0 {
+            HELPERS_IN_USE.fetch_sub(self.0, Ordering::AcqRel);
+        }
+    }
+}
 
 /// Apply `f` to every item, returning the results in the items' order.
 ///
 /// Small inputs run on the calling thread. Large ones are split into
-/// contiguous chunks on scoped threads; a chunk whose thread cannot be
-/// started runs on the calling thread instead.
+/// contiguous chunks: the calling thread takes one, and helper threads take
+/// the others while the process-wide budget has room. With no room left, the
+/// caller does all the work itself. A chunk whose thread cannot be started
+/// also runs on the calling thread.
 pub fn map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync) -> Vec<R> {
-    let threads = (*THREADS).min(items.len() / MIN_ITEMS_PER_THREAD);
-    if threads <= 1 {
+    let wanted = (*MAX_HELPERS + 1).min(items.len() / MIN_ITEMS_PER_THREAD);
+    if wanted <= 1 {
+        return items.iter().map(&f).collect();
+    }
+    // Held until every helper has been joined, so the budget also counts
+    // threads that are still exiting.
+    let slots = HelperSlots::reserve(wanted - 1);
+    if slots.0 == 0 {
         return items.iter().map(&f).collect();
     }
     let f = &f;
-    let chunk_len = items.len().div_ceil(threads);
+    let chunk_len = items.len().div_ceil(slots.0 + 1);
     std::thread::scope(|scope| {
         let mut chunks = items.chunks(chunk_len);
         // The calling thread takes the first chunk itself.
@@ -158,6 +206,24 @@ mod tests {
         let items = (0..MIN_ITEMS_PER_THREAD * 10).collect::<Vec<_>>();
         let doubled = map(&items, |i| i * 2);
         assert_eq!(doubled, items.iter().map(|i| i * 2).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn concurrent_callers_share_the_helper_budget() {
+        let peak = AtomicUsize::new(0);
+        let items = (0..MIN_ITEMS_PER_THREAD * 16).collect::<Vec<_>>();
+        std::thread::scope(|s| {
+            for _ in 0..8 {
+                s.spawn(|| {
+                    let doubled = map(&items, |i| {
+                        peak.fetch_max(HELPERS_IN_USE.load(Ordering::Acquire), Ordering::AcqRel);
+                        i * 2
+                    });
+                    assert_eq!(doubled, items.iter().map(|i| i * 2).collect::<Vec<_>>());
+                });
+            }
+        });
+        assert!(peak.into_inner() <= *MAX_HELPERS);
     }
 
     #[test]
