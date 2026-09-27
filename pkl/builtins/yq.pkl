@@ -99,8 +99,16 @@ yq = new Config.Step {
     ["fix bad file"] = testMaker.fixPass("foo:  bar", "foo: bar\n")
     ["fix good file"] = testMaker.fixPass("foo: bar\n", "foo: bar\n")
     // yq's output for these files holds separators, which the batch run omits.
-    ["check file that starts with a separator"] = testMaker.checkPass("---\nfoo: bar\n")
-    ["check file with several documents"] = testMaker.checkPass("a: 1\n---\nb: 2\n")
+    // With a formatted file beside them, the batch run checks the batch, and
+    // must hand these files to yq and diff one at a time.
+    local const batchMaker = new helpers.TestMaker {
+      filename = "test.yaml"
+      extra_files { ["formatted.yaml"] = "a: 1\n" }
+    }
+    ["check file that starts with a separator"] = batchMaker.checkPass("---\nfoo: bar\n")
+    ["check file with several documents"] = batchMaker.checkPass("a: 1\n---\nb: 2\n")
+    ["check unformatted file with several documents"] = batchMaker.checkFail("a: 1\n---\nb:  2\n", 1)
+    ["check file yq cannot parse"] = batchMaker.checkFail("a: [\n", 1)
     ["check multiple files"] {
       tmpdir = true
       write {

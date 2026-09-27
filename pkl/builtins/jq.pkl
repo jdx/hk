@@ -116,10 +116,18 @@ jq = new Config.Step {
     local const unsorted = "{\n  \"b\": 1,\n  \"a\": 2\n}\n"
     ["check unsorted keys"] = testMaker.checkFail(unsorted, 1)
     ["fix unsorted keys"] = testMaker.fixPass(unsorted, "{\n  \"a\": 2,\n  \"b\": 1\n}\n")
+    // With a formatted file beside it, the batch run checks the batch, and
+    // must hand these files to jq and diff one at a time.
+    local const batchMaker = new helpers.TestMaker {
+      filename = "test.json"
+      extra_files { ["formatted.json"] = "{\n  \"a\": 1\n}\n" }
+    }
     // jq formats each value of a file with several; `fromjson` cannot parse it.
-    ["check file with several values"] = testMaker.checkPass("1\n2\n")
+    ["check file with several values"] = batchMaker.checkPass("1\n2\n")
+    ["check unformatted file with several values"] = batchMaker.checkFail("[1,2] 3", 1)
     // U+FFFD may stand for invalid UTF-8, so jq checks the file on its own.
-    ["check file with U+FFFD"] = testMaker.checkPass("\"\u{FFFD}\"\n")
+    ["check file with U+FFFD"] = batchMaker.checkPass("\"\u{FFFD}\"\n")
+    ["check file jq cannot parse"] = batchMaker.checkFail("{\n  // comment\n}\n", 1)
     ["check multiple files"] {
       tmpdir = true
       write {

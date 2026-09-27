@@ -455,6 +455,9 @@ PKL
     done
     printf '{"b": 1}' > unformatted.json
     printf 'b:  1\n' > unformatted.yaml
+    # Formatted, but the batch run cannot tell, so these run on their own too.
+    printf '1\n2\n' > several.json
+    printf -- '---\nc: 1\n' > separator.yaml
 
     # Log each run of jq and yq before running the tool stub.
     PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
@@ -472,9 +475,12 @@ PKL
     assert_output --partial "+++ b/unformatted.yaml"
     refute_output --partial "+++ b/data"
     refute_output --partial "+++ b/config"
+    refute_output --partial "+++ b/several.json"
+    refute_output --partial "+++ b/separator.yaml"
     # HK_JOBS=2 splits each step's files into two batches. jq formats a batch
     # in one run and compares the output with the files in another, and yq
-    # formats a batch in one run. Only the unformatted files run on their own.
-    assert_equal "$(wc -l < "$TEST_TEMP_DIR/jq.log" | tr -d ' ')" 5
-    assert_equal "$(wc -l < "$TEST_TEMP_DIR/yq.log" | tr -d ' ')" 3
+    # formats a batch in one run. Only the unformatted files and the two the
+    # batch run cannot vouch for run on their own.
+    assert_equal "$(wc -l < "$TEST_TEMP_DIR/jq.log" | tr -d ' ')" 6
+    assert_equal "$(wc -l < "$TEST_TEMP_DIR/yq.log" | tr -d ' ')" 4
 }
