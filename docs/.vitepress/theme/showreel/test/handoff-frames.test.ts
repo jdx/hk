@@ -24,14 +24,13 @@ import { test } from "node:test";
 import type { ReelFacts } from "../bible";
 import type { Reel } from "../compose";
 import { BOUNDARIES, HANDOFFS } from "../handoff";
-import { factsFor } from "./published";
+import { factsFor, VARIANTS } from "./published";
 import { REPO, SHOWREEL } from "./repo";
 
 /** The last frame before a bar line at 120 fps, the finer of the two renders. */
 const LAST = 1 / 120;
 /** Largest difference any pixel may show, in 8-bit levels of any channel. */
 const TOLERANCE = 1;
-const VARIANTS = ["both", "one", "none"] as const;
 
 // From docs/, where the browser and bundler are installed. Loaded at run
 // time, not bundled into the test.
@@ -225,7 +224,7 @@ export { resetTypeCache } from "./type";`,
     await t.test("every frame is the same whichever frame was drawn before it", async () => {
       const r = await page.evaluate(
         ({ step, duration }) => {
-          const reel = Showreel.composeReel(Showreel.scenes, facts.both, {});
+          const reel = Showreel.composeReel(Showreel.scenes, facts.today, {});
           const ctx = document.createElement("canvas").getContext("2d", { alpha: false })!;
           ctx.canvas.width = 960;
           ctx.canvas.height = 540;

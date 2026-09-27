@@ -1,24 +1,51 @@
 // The captions' reading rules (type.ts): every must-read line holds long
 // enough to read, two-line captions hold all their words, and captions never
-// share the screen. Checked for every scene's captions under today's
-// figures, with exactly one claim (the previous run's, and the commit
-// alone), with a run that backs no claim, and with no facts at all.
+// share the screen. Checked for every scene's captions under today's run
+// (the commit races), the previous run (Check every file), every other
+// scenario either run backs raced alone (claims of other lengths, against
+// rivals that stop at other beats), the live results.json, a made-up claim
+// as long as race-timing.ts can time, a run that backs no claim, and no
+// facts at all.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BEAT, PALETTE, type ReelFacts, type SectionId, sec } from "../bible";
-import { races } from "../facts";
+import { claimLine, factsFromBenchmarks, races } from "../facts";
+import { CLAIM_TAIL, raceRun } from "../race-timing";
 import { scenes } from "../scenes";
 import { type Caption, CODE, entrance, PAPER, plain, readingTime, timeCaptions, WIPE, WORD, wordCount } from "../type";
-import { noClaim, oneClaim, today } from "./published";
+import { alt, live, noClaim, only, previous, published, scenario, today } from "./published";
+
+/**
+ * Today's Fix every file under a made-up title of six words: with its ratio
+ * and its tail, a claim of 13 words, the longest race-timing.ts times
+ * within the reading rule.
+ */
+function longest(): ReelFacts | null {
+  const run = only(published(), "fix-all");
+  scenario(run, "fix-all").title = "Fix it all in one go";
+  return factsFromBenchmarks(run);
+}
 
 const VARIANTS: [string, ReelFacts | null][] = [
-  ["facts", today()],
-  ["one claim", oneClaim()],
-  ["only the commit", { ...today(), fixAll: null }],
+  ["today's run", today()],
+  ["the previous run", alt()],
+  ["today's Fix every file", factsFromBenchmarks(only(published(), "fix-all"))],
+  ["today's Check every file", factsFromBenchmarks(only(published(), "check-all"))],
+  ["the previous run's Fix every file", factsFromBenchmarks(only(previous(), "fix-all"))],
+  ["the live run", factsFromBenchmarks(live())],
+  ["a made-up claim of 13 words", longest()],
   ["no claim", noClaim()],
   ["no facts", null],
 ];
+
+test("the made-up claim is 13 words with its tail, landing on b2.5 so that the note still holds by NOTE_OUT", () => {
+  const run = raceRun(longest());
+  assert.ok(run, "the made-up title does not race");
+  assert.equal(claimLine(run.race), "Fix it all in one go: 1.2× faster");
+  assert.equal(wordCount(claimLine(run.race)) + wordCount(CLAIM_TAIL), 13);
+  assert.deepEqual({ claim: run.claim, note: run.note }, { claim: { in: 2.5, out: 10 }, note: 11 });
+});
 
 /** Every scene's captions under each set of facts, in timeline order. */
 function everyCaption(): { name: string; id: SectionId; caps: readonly Caption[] }[] {
@@ -42,7 +69,7 @@ test("every section but morph and end has its captions", () => {
   // Fourteen captions with a claim, in every section but morph and end.
   for (const [what, facts] of VARIANTS) {
     const n = scenes.reduce((k, s) => k + (s.captions?.(facts) ?? []).length, 0);
-    // The race keeps two captions while any claim stands, and one without.
+    // The race keeps two captions while its claim stands, and one without.
     assert.equal(n, races(facts).length ? 14 : 13, what);
     for (const s of scenes) {
       const has = (s.captions?.(facts) ?? []).length > 0;
@@ -74,7 +101,7 @@ test("every in and out is on the half-beat grid, so holds are exact at 60 and 12
   for (const { name, caps } of everyCaption()) {
     for (const c of caps) {
       assert.ok(Number.isInteger(c.out * 2), `${name}: out b${c.out}`);
-      // F1's slot-two line lands on b9.75, a sixteenth: still a 120 fps frame, and its hold is checked on both grids below.
+      // The race's note lands on b9.75, a sixteenth, or later on the quarter-beat grid: still a 120 fps frame, and its hold is checked on both grids below.
       for (const l of c.lines) assert.ok(Number.isInteger(l.in * 4), `${name}: "${l.text}" lands on b${l.in}`);
     }
   }
@@ -158,16 +185,12 @@ test("words are counted as captions.py counts them", () => {
   assert.equal(readingTime(10) / BEAT, 10 / 2 + 1);
 });
 
-test("the race states its ratios from the facts, and a line with no number without them", () => {
+test("the race states its ratio from the facts, and a line with no number without them", () => {
   const race = scenes.find((s) => s.id === "race");
   const text = (facts: ReelFacts | null) =>
     (race?.captions?.(facts) ?? []).flatMap((c) => c.lines.map((l) => plain(l.text))).join(" / ");
-  assert.equal(
-    text(today()),
-    "Commit: 1.6× faster / than the fastest other tool. / Fix every file: 1.2× faster / than the fastest other tool.",
-  );
-  assert.equal(text(oneClaim()), "Fix every file: 1.3× faster / than the fastest other tool. / Timed only when the files are right.");
-  assert.equal(text({ ...today(), fixAll: null }), "Commit: 1.6× faster / than the fastest other tool. / Timed only when the files are right.");
+  assert.equal(text(today()), "Commit: 1.6× faster / than the fastest other tool. / Timed only when the files are right.");
+  assert.equal(text(alt()), "Check every file: 1.8× faster / than the fastest other tool. / Timed only when the files are right.");
   assert.equal(text(noClaim()), "Independent steps run in parallel.");
   assert.equal(text(null), "Independent steps run in parallel.");
 });

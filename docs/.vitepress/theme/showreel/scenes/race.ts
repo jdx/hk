@@ -3,16 +3,16 @@
 // whip from `everywhere`, its layers trailing in from the right, and races:
 // hk and every other tool on the same clock, each bar stopping on its own
 // median (race-chart.ts, on race-timing.ts's beats, which the score's dings
-// share). Two scenarios are drawn, the commit and then Fix every file; the
-// rest, Check every file included, is on the page, and the bottom detail
-// points there. Then the labels wipe and the bars ease into race|morph's
-// four capsules.
+// share). One scenario is drawn, whichever hk leads by the most (facts.ts);
+// the others, and every other figure, are on the page, and the bottom
+// detail points there. Then the labels wipe and the bars ease into
+// race|morph's four capsules.
 //
 // Variants, by what the facts back (facts.ts):
-// - both races: Commit from b1, a reset on b8.5 as the rows re-sort, Fix
-//   every file from b9;
-// - one (F1): that race from b1, then the finished chart holds, the bottom
-//   detail rising on b8;
+// - a race (F1): it runs from b1 and its claim lands once the bars it
+//   compares have stopped; then the finished chart holds, the bottom detail
+//   rising on b8 and the note "Timed only when the files are right."
+//   landing after the claim (race-timing.ts);
 // - none (F0: no facts, or no claim): no figure at all. The whip brings in
 //   hk's own terminal running `hk check --all` (checkAll frames 0–16, every
 //   row of each), pointing at the benchmarks page under it, and the
@@ -21,15 +21,15 @@
 // Every variant starts on the whip's streaks alone and ends on the capsules.
 
 import { BEAT, PALETTE, type ReelFacts, type Scene, type SceneEnv, sec } from "../bible";
-import { claimLine, type Race, races } from "../facts";
-import { raceRuns } from "../race-timing";
+import { claimLine } from "../facts";
+import { CLAIM_TAIL, NOTE, NOTE_OUT, raceRun } from "../race-timing";
 import { ring } from "../fx";
 import { drawHandoff } from "../handoff";
 import { checkAll } from "../kit/screens";
 import { drawTerm, PANE_FULL, type Pane, termLayout, termLit } from "../kit/term";
 import { rgba } from "../color";
 import { clamp, inOutSine, outQuart, progress, smoothstep, swiftOut } from "../math";
-import { type Caption, drawText, font, readingTime, wordCount } from "../type";
+import { type Caption, drawText, font } from "../type";
 import { drawWhip, drawWhipIn, WHIP_END, whipIn } from "../whip";
 import { chartModel, drawChart, growCapsule, REST } from "./race-chart";
 
@@ -38,41 +38,22 @@ const S = sec("race");
 /** Local seconds of section beat `n`. */
 const b = (n: number): number => n * BEAT;
 
-/** A claim's second line. */
-const CLAIM_TAIL = "than the fastest other tool.";
-/** The first claim wipes on the reset, b8.5, with the figures it states. */
-const FIRST_OUT = 8.5;
-/**
- * The first claim lands on b2.5, or later so that its ratio (the line's
- * second-to-last word, rising a quarter beat before the line lands) starts
- * to rise only once the fastest other tool's bar has stopped and its median
- * is up: half a beat after that stop, on the half-beat grid. It must still
- * hold all its words by FIRST_OUT, so a longer claim lands no later than
- * that allows: "Fix every file: …" and its tail are 10 words, which need
- * 6 beats, so it lands on b2.5 and its ratio can lead the rival's median by
- * a fraction of a beat. "Commit: …" is 8, so it can wait for its rival.
- */
-function firstClaimAt(r: Race, f: ReelFacts | null): number {
-  const stop = raceRuns(f)[0].stops[r.claim.rival.key];
-  const latest = Math.floor(2 * (FIRST_OUT - readingTime(wordCount(claimLine(r)) + wordCount(CLAIM_TAIL)) / BEAT)) / 2;
-  return Math.max(2.5, Math.min(Math.ceil(2 * (stop + 0.5)) / 2, latest));
-}
-
 /** The section's must-read captions under `f`. */
 export function captions(f: ReelFacts | null): Caption[] {
-  const both = races(f);
-  const claim = (r: Race, at: number, out: number): Caption => ({
-    out,
-    lines: [
-      { in: at, text: claimLine(r) },
-      { in: at + 0.5, text: CLAIM_TAIL },
-    ],
-  });
-  // The first claim holds from its landing to the reset (firstClaimAt); the
-  // second, 10 words, needs 6 beats and holds 6.
-  if (both.length === 2) return [claim(both[0], firstClaimAt(both[0], f), FIRST_OUT), claim(both[1], 9.5, 15.5)];
-  // 7 words: need 4.5, hold 5.75.
-  if (both.length === 1) return [claim(both[0], firstClaimAt(both[0], f), FIRST_OUT), { out: 15.5, lines: [{ in: 9.75, text: "Timed only when the files are right." }] }];
+  const run = raceRun(f);
+  // The claim, then the note, each landing and holding as race-timing.ts sets out.
+  if (run) {
+    return [
+      {
+        out: run.claim.out,
+        lines: [
+          { in: run.claim.in, text: claimLine(run.race) },
+          { in: run.claim.in + 0.5, text: CLAIM_TAIL },
+        ],
+      },
+      { out: NOTE_OUT, lines: [{ in: run.note, text: NOTE }] },
+    ];
+  }
   // 5 words: need 3.5, hold 9, over the run and its 7/7. No digits.
   return [{ out: 12, lines: [{ in: 3, text: "Independent steps run in parallel." }] }];
 }

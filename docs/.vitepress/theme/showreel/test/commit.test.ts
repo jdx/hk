@@ -122,7 +122,7 @@ export { resetTypeCache } from "./type";`,
         }
         return { bad, moved };
       },
-      { facts: factsFor("both"), band, still, last },
+      { facts: factsFor("today"), band, still, last },
     );
     assert.deepEqual(bad, [], "scene pixels in the captions' band while the caption is up");
     assert.deepEqual(moved, [], "the pane moves after the files ✔ has settled");

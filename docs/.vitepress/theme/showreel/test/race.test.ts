@@ -1,12 +1,11 @@
 // The benchmark race (storyboard §6.9, scenes/race.ts and race-chart.ts):
-// every bar leaves the axis on its race's start beat and stops on the beat
+// every bar leaves the axis on the race's start beat and stops on the beat
 // race-timing.ts gives it (the score rings each ding there), at exactly
-// median / axis × 1000 px, never past it; the chart draws only the facts'
-// own figures; between the commit and Fix every file the rows re-sort, and
-// wherever two rows' labels cross one comes forward and the other ducks
-// back; without a claim (F0) it draws no figure at all, only hk's output;
-// F0's pane is the lit screen; with more tools than capsules the rows close
-// up without touching; and nothing is drawn in the captions' band while a
+// median / axis × 1000 px, never past it; the claim lands only once the bars
+// it compares have stopped; the chart draws only the facts' own figures;
+// without a claim (F0) it draws no figure at all, only hk's output; F0's
+// pane is the lit screen; with more tools than capsules the rows close up
+// without touching; and nothing is drawn in the captions' band while a
 // caption is up (in Chromium).
 
 import assert from "node:assert/strict";
@@ -15,104 +14,77 @@ import { createRequire } from "node:module";
 import { join } from "node:path";
 import { test } from "node:test";
 import { BEAT, type ReelFacts, sec, W, H } from "../bible";
-import { fmt, type Race } from "../facts";
-import { raceRuns } from "../race-timing";
+import { claimLine, factsFromBenchmarks, fmt, type RaceKey } from "../facts";
+import { raceRun } from "../race-timing";
 import { checkAll } from "../kit/screens";
 import { termLayout } from "../kit/term";
 import { captions, F0_DETAIL_AT, F0_PANE, scene } from "../scenes/race";
-import { barLen, type ChartModel, chartModel, REORDER, RESET, REST, rowExtent, rowPos, SCALE, slotY } from "../scenes/race-chart";
-import { timeCaptions } from "../type";
-import { factsFor, noClaim, numbers, previous, scenario } from "./published";
+import { barLen, chartModel, type Entry, REST, ROLL_CALL, rollCallAt, rowExtent, SCALE, slotY } from "../scenes/race-chart";
+import { timeCaptions, WORD } from "../type";
+import { alt, factsFor, noClaim, numbers, only, previous, published, scenario, today } from "./published";
 import { REPO, SHOWREEL } from "./repo";
 
 const S = sec("race");
 
-/** `f` with `extra` more tools in each race, each slower than the last. */
+/** `f` with `extra` more tools in its race, each slower than the last. */
 function withMoreTools(f: ReelFacts, extra: number): ReelFacts {
-  const more = (r: Race | null): Race | null => {
-    if (!r) return r;
-    const slowest = r.rows[r.rows.length - 1];
-    const rows = [...r.rows];
-    for (let i = 1; i <= extra; i++) {
-      const median = slowest.median * (1 + 0.12 * i);
-      rows.push({ key: `tool${i}`, label: `tool-${i}`, mode: "sequential", median, min: median * 0.98, max: median * 1.03, shown: fmt(median) });
-    }
-    return { ...r, rows, axis: Math.max(...rows.map((x) => x.max)) };
-  };
-  return { ...f, commit: more(f.commit), fixAll: more(f.fixAll) };
+  const r = f.best;
+  if (!r) return f;
+  const slowest = r.rows[r.rows.length - 1];
+  const rows = [...r.rows];
+  for (let i = 1; i <= extra; i++) {
+    const median = slowest.median * (1 + 0.12 * i);
+    rows.push({ key: `tool${i}`, label: `tool-${i}`, mode: "sequential", median, min: median * 0.98, max: median * 1.03, shown: fmt(median) });
+  }
+  return { ...f, best: { ...r, rows, axis: Math.max(...rows.map((x) => x.max)) } };
 }
-
-/** `f` with Fix every file's rivals in `order`, each taking the figures of the row it lands on. */
-function withSecondOrder(f: ReelFacts, order: readonly string[]): ReelFacts {
-  const fa = f.fixAll!;
-  const byKey = Object.fromEntries(fa.rows.map((r) => [r.key, r]));
-  const rows = [fa.rows[0], ...order.map((key, i) => ({ ...fa.rows[i + 1], key, label: byKey[key].label, mode: byKey[key].mode }))];
-  return { ...f, fixAll: { ...fa, rows, claim: { ...fa.claim, rival: rows[1] } } };
-}
-
-/** `f` with `key` running in `mode` in Fix every file: its mode card flips as the rows re-sort. */
-function withSecondMode(f: ReelFacts, key: string, mode: string): ReelFacts {
-  const fa = f.fixAll!;
-  const rows = fa.rows.map((r) => (r.key === key ? { ...r, mode } : r));
-  return { ...f, fixAll: { ...fa, rows, claim: { ...fa.claim, rival: rows.find((r) => r.key === fa.claim.rival.key)! } } };
-}
-
-/** A made-up mode for lefthook in Fix every file, which no published run gives it. */
-const FLIPPED = "parallel: true";
 
 const VARIANTS: [string, ReelFacts | null][] = [
-  ["both", factsFor("both")],
+  ["today", today()],
+  ["alt", alt()],
+  // Every other candidate either run has, raced alone: other claims, other rivals, other stops.
+  ["today's Fix every file", factsFromBenchmarks(only(published(), "fix-all"))],
+  ["today's Check every file", factsFromBenchmarks(only(published(), "check-all"))],
+  ["the previous run's Fix every file", factsFromBenchmarks(only(previous(), "fix-all"))],
   // More tools than capsules: the rows close up.
-  ["six tools", withMoreTools(factsFor("both")!, 2)],
-  // A tool whose mode differs between the races: its mode card flips.
-  ["a mode that changes", withSecondMode(factsFor("both")!, "lefthook", FLIPPED)],
-  ["one", factsFor("one")],
-  // The other single claim: the commit alone.
-  ["commit only", { ...factsFor("both")!, fixAll: null }],
-  // Today's Fix every file alone, which then runs first, from b1.
-  ["fix only", { ...factsFor("both")!, commit: null }],
+  ["six tools", withMoreTools(today(), 2)],
   ["no claim", noClaim()],
   ["no facts", null],
 ];
 
 test("each bar stops on the beat race-timing gives it, at its median to the pixel, and never runs past it", () => {
   for (const [name, facts] of VARIANTS) {
-    const runs = raceRuns(facts);
+    const run = raceRun(facts);
     const m = chartModel(facts);
-    assert.equal(m === null, runs.length === 0, `${name}: a chart exactly when a race is backed`);
-    if (!m) continue;
-    assert.equal(m.races.length, runs.length, name);
-    m.races.forEach((r, i) => {
-      const run = runs[i];
-      assert.equal(r.start, run.start * BEAT, `${name} ${run.race.key}: starts on the beat raceRuns gives`);
-      for (const row of run.race.rows) {
-        const e = r.entries[row.key];
-        const stop = run.stops[row.key] * BEAT;
-        assert.equal(e.stop, stop, `${name} ${run.race.key} ${row.key}: stops on raceRuns' beat`);
-        const len = (row.median / run.race.axis) * SCALE;
-        assert.ok(Math.abs(e.len - len) < 1e-9, `${name} ${row.key}: at rest it is median / axis × ${SCALE} px`);
-        assert.equal(e.shown, row.shown);
-        // Sample the race on a 240 fps grid: 0 before the start, growing at
-        // one shared speed, exactly its median from the stop until the
-        // chart resets or leaves, and never past it.
-        const until = m.races.length > 1 && i === 0 ? RESET[0] : REST;
-        for (let t = r.start - 0.1; t < until; t += 1 / 240) {
-          const got: number | null = i === 0 || t >= r.start ? barLen(m, row.key, t) : null;
-          if (got === null) continue;
-          if (t <= r.start) assert.equal(got, 0, `${name} ${row.key} at ${t}: not before the start`);
-          else if (t < stop) {
-            assert.ok(got < e.len, `${name} ${row.key} at ${t}: still short of its median before its stop`);
-            assert.ok(Math.abs(got - e.rate * (t - r.start)) < 1e-6, `${name} ${row.key} at ${t}: on the shared clock`);
-          } else assert.equal(got, e.len, `${name} ${row.key} at ${t}: exactly its median after its stop`);
-        }
+    assert.equal(m === null, run === null, `${name}: a chart exactly when a race is backed`);
+    if (!m || !run) continue;
+    assert.equal(m.start, run.start * BEAT, `${name}: starts on the beat raceRun gives`);
+    for (const row of run.race.rows) {
+      const e: Entry = m.entries[row.key];
+      const stop: number = run.stops[row.key] * BEAT;
+      assert.equal(e.stop, stop, `${name} ${row.key}: stops on raceRun's beat`);
+      const len: number = (row.median / run.race.axis) * SCALE;
+      assert.ok(Math.abs(e.len - len) < 1e-9, `${name} ${row.key}: at rest it is median / axis × ${SCALE} px`);
+      assert.equal(e.shown, row.shown);
+      // Sample the race on a 240 fps grid: 0 before the start, growing at
+      // one shared speed, exactly its median from the stop until the chart
+      // leaves, and never past it.
+      for (let t: number = m.start - 0.1; t < REST; t += 1 / 240) {
+        const got: number = barLen(m, row.key, t);
+        if (t <= m.start) assert.equal(got, 0, `${name} ${row.key} at ${t}: not before the start`);
+        else if (t < stop) {
+          assert.ok(got < e.len, `${name} ${row.key} at ${t}: still short of its median before its stop`);
+          assert.ok(Math.abs(got - e.rate * (t - m.start)) < 1e-6, `${name} ${row.key} at ${t}: on the shared clock`);
+        } else assert.equal(got, e.len, `${name} ${row.key} at ${t}: exactly its median after its stop`);
       }
-      // One clock: every bar in a race grows at the same speed, so the tips run flush.
-      const rates = Object.values(r.entries).map((e) => e.rate);
-      for (const x of rates) assert.ok(Math.abs(x - rates[0]) < 1e-6 * rates[0], `${name} ${run.race.key}: one speed for every bar`);
-      // Rows: hk first, then the others by median.
-      assert.deepEqual(r.order, run.race.rows.map((x) => x.key));
-      assert.equal(r.order[0], "hk");
-    });
+    }
+    // One clock: every bar grows at the same speed, so the tips run flush.
+    const rates = Object.values(m.entries).map((e) => e.rate);
+    for (const x of rates) assert.ok(Math.abs(x - rates[0]) < 1e-6 * rates[0], `${name}: one speed for every bar`);
+    // Rows: hk first, then the others by median; the slowest stops 2.5 beats after the start.
+    assert.deepEqual(m.order, run.race.rows.map((x) => x.key));
+    assert.equal(m.order[0], "hk");
+    assert.equal(Math.max(...Object.values(run.stops)), run.start + 2.5);
   }
 });
 
@@ -125,128 +97,36 @@ test("however many tools race, no row's ink reaches the next row's", () => {
     }
   }
   // The six-tool fixture draws every row, each in its own band.
-  const m = chartModel(withMoreTools(factsFor("both")!, 2))!;
-  assert.equal(m.races[0].order.length, 6);
+  const m = chartModel(withMoreTools(today(), 2))!;
+  assert.equal(m.order.length, 6);
   assert.equal(m.geom.detail, false, "six rows leave out the modes and whiskers");
 });
 
-test("the second race's bars are home on the axis before they start again", () => {
-  const m = chartModel(factsFor("both"));
-  assert.ok(m && m.races.length === 2);
-  for (const key of m.keys) assert.equal(barLen(m, key, RESET[1]), 0, key);
-  assert.ok(RESET[1] <= m.races[1].start);
-});
-
-/** Every row's place at `lt`: its centre, its layer, and how far it is in front or ducks back. */
-const places = (m: ChartModel, lt: number) => m.keys.map((key) => ({ key, ...rowPos(m, key, lt) }));
-
-/** The re-sort sampled at 240 fps, a little either side. */
-function* reorderTimes(): Generator<number> {
-  for (let t = REORDER[0] - 0.05; t <= REORDER[1] + 0.05; t += 1 / 240) yield t;
-}
-
-/**
- * Rows whose labels cross must never read through each other: they draw on
- * different layers, and the one drawn over the other comes forward (a halo)
- * or the one under it ducks back (dimmed), or both. No row is ever both in
- * front and ducking.
- */
-function assertCrossingsLayered(name: string, m: ChartModel): void {
-  const pitch = slotY(1, 4) - slotY(0, 4);
-  for (const t of reorderTimes()) {
-    const rows = places(m, t);
-    for (const p of rows) assert.ok(p.front === 0 || p.duck === 0, `${name} at ${t.toFixed(4)}: ${p.key} is in front and ducking at once`);
-    for (const p of rows) {
-      for (const q of rows) {
-        if (p.key >= q.key || Math.abs(p.y - q.y) >= pitch / 2) continue;
-        const at = `${name} at ${t.toFixed(4)}: ${p.key} and ${q.key}, ${Math.abs(p.y - q.y).toFixed(1)} px apart`;
-        assert.ok(Math.abs(p.depth - q.depth) > 0.5, `${at}, cross on one layer (${p.depth.toFixed(2)}, ${q.depth.toFixed(2)})`);
-        const [under, over] = p.depth < q.depth ? [p, q] : [q, p];
-        assert.ok(over.front > 0.5 || under.duck > 0.5, `${at}, cross with ${over.key} neither in front nor ${under.key} ducking`);
-      }
+test("the claim's ratio rises only once both bars it compares have stopped, and the note once the claim is leaving", () => {
+  for (const [name, facts] of VARIANTS) {
+    const run = raceRun(facts);
+    if (!run) continue;
+    const [claim, note] = timeCaptions(S, captions(facts));
+    const line = claim.lines[0];
+    assert.equal(line.text, claimLine(run.race));
+    // The ratio is the line's second-to-last word, so it starts to rise two words before the line lands.
+    assert.equal(line.text.split(" ").at(-2), `${run.race.claim.ratio}×`);
+    const rises = line.land - 2 * WORD;
+    for (const key of ["hk", run.race.claim.rival.key]) {
+      const stop = S.beat(run.stops[key]);
+      assert.ok(rises >= stop + BEAT / 4 - 1e-9, `${name}: the ${run.race.claim.ratio}× rises at ${rises.toFixed(3)} s, before ${key}'s bar has stopped at ${stop.toFixed(3)} s`);
     }
+    assert.ok(note.start >= claim.out - 1e-9, `${name}: the note rises before the claim leaves`);
+    // The roll call runs down the bars as the note lands, the first a sixteenth before it.
+    assert.equal(S.start + rollCallAt(run, 0), note.lines[0].land - ROLL_CALL.ahead);
   }
-}
-
-test("between the commit and Fix every file the rows re-sort: lefthook falls two places, ducking under prek and pre-commit", () => {
-  const m = chartModel(factsFor("both"))!;
-  assert.deepEqual(m.races.map((r) => r.race.key), ["fix-staged", "fix-all"]);
-  assert.deepEqual(m.races[0].order, ["hk", "lefthook", "prek", "pre-commit"]);
-  assert.deepEqual(m.races[1].order, ["hk", "prek", "pre-commit", "lefthook"]);
-  // Before the re-sort every row stands on its commit row, and from its end on its Fix every file row, at rest.
-  for (const [i, key] of m.races[0].order.entries()) assert.deepEqual(rowPos(m, key, REORDER[0]), { y: slotY(i, 4), depth: 0, front: 0, jump: 0, duck: 0, alpha: 1, first: i });
-  for (const [i, key] of m.races[1].order.entries()) {
-    const pos = rowPos(m, key, REORDER[1]);
-    assert.ok(Math.abs(pos.y - slotY(i, 4)) < 1e-9 && Math.max(pos.front, pos.jump, pos.duck) < 1e-9, `${key} lands on row ${i}`);
-    assert.equal(rowPos(m, key, m.races[1].start).y, slotY(i, 4), `${key} is on row ${i} as Fix every file starts`);
-  }
-  // Midway, lefthook ducks back and never comes forward; prek and pre-commit
-  // come forward over it, stepping rather than jumping, and never duck; hk
-  // holds still.
-  const mid = (REORDER[0] + REORDER[1]) / 2;
-  const at = Object.fromEntries(places(m, mid).map((p) => [p.key, p]));
-  assert.ok(at.lefthook.duck > 0.9 && at.lefthook.front === 0 && at.lefthook.jump === 0, "lefthook ducks back as it falls");
-  for (const key of ["prek", "pre-commit"]) {
-    assert.ok(at[key].front > 0.9 && at[key].duck === 0, `${key} comes forward over lefthook`);
-    assert.ok(at[key].jump > 0 && at[key].jump < 0.5, `${key} steps forward, it does not jump`);
-  }
-  assert.deepEqual([at.hk.front, at.hk.jump, at.hk.duck, at.hk.y], [0, 0, 0, slotY(0, 4)]);
-  for (const t of reorderTimes()) {
-    const pos = Object.fromEntries(places(m, t).map((p) => [p.key, p]));
-    assert.ok(pos.lefthook.front === 0 && pos.prek.duck === 0 && pos["pre-commit"].duck === 0 && pos.hk.front === 0 && pos.hk.duck === 0, `at ${t}`);
-  }
-  assertCrossingsLayered("commit, then Fix every file", m);
-});
-
-test("a tool that climbs two places jumps the rows it overtakes, which duck back", () => {
-  // The two races run the other way round: lefthook climbs from last to second.
-  const both = factsFor("both")!;
-  const m = chartModel({ ...both, commit: both.fixAll, fixAll: both.commit })!;
-  assert.deepEqual(m.races[0].order, ["hk", "prek", "pre-commit", "lefthook"]);
-  assert.deepEqual(m.races[1].order, ["hk", "lefthook", "prek", "pre-commit"]);
-  const mid = (REORDER[0] + REORDER[1]) / 2;
-  const at = Object.fromEntries(places(m, mid).map((p) => [p.key, p]));
-  assert.ok(at.lefthook.jump > 0.9 && at.lefthook.front > 0.9 && at.lefthook.duck === 0, "lefthook jumps as it climbs");
-  for (const key of ["prek", "pre-commit"]) assert.ok(at[key].duck > 0.9 && at[key].front === 0 && at[key].jump === 0, `${key} ducks back under lefthook`);
-  assertCrossingsLayered("Fix every file, then the commit", m);
-});
-
-test("whatever order Fix every file puts the three rivals in, every crossing is layered", () => {
-  const both = factsFor("both")!;
-  const rivals = both.commit!.rows.slice(1).map((r) => r.key);
-  const orders = (keys: string[]): string[][] => (keys.length < 2 ? [keys] : keys.flatMap((k, i) => orders([...keys.slice(0, i), ...keys.slice(i + 1)]).map((rest) => [k, ...rest])));
-  const all = orders(rivals);
-  assert.equal(all.length, 6);
-  for (const order of all) {
-    const m = chartModel(withSecondOrder(both, order))!;
-    assert.deepEqual(m.races[1].order, ["hk", ...order]);
-    assertCrossingsLayered(`${rivals.join(", ")} to ${order.join(", ")}`, m);
-  }
-  // A one-place swap: the row that climbs steps forward, the row it passes ducks.
-  const [a, b, c] = rivals;
-  const swap = chartModel(withSecondOrder(both, [b, a, c]))!;
-  const mid = Object.fromEntries(places(swap, (REORDER[0] + REORDER[1]) / 2).map((p) => [p.key, p]));
-  assert.ok(mid[b].front > 0.9 && mid[b].jump > 0 && mid[b].jump < 0.5 && mid[a].duck > 0.9, "a swap steps forward over a duck");
-  assert.ok(mid[c].front === 0 && mid[c].duck === 0, `${c}, which crosses nobody, stays on its level`);
-  // A reversal: the middle row, overtaking one row and passed by the other, stays level between them.
-  const rev = chartModel(withSecondOrder(both, [c, b, a]))!;
-  const at = Object.fromEntries(places(rev, (REORDER[0] + REORDER[1]) / 2).map((p) => [p.key, p]));
-  assert.ok(at[c].jump > 0.9 && at[a].duck > 0.9, "the ends jump and duck");
-  assert.deepEqual([at[b].front, at[b].jump, at[b].duck, at[b].depth], [0, 0, 0, 0], "the middle row keeps its level");
-});
-
-test("a tool whose mode differs between the races flips its mode card as the rows re-sort", () => {
-  const facts = withSecondMode(factsFor("both")!, "lefthook", FLIPPED);
-  const drawnAt = (lt: number) => {
-    const { ctx, texts } = recorder();
-    scene.draw(ctx, lt, { W, H, t: S.start + lt, facts });
-    return texts;
+  // Today's commit keeps the one-race layout's beats; the previous run's longer claim, whose rival stops later, holds longer.
+  const beats = (f: ReelFacts) => {
+    const run = raceRun(f)!;
+    return { claim: run.claim, note: run.note };
   };
-  const m = chartModel(facts)!;
-  assert.equal(m.races[0].entries.lefthook.mode, "sequential");
-  assert.ok(drawnAt(REORDER[0] - 0.01).includes("sequential") && !drawnAt(REORDER[0] - 0.01).includes(FLIPPED), "the commit's mode before the re-sort");
-  const after = drawnAt(REORDER[1]);
-  assert.ok(after.includes(FLIPPED) && !after.includes("sequential"), "Fix every file's mode after it");
+  assert.deepEqual(beats(today()), { claim: { in: 3, out: 8.5 }, note: 9.75 });
+  assert.deepEqual(beats(alt()), { claim: { in: 4, out: 10 }, note: 11 });
 });
 
 // A 2D context that draws nothing and records every string filled, for the
@@ -312,30 +192,35 @@ test("without a claim (F0) the scene draws no benchmark figure: every digit is h
   }
 });
 
-test("with a claim the chart draws only the facts' figures: the workload, and each drawn race's summary and medians", () => {
+test("with a claim the chart draws only the facts' figures: the workload, the race's summary and its medians", () => {
   // The file count is the repository's: the commit race timed only its staged files.
-  assert.equal(chartModel(factsFor("both"))!.workload, "6,157-file repo · 10 fixers · 8 CPUs");
-  for (const variant of ["both", "one"] as const) {
-    const facts = factsFor(variant)!;
+  assert.equal(chartModel(today())!.workload, "6,157-file repo · 10 fixers · 8 CPUs");
+  // The scenarios each run does not race: none of their medians is drawn.
+  const unraced: [string, ReelFacts, ReturnType<typeof published>, RaceKey[]][] = [
+    ["today", today(), published(), ["fix-all", "check-all"]],
+    ["alt", alt(), previous(), ["fix-staged", "fix-all"]],
+  ];
+  for (const [variant, facts, run, others] of unraced) {
     const m = chartModel(facts)!;
     // The commit's summary has a number of its own: "About 60 staged files …".
-    const allowed = new Set([m.workload, ...m.races.flatMap((r) => [...(/\d/.test(r.race.summary) ? [r.race.summary] : []), ...r.race.rows.map((x) => x.shown)])]);
+    const allowed = new Set([m.workload, ...(/\d/.test(m.race.summary) ? [m.race.summary] : []), ...m.race.rows.map((x) => x.shown)]);
     const { texts } = textsDrawn(facts);
     const figures = [...texts].filter((t) => /\d/.test(t));
     for (const t of figures) assert.ok(allowed.has(t), `${variant}: "${t}" is not a figure the facts give`);
     for (const t of allowed) assert.ok(texts.has(t), `${variant}: "${t}" is never drawn`);
-    // One claim: the withheld race's medians, the previous run's commit, are nowhere.
-    if (variant === "one") {
-      for (const [tool, r] of Object.entries(scenario(previous(), "fix-staged").results) as [string, { median: number }][]) {
-        if (!allowed.has(fmt(r.median))) assert.ok(!texts.has(fmt(r.median)), `one: ${tool}'s commit ${fmt(r.median)} is drawn`);
+    for (const key of others) {
+      for (const [tool, r] of Object.entries(scenario(run, key).results) as [string, { median: number }][]) {
+        if (!allowed.has(fmt(r.median))) assert.ok(!texts.has(fmt(r.median)), `${variant}: ${tool}'s ${key} ${fmt(r.median)} is drawn`);
       }
     }
   }
+  // Each row's mode is the scenario's: lefthook ran Check every file with "parallel: true".
+  assert.ok(textsDrawn(alt()).texts.has("parallel: true"));
 });
 
 test("F0's pane is the lit screen while it is up, and nothing is lit with a chart or on a bar line", () => {
   const litAt = (facts: ReelFacts | null, lt: number) => scene.lit!(lt, { facts });
-  for (const facts of [factsFor("both"), factsFor("one")]) {
+  for (const facts of [factsFor("today"), factsFor("alt")]) {
     for (let lt = 0; lt < S.len; lt += BEAT / 4) assert.equal(litAt(facts, lt), null, `lit at ${lt} with a chart`);
   }
   assert.equal(litAt(null, 0), null, "nothing lit on the whip's bar line");

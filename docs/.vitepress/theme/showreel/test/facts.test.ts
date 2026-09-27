@@ -1,20 +1,22 @@
-// The reel's figures come from the published benchmark run through facts.ts.
-// Today's run, frozen in test/results-36268162842.json, gives fixed figures
-// for both races, the commit and Fix every file; the run before it, frozen
-// in test/results-36078397814.json, withholds the commit, which lefthook won.
-// A run that is missing, failed, malformed or too close to call gives none,
-// or withholds just the race it cannot back, and then no caption shows a
-// number. Check every file is never representable.
+// The reel's figures come from the published benchmark run through facts.ts,
+// which races the one scenario hk leads by the most. Today's run, frozen in
+// test/results-36268162842.json, races the commit (1.6× lefthook, ahead of
+// Check every file's 1.3× and Fix every file's 1.2×); the run before it,
+// frozen in test/results-36078397814.json, races Check every file (1.8×
+// lefthook, ahead of Fix every file's 1.3×; lefthook won the commit). A
+// scenario that is garbled, too close to call or not won is never chosen;
+// a run that is missing, failed or malformed gives no facts; and a run that
+// backs no race states no number in any caption.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { claimLine, factsFromBenchmarks, fmt, type Race, type RaceKey, type ReelFacts, races, separated, type Stats } from "../facts";
+import { claimLine, factsFromBenchmarks, fmt, lead, type Race, RACE_KEYS, type RaceKey, type ReelFacts, races, separated, type Stats } from "../facts";
 import { scenes } from "../scenes";
 import type { SectionId } from "../timeline";
 import { plain } from "../type";
-import { cell, live, noClaim, oneClaim, previous, published, scenario, today, unseparate } from "./published";
+import { alt, cell, factsFor, live, noClaim, only, previous, published, scenario, today, unseparate } from "./published";
 import { REPO } from "./repo";
 
 /** Parsed JSON, which the tests garble on purpose. */
@@ -31,69 +33,155 @@ const publishedNumbers = (run: Run, key: RaceKey, tools: string[]) =>
     return { key: tool, median, min, max };
   });
 
-test("today's run gives its published figures: the commit, then Fix every file", () => {
-  const f = today();
-  assert.deepEqual(Object.keys(f), ["workload", "commit", "fixAll"]);
-  assert.deepEqual(f.workload, { files: "6,157", fixers: 10, cpus: 8 });
-  assert.deepEqual(races(f), [f.commit, f.fixAll], "the commit races first");
+/** Scenario `key` of a run as a candidate: its race, or null if the run does not back it. */
+const candidate = (run: Run, key: RaceKey): Race | null => factsFromBenchmarks(only(run, key))?.best ?? null;
 
-  assert.ok(f.commit);
-  assert.equal(f.commit.key, "fix-staged");
-  assert.equal(f.commit.title, "Commit");
-  assert.equal(f.commit.summary, "About 60 staged files with defects, fixed by each tool's pre-commit hook.");
-  assert.deepEqual(readout(f.commit), [
+/** A number to four places, for comparing leads. */
+const places4 = (n: number | undefined) => (n === undefined ? n : Math.round(n * 1e4) / 1e4);
+
+test("today's run races the commit, the scenario hk leads by the most", () => {
+  const f = today();
+  assert.deepEqual(Object.keys(f), ["workload", "best"]);
+  assert.deepEqual(f.workload, { files: "6,157", fixers: 10, cpus: 8 });
+  assert.deepEqual(races(f), [f.best]);
+
+  // Every scenario is a candidate today; the commit leads by the most.
+  const all = RACE_KEYS.map((key) => candidate(published(), key));
+  assert.deepEqual(all.map((r) => r?.claim.ratio), ["1.6", "1.2", "1.3"]);
+  assert.deepEqual(all.map((r) => places4(r ? lead(r) : undefined)), [1.5657, 1.2487, 1.2847]);
+  assert.deepEqual(f.best, all[0]);
+
+  const r = f.best;
+  assert.ok(r);
+  assert.equal(r.key, "fix-staged");
+  assert.equal(r.title, "Commit");
+  assert.equal(r.summary, "About 60 staged files with defects, fixed by each tool's pre-commit hook.");
+  assert.deepEqual(readout(r), [
     "hk 907 ms (parallel, file locks)",
     "lefthook 1.42 s (sequential)",
     "prek 1.77 s (sequential hooks, batched files)",
     "pre-commit 2.44 s (sequential hooks, batched files)",
   ]);
-  assert.equal(f.commit.axis, 2.523);
-  assert.equal(f.commit.claim.ratio, "1.6");
-  assert.equal(f.commit.claim.rival.key, "lefthook");
-  assert.equal(claimLine(f.commit), "Commit: 1.6× faster");
-  assert.deepEqual(numbersOf(f.commit), publishedNumbers(published(), "fix-staged", ["hk", "lefthook", "prek", "pre-commit"]));
-
-  assert.ok(f.fixAll);
-  assert.equal(f.fixAll.key, "fix-all");
-  assert.equal(f.fixAll.title, "Fix every file");
-  assert.equal(f.fixAll.summary, "A quarter of the files need two or three fixers each to write them.");
-  assert.deepEqual(readout(f.fixAll), [
-    "hk 9.43 s (parallel, file locks)",
-    "prek 11.8 s (sequential hooks, batched files)",
-    "pre-commit 13.1 s (sequential hooks, batched files)",
-    "lefthook 19.8 s (sequential)",
-  ]);
-  assert.equal(f.fixAll.axis, 21.5603);
-  assert.equal(f.fixAll.claim.ratio, "1.2");
-  assert.equal(f.fixAll.claim.rival.key, "prek");
-  assert.equal(claimLine(f.fixAll), "Fix every file: 1.2× faster");
-  assert.deepEqual(numbersOf(f.fixAll), publishedNumbers(published(), "fix-all", ["hk", "prek", "pre-commit", "lefthook"]));
+  assert.equal(r.axis, 2.523);
+  assert.equal(r.claim.ratio, "1.6");
+  assert.equal(r.claim.rival.key, "lefthook");
+  assert.equal(claimLine(r), "Commit: 1.6× faster");
+  assert.deepEqual(numbersOf(r), publishedNumbers(published(), "fix-staged", ["hk", "lefthook", "prek", "pre-commit"]));
 });
 
-test("the previous run withholds the commit, where lefthook was faster, and races only Fix every file", () => {
+test("the previous run races Check every file: lefthook won the commit, and hk leads Check every file by more than Fix every file", () => {
   const run = previous();
   const staged = scenario(run, "fix-staged").results;
   assert.ok(staged.lefthook.median < staged.hk.median, "lefthook was faster in the previous run's commit");
+  assert.equal(candidate(previous(), "fix-staged"), null);
+  const fixAll = candidate(previous(), "fix-all");
+  assert.ok(fixAll);
+  assert.equal(fixAll.claim.ratio, "1.3");
+
   const f = factsFromBenchmarks(run);
   assert.ok(f);
-  assert.equal(f.commit, null);
   assert.deepEqual(f.workload, { files: "6,157", fixers: 10, cpus: 8 });
-  assert.ok(f.fixAll);
-  assert.deepEqual(readout(f.fixAll), [
-    "hk 10.6 s (parallel, file locks)",
-    "prek 13.7 s (sequential hooks, batched files)",
-    "pre-commit 14.6 s (sequential hooks, batched files)",
-    "lefthook 24.9 s (sequential)",
+  const r = f.best;
+  assert.ok(r);
+  assert.deepEqual(f, alt());
+  assert.equal(r.key, "check-all");
+  assert.equal(r.title, "Check every file");
+  assert.equal(r.summary, "Every file is already clean and nothing writes, so parallel is safe for every tool.");
+  // lefthook's mode here is the scenario's own, not its subject's.
+  assert.deepEqual(readout(r), [
+    "hk 3.82 s (parallel, file locks)",
+    "lefthook 6.77 s (parallel: true)",
+    "prek 7.55 s (sequential hooks, batched files)",
+    "pre-commit 8.19 s (sequential hooks, batched files)",
   ]);
-  assert.equal(f.fixAll.axis, 28.2999);
-  assert.equal(f.fixAll.claim.ratio, "1.3");
-  assert.equal(f.fixAll.claim.rival.key, "prek");
-  assert.equal(claimLine(f.fixAll), "Fix every file: 1.3× faster");
-  assert.deepEqual(numbersOf(f.fixAll), publishedNumbers(run, "fix-all", ["hk", "prek", "pre-commit", "lefthook"]));
-  assert.deepEqual(races(f), [f.fixAll]);
+  assert.equal(r.axis, 12.008);
+  assert.equal(r.claim.ratio, "1.8");
+  assert.equal(r.claim.rival.key, "lefthook");
+  assert.equal(claimLine(r), "Check every file: 1.8× faster");
+  assert.deepEqual(numbersOf(r), publishedNumbers(run, "check-all", ["hk", "lefthook", "prek", "pre-commit"]));
+  assert.deepEqual([places4(lead(r)), places4(lead(fixAll))], [1.7727, 1.293]);
+  assert.deepEqual(races(f), [r]);
 });
 
-test("Check every file is never representable, and a withheld race leaks none of its figures", () => {
+/**
+ * Today's run with every scenario given the commit's timings, scaled by 1,
+ * 2 and 4 in the order the scenarios are tried: every lead is exactly the
+ * same, though no two scenarios' times are.
+ */
+function tied(): Run {
+  const run = published();
+  const commit = scenario(run, "fix-staged").results;
+  RACE_KEYS.forEach((key, i) => {
+    const k = 2 ** i;
+    scenario(run, key).results = Object.fromEntries(
+      Object.entries(commit).map(([tool, r]: [string, Run]) => [tool, { ...r, median: r.median * k, min: r.min * k, max: r.max * k }]),
+    );
+  });
+  return run;
+}
+
+test("an exact tie goes to the first in the order: the commit, Fix every file, Check every file", () => {
+  const leads = RACE_KEYS.map((key) => {
+    const r = candidate(tied(), key);
+    assert.ok(r, `${key} is a candidate`);
+    return lead(r);
+  });
+  assert.equal(new Set(leads).size, 1, `the leads are not exactly tied: ${leads}`);
+  assert.equal(factsFromBenchmarks(tied())?.best?.key, "fix-staged");
+  const later = tied();
+  unseparate(later, "fix-staged");
+  assert.equal(factsFromBenchmarks(later)?.best?.key, "fix-all");
+  // And whichever order the run lists them in.
+  const reversed = tied();
+  reversed.scenarios.reverse();
+  assert.equal(factsFromBenchmarks(reversed)?.best?.key, "fix-staged");
+});
+
+test("leads are compared unrounded: of two that both read 1.2×, the larger races", () => {
+  const fixAll = candidate(published(), "fix-all");
+  assert.ok(fixAll);
+  assert.equal(fixAll.claim.ratio, "1.2");
+  // Today's Fix every file leads by 1.2487. Without the commit, Check every
+  // file races only when its lead is larger, even by a hair.
+  for (const [ratio, winner] of [
+    [1.2495, "check-all"],
+    [1.248, "fix-all"],
+  ] as const) {
+    const run = published();
+    unseparate(run, "fix-staged");
+    const hk = cell(run, "check-all", "hk");
+    hk.median = cell(run, "check-all", "lefthook").median / ratio;
+    const f = factsFromBenchmarks(run);
+    assert.equal(candidate(run, "check-all")?.claim.ratio, "1.2", `${ratio}: Check every file still claims 1.2×`);
+    assert.equal(f?.best?.key, winner, `${ratio} against ${lead(fixAll)}`);
+  }
+});
+
+test("a scenario that is too close to call (however large its lead), not won, or won by less than 1.05× is never chosen", () => {
+  // Level with lefthook in the commit, hk still leads it by 1.57, and Check every file races instead.
+  const level = published();
+  unseparate(level, "fix-staged");
+  assert.ok(cell(level, "fix-staged", "lefthook").median / cell(level, "fix-staged", "hk").median > 1.5);
+  assert.equal(factsFromBenchmarks(level)?.best?.key, "check-all");
+  assert.equal(candidate(level, "fix-staged"), null);
+  // Slower than a rival, though clearly: not a candidate even on its own,
+  // where nothing else could outrank it, so the next one races.
+  const lost = published();
+  const hk = cell(lost, "fix-staged", "hk");
+  Object.assign(hk, { median: hk.median * 10, min: hk.min * 10, max: hk.max * 10 });
+  assert.ok(separated(hk, cell(lost, "fix-staged", "lefthook")));
+  assert.equal(factsFromBenchmarks(lost)?.best?.key, "check-all");
+  assert.equal(candidate(lost, "fix-staged"), null);
+  // Clearly ahead, but by a ratio that rounds to 1.0, which claims nothing.
+  const close = only(published(), "check-all");
+  const lefthook = cell(close, "check-all", "lefthook");
+  Object.assign(lefthook, { min: lefthook.median - 0.01, max: lefthook.median + 0.01 });
+  Object.assign(cell(close, "check-all", "hk"), { median: lefthook.median / 1.04, min: lefthook.median / 1.04 - 0.01, max: lefthook.median / 1.04 + 0.01 });
+  assert.ok(separated(cell(close, "check-all", "hk"), lefthook));
+  assert.equal(factsFromBenchmarks(close)?.best, null);
+});
+
+test("a scenario that does not race leaks none of its figures", () => {
   // Nothing from a scenario's results may reach the facts unless its race is drawn.
   const leaks = (f: ReelFacts, run: Run, key: string) => {
     const json = JSON.stringify(f);
@@ -104,18 +192,10 @@ test("Check every file is never representable, and a withheld race leaks none of
       assert.ok(!json.includes(fmt(r.median)), `${key}'s ${fmt(r.median)} leaked into the facts`);
     }
   };
+  leaks(today(), published(), "fix-all");
   leaks(today(), published(), "check-all");
-  leaks(oneClaim(), previous(), "check-all");
-  // The previous run's commit, which lefthook won.
-  leaks(oneClaim(), previous(), "fix-staged");
-  // Nor does Check every file stand in for a race that is missing.
-  for (const run of [published(), previous()]) {
-    run.scenarios = run.scenarios.filter((s: { key: string }) => s.key === "check-all");
-    const only = factsFromBenchmarks(run);
-    assert.ok(only);
-    assert.equal(only.commit, null);
-    assert.equal(only.fixAll, null);
-  }
+  leaks(alt(), previous(), "fix-staged");
+  leaks(alt(), previous(), "fix-all");
 });
 
 /** A function the benchmarks page defines, lifted out of BenchmarkResults.vue and run as JavaScript. */
@@ -189,9 +269,6 @@ test("a missing, failed or unreadable run gives no facts", () => {
   }
 });
 
-type Claim = "commit" | "fixAll";
-const KEYS: Record<Claim, RaceKey> = { commit: "fix-staged", fixAll: "fix-all" };
-
 const GARBLED: [string, (run: Run, key: RaceKey) => void][] = [
   ["no such scenario", (r, key) => (r.scenarios = r.scenarios.filter((s: { key: string }) => s.key !== key))],
   ["no hk row", (r, key) => delete scenario(r, key).results.hk],
@@ -228,51 +305,63 @@ const GARBLED: [string, (run: Run, key: RaceKey) => void][] = [
   ["no summary", (r, key) => (scenario(r, key).summary = "")],
 ];
 
-test("a garbled or inconclusive race is withheld, and only that one", () => {
+/** The race that runs when scenario `key` is garbled out of today's run: the best of the other two. */
+const NEXT: Record<RaceKey, RaceKey> = { "fix-staged": "check-all", "fix-all": "fix-staged", "check-all": "fix-staged" };
+
+test("a garbled or inconclusive scenario is no candidate, and the best of the others races", () => {
   const good = today();
-  for (const claim of ["commit", "fixAll"] as const) {
-    const other: Claim = claim === "commit" ? "fixAll" : "commit";
+  for (const key of RACE_KEYS) {
+    const next = candidate(published(), NEXT[key]);
+    assert.ok(next);
     for (const [what, garble] of GARBLED) {
       const run = published();
-      garble(run, KEYS[claim]);
+      garble(run, key);
       const f = factsFromBenchmarks(run);
-      assert.ok(f, `${claim} with ${what}: every claim went`);
-      assert.equal(f[claim], null, `${claim} with ${what} still claims ${JSON.stringify(f[claim])}`);
-      assert.deepEqual(f.workload, good.workload, `${claim} with ${what} changed the workload`);
-      // A subject's label and mode are shared by both races, so garbling one reaches both.
-      if (what !== "a tool with no subject" && what !== "a label that is not plain") {
-        assert.deepEqual(f[other], good[other], `${claim} with ${what} changed ${other}`);
-      }
+      assert.ok(f, `${key} with ${what}: the run gave no facts`);
+      assert.notEqual(f.best?.key, key, `${key} with ${what} still races`);
+      assert.deepEqual(f.workload, good.workload, `${key} with ${what} changed the workload`);
+      // A subject's label and mode are shared by every scenario, so garbling one reaches them all.
+      if (what === "a tool with no subject" || what === "a label that is not plain") assert.equal(f.best, null, `${key} with ${what}`);
+      else assert.deepEqual(f.best, next, `${key} with ${what} races ${f.best?.key}, not ${NEXT[key]}`);
     }
   }
 });
 
-test("the one-claim and no-claim variants are what the preview and the tests share", () => {
-  const one = oneClaim();
-  assert.deepEqual(one, factsFromBenchmarks(previous()));
-  assert.equal(one.commit, null);
-  assert.equal(one.fixAll?.claim.ratio, "1.3");
+test("the variants the preview, the drafts and the tests share", () => {
+  assert.deepEqual(factsFor("today"), factsFromBenchmarks(published()));
+  assert.equal(factsFor("today")?.best?.claim.ratio, "1.6");
+  assert.deepEqual(factsFor("alt"), factsFromBenchmarks(previous()));
+  assert.equal(factsFor("alt")?.best?.claim.ratio, "1.8");
+  assert.equal(factsFor("none"), null);
+  assert.deepEqual(factsFor("live"), factsFromBenchmarks(live()));
   const none = noClaim();
   assert.deepEqual(none.workload, today().workload);
-  assert.equal(none.commit, null);
-  assert.equal(none.fixAll, null);
+  assert.equal(none.best, null);
+  assert.deepEqual(races(none), []);
+  assert.deepEqual(races(null), []);
 });
 
-test("the live results.json gives facts that hold together, or none", () => {
-  // A refresh may publish a run too close to call, which leaves a race out;
-  // it must never give one that contradicts itself.
-  const f = factsFromBenchmarks(live());
-  for (const r of [f?.commit, f?.fixAll]) {
-    if (!r) continue;
-    const [hk, ...rivals] = r.rows;
-    assert.equal(hk.key, "hk");
-    assert.ok(rivals.length > 0);
-    assert.equal(r.claim.rival, rivals[0]);
-    assert.ok(separated(hk, rivals[0]));
-    assert.ok(Number(r.claim.ratio) > 1);
-    assert.ok(claimLine(r).length <= 36);
-    for (let i = 1; i < rivals.length; i++) assert.ok(rivals[i - 1].median <= rivals[i].median);
-    for (const row of r.rows) assert.ok(row.max <= r.axis);
+test("the live results.json gives a race that holds together and leads by the most, or none", () => {
+  // A refresh may publish a run too close to call, which leaves the race
+  // out; it must never give one that contradicts itself.
+  const run = live();
+  const r = factsFromBenchmarks(run)?.best;
+  if (!r) return;
+  const [hk, ...rivals] = r.rows;
+  assert.equal(hk.key, "hk");
+  assert.ok(rivals.length > 0);
+  assert.equal(r.claim.rival, rivals[0]);
+  assert.ok(separated(hk, rivals[0]));
+  assert.ok(Number(r.claim.ratio) > 1);
+  assert.ok(claimLine(r).length <= 36);
+  for (let i = 1; i < rivals.length; i++) assert.ok(rivals[i - 1].median <= rivals[i].median);
+  for (const row of r.rows) assert.ok(row.max <= r.axis);
+  for (const key of RACE_KEYS) {
+    if (!run.scenarios.some((s: { key: string }) => s.key === key)) continue;
+    const other = candidate(live(), key);
+    if (!other) continue;
+    const before: boolean = RACE_KEYS.indexOf(key) < RACE_KEYS.indexOf(r.key);
+    assert.ok(before ? lead(other) < lead(r) : lead(other) <= lead(r), `${key} leads by ${lead(other)}, more than ${r.key}'s ${lead(r)}`);
   }
 });
 
@@ -283,20 +372,21 @@ function lines(id: SectionId, facts: ReelFacts | null): string[] {
 }
 
 test("no caption shows a number the facts do not back", () => {
-  const good = today();
   const every = scenes.map((s) => s.id);
   const others = every.filter((id) => id !== "race");
-  // Only the race states numbers, and only its claims' ratios.
-  for (const id of others) for (const line of lines(id, good)) assert.doesNotMatch(line, /\d/, `${id}: "${line}"`);
-  const withheld: [string, ReelFacts | null, string[]][] = [
+  // Only the race states numbers, and only its claim's ratio.
+  for (const id of others) for (const line of lines(id, today())) assert.doesNotMatch(line, /\d/, `${id}: "${line}"`);
+  const variants: [string, ReelFacts | null, string[]][] = [
     ["no facts", null, []],
-    ["no claims", noClaim(), []],
-    ["only the commit", { ...good, fixAll: null }, ["1.6"]],
-    ["only Fix every file (today's)", { ...good, commit: null }, ["1.2"]],
-    ["the previous run: no commit", oneClaim(), ["1.3"]],
-    ["both races", good, ["1.6", "1.2"]],
+    ["no claim", noClaim(), []],
+    ["today's run: the commit", today(), ["1.6"]],
+    ["the previous run: Check every file", alt(), ["1.8"]],
+    // Every other candidate either run has, raced alone.
+    ["today's Fix every file", factsFromBenchmarks(only(published(), "fix-all")), ["1.2"]],
+    ["today's Check every file", factsFromBenchmarks(only(published(), "check-all")), ["1.3"]],
+    ["the previous run's Fix every file", factsFromBenchmarks(only(previous(), "fix-all")), ["1.3"]],
   ];
-  for (const [what, facts, allowed] of withheld) {
+  for (const [what, facts, allowed] of variants) {
     for (const id of every) {
       for (const line of lines(id, facts)) {
         const found = line.match(/\d+(?:\.\d+)?/g) ?? [];

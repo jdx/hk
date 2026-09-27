@@ -8,7 +8,7 @@
 //
 //   node .vitepress/showreel-frames.mjs (--section <id> | --all)
 //        [--beats 0,1.5,4 | --times 12.5,40.25 | --every <beats>]
-//        [--facts both|one|none|live] [--raw] [--scale 0.5]
+//        [--facts today|alt|none|live] [--raw] [--scale 0.5]
 //        [--sheet | --sheet-only] [--cols 8] [--thumb 480] --out <dir>
 //
 //   --section <id>  one section (open, config, commit, … end); --beats are
@@ -18,12 +18,14 @@
 //                   defaults to 4 beats (a bar), plus the reel's last frame
 //   --beats         explicit beats; --times explicit global seconds
 //   --every <b>     every b beats from the start; combines with the others
-//   --facts         the benchmark facts: both races (the frozen run in
-//                   test/results-36268162842.json, the default), one (only
-//                   Fix every file: the earlier run in
-//                   test/results-36078397814.json, test/published.ts
-//                   oneClaim), none (facts null), or live
-//                   (benchmark/results.json)
+//   --facts         the benchmark facts, which pick the race: today (the
+//                   frozen v2.3.0 run in test/results-36268162842.json: the
+//                   commit races; the default, so sheets stay the same when
+//                   a benchmark refresh lands), alt (the frozen v2.2.0 run
+//                   in test/results-36078397814.json: Check every file
+//                   races), none (facts null: hk's check run instead), or
+//                   live (benchmark/results.json, as the video renders it);
+//                   see test/published.ts factsFor
 //   --raw           no vignette, captions or grain (compare scene pixels)
 //   --scale <k>     output size as a fraction of 1920×1080 (default 1)
 //   --sheet         also write a labelled contact sheet; --sheet-only skips
@@ -59,7 +61,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const o = { facts: "both", scale: 1, raw: false, sheet: false, sheetOnly: false };
+  const o = { facts: "today", scale: 1, raw: false, sheet: false, sheetOnly: false };
   const value = (i, flag) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) fail(`${flag} needs a value`);
@@ -103,7 +105,7 @@ function parseArgs(argv) {
   }
   if (!o.section === !o.all) fail("pass exactly one of --section <id> or --all");
   if (!o.out) fail("--out <dir> is required");
-  if (!["both", "one", "none", "live"].includes(o.facts)) fail(`--facts must be both, one, none or live, not "${o.facts}"`);
+  if (!["today", "alt", "none", "live"].includes(o.facts)) fail(`--facts must be today, alt, none or live, not "${o.facts}"`);
   return o;
 }
 

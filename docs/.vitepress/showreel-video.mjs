@@ -22,10 +22,11 @@
 //   --fps 60|120             the draft's frame rate
 //   --until <seconds>        stop at this reel time (default: the whole reel)
 //   --audio-only <file.wav>  only the score, as 48 kHz 16-bit stereo PCM
-//   --facts <v>              the benchmark facts: live (benchmark/results.json,
-//                            what a full render uses and the default), both,
-//                            one or none (the variants showreel-frames.mjs
-//                            previews, from test/published.ts)
+//   --facts <v>              the benchmark facts, which pick the race: live
+//                            (benchmark/results.json, what a full render uses
+//                            and the default), today (the commit), alt (Check
+//                            every file) or none (no race), the variants
+//                            showreel-frames.mjs previews (test/published.ts)
 //
 // With no arguments it makes the full render. --fps, --until and a --facts
 // other than live need --out or --audio-only, which must name a file outside
@@ -114,7 +115,7 @@ function parseArgs(argv) {
   if (o.audioOnly && o.fps !== undefined) fail("--fps is for video; --audio-only renders only the score");
   if (o.fps !== undefined && !VIDEOS.some((video) => video.fps === o.fps)) fail(`--fps must be 60 or 120`);
   if (o.until !== undefined && !(o.until > 0)) fail("--until must be a positive number of seconds");
-  if (!["live", "both", "one", "none"].includes(o.facts)) fail(`--facts must be live, both, one or none, not "${o.facts}"`);
+  if (!["live", "today", "alt", "none"].includes(o.facts)) fail(`--facts must be live, today, alt or none, not "${o.facts}"`);
   if (o.out && !/\.mp4$/i.test(o.out)) fail("--out names the draft's .mp4 file");
   if (o.audioOnly && !/\.wav$/i.test(o.audioOnly)) fail("--audio-only names the score's .wav file");
   const target = o.out ?? o.audioOnly;
@@ -269,12 +270,11 @@ try {
   // The reel's own length (bible.ts), so video and score follow its timing.
   const full = await page.evaluate(() => window.reel.duration);
   const duration = Math.min(opts.until ?? full, full);
-  const claims = await page.evaluate(() =>
-    [window.facts?.commit, window.facts?.fixAll].filter(Boolean).map((race) => `${race.title} ${race.claim.ratio}× vs ${race.claim.rival.label}`),
-  );
-  console.log(
-    `Benchmark facts (${opts.facts}): ${claims.length ? claims.join("; ") : "no race claims"}; rendering ${duration} of ${full} s`,
-  );
+  const claim = await page.evaluate(() => {
+    const race = window.facts?.best;
+    return race ? `${race.title} ${race.claim.ratio}× vs ${race.claim.rival.label}` : null;
+  });
+  console.log(`Benchmark facts (${opts.facts}): ${claim ?? "no race claim"}; rendering ${duration} of ${full} s`);
 
   // The score, as 16-bit stereo PCM. It hears the same facts as the picture,
   // so the race's cues land on its bars.

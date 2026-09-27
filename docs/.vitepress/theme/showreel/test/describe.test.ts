@@ -2,9 +2,9 @@
 // who cannot watch it (describe.ts, under the player in HomeShowreel.vue).
 // Its figures are the video's: every number a caption or the race's chart
 // puts on screen is in the chapter's text, and the text states no number the
-// video does not show, with both races (the commit, then Fix every file),
-// one, or none. Every caption is quoted in its chapter, but a race's claim,
-// which the text states in words.
+// video does not show, whichever scenario races, or with none. Every caption
+// is quoted in its chapter, but the race's claim, which the text states in
+// words.
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -15,13 +15,13 @@ import { F0_DETAIL } from "../scenes/race";
 import { FOOT } from "../scenes/race-chart";
 import { SECTIONS, type SectionId } from "../timeline";
 import { plain } from "../type";
-import { live, noClaim, numbers, oneClaim, previous, published, scenario, today } from "./published";
+import { alt, live, noClaim, numbers, only, previous, published, scenario, today } from "./published";
 
 /**
  * The figures a chapter of the video shows under `f`: `told` are the ones
  * the page must state, `shown` the details it may leave out. Captions come
  * from the scenes; what the race draws besides them is race-chart.ts's: the
- * workload line and every bar's median, with each race's summary and every
+ * workload line and every bar's median, with the race's summary and every
  * row's mode as details. The F0 terminal's `7/7` is hk's own output, not a
  * benchmark figure, and the page states no number for it.
  */
@@ -29,42 +29,39 @@ function onScreen(id: SectionId, f: ReelFacts | null): { told: string[]; shown: 
   const scene = scenes.find((s) => s.id === id);
   const told = (scene?.captions?.(f) ?? []).flatMap((c) => c.lines).flatMap((l) => numbers(plain(l.text)));
   const shown: string[] = [];
-  const drawn = races(f);
-  if (id === "race" && f && drawn.length) {
+  const r = f?.best;
+  if (id === "race" && f && r) {
     told.push(...numbers(f.workload.files), String(f.workload.fixers), String(f.workload.cpus));
-    for (const r of drawn) {
-      told.push(...r.rows.flatMap((row) => numbers(row.shown)));
-      shown.push(...numbers(r.summary), ...r.rows.flatMap((row) => numbers(row.mode)));
-    }
+    told.push(...r.rows.flatMap((row) => numbers(row.shown)));
+    shown.push(...numbers(r.summary), ...r.rows.flatMap((row) => numbers(row.mode)));
   }
   return { told, shown };
 }
 
-/** Facts the page and the video meet: today's, the live file's, one race, none, and another run. */
+/** Facts the page and the video meet: today's, the live file's, the previous run's, each other candidate, none, and another run. */
 function cases(): [string, ReelFacts | null][] {
   const good = today();
-  assert.ok(good.commit && good.fixAll);
-  const hk = good.fixAll.rows[0];
+  const fixAll = factsFromBenchmarks(only(published(), "fix-all"))?.best;
+  assert.ok(good.best && fixAll);
+  const [hk, rival] = fixAll.rows;
+  const tak = { ...rival, key: "tak", label: "tak", median: 9.05, shown: fmt(9.05) };
   return [
     ["today's run", good],
     ["the live results.json", factsFromBenchmarks(live())],
+    ["the previous run", alt()],
+    ["today's Fix every file", factsFromBenchmarks(only(published(), "fix-all"))],
+    ["today's Check every file", factsFromBenchmarks(only(published(), "check-all"))],
     ["no facts", null],
-    ["no claims", noClaim()],
-    ["only Fix every file (the previous run)", oneClaim()],
-    ["only the commit", { ...good, fixAll: null }],
+    ["no claim", noClaim()],
     [
       "another run",
       {
         workload: { files: "12,480", fixers: 7, cpus: 16 },
-        commit: null,
-        fixAll: {
-          ...good.fixAll,
+        best: {
+          ...fixAll,
           summary: "Half of the 12,480 files need 2 fixers.",
-          rows: [
-            { ...hk, median: 4.2, shown: fmt(4.2) },
-            { ...good.fixAll.rows[1], key: "tak", label: "tak", median: 9.05, shown: fmt(9.05) },
-          ],
-          claim: { ratio: "2.2", rival: { ...good.fixAll.rows[1], key: "tak", label: "tak", median: 9.05, shown: fmt(9.05) } },
+          rows: [{ ...hk, median: 4.2, shown: fmt(4.2) }, tak],
+          claim: { ratio: "2.2", rival: tak },
         },
       },
     ],
@@ -99,31 +96,36 @@ test("no chapter but the race has a digit, whatever the facts", () => {
   }
 });
 
-test("today's race reads the frozen run's figures: the commit, in plain words, then Fix every file", () => {
+test("today's race reads the frozen run's figures: the commit, in plain words", () => {
   const text = describeChapters(today()).find((c) => c.id === "race")?.text ?? "";
   assert.equal(
     text,
     "A bar chart race from hk's published benchmark, run on a 6,157-file repository with 10 fixers and 8 CPUs. " +
       "Commit: About 60 staged files with defects, fixed by each tool's pre-commit hook. " +
-      "hk (parallel, file locks) takes 907 ms, lefthook (sequential) 1.42 s, prek (sequential hooks, batched files) 1.77 s and pre-commit (sequential hooks, batched files) 2.44 s: 1.6 times faster than the fastest other tool, lefthook. " +
-      "Fix every file: A quarter of the files need two or three fixers each to write them. " +
-      "hk (parallel, file locks) takes 9.43 s, prek (sequential hooks, batched files) 11.8 s, pre-commit (sequential hooks, batched files) 13.1 s and lefthook (sequential) 19.8 s: 1.2 times faster than the fastest other tool, prek. " +
+      "hk (parallel, file locks) takes 907 ms, lefthook (sequential) 1.42 s, prek (sequential hooks, batched files) 1.77 s and pre-commit (sequential hooks, batched files) 2.44 s. " +
+      "hk is 1.6 times faster than the fastest other tool, lefthook. " +
+      "Caption: Timed only when the files are right. " +
       "A note under the chart reads Every tool and scenario: hk.jdx.dev/benchmarks.",
   );
 });
 
-test("one race describes only its race and quotes its caption and the bottom note; none describes hk's run and quotes the pointer, with no number", () => {
+test("the previous run's race reads Check every file's figures, with lefthook's mode in that scenario", () => {
+  const text = describeChapters(alt()).find((c) => c.id === "race")?.text ?? "";
+  assert.equal(
+    text,
+    "A bar chart race from hk's published benchmark, run on a 6,157-file repository with 10 fixers and 8 CPUs. " +
+      "Check every file: Every file is already clean and nothing writes, so parallel is safe for every tool. " +
+      "hk (parallel, file locks) takes 3.82 s, lefthook (parallel: true) 6.77 s, prek (sequential hooks, batched files) 7.55 s and pre-commit (sequential hooks, batched files) 8.19 s. " +
+      "hk is 1.8 times faster than the fastest other tool, lefthook. " +
+      "Caption: Timed only when the files are right. " +
+      "A note under the chart reads Every tool and scenario: hk.jdx.dev/benchmarks.",
+  );
+});
+
+test("the race quotes its caption and the bottom note; no race describes hk's run and quotes the pointer, with no number", () => {
   const race = (f: ReelFacts | null) => describeChapters(f).find((c) => c.id === "race")?.text ?? "";
-  const one = race(oneClaim());
-  assert.match(one, /Fix every file: A quarter of the files need two or three fixers each to write them\. hk \(parallel, file locks\) takes 10\.6 s/);
-  assert.doesNotMatch(one, /Commit|staged/);
-  assert.match(one, /Caption: Timed only when the files are right\. A note under the chart reads Every tool and scenario: hk\.jdx\.dev\/benchmarks\.$/);
-  const commit = race({ ...today(), fixAll: null });
-  assert.match(commit, /Commit: About 60 staged files with defects, fixed by each tool's pre-commit hook\. hk \(parallel, file locks\) takes 907 ms/);
-  assert.doesNotMatch(commit, /Fix every file/);
-  assert.match(commit, /Caption: Timed only when the files are right\. A note under the chart reads/);
   // The chart's bottom detail is quoted as the chart draws it.
-  for (const text of [race(today()), one, commit]) assert.ok(text.endsWith(`reads ${FOOT}.`), text);
+  for (const f of [today(), alt()]) assert.ok(race(f).endsWith(`reads ${FOOT}.`), race(f));
   // No facts and a run that backs no claim draw the same terminal, and the
   // page says nothing about the run that is true of only one of them.
   for (const f of [null, noClaim()]) {
@@ -152,7 +154,7 @@ test("every caption is quoted in its chapter, and a claim's ratio stated in word
   }
 });
 
-test("a scenario the video does not race is never on the page: Check every file, and a withheld commit", () => {
+test("a scenario the video does not race is never on the page", () => {
   const pageOf = (f: ReelFacts) =>
     describeChapters(f)
       .map((c) => c.text)
@@ -162,8 +164,9 @@ test("a scenario the video does not race is never on the page: Check every file,
     assert.ok(!page.includes(s.summary), `${key}'s summary is on the page`);
     for (const r of Object.values(s.results) as { median: number }[]) assert.ok(!page.includes(fmt(r.median)), `${key}'s ${fmt(r.median)} is on the page`);
   };
+  absent(pageOf(today()), published(), "fix-all");
   absent(pageOf(today()), published(), "check-all");
-  absent(pageOf(oneClaim()), previous(), "check-all");
-  // The previous run's commit, which lefthook won.
-  absent(pageOf(oneClaim()), previous(), "fix-staged");
+  // The previous run's commit, which lefthook won, and its Fix every file.
+  absent(pageOf(alt()), previous(), "fix-staged");
+  absent(pageOf(alt()), previous(), "fix-all");
 });

@@ -9,14 +9,10 @@
 // format and its min–max whisker; the bracket then spans hk's end and the
 // fastest rival's, and the caption says by how much.
 //
-// With two races the chart resets on b8.5: the bars reel back to the axis,
-// the figures wipe, and the rows re-sort by the second race's medians on a
-// spring while the modes and the summary swap. Wherever two rows cross, the
-// one that overtakes comes forward and the one it passes ducks back: a tool
-// that climbs two places or more jumps the rows it overtakes, one that
-// climbs less steps forward, and one that falls ducks under the rows that
-// overtake it (race.test.ts pins today's order and tries every other one).
-// While a finished chart holds, the camera leans in a little.
+// While the finished chart holds, the camera leans in a little and it stays
+// alive: a glint crosses hk's bar after the bracket, a softer one on b6.5
+// while the claim holds, and one runs down every bar as the hold's note
+// lands.
 // The labels, figures and details wipe on b14.5, on a soft edge, and the
 // bars ease into race|morph's four capsules by b15.75. With more than four
 // tools the rows close up, without modes or whiskers (rowGeom), and the
@@ -31,8 +27,8 @@ import type { Race, ReelFacts } from "../facts";
 import { glow, makeCanvas, roundedRect } from "../fx";
 import { CAPSULES } from "../handoff";
 import { type Curve, drawSpark, land, popIn } from "../kit/motion";
-import { clamp, inOutCubic, inOutSine, keys, lerp, outQuart, progress, pulse, smoothstep, swiftInOut, swiftOut } from "../math";
-import { type RaceRun, raceRuns } from "../race-timing";
+import { clamp, inOutSine, keys, lerp, outQuart, progress, pulse, smoothstep, swiftInOut, swiftOut } from "../math";
+import { type RaceRun, raceRun } from "../race-timing";
 import { drawText, font, layout, MONO } from "../type";
 
 /** Local seconds of section beat `n`. */
@@ -91,26 +87,14 @@ export const FOOT_AT = { x: 1760, y: 716 } as const;
 export const FOOT_MAX_W = FOOT_AT.x - X0;
 
 // Cues, local seconds. The score (score/race.ts) is written to these and to
-// raceRuns' stops.
+// raceRun's stops.
 
 /** Everything has whipped in and settled. */
 export const SETTLED = b(1);
-/** With two races, the first clears: bars reel back to the axis while the figures wipe. */
-export const RESET = [b(8.5), b(8.75)] as const;
-export const RESET_WIPE = [b(8.5), b(8.75)] as const;
-/**
- * The rows re-sort by the second race's medians once the bars are home,
- * overshooting a little and landing on the second race's start.
- */
-export const REORDER = [b(8.6875), b(9)] as const;
-/** Before each start the waiting stubs crouch for a sixteenth: the anticipation. */
+/** Before the start the waiting stubs crouch for a sixteenth: the anticipation. */
 export const CROUCH = b(0.25);
-/**
- * The bottom detail rises: on b12 with two races; with one, on b8, the
- * answer's downbeat, early in the long hold.
- */
-export const FOOT_IN = b(12);
-export const FOOT_IN_ONE = b(8);
+/** The bottom detail rises on b8, the answer's downbeat, while the chart holds. */
+export const FOOT_IN = b(8);
 /** Labels, figures, whiskers, bracket, details and tracks wipe left to right. */
 export const EXIT_WIPE = [b(14.5), b(15)] as const;
 /** The bars ease into the capsules, a 64th apart, all home by b15.75. */
@@ -120,28 +104,33 @@ export const MORPH_DUR = b(0.5);
 /** From here the frame is race|morph. */
 export const REST = b(15.75);
 /**
- * While a finished chart holds, the camera leans in: 1.2% over the hold
+ * While the finished chart holds, the camera leans in: 1.2% over the hold
  * about a point on the captions' top edge (so nothing grows toward them),
- * easing back to exactly 1 by the reset or the exit wipe. The hold starts
- * half a beat after the last bar stops.
+ * easing back to exactly 1 by the exit wipe. The hold starts half a beat
+ * after the last bar stops.
  */
 const HOLD_AFTER = b(0.5);
 const HOLD_ZOOM = 0.012;
 const HOLD_ANCHOR = { x: 960, y: 733 } as const;
 const HOLD_BACK = b(1);
-/** A glint crosses hk's bar a sixteenth after each race's last stop (the bracket), over GLINT_LEN seconds. */
+/** A glint crosses hk's bar a sixteenth after the last stop (the bracket), over GLINT_LEN seconds. */
 export const GLINT_AFTER = b(0.25);
 export const GLINT_LEN = 0.36;
-/** With one race, a second glint crosses hk's bar in the middle of the long hold. */
+/**
+ * A second, softer glint crosses hk's bar on b6.5, while the claim holds:
+ * it lands by b4 and holds past b8.5 (race-timing.ts).
+ */
 export const HOLD_GLINT = b(6.5);
 export const HOLD_GLINT_LEN = 0.4;
 /**
- * With one race, as the hold's caption lands, a glint runs down every bar,
- * row by row from `from`, `each` apart, each `len` seconds long.
+ * As the hold's note lands, a glint runs down every bar, row by row from a
+ * sixteenth before it (`ahead`), `each` apart, each `len` seconds long.
  */
-export const ROLL_CALL = { from: b(9.5), each: b(0.125), len: 0.4 } as const;
+export const ROLL_CALL = { ahead: b(0.25), each: b(0.125), len: 0.4 } as const;
+/** Local seconds the roll call's glint sets out down row `i`. */
+export const rollCallAt = (run: RaceRun, i: number): number => b(run.note) - ROLL_CALL.ahead + i * ROLL_CALL.each;
 
-// The model: each race's rows as the chart draws them.
+// The model: the race's rows as the chart draws them.
 
 export interface Entry {
   key: string;
@@ -154,15 +143,20 @@ export interface Entry {
   /** The whisker's ends, px from the axis: min and max. */
   lo: number;
   hi: number;
-  /** Local seconds the bar stops (raceRuns). */
+  /** Local seconds the bar stops (raceRun). */
   stop: number;
-  /** Px per second while it runs: the same for every bar in its race. */
+  /** Px per second while it runs: the same for every bar. */
   rate: number;
-  /** Its row in this race: hk first, then the others by median. */
+  /** Its row: hk first, then the others by median. */
   row: number;
 }
 
-export interface RaceView {
+export interface ChartModel {
+  /**
+   * "6,157-file repo · 10 fixers · 8 CPUs": the repository the race ran in,
+   * not what it timed (the commit times its staged files), and the machine.
+   */
+  workload: string;
   run: RaceRun;
   race: Race;
   /** Local seconds every bar leaves the axis. */
@@ -174,19 +168,7 @@ export interface RaceView {
   order: readonly string[];
   /** The fastest other tool, whose bar end the bracket reaches. */
   rival: string;
-}
-
-export interface ChartModel {
-  /**
-   * "6,157-file repo · 10 fixers · 8 CPUs": the repository every race ran
-   * in, not what a race timed (the commit timed its staged files), and the
-   * machine.
-   */
-  workload: string;
-  races: readonly RaceView[];
-  /** Every subject, in the first race's row order, then any the second adds. */
-  keys: readonly string[];
-  /** Every row's metrics, for the most rows either race has. */
+  /** Every row's metrics. */
   geom: RowGeom;
 }
 
@@ -230,7 +212,7 @@ export function rowExtent(n: number): { above: number; below: number } {
   return { above, below };
 }
 
-function view(run: RaceRun): RaceView {
+function model(run: RaceRun, workload: string): ChartModel {
   const { race } = run;
   const start = b(run.start);
   const px = (s: number) => (s / race.axis) * SCALE;
@@ -241,6 +223,7 @@ function view(run: RaceRun): RaceView {
     entries[r.key] = { key: r.key, label: r.label, mode: r.mode, shown: r.shown, len, lo: px(r.min), hi: px(r.max), stop, rate: len / (stop - start), row };
   });
   return {
+    workload,
     run,
     race,
     start,
@@ -248,6 +231,7 @@ function view(run: RaceRun): RaceView {
     entries,
     order: race.rows.map((r) => r.key),
     rival: race.claim.rival.key,
+    geom: rowGeom(race.rows.length),
   };
 }
 
@@ -259,49 +243,23 @@ export function chartModel(f: ReelFacts | null): ChartModel | null {
   const hit = models.get(f);
   if (hit !== undefined) return hit;
   if (models.size > 8) models.clear();
-  const races = raceRuns(f).map(view);
-  const keys = [...new Set(races.flatMap((r) => r.order))];
-  const geom = rowGeom(Math.max(0, ...races.map((r) => r.order.length)));
-  const m = races.length ? { workload: `${f.workload.files}-file repo · ${f.workload.fixers} fixers · ${f.workload.cpus} CPUs`, races, keys, geom } : null;
+  const run = raceRun(f);
+  const m = run ? model(run, `${f.workload.files}-file repo · ${f.workload.fixers} fixers · ${f.workload.cpus} CPUs`) : null;
   models.set(f, m);
   return m;
 }
 
 // Motion, all pure functions of local time.
 
-/** A bar's length in race `r` at `lt`: the shared clock until its median, then exactly its median. */
-function runLen(r: RaceView, key: string, lt: number): number {
-  const e = r.entries[key];
-  if (!e || lt <= r.start) return 0;
-  return lt >= e.stop ? e.len : Math.min(e.len, e.rate * (lt - r.start));
-}
-
-/** The race whose bars, figures and modes are up at `lt`. */
-export function raceAt(m: ChartModel, lt: number): RaceView {
-  return m.races.length > 1 && lt >= RESET_WIPE[1] ? m.races[1] : m.races[0];
-}
-
-/** The race the chart ends on. */
-const lastRace = (m: ChartModel): RaceView => m.races[m.races.length - 1];
-
 /**
  * Subject `key`'s bar length at `lt`, px from the axis, before the exit:
- * the first race, then (with two) reeled back to the axis over the reset
- * and grown again in the second.
+ * the shared clock until its median, then exactly its median.
  */
 export function barLen(m: ChartModel, key: string, lt: number): number {
-  const [A, B] = m.races;
-  if (!B || lt < RESET[0]) return runLen(A, key, lt);
-  if (lt < B.start) return runLen(A, key, RESET[0]) * (1 - inOutCubic(progress(RESET[0], RESET[1], lt)));
-  return runLen(B, key, lt);
+  const e = m.entries[key];
+  if (!e || lt <= m.start) return 0;
+  return lt >= e.stop ? e.len : Math.min(e.len, e.rate * (lt - m.start));
 }
-
-/** How far the rows have re-sorted: easing out of rest, a 6% overshoot, home exactly on REORDER's end. */
-const reorderK = keys([
-  [REORDER[0], 0],
-  [REORDER[0] + 0.72 * (REORDER[1] - REORDER[0]), 1.06, inOutCubic],
-  [REORDER[1], 1, inOutSine],
-]);
 
 /** Row `i`'s centre when a race has `n` rows: the capsules' rows, or evenly over them for more. */
 export const slotY = (i: number, n: number): number => {
@@ -309,98 +267,20 @@ export const slotY = (i: number, n: number): number => {
   return n <= rows.length ? rows[i] : rows[0] + (i * (rows[rows.length - 1] - rows[0])) / (n - 1);
 };
 
-export interface RowPos {
-  y: number;
-  /**
-   * Its layer while the rows re-sort: the places it climbs between the races
-   * (negative as it falls), on the re-sort's arc. A row that overtakes
-   * another climbs at least two places more than it, so drawing the rows by
-   * depth puts the one in front of every crossing last.
-   */
-  depth: number;
-  /** 0..1 how far it is in front of the rows it crosses, as it overtakes them: it draws over them, behind a halo. */
-  front: number;
-  /**
-   * 0..1 how far it swings out to the right and grows as it comes forward:
-   * all the way for a row that climbs LEAP places or more, which jumps the
-   * rows it overtakes; OVER for one that climbs less, which only steps
-   * forward, so its mode never reaches the axis.
-   */
-  jump: number;
-  /** 0..1 how far it ducks back, stepping left and dimming, as other rows overtake it. */
-  duck: number;
-  alpha: number;
-  /** Its row in the first race, which sets its whip layer. */
-  first: number;
-}
-
-/** A row that climbs this many places or more jumps the rows it overtakes. */
-const LEAP = 2;
-/** A row that climbs fewer swings this much of a jump: it only steps forward. */
-const OVER = 0.2;
-
-/**
- * Where subject `key`'s row stands at `lt`: re-sorting on a spring between
- * the two races. Rows that cross must not read through each other, so on
- * every crossing, however far either row moves, the row that overtakes
- * comes forward and the row it passes ducks back. A row that does both (the
- * middle of a reversal) takes the side its own move puts it on, and neither
- * if it ends where it began; its partners keep theirs, so every crossing
- * still has a row in front or a row ducking.
- */
-export function rowPos(m: ChartModel, key: string, lt: number): RowPos {
-  const [A, B] = m.races;
-  const ea = A.entries[key];
-  const first = ea ? ea.row : m.keys.indexOf(key);
-  const ya = slotY(ea ? ea.row : first, A.order.length);
-  if (!B) return { y: ya, depth: 0, front: 0, jump: 0, duck: 0, alpha: ea ? 1 : 0, first };
-  const eb = B.entries[key];
-  const yb = eb ? slotY(eb.row, B.order.length) : ya;
-  const k = reorderK(lt);
-  const u = progress(REORDER[0], REORDER[1], lt);
-  let places = 0;
-  let overtakes = false;
-  let passed = false;
-  if (ea && eb) {
-    places = ea.row - eb.row;
-    for (const o of m.keys) {
-      const a2 = A.entries[o];
-      const b2 = B.entries[o];
-      if (o === key || !a2 || !b2) continue;
-      if (a2.row < ea.row && b2.row > eb.row) overtakes = true;
-      if (a2.row > ea.row && b2.row < eb.row) passed = true;
-    }
-    if (overtakes && passed) {
-      overtakes = places > 0;
-      passed = places < 0;
-    }
-  }
-  const alpha = ea && eb ? 1 : ea ? 1 - progress(RESET[0], RESET[1], lt) : progress(REORDER[0], REORDER[1], lt);
-  const arc = Math.sin(Math.PI * u);
-  const jump = overtakes ? (places >= LEAP ? 1 : OVER) : 0;
-  // At rest every row is on one level (and a faller's depth is 0, not -0).
-  const depth = arc > 0 ? places * arc : 0;
-  return { y: lerp(ya, yb, k), depth, front: overtakes ? arc : 0, jump: jump * arc, duck: passed ? arc : 0, alpha, first };
-}
-
 /** How far row `i` has eased into its capsule. */
 const morphK = (i: number, lt: number): number => swiftInOut(progress(MORPH + i * MORPH_EACH, MORPH + i * MORPH_EACH + MORPH_DUR, lt));
 
 /**
- * The camera's lean into each finished chart's hold: 0 until the hold
+ * The camera's lean into the finished chart's hold: 0 until the hold
  * starts, easing in toward HOLD_ZOOM over it, then back to exactly 0 over
- * its last beat, by the reset or the exit wipe.
+ * its last beat, by the exit wipe.
  */
 function holdZoom(m: ChartModel, lt: number): number {
-  for (const [i, r] of m.races.entries()) {
-    const from = r.last + HOLD_AFTER;
-    const to = m.races[i + 1] ? RESET[0] : EXIT_WIPE[0];
-    if (lt <= from || lt >= to) continue;
-    const back = to - HOLD_BACK;
-    if (back <= from) continue;
-    return HOLD_ZOOM * (lt < back ? inOutSine(progress(from, back, lt)) : 1 - inOutSine(progress(back, to, lt)));
-  }
-  return 0;
+  const from = m.last + HOLD_AFTER;
+  const to = EXIT_WIPE[0];
+  if (lt <= from || lt >= to) return 0;
+  const back = to - HOLD_BACK;
+  return HOLD_ZOOM * (lt < back ? inOutSine(progress(from, back, lt)) : 1 - inOutSine(progress(back, to, lt)));
 }
 
 // Whip in: the chart's layers trail one another in from the right on the
@@ -459,19 +339,18 @@ function inLayer(ctx: CanvasRenderingContext2D, x: (lt: number) => number, lt: n
 const FEATHER = 120;
 
 /**
- * Where a left-to-right wipe over [a, b] has reached: nothing left of it
- * shows. It sets out a feather left of `from`, so the first frame of a wipe
- * dims nothing right of `from`.
+ * Where the exit wipe has reached at `lt`: nothing left of it shows. It
+ * sets out a feather left of x 100, so its first frame dims nothing right
+ * of the chart's left margin, and has passed x 1840 by its end.
  */
-function wipeEdge(lt: number, a: number, z: number, from = 100, to = 1840): number {
-  const p = progress(a, z, lt);
-  return p <= 0 ? -1e5 : lerp(from - FEATHER, to, inOutSine(p));
+function exitEdge(lt: number): number {
+  const p = progress(EXIT_WIPE[0], EXIT_WIPE[1], lt);
+  return p <= 0 ? -1e5 : lerp(100 - FEATHER, 1840, inOutSine(p));
 }
 
-// Wiped layers are drawn on a scratch canvas the size of the frame's, one
-// per nesting level, cleared before each use, so no frame sees another's.
-const scratch: HTMLCanvasElement[] = [];
-let depth = 0;
+// Wiped layers are drawn on a scratch canvas the size of the frame's,
+// cleared before each use, so no frame sees another's.
+let scratch: HTMLCanvasElement | null = null;
 
 /**
  * Draw `draw` wiped away left of `edge`, with a soft edge: into a scratch
@@ -485,7 +364,7 @@ function wiped(ctx: CanvasRenderingContext2D, edge: number, draw: (c: CanvasRend
     return;
   }
   const { width, height } = ctx.canvas;
-  const layer = (scratch[depth] ??= makeCanvas(width, height));
+  const layer = (scratch ??= makeCanvas(width, height));
   if (layer.width !== width || layer.height !== height) {
     layer.width = width;
     layer.height = height;
@@ -495,12 +374,7 @@ function wiped(ctx: CanvasRenderingContext2D, edge: number, draw: (c: CanvasRend
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.clearRect(0, 0, width, height);
   c.setTransform(ctx.getTransform());
-  depth++;
-  try {
-    draw(c);
-  } finally {
-    depth--;
-  }
+  draw(c);
   c.globalCompositeOperation = "destination-in";
   const g = c.createLinearGradient(edge, 0, edge + FEATHER, 0);
   g.addColorStop(0, "rgba(0, 0, 0, 0)");
@@ -633,135 +507,101 @@ function medianBox(ctx: CanvasRenderingContext2D, e: Entry, x1: number, size: nu
 // The chart's parts.
 
 function drawTracks(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
-  const n = raceAt(m, lt).order.length;
-  const sweep = m.races.length > 1 ? progress(RESET[1] - b(0.1), m.races[1].start, lt) : 0;
+  const n = m.order.length;
   const h = m.geom.barH;
   for (let i = 0; i < n; i++) {
     const cy = slotY(i, n);
     inLayer(ctx, layerAt(L_TRACKS, i), lt, () => {
-      ctx.save();
       roundedRect(ctx, X0, cy - h / 2, TRACK_W, h, BAR_R);
       ctx.fillStyle = rgba(PALETTE.elevated, 0.62);
       ctx.fill();
-      // The second race's scale: a light runs down the tracks as it arrives.
-      if (sweep > 0 && sweep < 1) {
-        ctx.clip();
-        const cx = lerp(X0 - 200, X0 + TRACK_W + 200, inOutSine(clamp(sweep * 1.15 - i * 0.05)));
-        const g = ctx.createLinearGradient(cx - 160, 0, cx + 160, 0);
-        g.addColorStop(0, rgba(PALETTE.cyan, 0));
-        g.addColorStop(0.5, rgba(PALETTE.cyan, 0.12));
-        g.addColorStop(1, rgba(PALETTE.cyan, 0));
-        ctx.fillStyle = g;
-        ctx.fillRect(cx - 160, cy - h / 2, 320, h);
-      }
-      ctx.restore();
     });
   }
 }
 
 /** The start: a gate of cyan light drops down the axis on the race's first beat, and each stub flares as it passes. */
 function drawStartFlash(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
-  for (const r of m.races) {
-    const u = progress(r.start, r.start + 0.24, lt);
-    if (u <= 0 || u >= 1) continue;
-    const n = r.order.length;
-    const top = slotY(0, n) - m.geom.barH / 2 - 10;
-    const bot = slotY(n - 1, n) + m.geom.barH / 2 + 10;
-    const drop = swiftOut(clamp(u / 0.35));
-    const head = lerp(top, bot, drop);
-    const a = (1 - u) ** 1.5;
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    const g = ctx.createLinearGradient(0, top, 0, head);
-    g.addColorStop(0, rgba(PALETTE.cyan, 0.25 * a));
-    g.addColorStop(1, rgba(PALETTE.cyanBright, 0.9 * a));
-    ctx.fillStyle = g;
-    ctx.fillRect(X0 - 2, top, 4, Math.max(0, head - top));
-    glow(ctx, X0, head, 56, PALETTE.cyan, 0.6 * a);
-    for (let i = 0; i < n; i++) {
-      const cy = slotY(i, n);
-      const hit = progress(top, bot, cy);
-      const k = drop >= hit ? (1 - u) ** 2 : 0;
-      glow(ctx, X0 + 8, cy, 64, PALETTE.cyan, 0.4 * k);
-    }
-    ctx.restore();
+  const u = progress(m.start, m.start + 0.24, lt);
+  if (u <= 0 || u >= 1) return;
+  const n = m.order.length;
+  const top = slotY(0, n) - m.geom.barH / 2 - 10;
+  const bot = slotY(n - 1, n) + m.geom.barH / 2 + 10;
+  const drop = swiftOut(clamp(u / 0.35));
+  const head = lerp(top, bot, drop);
+  const a = (1 - u) ** 1.5;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createLinearGradient(0, top, 0, head);
+  g.addColorStop(0, rgba(PALETTE.cyan, 0.25 * a));
+  g.addColorStop(1, rgba(PALETTE.cyanBright, 0.9 * a));
+  ctx.fillStyle = g;
+  ctx.fillRect(X0 - 2, top, 4, Math.max(0, head - top));
+  glow(ctx, X0, head, 56, PALETTE.cyan, 0.6 * a);
+  for (let i = 0; i < n; i++) {
+    const cy = slotY(i, n);
+    const hit = progress(top, bot, cy);
+    const k = drop >= hit ? (1 - u) ** 2 : 0;
+    glow(ctx, X0 + 8, cy, 64, PALETTE.cyan, 0.4 * k);
   }
+  ctx.restore();
 }
 
 interface BarNow {
-  key: string;
   cy: number;
   x1: number;
-  alpha: number;
-  entry: Entry | undefined;
-  race: RaceView;
-  pos: RowPos;
+  entry: Entry;
 }
-
-/** How much of its brightness a row keeps as it ducks all the way back: its labels, and its stub on the axis. */
-const DUCK_ALPHA = 0.15;
-/** How far a row's labels step left as it ducks all the way back, px: into the margin, clear of the rows coming forward. */
-const DUCK_STEP = 40;
 
 /** A waiting stub's width: crouching into the start, then left behind by the bar. */
 function nubAt(m: ChartModel, lt: number): number {
-  const next = m.races.find((r) => lt < r.start + 0.1);
-  if (!next) return NUB;
-  return NUB * (1 - 0.4 * smoothstep(next.start - CROUCH, next.start, lt));
+  if (lt >= m.start + 0.1) return NUB;
+  return NUB * (1 - 0.4 * smoothstep(m.start - CROUCH, m.start, lt));
 }
 
-/** Every subject's bar as it stands at `lt`, before the exit. */
+/** Every row's bar as it stands at `lt`, before the exit, by row: hk's first. */
 function barsAt(m: ChartModel, lt: number): BarNow[] {
-  const race = raceAt(m, lt);
   const nub = nubAt(m, lt);
-  return m.keys.map((key) => {
-    const pos = rowPos(m, key, lt);
-    const len = barLen(m, key, lt);
-    return { key, cy: pos.y, x1: X0 + Math.max(len, nub), alpha: pos.alpha, entry: race.entries[key], race, pos };
+  const n = m.order.length;
+  return m.order.map((key) => {
+    const entry = m.entries[key];
+    return { cy: slotY(entry.row, n), x1: X0 + Math.max(barLen(m, key, lt), nub), entry };
   });
 }
 
-/** Rows drawn back to front: those that duck first, those that come forward last, so every crossing reads in depth. */
-const byDepth = <T extends { pos: RowPos }>(rows: T[]): T[] => rows.sort((p, q) => p.pos.depth - q.pos.depth);
-
 function drawBars(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
-  const last = lastRace(m);
   const fade = 1 - progress(MORPH, REST, lt);
-  for (const bar of byDepth(barsAt(m, lt))) {
-    const { key, entry, race, pos } = bar;
+  const hold = hkGlow(m, lt);
+  for (const { entry, ...bar } of barsAt(m, lt)) {
+    const { key, row } = entry;
     const s = barStyle(key);
     // Rides its track's whip layer while the chart arrives.
-    const layer = layerAt(L_TRACKS, pos.first);
+    const layer = layerAt(L_TRACKS, row);
     let x1 = bar.x1;
     let r = BAR_R;
-    // A stub that ducks back dims with its labels, so it crosses the others behind them.
-    let alpha = bar.alpha * (1 - (1 - DUCK_ALPHA) * pos.duck);
+    let alpha = 1;
     let cy = bar.cy;
     let h0 = m.geom.barH;
     // The exit: into its capsule, or away if the capsules have no row for it.
     // With more rows than capsules, the ones that stay also close onto the capsules' rows.
-    const row = last.entries[key]?.row ?? -1;
     if (lt >= MORPH) {
-      if (row >= 0 && row < CAPSULES.rows.length) {
+      if (row < CAPSULES.rows.length) {
         const k = morphK(row, lt);
         x1 = lerp(x1, CAPSULES.x1, k);
         r = lerp(BAR_R, CAP_R, k);
         cy = lerp(cy, CAPSULES.rows[row], k);
         h0 = lerp(h0, CAPSULES.h, k);
       } else {
-        alpha *= fade;
+        alpha = fade;
       }
     }
     // A small swell as it stops, the bar's only secondary motion: its length never leaves the median.
-    const stop = entry && lt >= race.start ? entry.stop : null;
-    const swell = stop === null ? 0 : Math.sin(Math.PI * progress(stop, stop + 0.18, lt)) * (1 - progress(stop, stop + 0.18, lt));
+    const swell = lt < m.start ? 0 : Math.sin(Math.PI * progress(entry.stop, entry.stop + 0.18, lt)) * (1 - progress(entry.stop, entry.stop + 0.18, lt));
     const h = h0 * (1 + 0.16 * swell);
-    const hold = hkGlow(m, lt);
     inLayer(ctx, layer, lt, () => {
       drawBar(ctx, key, x1, cy, h, r, s.hk ? hold * fade : 0, alpha);
-      if (!entry || lt < race.start || lt >= MORPH) return;
+      if (lt < m.start || lt >= MORPH) return;
       const running = lt < entry.stop;
-      if (running) tipLight(ctx, x1, cy, h, progress(race.start, race.start + 0.04, lt) * alpha, s.hk ? PALETTE.glint : PALETTE.text1);
+      if (running) tipLight(ctx, x1, cy, h, progress(m.start, m.start + 0.04, lt) * alpha, s.hk ? PALETTE.glint : PALETTE.text1);
       stopFlare(ctx, x1, cy, h0, flash(lt, entry.stop, 0.07) * alpha, s.hk ? PALETTE.glint : PALETTE.text1);
     });
   }
@@ -769,67 +609,50 @@ function drawBars(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): voi
 
 /**
  * hk's glow: steady while it waits, brightening as it runs, flaring as it
- * stops, then breathing slowly while the chart holds; back to steady over
- * the reset, so it never jumps.
+ * stops, then breathing slowly while the chart holds.
  */
 function hkGlow(m: ChartModel, lt: number): number {
-  let level = 0.8;
-  m.races.forEach((r, i) => {
-    const e = r.entries.hk;
-    if (!e || lt < r.start) return;
-    const since = lt - e.stop;
-    const breathe = since > 0 ? 0.12 * Math.sin((Math.PI * since) / b(2)) ** 2 : 0;
-    level = 0.8 + 0.2 * progress(r.start, e.stop, lt) - breathe + 0.35 * flash(lt, e.stop, 0.12);
-    if (m.races[i + 1] && lt >= RESET[0]) level = lerp(level, 0.8, smoothstep(RESET[0], RESET[1], lt));
-  });
-  return level;
+  const e = m.entries.hk;
+  if (lt < m.start) return 0.8;
+  const since = lt - e.stop;
+  const breathe = since > 0 ? 0.12 * Math.sin((Math.PI * since) / b(2)) ** 2 : 0;
+  return 0.8 + 0.2 * progress(m.start, e.stop, lt) - breathe + 0.35 * flash(lt, e.stop, 0.12);
 }
 
 /**
- * The glints: across hk's bar after each bracket; with one race, a softer
- * one across it midway through the long hold, and one down every bar as
- * the hold's caption lands.
+ * The glints: across hk's bar after the bracket, a softer one across it
+ * on HOLD_GLINT while the claim holds, and one down every bar as the hold's
+ * note lands.
  */
 function drawGlints(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
   if (lt >= EXIT_WIPE[0]) return;
   const bars = barsAt(m, lt);
   const h = m.geom.barH;
-  const hk = bars.find((x) => x.key === "hk");
-  for (const r of m.races) {
-    const at = r.last + GLINT_AFTER;
-    if (hk && raceAt(m, lt) === r) glint(ctx, hk.x1, hk.cy, h, progress(at, at + GLINT_LEN, lt), 0.34);
-  }
-  if (m.races.length === 1) {
-    if (hk) glint(ctx, hk.x1, hk.cy, h, progress(HOLD_GLINT, HOLD_GLINT + HOLD_GLINT_LEN, lt), 0.24);
-    for (const [i, bar] of bars.entries()) {
-      const at = ROLL_CALL.from + i * ROLL_CALL.each;
-      glint(ctx, bar.x1, bar.cy, h, progress(at, at + ROLL_CALL.len, lt), bar.key === "hk" ? 0.34 : 0.16);
-    }
+  const [hk] = bars;
+  const at = m.last + GLINT_AFTER;
+  glint(ctx, hk.x1, hk.cy, h, progress(at, at + GLINT_LEN, lt), 0.34);
+  glint(ctx, hk.x1, hk.cy, h, progress(HOLD_GLINT, HOLD_GLINT + HOLD_GLINT_LEN, lt), 0.24);
+  for (const [i, bar] of bars.entries()) {
+    const at = rollCallAt(m.run, i);
+    glint(ctx, bar.x1, bar.cy, h, progress(at, at + ROLL_CALL.len, lt), bar.entry.key === "hk" ? 0.34 : 0.16);
   }
 }
 
-/** Whiskers, medians and the bracket: they come with each stop, and the first race's go with the reset's wipe. */
+/** Whiskers, medians and the bracket: they come with each stop. */
 function drawFigures(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
-  const race = raceAt(m, lt);
-  if (lt < race.start) return;
-  const reset = race === m.races[0] && m.races.length > 1 ? wipeEdge(lt, RESET_WIPE[0], RESET_WIPE[1], X0 - 20) : -1e5;
-  wiped(ctx, reset, (c) => figures(c, m, race, lt));
-}
-
-function figures(ctx: CanvasRenderingContext2D, m: ChartModel, race: RaceView, lt: number): void {
+  if (lt < m.start) return;
   const g = m.geom;
-  // Figures stay where their bars stopped while the bars reel back under the wipe.
-  const bars = barsAt(m, lt).map((x) => (x.entry && lt >= x.entry.stop ? { ...x, x1: X0 + x.entry.len } : x));
+  const bars = barsAt(m, lt);
   for (const bar of bars) {
     const e = bar.entry;
-    if (!e || lt < e.stop) continue;
+    if (lt < e.stop) continue;
     const x1 = bar.x1;
-    if (g.detail) whisker(ctx, e, x1, bar.cy + WHISKER_DY, bar.alpha, lt);
+    if (g.detail) whisker(ctx, e, x1, bar.cy + WHISKER_DY, lt);
 
     // The median pops as its bar stops.
     const box = medianBox(ctx, e, x1, g.median);
     const s = popIn(lt, e.stop, 4.8, 0.52);
-    const a = clamp((lt - e.stop) / 0.04) * bar.alpha;
+    const a = clamp((lt - e.stop) / 0.04);
     if (a > 0 && s > 0.01) {
       const hk = e.key === "hk";
       const fill = box.inside ? (hk ? PALETTE.night : PALETTE.text1) : hk ? PALETTE.text1 : PALETTE.text2;
@@ -842,7 +665,7 @@ function figures(ctx: CanvasRenderingContext2D, m: ChartModel, race: RaceView, l
       ctx.restore();
     }
   }
-  drawBracket(ctx, race, bars, lt, g);
+  drawBracket(ctx, m, bars, lt);
 }
 
 /**
@@ -851,7 +674,7 @@ function figures(ctx: CanvasRenderingContext2D, m: ChartModel, race: RaceView, l
  * round-capped dash, at least 6 px, centred on it, so it never reads as a
  * speck or a letter.
  */
-function whisker(ctx: CanvasRenderingContext2D, e: Entry, x1: number, y: number, alpha: number, lt: number): void {
+function whisker(ctx: CanvasRenderingContext2D, e: Entry, x1: number, y: number, lt: number): void {
   const k = swiftOut(progress(e.stop + 0.02, e.stop + 0.26, lt));
   const tight = e.hi - e.lo < TICK;
   let lo0 = X0 + e.lo;
@@ -865,7 +688,6 @@ function whisker(ctx: CanvasRenderingContext2D, e: Entry, x1: number, y: number,
   const lo = lerp(x1, lo0, k);
   const hi = lerp(x1, hi0, k);
   ctx.save();
-  ctx.globalAlpha *= alpha;
   ctx.strokeStyle = rgba(PALETTE.text1, 0.45);
   ctx.lineWidth = 3;
   ctx.lineCap = tight ? "round" : "butt";
@@ -885,12 +707,12 @@ function whisker(ctx: CanvasRenderingContext2D, e: Entry, x1: number, y: number,
 }
 
 /** The bracket from hk's bar end to the fastest rival's, 40 px above hk's row, with a guide down to the rival's bar. */
-function drawBracket(ctx: CanvasRenderingContext2D, race: RaceView, bars: readonly BarNow[], lt: number, g: RowGeom): void {
-  const at = race.last;
+function drawBracket(ctx: CanvasRenderingContext2D, m: ChartModel, bars: readonly BarNow[], lt: number): void {
+  const at = m.last;
   if (lt < at) return;
-  const hk = bars.find((x) => x.key === "hk");
-  const rival = bars.find((x) => x.key === race.rival);
-  if (!hk || !rival || !hk.entry || !rival.entry) return;
+  const g = m.geom;
+  const [hk] = bars;
+  const rival = bars[m.entries[m.rival].row];
   const y = hk.cy - BRACKET_DY;
   const xa = hk.x1;
   const xb = rival.x1;
@@ -951,105 +773,51 @@ function drawBracket(ctx: CanvasRenderingContext2D, race: RaceView, bars: readon
   }
 }
 
-/**
- * A halo of the stage's colour around `text`, placed as drawText places it
- * left-aligned at (x, y), at strength `k`: letters drawn over it read in
- * front of whatever it covers.
- */
-function haloText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, f: string, k: number): void {
-  const t = ctx.getTransform();
-  ctx.save();
-  ctx.font = f;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = 14;
-  ctx.strokeStyle = rgba(PALETTE.bg, k);
-  ctx.shadowColor = rgba(PALETTE.bg, k);
-  ctx.shadowBlur = 16 * Math.hypot(t.a, t.b);
-  ctx.strokeText(text, x, y);
-  ctx.restore();
-}
-
 /** Names and modes, each row on its label layer, kicking as its bar stops. */
 function drawLabels(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
-  const race = raceAt(m, lt);
-  const [A, B] = m.races;
   const g = m.geom;
   const nameFont = font(g.name, 600);
-  for (const { key, pos } of byDepth(m.keys.map((key) => ({ key, pos: rowPos(m, key, lt) })))) {
-    if (pos.alpha <= 0) continue;
-    const e = race.entries[key] ?? A.entries[key] ?? B?.entries[key];
-    if (!e) continue;
-    const hk = key === "hk";
-    const kick = lt >= race.start && race.entries[key] ? pulse(lt, race.entries[key].stop, 0.012, 0.1) : 0;
-    const jump = pos.jump;
-    // A row in front has a halo, which comes up fast, so it is whole before it reaches the next row.
-    const halo = clamp(3 * pos.front);
-    inLayer(ctx, layerAt(L_LABELS, pos.first), lt, () => {
+  const n = m.order.length;
+  for (const key of m.order) {
+    const e = m.entries[key];
+    const kick = lt >= m.start ? pulse(lt, e.stop, 0.012, 0.1) : 0;
+    inLayer(ctx, layerAt(L_LABELS, e.row), lt, () => {
       ctx.save();
-      // A row coming forward swings out to the right, a little larger, in front;
-      // one ducking back steps left into the margin, a little smaller, and dims
-      // under it, so the little of it the row in front leaves uncovered is faint.
-      ctx.globalAlpha *= pos.alpha * (1 - (1 - DUCK_ALPHA) * pos.duck);
-      ctx.translate(NAME_X + 90 * jump - DUCK_STEP * pos.duck, pos.y);
-      const s = 1 + 0.05 * kick + 0.08 * jump - 0.04 * pos.duck;
+      ctx.translate(NAME_X, slotY(e.row, n));
+      const s = 1 + 0.05 * kick;
       ctx.scale(s, s);
-      const base = hk ? PALETTE.logo : PALETTE.text1;
-      if (halo > 0.01) haloText(ctx, e.label, 0, 2, nameFont, halo);
+      const base = key === "hk" ? PALETTE.logo : PALETTE.text1;
       drawText(ctx, e.label, 0, 2, { font: nameFont, fill: kick > 0.02 ? mix(base, PALETTE.paper, 0.65 * kick) : base });
-      // The mode: swapped with a card flip where the second race's differs.
-      const ma = A.entries[key]?.mode ?? e.mode;
-      const mb = B?.entries[key]?.mode ?? ma;
-      const flip = ma === mb ? 1 : progress(REORDER[0], REORDER[0] + b(0.25), lt);
-      const text = flip < 0.5 ? ma : mb;
-      const sy = ma === mb ? 1 : Math.abs(Math.cos(Math.PI * flip));
-      if (g.detail && sy > 0.02) {
-        const size = fitSize(ctx, text, 500, MODE_SIZE, MODE_FLOOR, MODE_MAX_W);
-        ctx.save();
-        ctx.translate(0, MODE_DY - size * 0.35);
-        ctx.scale(1, sy);
-        // Edge-on, the card's halo would only cut a dark band through the row behind.
-        if (halo * sy > 0.01) haloText(ctx, text, 0, size * 0.35, font(size, 500), halo * sy);
-        drawText(ctx, text, 0, size * 0.35, { font: font(size, 500), fill: PALETTE.text3 });
-        ctx.restore();
+      if (g.detail) {
+        const size = fitSize(ctx, e.mode, 500, MODE_SIZE, MODE_FLOOR, MODE_MAX_W);
+        drawText(ctx, e.mode, 0, MODE_DY, { font: font(size, 500), fill: PALETTE.text3 });
       }
       ctx.restore();
     });
   }
 }
 
-/** A detail line rising into place over [at, at + 0.25 s] (the reel's word motion, as one line). */
-function riseLine(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, lt: number, at: number, align: "left" | "right", size: number): void {
-  const p = progress(at, at + 0.25, lt);
-  if (p <= 0) return;
-  ctx.save();
-  ctx.globalAlpha *= clamp(p / 0.6);
-  drawText(ctx, text, x, y + 12 * (1 - swiftOut(p)), { font: font(size, 500), fill: PALETTE.text3, align });
-  ctx.restore();
-}
-
+/** The workload and the scenario's summary, top left. */
 function drawDetails(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
-  const [A, B] = m.races;
   inLayer(ctx, L_DETAIL, lt, () => {
     drawText(ctx, m.workload, WORKLOAD_AT.x, WORKLOAD_AT.y, { font: DETAIL_FONT, fill: PALETTE.text3 });
-    const size = (s: string) => fitSize(ctx, s, 500, 40, 30, DETAIL_MAX_W);
-    const summaryA = (c: CanvasRenderingContext2D) => drawText(c, A.race.summary, SUMMARY_AT.x, SUMMARY_AT.y, { font: font(size(A.race.summary), 500), fill: PALETTE.text3 });
-    if (!B || lt < RESET_WIPE[0]) {
-      summaryA(ctx);
-      return;
-    }
-    // The summary swaps: the first wipes away, the second rises.
-    if (lt < RESET_WIPE[1]) wiped(ctx, wipeEdge(lt, RESET_WIPE[0], RESET_WIPE[1], SUMMARY_AT.x - 10, 1780), summaryA);
-    riseLine(ctx, B.race.summary, SUMMARY_AT.x, SUMMARY_AT.y, lt, RESET_WIPE[1] - b(0.05), "left", size(B.race.summary));
+    const { summary } = m.race;
+    drawText(ctx, summary, SUMMARY_AT.x, SUMMARY_AT.y, { font: font(fitSize(ctx, summary, 500, 40, 30, DETAIL_MAX_W), 500), fill: PALETTE.text3 });
   });
 }
 
-/** The bottom detail, rising on FOOT_IN (FOOT_IN_ONE with one race), fitted between the axis and the margin. */
-function drawFoot(ctx: CanvasRenderingContext2D, m: ChartModel, lt: number): void {
-  const at = m.races.length > 1 ? FOOT_IN : FOOT_IN_ONE;
-  if (lt < at) return;
-  riseLine(ctx, FOOT, FOOT_AT.x, FOOT_AT.y, lt, at, "right", fitSize(ctx, FOOT, 500, 40, 30, FOOT_MAX_W));
+/**
+ * The bottom detail, fitted between the axis and the margin, rising into
+ * place over [FOOT_IN, FOOT_IN + 0.25 s] (the reel's word motion, as one line).
+ */
+function drawFoot(ctx: CanvasRenderingContext2D, lt: number): void {
+  const p = progress(FOOT_IN, FOOT_IN + 0.25, lt);
+  if (p <= 0) return;
+  ctx.save();
+  ctx.globalAlpha *= clamp(p / 0.6);
+  const size = fitSize(ctx, FOOT, 500, 40, 30, FOOT_MAX_W);
+  drawText(ctx, FOOT, FOOT_AT.x, FOOT_AT.y + 12 * (1 - swiftOut(p)), { font: font(size, 500), fill: PALETTE.text3, align: "right" });
+  ctx.restore();
 }
 
 /**
@@ -1067,7 +835,7 @@ export function drawChart(ctx: CanvasRenderingContext2D, m: ChartModel, lt: numb
     ctx.translate(-HOLD_ANCHOR.x, -HOLD_ANCHOR.y);
   }
   // The tracks, figures, labels and details go with the exit wipe; the bars stay for the capsules.
-  const exit = wipeEdge(lt, EXIT_WIPE[0], EXIT_WIPE[1]);
+  const exit = exitEdge(lt);
   wiped(ctx, exit, (c) => drawTracks(c, m, lt));
   drawStartFlash(ctx, m, lt);
   drawBars(ctx, m, lt);
@@ -1078,9 +846,9 @@ export function drawChart(ctx: CanvasRenderingContext2D, m: ChartModel, lt: numb
     drawDetails(c, m, lt);
   });
   // Capsules the chart has no bar for grow in from the axis.
-  for (let i = lastRace(m).order.length; i < CAPSULES.rows.length; i++) growCapsule(ctx, i, lt);
+  for (let i = m.order.length; i < CAPSULES.rows.length; i++) growCapsule(ctx, i, lt);
   ctx.restore();
-  wiped(ctx, exit, (c) => drawFoot(c, m, lt));
+  wiped(ctx, exit, (c) => drawFoot(c, lt));
 }
 
 /** Capsules grow in over this long each, a 64th apart, the last home on REST. */

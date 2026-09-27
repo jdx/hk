@@ -2,8 +2,8 @@
 // one before it, frozen beside the tests so their figures do not move when a
 // benchmark refresh lands, and the live benchmark/results.json as the page
 // and the renderer load it. Also the facts variants the reel must survive,
-// which the frames preview (showreel-frames.mjs --facts) renders from the
-// same functions.
+// which the frames preview (showreel-frames.mjs --facts) and draft renders
+// (showreel-video.mjs --facts) build from the same functions.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -19,14 +19,15 @@ const frozen = (run: string): Json => JSON.parse(readFileSync(join(SHOWREEL, `te
 
 /**
  * benchmark/results.json as workflow run 36268162842 published it (hk 2.3.0
- * against lefthook, pre-commit and prek): hk is clearly ahead in the commit
- * and in Fix every file, so both races are drawn.
+ * against lefthook, pre-commit and prek): hk leads in every scenario, by the
+ * most in the commit (1.6× lefthook), so the commit races.
  */
 export const published = (): Json => frozen("36268162842");
 
 /**
  * The run before it, 36078397814 (hk 2.2.0): lefthook was faster in the
- * commit, so only Fix every file races. Real data for the one-claim variant.
+ * commit, and hk leads Check every file (1.8× lefthook) by more than Fix
+ * every file (1.3× prek), so Check every file races.
  */
 export const previous = (): Json => frozen("36078397814");
 
@@ -60,8 +61,8 @@ export function cell(run: Json, key: string, tool: string): Json {
 
 /**
  * Make hk and every other tool level in scenario `key`, as the page would
- * call them: hk's spread widened past its gap to the fastest rival. The
- * race's claim is then withheld, and only that one.
+ * call them: hk's spread widened past its gap to the fastest rival. That
+ * scenario is then no candidate, and only that one.
  */
 export function unseparate(run: Json, key: RaceKey): Json {
   const s = scenario(run, key);
@@ -71,38 +72,50 @@ export function unseparate(run: Json, key: RaceKey): Json {
   return run;
 }
 
-/** The facts today's run gives: both races, the commit and Fix every file, with the frozen run's figures. */
+/** `run` with only scenario `key` left in it: its facts race that scenario if it is a candidate. */
+export function only(run: Json, key: RaceKey): Json {
+  scenario(run, key);
+  run.scenarios = run.scenarios.filter((s: Json) => s.key === key);
+  return run;
+}
+
+/** The facts today's run gives: the commit races, with the frozen run's figures. */
 export function today(): ReelFacts {
   const facts = factsFromBenchmarks(published());
-  assert.ok(facts?.commit && facts.fixAll, "today's run does not give both races");
+  assert.ok(facts?.best?.key === "fix-staged", "today's run does not race the commit");
   return facts;
 }
 
 /**
- * Exactly one claim (F1), from a real run: the previous one, in which
- * lefthook was faster in the commit, so only Fix every file races.
+ * The facts the previous run gives, real data for another race: Check every
+ * file. It draws that run's own summary line for it ("…, so parallel is safe
+ * for every tool."), which today's run has since shortened.
  */
-export function oneClaim(): ReelFacts {
+export function alt(): ReelFacts {
   const facts = factsFromBenchmarks(previous());
-  assert.ok(facts?.fixAll && !facts.commit, "the previous run does not give exactly Fix every file");
+  assert.ok(facts?.best?.key === "check-all", "the previous run does not race Check every file");
   return facts;
 }
 
 /** Facts that back no claim: a sound run in which hk won nothing (F0, with a workload). */
 export function noClaim(): ReelFacts {
-  return { ...today(), commit: null, fixAll: null };
+  return { ...today(), best: null };
 }
 
 /** The facts variants the reel is reviewed and tested under. */
-export type Variant = "both" | "one" | "none" | "live";
+export const VARIANTS = ["today", "alt", "none", "live"] as const;
+export type Variant = (typeof VARIANTS)[number];
 
-/** The facts for `variant`: today's run, one claim, no facts at all, or the live results.json. */
+/**
+ * The facts for `variant`: today's run (the commit), the previous run
+ * (Check every file), no facts at all, or the live results.json.
+ */
 export function factsFor(variant: Variant): ReelFacts | null {
   switch (variant) {
-    case "both":
+    case "today":
       return today();
-    case "one":
-      return oneClaim();
+    case "alt":
+      return alt();
     case "none":
       return null;
     case "live":

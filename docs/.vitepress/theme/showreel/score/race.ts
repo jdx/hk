@@ -7,57 +7,52 @@
 // The picture's cues come from the same facts and the same timing module as
 // its bars (race-timing.ts), and from the chart's own beats
 // (scenes/race-chart.ts), so every ding lands on the frame its bar stops,
-// whichever races the facts back. The whip's air comes in from the right
-// with the chart. Each race starts with a fiddle sliding up from the
-// stubs' crouch, a gun as the bars leave the axis (a boot, the crew's
-// hands, a knock and a crack), and a filtered-noise riser that runs while
-// they grow and cuts as the last one stops; each bar's stop is a bell
-// pitched by its place (A5, F5, D5, A4; over the answer's E5, A5 E5 C5
-// A4), heard where its bar ends, and hk's rings brighter, with the crew's
-// hands. The groove's hits rest around each stop, so none flams with a
-// bell or passes for the stop. The bracket ticks in and a glint runs
-// across hk's bar. Between two races the bars draw back on a reversed
-// breath, with a spring as the rows re-sort when any tool changes rank,
-// whichever way it moves and however far; with one, a softer glint crosses
-// hk's bar in the middle of the long hold, and a soft ping runs down the
-// bars as its hold's caption lands. With no race to run (no facts, or none
-// backed), hk's own check run plays instead, and each of its ✔ rows lands
-// on a pluck.
+// whichever race the facts back. The whip's air comes in from the right
+// with the chart. The race starts with a fiddle sliding up from the stubs'
+// crouch, a gun as the bars leave the axis (a boot, the crew's hands, a
+// knock and a crack), and a filtered-noise riser that runs while they grow
+// and cuts as the last one stops; each bar's stop is a bell pitched by its
+// place (A5, F5, D5, A4), heard where its bar ends, and hk's rings
+// brighter, with the crew's hands. The groove's hits rest around each
+// stop, so none flams with a bell or passes for the stop. The bracket
+// ticks in and a glint runs across hk's bar; a softer glint crosses it on
+// b6.5, while the claim holds, and a soft ping runs down the bars as the
+// hold's note lands. With no race to run (no facts, or none backed), hk's
+// own check run plays instead, and each of its ✔ rows lands on a pluck.
 
 import type { Part } from ".";
 import type { ReelFacts } from "../facts";
 import { checkAll } from "../kit/screens";
-import { type RaceRun, raceRuns } from "../race-timing";
+import { type RaceRun, raceRun } from "../race-timing";
 import { F0_EACH, F0_FIRST } from "../scenes/race";
-import { EXIT_WIPE, HOLD_GLINT, REORDER, RESET } from "../scenes/race-chart";
+import { EXIT_WIPE, HOLD_GLINT, HOLD_GLINT_LEN, rollCallAt } from "../scenes/race-chart";
 import type { Section } from "../timeline";
 import { WHIP_AT, WHIP_END } from "../whip";
 import { ANSWER, bassBars, C, CHOP, CHORD, chopBars, chordBars, DM, drumBars, G, type Hush, LEAD, M, melody, STOMP_FULL } from "./grooves";
-import { ad, hz, line, type Mix, type Pt, sweep } from "./mix";
-import { bassBar, boing, ding, fiddlePluck, fiddleSlide, flick, gangClap, knock, OOMPAH, panX, ping, riser, shimmer, stomp, tick, whoosh } from "./sounds";
+import { ad, hz, line, type Mix, sweep } from "./mix";
+import { bassBar, ding, fiddlePluck, fiddleSlide, flick, gangClap, knock, OOMPAH, panX, ping, riser, shimmer, stomp, tick, whoosh } from "./sounds";
 
 /** The bars grow from x 700, 1000 px for the chart's full scale. */
 const barEnd = (median: number, axis: number): number => 700 + (median / axis) * 1000;
 
-/**
- * A stop's bell by finishing place: A5, F5, D5, A4, and on down D dorian's
- * Dm for more tools. The second race stops under the answer's held E5, so
- * its bells ring the notes that sit with it: A5, E5, C5, A4.
- */
+/** A stop's bell by finishing place: A5, F5, D5, A4, and on down D dorian's Dm for more tools. */
 const PLACE = [81, 77, 74, 69, 65, 62];
-const PLACE_OVER_E = [81, 76, 72, 69, 64, 62];
 
-/** The stubs crouch for a sixteenth before each start (scenes/race-chart.ts CROUCH). */
+/**
+ * The roll call's ping on row `i`, Hz: an octave over the bell of the place
+ * that row finishes in, as hk finishes first and the rows run by median.
+ */
+export const rollCallHz = (i: number): number => hz(PLACE[Math.min(i, PLACE.length - 1)] + 12);
+
+/** The stubs crouch for a sixteenth before the start (scenes/race-chart.ts CROUCH). */
 const CROUCH = 0.25;
 /**
  * A glint runs across hk's bar a sixteenth after the bracket, over 0.36 s;
- * with one race, another crosses it at HOLD_GLINT over 0.4 s, and one runs
- * down every bar from b9.5, a 32nd apart (scenes/race-chart.ts drawGlints).
+ * another crosses it at HOLD_GLINT, and one runs down every bar as the note
+ * lands (scenes/race-chart.ts drawGlints).
  */
 const GLINT_AFTER = 0.25;
 const GLINT_LEN = 0.36;
-const HOLD_GLINT_LEN = 0.4;
-const ROLL_CALL = { from: 9.5, each: 0.125 } as const;
 
 /** F0's ✔ step rows climb D dorian's Dm7 in the order they land. */
 const F0_NOTES = [62, 65, 69, 72, 74, 77, 81];
@@ -75,14 +70,14 @@ const WITH = 0.008;
  * with it; around hk's stop every hit rests, for its own clap.
  */
 function clearings(s: Section, facts: ReelFacts | null): Hush {
-  const stops = raceRuns(facts).flatMap((run) => Object.entries(run.stops).map(([key, b]) => ({ hk: key === "hk", t: s.beat(b) })));
+  const stops = Object.entries(raceRun(facts)?.stops ?? {}).map(([key, b]) => ({ hk: key === "hk", t: s.beat(b) }));
   return (t) => {
     const near = stops.filter((stop) => Math.abs(t - stop.t) < CLEAR);
     return near.some((stop) => stop.hk) || (near.length > 0 && !near.some((stop) => Math.abs(t - stop.t) <= WITH));
   };
 }
 
-function race(m: Mix, s: Section, run: RaceRun, places: readonly number[]): void {
+function race(m: Mix, s: Section, run: RaceRun): void {
   const start = s.beat(run.start);
   const last = Math.max(...Object.values(run.stops));
   // The start: the stubs crouch as the fiddle's bow digs in, swelling into
@@ -107,7 +102,7 @@ function race(m: Mix, s: Section, run: RaceRun, places: readonly number[]): void
     if (!row) return;
     const t = s.beat(run.stops[key]);
     const pan = panX(barEnd(row.median, run.race.axis));
-    const note = places[Math.min(place, places.length - 1)];
+    const note = PLACE[Math.min(place, PLACE.length - 1)];
     m.duck(t, 0.12, 0.1);
     ding(m, t, hz(note), key === "hk" ? 0.1 : 0.07, pan, 1.1, 0.35);
     if (key === "hk") gangClap(m, t, 0.8, "sfx");
@@ -123,30 +118,16 @@ function race(m: Mix, s: Section, run: RaceRun, places: readonly number[]): void
 }
 
 /**
- * One race only: a softer glint crosses hk's bar in the middle of the long
- * hold, and as the hold's caption lands a glint runs down every bar, a soft
- * ping each.
+ * The hold: a softer glint crosses hk's bar on b6.5, while the claim holds,
+ * and as the note lands a glint runs down every bar, a soft ping each.
  */
 function rollCall(m: Mix, s: Section, run: RaceRun): void {
-  const hk = run.race.rows.find((r) => r.key === "hk");
-  if (hk) shimmer(m, s.at(HOLD_GLINT), s.at(HOLD_GLINT) + HOLD_GLINT_LEN, 0.016, panX(barEnd(hk.median, run.race.axis)));
+  const [hk] = run.race.rows;
+  shimmer(m, s.at(HOLD_GLINT), s.at(HOLD_GLINT) + HOLD_GLINT_LEN, 0.016, panX(barEnd(hk.median, run.race.axis)));
   run.race.rows.forEach((row, i) => {
-    const t = s.beat(ROLL_CALL.from + i * ROLL_CALL.each);
-    ping(m, t, hz(PLACE[Math.min(i, PLACE.length - 1)] + 12), row.key === "hk" ? 0.035 : 0.02, 0.4, { pan: panX(barEnd(row.median, run.race.axis)), send: 0.4 });
+    const t = s.at(rollCallAt(run, i));
+    ping(m, t, rollCallHz(i), row.key === "hk" ? 0.035 : 0.02, 0.4, { pan: panX(barEnd(row.median, run.race.axis)), send: 0.4 });
   });
-}
-
-/** Between the races: the bars draw back on a reversed breath, and a spring on the re-sort (REORDER) if any tool changes rank. */
-function reset(m: Mix, s: Section, before: RaceRun, after: RaceRun): void {
-  const t0 = s.at(RESET[0]);
-  const t1 = s.at(REORDER[1]);
-  // It is gone 20 ms before the second race starts, so the start lands clean.
-  const cut = t1 - 0.02;
-  const env: Pt[] = [[t0 - 0.05, 0], [cut - 0.03, 0.08, "lin"], [cut, 0.0001, "exp"], [cut + 0.004, 0]];
-  whoosh(m, env, sweep(t0 - 0.05, 900, cut, 3600), 1.2, { pan: line(t0, 0.4, cut, -0.2), send: 0.15 });
-  const rank = (r: RaceRun) => r.race.rows.map((x) => x.key).join();
-  // The spring is short, so it has rung out as the second race starts.
-  if (rank(before) !== rank(after)) boing(m, s.at(REORDER[0]), 0.1, hz(57), 0.2);
 }
 
 /**
@@ -184,11 +165,10 @@ export const part: Part = {
     // b0 to b1: the whip clears, and the chart rides in from the right on the air.
     whoosh(m, [[WHIP_AT - 0.03, 0], [WHIP_AT + 0.03, 0.09], [WHIP_END, 0.0001, "exp"], [WHIP_END + 0.004, 0]], sweep(WHIP_AT, 4200, WHIP_END, 900), 1.2, { pan: line(WHIP_AT, 0.65, WHIP_END, 0.05), send: 0.2 });
 
-    const runs = raceRuns(facts);
-    if (runs.length) {
-      runs.forEach((run, i) => race(m, s, run, i ? PLACE_OVER_E : PLACE));
-      if (runs.length > 1) reset(m, s, runs[0], runs[1]);
-      else rollCall(m, s, runs[0]);
+    const run = raceRun(facts);
+    if (run) {
+      race(m, s, run);
+      rollCall(m, s, run);
     } else {
       checkRun(m, s);
     }

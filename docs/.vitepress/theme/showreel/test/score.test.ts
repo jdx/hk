@@ -5,9 +5,10 @@ import type { ReelFacts } from "../facts";
 import { checkAll } from "../kit/screens";
 import { LATENCY, X } from "../score/mix";
 import { GAP } from "../score/morph";
-import { raceRuns } from "../race-timing";
+import { rollCallHz } from "../score/race";
+import { raceRun } from "../race-timing";
 import { F0_EACH, F0_FIRST } from "../scenes/race";
-import { REORDER } from "../scenes/race-chart";
+import { rollCallAt } from "../scenes/race-chart";
 import { arc, PARTS } from "../score";
 import { BEAT, DURATION, SECTIONS, sec } from "../timeline";
 import { MockContext } from "./mock-audio";
@@ -17,7 +18,7 @@ import { factsFor, type Variant } from "./published";
 const WHEN = 0.2;
 
 /** The race's cues follow the facts, so every check runs under each variant the picture has. */
-const VARIANTS: Variant[] = ["both", "one", "none"];
+const VARIANTS: Variant[] = ["today", "alt", "none"];
 
 function render(from = 0, facts: ReelFacts | null = null): MockContext {
   const ac = new MockContext();
@@ -113,40 +114,58 @@ test("a start mid-reel plays the same sounds, on the same samples, as playback f
   }
 });
 
-test("each bar in the benchmark race stops on a sound, only when the facts back its race", () => {
+/** Sources start LATENCY early, ahead of the master's compressors, and half a sample before their frame. */
+const soundsAt = (starts: number[], t: number) => starts.some((s) => Math.abs(s + LATENCY - t) < 0.001);
+
+test("each bar in the benchmark race stops on a sound, only when the facts back that race", () => {
   const race = sec("race");
-  // Sources start LATENCY early, ahead of the master's compressors, and half a sample before their frame.
-  const soundsAt = (starts: number[], t: number) => starts.some((s) => Math.abs(s + LATENCY - t) < 0.001);
-  const stopsOf = (variant: Variant) => raceRuns(factsFor(variant)).flatMap((run) => Object.values(run.stops).map((b) => race.beat(b)));
+  const stopsOf = (variant: Variant) => Object.values(raceRun(factsFor(variant))?.stops ?? {}).map((b) => race.beat(b));
   for (const variant of VARIANTS) {
     const starts = spans(render(0, factsFor(variant))).map((s) => s.start);
     const stops = stopsOf(variant);
     for (const t of stops) assert.ok(soundsAt(starts, t), `${variant}: nothing sounds as a bar stops at ${t.toFixed(4)}`);
-    // Stops off the sixteenth grid, where nothing else is written, stay silent when the facts do not back their race.
+    // Stops off the sixteenth grid, where nothing else is written, stay silent when the facts race another scenario or none.
     const offGrid = (t: number) => Math.abs(t / X - Math.round(t / X)) > 0.01;
-    for (const t of stopsOf("both").filter((t) => !stops.includes(t) && offGrid(t))) {
-      assert.ok(!soundsAt(starts, t), `${variant}: a sound at ${t.toFixed(4)}, where a race the facts do not back would stop`);
+    for (const other of VARIANTS) {
+      for (const t of stopsOf(other).filter((t) => !stops.includes(t) && offGrid(t))) {
+        assert.ok(!soundsAt(starts, t), `${variant}: a sound at ${t.toFixed(4)}, where the ${other} race would stop`);
+      }
     }
   }
 });
 
-test("a spring sounds as the rows re-sort between two races, only when a tool changes rank", () => {
+/** The sine oscillators a render starts at a fixed pitch: each one's reel start and frequency. */
+function sines(ac: MockContext): { start: number; f: number }[] {
+  const sine = new Set<string>();
+  const freq = new Map<string, number>();
+  for (const c of ac.calls) {
+    if (c.method === "type=" && c.args[0] === "sine") sine.add(c.target);
+    if (c.method === "value=" && c.target.endsWith(".frequency")) freq.set(c.target.slice(0, -".frequency".length), c.args[0] as number);
+  }
+  return ac
+    .starts()
+    .filter(({ target }) => sine.has(target) && freq.has(target))
+    .map(({ target, t }) => ({ start: t - WHEN, f: freq.get(target) as number }));
+}
+
+test("as the hold's note lands, a ping runs down the bars, wherever the claim's length puts it", () => {
   const race = sec("race");
-  const at = race.at(REORDER[0]);
-  /** Sawtooth sources starting on the re-sort's first frame, in reel seconds: the spring (score/race.ts reset). */
-  const springs = (facts: ReelFacts | null): number => {
-    const ac = render(0, facts);
-    const saws = new Set(ac.calls.filter((c) => c.method === "type=" && c.args[0] === "sawtooth").map((c) => c.target));
-    return spans(ac).filter((s) => saws.has(s.target) && Math.abs(s.start + LATENCY - at) < 0.001).length;
-  };
-  assert.equal(springs(factsFor("both")), 1, "both races: lefthook falls, so the rows spring");
-  assert.equal(springs(factsFor("one")), 0, "one race: no re-sort");
-  assert.equal(springs(factsFor("none")), 0, "no race: no re-sort");
-  // Two races that rank the tools alike: the rows hold still, and so does the spring.
-  const both = factsFor("both")!;
-  const alike = { ...both, fixAll: { ...both.commit!, key: "fix-all" as const, title: both.fixAll!.title } };
-  assert.equal(raceRuns(alike).length, 2);
-  assert.equal(springs(alike), 0, "the same ranks: no spring");
+  for (const variant of ["today", "alt"] as const) {
+    const facts = factsFor(variant);
+    const run = raceRun(facts);
+    assert.ok(run);
+    const voices = sines(render(0, facts));
+    // The ping's own voice, not a groove or melody hit on the same grid: a
+    // sine at its pitch and the 2.76× partial over it, both starting then.
+    const rings = (t: number, f: number) => voices.some((v) => Math.abs(v.start + LATENCY - t) < 0.001 && Math.abs(v.f - f) < 1e-6);
+    run.race.rows.forEach((row, i) => {
+      const t = race.at(rollCallAt(run, i));
+      const f = rollCallHz(i);
+      assert.ok(rings(t, f) && rings(t, f * 2.76), `${variant}: no ping as the roll call reaches ${row.key} at ${t.toFixed(4)}`);
+    });
+  }
+  // The previous run's longer claim holds longer, so its note, and the roll call, come later than today's.
+  assert.ok(raceRun(factsFor("alt"))!.note > raceRun(factsFor("today"))!.note);
 });
 
 test("with no race, each ✔ row of hk's check run, and the 7/7, sounds on the frame it lands", () => {

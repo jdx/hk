@@ -1,5 +1,5 @@
-// The published benchmark run (benchmark/results.json), reduced to the claims
-// the reel and the landing page make from it. Each claim is null unless the
+// The published benchmark run (benchmark/results.json), reduced to the claim
+// the reel and the landing page make from it. The claim is null unless the
 // run backs it, and every scene and chapter text has a line that states no
 // number for that case, so a failed, malformed or inconclusive run leaves the
 // figures out instead of drawing one the benchmarks page would not stand
@@ -7,10 +7,13 @@
 // BenchmarkResults.vue) plus the reel's: a race is drawn only when hk is
 // clearly ahead of the fastest other tool.
 //
-// The reel races two scenarios, in this order: the commit (`fix-staged`, one
-// pre-commit hook on the staged files) and Fix every file (`fix-all`). The
-// read-only Check every file (`check-all`) is not representable: the reel
-// sends viewers to the page for it and for every other figure.
+// The reel races one scenario: whichever hk leads by the most. The commit
+// (`fix-staged`, one pre-commit hook on the staged files), Fix every file
+// (`fix-all`) and Check every file (`check-all`) are each a candidate when
+// the run backs their race (race() below); the candidate with the largest
+// rival.median / hk.median, unrounded, is drawn, and an exact tie goes to the
+// first in that order. The reel sends viewers to the page for the others and
+// for every other figure.
 
 /** One tool's timings in one scenario: what the page's `separated` reads. */
 export interface Stats {
@@ -31,13 +34,16 @@ export interface Row extends Stats {
   shown: string;
 }
 
-export type RaceKey = "fix-staged" | "fix-all";
+export type RaceKey = "fix-staged" | "fix-all" | "check-all";
+
+/** The scenarios the reel may race, in the order an exact tie is broken. */
+export const RACE_KEYS: readonly RaceKey[] = ["fix-staged", "fix-all", "check-all"];
 
 /** One scenario the reel races: hk against every other tool. */
 export interface Race {
   /** Looked up by key, never by index. */
   key: RaceKey;
-  /** scenarios[].title, "Commit" or "Fix every file". */
+  /** scenarios[].title: "Commit", "Fix every file" or "Check every file". */
   title: string;
   /** scenarios[].summary, drawn verbatim as a detail line. */
   summary: string;
@@ -51,15 +57,13 @@ export interface Race {
 
 export interface ReelFacts {
   /**
-   * The repository every race ran in, "6,157" files, with 10 fixers on 8
-   * CPUs. The file count is the repository's size, not what each race
+   * The repository every scenario ran in, "6,157" files, with 10 fixers on
+   * 8 CPUs. The file count is the repository's size, not what each scenario
    * timed: the commit times only its staged files.
    */
   workload: { files: string; fixers: number; cpus: number };
-  /** The commit scenario, `fix-staged`: raced first. */
-  commit: Race | null;
-  /** Fix every file, `fix-all`: raced second. */
-  fixAll: Race | null;
+  /** The race the reel draws: the candidate hk leads by the most, or null when the run backs none. */
+  best: Race | null;
 }
 
 /** A duration as the benchmarks page prints it (BenchmarkResults.vue). */
@@ -79,6 +83,9 @@ const CAPTION_CHARS = 36;
 
 /** The caption line a race's claim is stated in. */
 export const claimLine = (r: Pick<Race, "title" | "claim">): string => `${r.title}: ${r.claim.ratio}× faster`;
+
+/** How far hk leads in a race: the fastest other tool's median over hk's, unrounded. */
+export const lead = (r: Race): number => r.claim.rival.median / r.rows[0].median;
 
 // Structural subset of docs/.vitepress/benchmarks.data.ts. Everything is
 // checked as it is read, because the tests garble it on purpose.
@@ -124,7 +131,7 @@ function row(key: string, stats: unknown, subjects: Json): Row | null {
   return { key, label, mode, median, min, max, shown: fmt(median) };
 }
 
-/** The race in scenario `key`, or null unless every rule holds. */
+/** The race in scenario `key`, a candidate for the reel, or null unless every rule holds. */
 function race(key: RaceKey, scenarios: unknown[], subjects: Json): Race | null {
   const s = scenarios.find((x) => isObject(x) && x.key === key);
   if (!isObject(s) || !isObject(s.results)) return null;
@@ -143,15 +150,17 @@ function race(key: RaceKey, scenarios: unknown[], subjects: Json): Race | null {
   const claim = { ratio: (rival.median / hk.median).toFixed(1), rival };
   // A ratio that rounds to 1.0 claims nothing.
   if (claim.ratio === "1.0") return null;
+  // The claim must fit its caption line. How many words it may take to read
+  // is race-timing.ts's limit (13 with its tail), which is not checked here.
   if (claimLine({ title, claim }).length > CAPTION_CHARS) return null;
   return { key, title, summary, axis: Math.max(...drawn.map((r) => r.max)), rows: [hk, ...rivals], claim };
 }
 
 /**
- * The claims in a published run, or null for a run that is missing, not
- * parsable, from another schema, failed, reported problems, or has a tool
- * that did not produce the right files: the benchmarks page shows nothing
- * for such a run either.
+ * The workload and the best race in a published run, or null for a run that
+ * is missing, not parsable, from another schema, failed, reported problems,
+ * or has a tool that did not produce the right files: the benchmarks page
+ * shows nothing for such a run either.
  */
 export function factsFromBenchmarks(results: unknown): ReelFacts | null {
   if (!isObject(results)) return null;
@@ -160,16 +169,18 @@ export function factsFromBenchmarks(results: unknown): ReelFacts | null {
   if (problems !== undefined && !(Array.isArray(problems) && problems.length === 0)) return null;
   if (!Array.isArray(scenarios) || !isObject(subjects)) return null;
   if (!allCorrect(scenarios)) return null;
-  // The workload line states the repository and machine every race ran on,
+  // The workload line states the repository and machine every scenario ran on,
   // so a run without one states nothing.
   if (!isObject(workload) || !isObject(machine)) return null;
   if (!count(workload.files) || !Array.isArray(workload.fixers) || !workload.fixers.length || !count(machine.cpus)) return null;
-  return {
-    workload: { files: workload.files.toLocaleString("en-US"), fixers: workload.fixers.length, cpus: machine.cpus },
-    commit: race("fix-staged", scenarios, subjects),
-    fixAll: race("fix-all", scenarios, subjects),
-  };
+  let best: Race | null = null;
+  for (const key of RACE_KEYS) {
+    const r = race(key, scenarios, subjects);
+    // Only a strictly larger lead displaces a candidate, so an exact tie keeps the earlier one.
+    if (r && (!best || lead(r) > lead(best))) best = r;
+  }
+  return { workload: { files: workload.files.toLocaleString("en-US"), fixers: workload.fixers.length, cpus: machine.cpus }, best };
 }
 
-/** The races the facts back, in the order the reel runs them: the commit, then Fix every file. */
-export const races = (f: ReelFacts | null): Race[] => [f?.commit ?? null, f?.fixAll ?? null].filter((r): r is Race => r !== null);
+/** The race the facts back, as a list: [best], or none. */
+export const races = (f: ReelFacts | null): Race[] => (f?.best ? [f.best] : []);

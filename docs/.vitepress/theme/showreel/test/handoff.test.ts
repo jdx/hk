@@ -11,7 +11,7 @@ import { BOUNDARIES, CAPSULES, capsuleAt, COMMIT_STASH_LINES, END_STROKES, HANDO
 import { header, PANE_FULL } from "../kit/term";
 import { scenes } from "../scenes";
 import { WHIP_AT, WHIP_END, WHIP_START, whipIn, whipOut } from "../whip";
-import { factsFor } from "./published";
+import { factsFor, VARIANTS } from "./published";
 
 test("every bar line has a handoff, in order, on its bar line", () => {
   assert.equal(BOUNDARIES.length, SECTIONS.length - 1);
@@ -79,7 +79,7 @@ test("each scene returns its handoffs' lit screen on its side of the bar line, w
   // A screen at alpha 0 is no screen: the vignette covers it either way.
   const norm = (r: LitRect | null | undefined) => (r && r.alpha > 0 ? { x: r.x, y: r.y, w: r.w, h: r.h, alpha: +r.alpha.toFixed(6) } : null);
   const scene = (id: SectionId) => scenes.find((s) => s.id === id)!;
-  for (const variant of ["both", "one", "none"] as const) {
+  for (const variant of VARIANTS) {
     // Given as the compositor gives it, with nothing drawn first.
     const env = { facts: factsFor(variant) };
     for (const id of BOUNDARIES) {
