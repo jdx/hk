@@ -155,6 +155,17 @@ jobs:
       - run: |
           mise run pkl:gen
           mise run test:bats:setup
+      - name: Report Bats tool cache size
+        run: du -sh ~/.local/share/mise/installs
+      # Seed after preinstall so frequent main pushes can reuse these tools even
+      # when a later Bats run is cancelled. Pull requests restore read-only.
+      - name: Save Bats mise tools
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: ${{ steps.bats-mise-tools.outputs.cache-primary-key }}
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -163,16 +174,6 @@ jobs:
           timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
           command: mise run --skip-deps test:bats:libgit2
-      - name: Report Bats tool cache size
-        run: du -sh ~/.local/share/mise/installs
-      # Seed the shared cache from main only, including any tools the tests
-      # installed after setup. Pull requests restore it read-only.
-      - name: Save Bats mise tools
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.local/share/mise/installs
-          key: ${{ steps.bats-mise-tools.outputs.cache-primary-key }}
       - name: Publish builtin test timings
         if: always()
         run: |
