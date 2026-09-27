@@ -7933,7 +7933,6 @@
               }
             ],
             "mounts": [],
-            "effect": "read",
             "unknown_flags": null,
             "hide": false,
             "args_override_self": true,

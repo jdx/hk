@@ -19,7 +19,6 @@ use std::process::{Command, Stdio};
 ///
 /// Example: `hk util sarif-diff -- pinact run --check --format sarif a.yml`
 #[derive(Debug, usage_rs::Args)]
-#[usage(effect = "read")]
 pub struct SarifDiff {
     /// The tool, printing a SARIF log on stdout
     #[usage(arg, required, double_dash = "required")]

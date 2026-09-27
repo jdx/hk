@@ -611,7 +611,7 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-h --help" help="Print help" action=help builtin=#true
         arg <FILES>... help="Files to check"
     }
-    cmd sarif-diff help="Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command" effect=read {
+    cmd sarif-diff help="Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command" {
         long_help #"""
 Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command
 

@@ -8,7 +8,6 @@ description: "Arguments and options for hk util sarif-diff."
 # `hk util sarif-diff`
 
 - **Usage:** `hk util sarif-diff <-- COMMAND>…`
-- **Effect:** read-only
 
 Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command
 
