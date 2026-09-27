@@ -8,8 +8,8 @@ use crate::Result;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use super::normalize_diff_paths;
 use super::types::Step;
+use super::{diff_lines, normalize_diff_paths, split_line_ending, strips_git_prefixes};
 
 /// Rewrite absolute paths in diff headers to be relative to `base`.
 ///
@@ -21,10 +21,16 @@ use super::types::Step;
 /// Paths outside `base` are left as they are; `git apply` will reject them and
 /// the caller falls back to running the fixer.
 fn relativize_diff_paths(diff: &str, base: &Path) -> String {
-    let mut out: Vec<String> = Vec::new();
-    for line in diff.lines() {
+    let mut out = String::with_capacity(diff.len() + 1);
+    // Keep each line's terminator: a changed line's `\r` must survive.
+    for (line, in_hunk) in diff_lines(diff) {
+        if in_hunk {
+            out.push_str(line);
+            continue;
+        }
+        let (content, ending) = split_line_ending(line);
         let rewritten = ["--- ", "+++ "].into_iter().find_map(|prefix| {
-            let rest = line.strip_prefix(prefix)?;
+            let rest = content.strip_prefix(prefix)?;
             // Keep any tab-separated timestamp attached to the path.
             let (path, tail) = match rest.split_once('\t') {
                 Some((p, t)) => (p, Some(t)),
@@ -32,13 +38,19 @@ fn relativize_diff_paths(diff: &str, base: &Path) -> String {
             };
             let rel = Path::new(path).strip_prefix(base).ok()?.to_str()?;
             Some(match tail {
-                Some(t) => format!("{prefix}{rel}\t{t}"),
-                None => format!("{prefix}{rel}"),
+                Some(t) => format!("{prefix}{rel}\t{t}{ending}"),
+                None => format!("{prefix}{rel}{ending}"),
             })
         });
-        out.push(rewritten.unwrap_or_else(|| line.to_string()));
+        match rewritten {
+            Some(rewritten) => out.push_str(&rewritten),
+            None => out.push_str(line),
+        }
     }
-    out.join("\n") + "\n"
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
+    out
 }
 
 impl Step {
@@ -77,21 +89,8 @@ impl Step {
         let base = base.canonicalize().unwrap_or(base);
         let diff_content = relativize_diff_paths(&diff_content, &base);
 
-        // Detect if this diff uses a/ and b/ prefixes (git-style)
-        // Use -p1 to strip prefixes if present, -p0 otherwise
-        let mut has_a_prefix = false;
-        let mut has_b_prefix = false;
-        for line in diff_content.lines() {
-            if line.starts_with("--- a/") {
-                has_a_prefix = true;
-            } else if line.starts_with("+++ b/") {
-                has_b_prefix = true;
-            }
-            if has_a_prefix && has_b_prefix {
-                break;
-            }
-        }
-        let strip_level = if has_a_prefix && has_b_prefix {
+        // Git-style `a/` and `b/` prefixes need -p1, other paths -p0.
+        let strip_level = if strips_git_prefixes(&diff_content, &base) {
             "-p1"
         } else {
             "-p0"
@@ -249,6 +248,15 @@ mod relativize_diff_paths_tests {
         assert_eq!(
             relativize_diff_paths(diff, Path::new("/w/svc")),
             "--- main.go\t2025-01-01 12:00:00\n+++ main.go\n"
+        );
+    }
+
+    #[test]
+    fn keeps_carriage_returns() {
+        let diff = "--- /repo/f.txt\n+++ /repo/f.txt\n@@ -1 +1 @@\n-one\r\n+one\n";
+        assert_eq!(
+            relativize_diff_paths(diff, Path::new("/repo")),
+            "--- f.txt\n+++ f.txt\n@@ -1 +1 @@\n-one\r\n+one\n"
         );
     }
 

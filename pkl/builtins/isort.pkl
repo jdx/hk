@@ -12,6 +12,12 @@ isort = new Config.Step {
     command = new Config.Command { argv = List("isort", "--check-only", "{{files}}") }
     effect = "read"
   }
+  // Headers read `--- /abs/file.py:before`; hk strips the labels and makes the
+  // paths relative before applying the patch.
+  check_diff = new Config.CommandSpec {
+    command = new Config.Command { argv = List("isort", "--check-only", "--diff", "{{files}}") }
+    effect = "read"
+  }
   fix = new Config.CommandSpec {
     command = new Config.Command { argv = List("isort", "{{files}}") }
     effect = "write"
