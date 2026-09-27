@@ -1385,6 +1385,9 @@ impl Hook {
                             .unwrap()
                             .retain(|p| !stashed.contains(p));
                     }
+                    // Intent-to-add files have no staged contents, and the
+                    // stash took their files out of the worktree.
+                    hook_ctx.file_locks.remove_files(r.stashed_intent_to_add());
                 }
             } else {
                 file_progress.prop("message", "No unstaged changes to stash");

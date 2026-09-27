@@ -12,8 +12,9 @@ pub struct FileRwLocks {
 }
 
 struct Inner {
-    /// One lock per path. A path's lock is never replaced or removed, so a
-    /// handle looked up once stays valid for the rest of the hook run.
+    /// One lock per path. A path's lock is never replaced, nor removed once
+    /// steps run, so a handle looked up once stays valid for the rest of the
+    /// hook run.
     ///
     /// A hash map rather than a `BTreeMap`: comparing `Path`s walks their
     /// components, so an ordered lookup costs about ten times as much, and a
@@ -61,6 +62,20 @@ impl FileRwLocks {
         let mut inner = self.inner.lock().unwrap();
         for file in files {
             inner.get_or_create_lock(file);
+        }
+    }
+
+    /// Forgets `files`. Only for use before any step runs: afterwards a step
+    /// may hold a handle to one of their locks.
+    pub fn remove_files(&self, files: &[PathBuf]) {
+        let mut inner = self.inner.lock().unwrap();
+        let mut removed = false;
+        for file in files {
+            removed |= inner.locks.remove(file).is_some();
+        }
+        if removed {
+            let Inner { locks, files, .. } = &mut *inner;
+            files.retain(|f| locks.contains_key(f));
         }
     }
 
@@ -200,6 +215,15 @@ mod tests {
         assert_eq!(locks.files(), paths(&["a", "b", "c", "d"]));
         locks.add_files(&paths(&["e"]));
         assert_eq!(locks.files(), paths(&["a", "b", "c", "d", "e"]));
+    }
+
+    #[test]
+    fn removed_files_can_be_added_again() {
+        let locks = FileRwLocks::new(paths(&["b", "a", "c"]));
+        locks.remove_files(&paths(&["b", "missing"]));
+        assert_eq!(locks.files(), paths(&["a", "c"]));
+        locks.add_files(&paths(&["b"]));
+        assert_eq!(locks.files(), paths(&["a", "b", "c"]));
     }
 
     #[test]

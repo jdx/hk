@@ -731,6 +731,8 @@ pub struct Git {
     // Commit id of the stash entry we created (top-of-stack at creation time)
     stash_commit: Option<String>,
     stashed_paths: Option<BTreeSet<PathBuf>>,
+    // Intent-to-add files set aside apart from the stash above
+    intent_to_add: Option<IntentToAddStash>,
     saved_index: Option<Vec<(u32, String, PathBuf)>>,
     saved_worktree: Option<std::collections::HashMap<PathBuf, String>>,
     // Path of the most recent stash patch backup, surfaced if restore fails
@@ -743,6 +745,21 @@ enum StashType {
     LibGit,
     Git,
 }
+
+/// Intent-to-add files (`git add -N`) whose contents are set aside while a
+/// hook runs.
+///
+/// `git stash push` refuses to run while the index has any such entry, and
+/// once the entries are removed from the index, `--keep-index` fails on the
+/// untracked paths they leave. Their contents are therefore kept in a stash
+/// entry of their own, holding only untracked files, which `git stash apply`
+/// can restore by hand if hk is interrupted.
+struct IntentToAddStash {
+    commit: String,
+    paths: Vec<PathBuf>,
+}
+
+const INTENT_TO_ADD_STASH_MESSAGE: &str = "hk: intent-to-add files";
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, strum::EnumString)]
 #[serde(rename_all = "kebab-case")]
@@ -830,6 +847,7 @@ impl Git {
             stash: None,
             stash_commit: None,
             stashed_paths: None,
+            intent_to_add: None,
             saved_index: None,
             saved_worktree: None,
             last_patch_path: None,
@@ -1275,7 +1293,19 @@ impl Git {
     /// Paths whose unstaged changes the last [`Git::stash_unstaged`] set aside,
     /// or `None` if it stashed nothing.
     pub fn stashed_paths(&self) -> Option<&BTreeSet<PathBuf>> {
-        self.stash.as_ref().and(self.stashed_paths.as_ref())
+        if self.stash.is_none() && self.intent_to_add.is_none() {
+            return None;
+        }
+        self.stashed_paths.as_ref()
+    }
+
+    /// Intent-to-add files the last [`Git::stash_unstaged`] set aside, which
+    /// are absent from the worktree until [`Git::pop_stash`].
+    pub fn stashed_intent_to_add(&self) -> &[PathBuf] {
+        self.intent_to_add
+            .as_ref()
+            .map(|ita| ita.paths.as_slice())
+            .unwrap_or_default()
     }
 
     pub fn stash_unstaged(
@@ -1303,19 +1333,41 @@ impl Git {
 
         // Hardened detection of worktree-only changes (including partially staged files)
         let mut files_to_stash: BTreeSet<PathBuf> = BTreeSet::new();
-        // 1) git diff --name-only (worktree vs index)
+        // Intent-to-add entries whose files exist, which git diffs as added to
+        // the worktree
+        let mut intent_to_add: Vec<PathBuf> = vec![];
+        // 1) git diff --name-status (worktree vs index)
         {
             let args: Vec<OsString> = vec![
                 "diff".into(),
-                "--name-only".into(),
+                "--name-status".into(),
+                // A worktree rename would hide that its new path is intent-to-add
+                "--no-renames".into(),
                 "-z".into(),
                 "--no-ext-diff".into(),
                 "--ignore-submodules".into(),
             ];
             // Paths that are not valid UTF-8 are left out of the status, which
-            // records that they need stashing
-            let (paths, _) = git_read_paths(args).unwrap_or_default();
-            files_to_stash.extend(paths.into_iter().filter(|p| p.exists()));
+            // records that they need stashing. Intent-to-add files are set
+            // aside whatever their names.
+            let out = git_read_bytes(args).unwrap_or_default();
+            for (status, name) in out.split(|&b| b == 0).tuples() {
+                if name.is_empty() {
+                    continue;
+                }
+                if status == b"A" {
+                    let p = path_from_raw(name);
+                    if path_exists(&p) {
+                        intent_to_add.push(p);
+                    }
+                }
+                if let Ok(name) = std::str::from_utf8(name) {
+                    let p = PathBuf::from(name);
+                    if p.exists() {
+                        files_to_stash.insert(p);
+                    }
+                }
+            }
         }
         // 2) git ls-files -m (modified in worktree)
         {
@@ -1369,10 +1421,28 @@ impl Git {
             status.skipped_unstaged || (*env::HK_STASH_UNTRACKED && status.skipped_untracked);
         let files_count = files_to_stash.len();
         job.prop("files", &files_count);
-        // TODO: if any intent_to_add files exist, run `git rm --cached -- <file>...` then `git add --intent-to-add -- <file>...` when unstashing
-        // let intent_to_add = self.intent_to_add_files()?;
-        // see https://github.com/pre-commit/pre-commit/blob/main/pre_commit/staged_files_only.py
+        if !intent_to_add.is_empty() {
+            job.prop("message", "Setting aside intent-to-add files");
+            job.update();
+            self.stash_intent_to_add(intent_to_add)?;
+            if let Some(ita) = &self.intent_to_add {
+                for p in &ita.paths {
+                    files_to_stash.remove(p);
+                }
+            }
+        }
+        let intent_to_add_paths: Vec<PathBuf> = self
+            .intent_to_add
+            .as_ref()
+            .map(|ita| ita.paths.clone())
+            .unwrap_or_default();
         if files_to_stash.is_empty() && !stash_everything {
+            if !intent_to_add_paths.is_empty() {
+                self.stashed_paths = Some(intent_to_add_paths.into_iter().collect());
+                job.prop("message", "Stashed unstaged changes");
+                job.set_status(ProgressStatus::Done);
+                return Ok(());
+            }
             job.prop("message", "No unstaged changes to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
@@ -1392,9 +1462,20 @@ impl Git {
             Some(&subset_vec[..])
         };
         self.stashed_paths = Some(files_to_stash);
-        self.stash = self.push_stash(subset_opt, status)?;
+        self.stash = match self.push_stash(subset_opt, status) {
+            Ok(stash) => stash,
+            Err(err) => return Err(with_restore_error(err, self.restore_intent_to_add(true))),
+        };
         if self.stash.is_none() {
+            // The paths above keep their unstaged changes
             self.stashed_paths = None;
+        }
+        if !intent_to_add_paths.is_empty() {
+            self.stashed_paths
+                .get_or_insert_default()
+                .extend(intent_to_add_paths);
+        }
+        if self.stash.is_none() && self.intent_to_add.is_none() {
             job.prop("message", "No unstaged files to stash");
             job.set_status(ProgressStatus::Done);
             return Ok(());
@@ -1551,6 +1632,134 @@ impl Git {
 
     // removed: push_stash_keep_index_no_untracked helper
 
+    /// Sets aside the contents of the intent-to-add files `paths`: stores them
+    /// in a stash entry of untracked files, removes their entries from the
+    /// index and deletes the files.
+    fn stash_intent_to_add(&mut self, paths: Vec<PathBuf>) -> Result<()> {
+        // Stage the files in an index of their own, as `git stash -u` stages
+        // untracked files, which leaves the real index untouched
+        let tmp = tempfile::tempdir()?;
+        let tmp_index = tmp.path().join("index");
+        let mut stdin = Vec::new();
+        for p in &paths {
+            stdin.extend_from_slice(p.as_os_str().as_encoded_bytes());
+            stdin.push(0);
+        }
+        git_cmd(["update-index", "--add", "-z", "--stdin"])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .stdin_bytes(stdin)
+            .run()
+            .wrap_err("failed to read intent-to-add files")?;
+        let untracked_tree = git_cmd(["write-tree"])
+            .env("GIT_INDEX_FILE", &tmp_index)
+            .read()?;
+        let head_tree = git_read(["rev-parse", "HEAD^{tree}"])?;
+        // Shaped like a `git stash -u` entry with no tracked changes
+        let untracked = git_read([
+            "commit-tree",
+            untracked_tree.trim(),
+            "-m",
+            "untracked files",
+        ])?;
+        let index = git_read(["commit-tree", head_tree.trim(), "-p", "HEAD", "-m", "index"])?;
+        let commit = git_read([
+            "commit-tree",
+            head_tree.trim(),
+            "-p",
+            "HEAD",
+            "-p",
+            index.trim(),
+            "-p",
+            untracked.trim(),
+            "-m",
+            INTENT_TO_ADD_STASH_MESSAGE,
+        ])?
+        .trim()
+        .to_string();
+        git_cmd(["stash", "store", "-m", INTENT_TO_ADD_STASH_MESSAGE, &commit])
+            .run()
+            .wrap_err("failed to stash intent-to-add files")?;
+        debug!("stashed intent-to-add files {paths:?} in {commit}");
+        self.intent_to_add = Some(IntentToAddStash {
+            commit,
+            paths: paths.clone(),
+        });
+
+        let set_aside = || -> Result<()> {
+            git_cmd([
+                "rm",
+                "--cached",
+                "--quiet",
+                "--pathspec-from-file=-",
+                "--pathspec-file-nul",
+            ])
+            .stdin_bytes(literal_pathspecs(&paths))
+            .run()?;
+            for p in &paths {
+                std::fs::remove_file(p)
+                    .wrap_err_with(|| format!("failed to remove {}", display_path(p)))?;
+            }
+            Ok(())
+        };
+        if let Err(err) = set_aside() {
+            let err = err.wrap_err("failed to set aside intent-to-add files");
+            // Files still present were never removed
+            return Err(with_restore_error(err, self.restore_intent_to_add(false)));
+        }
+        Ok(())
+    }
+
+    /// Restores the files [`Git::stash_intent_to_add`] set aside and adds
+    /// them to the index with intent to add again.
+    ///
+    /// With `removed`, the files were all removed, so one that exists was
+    /// created meanwhile: it is kept, and so is the stash entry.
+    fn restore_intent_to_add(&mut self, removed: bool) -> Result<()> {
+        let Some(ita) = self.intent_to_add.take() else {
+            return Ok(());
+        };
+        let stash_ref = find_stash_ref(&ita.commit).unwrap_or_else(|| ita.commit.clone());
+        // A file a step created meanwhile is kept rather than overwritten
+        let (occupied, missing): (Vec<&PathBuf>, Vec<&PathBuf>) =
+            ita.paths.iter().partition(|p| path_exists(p));
+        if !missing.is_empty() {
+            git_cmd([
+                "restore",
+                &format!("--source={}^3", ita.commit),
+                "--worktree",
+                "--pathspec-from-file=-",
+                "--pathspec-file-nul",
+            ])
+            .stdin_bytes(literal_pathspecs(&missing))
+            .run()
+            .wrap_err_with(|| {
+                format!("failed to restore intent-to-add files; they are kept in {stash_ref}")
+            })?;
+        }
+        git_cmd([
+            "add",
+            "--intent-to-add",
+            "--force",
+            "--pathspec-from-file=-",
+            "--pathspec-file-nul",
+        ])
+        .stdin_bytes(literal_pathspecs(&ita.paths))
+        .run()
+        .wrap_err_with(|| {
+            format!("failed to add intent-to-add files back to the index; their contents are kept in {stash_ref}")
+        })?;
+        if removed && !occupied.is_empty() {
+            return Err(eyre!(
+                "steps created {}, which were intent-to-add files; their contents before the hook are kept in {stash_ref}",
+                occupied.iter().map(display_path).join(", ")
+            ));
+        }
+        if let Err(err) = git_cmd(["stash", "drop", "--quiet", &stash_ref]).run() {
+            warn!("failed to drop stash of intent-to-add files: {err:?}");
+        }
+        Ok(())
+    }
+
     pub fn capture_index(&mut self, paths: &[PathBuf]) -> Result<()> {
         if paths.is_empty() {
             self.saved_index = Some(vec![]);
@@ -1595,6 +1804,16 @@ impl Git {
     }
 
     pub fn pop_stash(&mut self, should_stage: bool) -> Result<()> {
+        let result = self.pop_unstaged_stash(should_stage);
+        let intent_to_add_result = self.restore_intent_to_add(true);
+        self.stashed_paths = None;
+        match (result, intent_to_add_result) {
+            (Err(err), intent_to_add_result) => Err(with_restore_error(err, intent_to_add_result)),
+            (Ok(()), intent_to_add_result) => intent_to_add_result,
+        }
+    }
+
+    fn pop_unstaged_stash(&mut self, should_stage: bool) -> Result<()> {
         let Some(diff) = self.stash.take() else {
             return Ok(());
         };
@@ -1604,24 +1823,11 @@ impl Git {
         match diff {
             StashType::LibGit | StashType::Git => {
                 // Resolve the specific stash entry we created using its commit id, falling back to top
-                let stash_ref = if let Some(hash) = self.stash_commit.as_ref() {
-                    let list = git_cmd(["stash", "list", "--format=%H %gd"])
-                        .read()
-                        .unwrap_or_default();
-                    let mut found: Option<String> = None;
-                    for line in list.lines() {
-                        let mut parts = line.split_whitespace();
-                        if let (Some(h), Some(gd)) = (parts.next(), parts.next())
-                            && h == hash
-                        {
-                            found = Some(gd.to_string());
-                            break;
-                        }
-                    }
-                    found.unwrap_or_else(|| "stash@{0}".to_string())
-                } else {
-                    "stash@{0}".to_string()
-                };
+                let stash_ref = self
+                    .stash_commit
+                    .as_deref()
+                    .and_then(find_stash_ref)
+                    .unwrap_or_else(|| "stash@{0}".to_string());
 
                 // Track whether any file restoration failed so we can preserve the stash
                 let mut restoration_failed = false;
@@ -2371,14 +2577,8 @@ impl Git {
         }
         // Pass the paths on stdin: a large fixer's files can exceed the
         // command-line limit.
-        let mut pathspecs = Vec::new();
-        for p in paths {
-            pathspecs.extend_from_slice(b":(literal)");
-            pathspecs.extend_from_slice(p.as_os_str().as_encoded_bytes());
-            pathspecs.push(0);
-        }
         git_cmd(["add", "--pathspec-from-file=-", "--pathspec-file-nul"])
-            .stdin_bytes(pathspecs)
+            .stdin_bytes(literal_pathspecs(paths))
             .run()?;
         Ok(())
     }
@@ -2498,6 +2698,38 @@ impl Git {
     }
 }
 
+/// `err`, together with any failure of restoring intent-to-add files that
+/// followed it: each names where its contents are kept.
+fn with_restore_error(err: eyre::Report, restore: Result<()>) -> eyre::Report {
+    match restore {
+        Ok(()) => err,
+        Err(restore_err) => eyre!("{err:#}\n{restore_err:#}"),
+    }
+}
+
+/// `paths` as NUL-terminated literal pathspecs, for
+/// `--pathspec-from-file=- --pathspec-file-nul`.
+fn literal_pathspecs<P: AsRef<std::path::Path>>(paths: &[P]) -> Vec<u8> {
+    let mut pathspecs = Vec::new();
+    for p in paths {
+        pathspecs.extend_from_slice(b":(literal)");
+        pathspecs.extend_from_slice(p.as_ref().as_os_str().as_encoded_bytes());
+        pathspecs.push(0);
+    }
+    pathspecs
+}
+
+/// The `stash@{n}` name of the stash entry whose commit is `hash`.
+fn find_stash_ref(hash: &str) -> Option<String> {
+    let list = git_cmd(["stash", "list", "--format=%H %gd"])
+        .read()
+        .unwrap_or_default();
+    list.lines().find_map(|line| {
+        let (h, gd) = line.split_once(' ')?;
+        (h == hash).then(|| gd.to_string())
+    })
+}
+
 fn collect_existing_paths_from_diff(diff: Diff<'_>) -> Result<Vec<PathBuf>> {
     let mut files = BTreeSet::new();
     diff.foreach(
@@ -2582,6 +2814,11 @@ pub(crate) struct GitStatus {
     /// UTF-8
     #[serde(skip)]
     pub skipped_untracked: bool,
+    /// Intent-to-add files (`git add -N`) that exist, which libgit2 counts as
+    /// staged rather than unstaged when they are empty. Statuses read with
+    /// libgit2 leave this empty.
+    #[serde(skip)]
+    pub intent_to_add_files: BTreeSet<PathBuf>,
 }
 
 impl GitStatus {
@@ -2590,6 +2827,7 @@ impl GitStatus {
     pub fn has_unstaged_changes(&self, include_untracked: bool) -> bool {
         !self.unstaged_files.is_empty()
             || self.skipped_unstaged
+            || !self.intent_to_add_files.is_empty()
             || (include_untracked && (!self.untracked_files.is_empty() || self.skipped_untracked))
     }
 
@@ -2618,6 +2856,7 @@ impl GitStatus {
             .extend(other.unstaged_deleted_files);
         self.unstaged_renamed_files
             .extend(other.unstaged_renamed_files);
+        self.intent_to_add_files.extend(other.intent_to_add_files);
     }
 
     /// Classifies entries of `git status --porcelain=v2`.
@@ -2662,6 +2901,11 @@ impl GitStatus {
             }
             if worktree == b'?' && exists {
                 status.untracked_files.insert(path.clone());
+            }
+            // git reports an intent-to-add file as added to the worktree, or
+            // as the new path of a worktree rename
+            if index == b' ' && matches!(worktree, b'A' | b'R') && exists {
+                status.intent_to_add_files.insert(path.clone());
             }
             // Track modified files only if the path exists
             if (is_modified(index) || is_modified(worktree)) && exists {
@@ -2714,6 +2958,9 @@ impl GitStatus {
                 // entry is the only one whose file is new in the worktree, so
                 // a file moved without `git add -N` is `.D` plus untracked.
                 (b' ', b'A' | b'R') => {
+                    if path_exists(&path) {
+                        status.intent_to_add_files.insert(path.clone());
+                    }
                     if entry.worktree == b'R'
                         && let Some(orig_path) = &entry.orig_path
                         && let Some(orig_path) = utf8_path(orig_path, skipped)
@@ -2917,6 +3164,7 @@ fn read_status_libgit2(
         // these are queries for paths hk already knows
         skipped_unstaged: false,
         skipped_untracked: false,
+        ..Default::default()
     })
 }
 
@@ -3105,6 +3353,18 @@ mod tests {
     }
 
     #[test]
+    fn test_restore_error_is_reported_with_the_original_error() {
+        let err = with_restore_error(eyre!("stash failed"), Ok(()));
+        assert_eq!(format!("{err:#}"), "stash failed");
+        let restore_err = Err(eyre!("kept in stash@{{1}}").wrap_err("failed to restore"));
+        let err = with_restore_error(eyre!("stash failed"), restore_err);
+        assert_eq!(
+            format!("{err}"),
+            "stash failed\nfailed to restore: kept in stash@{1}"
+        );
+    }
+
+    #[test]
     fn test_porcelain_status_classified_like_libgit2() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
@@ -3140,6 +3400,10 @@ mod tests {
         );
         assert!(status.unstaged_renamed_files.is_empty());
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(
+            status.intent_to_add_files,
+            paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
+        );
     }
 
     #[test]
@@ -3168,6 +3432,10 @@ mod tests {
         assert_eq!(status.unstaged_deleted_files, paths(d, &["gone.txt"]));
         assert_eq!(status.unstaged_renamed_files, paths(d, &["ita_moved.txt"]));
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(
+            status.intent_to_add_files,
+            paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
+        );
     }
 
     #[test]
