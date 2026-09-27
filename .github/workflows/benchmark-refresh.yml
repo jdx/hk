@@ -225,8 +225,10 @@ jobs:
           # token without `workflow` scope that moves a branch across a
           # workflow change, even one that only catches an earlier refresh's
           # branch up with main; a new branch is compared with main instead.
+          # A dash, not a slash: `benchmark-refresh/…` can't be created while
+          # the `benchmark-refresh` branch that refreshes used to reuse exists.
           remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          branch="benchmark-refresh/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          branch="benchmark-refresh-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git checkout -b "$branch"
           git commit -m "docs: refresh competitor benchmark for v${RELEASE}"
           git push "$remote" "HEAD:refs/heads/$branch"
@@ -246,7 +248,7 @@ jobs:
           stale=$(gh pr list --state open --limit 200 --json number,headRefName,isCrossRepository,body |
             jq -r --arg branch "$branch" --arg runs "Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/" '
               .[] | select((.isCrossRepository | not) and .headRefName != $branch
-                and (.headRefName == "benchmark-refresh" or (.headRefName | startswith("benchmark-refresh/")))
+                and (.headRefName == "benchmark-refresh" or (.headRefName | startswith("benchmark-refresh-")))
                 and (.body | split("\n") | any(startswith($runs))))
               | .number')
           for number in $stale; do
