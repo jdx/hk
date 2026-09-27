@@ -5,7 +5,8 @@
 //! than running the fixer, especially for tools that are slow to start.
 
 use crate::Result;
-use std::io::Write;
+use diffy::patch_set::{FileOperation, ParseOptions, PatchKind, PatchSet};
+use indexmap::IndexMap;
 use std::path::{Path, PathBuf};
 
 use super::types::Step;
@@ -96,79 +97,119 @@ impl Step {
             "-p0"
         };
 
-        // Use --whitespace=nowarn to avoid warnings about whitespace
-        // Run in the step's directory if configured (same as check_diff command)
-        let mut cmd = std::process::Command::new("git");
-        cmd.args(["apply", strip_level, "--whitespace=nowarn", "-"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped());
-
-        if let Some(dir) = dir {
-            cmd.current_dir(dir);
-        }
-
-        let result = cmd.spawn();
-
-        let mut child = match result {
-            Ok(c) => c,
-            Err(e) => {
-                warn!("{}: failed to spawn git apply: {}", self.name, e);
-                return Ok(false);
+        let strip = if strip_level == "-p1" { 1 } else { 0 };
+        match apply_patch(&diff_content, strip, &base) {
+            Ok(files) => {
+                debug!("{}: applied diff to {} file(s)", self.name, files);
+                Ok(true)
             }
-        };
-
-        // Write diff to stdin
-        if let Some(stdin) = child.stdin.as_mut()
-            && let Err(e) = stdin.write_all(diff_content.as_bytes())
-        {
-            warn!("{}: failed to write diff to git apply: {}", self.name, e);
-            return Ok(false);
-        }
-
-        let output = match child.wait_with_output() {
-            Ok(o) => o,
-            Err(e) => {
-                warn!("{}: git apply failed to complete: {}", self.name, e);
-                return Ok(false);
+            Err(reason) => {
+                // Output that is no patch at all is how some commands hand a
+                // file to the fixer, such as shellcheck's note that nothing is
+                // auto-fixable. A patch that doesn't apply is a broken
+                // `check_diff` that makes every fix run the tool twice, so say so.
+                if looks_like_patch(&diff_content) {
+                    warn!(
+                        "{}: check_diff printed a patch that doesn't apply, so the fixer ran instead: {reason}",
+                        self.name
+                    );
+                } else {
+                    debug!("{}: check_diff output is not a patch: {reason}", self.name);
+                }
+                Ok(false)
             }
-        };
-
-        if output.status.success() {
-            debug!("{}: successfully applied diff", self.name);
-            Ok(true)
-        } else {
-            let stderr_output = String::from_utf8_lossy(&output.stderr);
-            // Output that is no patch at all is how some commands hand a file
-            // to the fixer, such as shellcheck's note that nothing is
-            // auto-fixable. A patch that doesn't apply is a broken `check_diff`
-            // that makes every fix run the tool twice, so say so.
-            debug!("{}: git apply failed: {}", self.name, stderr_output);
-            if looks_like_patch(&diff_content) {
-                warn!(
-                    "{}: check_diff printed a patch that `git apply` rejected, so the fixer ran instead: {}",
-                    self.name,
-                    first_line_summary(&stderr_output)
-                );
-            }
-            Ok(false)
         }
     }
 }
 
-/// The first non-empty line of `output`, noting how many more there are.
-/// `git apply` reports each file it rejects, which for a large patch would
-/// bury the warning; the full output is logged at debug level.
-fn first_line_summary(output: &str) -> String {
-    let mut lines = output.lines().map(str::trim).filter(|l| !l.is_empty());
-    let Some(first) = lines.next() else {
-        return "no reason given".to_string();
-    };
-    match lines.count() {
-        0 => first.to_string(),
-        1 => format!("{first} (and 1 more line; run with HK_LOG=debug to see it)"),
-        more => format!("{first} (and {more} more lines; run with HK_LOG=debug to see them)"),
+/// Apply every file patch in `diff` to the files under `base`, stripping
+/// `strip` leading path components, and return how many files changed.
+///
+/// Every file's new contents are worked out before any is written, so a patch
+/// that doesn't apply changes nothing, as with `git apply`. Hunks may apply at
+/// an offset from the line they name, but their context must match exactly.
+fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usize, String> {
+    // Each touched file's contents after the patches so far, or `None` once
+    // deleted. A file can appear in more than one file patch.
+    let mut files: IndexMap<PathBuf, Option<String>> = IndexMap::new();
+    for file_patch in PatchSet::parse(diff, ParseOptions::unidiff()) {
+        let file_patch = file_patch.map_err(|err| err.to_string())?;
+        let PatchKind::Text(patch) = file_patch.patch() else {
+            return Err("binary patches are not supported".to_string());
+        };
+        let (path, delete) = match file_patch.operation().strip_prefix(strip) {
+            // Some tools diff against a temporary file or a label, so use the
+            // side that names a file under `base`.
+            FileOperation::Modify { original, modified } => {
+                let original = checked_path(&original)?;
+                if files.contains_key(&original) || base.join(&original).exists() {
+                    (original, false)
+                } else {
+                    (checked_path(&modified)?, false)
+                }
+            }
+            FileOperation::Create(path) => (checked_path(&path)?, false),
+            FileOperation::Delete(path) => (checked_path(&path)?, true),
+            _ => return Err("renames and copies are not supported".to_string()),
+        };
+        let current = match files.get(&path) {
+            Some(current) => current.clone(),
+            None => read_existing(&base.join(&path))?,
+        };
+        let display = path.display();
+        let patched = diffy::apply(current.as_deref().unwrap_or_default(), patch)
+            .map_err(|err| format!("{display}: {err}"))?;
+        files.insert(path, (!delete).then_some(patched));
     }
+    if files.is_empty() {
+        return Err("no file patches found".to_string());
+    }
+    for (path, contents) in &files {
+        let target = base.join(path);
+        let written = match contents {
+            Some(contents) => target
+                .parent()
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .and_then(|()| std::fs::write(&target, contents)),
+            None => std::fs::remove_file(&target),
+        };
+        written.map_err(|err| format!("{}: {err}", path.display()))?;
+    }
+    Ok(files.len())
+}
+
+/// `path` if it stays under the directory the patch applies in.
+fn checked_path(path: &str) -> std::result::Result<PathBuf, String> {
+    let path = PathBuf::from(path);
+    if path.as_os_str().is_empty()
+        || path.components().any(|c| {
+            !matches!(
+                c,
+                std::path::Component::Normal(_) | std::path::Component::CurDir
+            )
+        })
+    {
+        return Err(format!(
+            "{}: not a path under the working directory",
+            path.display()
+        ));
+    }
+    Ok(path)
+}
+
+/// The contents of `path`, or `None` if it doesn't exist.
+fn read_existing(path: &Path) -> std::result::Result<Option<String>, String> {
+    match std::fs::symlink_metadata(path) {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(format!("{}: {err}", path.display())),
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return Err(format!("{}: is a symlink", path.display()));
+        }
+        Ok(_) => {}
+    }
+    std::fs::read_to_string(path)
+        .map(Some)
+        .map_err(|err| format!("{}: {err}", path.display()))
 }
 
 /// Whether `diff` contains a unified diff file header: a `--- ` line directly
@@ -185,19 +226,7 @@ fn looks_like_patch(diff: &str) -> bool {
 
 #[cfg(test)]
 mod looks_like_patch_tests {
-    use super::{first_line_summary, looks_like_patch};
-
-    #[test]
-    fn summarizes_long_git_errors_to_their_first_line() {
-        assert_eq!(first_line_summary("error: one\n"), "error: one");
-        assert_eq!(
-            first_line_summary(
-                "\nerror: patch failed: a:1\nerror: a: patch does not apply\nerror: b\n"
-            ),
-            "error: patch failed: a:1 (and 2 more lines; run with HK_LOG=debug to see them)"
-        );
-        assert_eq!(first_line_summary(""), "no reason given");
-    }
+    use super::looks_like_patch;
 
     #[test]
     fn finds_a_file_header() {
@@ -267,5 +296,81 @@ mod relativize_diff_paths_tests {
             relativize_diff_paths(diff, Path::new("/w/svc")),
             "--- a.go\n+++ a.go\n@@ -1 +1 @@\n---- not a header\n"
         );
+    }
+}
+
+#[cfg(test)]
+mod apply_patch_tests {
+    use super::apply_patch;
+    use std::fs;
+
+    fn dir_with(files: &[(&str, &str)]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, contents) in files {
+            fs::write(dir.path().join(name), contents).unwrap();
+        }
+        dir
+    }
+
+    fn read(dir: &tempfile::TempDir, name: &str) -> String {
+        fs::read_to_string(dir.path().join(name)).unwrap()
+    }
+
+    #[test]
+    fn applies_every_file_and_keeps_carriage_returns() {
+        let dir = dir_with(&[("a.txt", "one  \r\ntwo\r\n"), ("b.txt", "x\n")]);
+        let diff = "--- a/a.txt\n+++ b/a.txt\n@@ -1,2 +1,2 @@\n-one  \r\n+one\r\n two\r\n\
+                    --- a/b.txt\n+++ b/b.txt\n@@ -1 +1 @@\n-x\n+y\n";
+        assert_eq!(apply_patch(diff, 1, dir.path()), Ok(2));
+        assert_eq!(read(&dir, "a.txt"), "one\r\ntwo\r\n");
+        assert_eq!(read(&dir, "b.txt"), "y\n");
+    }
+
+    #[test]
+    fn changes_nothing_when_any_hunk_fails() {
+        let dir = dir_with(&[("a.txt", "x\n"), ("b.txt", "p\n")]);
+        let diff = "--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-x\n+y\n\
+                    --- b.txt\n+++ b.txt\n@@ -1 +1 @@\n-nope\n+q\n";
+        assert!(
+            apply_patch(diff, 0, dir.path())
+                .unwrap_err()
+                .contains("b.txt")
+        );
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+        assert_eq!(read(&dir, "b.txt"), "p\n");
+    }
+
+    #[test]
+    fn uses_the_side_that_names_an_existing_file() {
+        // buildifier's `-mode=diff` compares with a temporary file.
+        let dir = dir_with(&[("BUILD", "a\n")]);
+        let diff = "--- BUILD\n+++ tmp/buildifier-tmp-123\n@@ -1 +1 @@\n-a\n+b\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(read(&dir, "BUILD"), "b\n");
+    }
+
+    #[test]
+    fn creates_and_deletes_files() {
+        let dir = dir_with(&[("old.txt", "bye\n")]);
+        let diff = "--- /dev/null\n+++ b/sub/new.txt\n@@ -0,0 +1 @@\n+hi\n\
+                    --- a/old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n";
+        assert_eq!(apply_patch(diff, 1, dir.path()), Ok(2));
+        assert_eq!(read(&dir, "sub/new.txt"), "hi\n");
+        assert!(!dir.path().join("old.txt").exists());
+    }
+
+    #[test]
+    fn refuses_paths_outside_the_directory() {
+        let dir = dir_with(&[]);
+        for path in ["../escape.txt", "/etc/escape.txt"] {
+            let diff = format!("--- {path}\n+++ {path}\n@@ -0,0 +1 @@\n+x\n");
+            assert!(apply_patch(&diff, 0, dir.path()).is_err(), "{path}");
+        }
+    }
+
+    #[test]
+    fn output_without_a_patch_is_an_error() {
+        let dir = dir_with(&[]);
+        assert!(apply_patch("Issues were detected.\n", 0, dir.path()).is_err());
     }
 }
