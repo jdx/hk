@@ -134,6 +134,9 @@ jobs:
       # installs the builtin tool stubs. Restore those tools before mise runs.
       - name: Restore Bats mise tools
         id: bats-mise-tools
+        # The cached macOS gem:rubocop install loses its prism dependency on
+        # restore, so keep macOS on the working fresh-install path.
+        if: runner.os == 'Linux'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
@@ -155,6 +158,17 @@ jobs:
       - run: |
           mise run pkl:gen
           mise run test:bats:setup
+      - name: Report Bats tool cache size
+        run: du -sh ~/.local/share/mise/installs
+      # Seed after preinstall so frequent main pushes can reuse these tools even
+      # when a later Bats run is cancelled. Pull requests restore read-only.
+      - name: Save Bats mise tools
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: ${{ steps.bats-mise-tools.outputs.cache-primary-key }}
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -163,16 +177,6 @@ jobs:
           timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
           command: mise run --skip-deps test:bats:libgit2
-      - name: Report Bats tool cache size
-        run: du -sh ~/.local/share/mise/installs
-      # Seed the shared cache from main only, including any tools the tests
-      # installed after setup. Pull requests restore it read-only.
-      - name: Save Bats mise tools
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.local/share/mise/installs
-          key: ${{ steps.bats-mise-tools.outputs.cache-primary-key }}
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -201,9 +205,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-macos-arm64
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
+            runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
     timeout-minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 40 || 30 }}
     steps:
@@ -212,13 +216,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Mount Bats mise tools on the Namespace cache volume
-        if: inputs.trusted
-        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
-        with:
-          path: ~/.local/share/mise/installs
-      - name: Restore Bats mise tools on GitHub-hosted runners
-        if: "!inputs.trusted"
+      - name: Restore Bats mise tools
+        if: runner.os == 'Linux'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
