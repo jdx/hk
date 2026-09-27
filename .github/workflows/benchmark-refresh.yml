@@ -204,15 +204,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config core.hooksPath /dev/null
-          # Every refresh pushes a new branch. GitHub rejects a push from a
-          # token without `workflow` scope that moves a branch across a
-          # workflow change, even one that only catches an earlier refresh's
-          # branch up with main; a new branch is compared with main instead.
-          branch="benchmark-refresh/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          git checkout -b "$branch"
-          git commit -m "docs: refresh competitor benchmark for v${RELEASE}"
-          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/$branch"
-
           table=$(jq -r '
             .scenarios[] as $s
             | "| \($s.title) | " + ([ $s.results | to_entries[]
@@ -229,17 +220,34 @@ jobs:
 
           Workflow run: ${RUN_URL}
           EOF
+
+          # Every refresh pushes a new branch. GitHub rejects a push from a
+          # token without `workflow` scope that moves a branch across a
+          # workflow change, even one that only catches an earlier refresh's
+          # branch up with main; a new branch is compared with main instead.
+          remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          branch="benchmark-refresh/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git checkout -b "$branch"
+          git commit -m "docs: refresh competitor benchmark for v${RELEASE}"
+          git push "$remote" "HEAD:refs/heads/$branch"
           # Open the new pull request before closing the old ones, so a run
-          # canceled in between leaves both open rather than neither.
-          url=$(gh pr create --base main --head "$branch" \
-            --title "docs: refresh competitor benchmark for v${RELEASE}" --body-file "$RUNNER_TEMP/body.md")
+          # canceled in between leaves both open rather than neither. Without
+          # a pull request, nothing would ever clean up the branch.
+          if ! url=$(gh pr create --base main --head "$branch" \
+            --title "docs: refresh competitor benchmark for v${RELEASE}" --body-file "$RUNNER_TEMP/body.md"); then
+            git push "$remote" --delete "$branch"
+            exit 1
+          fi
           echo "$url"
           # Earlier refreshes' pull requests, including those from the single
-          # `benchmark-refresh` branch that refreshes used to reuse.
-          stale=$(gh pr list --state open --limit 200 --json number,headRefName,isCrossRepository |
-            jq -r --arg branch "$branch" '
+          # `benchmark-refresh` branch that refreshes used to reuse. The branch
+          # name alone could match a maintainer's pull request, so each must
+          # also carry the "Workflow run:" line this job writes.
+          stale=$(gh pr list --state open --limit 200 --json number,headRefName,isCrossRepository,body |
+            jq -r --arg branch "$branch" --arg runs "Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/" '
               .[] | select((.isCrossRepository | not) and .headRefName != $branch
-                and (.headRefName == "benchmark-refresh" or (.headRefName | startswith("benchmark-refresh/"))))
+                and (.headRefName == "benchmark-refresh" or (.headRefName | startswith("benchmark-refresh/")))
+                and (.body | split("\n") | any(startswith($runs))))
               | .number')
           for number in $stale; do
             gh pr close "$number" --delete-branch --comment "Superseded by $url." ||
