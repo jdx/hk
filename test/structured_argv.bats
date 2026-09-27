@@ -124,6 +124,10 @@ hooks {
             ["black"] = (Builtins.black) {
                 prefix = List("mise", "x", "--")
             }
+            // Every go_lines command is argv, so nothing is left out.
+            ["go_lines"] = (Builtins.go_lines) {
+                prefix = List("mise", "x", "--")
+            }
         }
     }
 }
@@ -131,4 +135,28 @@ EOF
 
     run hk validate
     assert_success
+}
+
+@test "go_lines runs its check under an argv prefix" {
+    # The prefix wraps go_lines' check, `hk util format-diff ... -- golines`,
+    # which reports a file golines would change.
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+import "$PKL_PATH/Builtins.pkl"
+hooks {
+    ["check"] {
+        steps {
+            ["go_lines"] = (Builtins.go_lines) {
+                prefix = List("env")
+            }
+        }
+    }
+}
+EOF
+    printf 'package name\n\nfunc a(aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int, bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb int, cccccccccccccccccccccccccccccc int) int {\n\treturn aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n}\n' > a.go
+
+    PATH="$PROJECT_ROOT/test/builtin_tool_stubs:$PATH"
+    run hk check a.go
+    assert_failure
+    assert_output --partial "+	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa int,"
 }
