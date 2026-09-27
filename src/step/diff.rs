@@ -144,17 +144,31 @@ impl Step {
             // to the fixer, such as shellcheck's note that nothing is
             // auto-fixable. A patch that doesn't apply is a broken `check_diff`
             // that makes every fix run the tool twice, so say so.
+            debug!("{}: git apply failed: {}", self.name, stderr_output);
             if looks_like_patch(&diff_content) {
                 warn!(
                     "{}: check_diff printed a patch that `git apply` rejected, so the fixer ran instead: {}",
                     self.name,
-                    stderr_output.trim()
+                    first_line_summary(&stderr_output)
                 );
-            } else {
-                debug!("{}: git apply failed: {}", self.name, stderr_output);
             }
             Ok(false)
         }
+    }
+}
+
+/// The first non-empty line of `output`, noting how many more there are.
+/// `git apply` reports each file it rejects, which for a large patch would
+/// bury the warning; the full output is logged at debug level.
+fn first_line_summary(output: &str) -> String {
+    let mut lines = output.lines().map(str::trim).filter(|l| !l.is_empty());
+    let Some(first) = lines.next() else {
+        return "no reason given".to_string();
+    };
+    match lines.count() {
+        0 => first.to_string(),
+        1 => format!("{first} (and 1 more line; run with HK_LOG=debug to see it)"),
+        more => format!("{first} (and {more} more lines; run with HK_LOG=debug to see them)"),
     }
 }
 
@@ -172,7 +186,19 @@ fn looks_like_patch(diff: &str) -> bool {
 
 #[cfg(test)]
 mod looks_like_patch_tests {
-    use super::looks_like_patch;
+    use super::{first_line_summary, looks_like_patch};
+
+    #[test]
+    fn summarizes_long_git_errors_to_their_first_line() {
+        assert_eq!(first_line_summary("error: one\n"), "error: one");
+        assert_eq!(
+            first_line_summary(
+                "\nerror: patch failed: a:1\nerror: a: patch does not apply\nerror: b\n"
+            ),
+            "error: patch failed: a:1 (and 2 more lines; run with HK_LOG=debug to see them)"
+        );
+        assert_eq!(first_line_summary(""), "no reason given");
+    }
 
     #[test]
     fn finds_a_file_header() {
