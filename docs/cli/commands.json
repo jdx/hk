@@ -7902,6 +7902,49 @@
             "examples": [],
             "headings": []
           },
+          "sarif-diff": {
+            "full_cmd": ["util", "sarif-diff"],
+            "usage": "util sarif-diff <-- COMMAND>…",
+            "subcommands": {},
+            "args": [
+              {
+                "name": "COMMAND",
+                "usage": "<-- COMMAND>…",
+                "help": "The tool, printing a SARIF log on stdout",
+                "help_first_line": "The tool, printing a SARIF log on stdout",
+                "required": true,
+                "double_dash": "Required",
+                "var": true,
+                "hide": false
+              }
+            ],
+            "flags": [
+              {
+                "name": "help",
+                "usage": "-h --help",
+                "help": "Print help",
+                "help_first_line": "Print help",
+                "short": ["h"],
+                "long": ["help"],
+                "hide": false,
+                "global": false,
+                "action": "help",
+                "builtin": true
+              }
+            ],
+            "mounts": [],
+            "effect": "read",
+            "unknown_flags": null,
+            "hide": false,
+            "args_override_self": true,
+            "help": "Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command",
+            "help_long": "Print a patch from the fixes in a tool's SARIF report, for a `check_diff` command\n\nRuns COMMAND, reads the SARIF log it prints on stdout, and applies the fixes its results carry to the files they name, printing a unified diff of the changes. Exits 0 when there are no results, and 1 after printing the patch when every result has a fix.\n\nIf any result has no fix, a fix can't be applied, or COMMAND fails without reporting results, no patch is printed: the results or errors are shown and hk runs the step's fixer instead, so an unfixable finding is never hidden behind a patch that fixed the rest.\n\nExample: `hk util sarif-diff -- pinact run --check --format sarif a.yml`",
+            "name": "sarif-diff",
+            "aliases": [],
+            "hidden_aliases": [],
+            "examples": [],
+            "headings": []
+          },
           "trailing-whitespace": {
             "full_cmd": ["util", "trailing-whitespace"],
             "usage": "util trailing-whitespace [-d --diff] [-f --fix] <FILES>…",
