@@ -41,6 +41,13 @@ impl FileRwLocks {
         }
     }
 
+    pub fn remove_files(&self, files: &[PathBuf]) {
+        let mut locks = self.locks.lock().unwrap();
+        for file in files {
+            locks.remove(file);
+        }
+    }
+
     fn try_read_locks(&self, files: &BTreeSet<&PathBuf>) -> Result<Flocks> {
         let mut locks = self.locks.lock().unwrap();
         let mut read_locks = Vec::new();
