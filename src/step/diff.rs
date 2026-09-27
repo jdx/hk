@@ -203,18 +203,48 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
         if let Err(err) = write_contents(&base.join(path), contents.as_deref()) {
             // Put back what was already written, so the fixer starts from the
             // files as they were.
+            let mut message = format!("{}: {err}", path.display());
             for done in written {
-                let target = base.join(done);
-                let (contents, permissions): &Original = &originals[done];
-                let _ = write_contents(&target, contents.as_deref());
-                if let (Some(_), Some(permissions)) = (contents, permissions) {
-                    let _ = std::fs::set_permissions(&target, permissions.clone());
+                let attempted = files[done].as_deref();
+                if let Err(err) = roll_back(&base.join(done), &originals[done], attempted) {
+                    message.push_str(&format!("; could not restore {}: {err}", done.display()));
                 }
             }
-            return Err(format!("{}: {err}", path.display()));
+            return Err(message);
         }
     }
     Ok(files.len())
+}
+
+/// Put `path` back as it was before hk tried to write `attempted` to it.
+///
+/// Only undoes what hk may have done: a file that still has its original
+/// contents is left alone, and a file hk was creating is removed only if it
+/// holds a prefix of what hk wrote, so a file another process put there stays.
+fn roll_back(
+    path: &Path,
+    (contents, permissions): &(Option<String>, Option<std::fs::Permissions>),
+    attempted: Option<&str>,
+) -> std::io::Result<()> {
+    let current = std::fs::read(path).ok();
+    match contents {
+        Some(original) => {
+            if current.as_deref() == Some(original.as_bytes()) {
+                return Ok(());
+            }
+            write_contents(path, Some(original))?;
+            if let Some(permissions) = permissions {
+                std::fs::set_permissions(path, permissions.clone())?;
+            }
+            Ok(())
+        }
+        None => match current {
+            Some(current) if attempted.is_some_and(|a| a.as_bytes().starts_with(&current)) => {
+                write_contents(path, None)
+            }
+            _ => Ok(()),
+        },
+    }
 }
 
 /// Write `contents` to `path`, creating its directory, or remove it for `None`.
@@ -597,6 +627,38 @@ mod apply_patch_tests {
                 & 0o777,
             0o444
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn roll_back_leaves_an_unchanged_file_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("a.txt", "x\n")]);
+        let path = dir.path().join("a.txt");
+        // Read-only, so rewriting it would fail (unless run as root).
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
+        let original = (Some("x\n".to_string()), None);
+        super::roll_back(&path, &original, None).unwrap();
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[test]
+    fn roll_back_restores_a_changed_file() {
+        let dir = dir_with(&[("a.txt", "")]);
+        let path = dir.path().join("a.txt");
+        let original = (Some("x\n".to_string()), None);
+        super::roll_back(&path, &original, Some("y\n")).unwrap();
+        assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[test]
+    fn roll_back_removes_only_a_file_hk_was_creating() {
+        let dir = dir_with(&[("partial.txt", "hel"), ("theirs.txt", "not ours\n")]);
+        let absent = (None, None);
+        super::roll_back(&dir.path().join("partial.txt"), &absent, Some("hello\n")).unwrap();
+        assert!(!dir.path().join("partial.txt").exists());
+        super::roll_back(&dir.path().join("theirs.txt"), &absent, Some("hello\n")).unwrap();
+        assert_eq!(read(&dir, "theirs.txt"), "not ours\n");
     }
 
     #[test]
