@@ -319,10 +319,10 @@ impl Step {
                                                 // Diff application failed - fall through to run fixer
                                                 debug!("{step}: diff application failed, falling back to fixer");
                                             }
-                                            Err(err) => {
-                                                // Unexpected error - fall through to run fixer
-                                                warn!("{step}: unexpected error applying diff: {err}");
-                                            }
+                                            // Applying failed and the files couldn't all be
+                                            // put back, so the fixer would start from damaged
+                                            // files: stop instead.
+                                            Err(err) => return Err(err),
                                         }
                                     }
                                 }

@@ -75,8 +75,9 @@ impl Step {
     /// # Returns
     ///
     /// * `Ok(true)` - Diff was applied successfully
-    /// * `Ok(false)` - Diff application failed (caller should fall back to fixer)
-    /// * `Err(_)` - Unexpected error
+    /// * `Ok(false)` - Diff application failed and changed nothing (caller should fall back to fixer)
+    /// * `Err(_)` - Writing failed and some files couldn't be restored, so the
+    ///   fixer must not run on them
     pub(crate) fn apply_diff_output(&self, stdout: &str, dir: Option<&str>) -> Result<bool> {
         if stdout.trim().is_empty() {
             debug!("{}: no diff content to apply", self.name);
@@ -103,7 +104,11 @@ impl Step {
                 debug!("{}: applied diff to {} file(s)", self.name, files);
                 Ok(true)
             }
-            Err(reason) => {
+            Err(PatchError::RollbackFailed(reason)) => eyre::bail!(
+                "{}: applying the check_diff patch failed and some files could not be restored; check them before running hk again: {reason}",
+                self.name
+            ),
+            Err(PatchError::Rejected(reason)) => {
                 // Output that is no patch at all is how some commands hand a
                 // file to the fixer, such as shellcheck's note that nothing is
                 // auto-fixable. A patch that doesn't apply is a broken
@@ -122,13 +127,38 @@ impl Step {
     }
 }
 
+/// Why a patch wasn't applied.
+#[derive(Debug, PartialEq)]
+enum PatchError {
+    /// Nothing was changed; the fixer can run.
+    Rejected(String),
+    /// A write failed and at least one file couldn't be put back.
+    RollbackFailed(String),
+}
+
+impl std::fmt::Display for PatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PatchError::Rejected(reason) | PatchError::RollbackFailed(reason) => {
+                f.write_str(reason)
+            }
+        }
+    }
+}
+
+impl From<String> for PatchError {
+    fn from(reason: String) -> Self {
+        PatchError::Rejected(reason)
+    }
+}
+
 /// Apply every file patch in `diff` to the files under `base`, stripping
 /// `strip` leading path components, and return how many files changed.
 ///
 /// Every file's new contents are worked out before any is written, so a patch
 /// that doesn't apply changes nothing, as with `git apply`. Hunks may apply at
 /// an offset from the line they name, but their context must match exactly.
-fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usize, String> {
+fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usize, PatchError> {
     // `ParseOptions::unidiff` doesn't read git's extended headers, so a mode
     // change would be dropped silently. Leave such patches to the fixer.
     if diff.lines().any(|line| {
@@ -141,7 +171,9 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
         .iter()
         .any(|header| line.starts_with(header))
     }) {
-        return Err("patches that change file modes are not supported".to_string());
+        return Err("patches that change file modes are not supported"
+            .to_string()
+            .into());
     }
     // Each touched file's contents after the patches so far, or `None` once
     // deleted. A file can appear in more than one file patch.
@@ -153,7 +185,7 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
     for file_patch in PatchSet::parse(diff, ParseOptions::unidiff()) {
         let file_patch = file_patch.map_err(|err| err.to_string())?;
         let PatchKind::Text(patch) = file_patch.patch() else {
-            return Err("binary patches are not supported".to_string());
+            return Err("binary patches are not supported".to_string().into());
         };
         let known = |path: &PathBuf| files.contains_key(path) || base.join(path).exists();
         let (path, create, delete) = match file_patch.operation().strip_prefix(strip) {
@@ -167,7 +199,7 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
             }
             FileOperation::Create(path) => (checked_path(&path)?, true, false),
             FileOperation::Delete(path) => (checked_path(&path)?, false, true),
-            _ => return Err("renames and copies are not supported".to_string()),
+            _ => return Err("renames and copies are not supported".to_string().into()),
         };
         let display = path.display().to_string();
         refuse_symlinks(base, &path)?;
@@ -183,17 +215,17 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
             }
         };
         if create && current.is_some() {
-            return Err(format!("{display}: the patch creates a file that exists"));
+            return Err(format!("{display}: the patch creates a file that exists").into());
         }
         if !create && current.is_none() {
-            return Err(format!("{display}: no such file"));
+            return Err(format!("{display}: no such file").into());
         }
         let patched = diffy::apply(current.as_deref().unwrap_or_default(), patch)
             .map_err(|err| format!("{display}: {err}"))?;
         files.insert(path, (!delete).then_some(patched));
     }
     if files.is_empty() {
-        return Err("no file patches found".to_string());
+        return Err("no file patches found".to_string().into());
     }
     let mut written: Vec<&PathBuf> = Vec::with_capacity(files.len());
     for (path, contents) in &files {
@@ -204,13 +236,19 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
             // Put back what was already written, so the fixer starts from the
             // files as they were.
             let mut message = format!("{}: {err}", path.display());
+            let mut restored = true;
             for done in written {
                 let attempted = files[done].as_deref();
                 if let Err(err) = roll_back(&base.join(done), &originals[done], attempted) {
                     message.push_str(&format!("; could not restore {}: {err}", done.display()));
+                    restored = false;
                 }
             }
-            return Err(message);
+            return Err(if restored {
+                PatchError::Rejected(message)
+            } else {
+                PatchError::RollbackFailed(message)
+            });
         }
     }
     Ok(files.len())
@@ -280,7 +318,18 @@ fn refuse_hard_links(path: &Path) -> std::result::Result<(), String> {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn refuse_hard_links(path: &Path) -> std::result::Result<(), String> {
+    let links = std::fs::File::open(path)
+        .and_then(|file| winapi_util::file::information(&file))
+        .map(|info| info.number_of_links());
+    match links {
+        Ok(links) if links > 1 => Err(format!("{}: has other hard links", path.display())),
+        _ => Ok(()),
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
 fn refuse_hard_links(_path: &Path) -> std::result::Result<(), String> {
     Ok(())
 }
@@ -459,6 +508,7 @@ mod apply_patch_tests {
         assert!(
             apply_patch(diff, 0, dir.path())
                 .unwrap_err()
+                .to_string()
                 .contains("b.txt")
         );
         assert_eq!(read(&dir, "a.txt"), "x\n");
@@ -503,6 +553,7 @@ mod apply_patch_tests {
         assert!(
             apply_patch(diff, 0, dir.path())
                 .unwrap_err()
+                .to_string()
                 .contains("symlink")
         );
         assert_eq!(read(&outside, "file.txt"), "x\n");
@@ -515,6 +566,7 @@ mod apply_patch_tests {
         assert!(
             apply_patch(diff, 0, dir.path())
                 .unwrap_err()
+                .to_string()
                 .contains("exists")
         );
         assert_eq!(read(&dir, "a.txt"), "keep\n");
@@ -528,6 +580,7 @@ mod apply_patch_tests {
         assert!(
             apply_patch(diff, 1, dir.path())
                 .unwrap_err()
+                .to_string()
                 .contains("mode")
         );
         assert_eq!(read(&dir, "a.sh"), "x\n");
@@ -578,6 +631,7 @@ mod apply_patch_tests {
         assert!(
             apply_patch(diff, 0, dir.path())
                 .unwrap_err()
+                .to_string()
                 .contains("hard links")
         );
         assert_eq!(read(&outside, "file.txt"), "x\n");
@@ -640,6 +694,19 @@ mod apply_patch_tests {
         let original = (Some("x\n".to_string()), None);
         super::roll_back(&path, &original, None).unwrap();
         assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn roll_back_reports_a_file_it_cannot_restore() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("a.txt", "")]);
+        let path = dir.path().join("a.txt");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o444)).unwrap();
+        let original = (Some("x\n".to_string()), None);
+        let result = super::roll_back(&path, &original, Some("y\n"));
+        // Root can write read-only files; everyone else gets the error.
+        assert_eq!(result.is_err(), read(&dir, "a.txt").is_empty());
     }
 
     #[test]
