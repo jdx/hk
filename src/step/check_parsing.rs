@@ -159,8 +159,9 @@ impl Step {
 
 /// The files in `original_files` that the `listed` paths name, and the
 /// canonicalized listed paths that name none of them. Each listed path comes
-/// as its possible readings; every reading that names a file matches it, and
-/// the path is an extra only if none does.
+/// as its possible readings, the one in the step's `dir` first when there are
+/// two; every reading that names a file matches it, and the path is an extra
+/// only if none does.
 ///
 /// Paths are matched as written first, which is how tools usually print the
 /// paths they were given. Only a listed path that matches no file that way is
@@ -174,6 +175,10 @@ fn match_listed_files(
     let originals: HashSet<&Path> = original_files.iter().map(PathBuf::as_path).collect();
     let mut matched: HashSet<&Path> = HashSet::new();
     let mut unmatched: Vec<&[PathBuf]> = Vec::new();
+    // Readings in `dir` that didn't match as written, although the root reading
+    // did: `dir` may be a symlink, so its reading can name a job file only once
+    // canonicalized. A root reading that doesn't match is just not a job file.
+    let mut unmatched_in_dir: Vec<&PathBuf> = Vec::new();
     for readings in listed {
         let direct: Vec<&Path> = readings
             .iter()
@@ -183,10 +188,15 @@ fn match_listed_files(
             unmatched.push(readings);
         } else {
             matched.extend(direct);
+            if let [in_dir, _] = readings.as_slice()
+                && !originals.contains(in_dir.as_path())
+            {
+                unmatched_in_dir.push(in_dir);
+            }
         }
     }
     let mut extras: IndexSet<PathBuf> = IndexSet::new();
-    if !unmatched.is_empty() {
+    if !unmatched.is_empty() || !unmatched_in_dir.is_empty() {
         let mut by_canonical: HashMap<PathBuf, Vec<&Path>> = HashMap::new();
         for file in original_files {
             by_canonical
@@ -206,6 +216,11 @@ fn match_listed_files(
                 extras.extend(canonical.into_iter().next());
             } else {
                 matched.extend(hits);
+            }
+        }
+        for in_dir in unmatched_in_dir {
+            if let Some(files) = by_canonical.get(&try_canonicalize(in_dir)) {
+                matched.extend(files.iter().copied());
             }
         }
     }
@@ -320,6 +335,29 @@ mod tests {
             step.filter_files_from_check_diff(std::slice::from_ref(&in_pkg), diff, pkg.to_str());
         assert_eq!(files, vec![in_pkg]);
         assert!(extras.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn check_diff_paths_in_a_symlinked_dir_match_the_real_file() {
+        // The step runs in `alias`, a link to `pkg`. `a/x` reads as a root `x`,
+        // which is a job file, and as `alias/x`, which is `pkg/x`.
+        let root = tempfile::tempdir().unwrap();
+        let pkg = root.path().join("pkg");
+        std::fs::create_dir(&pkg).unwrap();
+        std::fs::write(pkg.join("x"), "x\n").unwrap();
+        let alias = root.path().join("alias");
+        std::os::unix::fs::symlink(&pkg, &alias).unwrap();
+        let in_pkg = pkg.join("x");
+        let at_root = PathBuf::from("x");
+        let step = Step::default();
+        let diff = "--- a/x\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+        let (files, _) = step.filter_files_from_check_diff(
+            &[at_root.clone(), in_pkg.clone()],
+            diff,
+            alias.to_str(),
+        );
+        assert_eq!(files, vec![at_root, in_pkg]);
     }
 
     fn diff_naming(paths: &[&Path]) -> String {
