@@ -121,7 +121,7 @@ impl Step {
         dir: Option<&str>,
     ) -> DiffFiles {
         let stdout = normalize_diff_paths(stdout);
-        // Match the paths that git apply will use, including absolute headers
+        // Match the paths that patch application will use, including absolute headers
         // made relative to the command's working directory.
         let base = PathBuf::from(dir.unwrap_or("."));
         let base = base.canonicalize().unwrap_or(base);
@@ -133,7 +133,7 @@ impl Step {
 
         // Only header pairs outside hunk bodies are read: a hunk can hold lines
         // that look like headers, such as a removed `-- x`.
-        let strip_prefixes = strips_git_prefixes(&stdout, Path::new(dir.unwrap_or(".")));
+        let strip_prefixes = strips_git_prefixes(&stdout, &base);
         for (old, new) in header_pairs(&stdout) {
             let creates_file = header_path(old) == "/dev/null";
             for (side, prefix, is_new) in [(old, "a/", false), (new, "b/", true)] {

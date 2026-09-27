@@ -910,6 +910,59 @@ EOF
     assert_output --regexp '^line-(1-2|2-1)$'
 }
 
+@test "read-only check_diff rechecks unnamed job inputs changed before apply" {
+    cat <<'SCRIPT' > derived.sh
+#!/bin/bash
+touch derived.started
+source=$(cat b.txt)
+sleep 0.4
+if [ "$(cat a.txt)" != "from-$source" ]; then
+    printf '%s\n' '--- a.txt' '+++ a.txt' '@@ -1 +1 @@' "-$(cat a.txt)" "+from-$source"
+    exit 1
+fi
+SCRIPT
+    cat <<'SCRIPT' > writer.sh
+#!/bin/bash
+for _ in $(seq 50); do
+    [ -e derived.started ] && break
+    sleep 0.1
+done
+[ -e derived.started ] || exit 2
+if [ "$(cat b.txt)" = "old" ]; then
+    printf '%s\n' '--- b.txt' '+++ b.txt' '@@ -1 +1 @@' '-old' '+new'
+    exit 1
+fi
+SCRIPT
+    chmod +x derived.sh writer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["derived"] {
+                glob = List("*.txt")
+                check_diff = new CommandSpec { command = "./derived.sh"; effect = "read" }
+            }
+            ["writer"] {
+                glob = List("b.txt")
+                check_diff = new CommandSpec { command = "./writer.sh"; effect = "read" }
+            }
+        }
+    }
+}
+EOF
+    echo "old" > a.txt
+    echo "old" > b.txt
+
+    run hk fix a.txt b.txt
+    assert_success
+    run cat a.txt
+    assert_output "from-new"
+    run cat b.txt
+    assert_output "new"
+}
+
 @test "check_diff steps that declare a write effect keep write locks in fix mode" {
     write_rendezvous_formatter
     write_rendezvous_config write
@@ -1466,6 +1519,43 @@ EOF
     assert_success
     run cat existing.txt
     assert_output "from-fixer"
+}
+
+@test "fixer receives an existing job file named by a creation header in a mixed patch" {
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf '%s\n' '--- /dev/null' '+++ existing.txt' '@@ -0,0 +1 @@' '+from-patch' \
+    '--- other.txt' '+++ other.txt' '@@ -1 +1 @@' '-old' '+updated'
+exit 1
+SCRIPT
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+printf '%s\n' "$@" > fixer-files.log
+SCRIPT
+    chmod +x formatter.sh fixer.sh
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+    echo "already here" > existing.txt
+    echo "old" > other.txt
+
+    run hk fix existing.txt other.txt
+    assert_success
+    run cat fixer-files.log
+    assert_output --partial "existing.txt"
+    assert_output --partial "other.txt"
 }
 
 @test "a mixed-prefix creation patch keeps unprefixed paths intact" {

@@ -267,6 +267,17 @@ impl Step {
                                         );
                                     }
 
+                                    // A creation header can name a file that was already in
+                                    // this job. Keep it among the files sent to the fixer if
+                                    // applying the patch fails or is disabled.
+                                    let mut files = files;
+                                    files.extend(
+                                        created
+                                            .iter()
+                                            .filter(|path| original_job_files.contains(path))
+                                            .cloned(),
+                                    );
+                                    let files: Vec<_> = files.into_iter().collect::<IndexSet<_>>().into_iter().collect();
                                     let patch_job_files = files.clone();
                                     // A creation-only patch still needs the original inputs if
                                     // application is disabled or falls back to the fixer.
@@ -314,8 +325,9 @@ impl Step {
                                             } else {
                                                 original_job_files.clone()
                                             };
+                                            // The patch may depend on inputs it does not name.
+                                            named.extend(original_job_files.iter().cloned());
                                             if !created.is_empty() {
-                                                named.extend(original_job_files.iter().cloned());
                                                 named.extend(created.iter().cloned());
                                             }
                                             let named: Vec<_> = named.into_iter().collect::<IndexSet<_>>().into_iter().collect();
