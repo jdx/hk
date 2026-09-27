@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Validate v2 fixtures with Apple Pkl
         run: |
           mise run pkl:gen
@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Install JavaScript dependencies
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
@@ -78,7 +78,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
@@ -102,7 +102,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
           cache-generation: ci-v2
@@ -130,6 +130,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # mise-action saves immediately after its own install, before Bats setup
+      # installs the builtin tool stubs. Restore those tools before mise runs.
+      - name: Restore Bats mise tools
+        id: bats-mise-tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
@@ -155,6 +163,16 @@ jobs:
           timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
           command: mise run --skip-deps test:bats:libgit2
+      - name: Report Bats tool cache size
+        run: du -sh ~/.local/share/mise/installs
+      # Seed the shared cache from main only, including any tools the tests
+      # installed after setup. Pull requests restore it read-only.
+      - name: Save Bats mise tools
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: ${{ steps.bats-mise-tools.outputs.cache-primary-key }}
       - name: Publish builtin test timings
         if: always()
         run: |
@@ -183,9 +201,9 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            runner: namespace-profile-endev-macos-arm64
+            runner: namespace-profile-endev-macos-arm64;overrides.cache-tag=cache
           - os: ubuntu-latest
-            runner: namespace-profile-endev-linux-amd64
+            runner: namespace-profile-endev-linux-amd64;overrides.cache-tag=cache
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
     timeout-minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 40 || 30 }}
     steps:
@@ -194,6 +212,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Mount Bats mise tools on the Namespace cache volume
+        if: inputs.trusted
+        uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
+        with:
+          path: ~/.local/share/mise/installs
+      - name: Restore Bats mise tools on GitHub-hosted runners
+        if: "!inputs.trusted"
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
@@ -258,6 +287,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Restore Bats mise tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/share/mise/installs
+          key: bats-mise-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mise-tasks/test/bats/setup', 'test/builtin_tool_stubs*/**') }}
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
           cache: false
@@ -323,7 +357,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
@@ -357,7 +391,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - name: Mount the local mbx store on the Namespace cache volume
         if: inputs.trusted
         uses: namespacelabs/nscloud-cache-action@1124a6f3ce44e5cf84cc22111530961f4d2a15f9 # v1.7.0
@@ -378,7 +412,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          cache: false
+          cache_save: false
       - uses: jdx/mr-boxington-action@9df1d4b18b2147788a7ee7a2c7b84ecf62fd89d3 # v1.5.0
         with:
           cache-generation: ci-v2
