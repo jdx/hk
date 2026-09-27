@@ -98,6 +98,7 @@ Start with [getting started](/getting_started) for an end-to-end setup. Command-
 - [`hk util fix-byte-order-marker <FILES>…`](/cli/util/fix-byte-order-marker.md)
 - [`hk util fix-smart-quotes [--check] [-d --diff] <FILES>…`](/cli/util/fix-smart-quotes.md)
 - [`hk util forbid-submodules [PATHS]…`](/cli/util/forbid-submodules.md)
+- [`hk util format-diff <FILES>… <-- COMMAND>…`](/cli/util/format-diff.md)
 - [`hk util mixed-line-ending [-d --diff] [-f --fix] <FILES>…`](/cli/util/mixed-line-ending.md)
 - [`hk util no-commit-to-branch [--branch <BRANCH>]`](/cli/util/no-commit-to-branch.md)
 - [`hk util python-check-ast <FILES>…`](/cli/util/python-check-ast.md)

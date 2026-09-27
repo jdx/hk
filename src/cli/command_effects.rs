@@ -104,6 +104,10 @@ pub const UNCLASSIFIED: &[(&str, &str)] = &[
         "test",
         "runs step-defined tests, which are arbitrary commands",
     ),
+    (
+        "util format-diff",
+        "runs the formatter it is given on each file, which can do anything",
+    ),
 ];
 
 #[cfg(test)]

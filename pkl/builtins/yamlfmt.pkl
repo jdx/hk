@@ -8,8 +8,31 @@ import "./test/helpers.pkl"
 }
 yamlfmt = new Config.Step {
   glob = List("**/*.yml", "**/*.yaml")
-  check_diff = new Config.CommandSpec {
+  // `-lint` shows a side-by-side comparison rather than a patch, so it is the
+  // check. `check_diff` builds the patch from yamlfmt's stdin mode, which
+  // ignores the configuration's `exclude`, so it first asks `-dry` which files
+  // would change. The script needs a POSIX shell; on Windows hk runs the fixer.
+  check = new Config.CommandSpec {
     command = new Config.Command { argv = List("yamlfmt", "-lint", "{{files}}") }
+    effect = "read"
+  }
+  check_diff = new Config.CommandSpec {
+    command = new Config.Script {
+      windows = ""
+      other =
+        #"""
+        list=$(yamlfmt -dry -quiet {{ files }})
+        set --
+        # After a heading, `-dry -quiet` lists the files that would change.
+        while IFS= read -r f; do
+        [ -f "$f" ] && set -- "$@" "$f"
+        done <<EOF
+        $list
+        EOF
+        [ $# -eq 0 ] && exit 0
+        hk util format-diff "$@" -- yamlfmt -in
+        """#
+    }
     effect = "read"
   }
   fix = new Config.CommandSpec {
