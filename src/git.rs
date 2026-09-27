@@ -3359,9 +3359,18 @@ mod tests {
     #[test]
     fn has_untracked_under_finds_only_files_inside_the_directory() {
         let changes = StashedChanges {
-            untracked: ["d.txt-x", "d.txt.bak", "d.txt/inner", "e/f/g"]
-                .map(PathBuf::from)
-                .into(),
+            // As strings, the siblings of d.txt sort before "d.txt/inner",
+            // but paths compare by component
+            untracked: [
+                "d.txt ",
+                "d.txt!",
+                "d.txt-x",
+                "d.txt.bak",
+                "d.txt/inner",
+                "e/f/g",
+            ]
+            .map(PathBuf::from)
+            .into(),
             ..Default::default()
         };
         let under = |path: &str| changes.has_untracked_under(std::path::Path::new(path));
