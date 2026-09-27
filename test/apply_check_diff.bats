@@ -593,8 +593,9 @@ SCRIPT
     chmod +x fixer.sh
 }
 
-# $1: the check_diff value for both steps
+# $1: the effect both steps' check_diff declares
 write_rendezvous_config() {
+    local check_diff_effect=$1
     cat <<EOF > hk.pkl
 amends "$PKL_PATH/Config.pkl"
 hooks {
@@ -604,13 +605,13 @@ hooks {
             ["first"] {
                 glob = List("*.txt")
                 env { ["STEP"] = "1"; ["OTHER"] = "2" }
-                check_diff = $1
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "$check_diff_effect" }
                 fix = "./fixer.sh {{files}}"
             }
             ["second"] {
                 glob = List("*.txt")
                 env { ["STEP"] = "2"; ["OTHER"] = "1" }
-                check_diff = $1
+                check_diff = new CommandSpec { command = "./formatter.sh {{files}}"; effect = "$check_diff_effect" }
                 fix = "./fixer.sh {{files}}"
             }
         }
@@ -621,7 +622,7 @@ EOF
 
 @test "read-only check_diff steps compute their patches alongside each other in fix mode" {
     write_rendezvous_formatter
-    write_rendezvous_config 'new CommandSpec { command = "./formatter.sh {{files}}"; effect = "read" }'
+    write_rendezvous_config read
     echo "line" > test.txt
 
     run hk fix test.txt
@@ -634,9 +635,9 @@ EOF
     assert_output --regexp '^line-(1-2|2-1)$'
 }
 
-@test "check_diff steps that don't declare a read effect keep write locks in fix mode" {
+@test "check_diff steps that declare a write effect keep write locks in fix mode" {
     write_rendezvous_formatter
-    write_rendezvous_config '"./formatter.sh {{files}}"'
+    write_rendezvous_config write
     echo "line" > test.txt
 
     run hk fix test.txt
