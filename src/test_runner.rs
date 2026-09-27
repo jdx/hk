@@ -129,6 +129,12 @@ fn select_test_files(step: &Step, test: &StepTest, files: Vec<PathBuf>) -> Resul
     Ok(TestFiles::Selected(filtered))
 }
 
+fn check_diff_not_applied_reason(code: i32) -> String {
+    format!(
+        "check_diff exited {code} but its output did not apply with `git apply`; check_diff must print a unified diff naming each file"
+    )
+}
+
 fn check_exit_code(actual: i32, expected: i32) -> Option<String> {
     if actual != expected {
         Some(format!("exit code {} != expected {}", actual, expected))
@@ -293,12 +299,12 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
     }
 
     // Render command
-    let run_type = match test.run {
-        RunKind::Fix => RunType::Fix,
-        RunKind::Check => RunType::Check,
+    let run_cmd = match test.run {
+        RunKind::Fix => step.run_cmd(RunType::Fix),
+        RunKind::Check => step.run_cmd(RunType::Check),
+        RunKind::Diff => step.check_diff.as_ref(),
     };
-
-    let Some(run_cmd) = step.run_cmd(run_type).filter(|command| !command.is_empty()) else {
+    let Some(run_cmd) = run_cmd.filter(|command| !command.is_empty()) else {
         eyre::bail!("{}: no command for test", step.name);
     };
     let run = run_cmd.render(&tctx, step.prefix.as_ref())?;
@@ -329,8 +335,29 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Run main command
 
-    let (stdout, stderr, code) =
+    let (mut stdout, mut stderr, mut code) =
         execute_cmd(step, &tctx, &base_dir, test, &run, &step.stdin).await?;
+
+    // A diff test applies the patch as fix mode would, but a patch that
+    // doesn't apply fails the test instead of falling back to `fix`.
+    let mut diff_reason = None;
+    if matches!(test.run, RunKind::Diff) && code != 0 {
+        if step.apply_diff_output(&stdout, base_dir.to_str())? {
+            code = 0;
+            if step.check_after_diff
+                && let Some(check) = step.check.as_ref().filter(|c| !c.is_empty())
+            {
+                let check = check.render(&tctx, step.prefix.as_ref())?;
+                let (c_stdout, c_stderr, c_code) =
+                    execute_cmd(step, &tctx, &base_dir, test, &check, &step.stdin).await?;
+                stdout = format!("{stdout}\n[check]\n{c_stdout}");
+                stderr = format!("{stderr}\n[check]\n{c_stderr}");
+                code = c_code;
+            }
+        } else {
+            diff_reason = Some(check_diff_not_applied_reason(code));
+        }
+    }
 
     // Run post-command (after) before evaluating expectations so it can contribute to assertions
     let mut after_fail: Option<(i32, String, String)> = None;
@@ -346,6 +373,7 @@ pub async fn run_test_named(step: &Step, name: &str, test: &StepTest) -> Result<
 
     // Evaluate expectations
     let mut reasons: Vec<String> = Vec::new();
+    reasons.extend(diff_reason);
     reasons.extend(check_exit_code(code, test.expect.code));
     reasons.extend(check_after_fail(&after_fail));
     reasons.extend(check_stdout_contains(&stdout, &test.expect.stdout));

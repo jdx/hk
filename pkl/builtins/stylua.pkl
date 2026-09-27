@@ -62,6 +62,7 @@ stylua = new Config.Step {
     ["check bad file"] = testMaker.checkFail(bad, 1)
     ["check good file"] = testMaker.checkPass(good)
     ["fix bad file"] = testMaker.fixPass(bad, good)
-    ["fix good file"] = testMaker.fixPass(bad, good)
+    ["diff bad file"] = testMaker.diffPass(bad, good)
+    ["fix good file"] = testMaker.fixPass(good, good)
   }
 }

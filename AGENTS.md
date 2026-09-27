@@ -197,7 +197,10 @@ To add a new builtin with tests:
 1. Define the builtin in `pkl/builtins/<name>.pkl` with a `tests` block
 2. Add a tool stub in `test/builtin_tool_stubs/<tool-name>` if the tool isn't already available
 3. Use the `TestMaker` helper from `pkl/builtins/test/helpers.pkl` for standard check/fix test patterns
-4. Run `hk test --step <step_name>` to verify, or `mise run test:bats test/builtins_tests.bats` to run all builtin tests
+4. If the builtin defines `check_diff`, add a "diff" test (`testMaker.diffPass(before, after)`, or `diffFail` for a partial fixer). It applies `check_diff`'s output with `git apply` and fails if the patch doesn't apply, which "fix" tests never catch because they run `fix` directly. `test/builtins_tests.bats` fails for a tested builtin with `check_diff` and no "diff" test.
+5. Run `hk test --step <step_name>` to verify, or `mise run test:bats test/builtins_tests.bats` to run all builtin tests
+
+`check_diff` must print a unified diff that `git apply` accepts, with `---`/`+++` headers naming each file, and exit non-zero when there are changes. Output that only looks like a diff (numbered, side-by-side, or colored views) belongs in `check`. For a formatter without such a diff, build one with `hk util format-diff` (stdin to stdout) or `hk util sarif-diff` (SARIF fixes) rather than dropping `check_diff`; see the stylua and pinact builtins.
 
 ## PR titles and descriptions are release-note inputs
 

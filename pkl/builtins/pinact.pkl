@@ -138,6 +138,7 @@ class PinactStep extends Config.Step {
             """,
           )
         ["fix bad file all violations are fixed"] = testMaker.fixPass(bad, good)
+        ["diff bad file"] = testMaker.diffPass(bad, good)
         ["fix good file"] = testMaker.fixPass(good, good)
       }
 }

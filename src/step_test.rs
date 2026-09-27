@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct StepTest {
-    /// One of: "check" or "fix"
+    /// One of: "check", "fix", or "diff"
     #[serde(default)]
     pub run: RunKind,
     /// Files to pass into the template context ({{ files }})
@@ -38,6 +38,9 @@ pub enum RunKind {
     #[default]
     Check,
     Fix,
+    /// Run `check_diff` and apply its output as fix mode does, without falling
+    /// back to `fix` when the patch doesn't apply.
+    Diff,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, Eq)]

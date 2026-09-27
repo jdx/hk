@@ -512,7 +512,10 @@ open class Step {
   /// be a patch `git apply` accepts, with `---`/`+++` headers naming each file, as printed by
   /// `ruff format --diff`, `shfmt -d`, or `gofmt -d`. Output that only looks like a diff, such as
   /// a line-numbered or side-by-side view, never applies: hk then runs the fixer on every file
-  /// after the check, so the tool runs twice. Use `check` for such commands instead.
+  /// after the check, so the tool runs twice. Put such a command in `check`, and build a patch
+  /// with `hk util format-diff` (a formatter that reads stdin) or `hk util sarif-diff` (a tool
+  /// that reports SARIF fixes). A `StepTest` with `run = "diff"` fails when the patch doesn't
+  /// apply.
   ///
   /// Falls back to running the fix command if patch application fails.
   check_diff: (String | Script | Command | CommandSpec)?
@@ -1080,8 +1083,15 @@ open class Step {
 }
 
 class StepTest {
-  /// What to run: "check" or "fix"
-  run: "check" | "fix" = "check"
+  /// What to run: "check", "fix", or "diff".
+  ///
+  /// A "diff" test runs `check_diff` and, if it exits non-zero, applies its output with
+  /// `git apply` as fix mode does. Unlike fix mode it never falls back to `fix`: output that
+  /// doesn't apply fails the test. After a patch applies, a step with `check_after_diff` reruns
+  /// `check`, whose exit code becomes the test's; otherwise the exit code is 0. `expect.files`
+  /// is compared after the patch is applied, so a "diff" test can expect the same files as the
+  /// matching "fix" test.
+  run: "check" | "fix" | "diff" = "check"
 
   /// Files to pass to the command (used to render {{ files }})
   files: (String | List<String>)?

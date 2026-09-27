@@ -53,6 +53,21 @@ yamlfmt = new Config.Step {
     ["check bad file"] = testMaker.checkFail("-  a\n", 1)
     ["check good file"] = testMaker.checkPass("- a\n")
     ["fix bad file"] = testMaker.fixPass("-  a\n", "- a\n")
+    ["diff bad file"] = testMaker.diffPass("-  a\n", "- a\n")
     ["fix good file"] = testMaker.fixPass("- a\n", "- a\n")
+    // yamlfmt's stdin mode ignores `exclude`, so the patch must leave out
+    // files it excludes.
+    local const excludeMaker = (testMaker) {
+      extra_files {
+        ["yamlfmt.yaml"] =
+          """
+          formatter:
+            type: basic
+          exclude:
+            - test.yaml
+          """
+      }
+    }
+    ["diff respects config exclude"] = excludeMaker.diffPass("-  a\n", "-  a\n")
   }
 }

@@ -97,6 +97,7 @@ yq = new Config.Step {
     ["check bad file"] = testMaker.checkFail("foo:  bar", 1)
     ["check good file"] = testMaker.checkPass("foo: bar\n")
     ["fix bad file"] = testMaker.fixPass("foo:  bar", "foo: bar\n")
+    ["diff bad file"] = testMaker.diffPass("foo:  bar", "foo: bar\n")
     ["fix good file"] = testMaker.fixPass("foo: bar\n", "foo: bar\n")
     // yq's output for these files holds separators, which the batch run omits.
     // With a formatted file beside them, the batch run checks the batch, and
