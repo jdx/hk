@@ -264,7 +264,13 @@ fn roll_back(
     (contents, permissions): &(Option<String>, Option<std::fs::Permissions>),
     attempted: Option<&str>,
 ) -> std::io::Result<()> {
-    let current = std::fs::read(path).ok();
+    // A file hk can't read can't be checked, so its rollback fails rather
+    // than guessing that it is absent or unchanged.
+    let current = match std::fs::read(path) {
+        Ok(current) => Some(current),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+        Err(err) => return Err(err),
+    };
     match contents {
         Some(original) => {
             if current.as_deref() == Some(original.as_bytes()) {
@@ -707,6 +713,20 @@ mod apply_patch_tests {
         let result = super::roll_back(&path, &original, Some("y\n"));
         // Root can write read-only files; everyone else gets the error.
         assert_eq!(result.is_err(), read(&dir, "a.txt").is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn roll_back_fails_for_a_file_it_cannot_read() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = dir_with(&[("created.txt", "hel")]);
+        let path = dir.path().join("created.txt");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o200)).unwrap();
+        // Root can read anything, and then the partial file is removed.
+        let readable = fs::read(&path).is_ok();
+        let result = super::roll_back(&path, &(None, None), Some("hello\n"));
+        assert_eq!(result.is_err(), !readable);
+        assert_eq!(path.exists(), !readable);
     }
 
     #[test]
