@@ -29,10 +29,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// .github/workflows/release.yml) to link the executable at a fixed address. As
 /// a position-independent executable, hk makes the dynamic loader patch about
 /// 70k pointers on every launch, which copies hundreds of pages and is a large
-/// share of the run time of a git hook with nothing to do. Linked non-PIE, those
-/// pointers are final in the file. Dependencies are still compiled
+/// share of the run time of a git hook with nothing to do. Linked non-PIE,
+/// those pointers are final in the file. Dependencies are still compiled
 /// position-independent; the flag reaches only bin targets, so no shared
-/// library is linked with it.
+/// library is linked with it. musl is left out on purpose: its static-PIE start
+/// code crashes when linked with `-no-pie`, and the alternative,
+/// `-C relocation-model=static`, is not something a build script can set.
 fn link_without_pie() {
     println!("cargo:rerun-if-env-changed=HK_NO_PIE");
     let linux_gnu = env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux")
