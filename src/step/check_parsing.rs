@@ -203,15 +203,23 @@ fn match_listed_files(
             .ok()
             .and_then(|cwd| cwd.canonicalize().ok());
         for in_dir in unmatched_in_dir {
-            let Ok(canonical) = in_dir.canonicalize() else {
-                continue;
-            };
-            let relative = cwd
-                .as_deref()
-                .and_then(|cwd| canonical.strip_prefix(cwd).ok());
-            for candidate in [Some(canonical.as_path()), relative].into_iter().flatten() {
-                if let Some(&original) = originals.get(candidate) {
-                    matched.insert(original);
+            // With the whole path resolved, and with only its directory
+            // resolved: a job file can itself be a symlink, which the job names
+            // by its own path rather than its target's.
+            let resolved = [
+                in_dir.canonicalize().ok(),
+                in_dir
+                    .parent()
+                    .and_then(|dir| dir.canonicalize().ok())
+                    .zip(in_dir.file_name())
+                    .map(|(dir, name)| dir.join(name)),
+            ];
+            for path in resolved.iter().flatten() {
+                let relative = cwd.as_deref().and_then(|cwd| path.strip_prefix(cwd).ok());
+                for candidate in [Some(path.as_path()), relative].into_iter().flatten() {
+                    if let Some(&original) = originals.get(candidate) {
+                        matched.insert(original);
+                    }
                 }
             }
         }
@@ -375,6 +383,30 @@ mod tests {
             alias.to_str(),
         );
         assert_eq!(files, vec![at_root, in_pkg]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn check_diff_paths_in_a_symlinked_dir_match_a_symlinked_job_file() {
+        // `alias` links to `pkg`, and the job file `pkg/link` is itself a link.
+        let root = tempfile::tempdir().unwrap();
+        let real = root.path().canonicalize().unwrap();
+        let pkg = real.join("pkg");
+        std::fs::create_dir(&pkg).unwrap();
+        std::fs::write(pkg.join("target"), "x\n").unwrap();
+        std::os::unix::fs::symlink(pkg.join("target"), pkg.join("link")).unwrap();
+        let alias = real.join("alias");
+        std::os::unix::fs::symlink(&pkg, &alias).unwrap();
+        let link = pkg.join("link");
+        let at_root = PathBuf::from("link");
+        let step = Step::default();
+        let diff = "--- a/link\n+++ b/link\n@@ -1 +1 @@\n-x\n+y\n";
+        let (files, _) = step.filter_files_from_check_diff(
+            &[at_root.clone(), link.clone()],
+            diff,
+            alias.to_str(),
+        );
+        assert_eq!(files, vec![at_root, link]);
     }
 
     fn diff_naming(paths: &[&Path]) -> String {
