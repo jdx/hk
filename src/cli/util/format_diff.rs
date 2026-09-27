@@ -11,8 +11,9 @@ use tokio::sync::Semaphore;
 ///
 /// Runs COMMAND once for each file, with the file on stdin, and compares what
 /// it prints with the file. `{}` in COMMAND is replaced with the file's path,
-/// for formatters that take the path of their input as an option. Files are
-/// formatted in parallel.
+/// for formatters that take the path of their input as an option. With
+/// `--no-stdin`, COMMAND reads the file itself, from the path `{}` gives it.
+/// Files are formatted in parallel.
 ///
 /// Prints a unified diff for every file that would change and exits 1, or
 /// exits 0 when none would. If COMMAND fails for any file, or prints nothing
@@ -22,6 +23,10 @@ use tokio::sync::Semaphore;
 /// Example: `hk util format-diff a.lua b.lua -- stylua --stdin-filepath {} -`
 #[derive(Debug, usage_rs::Args)]
 pub struct FormatDiff {
+    /// Give COMMAND no stdin, for a formatter that reads the file at `{}`
+    #[usage(long)]
+    pub no_stdin: bool,
+
     /// Files to format
     #[usage(arg, required)]
     pub files: Vec<PathBuf>,
@@ -46,9 +51,10 @@ impl FormatDiff {
             let semaphore = semaphore.clone();
             let file = file.clone();
             let command = self.command.clone();
+            let stdin = !self.no_stdin;
             handles.push(tokio::spawn(async move {
                 let _permit = semaphore.acquire_owned().await;
-                format_file(&file, &command).await
+                format_file(&file, &command, stdin).await
             }));
         }
 
@@ -85,7 +91,7 @@ impl FormatDiff {
     }
 }
 
-async fn format_file(file: &PathBuf, command: &[String]) -> Outcome {
+async fn format_file(file: &PathBuf, command: &[String], stdin: bool) -> Outcome {
     let path = file.to_string_lossy();
     let failed = |message: String| Outcome::Failed { code: 1, message };
     let original = match std::fs::read(file) {
@@ -99,7 +105,7 @@ async fn format_file(file: &PathBuf, command: &[String]) -> Outcome {
     let (program, args) = command.split_first().expect("command is required");
     let mut child = match Command::new(program)
         .args(args.iter().map(|arg| arg.replace("{}", &path)))
-        .stdin(Stdio::piped())
+        .stdin(if stdin { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -109,18 +115,28 @@ async fn format_file(file: &PathBuf, command: &[String]) -> Outcome {
     };
     // Write stdin while the output is read, so a large file can't fill both
     // pipes and deadlock.
-    let mut stdin = child.stdin.take().expect("stdin is piped");
-    let input = original.clone();
-    let writer = tokio::spawn(async move {
-        // A formatter that exits without reading its input closes the pipe;
-        // its exit status reports the problem.
-        let _ = stdin.write_all(input.as_bytes()).await;
+    let writer = child.stdin.take().map(|mut pipe| {
+        let input = original.clone();
+        tokio::spawn(async move {
+            pipe.write_all(input.as_bytes()).await?;
+            // Close stdin so the formatter sees the end of its input.
+            drop(pipe);
+            std::io::Result::Ok(())
+        })
     });
     let output = match child.wait_with_output().await {
         Ok(output) => output,
         Err(err) => return failed(format!("{program}: {err}")),
     };
-    let _ = writer.await;
+    // A formatter that stopped reading early may have formatted only part of
+    // the file, even if it exits 0.
+    if let Some(writer) = writer {
+        match writer.await {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => return failed(format!("{path}: writing to {program}: {err}")),
+            Err(err) => return failed(format!("{path}: writing to {program}: {err}")),
+        }
+    }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     if !output.status.success() {
