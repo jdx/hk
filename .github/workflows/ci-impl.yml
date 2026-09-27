@@ -123,7 +123,7 @@ jobs:
           - os: macos-latest
           - os: ubuntu-latest
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 40 || 30 }}
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -150,11 +150,9 @@ jobs:
       - name: mise run test:bats:libgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
-          timeout_minutes: 10
-          # Two attempts, not three: the job budget covers setup, the build and
-          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
-          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
-          # build, so the retry is here for genuine flakes.
+          # Hosted macOS needs headroom for slow builtin tests. The job limit
+          # allows setup and two full attempts at the selected timeout.
+          timeout_minutes: ${{ matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
           command: mise run --skip-deps test:bats:libgit2
       - name: Publish builtin test timings
@@ -189,7 +187,7 @@ jobs:
           - os: ubuntu-latest
             runner: namespace-profile-endev-linux-amd64
     runs-on: ${{ !inputs.trusted && matrix.os || matrix.runner }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 40 || 30 }}
     steps:
       - run: brew install parallel
         if: ${{ matrix.os == 'macos-latest' }}
@@ -216,11 +214,9 @@ jobs:
       - name: mise run test:bats:nolibgit2
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         with:
-          timeout_minutes: 10
-          # Two attempts, not three: the job budget covers setup, the build and
-          # 2 x 10m, but never covered 3 x 10m, so a third attempt was always
-          # cut short by timeout-minutes. Attempt 1 is no longer spent on a cold
-          # build, so the retry is here for genuine flakes.
+          # Hosted macOS needs headroom for slow builtin tests. The job limit
+          # allows setup and two full attempts at the selected timeout.
+          timeout_minutes: ${{ !inputs.trusted && matrix.os == 'macos-latest' && 15 || 10 }}
           max_attempts: 2
           command: mise run --skip-deps test:bats:nolibgit2
       - name: Publish builtin test timings
