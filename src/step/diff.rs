@@ -160,20 +160,30 @@ impl From<String> for PatchError {
 /// an offset from the line they name, but their context must match exactly.
 fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usize, PatchError> {
     // `ParseOptions::unidiff` doesn't read git's extended headers, so a mode
-    // change would be dropped silently. Leave such patches to the fixer.
-    if diff.lines().any(|line| {
+    // change would be dropped silently, and a rename or copy with hunks would
+    // patch the old path as if it were modified in place. Binary changes have
+    // no hunks at all. Leave such patches to the fixer.
+    if let Some(header) = diff.lines().find_map(|line| {
         [
             "old mode ",
             "new mode ",
             "new file mode ",
             "deleted file mode ",
+            "rename from ",
+            "rename to ",
+            "copy from ",
+            "copy to ",
+            "Binary files ",
+            "GIT binary patch",
         ]
-        .iter()
-        .any(|header| line.starts_with(header))
+        .into_iter()
+        .find(|header| line.starts_with(header))
     }) {
-        return Err("patches that change file modes are not supported"
-            .to_string()
-            .into());
+        return Err(format!(
+            "patches with `{}` headers are not supported",
+            header.trim_end()
+        )
+        .into());
     }
     // Each touched file's contents after the patches so far, or `None` once
     // deleted. A file can appear in more than one file patch.
@@ -228,15 +238,32 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
         return Err("no file patches found".to_string().into());
     }
     let mut written: Vec<&PathBuf> = Vec::with_capacity(files.len());
+    // A deleted file is moved aside, not removed, until every write has
+    // succeeded, so a rollback moves the same file back with its owner, ACLs,
+    // and extended attributes.
+    let mut set_aside: Vec<(&PathBuf, PathBuf)> = Vec::new();
     for (path, contents) in &files {
-        // Listed before writing: a write that fails after truncating the file
-        // is rolled back too.
-        written.push(path);
-        if let Err(err) = write_contents(&base.join(path), contents.as_deref()) {
+        let target = base.join(path);
+        let result = match contents {
+            Some(contents) => {
+                // Listed before writing: a write that fails after truncating
+                // the file is rolled back too.
+                written.push(path);
+                write_contents(&target, Some(contents))
+            }
+            None => move_aside(&target).map(|aside| set_aside.push((path, aside))),
+        };
+        if let Err(err) = result {
             // Put back what was already written, so the fixer starts from the
             // files as they were.
             let mut message = format!("{}: {err}", path.display());
             let mut restored = true;
+            for (done, aside) in &set_aside {
+                if let Err(err) = std::fs::rename(aside, base.join(done)) {
+                    message.push_str(&format!("; could not restore {}: {err}", done.display()));
+                    restored = false;
+                }
+            }
             for done in written {
                 let attempted = files[done].as_deref();
                 if let Err(err) = roll_back(&base.join(done), &originals[done], attempted) {
@@ -251,7 +278,33 @@ fn apply_patch(diff: &str, strip: usize, base: &Path) -> std::result::Result<usi
             });
         }
     }
+    for (path, aside) in &set_aside {
+        if let Err(err) = std::fs::remove_file(aside) {
+            warn!(
+                "{}: deleted by a check_diff patch, but its copy {} could not be removed: {err}",
+                path.display(),
+                aside.display()
+            );
+        }
+    }
     Ok(files.len())
+}
+
+/// Rename `path` to a hidden name beside it, for a deletion that can be
+/// undone, and return the new name.
+fn move_aside(path: &Path) -> std::io::Result<PathBuf> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let dir = path.parent().unwrap_or(Path::new(""));
+    let mut n = 0;
+    let aside = loop {
+        let aside = dir.join(format!(".{name}.hk-deleted-{}-{n}", std::process::id()));
+        if std::fs::symlink_metadata(&aside).is_err() {
+            break aside;
+        }
+        n += 1;
+    };
+    std::fs::rename(path, &aside)?;
+    Ok(aside)
 }
 
 /// Put `path` back as it was before hk tried to write `attempted` to it.
@@ -579,6 +632,23 @@ mod apply_patch_tests {
     }
 
     #[test]
+    fn refuses_renames_copies_and_binary_changes() {
+        let dir = dir_with(&[("old.txt", "x\n")]);
+        for headers in [
+            "rename from old.txt\nrename to new.txt\n",
+            "copy from old.txt\ncopy to new.txt\n",
+            "Binary files a/old.txt and b/old.txt differ\n",
+        ] {
+            let diff = format!(
+                "diff --git a/old.txt b/new.txt\n{headers}--- a/old.txt\n+++ b/new.txt\n@@ -1 +1 @@\n-x\n+y\n"
+            );
+            assert!(apply_patch(&diff, 1, dir.path()).is_err(), "{headers}");
+            assert_eq!(read(&dir, "old.txt"), "x\n");
+            assert!(!dir.path().join("new.txt").exists());
+        }
+    }
+
+    #[test]
     fn refuses_mode_changes() {
         let dir = dir_with(&[("a.sh", "x\n")]);
         let diff = "diff --git a/a.sh b/a.sh\nold mode 100644\nnew mode 100755\n\
@@ -600,6 +670,37 @@ mod apply_patch_tests {
                     --- /dev/null\n+++ blocker/new.txt\n@@ -0,0 +1 @@\n+hi\n";
         assert!(apply_patch(diff, 0, dir.path()).is_err());
         assert_eq!(read(&dir, "a.txt"), "x\n");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn restores_a_deleted_file_as_the_same_file() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = dir_with(&[("gone.txt", "x\n"), ("blocker", "")]);
+        let inode = fs::metadata(dir.path().join("gone.txt")).unwrap().ino();
+        let diff = "--- gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n\
+                    --- /dev/null\n+++ blocker/new.txt\n@@ -0,0 +1 @@\n+hi\n";
+        assert!(apply_patch(diff, 0, dir.path()).is_err());
+        // Moved back rather than recreated, so owner, ACLs, and extended
+        // attributes come back with it.
+        assert_eq!(
+            fs::metadata(dir.path().join("gone.txt")).unwrap().ino(),
+            inode
+        );
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("hk-deleted"))
+            .collect();
+        assert!(leftovers.is_empty());
+    }
+
+    #[test]
+    fn a_deleted_file_leaves_no_copy_behind() {
+        let dir = dir_with(&[("gone.txt", "x\n")]);
+        let diff = "--- gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
+        assert_eq!(apply_patch(diff, 0, dir.path()), Ok(1));
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 0);
     }
 
     #[cfg(unix)]
