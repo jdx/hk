@@ -528,10 +528,10 @@ impl Step {
             };
             // `git add` writes the index, which re-hashes racily clean entries
             // anywhere in the repository (see `Git::racily_clean_paths`), so it
-            // also needs read locks on those. Take every lock in one call so they
-            // are acquired in order, then check under the git mutex that no
-            // entry became racy meanwhile. Nothing else writes the index while
-            // the mutex is held.
+            // also needs read locks on those. Take every lock in one call, since
+            // waiting for file locks while holding others could deadlock, then
+            // check under the git mutex that no entry became racy meanwhile.
+            // Nothing else writes the index while the mutex is held.
             let mut lock_files: BTreeSet<PathBuf> = status_files.iter().cloned().collect();
             if ctx.hook_ctx.should_stage {
                 let git = ctx.hook_ctx.git.lock().await;
