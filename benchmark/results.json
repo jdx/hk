@@ -1,11 +1,11 @@
 {
   "schema": 2,
-  "generated": "2026-09-25T02:19:08+00:00",
+  "generated": "2026-09-26T22:10:41+00:00",
   "passed": true,
   "problems": [],
-  "commit": "47c35ab140f92f7c1b0eda40dc138ee4f21f4b3d",
-  "workflow_run": "https://github.com/jdx/hk/actions/runs/36078397814",
-  "seed": "1249578494102386",
+  "commit": "169c5f15ce52ff97b0a3693c3f9f30ae09e0d60e",
+  "workflow_run": "https://github.com/jdx/hk/actions/runs/36268162842",
+  "seed": "2792465377745827",
   "machine": {
     "runner": "jdx-perf-v1 (8 CPUs)",
     "os": "Ubuntu 24.04.4 LTS",
@@ -16,7 +16,7 @@
     "memory_gb": 15
   },
   "versions": {
-    "hk": "2.2.0",
+    "hk": "2.3.0",
     "lefthook": "2.1.14",
     "pre-commit": "4.6.2",
     "prek": "0.5.3",
@@ -79,11 +79,11 @@
       "results": {
         "hk": {
           "mode": "parallel, file locks",
-          "mean": 10.6193,
-          "median": 10.6263,
-          "stddev": 0.294,
-          "min": 10.0267,
-          "max": 11.156,
+          "mean": 9.4354,
+          "median": 9.4324,
+          "stddev": 0.0778,
+          "min": 9.318,
+          "max": 9.5742,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -92,11 +92,11 @@
         },
         "lefthook": {
           "mode": "sequential",
-          "mean": 25.5861,
-          "median": 24.8556,
-          "stddev": 1.5428,
-          "min": 24.1942,
-          "max": 28.2999,
+          "mean": 19.7425,
+          "median": 19.7557,
+          "stddev": 1.5348,
+          "min": 18.0402,
+          "max": 21.5603,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -105,11 +105,11 @@
         },
         "pre-commit": {
           "mode": "sequential hooks, batched files",
-          "mean": 14.4321,
-          "median": 14.5795,
-          "stddev": 0.5565,
-          "min": 13.6919,
-          "max": 15.0975,
+          "mean": 13.0837,
+          "median": 13.1301,
+          "stddev": 0.4261,
+          "min": 12.5984,
+          "max": 13.7167,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -118,11 +118,11 @@
         },
         "prek": {
           "mode": "sequential hooks, batched files",
-          "mean": 13.731,
-          "median": 13.7398,
-          "stddev": 0.5039,
-          "min": 13.1034,
-          "max": 14.5128,
+          "mean": 11.7995,
+          "median": 11.7781,
+          "stddev": 0.3748,
+          "min": 11.1946,
+          "max": 12.2389,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -134,15 +134,15 @@
     {
       "key": "check-all",
       "title": "Check every file",
-      "summary": "Every file is already clean and nothing writes, so parallel is safe for every tool.",
+      "summary": "Every file is already clean and nothing writes.",
       "results": {
         "hk": {
           "mode": "parallel, file locks",
-          "mean": 3.8126,
-          "median": 3.8165,
-          "stddev": 0.0379,
-          "min": 3.7489,
-          "max": 3.873,
+          "mean": 3.8902,
+          "median": 3.8857,
+          "stddev": 0.0874,
+          "min": 3.753,
+          "max": 4.0682,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -151,11 +151,11 @@
         },
         "lefthook": {
           "mode": "parallel: true",
-          "mean": 6.7629,
-          "median": 6.7654,
-          "stddev": 0.0428,
-          "min": 6.6835,
-          "max": 6.8072,
+          "mean": 4.9725,
+          "median": 4.992,
+          "stddev": 0.0982,
+          "min": 4.7835,
+          "max": 5.1409,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -164,11 +164,11 @@
         },
         "pre-commit": {
           "mode": "sequential hooks, batched files",
-          "mean": 8.4469,
-          "median": 8.188,
-          "stddev": 2.2428,
-          "min": 6.0207,
-          "max": 12.008,
+          "mean": 7.0976,
+          "median": 6.5672,
+          "stddev": 1.9304,
+          "min": 5.2985,
+          "max": 10.3701,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -177,11 +177,11 @@
         },
         "prek": {
           "mode": "sequential hooks, batched files",
-          "mean": 7.7895,
-          "median": 7.5546,
-          "stddev": 2.2349,
-          "min": 5.3041,
-          "max": 11.3261,
+          "mean": 6.3378,
+          "median": 5.8871,
+          "stddev": 1.9867,
+          "min": 4.4304,
+          "max": 9.7336,
           "runs": 10,
           "correct": {
             "passed": 10,
@@ -197,11 +197,11 @@
       "results": {
         "hk": {
           "mode": "parallel, file locks",
-          "mean": 1.824,
-          "median": 1.8355,
-          "stddev": 0.0532,
-          "min": 1.6371,
-          "max": 1.8829,
+          "mean": 0.9585,
+          "median": 0.9067,
+          "stddev": 0.1115,
+          "min": 0.8543,
+          "max": 1.1777,
           "runs": 20,
           "correct": {
             "passed": 20,
@@ -210,11 +210,11 @@
         },
         "lefthook": {
           "mode": "sequential",
-          "mean": 1.5026,
-          "median": 1.5135,
-          "stddev": 0.0449,
-          "min": 1.4058,
-          "max": 1.5681,
+          "mean": 1.4222,
+          "median": 1.4196,
+          "stddev": 0.018,
+          "min": 1.3852,
+          "max": 1.4529,
           "runs": 20,
           "correct": {
             "passed": 20,
@@ -223,11 +223,11 @@
         },
         "pre-commit": {
           "mode": "sequential hooks, batched files",
-          "mean": 2.4929,
-          "median": 2.4887,
-          "stddev": 0.1339,
-          "min": 2.3282,
-          "max": 2.7303,
+          "mean": 2.4455,
+          "median": 2.4441,
+          "stddev": 0.0332,
+          "min": 2.3778,
+          "max": 2.523,
           "runs": 20,
           "correct": {
             "passed": 20,
@@ -236,11 +236,11 @@
         },
         "prek": {
           "mode": "sequential hooks, batched files",
-          "mean": 2.0305,
-          "median": 2.0634,
-          "stddev": 0.1156,
-          "min": 1.8831,
-          "max": 2.2226,
+          "mean": 1.7717,
+          "median": 1.7706,
+          "stddev": 0.028,
+          "min": 1.7082,
+          "max": 1.8354,
           "runs": 20,
           "correct": {
             "passed": 20,

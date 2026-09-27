@@ -1,6 +1,44 @@
 # Changelog
 
-## [2.2.0](https://github.com/jdx/hk/compare/v2.1.0..v2.2.0) - 2026-09-24
+## [2.3.0](https://github.com/jdx/hk/compare/v2.2.0..v2.3.0) - 2026-09-25
+
+### 🚀 Features
+
+- **(config)** add batch_min_files to set the fewest files per batch by [@jdx](https://github.com/jdx) in [#1475](https://github.com/jdx/hk/pull/1475)
+
+### 🐛 Bug Fixes
+
+- **(builtins)** apply jq and yq check_diff patches instead of rerunning the tool by [@jdx](https://github.com/jdx) in [#1468](https://github.com/jdx/hk/pull/1468)
+- **(stash)** skip stashing before the first commit with the git CLI backend by [@jdx](https://github.com/jdx) in [#1469](https://github.com/jdx/hk/pull/1469)
+- **(step)** stop git from crashing with SIGBUS while another step rewrites a file by [@jdx](https://github.com/jdx) in [#1476](https://github.com/jdx/hk/pull/1476)
+
+### 📚 Documentation
+
+- **(benchmarks)** compare only configurations that are safe by design by [@jdx](https://github.com/jdx) in [#1465](https://github.com/jdx/hk/pull/1465)
+- **(benchmarks)** lead with results and simplify the method on the benchmarks page by [@jdx](https://github.com/jdx) in [#1472](https://github.com/jdx/hk/pull/1472)
+- refresh competitor benchmark for v2.2.0 by [@jdx](https://github.com/jdx) in [#1462](https://github.com/jdx/hk/pull/1462)
+
+### ⚡ Performance
+
+- **(release)** PGO-optimize the x86_64 musl and macOS arm64 binaries by [@jdx](https://github.com/jdx) in [#1470](https://github.com/jdx/hk/pull/1470)
+- **(step)** stage each fixer's files as soon as it finishes by [@jdx](https://github.com/jdx) in [#1466](https://github.com/jdx/hk/pull/1466)
+- **(step)** release a job slot while waiting for another step's files by [@jdx](https://github.com/jdx) in [#1473](https://github.com/jdx/hk/pull/1473)
+
+### 🛡️ Security
+
+- **(benchmark)** show each scenario's mode on the benchmarks page by [@jdx](https://github.com/jdx) in [#1467](https://github.com/jdx/hk/pull/1467)
+
+### 🔍 Other Changes
+
+- **(benchmark)** run competitors' whitespace fixers from pre-commit-hooks and isolate black's cache by [@jdx](https://github.com/jdx) in [#1463](https://github.com/jdx/hk/pull/1463)
+- **(benchmark)** measure hk's yq builtin as shipped by [@jdx](https://github.com/jdx) in [#1474](https://github.com/jdx/hk/pull/1474)
+- accept pull request titles whose description starts with an acronym by [@jdx](https://github.com/jdx) in [32f72df](https://github.com/jdx/hk/commit/32f72df4f82bc8e39c76603b24bdb863aba8808c)
+
+### 📦️ Dependency Updates
+
+- update rust crate demand to v2.3.0 by [@renovate[bot]](https://github.com/renovate[bot]) in [#1477](https://github.com/jdx/hk/pull/1477)
+
+## [2.2.0](https://github.com/jdx/hk/compare/v2.1.0..v2.2.0) - 2026-09-25
 
 ### 🚀 Features
 
