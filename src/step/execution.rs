@@ -281,6 +281,10 @@ impl Step {
                                             job.relock_for_write(&ctx).await?;
                                             if names_other_files || locks.write_counts(&named) != before {
                                                 debug!("{step}: files written meanwhile, diffing again");
+                                                // Diff the job's files again, not just the ones the
+                                                // patch named: a tool may derive its patch from all
+                                                // of them, as `go mod tidy -diff` does for go.sum.
+                                                job.files = original_job_files.clone();
                                                 continue 'check_first;
                                             }
                                         }

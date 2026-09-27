@@ -649,13 +649,21 @@ EOF
 }
 
 @test "a read-only check_diff patch that also names a file outside the job is applied" {
-    # Like `go mod tidy -diff` rewriting go.sum for a job of .go files: the
-    # patch is computed again under write locks and then applied.
+    # Like `go mod tidy -diff` rewriting go.sum from all of a job's .go files:
+    # the patch is computed again under write locks, from every job file.
+    # outside.lock records how many files the formatter was given.
     cat <<'SCRIPT' > formatter.sh
 #!/bin/bash
-[ "$(cat outside.lock)" = "old" ] || exit 0
-printf -- '--- outside.lock\n+++ outside.lock\n@@ -1 +1 @@\n-old\n+new\n'
-exit 1
+status=0
+if [ "$(cat a.txt)" = "a" ]; then
+    printf -- '--- a.txt\n+++ a.txt\n@@ -1 +1 @@\n-a\n+a2\n'
+    status=1
+fi
+if [ "$(cat outside.lock)" != "count=$#" ]; then
+    printf -- '--- outside.lock\n+++ outside.lock\n@@ -1 +1 @@\n-%s\n+count=%s\n' "$(cat outside.lock)" "$#"
+    status=1
+fi
+exit $status
 SCRIPT
     chmod +x formatter.sh
     cat <<'SCRIPT' > fixer.sh
@@ -678,13 +686,16 @@ hooks {
     }
 }
 EOF
-    echo "source" > a.txt
+    echo "a" > a.txt
+    echo "b" > b.txt
     echo "old" > outside.lock
 
-    run hk fix a.txt
+    run hk fix a.txt b.txt
     assert_success
+    run cat a.txt
+    assert_output "a2"
     run cat outside.lock
-    assert_output "new"
+    assert_output "count=2"
 }
 
 @test "check_diff-only step stages an applied patch" {
