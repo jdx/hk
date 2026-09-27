@@ -717,6 +717,7 @@ impl Git {
                 unstaged_modified_files,
                 unstaged_deleted_files,
                 unstaged_renamed_files,
+                ..Default::default()
             })
         } else {
             let mut args = vec![
@@ -2081,6 +2082,11 @@ pub(crate) struct GitStatus {
     pub unstaged_modified_files: BTreeSet<PathBuf>,
     pub unstaged_deleted_files: BTreeSet<PathBuf>,
     pub unstaged_renamed_files: BTreeSet<PathBuf>,
+    /// Intent-to-add files (`git add -N`) that exist, which libgit2 counts as
+    /// staged rather than unstaged when they are empty. Only [`Git::status`]
+    /// fills this in.
+    #[serde(skip)]
+    pub intent_to_add_files: BTreeSet<PathBuf>,
 }
 
 impl GitStatus {
@@ -2102,6 +2108,7 @@ impl GitStatus {
             .extend(other.unstaged_deleted_files);
         self.unstaged_renamed_files
             .extend(other.unstaged_renamed_files);
+        self.intent_to_add_files.extend(other.intent_to_add_files);
     }
 
     /// Classifies entries of `git status --porcelain=v2`.
@@ -2146,6 +2153,11 @@ impl GitStatus {
             }
             if worktree == b'?' && exists {
                 status.untracked_files.insert(path.clone());
+            }
+            // git reports an intent-to-add file as added to the worktree, or
+            // as the new path of a worktree rename
+            if index == b' ' && matches!(worktree, b'A' | b'R') && exists {
+                status.intent_to_add_files.insert(path.clone());
             }
             // Track modified files only if the path exists
             if (is_modified(index) || is_modified(worktree)) && exists {
@@ -2195,6 +2207,9 @@ impl GitStatus {
                 // entry is the only one whose file is new in the worktree, so
                 // a file moved without `git add -N` is `.D` plus untracked.
                 (b' ', b'A' | b'R') => {
+                    if path_exists(&path) {
+                        status.intent_to_add_files.insert(path.clone());
+                    }
                     if entry.worktree == b'R'
                         && let Some(orig_path) = &entry.orig_path
                     {
@@ -2440,6 +2455,10 @@ mod tests {
         );
         assert!(status.unstaged_renamed_files.is_empty());
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(
+            status.intent_to_add_files,
+            paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
+        );
     }
 
     #[test]
@@ -2468,6 +2487,10 @@ mod tests {
         assert_eq!(status.unstaged_deleted_files, paths(d, &["gone.txt"]));
         assert_eq!(status.unstaged_renamed_files, paths(d, &["ita_moved.txt"]));
         assert_eq!(status.untracked_files, paths(d, &["with space.txt"]));
+        assert_eq!(
+            status.intent_to_add_files,
+            paths(d, &["ita.txt", "empty_ita.txt", "ita_moved.txt"])
+        );
     }
 
     #[test]

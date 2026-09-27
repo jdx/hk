@@ -1365,6 +1365,7 @@ impl Hook {
         if stash_method != StashMethod::None {
             // Only run stash logic if there are actually unstaged changes to stash
             let has_unstaged_changes = !git_status.unstaged_files.is_empty()
+                || !git_status.intent_to_add_files.is_empty()
                 || (*env::HK_STASH_UNTRACKED && !git_status.untracked_files.is_empty());
 
             if has_unstaged_changes {

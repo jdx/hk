@@ -260,3 +260,46 @@ assert_empty_intent_to_add_set_aside() {
 @test "stash sets aside empty intent-to-add files with the git CLI" {
     assert_empty_intent_to_add_set_aside 0
 }
+
+assert_lone_empty_intent_to_add_set_aside() {
+    local use_libgit2="$1"
+    cat <<PKL > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps {
+      ["append"] {
+        glob = "**/*.txt"
+        fix = "printf '%s\\\\n' {{files}} > '$SEEN/files'; for f in {{files}}; do echo appended >> \$f; done"
+      }
+    }
+  }
+}
+PKL
+    commit_initial_files
+    # An empty intent-to-add file, the only change besides a staged one
+    : > empty.txt
+    git add -N empty.txt
+    printf 'staged v2\n' > staged.txt
+    git add staged.txt
+
+    run env HK_LIBGIT2="$use_libgit2" hk run pre-commit
+    assert_success
+    run cat "$SEEN/files"
+    assert_output "staged.txt"
+    assert [ -f empty.txt ] && [ ! -s empty.txt ]
+    run git status --porcelain
+    assert_output "$(printf ' A empty.txt\nM  staged.txt')"
+    run git stash list
+    assert_output ""
+}
+
+@test "stash sets aside a lone empty intent-to-add file with libgit2" {
+    assert_lone_empty_intent_to_add_set_aside 1
+}
+
+@test "stash sets aside a lone empty intent-to-add file with the git CLI" {
+    assert_lone_empty_intent_to_add_set_aside 0
+}
