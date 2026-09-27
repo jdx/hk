@@ -92,6 +92,59 @@ EOF
     done
 }
 
+@test "stash is kept when a step writes a file where it has a symlink" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { check = "rm -f link && echo output > link" } }
+  }
+}
+EOF
+    git add hk.pkl
+    git commit -qm config
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        ln -s a.txt link
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        assert_failure
+        assert_output --partial "a step changed link"
+        assert_output --partial "Stash has been preserved"
+        # The step's file is intact and the stash still has the symlink
+        run test -L link
+        assert_failure
+        run cat link
+        assert_output output
+        run git cat-file -t 'stash@{0}^3:link'
+        assert_output blob
+
+        git stash drop -q
+        rm -f link
+        git reset -q --hard
+    done
+}
+
+@test "stash restores an unstaged file replaced by an untracked directory" {
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        rm d.txt
+        mkdir d.txt
+        echo inner > d.txt/inner
+        before=$(snapshot)
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        assert_success
+        assert_equal "$(snapshot)" "$before"
+        assert_equal "$(git stash list)" ""
+        rm -rf d.txt
+        reset_repo
+    done
+}
+
 @test "a stash of untracked files restores unstaged deletions" {
     for libgit2 in 1 0; do
         echo staged >> a.txt
