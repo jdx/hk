@@ -246,17 +246,19 @@ pub(crate) fn uses_git_prefixes(diff: &str) -> bool {
             .any(|(old, new)| is_full_git_pair(old, new))
 }
 
-/// For a patch whose only prefixed pairs create or delete files, whether
-/// those prefixes are git's, judged by what exists under `base`, where the
-/// patch applies: a deleted `a/x` is git's when `x` exists and `a/x` doesn't,
-/// and a created `b/x` is git's unless `b` is a directory.
+/// For a patch whose every pair creates or deletes a file with a prefix,
+/// whether those prefixes are git's, judged by what exists under `base`,
+/// where the patch applies: a deleted `a/x` is git's when `x` exists and
+/// `a/x` doesn't, and a created `b/x` is git's unless `b` is a directory. A
+/// patch that also has an unprefixed pair is not, since stripping a
+/// component would move that pair's path too.
 pub(crate) fn creations_use_git_prefixes(diff: &str, base: &std::path::Path) -> bool {
     let pairs: Vec<(&str, &str)> = header_pairs(diff)
         .into_iter()
         .map(|(old, new)| (header_path(old), header_path(new)))
-        .filter(|&(old, new)| is_git_pair(old, new))
         .collect();
     !pairs.is_empty()
+        && pairs.iter().all(|&(old, new)| is_git_pair(old, new))
         && pairs.iter().all(|&(old, new)| {
             if let Some(rest) = old.strip_prefix("a/") {
                 !base.join(old).exists() && base.join(rest).exists()
@@ -475,6 +477,11 @@ mod normalize_diff_paths_tests {
         assert!(super::creations_use_git_prefixes(create, base));
         std::fs::create_dir(base.join("b")).unwrap();
         assert!(!super::creations_use_git_prefixes(create, base));
+
+        // An unprefixed edit in the same patch would lose its first component.
+        let mixed = "--- /dev/null\n+++ b/go.sum\n@@ -0,0 +1 @@\n+x\n--- src/y\n+++ src/y\n@@ -1 +1 @@\n-a\n+b\n";
+        let other = tempfile::tempdir().unwrap();
+        assert!(!super::creations_use_git_prefixes(mixed, other.path()));
 
         let delete = "--- a/old.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
         std::fs::write(base.join("old.txt"), "x\n").unwrap();
