@@ -21,7 +21,6 @@ use tokio::sync::Semaphore;
 ///
 /// Example: `hk util format-diff a.lua b.lua -- stylua --stdin-filepath {} -`
 #[derive(Debug, usage_rs::Args)]
-#[usage(effect = "read")]
 pub struct FormatDiff {
     /// Files to format
     #[usage(arg, required)]

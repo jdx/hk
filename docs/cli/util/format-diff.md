@@ -8,7 +8,6 @@ description: "Arguments and options for hk util format-diff."
 # `hk util format-diff`
 
 - **Usage:** `hk util format-diff <FILES>… <-- COMMAND>…`
-- **Effect:** read-only
 
 Print a patch of what a formatter would change, for a `check_diff` command
 

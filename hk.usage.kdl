@@ -591,7 +591,7 @@ Titles starting with `fixup! `, `squash! `, or `amend! ` (temporary commits crea
         flag "-h --help" help="Print help" action=help builtin=#true
         arg "[PATHS]..." help="Paths to check. Defaults to the whole repository."
     }
-    cmd format-diff help="Print a patch of what a formatter would change, for a `check_diff` command" effect=read {
+    cmd format-diff help="Print a patch of what a formatter would change, for a `check_diff` command" {
         long_help #"""
 Print a patch of what a formatter would change, for a `check_diff` command
 
