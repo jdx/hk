@@ -151,6 +151,77 @@ struct StashedChanges {
     unnamed: Vec<Vec<u8>>,
     /// The untracked ones among `unnamed`
     unnamed_untracked: BTreeSet<PathBuf>,
+    /// The modes of the tracked ones among `unnamed`, as in `modes`
+    unnamed_modes: std::collections::BTreeMap<PathBuf, (u32, u32)>,
+}
+
+impl StashedChanges {
+    /// Why restoring the stash would overwrite something a step created in
+    /// the worktree, for each path where it would.
+    ///
+    /// A step may leave a directory where the stash has a file, a file or
+    /// symlink where it has a directory, or a symlink where it has a file.
+    /// Restoring would delete that output or write through the symlink.
+    fn restore_collisions(&self, skip: &std::collections::HashSet<PathBuf>) -> Vec<String> {
+        let tracked = self.modes.iter().chain(self.unnamed_modes.iter());
+        let untracked = self.untracked.iter().chain(self.unnamed_untracked.iter());
+        let mut collisions = Vec::new();
+        let mut check = |path: &PathBuf, modes: Option<(u32, u32)>| {
+            // Every existing parent must be a real directory
+            let mut parents = path.ancestors().skip(1).collect_vec();
+            parents.reverse();
+            for parent in parents.into_iter().filter(|p| !p.as_os_str().is_empty()) {
+                match std::fs::symlink_metadata(parent) {
+                    Ok(metadata) if metadata.is_dir() => {}
+                    Ok(_) => {
+                        collisions.push(format!(
+                            "{} is a file or symlink, where the stash has a directory",
+                            display_path(parent)
+                        ));
+                        return;
+                    }
+                    Err(_) => break,
+                }
+            }
+            let Ok(metadata) = std::fs::symlink_metadata(path) else {
+                return;
+            };
+            match modes {
+                // Stashing removed untracked files, so a step created this. A
+                // regular file is overwritten, as it always was.
+                None if metadata.is_dir() || metadata.file_type().is_symlink() => {
+                    collisions.push(format!(
+                        "a step created {}, where the stash has an untracked file",
+                        display_path(path)
+                    ))
+                }
+                None => {}
+                Some(_) if metadata.is_dir() => collisions.push(format!(
+                    "{} is a directory, where the stash has a file",
+                    display_path(path)
+                )),
+                Some((old_mode, new_mode))
+                    if metadata.file_type().is_symlink()
+                        && !is_symlink_mode(old_mode)
+                        && !is_symlink_mode(new_mode) =>
+                {
+                    collisions.push(format!(
+                        "{} is a symlink, where the stash has a file",
+                        display_path(path)
+                    ))
+                }
+                Some(_) => {}
+            }
+        };
+        // Restoring leaves the paths in `skip` alone
+        for (path, modes) in tracked.filter(|(path, _)| !skip.contains(*path)) {
+            check(path, Some(*modes));
+        }
+        for path in untracked {
+            check(path, None);
+        }
+        collisions
+    }
 }
 
 /// Lists what `stash_ref` set aside: how its worktree tree differs from its
@@ -190,7 +261,12 @@ fn stashed_changes(stash_ref: &str) -> Result<StashedChanges> {
                     .modes
                     .insert(PathBuf::from(path), (old_mode, new_mode));
             }
-            Err(_) => changes.unnamed.push(path.to_vec()),
+            Err(_) => {
+                changes
+                    .unnamed_modes
+                    .insert(path_from_raw(path), (old_mode, new_mode));
+                changes.unnamed.push(path.to_vec());
+            }
         }
     }
     let untracked = format!("{stash_ref}^3");
@@ -1321,12 +1397,25 @@ impl Git {
                         .unwrap_or_default()
                         .into_iter()
                         .collect();
-                let stash_paths: Vec<PathBuf> = changes
-                    .modes
-                    .keys()
-                    .chain(changes.untracked.iter())
-                    .cloned()
-                    .collect();
+                // Restore nothing if that would overwrite what a step created;
+                // the stash is kept instead
+                let collisions = changes.restore_collisions(&staged_deleted_set);
+                for collision in &collisions {
+                    warn!("not restoring the stash: {collision}");
+                }
+                let restore = collisions.is_empty();
+                restoration_failed |= !restore;
+                let unnamed_paths: &[Vec<u8>] = if restore { unnamed_paths } else { &[] };
+                let stash_paths: Vec<PathBuf> = if restore {
+                    changes
+                        .modes
+                        .keys()
+                        .chain(changes.untracked.iter())
+                        .cloned()
+                        .collect()
+                } else {
+                    vec![]
+                };
                 // Paths restored to exactly their stashed state, which are
                 // checked before the stash is dropped
                 let mut snapshot_paths: BTreeSet<PathBuf> = BTreeSet::new();

@@ -59,6 +59,39 @@ reset_repo() {
     done
 }
 
+@test "stash is kept when a step leaves a directory where it has a file" {
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { check = "mkdir -p u.txt && echo output > u.txt/output" } }
+  }
+}
+EOF
+    git add hk.pkl
+    git commit -qm config
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        echo untracked > u.txt
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        assert_failure
+        assert_output --partial "u.txt"
+        assert_output --partial "Stash has been preserved"
+        # The step's output is intact and the stash still has the file
+        run cat u.txt/output
+        assert_output output
+        run git show 'stash@{0}^3:u.txt'
+        assert_output untracked
+
+        git stash drop -q
+        rm -rf u.txt
+        git reset -q --hard
+    done
+}
+
 @test "a stash of untracked files restores unstaged deletions" {
     for libgit2 in 1 0; do
         echo staged >> a.txt
