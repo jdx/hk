@@ -37,12 +37,15 @@ SANITY = {"check-detects"}
 
 # Display metadata. `mode` describes how the tool runs its hooks; `modes`
 # overrides it for scenarios where the configuration runs them differently.
+# The landing-page showreel prints each mode under its bar and races no
+# scenario with a mode over 40 characters (MODE_CHARS in
+# docs/.vitepress/theme/showreel/facts.ts).
 SUBJECTS = {
     "hk": {"tool": "hk", "label": "hk", "mode": "parallel, file locks"},
-    "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "sequential fixers, parallel type checks",
+    "lefthook": {"tool": "lefthook", "label": "lefthook", "mode": "fixers in turn, parallel checks",
                  "modes": {"check-all": "parallel: true"}},
     "pre-commit": {"tool": "pre-commit", "label": "pre-commit", "mode": "sequential hooks, batched files"},
-    "prek": {"tool": "prek", "label": "prek", "mode": "sequential fixers, parallel type checks, batched files",
+    "prek": {"tool": "prek", "label": "prek", "mode": "fixers in turn, parallel checks, batched",
              "modes": {"check-all": "shared priority, batched files"}},
 }
 

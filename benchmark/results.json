@@ -65,7 +65,7 @@
     "lefthook": {
       "tool": "lefthook",
       "label": "lefthook",
-      "mode": "sequential fixers, parallel type checks"
+      "mode": "fixers in turn, parallel checks"
     },
     "pre-commit": {
       "tool": "pre-commit",
@@ -75,7 +75,7 @@
     "prek": {
       "tool": "prek",
       "label": "prek",
-      "mode": "sequential fixers, parallel type checks, batched files"
+      "mode": "fixers in turn, parallel checks, batched"
     }
   },
   "scenarios": [
@@ -98,7 +98,7 @@
           }
         },
         "lefthook": {
-          "mode": "sequential fixers, parallel type checks",
+          "mode": "fixers in turn, parallel checks",
           "mean": 19.3959,
           "median": 19.2243,
           "stddev": 1.093,
@@ -124,7 +124,7 @@
           }
         },
         "prek": {
-          "mode": "sequential fixers, parallel type checks, batched files",
+          "mode": "fixers in turn, parallel checks, batched",
           "mean": 12.1375,
           "median": 12.0268,
           "stddev": 0.3922,
@@ -216,7 +216,7 @@
           }
         },
         "lefthook": {
-          "mode": "sequential fixers, parallel type checks",
+          "mode": "fixers in turn, parallel checks",
           "mean": 1.8173,
           "median": 1.8174,
           "stddev": 0.02,
@@ -242,7 +242,7 @@
           }
         },
         "prek": {
-          "mode": "sequential fixers, parallel type checks, batched files",
+          "mode": "fixers in turn, parallel checks, batched",
           "mean": 2.1891,
           "median": 2.1831,
           "stddev": 0.0466,
@@ -275,7 +275,7 @@
           }
         },
         "lefthook": {
-          "mode": "sequential fixers, parallel type checks",
+          "mode": "fixers in turn, parallel checks",
           "mean": 1.266,
           "median": 1.2672,
           "stddev": 0.0168,
@@ -301,7 +301,7 @@
           }
         },
         "prek": {
-          "mode": "sequential fixers, parallel type checks, batched files",
+          "mode": "fixers in turn, parallel checks, batched",
           "mean": 1.2758,
           "median": 1.2756,
           "stddev": 0.015,

@@ -116,6 +116,9 @@ function allCorrect(scenarios: unknown[]): boolean {
   );
 }
 
+/** The longest mode the chart fits under a bar, at its smallest size. */
+export const MODE_CHARS = 40;
+
 /** One subject's row, or null if any of it is unfit to draw. */
 function row(key: string, stats: unknown, subjects: Json): Row | null {
   if (!isObject(stats)) return null;
@@ -127,7 +130,7 @@ function row(key: string, stats: unknown, subjects: Json): Row | null {
   if (!(min <= median && median <= max)) return null;
   const label = subject.label;
   const mode = stats.mode ?? subject.mode;
-  if (!printable(label, 24) || !printable(mode, 40)) return null;
+  if (!printable(label, 24) || !printable(mode, MODE_CHARS)) return null;
   return { key, label, mode, median, min, max, shown: fmt(median) };
 }
 
