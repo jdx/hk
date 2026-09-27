@@ -134,6 +134,9 @@ jobs:
       # installs the builtin tool stubs. Restore those tools before mise runs.
       - name: Restore Bats mise tools
         id: bats-mise-tools
+        # The cached macOS gem:rubocop install loses its prism dependency on
+        # restore, so keep macOS on the working fresh-install path.
+        if: runner.os == 'Linux'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
@@ -160,7 +163,7 @@ jobs:
       # Seed after preinstall so frequent main pushes can reuse these tools even
       # when a later Bats run is cancelled. Pull requests restore read-only.
       - name: Save Bats mise tools
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
+        if: runner.os == 'Linux' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bats-mise-tools.outputs.cache-hit != 'true'
         continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -214,6 +217,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Restore Bats mise tools
+        if: runner.os == 'Linux'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.local/share/mise/installs
