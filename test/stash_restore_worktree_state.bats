@@ -194,7 +194,7 @@ EOF
         HK_LIBGIT2=$libgit2 run hk run pre-commit
         assert_failure
         assert_output --partial "Did not restore u.txt from the stash"
-        assert_output --partial "git restore --source='stash@{0}^3' -- 'u.txt'"
+        assert_output --partial "git restore --source='stash@{0}^3' -- ':(literal)u.txt'"
         # The step's file is kept, and every other stashed change is back
         run cat u.txt
         assert_output step
@@ -229,6 +229,96 @@ EOF
         assert_success
         assert_equal "$(snapshot)" "$before"
         assert_equal "$(git stash list)" ""
+        reset_repo
+    done
+}
+
+@test "stash merges or keeps a step's change to a file it was not given" {
+    printf 'line1\nline2\nline3\n' > d.txt
+    git add d.txt
+    git commit -qm lines
+    for step in "{ echo step; cat d.txt; } > d.new && mv d.new d.txt" "sed -i.bak 's/line3/step3/' d.txt && rm d.txt.bak"; do
+        cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { glob = "a.txt"; check = "$step" } }
+  }
+}
+EOF
+        git add hk.pkl
+        git commit -qm "step $step"
+        for libgit2 in 1 0; do
+            echo staged >> a.txt
+            git add a.txt
+            sed -i.bak 's/line3/mine3/' d.txt && rm d.txt.bak
+
+            HK_LIBGIT2=$libgit2 run hk run pre-commit
+            case "$step" in
+            *"echo step"*)
+                # Different lines: both changes are kept
+                assert_success
+                run cat d.txt
+                assert_output $'step\nline1\nline2\nmine3'
+                assert_equal "$(git stash list)" ""
+                ;;
+            *)
+                # The same line: the step's version stays and the stash is kept
+                assert_failure
+                assert_output --partial "a step changed d.txt, which the stash also changed, in the same lines"
+                run cat d.txt
+                assert_output $'line1\nline2\nstep3'
+                git restore --source='stash@{0}' -- d.txt
+                run cat d.txt
+                assert_output $'line1\nline2\nmine3'
+                git stash drop -q
+                ;;
+            esac
+            reset_repo
+        done
+    done
+}
+
+@test "stash recovery advice lists every path it did not restore" {
+    if [ "$(id -u)" = 0 ]; then
+        skip "root can write to read-only directories"
+    fi
+    export NO_COLOR=1
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+  ["pre-commit"] {
+    stash = "git"
+    steps { ["probe"] { check = "echo step > \"O'Brien.txt\" && chmod a-w sub" } }
+  }
+}
+EOF
+    mkdir sub
+    echo tracked > sub/tracked.txt
+    git add hk.pkl sub
+    git commit -qm config
+    for libgit2 in 1 0; do
+        echo staged >> a.txt
+        git add a.txt
+        echo mine > "O'Brien.txt"
+        echo untracked > sub/untracked.txt
+
+        HK_LIBGIT2=$libgit2 run hk run pre-commit
+        chmod u+w sub
+        assert_failure
+        assert_output --partial "Did not restore O'Brien.txt, sub/untracked.txt from the stash"
+        assert_output --partial "only once every path above is recovered"
+        # Every printed command works as it is, quotes included
+        commands=$(printf '%s\n' "$output" | sed -n 's/.*To take its stashed version, run: //p')
+        assert_equal "$(printf '%s\n' "$commands" | wc -l | tr -d ' ')" 2
+        eval "$commands"
+        run cat "O'Brien.txt"
+        assert_output mine
+        run cat sub/untracked.txt
+        assert_output untracked
+
+        git stash drop -q
         reset_repo
     done
 }

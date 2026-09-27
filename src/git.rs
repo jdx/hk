@@ -167,6 +167,9 @@ struct RestorePlan {
     unchanged: std::collections::HashSet<PathBuf>,
     /// Paths where restoring would destroy what a step did, with why
     conflicts: std::collections::BTreeMap<PathBuf, String>,
+    /// Regular files a step changed, whose change is merged with the
+    /// stashed edits
+    merged: std::collections::HashSet<PathBuf>,
 }
 
 impl RestorePlan {
@@ -266,7 +269,9 @@ impl StashedChanges {
                     is_regular(old_mode) && is_regular(new_mode)
                 })
                 && std::fs::symlink_metadata(path).is_ok_and(|m| m.is_file());
-            if !merged {
+            if merged {
+                plan.merged.insert(path.clone());
+            } else {
                 plan.conflicts.insert(
                     path.clone(),
                     format!(
@@ -425,6 +430,7 @@ fn stashed_changes(stash_ref: &str) -> Result<StashedChanges> {
     let raw = git_read_bytes([
         "diff",
         "--raw",
+        "--no-abbrev",
         "-z",
         "--no-renames",
         "--no-ext-diff",
@@ -541,37 +547,109 @@ fn restore_stashed_path(
     Ok(())
 }
 
-/// The restored paths among `restored` that still differ from `stash_ref`.
-fn unrestored_paths(
-    stash_ref: &str,
-    changes: &StashedChanges,
-    restored: &BTreeSet<PathBuf>,
-) -> Result<Vec<PathBuf>> {
-    // Tracked paths whose worktree differs from the stashed worktree
-    let differ: BTreeSet<PathBuf> = git_read_bytes([
-        "diff",
-        "--name-only",
-        "-z",
-        "--no-renames",
-        "--no-ext-diff",
-        "--ignore-submodules",
-        stash_ref,
-    ])?
-    .split(|&b| b == 0)
-    .filter(|name| !name.is_empty())
-    .map(path_from_raw)
-    .collect();
-    Ok(restored
-        .iter()
-        .filter(|path| {
-            if changes.untracked.contains(*path) || changes.unnamed_untracked.contains(*path) {
-                std::fs::symlink_metadata(path).is_err()
-            } else {
-                differ.contains(*path)
+impl StashedChanges {
+    /// The paths the stash set aside whose worktree does not match it, apart
+    /// from `expected_different`.
+    fn unrestored_paths(&self, expected_different: &BTreeSet<PathBuf>) -> Result<Vec<PathBuf>> {
+        let paths = self
+            .modes
+            .keys()
+            .chain(self.unnamed_modes.keys())
+            .chain(self.untracked.iter())
+            .chain(self.unnamed_untracked.iter())
+            .filter(|path| !expected_different.contains(*path))
+            .cloned()
+            .collect_vec();
+        let worktree =
+            WorktreeMatcher::new(paths.iter().cloned(), |path| [None, self.stashed.get(path)])?;
+        Ok(paths
+            .into_iter()
+            .filter(|path| !worktree.matches(path, self.stashed.get(path)))
+            .collect())
+    }
+}
+
+/// Merges a step's change to the regular file at `path`, which hk did not
+/// give or stage for it, with the stashed edits to it. Fails with why when
+/// they cannot be merged: when one of them is not text, or both change the
+/// same lines.
+fn merge_step_change(stash_ref: &str, path: &std::path::Path) -> std::result::Result<(), String> {
+    let conflict = |why: &str| {
+        format!(
+            "a step changed {}, which the stash also changed, {why}",
+            display_path(path)
+        )
+    };
+    let text = |rev: &str| {
+        let mut object = OsString::from(format!("{rev}:"));
+        object.push(path.as_os_str());
+        git_read_bytes([OsString::from("cat-file"), "blob".into(), object])
+            .ok()
+            .and_then(|contents| String::from_utf8(contents).ok())
+    };
+    let step = std::fs::read(path)
+        .ok()
+        .and_then(|contents| String::from_utf8(contents).ok());
+    let (Some(index), Some(stashed), Some(step)) =
+        (text(&format!("{stash_ref}^2")), text(stash_ref), step)
+    else {
+        return Err(conflict("and one of the versions is not text"));
+    };
+    if merge::hunks_overlap(&index, &step, &stashed) {
+        return Err(conflict("in the same lines"));
+    }
+    let merged = merge::three_way_merge_hunks(&index, Some(&step), Some(&stashed));
+    xx::file::write(path, merged)
+        .map_err(|err| format!("failed to write {}: {err}", display_path(path)))?;
+    Ok(())
+}
+
+/// Whether the worktree file at `path` matches the index.
+fn worktree_matches_index(path: &std::path::Path) -> bool {
+    let mut pathspec = OsString::from(":(literal)");
+    pathspec.push(path.as_os_str());
+    git_cmd_silent([
+        OsString::from("diff"),
+        "--quiet".into(),
+        "--no-ext-diff".into(),
+        "--".into(),
+        pathspec,
+    ])
+    .run()
+    .is_ok()
+}
+
+/// A shell command that restores `path` from `source` in the worktree only.
+fn restore_command(source: &str, path: &std::path::Path) -> String {
+    let mut pathspec = OsString::from(":(literal)");
+    pathspec.push(path.as_os_str());
+    format!(
+        "git restore --source={} -- {}",
+        shell_quote(std::ffi::OsStr::new(source)),
+        shell_quote(&pathspec)
+    )
+}
+
+/// Quotes `arg` for a POSIX shell: in single quotes, or as `$'…'` with
+/// escapes when it is not valid UTF-8.
+fn shell_quote(arg: &std::ffi::OsStr) -> String {
+    let bytes = arg.as_encoded_bytes();
+    match std::str::from_utf8(bytes) {
+        Ok(arg) => format!("'{}'", arg.replace('\'', r"'\''")),
+        Err(_) => {
+            let mut quoted = String::from("$'");
+            for &b in bytes {
+                match b {
+                    b'\'' => quoted.push_str(r"\'"),
+                    b'\\' => quoted.push_str(r"\\"),
+                    0x20..=0x7e => quoted.push(b as char),
+                    _ => quoted.push_str(&format!("\\x{b:02x}")),
+                }
             }
-        })
-        .cloned()
-        .collect())
+            quoted.push('\'');
+            quoted
+        }
+    }
 }
 
 fn is_symlink_mode(mode: u32) -> bool {
@@ -1563,9 +1641,14 @@ impl Git {
                     .filter(|path| restores(path))
                     .cloned()
                     .collect();
-                // Paths restored to exactly their stashed state, which are
-                // checked before the stash is dropped
-                let mut snapshot_paths: BTreeSet<PathBuf> = BTreeSet::new();
+                // Paths that end up merging a step's change with the stashed
+                // edits. Every other restored path must match the stash
+                // before the stash is dropped.
+                let mut merged_paths: BTreeSet<PathBuf> = BTreeSet::new();
+                // Paths left out of the worktree, with why
+                let mut not_restored = conflicts;
+                let step_changed =
+                    |path: &PathBuf| plan.as_ref().is_some_and(|plan| plan.merged.contains(path));
 
                 // When staging is disabled, fixer output remains in the isolated worktree.
                 // Ask Git which hook files differ from the unchanged index so unchanged files
@@ -1668,7 +1751,7 @@ impl Git {
                             changes.entry(&path),
                         ) {
                             Ok(()) => {
-                                snapshot_paths.insert(path);
+                                debug!("manual-unstash: restored {}", display_path(&path));
                             }
                             Err(err) => {
                                 warn!(
@@ -1697,6 +1780,7 @@ impl Git {
                     } else {
                         fixer_worktree_paths.contains(&path)
                     };
+                    let step_changed = step_changed(&path);
                     let (old_mode, new_mode) = changes.modes[&path];
                     // A deletion, symlink or type change has no contents to
                     // merge, so the stashed state wins over any fixer output
@@ -1714,7 +1798,7 @@ impl Git {
                             changes.entry(&path),
                         ) {
                             Ok(()) => {
-                                snapshot_paths.insert(path);
+                                debug!("manual-unstash: restored {}", display_path(&path));
                             }
                             Err(err) => {
                                 warn!(
@@ -1734,8 +1818,24 @@ impl Git {
                         );
                         restoration_failed = true;
                     }
-                    if !has_fixer {
-                        snapshot_paths.insert(path.clone());
+                    // A step's change that is staged, like a fixer's output
+                    // that hk staged, is merged below. One that is only in the
+                    // worktree, like a change to a file hk did not give the
+                    // step, is merged with the stashed edits here, or left as
+                    // a conflict when both change the same lines.
+                    let has_fixer = has_fixer || (step_changed && worktree_matches_index(&path));
+                    if step_changed && !has_fixer {
+                        match merge_step_change(&stash_ref, &path) {
+                            Ok(()) => {
+                                merged_paths.insert(path.clone());
+                            }
+                            Err(conflict) => {
+                                warn!("not restoring from the stash: {conflict}");
+                                not_restored.insert(path.clone(), conflict);
+                                restoration_failed = true;
+                            }
+                        }
+                        continue;
                     }
                     let work_ref = format!("{}:{}", stash_ref, path_str);
                     let work_size = git_cmd_silent(["cat-file", "-s", &work_ref])
@@ -1870,10 +1970,19 @@ impl Git {
                             .ok();
                     // Fixer content comes from the index when fixes were staged, or from the
                     // isolated post-step worktree when staging was disabled.
+                    // A step's change to the worktree counts, whether or not
+                    // hk staged all of it
+                    let step_worktree = || {
+                        std::fs::read(&path)
+                            .ok()
+                            .and_then(|contents| String::from_utf8(contents).ok())
+                    };
                     let fixer = if should_stage {
-                        fixer_map
-                            .get(&path)
-                            .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
+                        step_changed.then(step_worktree).flatten().or_else(|| {
+                            fixer_map
+                                .get(&path)
+                                .and_then(|(_, oid)| git_read_raw(["cat-file", "-p", oid]).ok())
+                        })
                     } else {
                         fixer_worktree
                     };
@@ -2055,6 +2164,10 @@ impl Git {
                             display_path(&path)
                         );
                         restoration_failed = true;
+                    } else if has_fixer {
+                        // It merges the fixer output, so it may differ from
+                        // the stash
+                        merged_paths.insert(path.clone());
                     }
                     // If fixer differs from base, ensure index has fixer blob unless newline-only change
                     if newline_only_change {
@@ -2091,7 +2204,7 @@ impl Git {
                     let path = path_from_raw(name);
                     match restore_stashed_path(&stash_ref, path.as_os_str(), changes.entry(&path)) {
                         Ok(()) => {
-                            snapshot_paths.insert(path);
+                            debug!("manual-unstash: restored {}", display_path(&path));
                         }
                         Err(err) => {
                             warn!(
@@ -2102,17 +2215,27 @@ impl Git {
                         }
                     }
                 }
-                // Before dropping the stash, check that every path restored to
-                // its stashed state matches it
+                // Before dropping the stash, check every path it set aside:
+                // each must match the stash, unless it merges a step's change
+                // or was left out on purpose
                 if plan.is_some() {
-                    match unrestored_paths(&stash_ref, &changes, &snapshot_paths) {
-                        Ok(unrestored) if unrestored.is_empty() => {}
+                    let mut expected_different = merged_paths;
+                    expected_different.extend(staged_deleted_set.iter().cloned());
+                    expected_different.extend(not_restored.keys().cloned());
+                    if let Some(plan) = &plan {
+                        expected_different.extend(plan.unchanged.iter().cloned());
+                    }
+                    match changes.unrestored_paths(&expected_different) {
                         Ok(unrestored) => {
-                            warn!(
-                                "restoring the stash left {} different from the stash",
-                                unrestored.iter().map(display_path).join(", ")
-                            );
-                            restoration_failed = true;
+                            for path in unrestored {
+                                warn!(
+                                    "restoring the stash left {} different from the stash",
+                                    display_path(&path)
+                                );
+                                let reason = format!("restoring {} failed", display_path(&path));
+                                not_restored.insert(path, reason);
+                                restoration_failed = true;
+                            }
                         }
                         Err(err) => {
                             warn!("failed to check the restored files: {err:?}");
@@ -2121,25 +2244,23 @@ impl Git {
                     }
                 }
                 // Only drop the stash if all file restorations succeeded
-                if restoration_failed && !conflicts.is_empty() {
-                    let restore_command = |path: &PathBuf| {
+                if !not_restored.is_empty() {
+                    error!(
+                        "Did not restore {} from the stash. Stash has been preserved at '{stash_ref}'.",
+                        not_restored.keys().map(display_path).join(", ")
+                    );
+                    for (path, reason) in &not_restored {
                         let source = match changes.entry(path) {
                             StashedEntry::Untracked => format!("{stash_ref}^3"),
                             _ => stash_ref.clone(),
                         };
-                        format!(
-                            "git restore --source='{source}' -- '{}'",
-                            display_path(path)
-                        )
-                    };
+                        error!(
+                            "{reason}. To take its stashed version, run: {}",
+                            restore_command(&source, path)
+                        );
+                    }
                     error!(
-                        "Did not restore {} from the stash, because a step changed {} too. Stash has been preserved at '{stash_ref}'.",
-                        conflicts.keys().map(display_path).join(", "),
-                        if conflicts.len() == 1 { "it" } else { "them" }
-                    );
-                    error!(
-                        "hk restored the other stashed changes, so `git stash pop` or `git stash apply` would apply those twice. Compare with `git stash show -p --include-untracked {stash_ref}`, take a path's stashed version with {}, then run `git stash drop {stash_ref}`.",
-                        conflicts.keys().map(restore_command).join(" or ")
+                        "hk restored the other stashed changes, so `git stash pop` or `git stash apply` would apply those twice. Compare with `git stash show -p --include-untracked {stash_ref}`, and run `git stash drop {stash_ref}` only once every path above is recovered."
                     );
                     return Err(eyre!(
                         "Stash restoration failed - stash preserved at {stash_ref}"
@@ -2148,9 +2269,16 @@ impl Git {
                     error!(
                         "Failed to restore some files from stash. Stash has been preserved at '{stash_ref}'."
                     );
-                    error!(
-                        "You can manually recover your changes with: git stash show {stash_ref} && git stash apply {stash_ref}"
-                    );
+                    if plan.is_some() {
+                        // The stashed changes were restored, but not checked
+                        error!(
+                            "Compare the worktree with `git stash show -p --include-untracked {stash_ref}` before running `git stash drop {stash_ref}`."
+                        );
+                    } else {
+                        error!(
+                            "You can manually recover your changes with: git stash show {stash_ref} && git stash apply {stash_ref}"
+                        );
+                    }
                     // Keep the stash around and return an error
                     return Err(eyre!(
                         "Stash restoration failed - stash preserved at {stash_ref}"
@@ -3099,5 +3227,27 @@ mod tests {
         assert!(parse(renamed.as_bytes()).is_err());
         // Malformed even though the path is not valid UTF-8
         assert!(parse(b"1 M. bad\xff.txt\0").is_err());
+    }
+
+    #[test]
+    fn test_shell_quote() {
+        let quote = |arg: &str| shell_quote(std::ffi::OsStr::new(arg));
+        assert_eq!(quote("plain.txt"), "'plain.txt'");
+        assert_eq!(quote("O'Brien.txt"), r"'O'\''Brien.txt'");
+        assert_eq!(quote("with space $HOME"), "'with space $HOME'");
+        assert_eq!(quote("stash@{0}^3"), "'stash@{0}^3'");
+        #[cfg(unix)]
+        {
+            let name = OsString::from_vec(b"bad\xff'\\.txt".to_vec());
+            assert_eq!(shell_quote(&name), r"$'bad\xff\'\\.txt'");
+        }
+    }
+
+    #[test]
+    fn test_restore_command() {
+        assert_eq!(
+            restore_command("stash@{0}^3", std::path::Path::new("dir/O'Brien.txt")),
+            r"git restore --source='stash@{0}^3' -- ':(literal)dir/O'\''Brien.txt'"
+        );
     }
 }
