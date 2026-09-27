@@ -31,8 +31,11 @@ export interface Scenario {
   results: Record<string, Stats>;
 }
 
+/** The results schema this page reads; report.py's SCHEMA. */
+export const SCHEMA = 3;
+
 export interface BenchmarkResults {
-  schema: 3;
+  schema: typeof SCHEMA;
   generated: string;
   passed: boolean;
   commit: string;
@@ -69,7 +72,7 @@ export default {
     if (!existsSync(resultsPath)) return null;
     const results = JSON.parse(readFileSync(resultsPath, "utf8"));
     // An unverified or failed run must never render as if it were sound.
-    if (results.schema !== 3 || results.passed !== true) return null;
+    if (results.schema !== SCHEMA || results.passed !== true) return null;
     // The page presents every tool as correct, so reject a run in which one wasn't.
     const allCorrect = (results as BenchmarkResults).scenarios.every((s) =>
       Object.values(s.results).every((r) => r.correct.passed === r.correct.total),

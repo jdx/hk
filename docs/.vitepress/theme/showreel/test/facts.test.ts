@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { claimLine, factsFromBenchmarks, fmt, lead, type Race, RACE_KEYS, type RaceKey, type ReelFacts, races, separated, type Stats } from "../facts";
+import { claimLine, factsFromBenchmarks, fmt, lead, MODE_CHARS, type Race, RACE_KEYS, type RaceKey, type ReelFacts, races, separated, type Stats } from "../facts";
 import { scenes } from "../scenes";
 import type { SectionId } from "../timeline";
 import { plain } from "../type";
@@ -339,6 +339,25 @@ test("the variants the preview, the drafts and the tests share", () => {
   assert.equal(none.best, null);
   assert.deepEqual(races(none), []);
   assert.deepEqual(races(null), []);
+});
+
+test("the reel reads every run the benchmarks page shows", () => {
+  // Otherwise a schema bump that updates only the page's loader leaves the
+  // landing page without its race, and the test below passes on no facts.
+  const run = live();
+  if (run) assert.ok(factsFromBenchmarks(run), `the page shows schema ${run.schema} results, which the reel rejects`);
+});
+
+test("every mode in the live results.json fits under its bar", () => {
+  // A longer mode would take its whole scenario out of the race.
+  const run = live();
+  if (!run) return;
+  for (const s of run.scenarios.filter((s: { key: RaceKey }) => RACE_KEYS.includes(s.key))) {
+    for (const [tool, stats] of Object.entries(s.results) as [string, { mode?: string }][]) {
+      const mode = stats.mode ?? run.subjects[tool].mode;
+      assert.ok(mode.length <= MODE_CHARS, `${s.key}/${tool} mode "${mode}" is over ${MODE_CHARS} characters`);
+    }
+  }
 });
 
 test("the live results.json gives a race that holds together and leads by the most, or none", () => {
