@@ -137,44 +137,52 @@ impl Step {
                 listed.insert(path);
             }
         }
-        // The command ran in the step's `dir`, so a relative path names a file
-        // there when one exists. Only that file matches: a root-level file of
-        // the same name is a different file.
-        let listed: Vec<PathBuf> = listed
+        // The command ran in the step's `dir`, so a relative path usually names
+        // a file there, but some tools print paths relative to the root. Each
+        // reading that names a job file matches: an extra file only means the
+        // fixer or staging touches one it didn't need to, while picking one
+        // reading could lose the fix to the other.
+        let readings: Vec<Vec<PathBuf>> = listed
             .into_iter()
             .map(|path| {
                 let path = Path::new(path);
-                dir.filter(|_| path.is_relative())
+                let in_dir = dir
+                    .filter(|_| path.is_relative())
                     .map(|dir| Path::new(dir).join(path))
-                    .filter(|in_dir| in_dir.symlink_metadata().is_ok())
-                    .unwrap_or_else(|| path.to_path_buf())
+                    .filter(|in_dir| in_dir.symlink_metadata().is_ok());
+                in_dir.into_iter().chain([path.to_path_buf()]).collect()
             })
             .collect();
-        match_listed_files(original_files, listed.iter().map(PathBuf::as_path))
+        match_listed_files(original_files, &readings)
     }
 }
 
 /// The files in `original_files` that the `listed` paths name, and the
-/// canonicalized listed paths that name none of them.
+/// canonicalized listed paths that name none of them. Each listed path comes
+/// as its possible readings; every reading that names a file matches it, and
+/// the path is an extra only if none does.
 ///
 /// Paths are matched as written first, which is how tools usually print the
 /// paths they were given. Only a listed path that matches no file that way is
 /// canonicalized and compared with every file canonicalized. Canonicalizing
 /// every file up front stats each component of each path, which takes tens of
 /// milliseconds for a job of a few thousand files.
-fn match_listed_files<'a>(
+fn match_listed_files(
     original_files: &[PathBuf],
-    listed: impl IntoIterator<Item = &'a Path>,
+    listed: &[Vec<PathBuf>],
 ) -> (Vec<PathBuf>, Vec<PathBuf>) {
     let originals: HashSet<&Path> = original_files.iter().map(PathBuf::as_path).collect();
     let mut matched: HashSet<&Path> = HashSet::new();
-    let mut unmatched: Vec<&Path> = Vec::new();
-    for path in listed {
-        match originals.get(path) {
-            Some(original) => {
-                matched.insert(original);
-            }
-            None => unmatched.push(path),
+    let mut unmatched: Vec<&[PathBuf]> = Vec::new();
+    for readings in listed {
+        let direct: Vec<&Path> = readings
+            .iter()
+            .filter_map(|reading| originals.get(reading.as_path()).copied())
+            .collect();
+        if direct.is_empty() {
+            unmatched.push(readings);
+        } else {
+            matched.extend(direct);
         }
     }
     let mut extras: IndexSet<PathBuf> = IndexSet::new();
@@ -186,13 +194,18 @@ fn match_listed_files<'a>(
                 .or_default()
                 .push(file);
         }
-        for path in unmatched {
-            let canonical = try_canonicalize(&path.to_path_buf());
-            match by_canonical.get(&canonical) {
-                Some(files) => matched.extend(files.iter().copied()),
-                None => {
-                    extras.insert(canonical);
-                }
+        for readings in unmatched {
+            let canonical: Vec<PathBuf> = readings.iter().map(try_canonicalize).collect();
+            let hits: Vec<&Path> = canonical
+                .iter()
+                .filter_map(|path| by_canonical.get(path))
+                .flatten()
+                .copied()
+                .collect();
+            if hits.is_empty() {
+                extras.extend(canonical.into_iter().next());
+            } else {
+                matched.extend(hits);
             }
         }
     }
@@ -282,14 +295,16 @@ mod tests {
 
     #[test]
     fn check_diff_paths_are_read_in_the_steps_dir() {
-        // The command ran in `pkg`, so `a/x` names `pkg/x`, not a root `x`.
+        // The command ran in `pkg`, so `a/x` names `pkg/x`. A root `x` is also a
+        // job file and might be what a tool printing root paths meant, so both
+        // match: running the fixer on both can't lose either fix.
         let root = tempfile::tempdir().unwrap();
         let pkg = root.path().join("pkg");
         std::fs::create_dir(&pkg).unwrap();
         std::fs::write(pkg.join("x"), "x\n").unwrap();
-        std::fs::write(root.path().join("x"), "x\n").unwrap();
         let in_pkg = pkg.join("x");
-        let at_root = root.path().join("x");
+        // Job files are relative to the root, where hk runs.
+        let at_root = PathBuf::from("x");
         let step = Step::default();
         let diff = "--- a/x\n+++ /dev/null\n@@ -1 +0,0 @@\n-x\n";
         let (files, _) = step.filter_files_from_check_diff(
@@ -297,7 +312,14 @@ mod tests {
             diff,
             pkg.to_str(),
         );
+        assert_eq!(files, vec![at_root, in_pkg.clone()]);
+
+        // With no root `x` in the job, only `pkg/x` matches, and no extra is
+        // reported for the other reading.
+        let (files, extras) =
+            step.filter_files_from_check_diff(std::slice::from_ref(&in_pkg), diff, pkg.to_str());
         assert_eq!(files, vec![in_pkg]);
+        assert!(extras.is_empty());
     }
 
     fn diff_naming(paths: &[&Path]) -> String {
