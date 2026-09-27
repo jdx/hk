@@ -374,6 +374,46 @@ EOF
     assert_output "relabelled_diff"
 }
 
+@test "check_diff applies a patch that changes lines ending in CRLF" {
+    # The patch's removed lines end in \r\n, like the file. Dropping the \r
+    # anywhere between the command and git apply makes the patch not match.
+    cat <<'SCRIPT' > formatter.sh
+#!/bin/bash
+printf -- '--- %s\n+++ %s\n@@ -1,2 +1,2 @@\n-one  \r\n+one\r\n two\r\n' "$1" "$1"
+exit 1
+SCRIPT
+    chmod +x formatter.sh
+
+    cat <<'SCRIPT' > fixer.sh
+#!/bin/bash
+echo "FIXER_RAN" > "$1"
+SCRIPT
+    chmod +x fixer.sh
+
+    cat <<EOF > hk.pkl
+amends "$PKL_PATH/Config.pkl"
+hooks {
+    ["fix"] {
+        fix = true
+        steps {
+            ["fmt"] {
+                glob = List("*.txt")
+                check_diff = "./formatter.sh {{files}}"
+                fix = "./fixer.sh {{files}}"
+            }
+        }
+    }
+}
+EOF
+
+    printf 'one  \r\ntwo\r\n' > test.txt
+    run hk fix test.txt
+    assert_success
+
+    run od -c test.txt
+    assert_output --partial 'o   n   e  \r  \n   t   w   o  \r  \n'
+}
+
 @test "check_diff handles diffs with .orig suffix on --- line" {
     # Go tools like gofmt output diffs with .orig suffix on the --- line
     # e.g., "--- file.go.orig" instead of "--- file.go"
